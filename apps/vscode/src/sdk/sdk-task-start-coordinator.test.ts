@@ -173,7 +173,7 @@ describe("SdkTaskStartCoordinator", () => {
 	it("emits Cline auth errors when reinitialization fails due auth", async () => {
 		const { coordinator, options } = makeCoordinator()
 		options.sessionConfigBuilder.build.mockRejectedValue(new Error("missing api key"))
-		options.isClineProviderActive.mockReturnValue(true)
+		options.isClineManagedProviderActive.mockReturnValue(true)
 
 		await coordinator.reinitExistingTaskFromId("task-1")
 
@@ -252,7 +252,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		createTempSessionHost: vi.fn().mockResolvedValue(tempHost),
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		resolveContextMentions: vi.fn(async (text: string) => `resolved: ${text}`),
-		isClineProviderActive: vi.fn(() => false),
+		isClineManagedProviderActive: vi.fn(() => false),
 		emitClineAuthError: vi.fn(),
 		captureProviderApiError: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
@@ -277,7 +277,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		createTempSessionHost: ReturnType<typeof vi.fn>
 		loadInitialMessages: ReturnType<typeof vi.fn>
 		resolveContextMentions: ReturnType<typeof vi.fn>
-		isClineProviderActive: ReturnType<typeof vi.fn>
+		isClineManagedProviderActive: ReturnType<typeof vi.fn>
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>

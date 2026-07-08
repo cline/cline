@@ -53,7 +53,7 @@ describe("shouldZeroClineFreeModelCost", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it("zeros free models selected on the cline-pass provider", async () => {
+	it("zeros cost of free models selected on the cline-pass provider", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => {

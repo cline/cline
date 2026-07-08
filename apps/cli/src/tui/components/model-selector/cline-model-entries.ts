@@ -28,7 +28,19 @@ export const CLINE_MODEL_PICKER_TIER_LABELS: Record<
 	free: "Free",
 };
 
-export function buildClineModelEntries(
+// Featured entries for the sectioned picker, keyed by provider: cline gets
+// Recommended/Free with a browse-all escape into the full catalog; cline-pass
+// gets Subscribed/Free (see buildClinePassModelEntries for why no browse-all).
+export function buildFeaturedModelEntries(
+	providerId: string,
+	data: ClineRecommendedModelsData,
+): ClineModelPickerEntry[] {
+	return providerId === "cline-pass"
+		? buildClinePassModelEntries(data)
+		: buildClineModelEntries(data);
+}
+
+function buildClineModelEntries(
 	data: ClineRecommendedModelsData,
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];
@@ -51,7 +63,7 @@ export const CLINE_PASS_FREE_SECTION_DESCRIPTION =
 // (they ride usage billing at $0 instead of the subscription quota).
 // No "browse all" entry: unlike cline, the ClinePass catalog contains exactly
 // these two buckets, so the sections already list every selectable model.
-export function buildClinePassModelEntries(
+function buildClinePassModelEntries(
 	data: ClineRecommendedModelsData,
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];

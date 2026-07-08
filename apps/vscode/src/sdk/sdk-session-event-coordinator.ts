@@ -4,6 +4,7 @@ import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
@@ -251,7 +252,7 @@ export class SdkSessionEventCoordinator {
 			const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 			const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 			// Free models are also selectable on ClinePass — they ride usage billing at $0
-			if (provider !== "cline" && provider !== "cline-pass") {
+			if (!isClineManagedProvider(provider)) {
 				return false
 			}
 

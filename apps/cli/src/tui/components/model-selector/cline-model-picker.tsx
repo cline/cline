@@ -16,8 +16,7 @@ import {
 } from "./cline-model-entries";
 
 export {
-	buildClineModelEntries,
-	buildClinePassModelEntries,
+	buildFeaturedModelEntries,
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerBrowse,
 	type ClineModelPickerEntry,

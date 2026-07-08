@@ -59,14 +59,15 @@ function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "descriptio
 	}
 }
 
-function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "description" | "tags">): FeaturedTabEntry | null {
+function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">): FeaturedTabEntry | null {
 	if (!model.id) {
 		return null
 	}
 	const firstTag = model.tags?.[0]
 	return {
 		id: model.id,
-		displayName: model.id,
+		// The FREE chip already says it, so drop OpenRouter's :free marker
+		displayName: (model.name || model.id).replace(/:free$/i, ""),
 		description: model.description || "",
 		label: typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : "FREE",
 	}
@@ -249,7 +250,7 @@ const TabsContainer = styled.div`
 	display: flex;
 	gap: 0;
 	margin-bottom: 12px;
-	border-bottom: 1px solid #333;
+	border-bottom: 1px solid var(--vscode-panel-border);
 `
 
 const Tab = styled.div<{ active: boolean }>`

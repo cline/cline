@@ -35,12 +35,12 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					const errorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
-					const isClineProvider = providerId === "cline"
+					const isClineManagedProvider = providerId === "cline"
 					const errorCode = clineError?._error?.code
 
 					if (clineError?.isErrorType(ClineErrorType.Balance)) {
 						const errorDetails = clineError._error?.details
-						if (isClineProvider || errorDetails?.buy_credits_url) {
+						if (isClineManagedProvider || errorDetails?.buy_credits_url) {
 							return (
 								<CreditLimitError
 									buyCreditsUrl={errorDetails?.buy_credits_url}
@@ -89,7 +89,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{detailMessage}</p>
 					}
 
-					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider) {
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineManagedProvider) {
 						return !clineUser ? (
 							// User is using Cline provider and is not logged in
 							<div className="flex flex-col gap-3">

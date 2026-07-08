@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-	buildClineModelEntries,
-	buildClinePassModelEntries,
+	buildFeaturedModelEntries,
 	CLINE_PASS_FREE_SECTION_DESCRIPTION,
 	freeTierDescriptionFor,
 	stripFreeMarker,
@@ -11,7 +10,7 @@ const model = (id: string) => ({ id, name: id, description: "", tags: [] });
 
 describe("cline model picker entries", () => {
 	it("builds Recommended/Free sections for the cline provider", () => {
-		const entries = buildClineModelEntries({
+		const entries = buildFeaturedModelEntries("cline", {
 			recommended: [model("anthropic/claude-sonnet-5")],
 			free: [model("deepseek/deepseek-v4-flash")],
 			clinePass: [model("cline-pass/glm-5.1")],
@@ -33,7 +32,7 @@ describe("cline model picker entries", () => {
 	});
 
 	it("builds Subscribed/Free sections for the cline-pass provider", () => {
-		const entries = buildClinePassModelEntries({
+		const entries = buildFeaturedModelEntries("cline-pass", {
 			recommended: [model("anthropic/claude-sonnet-5")],
 			free: [model("deepseek/deepseek-v4-flash")],
 			clinePass: [model("cline-pass/glm-5.1"), model("cline-pass/kimi-k2.6")],
@@ -61,12 +60,12 @@ describe("cline model picker entries", () => {
 			clinePass: [model("cline-pass/glm-5.1")],
 		};
 
-		expect(freeTierDescriptionFor(buildClinePassModelEntries(data))).toBe(
-			CLINE_PASS_FREE_SECTION_DESCRIPTION,
-		);
-		expect(freeTierDescriptionFor(buildClineModelEntries(data))).toBe(
-			undefined,
-		);
+		expect(
+			freeTierDescriptionFor(buildFeaturedModelEntries("cline-pass", data)),
+		).toBe(CLINE_PASS_FREE_SECTION_DESCRIPTION);
+		expect(
+			freeTierDescriptionFor(buildFeaturedModelEntries("cline", data)),
+		).toBe(undefined);
 	});
 
 	it("strips redundant free markers from display names", () => {

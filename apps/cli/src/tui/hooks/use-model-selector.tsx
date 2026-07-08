@@ -26,10 +26,7 @@ import {
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
 } from "../components/dialogs/provider-picker";
-import {
-	buildClineModelEntries,
-	buildClinePassModelEntries,
-} from "../components/model-selector/cline-model-picker";
+import { buildFeaturedModelEntries } from "../components/model-selector/cline-model-picker";
 import {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorDialogContent,
@@ -350,10 +347,7 @@ export function useModelSelector(opts: {
 				) {
 					// ClinePass gets the same sectioned picker with Subscribed/Free
 					// sections — free models are selectable while staying on ClinePass
-					const buildEntries =
-						config.providerId === "cline-pass"
-							? buildClinePassModelEntries
-							: buildClineModelEntries;
+					const featuredProviderId = config.providerId;
 					const clineResult = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
 						content: (ctx: ChoiceContext<string>) => (
@@ -363,7 +357,10 @@ export function useModelSelector(opts: {
 								currentProviderName={providerDisplayName}
 								knownModels={config.knownModels as Record<string, unknown>}
 								loadEntries={async () =>
-									buildEntries(await fetchClineRecommendedModels())
+									buildFeaturedModelEntries(
+										featuredProviderId,
+										await fetchClineRecommendedModels(),
+									)
 								}
 							/>
 						),

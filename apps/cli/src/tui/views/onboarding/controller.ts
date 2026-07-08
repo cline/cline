@@ -29,8 +29,7 @@ import {
 	loadIndividualSubscriptionPlansFromProviderSettings,
 } from "../../cline-account";
 import {
-	buildClineModelEntries,
-	buildClinePassModelEntries,
+	buildFeaturedModelEntries,
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
@@ -209,14 +208,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	// Cline featured model picker (ClinePass gets Subscribed/Free sections)
 	const recommended = useClineRecommendedModels();
-	const clineEntries: ClineModelPickerEntry[] = useMemo(() => {
-		if (!recommended.data) {
-			return [];
-		}
-		return activeProviderId === "cline-pass"
-			? buildClinePassModelEntries(recommended.data)
-			: buildClineModelEntries(recommended.data);
-	}, [recommended.data, activeProviderId]);
+	const clineEntries: ClineModelPickerEntry[] = useMemo(
+		() =>
+			recommended.data
+				? buildFeaturedModelEntries(activeProviderId, recommended.data)
+				: [],
+		[recommended.data, activeProviderId],
+	);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
 		Set<string>
