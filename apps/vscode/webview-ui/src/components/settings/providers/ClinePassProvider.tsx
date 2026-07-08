@@ -26,7 +26,7 @@ interface ClinePassProviderProps {
 
 const CLINE_PASS_PROVIDER_ID = "cline-pass"
 const CLINE_PASS_MODEL_ID_PREFIX = "cline-pass/"
-const FREE_TAB_DESCRIPTION = "Try with limited free usage, separate from your ClinePass quota."
+const FREE_TAB_DESCRIPTION = "Try with limited usage, separate from your ClinePass quota."
 
 interface FeaturedTabEntry {
 	id: string
