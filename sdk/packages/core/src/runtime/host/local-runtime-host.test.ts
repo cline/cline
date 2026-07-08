@@ -433,9 +433,26 @@ describe("LocalRuntimeHost", () => {
 		const session = Reflect.apply(getSessionOrThrow, manager, [sessionId]) as {
 			config: CoreSessionConfig;
 		};
+		expect(session.config.thinking).toBe(true);
 		expect(session.config.thinkingBudgetTokens).toBe(2048);
 		expect(agent.updateConnection).toHaveBeenLastCalledWith({
+			thinking: true,
 			thinkingBudgetTokens: 2048,
+		});
+
+		await manager.updateSessionConnection(sessionId, {
+			thinking: false,
+			reasoningEffort: "high",
+			thinkingBudgetTokens: 4096,
+		});
+
+		expect(session.config.thinking).toBe(false);
+		expect(session.config.reasoningEffort).toBeUndefined();
+		expect(session.config.thinkingBudgetTokens).toBeUndefined();
+		expect(agent.updateConnection).toHaveBeenLastCalledWith({
+			thinking: false,
+			reasoningEffort: undefined,
+			thinkingBudgetTokens: undefined,
 		});
 
 		await manager.updateSessionConnection(sessionId, {
@@ -4624,7 +4641,9 @@ describe("LocalRuntimeHost", () => {
 			await expect(
 				manager.updateSessionCompactionState(sessionId, incoming),
 			).resolves.toEqual({ updated: false });
-			expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+			expect(
+				sessionService.persistSessionCompactionState,
+			).not.toHaveBeenCalled();
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}

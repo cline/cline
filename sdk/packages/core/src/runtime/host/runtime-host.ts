@@ -17,6 +17,7 @@ import type {
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
+import type { ConnectionUpdate } from "../config/connection-update";
 
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
@@ -259,27 +260,7 @@ export interface SessionUsageRuntimeService {
 	): Promise<SessionUsageSummary | undefined>;
 }
 
-export type SessionConnectionUpdate = Partial<
-	Omit<
-		Pick<
-			CoreSessionConfig,
-			| "providerId"
-			| "modelId"
-			| "apiKey"
-			| "baseUrl"
-			| "headers"
-			| "providerConfig"
-			| "reasoningEffort"
-			| "thinking"
-			| "thinkingBudgetTokens"
-		>,
-		"reasoningEffort" | "thinking" | "thinkingBudgetTokens"
-	>
-> & {
-	reasoningEffort?: CoreSessionConfig["reasoningEffort"] | null;
-	thinking?: CoreSessionConfig["thinking"] | null;
-	thinkingBudgetTokens?: CoreSessionConfig["thinkingBudgetTokens"] | null;
-};
+export type SessionConnectionUpdate = ConnectionUpdate;
 
 export interface SessionModelRuntimeService {
 	updateSessionModel(sessionId: string, modelId: string): Promise<void>;

@@ -81,6 +81,7 @@ import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
+import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
@@ -540,8 +541,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 							});
 						}
 					},
-					})
-				: undefined;
+				})
+			: undefined;
 
 		const agentConfig = {
 			sessionId,
@@ -1236,8 +1237,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async updateSessionConnection(
 		sessionId: string,
-		updates: SessionConnectionUpdate,
+		rawUpdates: SessionConnectionUpdate,
 	): Promise<void> {
+		const updates = normalizeConnectionUpdate(rawUpdates);
 		const session = this.getSessionOrThrow(sessionId);
 		if (updates.providerId !== undefined)
 			session.config.providerId = updates.providerId;

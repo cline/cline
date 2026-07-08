@@ -5,6 +5,7 @@ import type {
 	ToolApprovalRequest,
 } from "@cline/shared";
 import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
+import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
@@ -56,7 +57,9 @@ function readConnectionReasoningEffort(
 	return undefined;
 }
 
-function readSessionConnectionUpdate(value: unknown): SessionConnectionUpdate {
+export function readSessionConnectionUpdate(
+	value: unknown,
+): SessionConnectionUpdate {
 	const record = asPlainRecord(value) ?? {};
 	const updates: SessionConnectionUpdate = {};
 	const providerId = readConnectionString(record.providerId);
@@ -98,7 +101,7 @@ function readSessionConnectionUpdate(value: unknown): SessionConnectionUpdate {
 			updates.thinkingBudgetTokens = null;
 		}
 	}
-	return updates;
+	return normalizeConnectionUpdate(updates);
 }
 
 function getCapabilityOwnerClientId(

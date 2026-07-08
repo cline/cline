@@ -1229,6 +1229,36 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(configs[0]?.modelOptions).toBeUndefined();
 	});
 
+	it("updateConnection lets explicit thinking disable override a simultaneous budget", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			}),
+			deps,
+		);
+		session.updateConnection({
+			thinking: false,
+			reasoningEffort: "high",
+			thinkingBudgetTokens: 2048,
+		});
+		await session.run("go");
+		expect(configs[0]?.modelOptions).toEqual({ thinking: false });
+	});
+
+	it("updateConnection enables thinking when a positive budget is supplied", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		session.updateConnection({ thinkingBudgetTokens: 2048 });
+		await session.run("go");
+		expect(configs[0]?.modelOptions).toEqual({
+			thinking: true,
+			thinkingBudgetTokens: 2048,
+		});
+	});
+
 	it("clearHistory resets the conversation store", () => {
 		const session = new SessionRuntime(
 			makeAgentConfig({
