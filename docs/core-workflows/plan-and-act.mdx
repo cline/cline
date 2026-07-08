@@ -80,17 +80,6 @@ When enabled, switching between Plan and Act mode automatically switches to the 
 | Maximum quality | Claude Opus | Claude Sonnet |
 | Speed-focused | Gemini 3 Flash | Cerebras |
 
-## Using `/deep-planning`
-
-For complex tasks that need thorough analysis, use the `/deep-planning` slash command. This triggers an extended planning session where Cline:
-
-1. Explores the codebase systematically
-2. Identifies all affected files and dependencies
-3. Creates a detailed implementation plan
-4. Asks clarifying questions before proceeding
-
-The deep planning prompt is optimized for each model family, so it adapts to the strengths of whatever model you're using. See [/deep-planning](/core-workflows/using-commands#deep-planning) for more details.
-
 ## Choosing the Right Approach by Task Size
 
 ### Small tasks: Act mode only
@@ -105,9 +94,9 @@ For most development work, start in Plan mode to understand the scope and approa
 
 **Examples:** Add a new API endpoint, implement a UI component, fix a bug that requires investigation, refactor a single module.
 
-### Large tasks: Use `/deep-planning`
+### Large tasks: Plan → Act with multiple cycles
 
-For complex features that span multiple files, require architectural decisions, or will take multiple sessions to complete, use the `/deep-planning` slash command. This creates a detailed implementation plan that Cline can reference throughout the work.
+For complex features that span multiple files, require architectural decisions, or will take multiple sessions to complete, start in Plan mode to map out the full scope. Break the work into manageable chunks, and cycle between Plan and Act modes as needed. Use `/newtask` to hand off progress when your context gets full.
 
 **Examples:** Add a new feature across frontend and backend, major refactoring across the codebase, implementing a new system or integration, multi-step migrations.
 
