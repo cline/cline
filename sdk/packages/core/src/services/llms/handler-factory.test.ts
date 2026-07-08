@@ -599,6 +599,9 @@ describe("createAgentModelFromConfig", () => {
 
 	it("uses a registered handler (adapter) instead of the gateway, building it lazily", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const extensionContext = {
+			client: { name: "cline-vscode", version: "1.2.3" },
+		} satisfies NonNullable<AgentConfig["extensionContext"]>;
 
 		// Pretend a host handler is registered for this provider.
 		gatewayMock.hasRegisteredHandler.mockReturnValue(true);
@@ -620,6 +623,7 @@ describe("createAgentModelFromConfig", () => {
 				apiKey: "",
 				systemPrompt: "",
 				tools: [],
+				extensionContext,
 			},
 			undefined,
 		);
@@ -638,5 +642,8 @@ describe("createAgentModelFromConfig", () => {
 			// drain
 		}
 		expect(gatewayMock.createHandlerAsync).toHaveBeenCalledTimes(1);
+		expect(gatewayMock.createHandlerAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ extensionContext }),
+		);
 	});
 });

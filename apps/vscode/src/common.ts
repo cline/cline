@@ -49,6 +49,7 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 			type: ShowMessageType.ERROR,
 			message: "Failed to initialize storage. Please check logs for details or try restarting the client.",
 		})
+		throw error
 	}
 
 	// Register host-only SDK provider handlers (e.g. VS Code Language Model API),

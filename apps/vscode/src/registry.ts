@@ -95,5 +95,10 @@ export const HostRegistryInfo = {
 		const ide = host.clineType || "unknown"
 		hostInfo = { hostVersion, extensionVersion, platform, os, ide, distinctId }
 	},
-	get: () => hostInfo,
+	get: () => {
+		if (!hostInfo) {
+			throw new Error("HostRegistryInfo has not been initialized. Call initialize() before using host metadata.")
+		}
+		return hostInfo
+	},
 }

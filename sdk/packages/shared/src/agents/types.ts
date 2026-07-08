@@ -815,7 +815,8 @@ export interface AgentConfig {
 	telemetry?: ITelemetryService;
 	/**
 	 * Ambient runtime context: user identity, client surface, workspace, logger,
-	 * and telemetry. Threaded through to ProviderConfig so handlers can access it.
+	 * telemetry, and host request metadata. Used by runtime extension setup and
+	 * forwarded to registered provider handlers that need host-local context.
 	 */
 	extensionContext?: ExtensionContext;
 

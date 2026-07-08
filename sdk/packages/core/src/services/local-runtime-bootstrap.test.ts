@@ -439,9 +439,8 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		expect(bootstrap.providerConfig.headers).toEqual({
 			"x-stored": "stored",
 		});
-		expect(
-			bootstrap.providerConfig.extensionContext?.requestMetadata,
-		).toMatchObject({
+		expect(bootstrap.providerConfig.extensionContext).toBeUndefined();
+		expect(bootstrap.config.extensionContext?.requestMetadata).toMatchObject({
 			clientType: "VSCode Extension",
 			platform: "Visual Studio Code",
 		});

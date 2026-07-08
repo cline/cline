@@ -77,7 +77,7 @@ vi.mock("@/shared/net", () => ({
 
 // Mock buildBasicClineHeaders
 vi.mock("@/services/EnvUtils", () => ({
-	buildBasicClineHeaders: async () => ({}),
+	buildBasicClineHeaders: () => ({}),
 }))
 
 // Mock feature flags

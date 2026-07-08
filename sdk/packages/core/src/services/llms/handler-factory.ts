@@ -10,6 +10,7 @@ import {
 	type AgentModel,
 	type BasicLogger,
 	buildClineRequestHeaders,
+	type ExtensionContext,
 	type GatewayModelDefinition,
 	type ITelemetryService,
 	isClineProvider,
@@ -114,14 +115,13 @@ function mergeHeaders(
 function resolveHeadersFromConfig(
 	config: AgentConfig,
 	baseProviderConfig: ProviderConfig | undefined,
+	extensionContext: ExtensionContext | undefined,
 ): Record<string, string> | undefined {
 	const providerId = normalizeProviderId(config.providerId);
 	if (!isClineProvider(providerId)) {
 		return config.headers ?? baseProviderConfig?.headers;
 	}
 
-	const extensionContext =
-		config.extensionContext ?? baseProviderConfig?.extensionContext;
 	const headers = mergeHeaders(baseProviderConfig?.headers, config.headers);
 
 	return buildClineRequestHeaders({
@@ -183,6 +183,13 @@ function toGatewayConfiguredModel(
 	};
 }
 
+function resolveExtensionContext(
+	config: AgentConfig,
+	baseProviderConfig: ProviderConfig | undefined,
+): ExtensionContext | undefined {
+	return config.extensionContext ?? baseProviderConfig?.extensionContext;
+}
+
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
@@ -191,21 +198,24 @@ export function createAgentModelFromConfig(
 	const pc = config.providerConfig as ProviderConfig | undefined;
 	const baseProviderConfig =
 		pc?.providerId === config.providerId ? pc : undefined;
+	const extensionContext = resolveExtensionContext(config, baseProviderConfig);
 	const normalizedProviderConfig: ProviderConfig = {
 		...(baseProviderConfig ?? {}),
 		providerId: config.providerId,
 		modelId: config.modelId,
 		apiKey: config.apiKey ?? baseProviderConfig?.apiKey,
 		baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
-		headers: resolveHeadersFromConfig(config, baseProviderConfig),
+		headers: resolveHeadersFromConfig(
+			config,
+			baseProviderConfig,
+			extensionContext,
+		),
 		knownModels: resolveKnownModelsFromConfig(config),
 		maxOutputTokens: config.maxTokensPerTurn,
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,
 		logger,
-		extensionContext:
-			config.extensionContext ?? baseProviderConfig?.extensionContext,
 	};
 
 	// Host-registered custom handlers (e.g. VS Code LM, which needs the host's
@@ -220,7 +230,10 @@ export function createAgentModelFromConfig(
 		)
 	) {
 		return createAgentModelFromApiHandler(() =>
-			createHandlerAsync(normalizedProviderConfig),
+			createHandlerAsync({
+				...normalizedProviderConfig,
+				...(extensionContext ? { extensionContext } : {}),
+			}),
 		);
 	}
 
@@ -246,8 +259,7 @@ export function createAgentModelFromConfig(
 			},
 		],
 		logger,
-		telemetry:
-			telemetry ?? config.telemetry ?? config.extensionContext?.telemetry,
+		telemetry: telemetry ?? config.telemetry ?? extensionContext?.telemetry,
 	}).createAgentModel(
 		{
 			providerId: normalizedProviderConfig.providerId,

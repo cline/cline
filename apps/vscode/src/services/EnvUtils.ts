@@ -1,6 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { ExtensionRegistryInfo } from "@/registry"
-import { EmptyRequest } from "@/shared/proto/cline/common"
+import { ExtensionRegistryInfo, HostRegistryInfo } from "@/registry"
 import { Logger } from "@/shared/services/Logger"
 
 // Canonical header names for extra client/host context
@@ -36,23 +35,13 @@ export function buildExternalBasicHeaders(): Record<string, string> {
 	}
 }
 
-async function getHostRuntimeInfo(): Promise<HostRuntimeInfo> {
-	try {
-		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
-		return {
-			platform: host.platform || "unknown",
-			platformVersion: host.version || "unknown",
-			clientName: host.clineType || "unknown",
-			clientVersion: host.clineVersion || ExtensionRegistryInfo.version,
-		}
-	} catch (error) {
-		Logger.log("Failed to get IDE/platform info via HostBridge EnvService.getHostVersion", error)
-		return {
-			platform: "unknown",
-			platformVersion: "unknown",
-			clientName: "unknown",
-			clientVersion: ExtensionRegistryInfo.version,
-		}
+function getHostRuntimeInfo(): HostRuntimeInfo {
+	const host = HostRegistryInfo.get()
+	return {
+		platform: host.platform || "unknown",
+		platformVersion: host.hostVersion || "unknown",
+		clientName: host.ide || "unknown",
+		clientVersion: host.extensionVersion || ExtensionRegistryInfo.version,
 	}
 }
 
@@ -67,7 +56,7 @@ async function isMultiRootWorkspace(): Promise<boolean> {
 }
 
 export async function buildClientRuntimeContext(): Promise<ClientRuntimeContext> {
-	const host = await getHostRuntimeInfo()
+	const host = getHostRuntimeInfo()
 	return {
 		...host,
 		userAgent: buildExternalBasicHeaders()["User-Agent"],
@@ -76,8 +65,8 @@ export async function buildClientRuntimeContext(): Promise<ClientRuntimeContext>
 	}
 }
 
-export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
-	const host = await getHostRuntimeInfo()
+export function buildBasicClineHeaders(): Record<string, string> {
+	const host = getHostRuntimeInfo()
 	const headers: Record<string, string> = buildExternalBasicHeaders()
 	headers[ClineHeaders.PLATFORM] = host.platform
 	headers[ClineHeaders.PLATFORM_VERSION] = host.platformVersion

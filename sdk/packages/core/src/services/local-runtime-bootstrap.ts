@@ -270,9 +270,6 @@ function buildProviderConfig(
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
 	}
-	if (config.extensionContext) {
-		providerConfig.extensionContext = config.extensionContext;
-	}
 	// Thread a host-provided custom fetch through to the AI gateway providers.
 	// Precedence: explicit per-session config > stored provider settings > host default.
 	const sessionFetch = (config as { fetch?: typeof fetch }).fetch;

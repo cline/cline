@@ -255,7 +255,7 @@ export class AuthService {
 				headers: {
 					Authorization: `Bearer ${bearerToken}`,
 					"Content-Type": "application/json",
-					...(await buildBasicClineHeaders()),
+					...buildBasicClineHeaders(),
 				},
 				...getAxiosSettings(),
 			})
@@ -483,7 +483,7 @@ export class AuthService {
 					apiBaseUrl,
 					// Use WorkOS device auth so the browser confirmation code can be surfaced in the extension.
 					useWorkOSDeviceAuth: true,
-					headers: await buildBasicClineHeaders(),
+					headers: buildBasicClineHeaders(),
 					callbacks: createOAuthClientCallbacks({
 						onOutput: (message) => {
 							resolveAuthMessage(message)
@@ -544,7 +544,7 @@ export class AuthService {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				...(await buildBasicClineHeaders()),
+				...buildBasicClineHeaders(),
 			},
 			body: JSON.stringify({
 				code: "test-personal-token",
@@ -755,7 +755,7 @@ export class AuthService {
 				headers: {
 					Accept: "application/json",
 					"Content-Type": "application/json",
-					...(await buildBasicClineHeaders()),
+					...buildBasicClineHeaders(),
 				},
 				body: JSON.stringify({
 					grant_type: "authorization_code",
