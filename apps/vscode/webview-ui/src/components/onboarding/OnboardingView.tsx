@@ -240,7 +240,7 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections 
 									<>
 										{" "}
 										<VSCodeLink
-											className="inline text-inherit"
+											className="inline"
 											href={option.learnMoreUrl}
 											onClick={(e) => e.stopPropagation()}>
 											Learn more
