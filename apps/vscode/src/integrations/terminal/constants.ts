@@ -18,6 +18,24 @@ export const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 export const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 // =============================================================================
+// Markerless Shell Integration Fallback
+// =============================================================================
+// When shell integration is attached but not emitting OSC 633 markers (e.g.
+// the user ssh'd from the terminal so commands run in a remote shell), the
+// execution's read() stream never ends. These bound how long we wait before
+// falling back to prompt-heuristic completion. Once the CommandExecuted (C)
+// marker is seen, shell integration is trusted and these do not apply.
+
+/** How long to wait for the first data before checking for markerless completion (10 seconds) */
+export const MARKERLESS_FIRST_DATA_TIMEOUT = 10_000
+
+/** Idle gap between data chunks that triggers a prompt-heuristic check (3 seconds) */
+export const MARKERLESS_IDLE_TIMEOUT = 3_000
+
+/** Quiet time after which a markerless command is considered done even without a prompt (30 seconds) */
+export const MARKERLESS_MAX_QUIET_TIME = 30_000
+
+// =============================================================================
 // Large Output Protection
 // =============================================================================
 // Prevents memory exhaustion and context window overflow

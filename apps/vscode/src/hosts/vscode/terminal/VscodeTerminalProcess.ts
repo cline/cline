@@ -5,6 +5,9 @@ import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import {
 	isCompilingOutput,
+	MARKERLESS_FIRST_DATA_TIMEOUT,
+	MARKERLESS_IDLE_TIMEOUT,
+	MARKERLESS_MAX_QUIET_TIME,
 	MAX_FULL_OUTPUT_SIZE,
 	MAX_UNRETRIEVED_LINES,
 	PROCESS_HOT_TIMEOUT_COMPILING,
@@ -14,6 +17,10 @@ import {
 import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
+import { getLastLine, looksLikeShellPrompt } from "./shellPromptHeuristics"
+
+/** Outcome of racing one stream read against the markerless-completion timers. */
+type StreamReadOutcome = { kind: "data"; data: string } | { kind: "streamEnd" } | { kind: "idle" } | { kind: "terminalClosed" }
 
 /**
  * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.
@@ -45,12 +52,21 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		this.exitCode = undefined
 		this.signal = null
 
+		// The pty may already be dead (exitStatus is set when the shell process
+		// terminates). executeCommand()/sendText() on a dead terminal never
+		// produces completion events, so fail fast instead of hanging.
+		if (terminal.exitStatus !== undefined) {
+			this.exitCode = terminal.exitStatus.code
+			this.emit("error", new Error("The terminal's shell process has exited; the command was not run."))
+			return
+		}
+
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
 		const returnCurrentTerminalContents = async () => {
 			try {
 				const terminalSnapshot = await getLatestTerminalOutput()
 				if (terminalSnapshot && terminalSnapshot.trim()) {
-					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+					const fallbackMessage = `The command's output could not be captured through shell integration. Here is the current terminal's content, which may include the command's output:\n\n${terminalSnapshot}`
 					this.emit("line", fallbackMessage)
 				}
 			} catch (error) {
@@ -113,7 +129,105 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				resolveExitCode(undefined)
 			}
 
-			for await (let data of stream) {
+			// Track terminal closure so a dying pty can't leave the read loop
+			// blocked forever — the read() stream does not necessarily end when
+			// the terminal is disposed mid-command.
+			let terminalClosed = false
+			let resolveTerminalClosed!: () => void
+			const terminalClosedPromise = new Promise<void>((resolve) => {
+				resolveTerminalClosed = resolve
+			})
+			const closeDisposable = vscode.window.onDidCloseTerminal((closedTerminal) => {
+				if (closedTerminal === terminal) {
+					terminalClosed = true
+					resolveTerminalClosed()
+				}
+			})
+
+			// The stream is pulled manually (rather than with for-await) so each
+			// read can be raced against the markerless-completion timers and
+			// terminal closure. When a timer wins the race, the outstanding read
+			// is kept and reused on the next iteration — iterator.next() must
+			// not be called again while a previous read is still pending.
+			const iterator = stream[Symbol.asyncIterator]()
+			let pendingRead: Promise<IteratorResult<string>> | undefined
+			const readNext = async (idleTimeoutMs: number | undefined): Promise<StreamReadOutcome> => {
+				pendingRead ??= iterator.next()
+				let idleTimer: NodeJS.Timeout | undefined
+				const racers: Promise<StreamReadOutcome>[] = [
+					pendingRead.then(
+						(result): StreamReadOutcome =>
+							result.done ? { kind: "streamEnd" } : { kind: "data", data: result.value },
+					),
+					terminalClosedPromise.then((): StreamReadOutcome => ({ kind: "terminalClosed" })),
+				]
+				if (idleTimeoutMs !== undefined) {
+					racers.push(
+						new Promise<StreamReadOutcome>((resolve) => {
+							idleTimer = setTimeout(() => resolve({ kind: "idle" }), idleTimeoutMs)
+						}),
+					)
+				}
+				try {
+					const outcome = await Promise.race(racers)
+					if (outcome.kind === "data" || outcome.kind === "streamEnd") {
+						pendingRead = undefined
+					}
+					return outcome
+				} finally {
+					if (idleTimer) {
+						clearTimeout(idleTimer)
+					}
+				}
+			}
+
+			// Whether the loop completed via the markerless idle fallback: the
+			// CommandExecuted (C) marker never arrived, so the stream will never
+			// end on its own. This happens when commands are typed into a shell
+			// that VS Code's shell integration script isn't running in — most
+			// commonly an ssh session started from this terminal, where the
+			// remote shell emits no OSC 633 sequences.
+			let completedWithoutMarkers = false
+			let markerlessQuietMs = 0
+			let receivedAnyData = false
+
+			while (true) {
+				// Until the C marker arrives, shell integration may not actually
+				// be working, so bound each read with an idle timeout. Once C is
+				// seen the markers are trusted to delimit the command — however
+				// long and quiet it runs — and only terminal closure can
+				// interrupt the read.
+				const idleTimeoutMs = didSeeCommandExecuted
+					? undefined
+					: receivedAnyData
+						? MARKERLESS_IDLE_TIMEOUT
+						: MARKERLESS_FIRST_DATA_TIMEOUT
+				const outcome = await readNext(idleTimeoutMs)
+
+				if (outcome.kind === "streamEnd") {
+					break
+				}
+				if (outcome.kind === "terminalClosed") {
+					Logger.warn("[TerminalProcess] Terminal closed while a command was running")
+					break
+				}
+				if (outcome.kind === "idle") {
+					markerlessQuietMs += idleTimeoutMs ?? 0
+					// Complete when the terminal has gone quiet on something that
+					// looks like a shell prompt, or has been quiet for so long
+					// that waiting further would just stall the task.
+					const promptCandidate = getLastLine(stripAnsi(preCommandBuffer))
+					if (looksLikeShellPrompt(promptCandidate) || markerlessQuietMs >= MARKERLESS_MAX_QUIET_TIME) {
+						completedWithoutMarkers = true
+						break
+					}
+					continue
+				}
+
+				receivedAnyData = true
+				markerlessQuietMs = 0
+				let data = outcome.data
+
 				// Ctrl+C detection: if user presses Ctrl+C, treat as command terminated
 				if (data.includes("^C") || data.includes("\u0003")) {
 					if (this.hotTimer) {
@@ -149,6 +263,11 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 						} else if (!didSeeCommandExecuted) {
 							// Pre-C text; buffer for the no-markers fallback.
 							preCommandBuffer += seg.text
+							// A markerless session (e.g. ssh) can stream indefinitely;
+							// cap the buffer to prevent memory exhaustion.
+							if (preCommandBuffer.length > MAX_FULL_OUTPUT_SIZE) {
+								preCommandBuffer = preCommandBuffer.slice(-MAX_FULL_OUTPUT_SIZE / 2)
+							}
 						}
 						// Post-D text (next prompt) is discarded.
 					}
@@ -199,6 +318,17 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				}
 			}
 
+			closeDisposable.dispose()
+			// Release the stream iterator. On the markerless/terminal-closed
+			// paths a read is still pending; return() lets a well-behaved
+			// iterator clean up instead of holding the stream open. Not
+			// awaited: a generator blocked on a pending await settles return()
+			// only when that await settles, which may be never.
+			try {
+				iterator.return?.()?.catch?.(() => {})
+			} catch {
+				// The iterator does not support early termination.
+			}
 			this.emitRemainingBufferIfListening()
 
 			// Await the exit code from onDidEndTerminalShellExecution.
@@ -239,11 +369,17 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			if (!this.fullOutput.trim()) {
 				// No output captured via shell integration, trying fallback
 				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT, "vscode")
-				await returnCurrentTerminalContents()
-				// Check if fallback worked
-				const terminalSnapshot = await getLatestTerminalOutput()
-				if (terminalSnapshot && terminalSnapshot.trim()) {
-					telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
+				// The clipboard fallback reads the *active* terminal, so it is
+				// meaningless once this terminal has closed.
+				if (!terminalClosed) {
+					await returnCurrentTerminalContents()
+					// Check if fallback worked
+					const terminalSnapshot = await getLatestTerminalOutput()
+					if (terminalSnapshot && terminalSnapshot.trim()) {
+						telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
+					} else {
+						telemetryService.captureTerminalExecution(false, "vscode", "none")
+					}
 				} else {
 					telemetryService.captureTerminalExecution(false, "vscode", "none")
 				}
@@ -259,8 +395,24 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 			this.isHot = false
 
+			if (terminalClosed) {
+				this.emit("line", "[The terminal closed while the command was running; output may be incomplete.]")
+			} else if (completedWithoutMarkers) {
+				this.emit(
+					"line",
+					"[Shell integration did not report command completion (this happens e.g. inside ssh or nested shells); output was captured with a timing heuristic and may be incomplete or include the shell prompt.]",
+				)
+			}
+
 			this.emit("completed", this.getCompletionDetails())
 			this.emit("continue")
+			// A terminal whose shell isn't emitting completion markers (e.g. it
+			// is inside an ssh session) must not be reused for later commands:
+			// this event makes the manager evict it from the reuse pool, exactly
+			// like a terminal that never had shell integration.
+			if (completedWithoutMarkers) {
+				this.emit("no_shell_integration")
+			}
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION, "vscode")
