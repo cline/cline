@@ -1,6 +1,7 @@
 import type {
 	AgentToolContext,
 	ClineCore,
+	HubServer,
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
@@ -103,6 +104,7 @@ export type SidecarContext = {
 	pendingQuestions: Map<string, PendingAskQuestion>;
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
+	hubServer: HubServer | null;
 	workspaceRoot: string;
 	unsubscribeSessionEvents: (() => void) | null;
 };

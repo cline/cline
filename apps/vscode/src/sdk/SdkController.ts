@@ -87,6 +87,7 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
+import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
@@ -172,6 +173,10 @@ export class Controller {
 	private readonly providerConfigStoreSubscription: Disposable
 	private providerConfigStatePostScheduled = false
 
+	// Debounces/coalesces postStateToWebview() calls — see StatePostDebouncer.
+	private static readonly STATE_POST_DEBOUNCE_MS = 50
+	private readonly statePostDebouncer: StatePostDebouncer
+
 	// Bridges SDK events to the webview's gRPC streams.
 	private grpcBridge: WebviewGrpcBridge
 
@@ -226,6 +231,10 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
 		this.sdkTelemetry = createVscodeSdkTelemetryHandle()
+		this.statePostDebouncer = new StatePostDebouncer({
+			debounceMs: Controller.STATE_POST_DEBOUNCE_MS,
+			flush: () => this.flushStateToWebview(),
+		})
 		this.providerConfigStore = createProviderConfigStore()
 		this.providerCatalog = createProviderCatalog(this.providerConfigStore)
 		this.providerConfigStoreSubscription = this.providerConfigStore.subscribe((event) => {
@@ -664,6 +673,9 @@ export class Controller {
 		}
 		await this.setRemoteConfigCoreIntegration(undefined)
 		this.isDisposed = true
+		// Tear down the debounced state-post machinery before downstream resources
+		// are disposed below — see StatePostDebouncer.dispose().
+		await this.statePostDebouncer.dispose()
 		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
@@ -1742,7 +1754,25 @@ export class Controller {
 
 	// ---- State management ----
 
-	async postStateToWebview(): Promise<void> {
+	/**
+	 * Request a webview state update.
+	 *
+	 * Callers fire this very frequently (notably the session event coordinator,
+	 * once per streamed message/turn boundary), and each rebuild walks the full
+	 * task history. StatePostDebouncer coalesces bursts into a single trailing
+	 * rebuild to avoid hammering the extension host. The returned promise
+	 * resolves once a snapshot reflecting this request has been shipped, or
+	 * rejects if that rebuild failed.
+	 */
+	postStateToWebview(): Promise<void> {
+		if (this.isDisposed) {
+			return Promise.resolve()
+		}
+		return this.statePostDebouncer.post()
+	}
+
+	/** Build the current ExtensionState and push it to the webview immediately. */
+	private async flushStateToWebview(): Promise<void> {
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()

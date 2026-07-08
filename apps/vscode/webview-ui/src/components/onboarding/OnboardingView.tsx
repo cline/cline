@@ -356,7 +356,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	// Gate on models too, so a fallback/empty response can't route flagged users into the dead-end empty step.
 	const showClinePass = isClinePassEnabled && models.clinePass.length > 0
 	const userTypeSelections = useMemo(() => getUserTypeSelections(showClinePass), [showClinePass])
-	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
+	// ClinePass model IDs (e.g. "cline-pass/glm-5.2") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 	const onboardingModelById = useMemo(() => {

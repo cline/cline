@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -150,25 +149,6 @@ function normalizeStartInput(
 		...input,
 		...split,
 	};
-}
-
-function _createGitRepo(cwd: string): void {
-	execFileSync("git", ["-C", cwd, "init"], { stdio: "pipe" });
-	execFileSync("git", ["-C", cwd, "config", "user.name", "Codex Test"], {
-		stdio: "pipe",
-	});
-	execFileSync(
-		"git",
-		["-C", cwd, "config", "user.email", "codex@example.com"],
-		{
-			stdio: "pipe",
-		},
-	);
-	writeFileSync(join(cwd, "note.txt"), "base\n", "utf8");
-	execFileSync("git", ["-C", cwd, "add", "note.txt"], { stdio: "pipe" });
-	execFileSync("git", ["-C", cwd, "commit", "-m", "initial"], {
-		stdio: "pipe",
-	});
 }
 
 describe("LocalRuntimeHost", () => {
@@ -344,7 +324,7 @@ describe("LocalRuntimeHost", () => {
 				config: createConfig({
 					sessionId,
 					providerId: "cline-pass",
-					modelId: "cline-pass/glm-5.1",
+					modelId: "cline-pass/glm-5.2",
 					apiKey: undefined,
 				}),
 				prompt: "hello",
@@ -360,6 +340,110 @@ describe("LocalRuntimeHost", () => {
 				apiKey: "workos:resolved-token",
 			}),
 		);
+	});
+
+	it("persists thinking budget token connection updates", async () => {
+		const sessionId = "sess-thinking-budget-update";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					thinking: true,
+					reasoningEffort: "high",
+					thinkingBudgetTokens: 1024,
+				}),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+
+		expect(createAgent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			}),
+		);
+
+		await manager.updateSessionConnection(sessionId, {
+			thinkingBudgetTokens: 2048,
+		});
+
+		const getSessionOrThrow = Reflect.get(
+			manager as object,
+			"getSessionOrThrow",
+		) as (sessionId: string) => { config: CoreSessionConfig };
+		const session = Reflect.apply(getSessionOrThrow, manager, [sessionId]) as {
+			config: CoreSessionConfig;
+		};
+		expect(session.config.thinking).toBe(true);
+		expect(session.config.thinkingBudgetTokens).toBe(2048);
+		expect(agent.updateConnection).toHaveBeenLastCalledWith({
+			thinking: true,
+			thinkingBudgetTokens: 2048,
+		});
+
+		await manager.updateSessionConnection(sessionId, {
+			thinking: false,
+			reasoningEffort: "high",
+			thinkingBudgetTokens: 4096,
+		});
+
+		expect(session.config.thinking).toBe(false);
+		expect(session.config.reasoningEffort).toBeUndefined();
+		expect(session.config.thinkingBudgetTokens).toBeUndefined();
+		expect(agent.updateConnection).toHaveBeenLastCalledWith({
+			thinking: false,
+			reasoningEffort: undefined,
+			thinkingBudgetTokens: undefined,
+		});
+
+		await manager.updateSessionConnection(sessionId, {
+			thinking: null,
+			reasoningEffort: null,
+			thinkingBudgetTokens: null,
+		});
+
+		expect(session.config.thinking).toBeUndefined();
+		expect(session.config.reasoningEffort).toBeUndefined();
+		expect(session.config.thinkingBudgetTokens).toBeUndefined();
 	});
 
 	it("captures active session lookup misses as handled telemetry", async () => {
@@ -4537,7 +4621,9 @@ describe("LocalRuntimeHost", () => {
 			await expect(
 				manager.updateSessionCompactionState(sessionId, incoming),
 			).resolves.toEqual({ updated: false });
-			expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+			expect(
+				sessionService.persistSessionCompactionState,
+			).not.toHaveBeenCalled();
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}

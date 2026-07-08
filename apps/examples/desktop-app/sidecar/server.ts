@@ -1,6 +1,7 @@
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
+import { fetchMarketplaceCatalog } from "./marketplace";
 import {
 	BunRuntime,
 	SIDECAR_MODE,
@@ -14,6 +15,49 @@ type SidecarServer = {
 	upgrade(req: Request): boolean;
 };
 
+const TRUSTED_BROWSER_ORIGINS = new Set([
+	"tauri://localhost",
+	"http://tauri.localhost",
+	"https://tauri.localhost",
+	"http://localhost:3125",
+	"http://127.0.0.1:3125",
+]);
+
+const JSON_HEADERS = {
+	"content-type": "application/json",
+};
+
+function readOrigin(req: Request): string | undefined {
+	const origin = req.headers.get("origin")?.trim();
+	return origin ? origin : undefined;
+}
+
+function isTrustedRequestOrigin(req: Request): boolean {
+	const origin = readOrigin(req);
+	return !origin || TRUSTED_BROWSER_ORIGINS.has(origin);
+}
+
+function corsHeaders(req: Request): Record<string, string> {
+	const origin = readOrigin(req);
+	return {
+		"access-control-allow-headers": "accept, content-type",
+		"access-control-allow-methods": "GET, POST, OPTIONS",
+		...(origin && TRUSTED_BROWSER_ORIGINS.has(origin)
+			? {
+					"access-control-allow-origin": origin,
+					vary: "Origin",
+				}
+			: {}),
+	};
+}
+
+function jsonHeaders(req: Request): Record<string, string> {
+	return {
+		...JSON_HEADERS,
+		...corsHeaders(req),
+	};
+}
+
 // ---------------------------------------------------------------------------
 // JSON response helper
 // ---------------------------------------------------------------------------
@@ -26,6 +70,29 @@ function jsonResponse(
 ): string {
 	return JSON.stringify({ type: "response", id, ok, result, error });
 }
+
+function createJsonResponse(
+	req: Request,
+	body: unknown,
+	status = 200,
+): Response {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: jsonHeaders(req),
+	});
+}
+
+const EMPTY_MARKETPLACE_CATALOG = {
+	version: 1,
+	counts: {
+		total: 0,
+		plugins: 0,
+		skills: 0,
+		mcps: 0,
+	},
+	tags: [],
+	entries: [],
+};
 
 // ---------------------------------------------------------------------------
 // Bun HTTP + WebSocket server
@@ -66,12 +133,19 @@ export function startServer(
 	return { port: server.port };
 }
 
-function createFetchHandler(
+export function createFetchHandler(
 	_ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
 ) {
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
+
+		if (req.method === "OPTIONS") {
+			if (!isTrustedRequestOrigin(req)) {
+				return new Response(null, { status: 403 });
+			}
+			return new Response(null, { status: 204, headers: corsHeaders(req) });
+		}
 
 		if (url.pathname === "/health") {
 			return new Response(
@@ -80,15 +154,39 @@ function createFetchHandler(
 					mode: SIDECAR_MODE,
 					pid: process.pid,
 				}),
-				{ headers: { "content-type": "application/json" } },
+				{ headers: jsonHeaders(req) },
 			);
 		}
 
-		if (url.pathname === "/transport" && server.upgrade(req)) {
+		if (
+			url.pathname === "/transport" &&
+			isTrustedRequestOrigin(req) &&
+			server.upgrade(req)
+		) {
 			return undefined;
 		}
 
+		if (url.pathname === "/api/marketplace/catalog") {
+			try {
+				return createJsonResponse(req, await fetchMarketplaceCatalog());
+			} catch (error) {
+				return createJsonResponse(req, {
+					...EMPTY_MARKETPLACE_CATALOG,
+					error:
+						error instanceof Error
+							? error.message
+							: "Failed to fetch marketplace catalog",
+				});
+			}
+		}
+
 		if (url.pathname === "/shutdown" && req.method === "POST") {
+			if (!isTrustedRequestOrigin(req)) {
+				return new Response(JSON.stringify({ ok: false }), {
+					status: 403,
+					headers: jsonHeaders(req),
+				});
+			}
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
@@ -101,7 +199,7 @@ function createFetchHandler(
 					.finally(() => process.exit(0));
 			});
 			return new Response(JSON.stringify({ ok: true }), {
-				headers: { "content-type": "application/json" },
+				headers: jsonHeaders(req),
 			});
 		}
 

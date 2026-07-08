@@ -80,7 +80,7 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between border-b border-border bg-card px-4">
+		<header className="flex h-12 items-center justify-between px-4">
 			{/* Left: thread title */}
 			<div className="flex items-center gap-2">
 				<span
@@ -179,7 +179,7 @@ export function AgentHeader({
 					type="button"
 					variant="secondary"
 				>
-					<span className="text-primary">+{additions}</span>
+					<span className="text-chart-2">+{additions}</span>
 					<span className="text-destructive">-{deletions}</span>
 				</Button>
 				{/* New Chat Button */}
