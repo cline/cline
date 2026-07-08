@@ -164,6 +164,11 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 			// Ensure distinct ID is updated so that we will not identify the user again
 			setDistinctId(userInfo.id)
+
+			// Flush immediately so the machine-id -> user-id link survives even if the
+			// extension host exits before the next batch export (common for brand-new
+			// users who sign up, run one task, and close the window).
+			this.forceFlush().catch((error) => Logger.error("[OTEL] Failed to flush after identify", error))
 		}
 	}
 
@@ -324,8 +329,11 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		// OpenTelemetry client provider handles shutdown
-		// Individual providers don't need to do anything
+		// The OpenTelemetryClientProvider that created these providers is not retained
+		// anywhere, so this is the only place buffered logs/metrics can be flushed.
+		// Logs batch on a 5s timer and metrics export every 60s by default - without
+		// this shutdown, everything buffered since the last export is lost on exit.
+		await Promise.allSettled([this.meterProvider?.shutdown(), this.loggerProvider?.shutdown()])
 	}
 
 	/**

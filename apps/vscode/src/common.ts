@@ -153,7 +153,8 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
 export async function tearDown(): Promise<void> {
 	AgentConfigLoader.getInstance()?.dispose()
 	PostHogClientProvider.getInstance().dispose()
-	telemetryService.dispose()
+	// Await so buffered OTel logs/metrics finish exporting before the host exits
+	await telemetryService.dispose()
 	ErrorService.get().dispose()
 	featureFlagsService.dispose()
 	// Dispose all webview instances
