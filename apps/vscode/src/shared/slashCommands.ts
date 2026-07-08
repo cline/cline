@@ -11,11 +11,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 	},
 	{
-		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
-		section: "default",
-	},
-	{
 		name: "smol",
 		description: "Condenses your current context window",
 		section: "default",

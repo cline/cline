@@ -458,11 +458,11 @@
 		},
 		{
 			"source": "/customization/focus-chain",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/using-commands"
 		},
 		{
 			"source": "/features/deep-planning",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/plan-and-act"
 		},
 		{
 			"source": "/customization/auto-approve",
@@ -650,7 +650,7 @@
 		},
 		{
 			"source": "/features/slash-commands/deep-planning",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/plan-and-act"
 		},
 		{
 			"source": "/features/slash-commands/smol",
@@ -666,7 +666,7 @@
 		},
 		{
 			"source": "/features/focus-chain",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/using-commands"
 		},
 		{
 			"source": "/features/skills",
