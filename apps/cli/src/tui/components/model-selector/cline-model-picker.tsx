@@ -11,6 +11,7 @@ import { palette } from "../../palette";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
+	freeTierDescriptionFor,
 } from "./cline-model-entries";
 
 export {
@@ -21,6 +22,7 @@ export {
 	type ClineModelPickerEntry,
 	type ClineModelPickerItem,
 	type ClineModelPickerTier,
+	freeTierDescriptionFor,
 } from "./cline-model-entries";
 
 function tagColor(tag: string): string {
@@ -88,6 +90,7 @@ export function ClineModelPicker(props: {
 	let lastTier: string | null = null;
 	let isFirstHeader = true;
 	const rows: ReactNode[] = [];
+	const freeTierDescription = freeTierDescriptionFor(entries);
 
 	for (let i = 0; i < entries.length; i++) {
 		const entry = entries[i];
@@ -103,8 +106,14 @@ export function ClineModelPicker(props: {
 						key={`tier-${entry.tier}`}
 						paddingX={1}
 						marginTop={isFirstHeader ? 0 : 1}
+						flexDirection="column"
 					>
 						<text fg="gray">{label}</text>
+						{entry.tier === "free" && freeTierDescription && (
+							<text fg="gray">
+								<em>{freeTierDescription}</em>
+							</text>
+						)}
 					</box>,
 				);
 				isFirstHeader = false;

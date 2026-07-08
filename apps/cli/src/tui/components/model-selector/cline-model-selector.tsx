@@ -6,6 +6,7 @@ import { palette } from "../../palette";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
+	freeTierDescriptionFor,
 } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
@@ -65,11 +66,13 @@ export function ClineModelSelectorContent(
 			key: string;
 			kind: "header" | "model" | "browse";
 			label: string;
+			description?: string;
 			tags: string[];
 			isCurrent: boolean;
 			entryIndex: number;
 		}[] = [];
 		let lastTier: string | null = null;
+		const freeTierDescription = freeTierDescriptionFor(entries);
 		for (let i = 0; i < entries.length; i++) {
 			const entry = entries[i];
 			if (!entry) continue;
@@ -80,6 +83,8 @@ export function ClineModelSelectorContent(
 						key: `tier-${entry.tier}`,
 						kind: "header",
 						label: CLINE_MODEL_PICKER_TIER_LABELS[entry.tier],
+						description:
+							entry.tier === "free" ? freeTierDescription : undefined,
 						tags: [],
 						isCurrent: false,
 						entryIndex: -1,
@@ -159,8 +164,18 @@ export function ClineModelSelectorContent(
 					if (row.kind === "header") {
 						const isFirst = idx === 0;
 						return (
-							<box key={row.key} paddingX={1} marginTop={isFirst ? 0 : 1}>
+							<box
+								key={row.key}
+								paddingX={1}
+								marginTop={isFirst ? 0 : 1}
+								flexDirection="column"
+							>
 								<text fg="gray">{row.label}</text>
+								{row.description && (
+									<text fg="gray">
+										<em>{row.description}</em>
+									</text>
+								)}
 							</box>
 						);
 					}

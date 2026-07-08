@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	buildClineModelEntries,
 	buildClinePassModelEntries,
+	CLINE_PASS_FREE_SECTION_DESCRIPTION,
+	freeTierDescriptionFor,
 } from "./cline-model-entries";
 
 const model = (id: string) => ({ id, name: id, description: "", tags: [] });
@@ -51,18 +53,18 @@ describe("cline model picker entries", () => {
 		]);
 	});
 
-	it("omits the free section when includeFree is false (onboarding)", () => {
-		const entries = buildClinePassModelEntries(
-			{
-				recommended: [],
-				free: [model("deepseek/deepseek-v4-flash")],
-				clinePass: [model("cline-pass/glm-5.1")],
-			},
-			{ includeFree: false },
-		);
+	it("attaches the quota explainer only to the ClinePass picker's free section", () => {
+		const data = {
+			recommended: [model("anthropic/claude-sonnet-5")],
+			free: [model("deepseek/deepseek-v4-flash")],
+			clinePass: [model("cline-pass/glm-5.1")],
+		};
 
-		expect(entries).toEqual([
-			{ kind: "model", model: model("cline-pass/glm-5.1"), tier: "subscribed" },
-		]);
+		expect(freeTierDescriptionFor(buildClinePassModelEntries(data))).toBe(
+			CLINE_PASS_FREE_SECTION_DESCRIPTION,
+		);
+		expect(freeTierDescriptionFor(buildClineModelEntries(data))).toBe(
+			undefined,
+		);
 	});
 });
