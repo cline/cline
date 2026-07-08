@@ -1,4 +1,8 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
+import {
+	formatCompactionDividerLabel,
+	parseCompactionNoticeMetadata,
+} from "../tui/utils/compaction-status";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -26,6 +30,10 @@ export function resolveStatusNoticeLabel(
 ): string | undefined {
 	if (event.type !== "notice" || event.displayRole !== "status") {
 		return undefined;
+	}
+	const compaction = parseCompactionNoticeMetadata(event.metadata);
+	if (compaction) {
+		return formatCompactionDividerLabel({ kind: "compaction", ...compaction });
 	}
 	if (event.reason === "auto_compaction") {
 		return "auto-compacting";

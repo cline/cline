@@ -1547,6 +1547,41 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "session.notice": {
+				const noticeType = event.payload?.noticeType;
+				const displayRole = event.payload?.displayRole;
+				const reason = event.payload?.reason;
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "notice",
+							noticeType:
+								noticeType === "recovery" || noticeType === "stop"
+									? noticeType
+									: "status",
+							message:
+								typeof event.payload?.message === "string"
+									? event.payload.message
+									: "",
+							...(displayRole === "system" || displayRole === "status"
+								? { displayRole }
+								: {}),
+							...(typeof reason === "string"
+								? { reason: reason as never }
+								: {}),
+							...(event.payload?.metadata &&
+							typeof event.payload.metadata === "object"
+								? {
+										metadata: event.payload.metadata as Record<string, unknown>,
+									}
+								: {}),
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.delta": {
 				const text =
 					typeof event.payload?.text === "string" ? event.payload.text : "";

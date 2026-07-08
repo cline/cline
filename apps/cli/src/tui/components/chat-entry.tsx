@@ -23,6 +23,7 @@ import {
 	type TerminalTheme,
 } from "../palette";
 import type { ChatEntry } from "../types";
+import { formatCompactionDividerLabel } from "../utils/compaction-status";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
@@ -131,7 +132,7 @@ function formatToolParams(
 				const el = f.endLine != null ? String(f.endLine) : "undefined";
 				const sep = i > 0 ? "; " : "";
 				return (
-					<span key={f.path}>
+					<span key={`${i}:${f.path}`}>
 						{sep}
 						{shortenPath(f.path)}
 						<span fg="gray">
@@ -419,6 +420,38 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	);
 }
 
+function CompactionDividerRow(props: {
+	entry: Extract<ChatEntry, { kind: "compaction" }>;
+}) {
+	const { entry } = props;
+	const { width: terminalWidth } = useTerminalDimensions();
+	const inProgress = entry.status === "started";
+	const labelColor = inProgress
+		? "cyan"
+		: entry.status === "failed"
+			? "red"
+			: entry.status === "cancelled"
+				? "gray"
+				: "cyan";
+	const label = `✻ ${formatCompactionDividerLabel(entry)} ✻`;
+	// Fill the remaining line with a plain rule instead of a flexGrow bordered
+	// box: a single fixed-content text row keeps the renderer's diffing stable.
+	const ruleWidth = Math.max(2, Math.min(40, terminalWidth - label.length - 8));
+	return (
+		<box flexDirection="row">
+			{inProgress ? (
+				<box width={2}>
+					<spinner name="dots" color={labelColor} />
+				</box>
+			) : (
+				<text fg="gray" content="── " />
+			)}
+			<text fg={labelColor} selectable content={label} />
+			<text fg="gray" content={` ${"─".repeat(ruleWidth)}`} />
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
@@ -556,6 +589,9 @@ export function ChatEntryView(props: {
 					<text fg="gray" selectable content={entry.text} />
 				</box>
 			);
+
+		case "compaction":
+			return <CompactionDividerRow entry={entry} />;
 
 		case "done": {
 			const parts: string[] = [];

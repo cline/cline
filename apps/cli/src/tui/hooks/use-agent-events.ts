@@ -13,6 +13,7 @@ import {
 	truncate,
 } from "../../utils/helpers";
 import type { ChatEntry, InlineStream, TuiProps } from "../types";
+import { parseCompactionNoticeMetadata } from "../utils/compaction-status";
 
 interface AgentEventDeps {
 	appendEntry: (entry: ChatEntry) => void;
@@ -32,6 +33,7 @@ interface AgentEventDeps {
 }
 
 export function useAgentEventHandlers(deps: AgentEventDeps) {
+	const openCompactionEntryRef = useRef(false);
 	const {
 		appendEntry,
 		updateLastEntry,
@@ -44,6 +46,35 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		onTurnErrorReported,
 		verbose,
 	} = deps;
+
+	// Compaction dividers that arrived while an assistant message was still
+	// streaming. Appending them immediately would split the message in two, so
+	// they are held until the active content block closes (or the turn ends).
+	const pendingCompactionEntriesRef = useRef<
+		Extract<ChatEntry, { kind: "compaction" }>[]
+	>([]);
+
+	const flushPendingCompactionEntries = useCallback(() => {
+		const pending = pendingCompactionEntriesRef.current;
+		if (pending.length === 0) return;
+		pendingCompactionEntriesRef.current = [];
+		for (const entry of pending) {
+			appendEntry(entry);
+		}
+	}, [appendEntry]);
+
+	const finalizeDanglingCompactionEntry = useCallback(
+		(status: "failed" | "cancelled") => {
+			if (!openCompactionEntryRef.current) return;
+			openCompactionEntryRef.current = false;
+			updateEntry((entry) =>
+				entry.kind === "compaction" && entry.status === "started"
+					? { ...entry, status }
+					: entry,
+			);
+		},
+		[updateEntry],
+	);
 
 	const closeToolEntry = useCallback(
 		(event: AgentEvent & { type: "content_end" }) => {
@@ -84,9 +115,11 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					setIsRunning(true);
 					setIsStreaming(true);
 					closeInlineStream();
+					flushPendingCompactionEntries();
 					break;
 				case "iteration_end":
 					closeInlineStream();
+					flushPendingCompactionEntries();
 					break;
 				case "content_start": {
 					setIsStreaming(false);
@@ -165,11 +198,15 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					setIsRunning(false);
 					setIsStreaming(false);
 					closeInlineStream();
+					flushPendingCompactionEntries();
+					finalizeDanglingCompactionEntry("cancelled");
 					break;
 				case "error":
 					setIsRunning(false);
 					setIsStreaming(false);
 					closeInlineStream();
+					flushPendingCompactionEntries();
+					finalizeDanglingCompactionEntry("failed");
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
 					if (!event.recoverable || verbose) {
@@ -181,7 +218,41 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					break;
 				case "notice":
 					if (event.displayRole === "status") {
-						closeInlineStream();
+						const compaction = parseCompactionNoticeMetadata(event.metadata);
+						if (!compaction) {
+							closeInlineStream();
+						}
+						if (compaction) {
+							if (activeInlineStreamRef.current) {
+								// An assistant message is still streaming; appending now
+								// would split it around the divider. Hold the divider (final
+								// state only — the shimmer would be invisible mid-stream
+								// anyway) until the content block closes.
+								if (compaction.status !== "started") {
+									pendingCompactionEntriesRef.current.push({
+										kind: "compaction",
+										...compaction,
+									});
+								}
+								break;
+							}
+							if (compaction.status === "started") {
+								appendEntry({ kind: "compaction", ...compaction });
+								openCompactionEntryRef.current = true;
+							} else if (openCompactionEntryRef.current) {
+								// Finalize the in-progress divider in place, wherever it
+								// sits in the transcript.
+								updateEntry((entry) =>
+									entry.kind === "compaction" && entry.status === "started"
+										? { ...entry, ...compaction }
+										: entry,
+								);
+								openCompactionEntryRef.current = false;
+							} else {
+								appendEntry({ kind: "compaction", ...compaction });
+							}
+							break;
+						}
 						const label = resolveStatusNoticeLabel(event);
 						if (label) {
 							appendEntry({ kind: "status", text: label });
@@ -200,6 +271,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		[
 			appendEntry,
 			updateLastEntry,
+			updateEntry,
 			closeInlineStream,
 			activeInlineStreamRef,
 			setIsRunning,
@@ -208,6 +280,8 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 			onTurnErrorReported,
 			verbose,
 			closeToolEntry,
+			finalizeDanglingCompactionEntry,
+			flushPendingCompactionEntries,
 		],
 	);
 

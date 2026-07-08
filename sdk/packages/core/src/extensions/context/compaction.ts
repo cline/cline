@@ -423,6 +423,7 @@ export function createContextCompactionPrepareTurn(
 			{
 				kind: statusReason,
 				reason: statusReason,
+				phase: "started",
 				iteration: context.iteration,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
@@ -477,6 +478,20 @@ export function createContextCompactionPrepareTurn(
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
 			} as Record<string, unknown>);
+			context.emitStatusNotice?.(
+				mode === "manual" ? "compacted" : "auto-compacted",
+				{
+					kind: statusReason,
+					reason: statusReason,
+					phase: "completed",
+					iteration: context.iteration,
+					tokensBefore: inputTokens,
+					tokensAfter: afterTokens,
+					messagesBefore: beforeMessageCount,
+					messagesAfter: result.messages.length,
+					maxInputTokens,
+				},
+			);
 			captureCompactionExecuted(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: telemetryStrategy,

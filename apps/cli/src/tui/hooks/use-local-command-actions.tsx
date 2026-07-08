@@ -159,6 +159,15 @@ export function useLocalCommandActions(input: {
 					kind: "status",
 					text: `Forked into new session ${result.newSessionId}. This is now the active session. Use /history to switch sessions.`,
 				}));
+				if (result.carriedWorkingContext) {
+					session.appendEntry({
+						kind: "compaction",
+						compactionMode: "inherited",
+						status: "completed",
+						messagesBefore: result.carriedWorkingContext.canonicalMessages,
+						messagesAfter: result.carriedWorkingContext.workingContextMessages,
+					});
+				}
 			} else {
 				session.updateLastEntry(() => ({
 					kind: "error",

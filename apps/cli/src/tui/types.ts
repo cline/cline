@@ -44,6 +44,15 @@ export type ChatEntry = (
 	  }
 	| { kind: "error"; text: string }
 	| { kind: "status"; text: string }
+	| {
+			kind: "compaction";
+			compactionMode: "auto" | "manual" | "inherited";
+			status: "started" | "completed" | "failed" | "cancelled";
+			tokensBefore?: number;
+			tokensAfter?: number;
+			messagesBefore?: number;
+			messagesAfter?: number;
+	  }
 	| { kind: "team"; text: string }
 	| { kind: "user_submitted"; text: string; delivery?: "queue" | "steer" }
 	| {
@@ -186,7 +195,15 @@ export interface TuiProps {
 	onResumeSession: (sessionId: string) => Promise<ResumedSessionResult>;
 	onCompact: () => Promise<InteractiveCompactionResult>;
 	onFork: () => Promise<
-		{ forkedFromSessionId: string; newSessionId: string } | undefined
+		| {
+				forkedFromSessionId: string;
+				newSessionId: string;
+				carriedWorkingContext?: {
+					workingContextMessages: number;
+					canonicalMessages: number;
+				};
+		  }
+		| undefined
 	>;
 	getCheckpointData: () => Promise<
 		{ messages: Message[]; checkpointHistory: CheckpointEntry[] } | undefined

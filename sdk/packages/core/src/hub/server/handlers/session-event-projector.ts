@@ -250,6 +250,25 @@ async function projectAgentEvent(
 		}
 		return;
 	}
+	if (agentEvent.type === "notice") {
+		ctx.publish(
+			ctx.buildEvent(
+				"session.notice",
+				{
+					sessionId,
+					message: agentEvent.message,
+					noticeType: agentEvent.noticeType,
+					...(agentEvent.displayRole
+						? { displayRole: agentEvent.displayRole }
+						: {}),
+					...(agentEvent.reason ? { reason: agentEvent.reason } : {}),
+					...(agentEvent.metadata ? { metadata: agentEvent.metadata } : {}),
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
 	if (agentEvent.type === "usage") {
 		let usageSummary: SessionUsageSummary | undefined;
 		try {
