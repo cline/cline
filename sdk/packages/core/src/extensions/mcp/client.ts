@@ -172,7 +172,7 @@ class StdioMcpClient implements McpServerClient {
 							version: "0.0.0",
 						},
 					},
-					MCP_CONNECT_TIMEOUT_MS,
+					this.registration.initializeTimeoutMs ?? MCP_CONNECT_TIMEOUT_MS,
 				);
 				this.notify("notifications/initialized");
 				this.connected = true;

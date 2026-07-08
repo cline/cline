@@ -77,6 +77,7 @@ export interface McpServerRegistration {
 	disabled?: boolean;
 	metadata?: Record<string, unknown>;
 	oauth?: McpServerOAuthState;
+	initializeTimeoutMs?: number;
 }
 
 export interface McpServerSnapshot {
