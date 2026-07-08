@@ -1,5 +1,4 @@
 import { createContextCompactionPrepareTurn } from "@cline/core"
-import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkCompactionCoordinator, type SdkCompactionCoordinatorOptions } from "./sdk-compaction-coordinator"
@@ -85,15 +84,14 @@ describe("SdkCompactionCoordinator", () => {
 		)
 	})
 
-	it("compacts and restarts the session, preserving the session id", async () => {
+	it("compacts and persists the sidecar without rebuilding the session", async () => {
 		const activeSession = makeActiveSession()
 		activeSession.sdkHost.readMessages.mockResolvedValueOnce([
 			{ role: "user", content: "1" },
 			{ role: "assistant", content: "2" },
 			{ role: "user", content: "3" },
 		])
-		const task = makeTask("old-session")
-		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const { coordinator, options } = makeCoordinator({ activeSession })
 		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
 			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
 		)
@@ -104,29 +102,7 @@ describe("SdkCompactionCoordinator", () => {
 			version: 1,
 			messages: [{ role: "user", content: "summary" }],
 		})
-		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
-			cwd: "/workspace",
-			mode: "act",
-		})
-		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
-			startInput: expect.objectContaining({
-				config: expect.objectContaining({ sessionId: "old-session" }),
-				interactive: true,
-				initialCompactionState: {
-					version: 1,
-					messages: [{ role: "user", content: "summary" }],
-				},
-				prompt: undefined,
-			}),
-			initialMessages: [
-				{ role: "user", content: "1" },
-				{ role: "assistant", content: "2" },
-				{ role: "user", content: "3" },
-			],
-			disposeReason: "compactTask",
-		})
-		expect(task.taskId).toBe("new-session")
-		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "Compacted 3 messages to 1." })],
 			expect.anything(),
@@ -145,7 +121,7 @@ describe("SdkCompactionCoordinator", () => {
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "info", text: "Compaction failed: Compaction sidecar could not be persisted." })],
+			[expect.objectContaining({ say: "info", text: "Couldn't compact the conversation. Please try again." })],
 			expect.anything(),
 		)
 	})
@@ -159,7 +135,7 @@ describe("SdkCompactionCoordinator", () => {
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "info", text: "Compaction failed: boom" })],
+			[expect.objectContaining({ say: "info", text: "Couldn't compact the conversation. Please try again." })],
 			expect.anything(),
 		)
 	})
@@ -167,7 +143,6 @@ describe("SdkCompactionCoordinator", () => {
 
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession> | undefined
-	task: ReturnType<typeof makeTask>
 }
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
@@ -199,14 +174,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
 		},
-		getTask: vi.fn(() => input.task),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
-		buildStartSessionInput: vi.fn((startConfig) => ({
-			config: startConfig,
-			prompt: undefined,
-			interactive: true,
-		})),
-		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkCompactionCoordinatorOptions & {
 		sessions: SdkCompactionCoordinatorOptions["sessions"] & {
@@ -219,8 +187,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessionConfigBuilder: SdkCompactionCoordinatorOptions["sessionConfigBuilder"] & {
 			build: ReturnType<typeof vi.fn>
 		}
-		buildStartSessionInput: ReturnType<typeof vi.fn>
-		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
 
@@ -244,17 +210,5 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		unsubscribe: vi.fn(),
 		startResult: { sessionId: "old-session" },
 		isRunning: input.isRunning ?? false,
-	}
-}
-
-function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
-	return {
-		taskId,
-		messageStateHandler: {
-			getClineMessages: vi.fn(() => messages as ClineMessage[]),
-		},
-	} as unknown as {
-		taskId: string
-		messageStateHandler: { getClineMessages: () => ClineMessage[] }
 	}
 }

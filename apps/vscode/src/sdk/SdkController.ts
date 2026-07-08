@@ -511,10 +511,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			buildStartSessionInput,
-			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
