@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.0.7]
+
+### Added
+
+- Add a ClinePass limit-reached error with a one-click option to switch to Cline usage-based billing.
+- Allow selecting Cline free models on the ClinePass provider, organized into Subscribed and Free tabs with model descriptions.
+
+### Changed
+
+- Refine ClinePass onboarding and provider settings copy, and open the "learn more" link via the in-app URL handler.
+- Remove the Cline model picker recommendation copy.
+
+### Removed
+
+- Remove all references to GLM 5.1.
+
 ## [4.0.6]
 
 ### Fixed
