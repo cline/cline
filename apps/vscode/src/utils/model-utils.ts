@@ -28,6 +28,10 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	].some((id) => providerId === id)
 }
 
+export function isClineProvider(providerInfo: ApiProviderInfo): boolean {
+	return normalize(providerInfo.providerId) === "cline"
+}
+
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
 	// Grok doesn't support WebP via its API.
@@ -236,20 +240,27 @@ export function parsePrice(priceString: string | undefined): number {
 
 /**
  * Determines if the given provider and model combination will use native tool calling.
+ * The Cline Provider rollout can additionally enable native tools for every model.
  * Helpful if we need to quickly check this for prompts or other logic.
  * @param providerInfo The provider and model information
  * @param enableNativeToolCalls Whether the native tool calls setting is enabled
  * @returns true if the model will use native tool calling, false otherwise
  */
-export function isNativeToolCallingConfig(providerInfo: ApiProviderInfo, enableNativeToolCalls: boolean): boolean {
+export function isNativeToolCallingConfig(
+	providerInfo: ApiProviderInfo,
+	enableNativeToolCalls: boolean,
+	enableAllClineProviderNativeTools = false,
+): boolean {
+	if (enableAllClineProviderNativeTools && isClineProvider(providerInfo)) {
+		return true
+	}
 	if (!enableNativeToolCalls) {
 		return false
 	}
 	if (!isNextGenModelProvider(providerInfo)) {
 		return false
 	}
-	const modelId = providerInfo.model.id.toLowerCase()
-	return isNextGenModelFamily(modelId)
+	return isNextGenModelFamily(providerInfo.model.id)
 }
 
 /**

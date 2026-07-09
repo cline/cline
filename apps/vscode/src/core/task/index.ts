@@ -91,8 +91,10 @@ import { type ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools";
 import type { ClineAskResponse } from "@shared/WebviewMessage";
 import {
 	isClaude4PlusModelFamily,
+	isClineProvider,
 	isGPT5ModelFamily,
 	isLocalModel,
+	isNativeToolCallingConfig,
 	isNextGenModelFamily,
 	isParallelToolCallingEnabled,
 } from "@utils/model-utils";
@@ -132,6 +134,7 @@ import { ApiFormat } from "@/shared/proto/cline/models";
 import { ShowMessageType } from "@/shared/proto/index.host";
 import { Logger } from "@/shared/services/Logger";
 import { Session } from "@/shared/services/Session";
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags";
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder";
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers";
 import { discoverAvailableSkills } from "../context/instructions/user-instructions/skills";
@@ -2296,6 +2299,14 @@ export class Task {
 			open: openTabPaths.slice(0, cap),
 			visible: visibleTabPaths.slice(0, cap),
 		};
+		const enableAllClineProviderNativeTools =
+			isClineProvider(providerInfo) &&
+			featureFlagsService.getBooleanFlagEnabled(
+				FeatureFlag.CLINE_PROVIDER_NATIVE_TOOLS,
+			);
+		const nativeToolCallsRequested =
+			providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+			this.stateManager.getGlobalStateKey("nativeToolCallEnabled");
 
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
@@ -2329,8 +2340,8 @@ export class Task {
 			isSubagentRun: false,
 			isCliEnvironment,
 			enableNativeToolCalls:
-				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
-				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+				nativeToolCallsRequested || enableAllClineProviderNativeTools,
+			enableAllClineProviderNativeTools,
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			terminalExecutionMode: this.terminalExecutionMode,
 		};
@@ -3940,10 +3951,13 @@ export class Task {
 		const ulid = this.ulid;
 		const focusChainSettings =
 			this.stateManager.getGlobalSettingsKey("focusChainSettings");
-		const useNativeToolCalls = this.stateManager.getGlobalStateKey(
-			"nativeToolCallEnabled",
-		);
 		const providerInfo = this.getCurrentProviderInfo();
+		const useNativeToolCalls = isNativeToolCallingConfig(
+			providerInfo,
+			providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_PROVIDER_NATIVE_TOOLS),
+		);
 		const cwd = this.cwd;
 		const { localWorkflowToggles, globalWorkflowToggles } =
 			await refreshWorkflowToggles(this.controller, cwd);

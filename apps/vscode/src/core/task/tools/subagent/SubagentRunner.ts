@@ -20,9 +20,11 @@ import { checkContextWindowExceededError } from "@/core/context/context-manageme
 import { getContextWindowInfo } from "@/core/context/context-management/context-window-utils";
 import { HostRegistryInfo } from "@/registry";
 import { ClineError, ClineErrorType } from "@/services/error";
+import { featureFlagsService } from "@/services/feature-flags";
 import { ApiFormat } from "@/shared/proto/cline/models";
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags";
 import { calculateApiCostAnthropic } from "@/utils/cost";
-import { isNextGenModelFamily } from "@/utils/model-utils";
+import { isClineProvider, isNextGenModelFamily } from "@/utils/model-utils";
 import { TaskState } from "../../TaskState";
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator";
 import { ToolValidator } from "../ToolValidator";
@@ -378,8 +380,13 @@ export class SubagentRunner {
 			stats.contextWindow = providerInfo.model.info.contextWindow || 0;
 			const nativeToolCallsRequested =
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
-				!!this.baseConfig.services.stateManager.getGlobalStateKey(
-					"nativeToolCallEnabled",
+					!!this.baseConfig.services.stateManager.getGlobalStateKey(
+						"nativeToolCallEnabled",
+					);
+			const enableAllClineProviderNativeTools =
+				isClineProvider(providerInfo) &&
+				featureFlagsService.getBooleanFlagEnabled(
+					FeatureFlag.CLINE_PROVIDER_NATIVE_TOOLS,
 				);
 
 			const host = HostRegistryInfo.get();
@@ -432,7 +439,9 @@ export class SubagentRunner {
 				focusChainSettings: this.baseConfig.focusChainSettings,
 				browserSettings: this.baseConfig.browserSettings,
 				yoloModeToggled: false,
-				enableNativeToolCalls: nativeToolCallsRequested,
+				enableNativeToolCalls:
+					nativeToolCallsRequested || enableAllClineProviderNativeTools,
+				enableAllClineProviderNativeTools,
 				enableParallelToolCalling: false,
 				isSubagentRun: true,
 			};

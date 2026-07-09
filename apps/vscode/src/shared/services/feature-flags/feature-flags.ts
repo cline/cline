@@ -19,6 +19,8 @@ export enum FeatureFlag {
 	CLINE_PASS = "ext-cline-pass",
 	// Use the websocket mode for OpenAI native Responses API format
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
+	// Gradual rollout of native tools for every model on Cline Provider.
+	CLINE_PROVIDER_NATIVE_TOOLS = "extension-cline-provider-native-tools",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
@@ -31,6 +33,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT]: false,
 	[FeatureFlag.CLINE_PASS]: false,
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
+	[FeatureFlag.CLINE_PROVIDER_NATIVE_TOOLS]: false,
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)

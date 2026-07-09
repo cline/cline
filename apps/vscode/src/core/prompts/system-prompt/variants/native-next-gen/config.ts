@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import { isClineProvider, isGPT5ModelFamily, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -27,7 +27,10 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 			return false
 		}
 		const modelId = providerInfo.model.id.toLowerCase()
-		return !isGPT5ModelFamily(modelId) && isNextGenModelFamily(modelId)
+		return (
+			!isGPT5ModelFamily(modelId) &&
+			((isClineProvider(providerInfo) && context.enableAllClineProviderNativeTools) || isNextGenModelFamily(modelId))
+		)
 	})
 	.template(TEMPLATE_OVERRIDES.BASE)
 	.components(
