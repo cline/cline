@@ -49,6 +49,28 @@ interface LinuxTerminalProfile {
 type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
 
 // -----------------------------------------------------
+// 0) Host-Provided Shell Override
+// -----------------------------------------------------
+
+/**
+ * Environment variable through which host integrations (e.g. the JetBrains
+ * plugin) forward the user's IDE terminal profile shell to cline-core.
+ *
+ * A dedicated variable is used instead of overriding COMSPEC/SHELL because
+ * COMSPEC is an OS-level contract that must keep pointing at cmd.exe:
+ * cross-spawn, Node's `shell: true`, and npm `.cmd` shims all pass cmd-style
+ * `/d /s /c` arguments to whatever COMSPEC references. Overriding it with
+ * PowerShell breaks every such child process (see cline/cline#11290).
+ */
+export const HOST_SHELL_ENV_VAR = "CLINE_TERMINAL_SHELL_PATH"
+
+/** Returns the shell explicitly forwarded by the host IDE, or null. */
+export function getHostProvidedShell(): string | null {
+	const shell = process.env[HOST_SHELL_ENV_VAR]?.trim()
+	return shell || null
+}
+
+// -----------------------------------------------------
 // 1) VS Code Terminal Configuration Helpers
 // -----------------------------------------------------
 
@@ -305,6 +327,12 @@ export function getShellForProfile(profileId: string): string {
 // -----------------------------------------------------
 
 export function getShell(): string {
+	// 0. A shell explicitly forwarded by the host IDE wins over detection.
+	const hostShell = getHostProvidedShell()
+	if (hostShell) {
+		return hostShell
+	}
+
 	// 1. Check VS Code config first.
 	if (process.platform === "win32") {
 		// Special logic for Windows
