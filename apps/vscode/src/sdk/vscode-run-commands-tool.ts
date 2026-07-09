@@ -21,6 +21,7 @@ import {
 	truncateCommandOutput,
 } from "@cline/core"
 import type { AgentTool } from "@cline/shared"
+import { telemetryService } from "@services/telemetry"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { MAX_UNRETRIEVED_LINES } from "@/integrations/terminal/constants"
@@ -216,7 +217,23 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 				})
 				Logger.log(`[VscodeRunCommands] Background executor using shell: ${shell}`)
 			}
-			return await bgExecutor(command, commandCwd || cwd, context)
+			// Record execution outcomes so background mode is comparable with
+			// foreground mode in the same task.terminal_execution event —
+			// essential for judging the backgroundExec-by-default change.
+			try {
+				const result = await bgExecutor(command, commandCwd || cwd, context)
+				telemetryService.captureTerminalExecution(true, "vscode", "child_process", {
+					exitCode: 0,
+					terminalExecutionMode: "backgroundExec",
+				})
+				return result
+			} catch (error) {
+				telemetryService.captureTerminalExecution(false, "vscode", "child_process", {
+					...(error instanceof CommandExitError && { exitCode: error.exitCode }),
+					terminalExecutionMode: "backgroundExec",
+				})
+				throw error
+			}
 		}
 
 		// Foreground path — use VscodeTerminalManager

@@ -17,6 +17,7 @@ import {
 } from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
+import type { MarkerlessCompletionCause } from "@/services/telemetry/TelemetryService"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
 import { classifyShellPrompt, getLastLine } from "./shellPromptHeuristics"
 
@@ -179,6 +180,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// commonly an ssh session started from this terminal, where the
 			// remote shell emits no OSC 633 sequences.
 			let completedWithoutMarkers = false
+			let markerlessCause: MarkerlessCompletionCause | undefined
 			let markerlessQuietMs = 0
 			let receivedAnyData = false
 
@@ -218,6 +220,8 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					const quietTimeoutReached = markerlessQuietMs >= MARKERLESS_MAX_QUIET_TIME
 					if (promptStrength === "strong" || quietTimeoutReached) {
 						completedWithoutMarkers = true
+						markerlessCause =
+							promptStrength === "strong" ? "prompt_quiet" : receivedAnyData ? "max_quiet_time" : "no_data"
 						break
 					}
 					continue
@@ -390,17 +394,24 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				)
 				// The clipboard fallback reads the *active* terminal, so it is
 				// meaningless once this terminal has closed.
+				// (Undefined detail values are omitted from the event; markerlessCause
+				// is only set when the markerless fallback completed the command.)
+				const fallbackDetails = {
+					terminalExecutionMode: "vscodeTerminal" as const,
+					markerlessCause,
+					terminalClosed: terminalClosed || undefined,
+				}
 				if (!terminalClosed) {
 					await returnCurrentTerminalContents()
 					// Check if fallback worked
 					const terminalSnapshot = await getLatestTerminalOutput()
 					if (terminalSnapshot && terminalSnapshot.trim()) {
-						telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
+						telemetryService.captureTerminalExecution(true, "vscode", "clipboard", fallbackDetails)
 					} else {
-						telemetryService.captureTerminalExecution(false, "vscode", "none")
+						telemetryService.captureTerminalExecution(false, "vscode", "none", fallbackDetails)
 					}
 				} else {
-					telemetryService.captureTerminalExecution(false, "vscode", "none")
+					telemetryService.captureTerminalExecution(false, "vscode", "none", fallbackDetails)
 				}
 			} else {
 				// Output was captured, but distinguish *how* it was completed: real
@@ -408,12 +419,18 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				// heuristic fallback ("markerless_heuristic") when markers never
 				// arrived. Folding the latter into "shell_integration" successes
 				// would inflate the metric this PR's fixes are evaluated against.
+				// A terminal closed mid-command is not a success even though some
+				// output was captured — the command was interrupted.
 				telemetryService.captureTerminalExecution(
-					true,
+					!terminalClosed,
 					"vscode",
 					completedWithoutMarkers ? "markerless_heuristic" : "shell_integration",
-					this.exitCode,
-					"vscodeTerminal",
+					{
+						exitCode: this.exitCode,
+						terminalExecutionMode: "vscodeTerminal",
+						markerlessCause,
+						terminalClosed: terminalClosed || undefined,
+					},
 				)
 			}
 
@@ -456,9 +473,13 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// Check if clipboard fallback worked
 			const terminalSnapshot = await getLatestTerminalOutput()
 			if (terminalSnapshot && terminalSnapshot.trim()) {
-				telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
+				telemetryService.captureTerminalExecution(true, "vscode", "clipboard", {
+					terminalExecutionMode: "vscodeTerminal",
+				})
 			} else {
-				telemetryService.captureTerminalExecution(false, "vscode", "none")
+				telemetryService.captureTerminalExecution(false, "vscode", "none", {
+					terminalExecutionMode: "vscodeTerminal",
+				})
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
