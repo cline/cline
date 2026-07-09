@@ -104,7 +104,8 @@ const mockLoginClineOAuth = vi.hoisted(() => vi.fn())
 
 // Mock @cline/core OAuth functions
 vi.mock("@cline/core", async () => ({
-	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
+	sdkDebug: () => {},
+	hashSecret: () => "hashed",
 	createOAuthClientCallbacks: (opts: {
 		onOutput?: (message: string) => void
 		onPrompt: () => void
