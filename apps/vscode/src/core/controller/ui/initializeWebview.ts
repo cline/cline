@@ -2,6 +2,7 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
 import { telemetryService } from "@/services/telemetry"
+import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
@@ -25,7 +26,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Post last cached models as soon as possible for immediate availability in the UI
 		const lastCachedModels = await controller.readOpenRouterModels()
 		if (lastCachedModels) {
-			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: lastCachedModels }))
+			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: toProtobufModels(lastCachedModels) }))
 		}
 
 		// Refresh OpenRouter models from API
