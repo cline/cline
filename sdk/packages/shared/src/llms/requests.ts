@@ -1,3 +1,5 @@
+import type { ClientName } from "../extensions/context";
+
 export const DEFAULT_REQUEST_HEADERS: Record<string, string> = {
 	"HTTP-Referer": "https://cline.bot",
 	"X-Title": "Cline",
@@ -41,7 +43,7 @@ export interface ClineClientRequestHeadersInput {
 	sessionId: string;
 	source?: string;
 	defaultSource: string;
-	clientName?: string;
+	clientName?: ClientName;
 	clientVersion?: string;
 	clientVersionHeaderFallback?: string;
 	platform?: string;
@@ -57,7 +59,7 @@ export function buildClineClientRequestHeaders(
 		return undefined;
 	}
 	const source = resolveSource(input.source, input.defaultSource);
-	const clientName =
+	const clientType =
 		resolveOptionalHeader(input.clientName) ?? `cline-${source}`;
 	const clientVersion = resolveClineClientVersion(input);
 	const platform = resolveOptionalHeader(input.platform) ?? source;
@@ -67,7 +69,7 @@ export function buildClineClientRequestHeaders(
 		...DEFAULT_REQUEST_HEADERS,
 		"User-Agent": `Cline/${clientVersion}`,
 		"X-IS-MULTIROOT": input.isMultiRoot === true ? "true" : "false",
-		"X-CLIENT-TYPE": clientName,
+		"X-CLIENT-TYPE": clientType,
 		"X-CLIENT-VERSION": clientVersion,
 		"X-PLATFORM": platform,
 		"X-PLATFORM-VERSION": platformVersion,

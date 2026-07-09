@@ -10,7 +10,6 @@ import type {
  * The IDE or client surface the user is running Cline from.
  */
 export type ClientName =
-	| "VSCode Extension"
 	| "cline-vscode"
 	| "cline-jetbrains"
 	| "cline-cli"
@@ -24,7 +23,7 @@ export type ClientName =
  * Identity of the calling client and host surface.
  */
 export interface ClientContext {
-	/** e.g. "VSCode Extension", "cline-cli", "cline-sdk" */
+	/** Client type emitted to Cline request headers, e.g. "VSCode Extension", "cline-cli", "cline-sdk" */
 	name: ClientName;
 	/** Cline client/extension semver string, e.g. "3.12.0" */
 	version?: string;
