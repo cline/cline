@@ -17,14 +17,10 @@ describe("isClinePassLimitMessage", () => {
 
 	it("handles tab-heavy non-matches without regex backtracking", () => {
 		expect(
-			isClinePassLimitMessage(
-				`You have reached your\t${"\t".repeat(10_000)}`,
-			),
+			isClinePassLimitMessage(`You have reached your\t${"\t".repeat(10_000)}`),
 		).toBe(false);
 		expect(
-			isClinePassLimitMessage(
-				`You have reached your\t-${"\t".repeat(10_000)}`,
-			),
+			isClinePassLimitMessage(`You have reached your\t-${"\t".repeat(10_000)}`),
 		).toBe(false);
 		expect(
 			isClinePassLimitMessage(
