@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
+	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
 import {
@@ -419,6 +421,50 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	);
 }
 
+function ClinePassLimitErrorView(props: {
+	message: string;
+	defaultFg?: string;
+}) {
+	const detail = getClinePassLimitDetailMessage(props.message) ?? props.message;
+
+	return (
+		<box flexDirection="row">
+			<text fg={palette.act} content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={palette.act}
+				paddingX={1}
+			>
+				<text fg="red">ClinePass limit reached</text>
+				<text fg={props.defaultFg} selectable content={detail} />
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="Switch to Cline usage-based billing and retry with the Cline provider."
+				/>
+				<box flexDirection="row">
+					<text fg="gray">Interactive CLI: </text>
+					<text
+						fg={props.defaultFg}
+						selectable
+						content="type /model, choose Cline, then retry."
+					/>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">Headless CLI: </text>
+					<text
+						fg={props.defaultFg}
+						selectable
+						content="rerun with --provider cline."
+					/>
+				</box>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
@@ -532,6 +578,11 @@ export function ChatEntryView(props: {
 						}
 						terminalTheme={terminalTheme}
 					/>
+				);
+			}
+			if (isClinePassLimitErrorMessage(entry.text)) {
+				return (
+					<ClinePassLimitErrorView message={entry.text} defaultFg={defaultFg} />
 				);
 			}
 			return (

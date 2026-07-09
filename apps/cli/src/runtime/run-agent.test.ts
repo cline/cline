@@ -43,6 +43,15 @@ const CLI_SUBSCRIPTION_URL =
 	"https://app.cline.bot/promo?code=CLI-8OFF&personal=true";
 const SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
 const CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLI_SUBSCRIPTION_URL}`;
+const CLINE_PASS_LIMIT_DETAIL_MESSAGE =
+	"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
+const CLI_CLINE_PASS_LIMIT_MESSAGE = [
+	"ClinePass limit reached",
+	CLINE_PASS_LIMIT_DETAIL_MESSAGE,
+	"Switch to Cline usage-based billing and retry with the Cline provider.",
+	"Interactive CLI: open the model selector with /model, choose Cline, then retry.",
+	"Headless CLI: rerun with --provider cline. If needed, sign in first with `cline auth cline`.",
+].join("\n");
 const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
 	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";
 
@@ -65,6 +74,30 @@ vi.mock("@cline/core", () => ({
 			.includes(
 				"organization accounts cannot use individual model inference subscriptions",
 			),
+	isClinePassLimitError: (error: unknown) =>
+		error instanceof Error && error.name === "ClinePassLimitError",
+	extractClinePassLimitMessage: (text: string) => {
+		const normalized = text.toLowerCase();
+		const prefix = "you have reached your";
+		const suffix = "please try again later.";
+		const start = normalized.indexOf(prefix);
+		if (start === -1) return undefined;
+		const suffixStart = normalized.indexOf(suffix, start);
+		if (suffixStart === -1) return undefined;
+		const end = suffixStart + suffix.length;
+		if (!normalized.slice(start, end).includes("clinepass limit")) {
+			return undefined;
+		}
+		return text.slice(start, end);
+	},
+	isClinePassLimitMessage: (text: string) => {
+		const normalized = text.toLowerCase();
+		return (
+			normalized.includes("you have reached your") &&
+			normalized.includes("clinepass limit") &&
+			normalized.includes("please try again later.")
+		);
+	},
 	prewarmFileIndex: vi.fn(async () => undefined),
 	SessionSource: {
 		CLI: "cli",
@@ -723,6 +756,126 @@ describe("runAgent", () => {
 				manifest: { session_id: "session-1" },
 				result: {
 					text: SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE,
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+					messages: [],
+					toolCalls: [],
+					iterations: 1,
+					finishReason: "error",
+					model: { id: "premium-model", provider: "cline-pass", info: {} },
+					startedAt,
+					endedAt,
+					durationMs: 1000,
+				},
+			};
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: { maxConsecutiveMistakes: 3 },
+				logger: undefined,
+				mode: "yolo",
+				modelId: "premium-model",
+				outputMode: "text",
+				providerId: "cline-pass",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+		expect(outputMocks.writeErr).not.toHaveBeenCalled();
+	});
+
+	it("formats ClinePass limit errors with usage-based billing guidance", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: { session_id: "session-1" },
+			result: {
+				text: `Error: ${CLINE_PASS_LIMIT_DETAIL_MESSAGE}`,
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: 0,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "error",
+				model: { id: "premium-model", provider: "cline-pass", info: {} },
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: { maxConsecutiveMistakes: 3 },
+				logger: undefined,
+				mode: "yolo",
+				modelId: "premium-model",
+				outputMode: "text",
+				providerId: "cline-pass",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+		expect(outputMocks.writeErr).toHaveBeenCalledWith(
+			CLI_CLINE_PASS_LIMIT_MESSAGE,
+		);
+	});
+
+	it("does not duplicate ClinePass limit errors already displayed by agent events", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockImplementation(async () => {
+			sessionEventsMocks.listener?.({
+				type: "error",
+				error: new Error(`Error: ${CLINE_PASS_LIMIT_DETAIL_MESSAGE}`),
+				recoverable: false,
+			});
+
+			return {
+				sessionId: "session-1",
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest: { session_id: "session-1" },
+				result: {
+					text: `Error: ${CLINE_PASS_LIMIT_DETAIL_MESSAGE}`,
 					usage: {
 						inputTokens: 0,
 						outputTokens: 0,
