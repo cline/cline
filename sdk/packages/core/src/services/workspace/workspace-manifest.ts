@@ -28,6 +28,19 @@ export async function generateWorkspaceInfo(
 	return (await generateWorkspaceInfoWithDiagnostics(workspacePath)).info;
 }
 
+/**
+ * Git failures that reflect a normal repository state — e.g. a freshly
+ * initialized repo with no commits, where `git rev-parse HEAD` fails —
+ * rather than a broken workspace. These must not be reported as
+ * workspace init errors.
+ */
+function isBenignGitError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /unknown revision|ambiguous argument|bad revision|does not have any commits yet/i.test(
+		message,
+	);
+}
+
 function toWorkspaceInfoError(error: unknown): {
 	errorType: string;
 	message: string;
@@ -77,7 +90,9 @@ export async function generateWorkspaceInfoWithDiagnostics(
 				info.latestGitCommitHash = latestGitCommitHash;
 			}
 		} catch (error) {
-			firstError ??= toWorkspaceInfoError(error);
+			if (!isBenignGitError(error)) {
+				firstError ??= toWorkspaceInfoError(error);
+			}
 		}
 
 		try {
@@ -86,7 +101,9 @@ export async function generateWorkspaceInfoWithDiagnostics(
 				info.latestGitBranchName = latestGitBranchName;
 			}
 		} catch (error) {
-			firstError ??= toWorkspaceInfoError(error);
+			if (!isBenignGitError(error)) {
+				firstError ??= toWorkspaceInfoError(error);
+			}
 		}
 
 		return { info, vcsType: "git", error: firstError };
