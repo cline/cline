@@ -9,24 +9,12 @@ import { createConfiguredTelemetryHandle } from "../../services/telemetry/OpenTe
 import { CORE_BUILD_VERSION } from "../../version";
 
 const IDENTITY_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const DISPOSE_FLUSH_TIMEOUT_MS = 5_000;
 
 export interface HubDaemonTelemetry {
 	readonly telemetry: ITelemetryService;
 	/** Flushes pending batches and disposes the underlying provider. */
 	dispose(): Promise<void>;
-}
-
-function resolveCachedClineAccountId(): string | undefined {
-	try {
-		return (
-			new ProviderSettingsManager()
-				.getProviderSettings("cline")
-				?.auth?.accountId?.trim() || undefined
-		);
-	} catch {
-		// Telemetry identity must never interfere with daemon operation.
-		return undefined;
-	}
 }
 
 /**
@@ -54,6 +42,23 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 	});
 	const handle = createConfiguredTelemetryHandle(config);
 
+	// Constructed once and reused: the constructor runs legacy settings
+	// migration and provider registration side effects, while
+	// getProviderSettings re-reads the file on every call anyway.
+	let settingsManager: ProviderSettingsManager | undefined;
+	const resolveCachedClineAccountId = (): string | undefined => {
+		try {
+			settingsManager ??= new ProviderSettingsManager();
+			return (
+				settingsManager.getProviderSettings("cline")?.auth?.accountId?.trim() ||
+				undefined
+			);
+		} catch {
+			// Telemetry identity must never interfere with daemon operation.
+			return undefined;
+		}
+	};
+
 	let identifiedAccountId: string | undefined;
 	const refreshIdentity = (): void => {
 		const accountId = resolveCachedClineAccountId();
@@ -75,8 +80,21 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 		telemetry: handle.telemetry,
 		dispose: async (): Promise<void> => {
 			clearInterval(identityTimer);
-			await handle.flush();
-			await handle.dispose();
+			// dispose only runs on the daemon's way out; a hung exporter must
+			// never keep a crashed daemon alive (holding the hub port), so
+			// the flush races a hard deadline.
+			let deadline: ReturnType<typeof setTimeout> | undefined;
+			await Promise.race([
+				(async (): Promise<void> => {
+					await handle.flush();
+					await handle.dispose();
+				})(),
+				new Promise<void>((resolve) => {
+					deadline = setTimeout(resolve, DISPOSE_FLUSH_TIMEOUT_MS);
+					deadline.unref?.();
+				}),
+			]);
+			clearTimeout(deadline);
 		},
 	};
 }

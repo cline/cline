@@ -38,18 +38,22 @@ const {
 	})),
 }));
 
-const { mockDaemonTelemetryService, mockCreateHubDaemonTelemetry } = vi.hoisted(
-	() => {
-		const telemetry = { capture: vi.fn() };
-		return {
-			mockDaemonTelemetryService: telemetry,
-			mockCreateHubDaemonTelemetry: vi.fn(() => ({
-				telemetry,
-				dispose: vi.fn(async () => undefined),
-			})),
-		};
-	},
-);
+const {
+	mockDaemonTelemetryService,
+	mockDaemonTelemetryDispose,
+	mockCreateHubDaemonTelemetry,
+} = vi.hoisted(() => {
+	const telemetry = { capture: vi.fn() };
+	const dispose = vi.fn(async () => undefined);
+	return {
+		mockDaemonTelemetryService: telemetry,
+		mockDaemonTelemetryDispose: dispose,
+		mockCreateHubDaemonTelemetry: vi.fn(() => ({
+			telemetry,
+			dispose,
+		})),
+	};
+});
 
 vi.mock("@cline/shared", () => ({
 	initVcr: mockInitVcr,
@@ -96,6 +100,7 @@ describe("hub daemon entry", () => {
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
+		mockDaemonTelemetryDispose.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -137,5 +142,25 @@ describe("hub daemon entry", () => {
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
 			telemetry: mockDaemonTelemetryService,
 		});
+	});
+
+	it("disposes telemetry and exits when server startup fails", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		mockStartHubWebSocketServer.mockRejectedValueOnce(
+			new Error("port already in use"),
+		);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
 	});
 });
