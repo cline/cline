@@ -103,7 +103,8 @@ vi.mock("axios", () => ({
 const mockLoginClineOAuth = vi.hoisted(() => vi.fn())
 
 // Mock @cline/core OAuth functions
-vi.mock("@cline/core", () => ({
+vi.mock("@cline/core", async () => ({
+	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
 	createOAuthClientCallbacks: (opts: {
 		onOutput?: (message: string) => void
 		onPrompt: () => void
