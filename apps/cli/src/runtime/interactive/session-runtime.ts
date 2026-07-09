@@ -49,6 +49,9 @@ type RuntimeHooks = ReturnType<typeof createRuntimeHooks>;
 type StartedSession = Awaited<ReturnType<CliCore["start"]>>;
 type CurrentTurnInput = Omit<Parameters<CliCore["send"]>[0], "sessionId">;
 type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
+export type SessionConnectionUpdate = Parameters<
+	CliCore["updateSessionConnection"]
+>[1];
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
@@ -491,6 +494,20 @@ export function createInteractiveSessionRuntime(input: {
 		);
 	};
 
+	const updateCurrentSessionConnection = async (
+		update: SessionConnectionUpdate,
+	): Promise<void> => {
+		await ensureReady();
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId) {
+			// No live session to update; the next startup builds its config from
+			// the already-mutated CLI config, so nothing else is needed.
+			return;
+		}
+		await manager.updateSessionConnection(sessionId, update);
+	};
+
 	const restartEmpty = async (): Promise<void> => {
 		await restartWithMessages([]);
 	};
@@ -855,6 +872,7 @@ export function createInteractiveSessionRuntime(input: {
 		resetForNewSession,
 		restartWithMessages,
 		restartWithCurrentMessages,
+		updateCurrentSessionConnection,
 		resumeSession,
 		forkCurrentSession,
 		compactCurrentSession,

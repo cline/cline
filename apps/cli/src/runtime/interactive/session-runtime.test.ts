@@ -157,6 +157,7 @@ function makeManager() {
 		ingestHookEvent: vi.fn(),
 		subscribe: vi.fn(),
 		updateSessionModel: vi.fn(),
+		updateSessionConnection: vi.fn(async () => {}),
 		pendingPrompts: {
 			update: vi.fn(),
 		},
@@ -828,6 +829,24 @@ describe("createInteractiveSessionRuntime", () => {
 				config: expect.objectContaining({ sessionId: "session-1" }),
 			}),
 		);
+	});
+
+	it("updates the active session connection in place without restarting", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.updateCurrentSessionConnection({
+			providerId: "openai",
+			modelId: "codex-test",
+		});
+
+		expect(manager.updateSessionConnection).toHaveBeenCalledWith("session-1", {
+			providerId: "openai",
+			modelId: "codex-test",
+		});
+		expect(manager.start).toHaveBeenCalledTimes(1);
+		expect(runtime.getActiveSessionId()).toBe("session-1");
 	});
 
 	it("does not reuse the session id when restarting empty", async () => {

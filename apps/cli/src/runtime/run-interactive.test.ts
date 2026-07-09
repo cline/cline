@@ -38,3 +38,4 @@ describe("resolveReasoningForModelChange", () => {
 		).toEqual({ enabled: true, effort: "medium" });
 	});
 });
+
