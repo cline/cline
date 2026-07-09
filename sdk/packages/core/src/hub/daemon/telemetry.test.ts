@@ -71,7 +71,7 @@ describe("createHubDaemonTelemetry", () => {
 		expect(mockCreateConfiguredTelemetryHandle).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadata: expect.objectContaining({
-					cline_type: "cli",
+					cline_type: "hub",
 					platform: "cline-hub-daemon",
 				}),
 			}),

@@ -33,7 +33,10 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 	const config = createClineTelemetryServiceConfig({
 		metadata: {
 			extension_version: CORE_BUILD_VERSION,
-			cline_type: "cli",
+			// "hub", not "cli": daemon-hosted sessions can be triggered by the
+			// CLI, desktop app, or connectors, so daemon-emitted events must be
+			// distinguishable from the CLI process's own events.
+			cline_type: "hub",
 			platform: "cline-hub-daemon",
 			platform_version: process.version,
 			os_type: process.platform,
