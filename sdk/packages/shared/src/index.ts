@@ -207,14 +207,7 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
-export {
-	buildClineClientRequestHeaders,
-	type ClineClientRequestHeadersInput,
-	DEFAULT_REQUEST_HEADERS,
-	type MergeClineClientRequestHeadersInput,
-	mergeClineClientRequestHeaders,
-	serializeAbortReason,
-} from "./llms/requests";
+export { serializeAbortReason } from "./llms/requests";
 export { CHARS_PER_TOKEN, estimateTokens } from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
