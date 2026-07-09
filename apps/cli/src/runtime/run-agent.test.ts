@@ -50,7 +50,7 @@ const CLI_CLINE_PASS_LIMIT_MESSAGE = [
 	CLINE_PASS_LIMIT_DETAIL_MESSAGE,
 	"Switch to Cline usage-based billing and retry with the Cline provider.",
 	"Interactive CLI: open the model selector with /model, choose Cline, then retry.",
-	"Headless CLI: rerun with --provider cline. If needed, sign in first with `cline auth cline`.",
+	"Headless CLI: rerun with --provider cline.",
 ].join("\n");
 const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
 	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";
