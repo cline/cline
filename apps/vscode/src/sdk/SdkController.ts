@@ -1928,7 +1928,7 @@ export class Controller {
 				return undefined
 			}
 			// Rebuild only when the set of workspace folders changes
-			const pathsKey = validPaths.join(" ")
+			const pathsKey = JSON.stringify(validPaths)
 			if (!this._workspaceManager || this._workspaceManagerPathsKey !== pathsKey) {
 				this._workspaceManager = await WorkspaceRootManager.fromPaths(validPaths)
 				this._workspaceManagerPathsKey = pathsKey
