@@ -932,9 +932,16 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
-		const plannedSessionId = startConfig
-			? startConfig.config.sessionId?.trim() || createSessionId()
-			: undefined;
+		let plannedSessionId: string | undefined;
+		let startSessionConfig: Record<string, unknown> | undefined;
+		if (startConfig) {
+			plannedSessionId =
+				startConfig.config.sessionId?.trim() || createSessionId();
+			startSessionConfig = buildCommandSessionConfig(
+				startConfig,
+				plannedSessionId,
+			);
+		}
 		if (plannedSessionId && capabilities) {
 			this.sessionCapabilities.set(plannedSessionId, capabilities);
 		}
@@ -945,10 +952,6 @@ export class HubRuntimeHost implements RuntimeHost {
 			);
 			this.ensureSessionSubscription(plannedSessionId);
 		}
-		const startSessionConfig =
-			startConfig && plannedSessionId
-				? buildCommandSessionConfig(startConfig, plannedSessionId)
-				: undefined;
 		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
 		try {
 			reply = await this.client.command(
