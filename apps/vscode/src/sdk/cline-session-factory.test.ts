@@ -71,9 +71,11 @@ vi.mock("@shared/services/Logger", () => ({
 // ---------------------------------------------------------------------------
 
 let tempDir: string
+const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH
 
 beforeEach(() => {
 	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-session-factory-"))
+	process.env.CLINE_GLOBAL_SETTINGS_PATH = path.join(tempDir, "global-settings.json")
 	vi.clearAllMocks()
 	mocks.stateManager.getApiConfiguration.mockReturnValue({
 		actModeApiProvider: "anthropic",
@@ -91,6 +93,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+	process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath
 	fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
@@ -378,7 +381,7 @@ describe("buildSessionConfig", () => {
 		const providers = [
 			{ providerId: "poolside", modelId: "poolside/laguna-m.1" },
 			{ providerId: "v0", modelId: "v0-1.5-md" },
-			{ providerId: "xiaomi", modelId: "mimo-v2-omni" },
+			{ providerId: "xiaomi", modelId: "mimo-v2.5" },
 			{ providerId: "zai-coding-plan", modelId: "glm-5.2" },
 		] as const
 
@@ -619,20 +622,60 @@ describe("buildSessionConfig", () => {
 	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline-pass",
-			actModeClinePassModelId: "cline-pass/glm-5.1",
+			actModeClinePassModelId: "cline-pass/glm-5.2",
 		} as any)
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect(config.providerId).toBe("cline-pass")
-		expect(config.modelId).toBe("cline-pass/glm-5.1")
+		expect(config.modelId).toBe("cline-pass/glm-5.2")
 		expect(config.apiKey).toBe("")
-		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.1" })
+		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.2" })
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
 	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "basic",
+		})
+	})
+
+	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "agentic" })
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
+		})
+	})
+
+	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true

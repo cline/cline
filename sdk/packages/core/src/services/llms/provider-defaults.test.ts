@@ -118,6 +118,73 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]).toBeUndefined();
 	});
 
+	it("keeps ClinePass models ahead of newer free models in the served catalog", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									release_date: "2024-01-01",
+								},
+								"vendor/live-free-model": {
+									name: "Live Free Model",
+									tool_call: true,
+									release_date: "2026-01-01",
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+					free: [{ id: "vendor/live-free-model" }],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline-pass", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		// The first live model is the fallback default when the bundled default
+		// id is not in the live list, so a subscription model must stay first
+		// even when a free model has a newer release date.
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+			"cline-pass/live-pass-model",
+			"vendor/live-free-model",
+		]);
+		expect(resolved?.knownModels?.["vendor/live-free-model"]?.pricing).toEqual({
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+		});
+	});
+
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.test/api.json") {
@@ -168,8 +235,8 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_000_000,
-			maxInputTokens: 1_000_000,
+			contextWindow: 1_040_000,
+			maxInputTokens: 1_040_000,
 		});
 		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toBeUndefined();
 	});
@@ -196,8 +263,8 @@ describe("resolveProviderConfig", () => {
 		});
 		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
-			contextWindow: 1_000_000,
-			maxInputTokens: 1_000_000,
+			contextWindow: 1_040_000,
+			maxInputTokens: 1_040_000,
 		});
 	});
 
@@ -216,8 +283,8 @@ describe("resolveProviderConfig", () => {
 									family: "gpt",
 									release_date: "2027-01-01",
 								},
-								"gpt-5.4-live": {
-									name: "GPT-5.4 Live",
+								"gpt-5.3-live": {
+									name: "GPT-5.3 Live",
 									tool_call: true,
 									reasoning: true,
 									family: "gpt",
@@ -256,7 +323,7 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(resolved?.knownModels?.["gpt-5.6-live"]?.name).toBe("GPT-5.6 Live");
-		expect(resolved?.knownModels?.["gpt-5.4-live"]).toBeUndefined();
+		expect(resolved?.knownModels?.["gpt-5.3-live"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 		expect(resolved?.knownModels?.["o-live"]).toBeUndefined();
 	});
@@ -481,9 +548,8 @@ describe("resolveProviderConfig", () => {
 		const openAiResolved = await resolveProviderConfig("openai-native");
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
 
-		expect(modelIds).toEqual(
-			expect.arrayContaining(["gpt-5.5", "gpt-5.5-pro", "gpt-5.4"]),
-		);
+		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.5", "gpt-5.4"]));
+		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
@@ -492,8 +558,10 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiResolved?.knownModels?.["gpt-5.5"],
-				maxInputTokens: 272_000,
+				// ChatGPT/Codex backend caps: 272K input at the 95% effective budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
 	});
@@ -516,7 +584,8 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.4 mini",
-				maxInputTokens: 272_000,
+				// catalog input cap scaled to the 95% effective Codex budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
 			}),
 		);

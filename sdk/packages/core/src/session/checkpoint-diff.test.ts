@@ -54,24 +54,24 @@ describe("checkpoint workspace comparison", () => {
 			join(dir, "tracked.txt").replaceAll("\\", "/"),
 			join(dir, "untracked.txt").replaceAll("\\", "/"),
 		]);
-		expect(diffs.find((diff) => diff.filePath.endsWith("tracked.txt"))).toMatchObject(
-			{
-				leftContent: "base\n",
-				rightContent: "changed\n",
-			},
-		);
-		expect(diffs.find((diff) => diff.filePath.endsWith("deleted.txt"))).toMatchObject(
-			{
-				leftContent: "delete me\n",
-				rightContent: "",
-			},
-		);
-		expect(diffs.find((diff) => diff.filePath.endsWith("untracked.txt"))).toMatchObject(
-			{
-				leftContent: "",
-				rightContent: "new file\n",
-			},
-		);
+		expect(
+			diffs.find((diff) => diff.filePath.endsWith("tracked.txt")),
+		).toMatchObject({
+			leftContent: "base\n",
+			rightContent: "changed\n",
+		});
+		expect(
+			diffs.find((diff) => diff.filePath.endsWith("deleted.txt")),
+		).toMatchObject({
+			leftContent: "delete me\n",
+			rightContent: "",
+		});
+		expect(
+			diffs.find((diff) => diff.filePath.endsWith("untracked.txt")),
+		).toMatchObject({
+			leftContent: "",
+			rightContent: "new file\n",
+		});
 	});
 
 	it("uses the worktree snapshot stored in SDK stash checkpoints", async () => {

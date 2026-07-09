@@ -323,15 +323,20 @@ Context compaction is owned by `core`.
 
 - `@cline/agents` owns the generic turn-preparation seam:
   - run normal lifecycle hooks
-  - allow hosts to rewrite message history or system prompt before the provider call
+  - allow hosts to project message history or system prompt before the provider call
+  - keep its canonical runtime transcript append-only when a projection is returned
 - `@cline/core` owns compaction policy:
   - inject a prepare-turn pipeline for root sessions
   - choose between built-in strategies through a registry map
+  - persist the latest compacted working context as a session compaction artifact
   - keep compaction logic out of the low-level agent message builder
 
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
+- canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
+- resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
+- sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 

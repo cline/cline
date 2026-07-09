@@ -41,6 +41,24 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("stores the provider and model config used to start the active session", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		await lifecycle.startNewSession({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4",
+			},
+		} as StartInput)
+
+		expect(lifecycle.getActiveSession()?.startConfig).toEqual({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4",
+		})
+	})
+
 	it("reuses the shared session host across sessions", async () => {
 		const sdkHost = makeSdkHost({
 			start: vi.fn().mockResolvedValueOnce({ sessionId: "session-1" }).mockResolvedValueOnce({ sessionId: "session-2" }),
@@ -145,6 +163,23 @@ describe("SdkSessionLifecycle", () => {
 		await vi.waitFor(() => expect(onSendComplete).toHaveBeenCalledWith("session-123"))
 
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
+	it("calls the send-start hook before sending to the SDK host", async () => {
+		const onSendStart = vi.fn()
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onSendStart })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(send).toHaveBeenCalled())
+
+		expect(onSendStart).toHaveBeenCalledWith("session-123")
+		expect(onSendStart.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0])
 	})
 
 	it("leaves the active session running when a message is queued", async () => {
@@ -428,8 +463,13 @@ describe("SdkSessionLifecycle", () => {
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle()
 
-		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		await lifecycle.startNewSession({ config: { sessionId: "source-session" } } as any)
+		await lifecycle.startNewSession({
+			config: {
+				sessionId: "source-session",
+				providerId: "openai",
+				modelId: "gpt-5",
+			},
+		} as StartInput)
 		const result = await lifecycle.restoreActiveSession({
 			sessionId: "source-session",
 			checkpointRunCount: 1,
@@ -437,6 +477,10 @@ describe("SdkSessionLifecycle", () => {
 
 		expect(result).toBe(restored)
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("restored-session")
+		expect(lifecycle.getActiveSession()?.startConfig).toEqual({
+			providerId: "openai",
+			modelId: "gpt-5",
+		})
 		expect(sdkHost.stop).toHaveBeenCalledWith("source-session")
 	})
 

@@ -5,8 +5,10 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	setAutoUpdateEnabledGlobally,
+	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
@@ -44,11 +46,13 @@ describe("global-settings", () => {
 		});
 		expect(
 			GlobalSettingsSchema.parse({
+				compactionStrategy: "agentic",
 				disabledTools: ["read_files"],
 				extra: true,
 			}),
 		).toEqual({
 			autoUpdateEnabled: true,
+			compactionStrategy: "agentic",
 			disabledTools: ["read_files"],
 			telemetryOptOut: false,
 		});
@@ -194,6 +198,20 @@ describe("global-settings", () => {
 				disabledTools: ["editor"],
 				telemetryOptOut: true,
 			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the compaction strategy globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readCompactionStrategyGlobally()).toBe("basic");
+			setCompactionStrategyGlobally("agentic");
+			expect(readCompactionStrategyGlobally()).toBe("agentic");
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

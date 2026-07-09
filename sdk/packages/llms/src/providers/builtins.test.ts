@@ -57,8 +57,8 @@ describe("cline builtin models", () => {
 		expect(models["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_000_000,
-			maxInputTokens: 1_000_000,
+			contextWindow: 1_040_000,
+			maxInputTokens: 1_040_000,
 		});
 		expect(models["zai/glm-5.1"]).toMatchObject({
 			id: "zai/glm-5.1",
@@ -120,13 +120,9 @@ describe("built-in provider metadata", () => {
 		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining([
-				"gpt-5.5",
-				"gpt-5.5-pro",
-				"gpt-5.4",
-				"gpt-5.4-mini",
-			]),
+			expect.arrayContaining(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]),
 		);
+		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
@@ -137,8 +133,10 @@ describe("built-in provider metadata", () => {
 		expect(chatGptModels["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiModels["gpt-5.5"],
-				maxInputTokens: 272_000,
+				// ChatGPT/Codex backend caps: 272K input at the 95% effective budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
 		expect(chatGptModels["gpt-5.4"]).toEqual(

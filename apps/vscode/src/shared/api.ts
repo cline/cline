@@ -49,6 +49,7 @@ export type ApiProvider =
 	| "nousResearch"
 	| "wandb"
 	| "xiaomi"
+	| "tencent-tokenhub"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -141,8 +142,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4.5 is an Anthropic model for coding, agentic search, and AI agent workflows. It supports planning and implementation tasks across the software development lifecycle.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
-export type ClinePassModelId = keyof typeof clinePassModels
-export const clinePassDefaultModelId = "cline-pass/glm-5.1"
+export const clinePassDefaultModelId = "cline-pass/glm-5.2"
 export const clinePassModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: 8_192,
 	contextWindow: 128_000,
@@ -155,21 +155,6 @@ export const clinePassModelInfoSaneDefaults: ModelInfo = {
 	cacheWritesPrice: 0,
 	description: "",
 }
-export const clinePassModels = {
-	"cline-pass/glm-5.1": {
-		name: "cline-pass/glm-5.1",
-		maxTokens: 131_072,
-		contextWindow: 202_752,
-		supportsImages: false,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 0.98,
-		outputPrice: 3.08,
-		cacheReadsPrice: 0.182,
-		cacheWritesPrice: 0,
-		description: "",
-	},
-} as const satisfies Record<string, ModelInfo>
 
 export function getModelSlug(modelId: string): string {
 	return modelId.split("/").at(-1) ?? modelId
@@ -186,11 +171,7 @@ export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record
 }
 
 export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Record<string, ModelInfo>): ModelInfo {
-	return (
-		clinePassModels[modelId as keyof typeof clinePassModels] ??
-		modelInfoByName?.[getModelSlug(modelId)] ??
-		clinePassModelInfoSaneDefaults
-	)
+	return modelInfoByName?.[getModelSlug(modelId)] ?? clinePassModelInfoSaneDefaults
 }
 
 export const openAiModelInfoSafeDefaults: OpenAiCompatibleModelInfo = {

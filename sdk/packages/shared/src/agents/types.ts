@@ -162,7 +162,9 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 		| "completion_without_submit"
 		| "tool_execution_failed"
 		| "mistake_limit"
-		| "auto_compaction";
+		| "auto_compaction"
+		| "manual_compaction"
+		| "compaction_budget_emergency";
 	metadata?: Record<string, unknown>;
 }
 
@@ -800,8 +802,14 @@ export interface AgentConfig {
 	 */
 	logger?: BasicLogger;
 	/**
-	 * Optional callback that can rewrite the turn input before each model call.
-	 * This is the primary seam for host-owned context pipelines.
+	 * Optional request projection hook invoked before each model call.
+	 *
+	 * Returned messages affect only the provider request for the current call.
+	 * They do not replace the canonical runtime transcript, are not persisted as
+	 * session history, and are not reflected in AgentRunResult.messages.
+	 *
+	 * Hosts that need durable redaction or normalization must apply it before a
+	 * message enters the canonical transcript.
 	 */
 	prepareTurn?: (
 		context: AgentPrepareTurnContext,

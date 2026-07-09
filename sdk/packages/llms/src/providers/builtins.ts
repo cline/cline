@@ -24,6 +24,8 @@ import type {
 import {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
+	extractClinePassLimitMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
@@ -520,7 +522,7 @@ async function handleClineResponseError(
 	response: Response,
 	providerId: string,
 ): Promise<void> {
-	if (response.status !== 403) {
+	if (response.status < 400) {
 		return;
 	}
 
@@ -531,6 +533,11 @@ async function handleClineResponseError(
 
 	if (isClineOrgIndividualInferenceSubscriptionMessage(body)) {
 		throw new ClineOrgIndividualInferenceSubscriptionError(providerId);
+	}
+
+	const clinePassLimitMessage = extractClinePassLimitMessage(body);
+	if (clinePassLimitMessage) {
+		throw new ClinePassLimitError(clinePassLimitMessage, providerId);
 	}
 
 	if (isClineNotSubscribedMessage(body)) {
@@ -865,10 +872,22 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Xiaomi",
 		family: "openai-compatible",
 		capabilities: ["prompt-cache", "tools", "reasoning"],
-		defaultModelId: "mimo-v2-omni",
+		defaultModelId: "mimo-v2.5",
 		apiKeyEnv: ["XIAOMI_API_KEY"],
 		modelsProviderId: "xiaomi",
 		defaults: { baseUrl: "https://api.xiaomimimo.com/v1" },
+	},
+	{
+		id: "tencent-tokenhub",
+		name: "Tencent TokenHub",
+		description: "Tencent TokenHub AI models",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "hy3-preview",
+		apiKeyEnv: ["TENCENT_TOKENHUB_API_KEY"],
+		modelsProviderId: "tencent-tokenhub",
+		docsUrl: "https://cloud.tencent.com/document/product/1823/130050",
+		defaults: { baseUrl: "https://tokenhub.tencentmaas.com/v1" },
 	},
 	{
 		id: "kilo",

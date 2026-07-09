@@ -114,14 +114,7 @@ describe("marketplace service", () => {
 		expect(calls).toEqual([
 			{
 				command: "npx",
-				args: [
-					"-y",
-					"skills@latest",
-					"remove",
-					"review-team",
-					"-g",
-					"-y",
-				],
+				args: ["-y", "skills@latest", "remove", "review-team", "-g", "-y"],
 			},
 		]);
 		expect(existsSync(skillDir)).toBe(false);

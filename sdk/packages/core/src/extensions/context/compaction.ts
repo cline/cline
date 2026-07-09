@@ -1,8 +1,14 @@
 import {
+	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	type TelemetryCompactionStrategy,
 } from "../../services/telemetry/core-events";
+import {
+	createSessionCompactionState,
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
@@ -44,6 +50,10 @@ export interface ContextPipelinePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+export type ContextPipelinePrepareTurn = (
+	context: ContextPipelinePrepareTurnInput,
+) => Promise<ContextPipelinePrepareTurnResult | undefined>;
+
 type EstimateMessageTokens = ReturnType<typeof createTokenEstimator>;
 
 type BuiltinCompactionStrategyOptions = {
@@ -68,6 +78,9 @@ export interface ContextCompactionPrepareTurnOptions {
 	mode?: ContextCompactionMode;
 	manualTargetRatio?: number;
 }
+
+const MIN_CONTEXT_DERIVED_INPUT_RATIO = 0.5;
+const LONG_CONVERSATION_TARGET_RATIO = 0.5;
 
 function safeJsonSize(value: unknown): number {
 	try {
@@ -96,11 +109,15 @@ function resolveMaxInputTokens(input: {
 	}
 	if (isPositiveFiniteNumber(input.contextWindow)) {
 		candidates.push(input.contextWindow);
+		const derivedInputTokens = isPositiveFiniteNumber(input.modelMaxTokens)
+			? input.contextWindow - input.modelMaxTokens
+			: undefined;
 		if (
-			isPositiveFiniteNumber(input.modelMaxTokens) &&
-			input.modelMaxTokens < input.contextWindow
+			isPositiveFiniteNumber(derivedInputTokens) &&
+			derivedInputTokens >=
+				input.contextWindow * MIN_CONTEXT_DERIVED_INPUT_RATIO
 		) {
-			candidates.push(input.contextWindow - input.modelMaxTokens);
+			candidates.push(derivedInputTokens);
 		}
 	}
 	return candidates.length > 0
@@ -245,20 +262,36 @@ function resolveBasicTargetTokens(input: {
 	maxInputTokens: number;
 	modelMaxTokens?: number;
 	triggerTokens: number;
+	messagePairCount: number;
 }): number {
-	const targetBaseTokens =
+	const targetTokens =
+		input.messagePairCount >= 5 &&
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens) &&
 		input.modelMaxTokens < input.maxInputTokens
-			? input.maxInputTokens - input.modelMaxTokens
-			: input.triggerTokens;
+			? Math.floor(input.maxInputTokens * LONG_CONVERSATION_TARGET_RATIO)
+			: Math.floor(input.triggerTokens * DEFAULT_TARGET_RATIO);
+	const triggerCeiling = Math.max(1, input.triggerTokens - 1);
 	return Math.max(
 		1,
-		Math.min(
-			Math.floor(targetBaseTokens * DEFAULT_TARGET_RATIO),
-			input.maxInputTokens,
-		),
+		Math.min(targetTokens, input.maxInputTokens, triggerCeiling),
 	);
+}
+
+function countUserAssistantPairs(
+	messages: CoreCompactionContext["messages"],
+): number {
+	let pairs = 0;
+	let hasPendingUser = false;
+	for (const message of messages) {
+		if (message.role === "user") {
+			hasPendingUser = true;
+		} else if (message.role === "assistant" && hasPendingUser) {
+			pairs += 1;
+			hasPendingUser = false;
+		}
+	}
+	return pairs;
 }
 
 /**
@@ -351,37 +384,38 @@ export function createContextCompactionPrepareTurn(
 		if (mode === "auto" && !triggerState.shouldCompact) {
 			return undefined;
 		}
-			const targetState =
-				mode === "manual"
-					? resolveManualTargetState({
-							inputTokens,
-							maxInputTokens,
+		const targetState =
+			mode === "manual"
+				? resolveManualTargetState({
+						inputTokens,
+						maxInputTokens,
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-					: triggerState;
-			const targetTokens =
-				mode === "auto"
-					? resolveBasicTargetTokens({
-							maxInputTokens,
-							modelMaxTokens: context.model.info?.maxTokens,
-							triggerTokens: targetState.triggerTokens,
-						})
-					: undefined;
+				: triggerState;
+		const targetTokens =
+			mode === "auto"
+				? resolveBasicTargetTokens({
+						maxInputTokens,
+						modelMaxTokens: context.model.info?.maxTokens,
+						triggerTokens: targetState.triggerTokens,
+						messagePairCount: countUserAssistantPairs(context.messages),
+					})
+				: undefined;
 
-			const compactionContext = {
-				agentId: context.agentId,
-				conversationId: context.conversationId,
+		const compactionContext = {
+			agentId: context.agentId,
+			conversationId: context.conversationId,
 			parentAgentId: context.parentAgentId,
 			iteration: context.iteration,
 			messages: context.messages,
-				model: context.model,
-				maxInputTokens,
-				triggerTokens: targetState.triggerTokens,
-				targetTokens,
-				thresholdRatio: targetState.thresholdRatio,
-				utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
-			};
+			model: context.model,
+			maxInputTokens,
+			triggerTokens: targetState.triggerTokens,
+			targetTokens,
+			thresholdRatio: targetState.thresholdRatio,
+			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
+		};
 
 		const statusReason =
 			mode === "manual" ? "manual_compaction" : "auto_compaction";
@@ -397,6 +431,10 @@ export function createContextCompactionPrepareTurn(
 		);
 
 		const beforeMessageCount = context.messages.length;
+		const compactionInputTokens = context.messages.reduce(
+			(total: number, message) => total + estimateMessageTokens(message),
+			0,
+		);
 		const startedAt = Date.now();
 
 		const result = userCompaction?.compact
@@ -434,10 +472,11 @@ export function createContextCompactionPrepareTurn(
 				severity: "info",
 				strategy: strategy,
 				maxInputTokens,
-				inputTokens,
+				inputTokens: compactionInputTokens,
+				apiInputTokens: inputTokens,
 				afterTokens,
-				tokensSaved: inputTokens - afterTokens,
-				utilizationBefore: `${((inputTokens / maxInputTokens) * 100).toFixed(1)}%`,
+				tokensSaved: compactionInputTokens - afterTokens,
+				utilizationBefore: `${((compactionInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				utilizationAfter: `${((afterTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				thresholdTrigger: `${(targetState.thresholdRatio * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
@@ -451,9 +490,9 @@ export function createContextCompactionPrepareTurn(
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
-				tokensBefore: inputTokens,
+				tokensBefore: compactionInputTokens,
 				tokensAfter: afterTokens,
-				tokensSaved: inputTokens - afterTokens,
+				tokensSaved: compactionInputTokens - afterTokens,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
 				thresholdRatio: targetState.thresholdRatio,
@@ -464,13 +503,38 @@ export function createContextCompactionPrepareTurn(
 				modelId: config.modelId,
 				...telemetryIdentity,
 			});
+			if (
+				result.budget &&
+				(result.budget.actionCount > 0 || result.budget.warningCount > 0)
+			) {
+				captureCompactionBudgetEmergency(config.telemetry, {
+					ulid: telemetryUlid,
+					strategy: telemetryStrategy,
+					mode,
+					policyIntent: result.budget.policyIntent,
+					actionCount: result.budget.actionCount,
+					warningCount: result.budget.warningCount,
+					liveTailHandling: result.budget.liveTailHandling,
+					provider: config.providerId,
+					modelId: config.modelId,
+					...telemetryIdentity,
+				});
+				context.emitStatusNotice?.("compaction-budget-adjusted", {
+					kind: "compaction_budget_emergency",
+					reason: "compaction_budget_emergency",
+					iteration: context.iteration,
+					policyIntent: result.budget.policyIntent,
+					actionCount: result.budget.actionCount,
+					warningCount: result.budget.warningCount,
+				});
+			}
 		} else {
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: telemetryStrategy,
 				mode,
 				reason: "no_result",
-				tokensBefore: inputTokens,
+				tokensBefore: compactionInputTokens,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
 				thresholdRatio: targetState.thresholdRatio,
@@ -481,6 +545,65 @@ export function createContextCompactionPrepareTurn(
 			});
 		}
 
+		return result;
+	};
+}
+
+export function createCompactionStateAwarePrepareTurn(input: {
+	compact?: ContextPipelinePrepareTurn;
+	getState?: () => SessionCompactionState | undefined;
+	saveState?: (state: SessionCompactionState) => void | Promise<void>;
+}): ContextPipelinePrepareTurn {
+	return async (context) => {
+		const existingState = input.getState?.();
+		const projectedMessages = existingState
+			? projectSessionCompactionState(existingState, context.messages)
+			: undefined;
+		if (existingState && projectedMessages) {
+			// Re-compaction intentionally starts from the compacted projection plus
+			// canonical tail. This keeps automatic turns bounded without rebuilding a
+			// full-transcript summary every turn; manual `/compact` is the path for a
+			// fresh summary from canonical history.
+			const result = input.compact
+				? await input.compact({
+						...context,
+						messages: projectedMessages,
+						apiMessages: projectedMessages,
+					})
+				: undefined;
+			if (result?.messages) {
+				const systemPrompt = result.systemPrompt ?? existingState.system_prompt;
+				const nextState = createSessionCompactionState({
+					sourceMessages: context.messages,
+					compactedMessages: result.messages,
+					conversationId: context.conversationId,
+					systemPrompt,
+				});
+				await input.saveState?.(nextState);
+				return {
+					...result,
+					...(systemPrompt !== undefined ? { systemPrompt } : {}),
+				};
+			}
+			return {
+				messages: projectedMessages,
+				...(result?.systemPrompt !== undefined
+					? { systemPrompt: result.systemPrompt }
+					: existingState.system_prompt !== undefined
+						? { systemPrompt: existingState.system_prompt }
+						: {}),
+			};
+		}
+		const result = input.compact ? await input.compact(context) : undefined;
+		if (result?.messages) {
+			const nextState = createSessionCompactionState({
+				sourceMessages: context.messages,
+				compactedMessages: result.messages,
+				conversationId: context.conversationId,
+				systemPrompt: result.systemPrompt,
+			});
+			await input.saveState?.(nextState);
+		}
 		return result;
 	};
 }

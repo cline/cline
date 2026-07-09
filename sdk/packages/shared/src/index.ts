@@ -207,7 +207,14 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
-export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
+export {
+	buildClineClientRequestHeaders,
+	type ClineClientRequestHeadersInput,
+	DEFAULT_REQUEST_HEADERS,
+	type MergeClineClientRequestHeadersInput,
+	mergeClineClientRequestHeaders,
+	serializeAbortReason,
+} from "./llms/requests";
 export { CHARS_PER_TOKEN, estimateTokens } from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
@@ -243,10 +250,13 @@ export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	parseUserInputMode,
+	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { isClineProvider } from "./providers/utils";

@@ -1,11 +1,13 @@
-import type { CoreSessionEvent } from "@cline/core"
+import type { AgentEvent, CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
@@ -17,6 +19,8 @@ import type { TaskProxy } from "./task-proxy"
 function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
+
+type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType"> | undefined
 
 export interface SdkSessionEventCoordinatorOptions {
 	messageTranslatorState: MessageTranslatorState
@@ -37,6 +41,8 @@ export interface SdkSessionEventCoordinatorOptions {
 	 * error. Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
+	beginProviderFailureTelemetryTurn?: () => void
 }
 
 export class SdkSessionEventCoordinator {
@@ -64,10 +70,20 @@ export class SdkSessionEventCoordinator {
 		}
 
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
+		const agentFailure = this.getAgentFailureTelemetry(event)
+		if (agentFailure && !this.options.messageTranslatorState.isSuppressedToolApprovalDenial(agentFailure.error)) {
+			this.options.captureProviderApiError?.({
+				sessionId: agentFailure.sessionId,
+				error: agentFailure.error,
+				errorType: agentFailure.errorType,
+				failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+			})
+		}
 		if (event.type === "pending_prompt_submitted") {
+			this.options.beginProviderFailureTelemetryTurn?.()
 			this.options.messageTranslatorState.clearTurnOutcome()
 			this.options.sessions.setRunning(true)
-			this.options.setTurnPhase?.("streaming")
+			this.options.setTurnPhase?.(PROVIDER_FAILURE_PHASE.STREAMING)
 		}
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {
@@ -147,6 +163,33 @@ export class SdkSessionEventCoordinator {
 		}
 	}
 
+	private getAgentFailureTelemetry(event: CoreSessionEvent): AgentFailureTelemetry {
+		if (event.type !== "agent_event") {
+			return undefined
+		}
+
+		const agentEvent: AgentEvent = event.payload.event
+		if (agentEvent.type === "error") {
+			if (agentEvent.error == null) {
+				return undefined
+			}
+			return {
+				sessionId: event.payload.sessionId,
+				error: agentEvent.error,
+				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
+			}
+		}
+		if (agentEvent.type === "done" && agentEvent.reason === "error") {
+			const errorMessage = agentEvent.text.trim() || "SDK agent finished with error"
+			return {
+				sessionId: event.payload.sessionId,
+				error: errorMessage,
+				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
+			}
+		}
+		return undefined
+	}
+
 	private zeroCostForFreeClineModel(result: TranslationResult): Promise<void> | undefined {
 		const hasUsageCost = typeof result.usage?.totalCost === "number" && result.usage.totalCost !== 0
 		const hasMessageCost = result.messages.some((message) => {
@@ -208,11 +251,12 @@ export class SdkSessionEventCoordinator {
 			const apiConfig = stateManager.getApiConfiguration()
 			const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 			const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			if (provider !== "cline") {
+			// Free models are also selectable on ClinePass — they ride usage billing at $0
+			if (!isClineManagedProvider(provider)) {
 				return false
 			}
 
-			const modelId = mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
+			const modelId = this.getCurrentClineModelId()
 			if (!modelId) {
 				return false
 			}
@@ -241,6 +285,10 @@ export class SdkSessionEventCoordinator {
 		}
 		const apiConfig = stateManager.getApiConfiguration()
 		const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		if (provider === "cline-pass") {
+			return mode === "plan" ? apiConfig.planModeClinePassModelId : apiConfig.actModeClinePassModelId
+		}
 		return mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
 	}
 
