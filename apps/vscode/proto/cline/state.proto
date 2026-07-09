@@ -287,6 +287,10 @@ message Settings {
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
   optional bool lazy_teammate_mode_enabled = 183;
+  optional bool plan_mode_vertex_custom_model_selected = 184;
+  optional OpenRouterModelInfo plan_mode_vertex_custom_model_info = 185;
+  optional bool act_mode_vertex_custom_model_selected = 186;
+  optional OpenRouterModelInfo act_mode_vertex_custom_model_info = 187;
 }
 
 message State {

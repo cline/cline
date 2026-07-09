@@ -1861,24 +1861,24 @@ export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
 	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
 ) as Record<string, ModelInfo>
 
-export function getVertexCustomModelInfo(modelId: string): ModelInfo {
-	if (modelId.toLowerCase().includes("claude")) {
-		return {
-			maxTokens: 128_000,
-			contextWindow: 1_000_000,
-			supportsImages: true,
-			supportsPromptCache: true,
-			supportsGlobalEndpoint: true,
-			pricingUnknown: true,
-			supportsReasoning: true,
-		}
-	}
+// Defaults for custom (free-form) Vertex model entries. Context window, max output
+// tokens, image support, and reasoning support are user-editable in settings.
+export const vertexCustomModelInfoSaneDefaults: ModelInfo = {
+	maxTokens: 64_000,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsReasoning: true,
+	supportsPromptCache: true,
+	supportsGlobalEndpoint: true,
+	pricingUnknown: true,
+}
 
+export function getVertexCustomModelInfo(customModelInfo?: ModelInfo): ModelInfo {
 	return {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
+		...vertexCustomModelInfoSaneDefaults,
+		...customModelInfo,
+		// Fixed for all custom Vertex models regardless of user edits.
+		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
 		pricingUnknown: true,
 	}

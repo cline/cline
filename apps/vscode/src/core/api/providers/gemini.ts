@@ -25,6 +25,7 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	isVertex?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexCustomModelInfo?: ModelInfo
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
@@ -471,7 +472,7 @@ export class GeminiHandler implements ApiHandler {
 			return { id, info: geminiModels[id] }
 		}
 		if (modelId && this.options.isVertex) {
-			return { id: modelId, info: getVertexCustomModelInfo(modelId) }
+			return { id: modelId, info: getVertexCustomModelInfo(this.options.vertexCustomModelInfo) }
 		}
 		return {
 			id: geminiDefaultModelId,

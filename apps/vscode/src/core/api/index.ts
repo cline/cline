@@ -138,6 +138,8 @@ function createHandlerForProvider(
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				vertexCustomModelInfo:
+					mode === "plan" ? options.planModeVertexCustomModelInfo : options.actModeVertexCustomModelInfo,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				geminiApiKey: options.geminiApiKey,

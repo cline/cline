@@ -109,6 +109,12 @@ export async function updateApiConfigurationProto(
 						protoApiConfiguration.planModeAihubmixModelInfo,
 					)
 				: undefined,
+			planModeVertexCustomModelInfo:
+				protoApiConfiguration.planModeVertexCustomModelInfo
+					? fromProtobufModelInfo(
+							protoApiConfiguration.planModeVertexCustomModelInfo,
+						)
+					: undefined,
 
 			// Act Mode
 			actModeOpenRouterModelInfo:
@@ -168,6 +174,12 @@ export async function updateApiConfigurationProto(
 						protoApiConfiguration.actModeAihubmixModelInfo,
 					)
 				: undefined,
+			actModeVertexCustomModelInfo:
+				protoApiConfiguration.actModeVertexCustomModelInfo
+					? fromProtobufModelInfo(
+							protoApiConfiguration.actModeVertexCustomModelInfo,
+						)
+					: undefined,
 			geminiPlanModeThinkingLevel:
 				protoApiConfiguration.geminiPlanModeThinkingLevel,
 			geminiActModeThinkingLevel:
