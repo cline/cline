@@ -364,6 +364,61 @@ describe("ClineCore", () => {
 		);
 	});
 
+	it("normalizes config extension context into local runtime before delegating to the host", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-extension-context"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const onTeamRestored = vi.fn();
+		const clientContext = {
+			name: "VSCode Extension",
+			version: "3.27.0",
+			platform: "Visual Studio Code",
+			platformVersion: "1.102.3",
+			isMultiRoot: true,
+		};
+		const core = await ClineCore.create();
+
+		await core.start({
+			...createStartInput(),
+			config: {
+				...createStartInput().config,
+				extensionContext: {
+					client: clientContext,
+				},
+			},
+			localRuntime: {
+				onTeamRestored,
+			},
+		});
+
+		const startInput = vi.mocked(host.startSession).mock.calls.at(-1)?.[0] as
+			| StartSessionInput
+			| undefined;
+		expect(startInput).toBeDefined();
+		if (!startInput) throw new Error("Expected host.startSession to be called");
+		expect(startInput.config).not.toHaveProperty("extensionContext");
+		expect(startInput.localRuntime?.extensionContext?.client).toEqual(
+			clientContext,
+		);
+		expect(startInput.localRuntime?.onTeamRestored).toBe(onTeamRestored);
+	});
+
 	it("prefers the per-session telemetry service over the ClineCore one", async () => {
 		const host = {
 			runtimeAddress: undefined,
