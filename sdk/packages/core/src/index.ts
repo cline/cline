@@ -990,6 +990,21 @@ export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
+	ComputerUseClient,
+	type ComputerUseClientOptions,
+	type ComputerUseAction,
+	type ComputerUseCoordinate,
+	type ComputerUseDisplayInfo,
+	type ComputerUseImage,
+	type ComputerUseRequest,
+	type ComputerUseResponse,
+	createComputerUseTool,
+	createComputerUseToolFromEnv,
+	GET_DISPLAY_INFO_ACTION,
+	isComputerUseResponse,
+	type ComputerUseToolOptions,
+} from "./extensions/computer-use";
+export {
 	applyClineFeaturedModels,
 	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
