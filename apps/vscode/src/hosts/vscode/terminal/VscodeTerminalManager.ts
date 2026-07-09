@@ -90,8 +90,8 @@ export class VscodeTerminalManager {
 	}
 
 	constructor() {
-		// onDidStartTerminalShellExecution has been stable API since VS Code 1.93
-		// (our minimum supported version, see package.json engines.vscode).
+		// onDidStartTerminalShellExecution has been stable API since VS Code 1.93,
+		// below our minimum supported version (see package.json engines.vscode).
 		const startDisposable = vscode.window.onDidStartTerminalShellExecution((e) => {
 			// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 			e.execution.read()

@@ -105,8 +105,8 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// calls flush().then(() => fire(endEvent))), so we must await it rather
 			// than checking synchronously.
 			//
-			// onDidEndTerminalShellExecution has been stable API since VS Code 1.93
-			// (our minimum supported version, see package.json engines.vscode), so it is
+			// onDidEndTerminalShellExecution has been stable API since VS Code 1.93,
+			// below our minimum supported version (see package.json engines.vscode), so it is
 			// always available here. It fires for every execution on a shell-integrated
 			// terminal, but only when shell integration actually reports command
 			// completion — a command typed into a remote shell over ssh, for example,
