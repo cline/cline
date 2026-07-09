@@ -51,6 +51,12 @@ export interface CoreRuntimeFeatures {
 	enableTools: boolean;
 	enableSpawnAgent: boolean;
 	enableAgentTeams: boolean;
+	/**
+	 * Surface the terminal completion tool when a submit executor is available.
+	 * Non-interactive clients can opt in so text-only assistant turns are not
+	 * treated as completed runs.
+	 */
+	enableSubmitAndExit?: boolean;
 	disableMcpSettingsTools?: boolean;
 	yolo?: boolean;
 }

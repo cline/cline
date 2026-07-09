@@ -280,6 +280,7 @@ export async function runAgent(
 			source: SessionSource.CLI,
 			config: {
 				...config,
+				enableSubmitAndExit: true,
 				sessionId: plannedSessionId,
 				execution: {
 					...config.execution,

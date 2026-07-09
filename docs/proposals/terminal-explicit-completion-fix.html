@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Cline Terminal Explicit Completion Fix</title>
+		<style>
+			:root {
+				color-scheme: light;
+				--bg: #f7f7f4;
+				--ink: #20211f;
+				--muted: #62645f;
+				--line: #d9d8d0;
+				--panel: #ffffff;
+				--code: #f0efea;
+				--accent: #0f766e;
+				--accent-soft: #dff3ef;
+				--warn: #8a5b06;
+				--warn-soft: #fff3cf;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				background: var(--bg);
+				color: var(--ink);
+				font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+					"Segoe UI", sans-serif;
+			}
+
+			main {
+				max-width: 980px;
+				margin: 0 auto;
+				padding: 48px 24px 72px;
+			}
+
+			header {
+				border-bottom: 1px solid var(--line);
+				padding-bottom: 28px;
+				margin-bottom: 28px;
+			}
+
+			h1,
+			h2,
+			h3 {
+				line-height: 1.16;
+				letter-spacing: 0;
+			}
+
+			h1 {
+				font-size: 38px;
+				margin: 0 0 12px;
+			}
+
+			h2 {
+				font-size: 24px;
+				margin: 34px 0 12px;
+			}
+
+			h3 {
+				font-size: 18px;
+				margin: 24px 0 8px;
+			}
+
+			p {
+				margin: 10px 0;
+			}
+
+			.lede {
+				font-size: 19px;
+				color: var(--muted);
+				max-width: 760px;
+			}
+
+			.meta {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-top: 18px;
+			}
+
+			.pill {
+				display: inline-flex;
+				align-items: center;
+				border: 1px solid var(--line);
+				background: var(--panel);
+				border-radius: 999px;
+				padding: 5px 10px;
+				font-size: 13px;
+				color: var(--muted);
+			}
+
+			section {
+				margin: 24px 0;
+			}
+
+			.callout {
+				border: 1px solid var(--line);
+				background: var(--panel);
+				border-radius: 8px;
+				padding: 18px;
+				margin: 18px 0;
+			}
+
+			.callout strong {
+				color: var(--accent);
+			}
+
+			.warning {
+				background: var(--warn-soft);
+				border-color: #ead08a;
+			}
+
+			.warning strong {
+				color: var(--warn);
+			}
+
+			code {
+				background: var(--code);
+				border-radius: 5px;
+				padding: 2px 5px;
+				font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+				font-size: 0.92em;
+			}
+
+			pre {
+				overflow: auto;
+				background: #20211f;
+				color: #f8f7f1;
+				border-radius: 8px;
+				padding: 16px;
+				font-size: 14px;
+				line-height: 1.5;
+			}
+
+			pre code {
+				background: transparent;
+				color: inherit;
+				padding: 0;
+			}
+
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				background: var(--panel);
+				border: 1px solid var(--line);
+				border-radius: 8px;
+				overflow: hidden;
+			}
+
+			th,
+			td {
+				text-align: left;
+				vertical-align: top;
+				border-bottom: 1px solid var(--line);
+				padding: 12px;
+			}
+
+			th {
+				background: var(--accent-soft);
+				font-weight: 700;
+			}
+
+			tr:last-child td {
+				border-bottom: 0;
+			}
+
+			ol,
+			ul {
+				padding-left: 22px;
+			}
+
+			li {
+				margin: 7px 0;
+			}
+
+			@media (max-width: 640px) {
+				main {
+					padding: 30px 16px 52px;
+				}
+
+				h1 {
+					font-size: 30px;
+				}
+
+				table,
+				thead,
+				tbody,
+				th,
+				td,
+				tr {
+					display: block;
+				}
+
+				th {
+					display: none;
+				}
+
+				td {
+					border-bottom: 0;
+					padding: 10px 12px;
+				}
+
+				tr {
+					border-bottom: 1px solid var(--line);
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<header>
+				<h1>Cline Terminal Explicit Completion Fix</h1>
+				<p class="lede">
+					Proposal and test plan for stopping one-shot terminal runs from
+					ending when a model emits a text-only "done" message instead of a
+					terminal completion tool call.
+				</p>
+				<div class="meta">
+					<span class="pill">worktree: /tmp/cline-terminal-explicit-completion</span>
+					<span class="pill">branch: fix/terminal-explicit-completion</span>
+					<span class="pill">scope: terminal CLI, one-shot Act runs</span>
+				</div>
+			</header>
+
+			<section>
+				<h2>Problem</h2>
+				<p>
+					When using the Cline provider with GPT models, the assistant sometimes
+					responds with a normal text comment such as "I am done" or "The task is
+					complete" and does not produce a tool call. In the terminal one-shot
+					path, that no-tool assistant turn can be treated as a completed run, so
+					the user has to nudge the model to continue or properly finish.
+				</p>
+				<p>
+					Claude-family models tend to call the expected terminal completion tool
+					more reliably, so the behavior is less visible there. The root issue is
+					not that the Cline provider lacks tool support. The issue is that the
+					terminal Act path did not expose an explicit completion tool, so the
+					runtime had no semantic completion signal to require.
+				</p>
+			</section>
+
+			<section>
+				<h2>Root Cause</h2>
+				<table>
+					<thead>
+						<tr>
+							<th>Layer</th>
+							<th>Current behavior</th>
+							<th>Impact</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>Model/provider</td>
+							<td>The model may emit text instead of a tool call.</td>
+							<td>There is no provider-level <code>end_turn</code> signal in this path.</td>
+						</tr>
+						<tr>
+							<td>Runtime</td>
+							<td>
+								Already supports <code>completionPolicy.requireCompletionTool</code>
+								when a tool has <code>lifecycle.completesRun</code>.
+							</td>
+							<td>The guard works only if a completion tool is actually present.</td>
+						</tr>
+						<tr>
+							<td>CLI Act mode</td>
+							<td>
+								Passed a submit executor but used the Act preset, which did not
+								enable <code>submit_and_exit</code>.
+							</td>
+							<td>No-tool assistant text could finish the run.</td>
+						</tr>
+					</tbody>
+				</table>
+			</section>
+
+			<section>
+				<h2>Fix</h2>
+				<div class="callout">
+					<strong>Change:</strong> one-shot terminal runs opt into
+					<code>enableSubmitAndExit</code>. The runtime builder then exposes
+					<code>submit_and_exit</code>, and the existing completion policy
+					requires that tool before considering the run complete.
+				</div>
+				<p>
+					This keeps the fix in the terminal runtime contract instead of adding
+					model-specific prompt nudges. If the model emits text without a tool
+					call, the runtime adds a system reminder and continues the run. If the
+					task is actually complete, the model must call
+					<code>submit_and_exit</code>.
+				</p>
+
+				<h3>Files changed</h3>
+				<ul>
+					<li>
+						<code>apps/cli/src/runtime/run-agent.ts</code>: sets
+						<code>enableSubmitAndExit: true</code> for one-shot terminal runs.
+					</li>
+					<li>
+						<code>sdk/packages/core/src/types/config.ts</code>: adds
+						<code>enableSubmitAndExit</code> to core runtime features.
+					</li>
+					<li>
+						<code>sdk/packages/core/src/runtime/orchestration/runtime-builder.ts</code>:
+						threads the flag into built-in tool construction.
+					</li>
+					<li>
+						Unit tests cover the CLI start config and Act-mode runtime tool
+						selection.
+					</li>
+				</ul>
+
+				<div class="warning callout">
+					<strong>Known tradeoff:</strong> the existing built-in tools factory
+					excludes <code>ask_question</code> when <code>submit_and_exit</code>
+					is enabled. This patch preserves that existing behavior to keep the
+					change narrow.
+				</div>
+			</section>
+
+			<section>
+				<h2>How To Test Locally</h2>
+				<h3>1. Enter the worktree</h3>
+				<pre><code>cd /tmp/cline-terminal-explicit-completion</code></pre>
+
+				<h3>2. Build the SDK packages</h3>
+				<pre><code>bun --production -F './sdk/packages/*' build</code></pre>
+
+				<h3>3. Run the focused verification</h3>
+				<pre><code>bun -F @cline/cli test:unit src/runtime/run-agent.test.ts
+bun -F @cline/core test:unit src/runtime/orchestration/runtime-builder.test.ts
+bun -F @cline/core typecheck
+bun -F @cline/cli typecheck</code></pre>
+
+				<h3>4. Link or run the CLI from the worktree</h3>
+				<p>For a quick direct run without global linking:</p>
+				<pre><code>cd /tmp/cline-terminal-explicit-completion
+CLINE_BUILD_ENV=development bun --conditions=development ./apps/cli/src/index.ts \
+  --provider cline \
+  --model gpt-5.5 \
+  --verbose \
+  "Use the terminal only. Print pwd, list the top-level files, then finish."</code></pre>
+
+				<p>Or link this worktree's CLI if that is how you normally test:</p>
+				<pre><code>cd /tmp/cline-terminal-explicit-completion/apps/cli
+bun link
+cline --provider cline --model gpt-5.5 --verbose \
+  "Use the terminal only. Print pwd, list the top-level files, then finish."</code></pre>
+			</section>
+
+			<section>
+				<h2>Expected Result</h2>
+				<ul>
+					<li>The model should see <code>submit_and_exit</code> as an available tool.</li>
+					<li>
+						If GPT replies with text-only completion, the run should continue
+						after a reminder instead of ending.
+					</li>
+					<li>
+						The run should end only after the model calls
+						<code>submit_and_exit</code>.
+					</li>
+				</ul>
+			</section>
+
+			<section>
+				<h2>Validation Already Run</h2>
+				<ul>
+					<li><code>apps/cli/src/runtime/run-agent.test.ts</code>: 15 passed.</li>
+					<li>
+						<code>sdk/packages/core/src/runtime/orchestration/runtime-builder.test.ts</code>:
+						32 passed.
+					</li>
+					<li><code>sdk/packages/core</code> typecheck passed.</li>
+					<li><code>apps/cli</code> typecheck passed.</li>
+					<li>Biome check passed on all touched files.</li>
+				</ul>
+			</section>
+		</main>
+	</body>
+</html>

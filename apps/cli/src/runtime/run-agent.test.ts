@@ -215,8 +215,16 @@ describe("runAgent", () => {
 			}),
 		);
 		const startInput = sessionManagerMocks.start.mock.calls[0]?.[0] as
-			| { localRuntime?: Record<string, unknown> }
+			| {
+					config?: Record<string, unknown>;
+					localRuntime?: Record<string, unknown>;
+			  }
 			| undefined;
+		expect(startInput?.config).toEqual(
+			expect.objectContaining({
+				enableSubmitAndExit: true,
+			}),
+		);
 		expect(startInput?.localRuntime).toEqual(
 			expect.objectContaining({
 				onTeamRestored: expect.any(Function),

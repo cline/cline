@@ -226,6 +226,26 @@ Use the review guidance.`,
 		});
 	});
 
+	it("requires explicit completion when submit_and_exit is enabled for act mode", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "act",
+				enableSubmitAndExit: true,
+			}),
+			toolExecutors: {
+				submit: async () => "submitted",
+				askQuestion: async () => "question",
+			},
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).toContain("submit_and_exit");
+		expect(names).not.toContain("ask_question");
+		expect(runtime.completionPolicy).toEqual({
+			requireCompletionTool: true,
+		});
+	});
+
 	it("requires completion only when submit_and_exit is available", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({

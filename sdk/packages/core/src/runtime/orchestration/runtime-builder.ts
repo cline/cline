@@ -132,6 +132,9 @@ function createBuiltinToolsList(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
+	options?: {
+		enableSubmitAndExit?: boolean;
+	},
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -147,6 +150,9 @@ function createBuiltinToolsList(
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
+			...(options?.enableSubmitAndExit === true
+				? { enableSubmitAndExit: true }
+				: {}),
 			executors: {
 				...(skillsExecutor
 					? {
@@ -290,6 +296,7 @@ function normalizeConfig(
 		| "enableTools"
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
+		| "enableSubmitAndExit"
 		| "disableMcpSettingsTools"
 		| "yolo"
 		| "missionLogIntervalSteps"
@@ -307,6 +314,7 @@ function normalizeConfig(
 			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
 		enableAgentTeams:
 			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
+		enableSubmitAndExit: config.enableSubmitAndExit === true,
 		disableMcpSettingsTools: config.disableMcpSettingsTools === true,
 		yolo: config.yolo === true,
 		missionLogIntervalSteps:
@@ -448,6 +456,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					effectiveToolPolicies,
 					undefined,
 					toolExecutors,
+					{ enableSubmitAndExit: normalized.enableSubmitAndExit },
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -519,6 +528,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 														)
 													: undefined,
 												toolExecutors,
+												{
+													enableSubmitAndExit: normalized.enableSubmitAndExit,
+												},
 											),
 											agent,
 										)
@@ -623,6 +635,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									effectiveToolPolicies,
 									undefined,
 									toolExecutors,
+									{
+										enableSubmitAndExit: normalized.enableSubmitAndExit,
+									},
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
