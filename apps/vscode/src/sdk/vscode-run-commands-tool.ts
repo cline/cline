@@ -23,6 +23,7 @@ import {
 import type { AgentTool } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { MAX_UNRETRIEVED_LINES } from "@/integrations/terminal/constants"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
 
@@ -72,7 +73,8 @@ export function formatCommandForTerminal(command: ShellCommand): string {
 	return [command.command, ...(command.args ?? [])].map(quoteShellArg).join(" ")
 }
 
-async function executeForeground(
+/** Exported for direct unit testing of the CommandExitError/terminalClosed mapping. */
+export async function executeForeground(
 	command: ShellCommand,
 	cwd: string,
 	terminalManager: VscodeTerminalManager,
@@ -85,11 +87,26 @@ async function executeForeground(
 
 	const process = terminalManager.runCommand(terminalInfo, terminalCommand)
 	const outputLines: string[] = []
+	let droppedLines = 0
 
 	// Accumulate output lines to return the full output once the command completes.
 	// The chat shows command output at completion, not incrementally.
+	//
+	// This is a second buffer on top of the process's own `fullOutput` (capped at
+	// MAX_FULL_OUTPUT_SIZE — see VscodeTerminalProcess), so it needs its own cap:
+	// a long-running command emitting many lines must not accumulate them here
+	// without bound. Once the cap is hit, keep only the head and tail — matching
+	// truncateCommandOutput's own head/tail strategy below — since build/test
+	// failures usually appear at the end of output.
+	const maxBufferedLines = MAX_UNRETRIEVED_LINES
 	process.on("line", (line: string) => {
-		outputLines.push(line)
+		if (outputLines.length < maxBufferedLines) {
+			outputLines.push(line)
+		} else {
+			outputLines.shift()
+			outputLines.push(line)
+			droppedLines++
+		}
 	})
 
 	// Handle abort signal
@@ -109,18 +126,35 @@ async function executeForeground(
 		throw new Error("Command execution aborted")
 	}
 
-	const output = truncateCommandOutput(outputLines.join("\n").trim(), {
+	const bufferedOutput =
+		droppedLines > 0 ? [...outputLines, `\n... (${droppedLines} earlier lines dropped) ...\n`].join("\n") : outputLines.join("\n")
+	const output = truncateCommandOutput(bufferedOutput.trim(), {
 		maxChars: maxOutputChars,
 	})
 
-	// Plumb the exit code from the OSC 633;D marker through to the tool result.
-	// When shell integration reports a non-zero exit code, throw CommandExitError
-	// so the SDK's shell tool wrapper marks the result as `success: false` and
-	// includes the exit code in the error message — matching the background
-	// (child_process) executor's behavior.
-	// If no exit code was captured (e.g. no shell integration markers), we can't
-	// determine success/failure, so we return the output as-is (success: true).
-	const exitCode = process.getCompletionDetails?.()?.exitCode
+	const completionDetails = process.getCompletionDetails?.()
+
+	// A terminal closed mid-command has no exit code and no reliable output —
+	// whatever the command was doing (e.g. running a test suite) was interrupted,
+	// so this must never look like success to the agent.
+	if (completionDetails?.terminalClosed) {
+		const result =
+			output.length > 0
+				? `[Terminal closed while the command was running; output may be incomplete]\n${output}`
+				: "[Terminal closed while the command was running; no output was captured]"
+		throw new CommandExitError(1, result)
+	}
+
+	// Plumb the exit code from onDidEndTerminalShellExecution through to the tool
+	// result. When shell integration reports a non-zero exit code, throw
+	// CommandExitError so the SDK's shell tool wrapper marks the result as
+	// `success: false` and includes the exit code in the error message —
+	// matching the background (child_process) executor's behavior.
+	// If no exit code was captured (shell integration present but not reporting
+	// completion for this execution — e.g. a command run inside an ssh session),
+	// we can't determine success/failure, so we return the output as-is
+	// (success: true).
+	const exitCode = completionDetails?.exitCode
 	if (exitCode !== undefined && exitCode !== null && exitCode !== 0) {
 		const result =
 			output.length > 0

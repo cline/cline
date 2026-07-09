@@ -21,6 +21,13 @@ export interface TerminalCompletionDetails {
 	exitCode?: number | null
 	/** Termination signal when available */
 	signal?: NodeJS.Signals | null
+	/**
+	 * True when the terminal was closed while the command was still running.
+	 * There is no exit code in this case — the command's success/failure is
+	 * unknown, but callers must not report success, since e.g. the terminal
+	 * closing mid-`npm test` must not be read as tests passing.
+	 */
+	terminalClosed?: boolean
 }
 
 export interface TerminalProcessEvents {

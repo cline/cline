@@ -1,22 +1,11 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
+import { EXIT_CODE_EVENT_TIMEOUT_MS } from "@/integrations/terminal/constants"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
 import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalRegistry } from "./VscodeTerminalRegistry"
-
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-}
 
 // Create a mock stream for simulating terminal output - this is only used for tests
 // that need controlled output which can't be guaranteed with real terminals
@@ -286,7 +275,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			// Run the command
 			const runPromise = process.run(terminal, "echo test")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise
 
 			// Verify the executeCommand was called with the right command
@@ -295,6 +284,55 @@ describe("TerminalProcess (Integration Tests)", () => {
 			// Check that the events were emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+		})
+
+		it("prefers the onDidEndTerminalShellExecution exit code over a conflicting D-marker exit code", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// D marker reports success (0), but the authoritative end event
+			// reports failure (1) — the event must win.
+			const mockExecution = { read: () => createMockStreamWithMarkers(["test output"], "echo test") }
+			const mockExecuteCommand = sandbox.stub().returns(mockExecution)
+			sandbox.stub(terminal, "shellIntegration").get(() => ({ executeCommand: mockExecuteCommand }))
+
+			let endListener: ((e: vscode.TerminalShellExecutionEndEvent) => unknown) | undefined
+			sandbox.stub(vscode.window, "onDidEndTerminalShellExecution").callsFake((listener) => {
+				endListener = listener
+				return { dispose: () => {} }
+			})
+
+			const runPromise = process.run(terminal, "echo test")
+			// Fire the end event with a conflicting exit code before the stream
+			// finishes draining — the process must still prefer it over the D
+			// marker's exitCode: 0 once the stream completes.
+			endListener?.({ terminal, execution: mockExecution, exitCode: 1 } as unknown as vscode.TerminalShellExecutionEndEvent)
+			await sandbox.clock.tickAsync(3000)
+			await runPromise
+
+			process.getCompletionDetails().exitCode?.should.equal(1)
+		})
+
+		it("falls back to no exit code when onDidEndTerminalShellExecution never fires", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			const mockExecution = { read: () => createMockStreamWithMarkers(["test output"], "echo test") }
+			const mockExecuteCommand = sandbox.stub().returns(mockExecution)
+			sandbox.stub(terminal, "shellIntegration").get(() => ({ executeCommand: mockExecuteCommand }))
+
+			// Event is registered but deliberately never invoked, simulating
+			// shell integration that is present but not reporting completion
+			// for this execution (e.g. a command run inside an ssh session).
+			sandbox.stub(vscode.window, "onDidEndTerminalShellExecution").callsFake(() => ({ dispose: () => {} }))
+
+			const runPromise = process.run(terminal, "echo test")
+			await sandbox.clock.tickAsync(EXIT_CODE_EVENT_TIMEOUT_MS + 1000)
+			await runPromise
+
+			// D marker in createMockStreamWithMarkers reports exit code 0, and
+			// with no competing event, that D-marker value is used.
+			process.getCompletionDetails().exitCode?.should.equal(0)
 		})
 	})
 
@@ -318,7 +356,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 
 			const runPromise = process.run(terminal, "test-command")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise
 
 			// Check that line events were emitted for each line
@@ -346,7 +384,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
 			const runPromise = process.run(terminal, "build command")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise
 
 			// Move time forward enough to schedule
@@ -375,7 +413,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
 			const runPromise = process.run(terminal, "standard command")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise
 			sandbox.clock.tick(100)
 
@@ -385,7 +423,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 			const runPromise2 = process.run(terminal, "another command")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise2
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
@@ -414,7 +452,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 
 			const runPromise = process.run(terminal, "test-command")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise
 
 			// Output after C should be emitted
@@ -447,7 +485,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 
 			const runPromise = process.run(terminal, "npm run build")
-			await sandbox.clock.tickAsync(500)
+			await sandbox.clock.tickAsync(3000)
 			await runPromise
 
 			// The command echo should be excluded; the rest (after C) should be emitted
@@ -483,7 +521,8 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			// First idle check happens after the post-data idle timeout (3s);
 			// the buffered text ends with a prompt so the process completes.
-			// Add slack for the 500ms exit-code race that follows the loop.
+			// Add slack for the exit-code race (EXIT_CODE_EVENT_TIMEOUT_MS) that
+			// follows the loop.
 			await sandbox.clock.tickAsync(15_000)
 			await runPromise
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -504,8 +543,8 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 			const runPromise = process.run(terminal, "some-command")
 
-			// 30s max quiet time in 3s idle increments, plus the 500ms
-			// exit-code race after the loop.
+			// 30s max quiet time in 3s idle increments, plus the exit-code race
+			// (EXIT_CODE_EVENT_TIMEOUT_MS) after the loop.
 			await sandbox.clock.tickAsync(45_000)
 			await runPromise
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -556,7 +595,10 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 			const runPromise = process.run(terminal, "slow-build")
 
-			await sandbox.clock.tickAsync(121_000)
+			// 120s internal sleep, plus the exit-code race (EXIT_CODE_EVENT_TIMEOUT_MS)
+			// after the stream ends — this test's mock never fires
+			// onDidEndTerminalShellExecution, so the race always times out.
+			await sandbox.clock.tickAsync(120_000 + EXIT_CODE_EVENT_TIMEOUT_MS + 1_000)
 			await runPromise
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "build started").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "build finished").should.be.true()
@@ -585,6 +627,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			await runPromise
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			// A terminal closed mid-command must be distinguishable from a normal
+			// completion — callers must not treat this as command success.
+			process.getCompletionDetails().terminalClosed?.should.be.true()
 
 			// Restore fake timers for other tests
 			sandbox.useFakeTimers()

@@ -36,6 +36,17 @@ export const MARKERLESS_IDLE_TIMEOUT = 3_000
 export const MARKERLESS_MAX_QUIET_TIME = 30_000
 
 // =============================================================================
+// Exit Code Event Race
+// =============================================================================
+// onDidEndTerminalShellExecution fires asynchronously after the read() stream
+// completes (VS Code calls flush().then(() => fire(endEvent))). We await it
+// with a bounded race so a command whose shell integration never reports
+// completion (e.g. no OSC 633 markers at all) doesn't hang indefinitely.
+
+/** How long to wait for onDidEndTerminalShellExecution after the stream ends (3 seconds) */
+export const EXIT_CODE_EVENT_TIMEOUT_MS = 3_000
+
+// =============================================================================
 // Large Output Protection
 // =============================================================================
 // Prevents memory exhaustion and context window overflow

@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import {
+	EXIT_CODE_EVENT_TIMEOUT_MS,
 	isCompilingOutput,
 	MARKERLESS_FIRST_DATA_TIMEOUT,
 	MARKERLESS_IDLE_TIMEOUT,
@@ -17,7 +18,7 @@ import {
 import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
-import { getLastLine, looksLikeShellPrompt } from "./shellPromptHeuristics"
+import { classifyShellPrompt, getLastLine } from "./shellPromptHeuristics"
 
 /** Outcome of racing one stream read against the markerless-completion timers. */
 type StreamReadOutcome = { kind: "data"; data: string } | { kind: "streamEnd" } | { kind: "idle" } | { kind: "terminalClosed" }
@@ -47,6 +48,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	private hotTimer: NodeJS.Timeout | null = null
 	private exitCode: number | null | undefined = undefined
 	private signal: NodeJS.Signals | null = null
+	private terminalClosedMidCommand = false
 
 	async run(terminal: vscode.Terminal, command: string) {
 		this.exitCode = undefined
@@ -87,7 +89,8 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// sequence synchronously and fires onDidEndTerminalShellExecution (with the
 			// exit code) before the debounced data event reaches the stream. We listen
 			// to that event to capture the exit code; the D-marker parsing in the parser
-			// is kept as a fallback for environments where the event isn't available.
+			// is kept only to delimit command output segments (see below), not as an
+			// exit-code source.
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			const parser = new Osc633Parser()
@@ -101,33 +104,21 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// The event fires asynchronously AFTER the read() stream completes (VS Code
 			// calls flush().then(() => fire(endEvent))), so we must await it rather
 			// than checking synchronously.
-			let endEventDisposable: vscode.Disposable | undefined
-			let resolveExitCode!: (exitCode: number | undefined) => void
-			const exitCodePromise = new Promise<number | undefined>((resolve) => {
-				resolveExitCode = resolve
+			//
+			// onDidEndTerminalShellExecution has been stable API since VS Code 1.93
+			// (our minimum supported version, see package.json engines.vscode), so it is
+			// always available here. It fires for every execution on a shell-integrated
+			// terminal, but only when shell integration actually reports command
+			// completion — a command typed into a remote shell over ssh, for example,
+			// has shell integration present but may never trigger this event for that
+			// execution. That case is bounded by the exit-code race below, not by
+			// feature-detecting the event itself.
+			const resolveExitCode = Promise.withResolvers<number | undefined>()
+			const endEventDisposable = vscode.window.onDidEndTerminalShellExecution((e) => {
+				if (e.terminal === terminal && e.execution === execution) {
+					resolveExitCode.resolve(e.exitCode)
+				}
 			})
-			try {
-				endEventDisposable = (
-					vscode.window as unknown as {
-						onDidEndTerminalShellExecution?: (
-							listener: (e: {
-								terminal: vscode.Terminal
-								execution: { read: () => AsyncIterable<string> }
-								exitCode: number | undefined
-							}) => any,
-							thisArgs?: any,
-							disposables?: vscode.Disposable[],
-						) => vscode.Disposable
-					}
-				).onDidEndTerminalShellExecution?.((e) => {
-					if (e.terminal === terminal && e.execution === execution) {
-						resolveExitCode(e.exitCode)
-					}
-				})
-			} catch {
-				// Event not available in this VS Code version; fall back to D-marker parsing.
-				resolveExitCode(undefined)
-			}
 
 			// Track terminal closure so a dying pty can't leave the read loop
 			// blocked forever — the read() stream does not necessarily end when
@@ -215,9 +206,17 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					markerlessQuietMs += idleTimeoutMs ?? 0
 					// Complete when the terminal has gone quiet on something that
 					// looks like a shell prompt, or has been quiet for so long
-					// that waiting further would just stall the task.
+					// that waiting further would just stall the task. A "strong"
+					// prompt match (bash $, root #, PowerShell/CMD path, Python
+					// REPL, starship) is trusted after a single idle period. A
+					// "weak" match (bare > or %) is also produced by a still-running
+					// command — a hung ssh session's continuation prompt, an
+					// HTML/XML tag, a progress meter — so it's only trusted once
+					// the full quiet timeout has elapsed, same as no match at all.
 					const promptCandidate = getLastLine(stripAnsi(preCommandBuffer))
-					if (looksLikeShellPrompt(promptCandidate) || markerlessQuietMs >= MARKERLESS_MAX_QUIET_TIME) {
+					const promptStrength = classifyShellPrompt(promptCandidate)
+					const quietTimeoutReached = markerlessQuietMs >= MARKERLESS_MAX_QUIET_TIME
+					if (promptStrength === "strong" || quietTimeoutReached) {
 						completedWithoutMarkers = true
 						break
 					}
@@ -334,18 +333,35 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// Await the exit code from onDidEndTerminalShellExecution.
 			// The event fires asynchronously AFTER the read() stream completes
 			// (VS Code calls flush().then(() => fire(endEvent))), so we must
-			// await it here. Race with a short timeout in case the event never
-			// fires (e.g. no shell integration markers in the stream).
+			// await it here. Race with a timeout in case the event never fires —
+			// this happens when shell integration is attached but not reporting
+			// completion for this execution (e.g. commands typed into a remote
+			// ssh session), not because the API is unavailable.
+			let exitCodeEventTimedOut = false
 			const eventExitCode = await Promise.race([
-				exitCodePromise,
-				new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500)),
+				resolveExitCode.promise,
+				new Promise<undefined>((resolve) => {
+					setTimeout(() => {
+						exitCodeEventTimedOut = true
+						resolve(undefined)
+					}, EXIT_CODE_EVENT_TIMEOUT_MS)
+				}),
 			])
-			endEventDisposable?.dispose()
+			endEventDisposable.dispose()
+
+			if (exitCodeEventTimedOut) {
+				// A lost exit code silently reports the command as successful to the
+				// agent (no exitCode means no CommandExitError below) — worth a log
+				// since it's otherwise invisible.
+				Logger.warn(
+					`[TerminalProcess] onDidEndTerminalShellExecution did not fire within ${EXIT_CODE_EVENT_TIMEOUT_MS}ms; exit code unknown`,
+				)
+			}
 
 			// Prefer the event-captured exit code (reliable source — the D marker
 			// is stripped from the read() stream by VS Code). Fall back to the
-			// parser-extracted exit code (from the D marker) if the event wasn't
-			// available or didn't fire in time.
+			// parser-extracted exit code (from the D marker) if the event didn't
+			// fire in time.
 			if (eventExitCode !== undefined) {
 				this.exitCode = eventExitCode
 			}
@@ -368,7 +384,10 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
 			if (!this.fullOutput.trim()) {
 				// No output captured via shell integration, trying fallback
-				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT, "vscode")
+				telemetryService.captureTerminalOutputFailure(
+					terminalClosed ? TerminalOutputFailureReason.TERMINAL_CLOSED : TerminalOutputFailureReason.TIMEOUT,
+					"vscode",
+				)
 				// The clipboard fallback reads the *active* terminal, so it is
 				// meaningless once this terminal has closed.
 				if (!terminalClosed) {
@@ -384,8 +403,18 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					telemetryService.captureTerminalExecution(false, "vscode", "none")
 				}
 			} else {
-				// Shell integration worked
-				telemetryService.captureTerminalExecution(true, "vscode", "shell_integration")
+				// Output was captured, but distinguish *how* it was completed: real
+				// OSC 633 C/D markers ("shell_integration") vs the idle/prompt
+				// heuristic fallback ("markerless_heuristic") when markers never
+				// arrived. Folding the latter into "shell_integration" successes
+				// would inflate the metric this PR's fixes are evaluated against.
+				telemetryService.captureTerminalExecution(
+					true,
+					"vscode",
+					completedWithoutMarkers ? "markerless_heuristic" : "shell_integration",
+					this.exitCode,
+					"vscodeTerminal",
+				)
 			}
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
@@ -396,11 +425,12 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			this.isHot = false
 
 			if (terminalClosed) {
+				this.terminalClosedMidCommand = true
 				this.emit("line", "[The terminal closed while the command was running; output may be incomplete.]")
 			} else if (completedWithoutMarkers) {
 				this.emit(
 					"line",
-					"[Shell integration did not report command completion (this happens e.g. inside ssh or nested shells); output was captured with a timing heuristic and may be incomplete or include the shell prompt.]",
+					"[Shell integration did not report command completion (this happens e.g. inside ssh or nested shells); output was captured with a timing heuristic, may be incomplete or include the shell prompt, and the command may still be running.]",
 				)
 			}
 
@@ -496,6 +526,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		return {
 			exitCode: this.exitCode,
 			signal: this.signal,
+			terminalClosed: this.terminalClosedMidCommand,
 		}
 	}
 
