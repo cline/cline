@@ -123,7 +123,7 @@
 					"background": {
 						"activeOnStart": true,
 						"beginsPattern": "^Building webview for|^\\s*VITE",
-						"endsPattern": "^.*Local:\\s+http://localhost:[0-9]+/"
+						"endsPattern": "^.*Local:\\s+http://127\\.0\\.0\\.1:[0-9]+/"
 					}
 				}
 			],
