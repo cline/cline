@@ -39,6 +39,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 		gemini: "geminiApiKey",
 		deepseek: "deepSeekApiKey",
 		ollama: "ollamaApiKey",
+		lmstudio: "lmStudioApiKey",
 		requesty: "requestyApiKey",
 		together: "togetherApiKey",
 		fireworks: "fireworksApiKey",
