@@ -27,8 +27,8 @@ import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
-import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
+import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -116,6 +116,31 @@ function createSdkLogger() {
 		error: (message: string, metadata?: Record<string, unknown>) => {
 			Logger.error(message, metadata)
 		},
+	}
+}
+
+/**
+ * Host identity for the session's client context, resolved through HostProvider
+ * rather than the `vscode` module directly: this file is also bundled into the
+ * standalone cline-core (JetBrains), where `vscode` is a Proxy-stub module and
+ * direct API reads would yield non-string values. The hostbridge returns the
+ * per-host values (e.g. "Cline for JetBrains" + IDE version on JetBrains).
+ */
+async function resolveHostIdentity() {
+	try {
+		return await HostProvider.env.getHostVersion({})
+	} catch (error) {
+		Logger.debug("Failed to resolve host version for client identity", error)
+		return undefined
+	}
+}
+
+async function resolveIsMultiRootWorkspace(): Promise<boolean> {
+	try {
+		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+		return paths.length > 1
+	} catch {
+		return false
 	}
 }
 
@@ -666,6 +691,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
+	const hostIdentity = await resolveHostIdentity()
+	const isMultiRoot = await resolveIsMultiRootWorkspace()
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
@@ -716,11 +743,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
 			client: {
-				name: ClineClient.VSCode,
-				version: ExtensionRegistryInfo.version,
-				platform: vscode.env.appName,
-				platformVersion: vscode.version,
-				isMultiRoot: (vscode.workspace.workspaceFolders?.length ?? 0) > 1,
+				name: hostIdentity?.clineType || ClineClient.VSCode,
+				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
+				platform: hostIdentity?.platform || undefined,
+				platformVersion: hostIdentity?.version || undefined,
+				isMultiRoot,
 			},
 			workspace: {
 				rootPath: workspaceRoot,
