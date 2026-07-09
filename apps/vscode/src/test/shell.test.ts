@@ -1,4 +1,4 @@
-import { getShell } from "@utils/shell"
+import { getShell, HOST_SHELL_ENV_VAR } from "@utils/shell"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import { userInfo } from "os"
@@ -36,6 +36,7 @@ describe("Shell Detection Tests", () => {
 		// Clear environment variables for a clean test
 		delete process.env.SHELL
 		delete process.env.COMSPEC
+		delete process.env[HOST_SHELL_ENV_VAR]
 
 		// Default userInfo() mock
 		;(userInfo as any) = () => ({ shell: null })
@@ -47,6 +48,42 @@ describe("Shell Detection Tests", () => {
 		process.env = originalEnv
 		vscode.workspace.getConfiguration = originalGetConfig
 		;(userInfo as any) = originalUserInfo
+	})
+
+	// --------------------------------------------------------------------------
+	// Host-Provided Shell Override (CLINE_TERMINAL_SHELL_PATH)
+	// --------------------------------------------------------------------------
+	describe("Host-Provided Shell Override", () => {
+		it("wins over VS Code config, userInfo, and COMSPEC on Windows", () => {
+			Object.defineProperty(process, "platform", { value: "win32" })
+			mockVsCodeConfig("windows", "PowerShell", {
+				PowerShell: { path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
+			})
+			;(userInfo as any) = () => ({ shell: "C:\\Custom\\PowerShell.exe" })
+			process.env.COMSPEC = "C:\\Windows\\System32\\cmd.exe"
+			process.env[HOST_SHELL_ENV_VAR] = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+		})
+
+		it("wins over userInfo and SHELL on POSIX", () => {
+			Object.defineProperty(process, "platform", { value: "darwin" })
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			;(userInfo as any) = () => ({ shell: "/bin/zsh" })
+			process.env.SHELL = "/bin/bash"
+			process.env[HOST_SHELL_ENV_VAR] = "/usr/local/bin/fish"
+
+			expect(getShell()).to.equal("/usr/local/bin/fish")
+		})
+
+		it("is ignored when blank", () => {
+			Object.defineProperty(process, "platform", { value: "darwin" })
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			;(userInfo as any) = () => ({ shell: "/bin/zsh" })
+			process.env[HOST_SHELL_ENV_VAR] = "   "
+
+			expect(getShell()).to.equal("/bin/zsh")
+		})
 	})
 
 	// --------------------------------------------------------------------------

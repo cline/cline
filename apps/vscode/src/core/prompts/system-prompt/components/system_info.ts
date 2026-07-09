@@ -1,5 +1,5 @@
 import osModule from "node:os"
-import { getShell } from "@utils/shell"
+import { getHostProvidedShell, getShell } from "@utils/shell"
 import osName from "os-name"
 import { getWorkspacePaths } from "@/hosts/vscode/hostbridge/workspace/getWorkspacePaths"
 import { SystemPromptSection } from "../templates/placeholders"
@@ -21,7 +21,13 @@ Home Directory: {{homeDir}}
  */
 function getEffectiveShell(context: SystemPromptContext): string {
 	if (context.terminalExecutionMode === "backgroundExec") {
-		// Background exec uses the system default shell, not VS Code config
+		// Background exec uses the host-forwarded shell if present (mirrors
+		// StandaloneTerminalProcess.getDefaultShell), otherwise the system
+		// default shell, not the VS Code config.
+		const hostShell = getHostProvidedShell()
+		if (hostShell) {
+			return hostShell
+		}
 		if (process.platform === "win32") {
 			return process.env.COMSPEC || "cmd.exe"
 		} else {
