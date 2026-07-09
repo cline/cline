@@ -36,7 +36,9 @@ export async function generateWorkspaceInfo(
  */
 function isBenignGitError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
-	return /unknown revision|ambiguous argument|bad revision|does not have any commits yet/i.test(
+	// Deliberately excludes "bad revision": that can also indicate a corrupt
+	// .git/HEAD, which is a genuinely broken workspace worth reporting.
+	return /unknown revision|ambiguous argument|does not have any commits yet/i.test(
 		message,
 	);
 }
