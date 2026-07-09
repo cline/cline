@@ -156,7 +156,7 @@ export abstract class WebviewProvider {
 	 */
 	protected async getHMRHtmlContent(): Promise<string> {
 		const localPort = await this.getDevServerPort()
-		const localServerUrl = `localhost:${localPort}`
+		const localServerUrl = `127.0.0.1:${localPort}`
 
 		// Check if local dev server is running.
 		try {
