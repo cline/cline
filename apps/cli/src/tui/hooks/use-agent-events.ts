@@ -29,6 +29,7 @@ interface AgentEventDeps {
 	}) => void;
 	onTurnErrorReported: TuiProps["onTurnErrorReported"];
 	verbose: boolean;
+	setTeamActive: (active: boolean) => void;
 }
 
 export function useAgentEventHandlers(deps: AgentEventDeps) {
@@ -43,6 +44,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		addUsageDelta,
 		onTurnErrorReported,
 		verbose,
+		setTeamActive,
 	} = deps;
 
 	const closeToolEntry = useCallback(
@@ -211,6 +213,8 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		],
 	);
 
+	const activeTeamRunsRef = useRef(0);
+
 	const handleTeamEvent = useCallback(
 		(event: TeamEvent) => {
 			const team = (text: string) => {
@@ -238,6 +242,8 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					);
 					break;
 				case "run_queued":
+					activeTeamRunsRef.current += 1;
+					setTeamActive(true);
 					team(`[team run] queued ${event.run.id} -> ${event.run.agentId} ...`);
 					break;
 				case "run_started":
@@ -250,17 +256,33 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					team(`[team run] progress ${event.run.id}: ${event.message}`);
 					break;
 				case "run_completed":
+					activeTeamRunsRef.current = Math.max(0, activeTeamRunsRef.current - 1);
+					if (activeTeamRunsRef.current === 0) {
+						setTeamActive(false);
+					}
 					team(`[team run] completed ${event.run.id}`);
 					break;
 				case "run_failed":
+					activeTeamRunsRef.current = Math.max(0, activeTeamRunsRef.current - 1);
+					if (activeTeamRunsRef.current === 0) {
+						setTeamActive(false);
+					}
 					team(
 						`[team run] failed ${event.run.id}: ${event.run.error ?? "unknown error"}`,
 					);
 					break;
 				case "run_cancelled":
+					activeTeamRunsRef.current = Math.max(0, activeTeamRunsRef.current - 1);
+					if (activeTeamRunsRef.current === 0) {
+						setTeamActive(false);
+					}
 					team(`[team run] cancelled ${event.run.id}`);
 					break;
 				case "run_interrupted":
+					activeTeamRunsRef.current = Math.max(0, activeTeamRunsRef.current - 1);
+					if (activeTeamRunsRef.current === 0) {
+						setTeamActive(false);
+					}
 					team(`[team run] interrupted ${event.run.id}`);
 					break;
 				case "outcome_created":
@@ -287,7 +309,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					break;
 			}
 		},
-		[appendEntry, closeInlineStream],
+		[appendEntry, closeInlineStream, setTeamActive],
 	);
 
 	const handlePendingPrompts = useCallback((event: PendingPromptSnapshot) => {

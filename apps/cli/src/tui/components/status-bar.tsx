@@ -146,6 +146,7 @@ export interface StatusBarProps {
 	} | null;
 	onToggleMode?: () => void;
 	variant?: "home" | "chat";
+	isTeamActive?: boolean;
 }
 
 export function StatusBar(props: StatusBarProps) {
@@ -247,6 +248,12 @@ export function StatusBar(props: StatusBarProps) {
 					flexShrink={0}
 					onMouseDown={onToggleMode}
 				>
+					{props.isTeamActive && (
+						<>
+							<text fg="cyan">@team</text>
+							<text fg="gray">|</text>
+						</>
+					)}
 					<text fg={uiMode === "plan" ? planAccent : "gray"}>
 						{uiMode === "plan" ? "●" : "○"} Plan
 					</text>
