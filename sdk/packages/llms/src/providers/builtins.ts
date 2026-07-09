@@ -21,6 +21,7 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
+import type { BuiltinSpec } from "./builtin-types";
 import {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
@@ -37,6 +38,7 @@ import {
 } from "./routing/anthropic-compatible";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./routing/minimax-thinking";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
@@ -53,40 +55,10 @@ const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
 	},
 };
 
-export type ProviderFamily =
-	| "openai"
-	| "openai-compatible"
-	| "anthropic"
-	| "google"
-	| "vertex"
-	| "bedrock"
-	| "mistral"
-	| "claude-code"
-	| "openai-codex"
-	| "opencode"
-	| "dify"
-	| "sap-ai-core";
+export type { BuiltinSpec, ProviderFamily } from "./builtin-types";
 
-export interface BuiltinSpec {
-	id: string;
-	name: string;
-	description: string;
-	family: ProviderFamily;
-	protocol?: ProviderProtocol;
-	client?: ProviderClient;
-	capabilities?: ProviderCapability[];
-	popular?: number;
-	modelsProviderId?: string;
-	defaultModelId?: string;
-	modelsFactory?: () => Record<string, ModelInfo>;
-	env?: readonly ("browser" | "node")[];
-	apiKeyEnv?: readonly string[];
-	modelsSourceUrl?: string;
-	docsUrl?: string;
-	defaults?: GatewayProviderSettings;
-	configFields?: readonly ProviderConfigField[];
-	metadata?: GatewayProviderMetadata;
-}
+type BuiltinSpecOverride = Pick<BuiltinSpec, "id"> &
+	Partial<Omit<BuiltinSpec, "id">>;
 
 const API_KEY_FIELD: ProviderConfigField = {
 	path: "apiKey",
@@ -290,6 +262,64 @@ function getProviderMetadata(
 		metadata.popularRank = spec.popular;
 	}
 	return metadata;
+}
+
+function mergeDefaults(
+	base: GatewayProviderSettings | undefined,
+	override: GatewayProviderSettings | undefined,
+): GatewayProviderSettings | undefined {
+	if (!override) {
+		return base;
+	}
+	if (!base) {
+		return override;
+	}
+	return {
+		...base,
+		...override,
+	};
+}
+
+function mergeBuiltinSpec(
+	base: BuiltinSpec | undefined,
+	override: BuiltinSpecOverride,
+): BuiltinSpec {
+	const merged = {
+		...base,
+		...override,
+		defaults: mergeDefaults(base?.defaults, override.defaults),
+	};
+
+	if (
+		!merged.name ||
+		!merged.description ||
+		!merged.family
+	) {
+		throw new Error(
+			`Builtin provider "${override.id}" is missing required provider metadata.`,
+		);
+	}
+
+	return merged as BuiltinSpec;
+}
+
+function mergeBuiltinSpecs(
+	generatedSpecs: readonly BuiltinSpec[],
+	overrides: readonly BuiltinSpecOverride[],
+): BuiltinSpec[] {
+	const generatedById = new Map(
+		generatedSpecs.map((spec) => [spec.id, spec] as const),
+	);
+	const overriddenIds = new Set<string>();
+	const mergedOverrides = overrides.map((override) => {
+		overriddenIds.add(override.id);
+		return mergeBuiltinSpec(generatedById.get(override.id), override);
+	});
+	const generatedOnlySpecs = generatedSpecs.filter(
+		(spec) => !overriddenIds.has(spec.id),
+	);
+
+	return [...mergedOverrides, ...generatedOnlySpecs];
 }
 
 function generatedModels(providerId: string): Record<string, ModelInfo> {
@@ -577,7 +607,7 @@ const clinePass = createClineLikeSpec({
 	},
 });
 
-const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
+const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "openai-compatible",
 		name: "OpenAI Compatible",
@@ -926,6 +956,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		popular: 25,
 		defaultModelId: "",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
+		modelsFactory: () => ({}),
 		defaults: { baseUrl: "http://localhost:11434/v1" },
 		modelsSourceUrl: "http://localhost:11434/api/tags",
 	},
@@ -967,7 +998,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	},
 ];
 
-export const BUILTIN_SPECS: BuiltinSpec[] = [
+const CURRENT_BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "openai-native",
 		name: "OpenAI",
@@ -1087,7 +1118,6 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		capabilities: ["reasoning"],
 		defaultModelId: "mistral-medium-latest",
 		apiKeyEnv: ["MISTRAL_API_KEY"],
-		modelsFactory: () => ({}),
 		defaults: { baseUrl: "https://api.mistral.ai/v1" },
 	},
 	{
@@ -1134,8 +1164,13 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "sapaicore",
 		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
-	...OPENAI_COMPATIBLE_SPECS,
+	...OPENAI_COMPATIBLE_SPEC_OVERRIDES,
 ];
+
+export const BUILTIN_SPECS: BuiltinSpec[] = mergeBuiltinSpecs(
+	GENERATED_PROVIDER_SPECS,
+	CURRENT_BUILTIN_SPEC_OVERRIDES,
+);
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {
 	if (spec.modelsFactory) {
@@ -1151,14 +1186,17 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 	const sourceModels = getModels(spec);
 	const capabilities = getProviderCapabilities(spec);
 	const metadata = getProviderMetadata(spec);
-	const models =
+	const models: Record<string, ModelInfo> =
 		Object.keys(sourceModels).length > 0
-			? sourceModels
+			? { ...sourceModels }
 			: spec.defaultModelId
 				? {
 						[spec.defaultModelId]: fallbackModelInfo(spec.defaultModelId, spec),
 					}
 				: {};
+	if (spec.defaultModelId && !models[spec.defaultModelId]) {
+		models[spec.defaultModelId] = fallbackModelInfo(spec.defaultModelId, spec);
+	}
 	const modelIds = Object.keys(models);
 	const defaultModelId = spec.defaultModelId || modelIds[0] || "default";
 

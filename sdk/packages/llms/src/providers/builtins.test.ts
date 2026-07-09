@@ -1,6 +1,7 @@
 import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS } from "./builtins";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { getModelsForProvider, getProvider } from "./model-registry";
 
 function findClineSpec() {
@@ -97,6 +98,38 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("merges generated provider specs with handwritten built-in overrides", async () => {
+		const generatedIds = new Set(
+			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
+		);
+		const builtinIds = new Set(BUILTIN_SPECS.map((spec) => spec.id));
+
+		for (const generatedId of generatedIds) {
+			expect(builtinIds.has(generatedId)).toBe(true);
+		}
+		expect(generatedIds.has("alibaba")).toBe(true);
+		expect(generatedIds.has("cohere")).toBe(false);
+
+		await expect(getProvider("alibaba")).resolves.toMatchObject({
+			id: "alibaba",
+			client: "openai-compatible",
+			baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		});
+		await expect(getModelsForProvider("alibaba")).resolves.toHaveProperty(
+			"qwen3.7-plus",
+		);
+
+		await expect(getProvider("mistral")).resolves.toMatchObject({
+			id: "mistral",
+			baseUrl: "https://api.mistral.ai/v1",
+			defaultModelId: "mistral-medium-latest",
+			client: "ai-sdk-community",
+		});
+		await expect(getModelsForProvider("mistral")).resolves.toHaveProperty(
+			"mistral-medium-latest",
+		);
+	});
+
 	it("marks popular providers with a provider capability and rank", async () => {
 		await expect(getProvider("cline")).resolves.toMatchObject({
 			name: "Cline Usage-Billing",

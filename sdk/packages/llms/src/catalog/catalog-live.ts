@@ -1,4 +1,7 @@
-import { MODELS_DEV_PROVIDER_KEY_MAP } from "../providers/provider-keys";
+import {
+	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
+	resolveGeneratedProviderIdForModelsDevKey,
+} from "../providers/provider-keys";
 import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
@@ -31,14 +34,49 @@ export interface ModelsDevModel {
 }
 
 interface ModelsDevProviderPayload {
+	id?: string;
+	env?: string[];
+	npm?: string;
+	api?: string;
+	name?: string;
+	doc?: string;
 	models?: Record<string, ModelsDevModel>;
 }
 
 export type ModelsDevPayload = Record<string, ModelsDevProviderPayload>;
 export type ModelsDevProviderKeyMap = Record<string, string>;
 
+export interface ModelsDevGeneratedProviderSpec {
+	id: string;
+	name: string;
+	description: string;
+	family:
+		| "openai"
+		| "openai-compatible"
+		| "anthropic"
+		| "google"
+		| "vertex"
+		| "bedrock"
+		| "mistral";
+	capabilities?: ("tools" | "reasoning" | "prompt-cache")[];
+	modelsProviderId: string;
+	defaultModelId?: string;
+	apiKeyEnv?: string[];
+	docsUrl?: string;
+	defaults?: {
+		baseUrl?: string;
+	};
+}
+
+interface SelectedModelsDevProvider {
+	sourceProviderKey: string;
+	targetProviderId: string;
+	source: ModelsDevProviderPayload;
+}
+
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
+const MODELS_DEV_OPENAI_COMPATIBLE_NPM = "@ai-sdk/openai-compatible";
 
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
@@ -62,6 +100,54 @@ export function sortModelsByReleaseDate(
 			return modelIdA.localeCompare(modelIdB);
 		}),
 	);
+}
+
+function isOpenAICompatibleModelsDevProvider(
+	provider: ModelsDevProviderPayload,
+): boolean {
+	return provider.npm === MODELS_DEV_OPENAI_COMPATIBLE_NPM;
+}
+
+function selectedTargetProviderId(
+	sourceProviderKey: string,
+	source: ModelsDevProviderPayload,
+): string | undefined {
+	const mappedProviderId =
+		resolveGeneratedProviderIdForModelsDevKey(sourceProviderKey);
+	if (mappedProviderId) {
+		return mappedProviderId;
+	}
+	if (isOpenAICompatibleModelsDevProvider(source)) {
+		return source.id || sourceProviderKey;
+	}
+	return undefined;
+}
+
+function getSelectedModelsDevProviders(
+	payload: ModelsDevPayload,
+): SelectedModelsDevProvider[] {
+	const selected: SelectedModelsDevProvider[] = [];
+	const usedProviderIds = new Set<string>();
+
+	for (const [sourceProviderKey, source] of Object.entries(payload).sort(
+		([a], [b]) => a.localeCompare(b),
+	)) {
+		const targetProviderId = selectedTargetProviderId(sourceProviderKey, source);
+		if (!targetProviderId || usedProviderIds.has(targetProviderId)) {
+			continue;
+		}
+
+		const isCurrentBuiltinProvider =
+			MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS.has(sourceProviderKey);
+		if (!isCurrentBuiltinProvider && !isOpenAICompatibleModelsDevProvider(source)) {
+			continue;
+		}
+
+		usedProviderIds.add(targetProviderId);
+		selected.push({ sourceProviderKey, targetProviderId, source });
+	}
+
+	return selected;
 }
 
 function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
@@ -150,10 +236,9 @@ export function normalizeModelsDevProviderModels(
 ): Record<string, Record<string, ModelInfo>> {
 	const providerModels: Record<string, Record<string, ModelInfo>> = {};
 
-	for (const [sourceProviderKey, targetProviderId] of Object.entries(
-		MODELS_DEV_PROVIDER_KEY_MAP,
+	for (const { source, targetProviderId } of getSelectedModelsDevProviders(
+		payload,
 	)) {
-		const source = payload[sourceProviderKey];
 		if (!source?.models) {
 			continue;
 		}
@@ -174,10 +259,91 @@ export function normalizeModelsDevProviderModels(
 	return providerModels;
 }
 
-export async function fetchModelsDevProviderModels(
+function toProviderFamily(
+	provider: ModelsDevProviderPayload,
+): ModelsDevGeneratedProviderSpec["family"] {
+	switch (provider.npm) {
+		case "@ai-sdk/openai":
+			return "openai";
+		case "@ai-sdk/anthropic":
+			return "anthropic";
+		case "@ai-sdk/google":
+			return "google";
+		case "@ai-sdk/google-vertex":
+			return "vertex";
+		case "@ai-sdk/amazon-bedrock":
+			return "bedrock";
+		case "@ai-sdk/mistral":
+			return "mistral";
+		default:
+			return "openai-compatible";
+	}
+}
+
+function normalizeBaseUrl(value: string | undefined): string | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	return trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
+}
+
+function toProviderCapabilities(
+	models: Record<string, ModelInfo> | undefined,
+): ModelsDevGeneratedProviderSpec["capabilities"] {
+	if (!models || Object.keys(models).length === 0) {
+		return undefined;
+	}
+
+	const capabilities = new Set<NonNullable<ModelsDevGeneratedProviderSpec["capabilities"]>[number]>([
+		"tools",
+	]);
+	for (const model of Object.values(models)) {
+		if (model.capabilities?.includes("reasoning")) {
+			capabilities.add("reasoning");
+		}
+		if (model.capabilities?.includes("prompt-cache")) {
+			capabilities.add("prompt-cache");
+		}
+	}
+
+	return [...capabilities];
+}
+
+export function normalizeModelsDevProviderSpecs(
+	payload: ModelsDevPayload,
+	providerModels: Record<string, Record<string, ModelInfo>> =
+		normalizeModelsDevProviderModels(payload),
+): Record<string, ModelsDevGeneratedProviderSpec> {
+	const providerSpecs: Record<string, ModelsDevGeneratedProviderSpec> = {};
+
+	for (const { source, targetProviderId } of getSelectedModelsDevProviders(
+		payload,
+	)) {
+		const baseUrl = normalizeBaseUrl(source.api);
+		const models = providerModels[targetProviderId];
+		const spec: ModelsDevGeneratedProviderSpec = {
+			id: targetProviderId,
+			name: source.name || targetProviderId,
+			description: `${source.name || targetProviderId} model provider from models.dev`,
+			family: toProviderFamily(source),
+			capabilities: toProviderCapabilities(models),
+			modelsProviderId: targetProviderId,
+			defaultModelId: Object.keys(models ?? {})[0],
+			apiKeyEnv: source.env?.length ? [...source.env] : undefined,
+			docsUrl: source.doc,
+			defaults: baseUrl ? { baseUrl } : undefined,
+		};
+		providerSpecs[targetProviderId] = spec;
+	}
+
+	return providerSpecs;
+}
+
+async function fetchModelsDevPayload(
 	url: string,
 	fetcher: typeof fetch = fetch,
-): Promise<Record<string, Record<string, ModelInfo>>> {
+): Promise<ModelsDevPayload> {
 	const response = await fetcher(url);
 	if (!response.ok) {
 		throw new Error(
@@ -185,8 +351,31 @@ export async function fetchModelsDevProviderModels(
 		);
 	}
 
-	const payload = (await response.json()) as ModelsDevPayload;
-	return normalizeModelsDevProviderModels(payload);
+	return (await response.json()) as ModelsDevPayload;
+}
+
+export async function fetchModelsDevProviderModels(
+	url: string,
+	fetcher: typeof fetch = fetch,
+): Promise<Record<string, Record<string, ModelInfo>>> {
+	return normalizeModelsDevProviderModels(
+		await fetchModelsDevPayload(url, fetcher),
+	);
+}
+
+export async function fetchModelsDevCatalog(
+	url: string,
+	fetcher: typeof fetch = fetch,
+): Promise<{
+	providerModels: Record<string, Record<string, ModelInfo>>;
+	providerSpecs: Record<string, ModelsDevGeneratedProviderSpec>;
+}> {
+	const payload = await fetchModelsDevPayload(url, fetcher);
+	const providerModels = normalizeModelsDevProviderModels(payload);
+	return {
+		providerModels,
+		providerSpecs: normalizeModelsDevProviderSpecs(payload, providerModels),
+	};
 }
 
 export async function fetchLiveProviderModels(

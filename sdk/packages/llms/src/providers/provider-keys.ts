@@ -55,6 +55,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "groq",
 	},
 	{
+		modelsDevKey: "poolside",
+		generatedProviderId: "poolside",
+		runtimeProviderId: "poolside",
+	},
+	{
 		modelsDevKey: "cerebras",
 		generatedProviderId: "cerebras",
 		runtimeProviderId: "cerebras",
@@ -111,8 +116,10 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "zai", generatedProviderId: "zai" },
 	{ modelsDevKey: "requesty", generatedProviderId: "requesty" },
 	{ modelsDevKey: "amazon-bedrock", generatedProviderId: "bedrock" },
+	{ modelsDevKey: "mistral", generatedProviderId: "mistral" },
 	{ modelsDevKey: "moonshotai", generatedProviderId: "moonshot" },
 	{ modelsDevKey: "minimax", generatedProviderId: "minimax" },
+	{ modelsDevKey: "opencode", generatedProviderId: "opencode" },
 	{ modelsDevKey: "wandb", generatedProviderId: "wandb" },
 	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
 	{ modelsDevKey: "xiaomi", generatedProviderId: "xiaomi" },
@@ -134,6 +141,16 @@ export const MODELS_DEV_PROVIDER_KEY_MAP = Object.fromEntries(
 			: [],
 	),
 );
+
+export const MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS = new Set(
+	PROVIDER_IDS_MAP.map((entry) => entry.modelsDevKey),
+);
+
+export function resolveGeneratedProviderIdForModelsDevKey(
+	modelsDevKey: string,
+): string | undefined {
+	return MODELS_DEV_PROVIDER_KEY_MAP[modelsDevKey];
+}
 
 export function resolveProviderModelCatalogKeys(providerId: string): string[] {
 	const mapped = PROVIDER_IDS_MAP.flatMap((entry) => {

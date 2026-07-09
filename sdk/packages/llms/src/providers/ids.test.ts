@@ -19,6 +19,9 @@ describe("provider-ids", () => {
 		for (const providerId of BUILT_IN_PROVIDER_IDS) {
 			expect(registryProviderIds.has(providerId)).toBe(true);
 		}
+		for (const providerId of registryProviderIds) {
+			expect(BUILT_IN_PROVIDER_IDS).toContain(providerId);
+		}
 	});
 
 	it("registers v0 as a built-in provider with generated catalog models", async () => {
