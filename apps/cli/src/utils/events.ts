@@ -27,8 +27,13 @@ export function resolveStatusNoticeLabel(
 	if (event.type !== "notice" || event.displayRole !== "status") {
 		return undefined;
 	}
-	if (event.reason === "auto_compaction") {
-		return "auto-compacting";
+	switch (event.reason) {
+		case "auto_compaction":
+			return "auto-compacting";
+		case "manual_compaction":
+			return "compacting";
+		case "compaction_budget_emergency":
+			return "context budget adjusted";
 	}
 	return event.message.trim() || undefined;
 }

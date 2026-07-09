@@ -3,6 +3,7 @@ import type { MessageWithMetadata } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
+import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import {
 	createCompactionStateAwarePrepareTurn,
@@ -10,6 +11,7 @@ import {
 } from "./compaction";
 import {
 	createTokenEstimator,
+	estimateTokens,
 	resolveSummarizerConfig,
 	serializeMessage,
 	TOOL_RESULT_CHAR_LIMIT,
@@ -329,10 +331,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expectNoOrphanedToolPairs(compacted);
 		expect(pairs.get("tool-a")).toBeUndefined();
-		expect(pairs.get("tool-b")).toEqual({ hasResult: true, hasUse: true });
+		expect(JSON.stringify(compacted)).toContain("Read the latest file");
 	});
 
-	it("preserves the latest tool pair under aggressive basic compaction", () => {
+	it("may drop the latest completed tool pair under aggressive basic compaction", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Read the files" },
 			assistantToolUseMessage("tool-a"),
@@ -347,7 +349,8 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expectNoOrphanedToolPairs(compacted);
 		expect(pairs.get("tool-a")).toBeUndefined();
-		expect(pairs.get("tool-b")).toEqual({ hasResult: true, hasUse: true });
+		expect(pairs.get("tool-b")).toBeUndefined();
+		expect(JSON.stringify(compacted)).toContain("Read the latest file");
 	});
 
 	it("treats multi-tool assistant turns as one atomic group in basic compaction", () => {
@@ -386,7 +389,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(collectToolPairPresence(compacted).get("tool-a")).toBeUndefined();
 	});
 
-	it("preserves the latest typed user turn with its tool work during basic compaction", () => {
+	it("preserves the latest typed user prompt without requiring completed tool work", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Old request" },
 			{ role: "assistant", content: "Old answer that can be compacted" },
@@ -400,9 +403,24 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compacted).toEqual([
 			{ role: "user", content: "Old request" },
 			{ role: "user", content: "Read the latest file" },
-			assistantToolUseMessage("tool-a"),
-			toolResultMessage("tool-a", "latest result"),
 		]);
+		expectNoOrphanedToolPairs(compacted);
+	});
+
+	it("budgets the complete basic compaction output including the latest turn", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original task" },
+			{ role: "assistant", content: "old assistant " + "x".repeat(10_000) },
+			{ role: "user", content: "latest typed prompt" },
+			assistantToolUseMessage("tool-live"),
+			toolResultMessage("tool-live", "live result " + "y".repeat(10_000)),
+		];
+
+		const compacted = runForcedBasicCompaction(messages, 700);
+
+		expect(totalJsonTokens(compacted)).toBeLessThanOrEqual(700);
+		expect(JSON.stringify(compacted)).toContain("latest typed prompt");
+		expectNoOrphanedToolPairs(compacted);
 	});
 
 	it("does not compact a single typed user message", () => {
@@ -518,6 +536,23 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
 		expect(codexConfig.thinking).toBe(false);
 		expect(anthropicConfig.maxOutputTokens).toBe(1_024);
+	});
+
+	it("preserves summarizer modelInfo without a nested providerConfig", () => {
+		const resolved = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+				modelInfo: { id: "primary-model", maxInputTokens: 100_000 },
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxInputTokens: 600 },
+			},
+		});
+
+		expect(resolved.modelInfo?.maxInputTokens).toBe(600);
 	});
 
 	it("summarizes older messages and keeps recent messages", async () => {
@@ -772,6 +807,43 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(summarizerPrompt.length).toBeLessThan(longToolOutput.length);
 	});
 
+	it("budgets agentic summary input before serialization", () => {
+		const result = buildAgenticSummaryInputBudget({
+			messages: [
+				{ role: "user", content: "Run a large command" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool-large",
+							name: "execute_command",
+							input: { command: "print-large-output" },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-large",
+							name: "execute_command",
+							content: "x".repeat(50_000),
+						},
+					],
+				},
+				{ role: "user", content: "Latest typed prompt" },
+			],
+			targetTokens: 400,
+			estimateMessageTokens: estimateJsonTokens,
+		});
+
+		expect(result.estimatedTokens).toBeLessThanOrEqual(400);
+		expect(JSON.stringify(result.messages)).toContain("Latest typed prompt");
+		expect(result.actions.length).toBeGreaterThan(0);
+	});
+
 	it("never lands the agentic cut in the middle of a tool pair", async () => {
 		// Repro for the "No tool call found for function call output" provider
 		// error: findCutIndex used to walk back by token budget and could land
@@ -944,6 +1016,79 @@ describe("createContextCompactionPrepareTurn", () => {
 				thinking: false,
 			}),
 		);
+	});
+
+	it("budgets agentic summary input against the configured summarizer context window", async () => {
+		let summaryRequest = "";
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn((_system: string, messages: LlmsProviders.Message[]) => {
+				summaryRequest = String(messages[0]?.content ?? "");
+				return streamChunks([
+					{ type: "text", id: "summary-small", text: "## Goal\nSummarized" },
+					{ type: "done", id: "summary-small", success: true },
+				]);
+			}),
+		});
+
+		const summarizerLimit = 600;
+		const oversizedAssistant = "assistant details ".repeat(5_000);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "primary-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+				modelInfo: { id: "primary-model", maxInputTokens: 10_000 },
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+				reserveTokens: 5,
+				summarizer: {
+					providerId: "openai",
+					modelId: "small-summary",
+					modelInfo: {
+						id: "small-summary",
+						maxInputTokens: summarizerLimit,
+					},
+				},
+			},
+			logger: undefined,
+		});
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old request" },
+				{ role: "assistant", content: oversizedAssistant },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old request" },
+				{ role: "assistant", content: oversizedAssistant },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "primary-model",
+				provider: "anthropic",
+				info: { id: "primary-model", maxInputTokens: 10_000 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		expect(estimateTokens(summaryRequest.length)).toBeLessThanOrEqual(
+			summarizerLimit,
+		);
+		expect(summaryRequest).not.toContain(oversizedAssistant);
 	});
 
 	it("uses basic compaction without calling the summarizer", async () => {
@@ -1798,7 +1943,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages.length).toBeLessThan(4);
 	});
 
-	it("preserves user image blocks during basic compaction sanitization", () => {
+	it("drops old user image blocks during basic compaction sanitization", () => {
 		const messages: LlmsProviders.Message[] = [
 			{
 				role: "user",
@@ -1834,7 +1979,6 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages).toBeDefined();
 		expect(result?.messages[0]?.content).toEqual([
 			{ type: "text", text: "Older user turn" },
-			{ type: "image", data: "abc", mediaType: "image/png" },
 		]);
 		expect(result?.messages.at(-1)).toEqual({
 			role: "user",
@@ -2065,6 +2209,83 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
+	it("accounts executed compaction telemetry against compaction messages", async () => {
+		const captureCalls: Array<{
+			event: string;
+			properties?: Record<string, unknown>;
+		}> = [];
+		const telemetry = {
+			capture: (call: {
+				event: string;
+				properties?: Record<string, unknown>;
+			}) => captureCalls.push(call),
+			captureRequired: () => {},
+			setDistinctId: () => {},
+			updateCommonProperties: () => {},
+			identify: () => {},
+		} as unknown as Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0]["telemetry"];
+
+		const compact = vi.fn(async () => ({
+			messages: [{ role: "user" as const, content: "trimmed" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic",
+				reserveTokens: 1,
+				compact,
+			},
+			telemetry,
+		});
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: "short answer" },
+			{ role: "user", content: "Latest" },
+		];
+		const apiMessages: LlmsProviders.Message[] = [
+			...messages,
+			{ role: "assistant", content: "provider-only payload ".repeat(1_000) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 3,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const executed = captureCalls.find(
+			(call) => call.event === "task.compaction_executed",
+		);
+		const props = executed?.properties as Record<string, unknown>;
+		expect(props.tokensBefore as number).toBeLessThan(
+			props.triggerTokens as number,
+		);
+		expect(props.tokensSaved).toBe(
+			(props.tokensBefore as number) - (props.tokensAfter as number),
+		);
+		expect(props.tokensSaved as number).toBeGreaterThanOrEqual(0);
+	});
+
 	it("emits task.compaction_skipped when the strategy returns undefined", async () => {
 		const captureCalls: Array<{
 			event: string;
@@ -2108,6 +2329,19 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "assistant", content: "x".repeat(500) },
 			{ role: "user", content: "Latest" },
 		];
+		const apiMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "api-shaped ".repeat(500) },
+		];
+		const estimateMessageTokens = createTokenEstimator();
+		const sessionInputTokens = messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		const apiInputTokens = apiMessages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		expect(apiInputTokens).not.toBe(sessionInputTokens);
 
 		const result = await prepareTurn?.({
 			agentId: "agent-1",
@@ -2118,7 +2352,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			systemPrompt: "",
 			tools: [],
 			messages,
-			apiMessages: messages,
+			apiMessages,
 			model: {
 				id: "mock-model",
 				provider: "anthropic",
@@ -2136,6 +2370,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(props.mode).toBe("auto");
 		expect(props.reason).toBe("no_result");
 		expect(props.ulid).toBe("ulid-test-skip");
+		expect(props.tokensBefore).toBe(sessionInputTokens);
 		expect(typeof props.durationMs).toBe("number");
 		expect(
 			captureCalls.find((call) => call.event === "task.compaction_executed"),
