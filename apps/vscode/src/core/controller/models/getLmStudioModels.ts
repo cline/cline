@@ -1,4 +1,5 @@
 import { StringArray, type StringRequest } from "@shared/proto/cline/common"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
@@ -16,7 +17,7 @@ export async function getLmStudioModels(controller: Controller, request: StringR
 			return StringArray.create({ values: [] })
 		}
 		const endpoint = new URL("api/v0/models", baseUrl)
-		const apiKey = controller.stateManager.getSecretKey("lmStudioApiKey")
+		const apiKey = controller.getProviderConfigStore().read(parseProviderId("lmstudio")).apiKey
 
 		const response = await fetch(endpoint.href, {
 			headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
