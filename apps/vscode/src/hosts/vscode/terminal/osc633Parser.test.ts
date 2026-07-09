@@ -7,6 +7,9 @@ function osc633(payload: string, terminator: "bel" | "st" = "bel"): string {
 	return `\x1b]633;${payload}${term}`
 }
 
+// The raw OSC introducer (ESC ]), for constructing malformed/unterminated bodies.
+const OSC_START_FOR_TEST = "\x1b]"
+
 describe("Osc633Parser", () => {
 	describe("basic sequence extraction", () => {
 		it("returns data unchanged with no events when there are no sequences", () => {
@@ -114,6 +117,56 @@ describe("Osc633Parser", () => {
 			expect(r3.events).toEqual([{ type: Osc633EventType.CommandExecuted }])
 		})
 
+		it("handles a chunk ending in a bare ESC, split exactly at the OSC introducer (C marker)", () => {
+			const parser = new Osc633Parser()
+			const r1 = parser.parse("before\x1b")
+			expect(r1.cleanedData).toBe("before")
+			expect(r1.events).toEqual([])
+
+			const r2 = parser.parse("]633;C\x07after")
+			expect(r2.cleanedData).toBe("after")
+			expect(r2.events).toEqual([{ type: Osc633EventType.CommandExecuted }])
+		})
+
+		it("handles a chunk ending in a bare ESC, split exactly at the OSC introducer (D marker)", () => {
+			const parser = new Osc633Parser()
+			const r1 = parser.parse("hi\x1b")
+			expect(r1.cleanedData).toBe("hi")
+			expect(r1.events).toEqual([])
+
+			const r2 = parser.parse("]633;D;0\x07")
+			expect(r2.cleanedData).toBe("")
+			expect(r2.events).toEqual([{ type: Osc633EventType.CommandFinished, exitCode: 0 }])
+		})
+
+		it("treats a trailing bare ESC as a literal character when the next chunk is not an OSC introducer", () => {
+			const parser = new Osc633Parser()
+			const r1 = parser.parse("before\x1b")
+			expect(r1.cleanedData).toBe("before")
+			expect(r1.events).toEqual([])
+
+			// Next chunk does not start with ']' — the ESC was never part of an
+			// OSC sequence and rejoins the stream as a literal character.
+			const r2 = parser.parse("Xafter")
+			expect(r2.cleanedData).toBe("\x1bXafter")
+			expect(r2.events).toEqual([])
+		})
+
+		it("handles a chunk ending in a bare ESC while already inside an OSC body scan (mid-loop), split at introducer", () => {
+			const parser = new Osc633Parser()
+			// First chunk contains a complete sequence AND a trailing bare ESC that
+			// starts the *next* sequence's introducer — exercises the mid-loop scan
+			// path (escIdx === -1 after an earlier OSC was already found), not just
+			// the top-level fast path.
+			const r1 = parser.parse(`${"\x1b]633;A\x07"}text\x1b`)
+			expect(r1.cleanedData).toBe("text")
+			expect(r1.events).toEqual([{ type: Osc633EventType.PromptStart }])
+
+			const r2 = parser.parse("]633;B\x07")
+			expect(r2.cleanedData).toBe("")
+			expect(r2.events).toEqual([{ type: Osc633EventType.CommandStart }])
+		})
+
 		it("streams output between C and D arriving in separate chunks (slow command)", () => {
 			const parser = new Osc633Parser()
 			// echo hi; sleep 40; echo there — C and first output arrive early...
@@ -151,6 +204,45 @@ describe("Osc633Parser", () => {
 			const r2 = parser.parse("\\after")
 			expect(r2.cleanedData).toBe("\x1b]0;window title\x1b\\after")
 			expect(r2.events).toEqual([])
+		})
+	})
+
+	describe("unbounded OSC body protection", () => {
+		it("abandons an unterminated OSC body once it exceeds the size cap, flushing buffered bytes as text", () => {
+			const parser = new Osc633Parser()
+			// A very large unterminated OSC body — e.g. a stray ESC ] in binary
+			// output with no BEL/ST anywhere — must not accumulate forever.
+			const hugeUnterminated = "x".repeat(100_000)
+			const result = parser.parse(`before${OSC_START_FOR_TEST}${hugeUnterminated}`)
+			// The introducer and buffered bytes are recovered as literal text
+			// rather than being withheld indefinitely.
+			expect(result.cleanedData.startsWith("before\x1b]x")).toBe(true)
+			expect(result.cleanedData.length).toBeGreaterThan(90_000)
+			expect(result.events).toEqual([])
+
+			// The parser must have reset back to a non-OSC state: subsequent
+			// chunks are parsed normally rather than being treated as more of
+			// the abandoned sequence.
+			const after = parser.parse(`${osc633("C")}output`)
+			expect(after.cleanedData).toBe("output")
+			expect(after.events).toEqual([{ type: Osc633EventType.CommandExecuted }])
+		})
+
+		it("abandons an unterminated OSC body that grows past the cap across multiple chunks", () => {
+			const parser = new Osc633Parser()
+			const r1 = parser.parse(`${OSC_START_FOR_TEST}${"x".repeat(40_000)}`)
+			expect(r1.cleanedData).toBe("")
+			expect(r1.events).toEqual([])
+
+			// Second chunk pushes the buffered body over the cap without ever
+			// providing a terminator.
+			const r2 = parser.parse("y".repeat(40_000))
+			expect(r2.cleanedData.length).toBeGreaterThan(70_000)
+			expect(r2.events).toEqual([])
+
+			const after = parser.parse(`${osc633("C")}output`)
+			expect(after.cleanedData).toBe("output")
+			expect(after.events).toEqual([{ type: Osc633EventType.CommandExecuted }])
 		})
 	})
 

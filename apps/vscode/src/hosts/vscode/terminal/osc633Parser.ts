@@ -90,6 +90,16 @@ const BEL = "\x07"
 const ST = ESC + "\\"
 
 /**
+ * Cap on a single unterminated OSC body. Legitimate OSC 633 payloads are
+ * short (marker codes, exit codes, a cwd, a command line) and terminate
+ * within the same or next chunk. A body that grows past this without a
+ * terminator is either malformed input or an unrelated binary stream
+ * containing a stray `ESC ]`; abandon it rather than buffering unbounded
+ * data while withholding all subsequent output.
+ */
+const MAX_PENDING_OSC_SIZE = 64 * 1024
+
+/**
  * Decode escaped values in OSC 633 messages.
  * Handles `\\` -> `\` and `\xAB` -> character with code 0xAB.
  */
@@ -165,12 +175,41 @@ export class Osc633Parser {
 	private _inOsc = false
 	/** Set when the previous chunk ended with ESC inside an OSC body (potential ST start). */
 	private _pendingEscInOsc = false
+	/**
+	 * Set when the previous chunk ended with a bare ESC while scanning for the
+	 * *next* OSC introducer (i.e. not yet inside a sequence). `OSC_START` is
+	 * the two-character run `ESC ]`, so a chunk boundary that falls exactly
+	 * between them — `…ESC` | `]633;C\x07…` — is otherwise invisible to a
+	 * plain `indexOf(OSC_START)` search on either chunk alone.
+	 */
+	private _pendingEscBeforeOsc = false
 
 	parse(data: string): Osc633ParseResult {
+		// Resolve an ESC held back from the previous chunk by reconstructing
+		// the boundary exactly as it would appear in an unsplit stream. If
+		// this chunk starts with `]`, the pair now forms a real OSC_START and
+		// is handled by the normal scan below; otherwise the ESC was never
+		// part of an OSC sequence and rejoins the stream as a literal char.
+		if (this._pendingEscBeforeOsc) {
+			this._pendingEscBeforeOsc = false
+			data = ESC + data
+		}
+
 		const events: Osc633Event[] = []
 		const segments: Osc633Segment[] = []
 		// Fast path: nothing in flight and no OSC introducer in this chunk.
 		if (!this._inOsc && data.indexOf(OSC_START) === -1) {
+			if (data.endsWith(ESC)) {
+				// The chunk may have been cut between ESC and the `]` that would
+				// complete an OSC_START; hold the ESC back until the next chunk
+				// resolves the ambiguity instead of emitting it as text now.
+				this._pendingEscBeforeOsc = true
+				const text = data.slice(0, -1)
+				if (text.length > 0) {
+					segments.push({ kind: "text", text })
+				}
+				return { cleanedData: text, events, segments }
+			}
 			if (data.length > 0) {
 				segments.push({ kind: "text", text: data })
 			}
@@ -226,6 +265,14 @@ export class Osc633Parser {
 					const payload = this._pendingOsc
 					this._pendingOsc = ""
 					handle(payload, result.terminator)
+				} else if (result.abandoned) {
+					// Buffer grew past MAX_PENDING_OSC_SIZE with no terminator —
+					// treat as malformed: flush what was buffered as plain text
+					// (recovering the ESC ] introducer that was stripped when
+					// OSC body parsing began) and stop trying to parse it as OSC.
+					this._inOsc = false
+					appendText(OSC_START + this._pendingOsc)
+					this._pendingOsc = ""
 				} else if (result.pendingEsc) {
 					this._pendingEscInOsc = true
 				}
@@ -236,7 +283,15 @@ export class Osc633Parser {
 			// Look for the next ESC ] which starts an OSC sequence.
 			const escIdx = data.indexOf(OSC_START, i)
 			if (escIdx === -1) {
-				appendText(data.substring(i))
+				// A trailing bare ESC is ambiguous — it may be the start of an
+				// OSC_START split across this chunk boundary — so hold it back
+				// the same way the fast path above does.
+				if (data[data.length - 1] === ESC) {
+					this._pendingEscBeforeOsc = true
+					appendText(data.substring(i, data.length - 1))
+				} else {
+					appendText(data.substring(i))
+				}
 				i = data.length
 				continue
 			}
@@ -256,6 +311,10 @@ export class Osc633Parser {
 				const payload = this._pendingOsc
 				this._pendingOsc = ""
 				handle(payload, result.terminator)
+			} else if (result.abandoned) {
+				this._inOsc = false
+				appendText(OSC_START + this._pendingOsc)
+				this._pendingOsc = ""
 			} else if (result.pendingEsc) {
 				this._pendingEscInOsc = true
 			}
@@ -269,12 +328,15 @@ export class Osc633Parser {
 
 	/**
 	 * Consume characters from the OSC body starting at `startIdx`, appending to
-	 * `_pendingOsc` until a terminator (BEL or ST) is found.
+	 * `_pendingOsc` until a terminator (BEL or ST) is found. If the body grows
+	 * past {@link MAX_PENDING_OSC_SIZE} without one, `abandoned` is set so the
+	 * caller flushes the buffered bytes as plain text and gives up on treating
+	 * this as an OSC sequence, instead of buffering indefinitely.
 	 */
 	private _consumeOscBody(
 		data: string,
 		startIdx: number,
-	): { nextIndex: number; complete: boolean; pendingEsc?: boolean; terminator?: string } {
+	): { nextIndex: number; complete: boolean; pendingEsc?: boolean; abandoned?: boolean; terminator?: string } {
 		const belIdx = data.indexOf(BEL, startIdx)
 		const escIdx = data.indexOf(ESC, startIdx)
 
@@ -287,6 +349,9 @@ export class Osc633Parser {
 			if (escIdx + 1 >= data.length) {
 				// ESC is the last char; we don't yet know if it starts an ST terminator.
 				this._pendingOsc += data.substring(startIdx, escIdx)
+				if (this._pendingOsc.length > MAX_PENDING_OSC_SIZE) {
+					return { nextIndex: data.length, complete: false, abandoned: true }
+				}
 				return { nextIndex: data.length, complete: false, pendingEsc: true }
 			}
 
@@ -301,6 +366,9 @@ export class Osc633Parser {
 
 		// No terminator in this chunk; buffer the rest and wait for more data.
 		this._pendingOsc += data.substring(startIdx)
+		if (this._pendingOsc.length > MAX_PENDING_OSC_SIZE) {
+			return { nextIndex: data.length, complete: false, abandoned: true }
+		}
 		return { nextIndex: data.length, complete: false }
 	}
 

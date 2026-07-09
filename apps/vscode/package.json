@@ -5,7 +5,7 @@
 	"version": "4.0.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
-		"vscode": "^1.84.0"
+		"vscode": "^1.93.0"
 	},
 	"author": {
 		"name": "Cline Bot Inc."
@@ -433,7 +433,7 @@
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^21.0.0",
 		"@types/turndown": "^5.0.5",
-		"@types/vscode": "1.84.0",
+		"@types/vscode": "1.93.0",
 		"@vscode/test-cli": "^0.0.12",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.0",
