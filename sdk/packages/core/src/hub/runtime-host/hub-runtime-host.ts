@@ -22,7 +22,9 @@ import {
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isHubToolExecutorName,
+	mergeClineClientRequestHeaders,
 } from "@cline/shared";
+import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -120,6 +122,35 @@ function serializeSettingsInput(
 	const { userInstructionService: _userInstructionService, ...serializable } =
 		input;
 	return JSON.parse(JSON.stringify(serializable)) as Record<string, unknown>;
+}
+
+function buildCommandSessionConfig(
+	input: StartSessionInput,
+	sessionId: string,
+): Record<string, unknown> {
+	const sessionConfig: Record<string, unknown> = {
+		...(input.config as Record<string, unknown>),
+		sessionId,
+	};
+	const headers = mergeClineClientRequestHeaders({
+		providerId: input.config.providerId,
+		sessionId,
+		source: input.source,
+		defaultSource: SessionSource.CORE,
+		clientName: input.localRuntime?.extensionContext?.client?.name,
+		clientVersion: input.localRuntime?.extensionContext?.client?.version,
+		clientVersionHeaderFallback: input.config.headers?.["X-CLIENT-VERSION"],
+		platform: input.localRuntime?.extensionContext?.client?.platform,
+		platformVersion:
+			input.localRuntime?.extensionContext?.client?.platformVersion,
+		isMultiRoot: input.localRuntime?.extensionContext?.client?.isMultiRoot,
+		coreVersion: corePackageVersion,
+		headers: [input.config.headers],
+	});
+	if (headers) {
+		sessionConfig.headers = headers;
+	}
+	return sessionConfig;
 }
 
 function parseToolContext(value: unknown): AgentToolContext {
@@ -798,10 +829,9 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.client.command("session.create", {
 				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
 				cwd: input.config.cwd,
-				sessionConfig: toJsonRecord({
-					...(input.config as Record<string, unknown>),
-					sessionId: plannedSessionId,
-				}),
+				sessionConfig: toJsonRecord(
+					buildCommandSessionConfig(input, plannedSessionId),
+				),
 				metadata: {
 					...(input.sessionMetadata ?? {}),
 					source: input.source ?? SessionSource.CORE,
@@ -907,9 +937,16 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
-		const plannedSessionId = startConfig
-			? startConfig.config.sessionId?.trim() || createSessionId()
-			: undefined;
+		let plannedSessionId: string | undefined;
+		let startSessionConfig: Record<string, unknown> | undefined;
+		if (startConfig) {
+			plannedSessionId =
+				startConfig.config.sessionId?.trim() || createSessionId();
+			startSessionConfig = buildCommandSessionConfig(
+				startConfig,
+				plannedSessionId,
+			);
+		}
 		if (plannedSessionId && capabilities) {
 			this.sessionCapabilities.set(plannedSessionId, capabilities);
 		}
@@ -934,10 +971,7 @@ export class HubRuntimeHost implements RuntimeHost {
 									startConfig.config.workspaceRoot?.trim() ||
 									startConfig.config.cwd,
 								cwd: startConfig.config.cwd ?? input.cwd,
-								sessionConfig: toJsonRecord({
-									...(startConfig.config as Record<string, unknown>),
-									sessionId: plannedSessionId,
-								}),
+								sessionConfig: toJsonRecord(startSessionConfig),
 								metadata: {
 									...(startConfig.sessionMetadata ?? {}),
 									source: startConfig.source ?? SessionSource.CORE,
