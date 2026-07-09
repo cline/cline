@@ -22,26 +22,65 @@ export function getLastLine(output: string): string {
 }
 
 /**
- * Whether a line looks like a shell prompt awaiting input.
+ * How confidently a line looks like a shell prompt awaiting input.
  *
- * This is intentionally loose: a false positive merely returns the buffered
- * output a little early, which is far better than blocking on a stream that
- * will never end.
+ * - "strong": the line matches a shape specific enough (a path, a known REPL
+ *   marker, bash/root's `$`/`#`, starship's `❯`) that a false positive is
+ *   unlikely. Safe to trust after a single short idle period.
+ * - "weak": the line merely ends in a generic prompt character (`>` or `%`)
+ *   with no other structure — this also matches a still-running `ssh`/nested
+ *   shell printing a bare `>` continuation prompt, an HTML/XML tag, or a
+ *   progress meter. Only trust this after the full markerless quiet timeout,
+ *   not the first short idle period.
+ * - "none": does not look like a prompt at all.
  */
-export function looksLikeShellPrompt(lastLine: string): boolean {
+export type ShellPromptStrength = "strong" | "weak" | "none"
+
+/**
+ * Classifies whether a line looks like a shell prompt awaiting input, and how
+ * confidently. Callers deciding whether a markerless command has finished
+ * should only act on "weak" after a long quiet period — see
+ * MARKERLESS_MAX_QUIET_TIME in constants.ts — since a "weak" match returning
+ * buffered output a little early for a genuinely idle prompt is far better
+ * than mistaking a still-running command's `>`/`%`-terminated output for one.
+ */
+export function classifyShellPrompt(lastLine: string): ShellPromptStrength {
 	const line = lastLine.trimEnd()
 	if (!line) {
-		return false
+		return "none"
 	}
 	// PowerShell: "PS C:\path>"
 	if (/PS\s+[A-Z]:\\.*>$/.test(line)) {
-		return true
+		return "strong"
 	}
 	// Command Prompt: "C:\path>"
 	if (/^[A-Z]:\\.*>$/.test(line)) {
-		return true
+		return "strong"
 	}
-	// bash "$", root "#", zsh "%", fish/generic ">", Python REPL ">>>", and
-	// starship "❯" all end in one of these characters.
-	return /[$#%>\u276f]$/.test(line)
+	// Python REPL: exactly ">>>" (whitespace already trimmed above).
+	if (/^>>>$/.test(line)) {
+		return "strong"
+	}
+	// bash "$" and root "#" are specific enough to trust immediately, as is
+	// starship's "❯". zsh "%" and the generic fish/nested-shell ">" are common
+	// false-positive shapes (progress meters, HTML tags, a `>` continuation
+	// prompt in a hung remote shell), so they're classified as "weak" below.
+	if (/[$#\u276f]$/.test(line)) {
+		return "strong"
+	}
+	if (/[%>]$/.test(line)) {
+		return "weak"
+	}
+	return "none"
+}
+
+/**
+ * Whether a line looks like a shell prompt awaiting input, at any confidence.
+ *
+ * @deprecated Prefer {@link classifyShellPrompt} so callers can gate weak
+ * matches on a longer quiet period. Kept for callers that don't yet
+ * distinguish strength.
+ */
+export function looksLikeShellPrompt(lastLine: string): boolean {
+	return classifyShellPrompt(lastLine) !== "none"
 }
