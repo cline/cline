@@ -424,6 +424,7 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 function ClinePassLimitErrorView(props: {
 	message: string;
 	defaultFg?: string;
+	terminalTheme: TerminalTheme;
 }) {
 	const detail = getClinePassLimitDetailMessage(props.message) ?? props.message;
 
@@ -449,16 +450,19 @@ function ClinePassLimitErrorView(props: {
 					<text
 						fg={props.defaultFg}
 						selectable
-						content="type /model, choose Cline, then retry."
+						content="type /model, press tab to change provider, choose Cline, then retry."
 					/>
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">Headless CLI: </text>
-					<text
-						fg={props.defaultFg}
+					<text fg={props.defaultFg} selectable content="rerun with " />
+					<code
+						content="--provider cline"
+						filetype="bash"
+						syntaxStyle={getSyntaxStyle(props.terminalTheme)}
 						selectable
-						content="rerun with --provider cline."
 					/>
+					<text fg={props.defaultFg} selectable content="." />
 				</box>
 			</box>
 		</box>
@@ -582,7 +586,11 @@ export function ChatEntryView(props: {
 			}
 			if (isClinePassLimitErrorMessage(entry.text)) {
 				return (
-					<ClinePassLimitErrorView message={entry.text} defaultFg={defaultFg} />
+					<ClinePassLimitErrorView
+						message={entry.text}
+						defaultFg={defaultFg}
+						terminalTheme={terminalTheme}
+					/>
 				);
 			}
 			return (
