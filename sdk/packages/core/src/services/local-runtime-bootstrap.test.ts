@@ -474,7 +474,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
-	it("adds source request headers for Cline providers on core sessions", async () => {
+	it("uses host request headers for Cline providers on core sessions", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"
 		);
@@ -492,7 +492,13 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			input,
 			localRuntime: {
 				extensionContext: {
-					client: { name: "cline-sdk", version: "9.9.9" },
+					client: {
+						name: "VSCode Extension",
+						version: "9.9.9",
+						platform: "Visual Studio Code",
+						platformVersion: "1.103.0",
+						isMultiRoot: true,
+					},
 				},
 			},
 			sessionId: "sess-non-cli",
@@ -516,11 +522,11 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			"HTTP-Referer": "https://cline.bot",
 			"X-Title": "Cline",
 			"User-Agent": "Cline/9.9.9",
-			"X-IS-MULTIROOT": "false",
-			"X-CLIENT-TYPE": "cline-core",
+			"X-IS-MULTIROOT": "true",
+			"X-CLIENT-TYPE": "VSCode Extension",
 			"X-CLIENT-VERSION": "9.9.9",
-			"X-PLATFORM": "core",
-			"X-PLATFORM-VERSION": "9.9.9",
+			"X-PLATFORM": "Visual Studio Code",
+			"X-PLATFORM-VERSION": "1.103.0",
 			"X-CORE-VERSION": corePackageVersion,
 			"X-Task-ID": "sess-non-cli",
 			"x-config": "config",

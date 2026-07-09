@@ -1,53 +1,53 @@
 import type {
-    AgentConfig,
-    AgentEvent,
-    AgentHooks,
-    AgentTool,
-    ExtensionContext,
-    ITelemetryService,
-    RuntimeConfigExtensionKind,
-    ToolApprovalRequest,
-    ToolApprovalResult,
-    WorkspaceInfo,
+	AgentConfig,
+	AgentEvent,
+	AgentHooks,
+	AgentTool,
+	ExtensionContext,
+	ITelemetryService,
+	RuntimeConfigExtensionKind,
+	ToolApprovalRequest,
+	ToolApprovalResult,
+	WorkspaceInfo,
 } from "@cline/shared";
 import {
-    buildClineClientRequestHeaders,
-    hasRuntimeConfigExtension,
+	buildClineClientRequestHeaders,
+	hasRuntimeConfigExtension,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import { decodeJwtPayload } from "../auth/utils";
 import {
-    resolveAndLoadAgentPlugins,
-    resolvePluginSkillDirectoriesFromPaths,
+	resolveAndLoadAgentPlugins,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "../extensions/plugin/plugin-config-loader";
 import type {
-    PluginInitializationFailure,
-    PluginInitializationWarning,
+	PluginInitializationFailure,
+	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
 import type {
-    SubAgentEndContext,
-    SubAgentStartContext,
-    TeamEvent,
+	SubAgentEndContext,
+	SubAgentStartContext,
+	TeamEvent,
 } from "../extensions/tools/team";
 import { createCheckpointHooks } from "../hooks/checkpoint-hooks";
 import {
-    createHookAuditHooks,
-    createHookConfigFileExtension,
-    mergeAgentHooks,
+	createHookAuditHooks,
+	createHookConfigFileExtension,
+	mergeAgentHooks,
 } from "../hooks/hook-file-hooks";
 import type { RuntimeCapabilities } from "../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
 import type {
-    LocalRuntimeStartOptions,
-    StartSessionInput,
+	LocalRuntimeStartOptions,
+	StartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
-    type ProviderConfig,
-    type ProviderSettings,
-    toProviderConfig,
+	type ProviderConfig,
+	type ProviderSettings,
+	toProviderConfig,
 } from "../types/provider-settings";
 import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
@@ -209,8 +209,12 @@ function buildProviderConfig(
 		sessionId,
 		source,
 		defaultSource: SessionSource.CLI,
+		clientName: config.extensionContext?.client?.name,
 		clientVersion: config.extensionContext?.client?.version,
 		clientVersionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
+		platform: config.extensionContext?.client?.platform,
+		platformVersion: config.extensionContext?.client?.platformVersion,
+		isMultiRoot: config.extensionContext?.client?.isMultiRoot,
 		coreVersion: corePackageVersion,
 	});
 	// TODO: (bee) Move header resolution logic into @cline/llms

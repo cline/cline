@@ -1095,7 +1095,13 @@ export async function runCli(): Promise<void> {
 			cwd,
 			workspaceRoot,
 			extensionContext: {
-				client: { name: "cline-cli", version: cliBuildInfo.version },
+				client: {
+					name: "cline-cli",
+					version: cliBuildInfo.version,
+					platform: "cli",
+					platformVersion: cliBuildInfo.version,
+					isMultiRoot: false,
+				},
 				workspace: {
 					rootPath: workspaceRoot,
 					cwd,

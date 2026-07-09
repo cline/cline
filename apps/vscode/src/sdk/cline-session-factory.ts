@@ -20,12 +20,14 @@ import {
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
+import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
+import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getFeatureFlagsService } from "@/services/feature-flags"
@@ -714,8 +716,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
 			client: {
-				name: "cline-vscode",
+				name: ClineClient.VSCode,
 				version: ExtensionRegistryInfo.version,
+				platform: vscode.env.appName,
+				platformVersion: vscode.version,
+				isMultiRoot: (vscode.workspace.workspaceFolders?.length ?? 0) > 1,
 			},
 			workspace: {
 				rootPath: workspaceRoot,

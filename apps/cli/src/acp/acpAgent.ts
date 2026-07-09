@@ -1,32 +1,32 @@
 import type {
-	Agent,
-	AgentSideConnection,
-	AuthenticateRequest,
-	AuthenticateResponse,
-	CancelNotification,
-	ContentBlock,
-	InitializeRequest,
-	InitializeResponse,
-	NewSessionRequest,
-	NewSessionResponse,
-	PromptRequest,
-	PromptResponse,
-	SessionConfigOption,
-	SetSessionConfigOptionRequest,
-	SetSessionConfigOptionResponse,
-	SetSessionModelRequest,
-	SetSessionModelResponse,
-	SetSessionModeRequest,
-	SetSessionModeResponse,
-	StopReason,
+    Agent,
+    AgentSideConnection,
+    AuthenticateRequest,
+    AuthenticateResponse,
+    CancelNotification,
+    ContentBlock,
+    InitializeRequest,
+    InitializeResponse,
+    NewSessionRequest,
+    NewSessionResponse,
+    PromptRequest,
+    PromptResponse,
+    SessionConfigOption,
+    SetSessionConfigOptionRequest,
+    SetSessionConfigOptionResponse,
+    SetSessionModelRequest,
+    SetSessionModelResponse,
+    SetSessionModeRequest,
+    SetSessionModeResponse,
+    StopReason,
 } from "@agentclientprotocol/sdk";
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk";
 import {
-	type AgentEvent,
-	type ClineCore,
-	Llms,
-	ProviderSettingsManager,
-	SessionSource,
+    type AgentEvent,
+    type ClineCore,
+    Llms,
+    ProviderSettingsManager,
+    SessionSource,
 } from "@cline/core";
 import type { Message } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
@@ -37,18 +37,18 @@ import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
 import type { Config } from "../utils/types";
 import {
-	ACP_AUTH_METHODS,
-	type AcpAuthMethodId,
-	type AcpAuthResult,
-	authenticateAcpProvider,
-	isAcpAuthMethodId,
+    ACP_AUTH_METHODS,
+    type AcpAuthMethodId,
+    type AcpAuthResult,
+    authenticateAcpProvider,
+    isAcpAuthMethodId,
 } from "./auth";
 import { requestAcpToolApproval } from "./permissions";
 import {
-	forwardAgentEvent,
-	sendConfigOptionUpdate,
-	sendCurrentModeUpdate,
-	sendSessionInfoUpdate,
+    forwardAgentEvent,
+    sendConfigOptionUpdate,
+    sendCurrentModeUpdate,
+    sendSessionInfoUpdate,
 } from "./session-updates";
 
 interface SessionState {
@@ -541,7 +541,13 @@ export class AcpAgent implements Agent {
 			cwd,
 			workspaceRoot,
 			extensionContext: {
-				client: { name: "cline-cli", version: cliBuildInfo.version },
+				client: {
+					name: "cline-acp",
+					version: cliBuildInfo.version,
+					platform: "cli",
+					platformVersion: cliBuildInfo.version,
+					isMultiRoot: false,
+				},
 				workspace: {
 					rootPath: workspaceRoot,
 					cwd,

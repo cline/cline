@@ -32,13 +32,21 @@ function resolveClineClientVersion(input: {
 	);
 }
 
+function resolveOptionalHeader(value: string | undefined): string | undefined {
+	return trimNonEmpty(value);
+}
+
 export interface ClineClientRequestHeadersInput {
 	providerId: string;
 	sessionId: string;
 	source?: string;
 	defaultSource: string;
+	clientName?: string;
 	clientVersion?: string;
 	clientVersionHeaderFallback?: string;
+	platform?: string;
+	platformVersion?: string;
+	isMultiRoot?: boolean;
 	coreVersion: string;
 }
 
@@ -49,14 +57,20 @@ export function buildClineClientRequestHeaders(
 		return undefined;
 	}
 	const source = resolveSource(input.source, input.defaultSource);
+	const clientName =
+		resolveOptionalHeader(input.clientName) ?? `cline-${source}`;
 	const clientVersion = resolveClineClientVersion(input);
+	const platform = resolveOptionalHeader(input.platform) ?? source;
+	const platformVersion =
+		resolveOptionalHeader(input.platformVersion) ?? clientVersion;
 	return {
 		...DEFAULT_REQUEST_HEADERS,
 		"User-Agent": `Cline/${clientVersion}`,
-		"X-CLIENT-TYPE": `cline-${source}`,
+		"X-IS-MULTIROOT": input.isMultiRoot === true ? "true" : "false",
+		"X-CLIENT-TYPE": clientName,
 		"X-CLIENT-VERSION": clientVersion,
-		"X-PLATFORM": source,
-		"X-PLATFORM-VERSION": clientVersion,
+		"X-PLATFORM": platform,
+		"X-PLATFORM-VERSION": platformVersion,
 		"X-CORE-VERSION": input.coreVersion,
 		"X-Task-ID": input.sessionId,
 	};

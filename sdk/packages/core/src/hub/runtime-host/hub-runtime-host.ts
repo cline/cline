@@ -137,8 +137,13 @@ function buildCommandSessionConfig(
 		sessionId,
 		source: input.source,
 		defaultSource: SessionSource.CORE,
+		clientName: input.localRuntime?.extensionContext?.client?.name,
 		clientVersion: input.localRuntime?.extensionContext?.client?.version,
 		clientVersionHeaderFallback: input.config.headers?.["X-CLIENT-VERSION"],
+		platform: input.localRuntime?.extensionContext?.client?.platform,
+		platformVersion:
+			input.localRuntime?.extensionContext?.client?.platformVersion,
+		isMultiRoot: input.localRuntime?.extensionContext?.client?.isMultiRoot,
 		coreVersion: corePackageVersion,
 		headers: [input.config.headers],
 	});
