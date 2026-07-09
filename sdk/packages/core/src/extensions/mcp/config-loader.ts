@@ -550,11 +550,15 @@ function runPureSettingsMutator<T>(
 	return result;
 }
 
+function stripJsonBom(raw: string): string {
+	return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+}
+
 function readJsonObject(filePath: string): Record<string, unknown> {
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(raw);
+		parsed = JSON.parse(stripJsonBom(raw));
 	} catch (error) {
 		const details = error instanceof Error ? error.message : String(error);
 		throw new Error(
@@ -616,7 +620,7 @@ export function loadMcpSettingsFile(
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(raw);
+		parsed = JSON.parse(stripJsonBom(raw));
 	} catch (error) {
 		const details = error instanceof Error ? error.message : String(error);
 		throw new Error(

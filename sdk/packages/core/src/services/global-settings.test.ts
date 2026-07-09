@@ -129,6 +129,31 @@ describe("global-settings", () => {
 		}
 	});
 
+	it("loads global settings files with a leading UTF-8 BOM", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			await writeFile(
+				settingsPath,
+				`\uFEFF${JSON.stringify({
+					disabledTools: ["editor"],
+					telemetryOptOut: true,
+				})}`,
+				"utf8",
+			);
+
+			expect(readGlobalSettings()).toEqual({
+				autoUpdateEnabled: true,
+				disabledTools: ["editor"],
+				telemetryOptOut: true,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("preserves disabled tools and plugins across targeted updates", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
