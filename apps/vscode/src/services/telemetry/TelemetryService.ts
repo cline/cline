@@ -26,9 +26,17 @@ type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents"
 export type TerminalType = "vscode" | "standalone"
 
 /**
- * VSCode-specific output capture methods
+ * VSCode-specific output capture methods.
+ *
+ * "shell_integration" means the OSC 633 C/D markers were seen and trusted —
+ * output and exit code are as reliable as VS Code's shell integration gets.
+ * "markerless_heuristic" means completion was inferred from an idle timeout
+ * and/or prompt-pattern guess because markers never arrived (e.g. commands
+ * run inside an ssh session); this must not be folded into
+ * "shell_integration" successes, since it's the exact metric evaluating
+ * whether shell integration is working.
  */
-export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none"
+export type VscodeOutputMethod = "shell_integration" | "markerless_heuristic" | "clipboard" | "none"
 
 /**
  * Standalone-specific output capture methods
@@ -46,6 +54,8 @@ export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
 export enum TerminalOutputFailureReason {
 	TIMEOUT = "timeout",
 	NO_SHELL_INTEGRATION = "no_shell_integration",
+	/** The terminal was closed while the command was still running. */
+	TERMINAL_CLOSED = "terminal_closed",
 }
 
 /**
@@ -1706,8 +1716,18 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("vscode")
 	 * @param method The VSCode-specific method used to capture output
+	 * @param exitCode The process exit code, when captured (via onDidEndTerminalShellExecution
+	 * or the OSC 633;D marker)
+	 * @param terminalExecutionMode Whether this ran in foreground ("vscodeTerminal") or
+	 * background ("backgroundExec") mode
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "vscode", method: VscodeOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "vscode",
+		method: VscodeOutputMethod,
+		exitCode?: number | null,
+		terminalExecutionMode?: "vscodeTerminal" | "backgroundExec",
+	): void
 	/**
 	 * Records terminal command execution outcomes for standalone terminal
 	 * @param success Whether the command output was successfully captured
@@ -1729,6 +1749,7 @@ export class TelemetryService {
 		terminalType: TerminalType,
 		method: TerminalOutputMethod,
 		exitCode?: number | null,
+		terminalExecutionMode?: "vscodeTerminal" | "backgroundExec",
 	): void {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
@@ -1736,8 +1757,9 @@ export class TelemetryService {
 				success,
 				terminalType,
 				method,
-				// Only include exitCode for standalone terminals when it's a meaningful value
-				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
+				// Only include exitCode when it's a meaningful value.
+				...(exitCode !== undefined && exitCode !== null && { exitCode }),
+				...(terminalType === "vscode" && terminalExecutionMode !== undefined && { terminalExecutionMode }),
 			},
 		})
 	}

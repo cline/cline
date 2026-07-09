@@ -151,27 +151,26 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 						</>
 					)}
 
-					{(!isVsCodePlatform || isBackgroundExec) && (
-						<div className="mb-4">
-							<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
-								Default Terminal Profile
-							</label>
-							<VSCodeDropdown
-								className="w-full"
-								id="default-terminal-profile"
-								onChange={handleDefaultTerminalProfileChange}
-								value={defaultTerminalProfile || "default"}>
-								{profilesToShow.map((profile) => (
-									<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
-										{profile.name}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
-							<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-								Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
-							</p>
-						</div>
-					)}
+					{/* Terminal choice affects both foreground and background execution mode. */}
+					<div className="mb-4">
+						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
+							Default Terminal Profile
+						</label>
+						<VSCodeDropdown
+							className="w-full"
+							id="default-terminal-profile"
+							onChange={handleDefaultTerminalProfileChange}
+							value={defaultTerminalProfile || "default"}>
+							{profilesToShow.map((profile) => (
+								<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
+									{profile.name}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
+							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+						</p>
+					</div>
 					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
 						<p className="text-[13px] m-0">
 							<strong>Having terminal issues?</strong> Check our{" "}
