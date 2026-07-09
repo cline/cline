@@ -16,6 +16,7 @@ import type { BasicLogger } from "@cline/shared";
 import {
 	isMcpTimeoutConfigured,
 	resolveMcpTimeoutSeconds,
+	stripUtf8Bom,
 } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -582,7 +583,7 @@ function readJsonObject(filePath: string): Record<string, unknown> {
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(raw);
+		parsed = JSON.parse(stripUtf8Bom(raw));
 	} catch (error) {
 		const details = error instanceof Error ? error.message : String(error);
 		throw new Error(
@@ -644,7 +645,7 @@ export function loadMcpSettingsFile(
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(raw);
+		parsed = JSON.parse(stripUtf8Bom(raw));
 	} catch (error) {
 		const details = error instanceof Error ? error.message : String(error);
 		throw new Error(
