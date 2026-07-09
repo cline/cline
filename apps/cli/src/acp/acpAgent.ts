@@ -511,6 +511,7 @@ export class AcpAgent implements Agent {
 
 	private async buildConfig(session: SessionState): Promise<Config> {
 		const cwd = session.cwd || process.cwd();
+		const workspaceRoot = resolveWorkspaceRoot(cwd);
 		// Resolve credentials: env vars take precedence, then session provider.
 		const providerId = process.env.CLINE_PROVIDER ?? session.currentProviderId;
 		const apiKey = process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
@@ -519,6 +520,7 @@ export class AcpAgent implements Agent {
 			providerId,
 			mode: session.currentMode,
 		});
+		const cliBuildInfo = getCliBuildInfo();
 
 		return {
 			providerId,
@@ -537,7 +539,23 @@ export class AcpAgent implements Agent {
 			enableAgentTeams: false,
 			enableTools: true,
 			cwd,
-			workspaceRoot: resolveWorkspaceRoot(cwd),
+			workspaceRoot,
+			extensionContext: {
+				client: {
+					name: "cline-acp",
+					version: cliBuildInfo.version,
+					platform: "cli",
+					platformVersion: cliBuildInfo.version,
+					isMultiRoot: false,
+				},
+				workspace: {
+					rootPath: workspaceRoot,
+					cwd,
+					workspaceName: cwd,
+					ide: "Terminal Shell",
+					platform: process.platform,
+				},
+			},
 		};
 	}
 }

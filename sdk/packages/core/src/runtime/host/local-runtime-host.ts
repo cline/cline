@@ -1058,21 +1058,43 @@ export class LocalRuntimeHost implements RuntimeHost {
 			: await this.getSession(target);
 		const existing = activeSession ?? sessionRecord;
 		if (!existing) return { updated: false };
+		if (activeSession) {
+			const persistedMessages = await this.readSessionMessages(target);
+			const hasPersistedSource =
+				state.source_message_count > 0 &&
+				persistedMessages.length >= state.source_message_count;
+			const validationMessages = hasPersistedSource
+				? persistedMessages
+				: undefined;
+			if (hasPersistedSource) {
+				if (
+					!(await this.canPersistCompactionState(
+						target,
+						state,
+						activeSession,
+						undefined,
+						persistedMessages,
+					))
+				) {
+					return { updated: false };
+				}
+				activeSession.agent.restore(persistedMessages);
+			}
+			return await this.persistActiveSessionCompactionState(
+				activeSession,
+				state,
+				validationMessages,
+			);
+		}
 		if (
 			!(await this.canPersistCompactionState(
 				target,
 				state,
-				activeSession,
+				undefined,
 				sessionRecord,
 			))
 		) {
 			return { updated: false };
-		}
-		if (activeSession) {
-			return await this.persistActiveSessionCompactionState(
-				activeSession,
-				state,
-			);
 		}
 		const current = await this.invokeOptionalValue<SessionCompactionState>(
 			"readSessionCompactionState",
@@ -1132,6 +1154,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		state: SessionCompactionState,
 		activeSession?: ActiveSession,
 		sessionRecord?: SessionRecord,
+		sourceMessages?: readonly LlmsProviders.Message[],
 	): Promise<boolean> {
 		if (!state.conversation_id?.trim()) {
 			return false;
@@ -1146,18 +1169,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 		) {
 			return false;
 		}
-		const sourceMessages =
+		const messagesForProjection =
+			sourceMessages ??
 			activeSession?.agent.getMessages() ??
 			(await this.readSessionMessages(sessionId));
-		return projectSessionCompactionState(state, sourceMessages) !== undefined;
+		return (
+			projectSessionCompactionState(state, messagesForProjection) !== undefined
+		);
 	}
 
 	private async persistActiveSessionCompactionState(
 		session: ActiveSession,
 		state: SessionCompactionState,
+		sourceMessages?: readonly LlmsProviders.Message[],
 	): Promise<{ updated: boolean }> {
 		if (
-			!(await this.canPersistCompactionState(session.sessionId, state, session))
+			!(await this.canPersistCompactionState(
+				session.sessionId,
+				state,
+				session,
+				undefined,
+				sourceMessages,
+			))
 		) {
 			return { updated: false };
 		}
@@ -1298,6 +1331,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		session.agent.updateConnection(updates);
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
+		// Keep the persisted manifest in sync so session history reflects the
+		// connection the session is now using, not the one it started with.
+		if (session.artifacts && (updates.providerId || updates.modelId)) {
+			const manifest = session.artifacts.manifest;
+			if (updates.providerId) manifest.provider = updates.providerId;
+			if (updates.modelId) manifest.model = updates.modelId;
+			await this.invoke<void>(
+				"writeSessionManifest",
+				session.artifacts.manifestPath,
+				manifest,
+			);
+		}
 	}
 
 	// Retained for unit tests that reach in via Reflect.

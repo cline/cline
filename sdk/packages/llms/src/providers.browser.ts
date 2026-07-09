@@ -1,6 +1,7 @@
 export {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
 	getClinePassSubscriptionUrl,
@@ -8,6 +9,8 @@ export {
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
 } from "./providers/errors";
 export {
 	normalizeProviderId,

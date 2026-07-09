@@ -30,7 +30,7 @@ export interface SdkFollowupCoordinatorOptions {
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	resolveContextMentions: (text: string) => Promise<string>
-	isClineProviderActive: () => boolean
+	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
@@ -119,7 +119,7 @@ export class SdkFollowupCoordinator {
 
 			const errorMsg = error instanceof Error ? error.message : String(error)
 			const isClineAuth =
-				this.options.isClineProviderActive() &&
+				this.options.isClineManagedProviderActive() &&
 				(errorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
 					errorMsg.toLowerCase().includes("missing api key") ||
 					errorMsg.toLowerCase().includes("unauthorized"))

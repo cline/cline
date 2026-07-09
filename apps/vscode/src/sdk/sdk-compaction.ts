@@ -4,14 +4,18 @@
 // apps/cli/src/runtime/interactive/compaction.ts (`compactInteractiveMessages`):
 // it builds a manual-mode compaction `prepareTurn` via the SDK's
 // `createContextCompactionPrepareTurn` and runs it against the current session
-// transcript, returning the compacted messages.
+// transcript, returning the compacted working-context sidecar state.
 //
-// The CLI then restarts the session with the compacted messages; the VSCode
-// adapter does the same in SdkCompactionCoordinator. Keeping the actual
-// compaction effect in the SDK (rather than asking the model to "summarize the
-// conversation") is what makes the compact button real instead of improvised.
+// The VSCode coordinator persists that sidecar without replacing the canonical
+// transcript, so the active session and later resumes use compacted working
+// context while saved messages remain intact.
 
-import { type CoreSessionConfig, createContextCompactionPrepareTurn } from "@cline/core"
+import {
+	type CoreSessionConfig,
+	createContextCompactionPrepareTurn,
+	createSessionCompactionState,
+	type SessionCompactionState,
+} from "@cline/core"
 import type { Message as SdkMessage, ModelInfo as SdkModelInfo } from "@cline/llms"
 import { Logger } from "@/shared/services/Logger"
 
@@ -35,6 +39,7 @@ export interface CompactSessionMessagesInput {
 export interface CompactSessionMessagesResult {
 	compacted: boolean
 	messages: SdkMessage[]
+	compactionState?: SessionCompactionState
 }
 
 /**
@@ -103,5 +108,14 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 	if (!result) {
 		return { compacted: false, messages: input.messages }
 	}
-	return { compacted: true, messages: result.messages }
+	return {
+		compacted: true,
+		messages: result.messages,
+		compactionState: createSessionCompactionState({
+			sourceMessages: input.messages,
+			compactedMessages: result.messages,
+			conversationId: input.sessionId,
+			systemPrompt: result.systemPrompt,
+		}),
+	}
 }

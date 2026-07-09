@@ -622,16 +622,16 @@ describe("buildSessionConfig", () => {
 	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline-pass",
-			actModeClinePassModelId: "cline-pass/glm-5.1",
+			actModeClinePassModelId: "cline-pass/glm-5.2",
 		} as any)
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect(config.providerId).toBe("cline-pass")
-		expect(config.modelId).toBe("cline-pass/glm-5.1")
+		expect(config.modelId).toBe("cline-pass/glm-5.2")
 		expect(config.apiKey).toBe("")
-		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.1" })
+		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.2" })
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
