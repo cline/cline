@@ -262,6 +262,14 @@ export async function createSapAiCoreProviderModule(
 		!Array.isArray(options.defaultSettings)
 			? { defaultSettings: options.defaultSettings }
 			: {}),
+		requestConfig: {
+			headers: { "ai-client-type": "Cline" },
+			// Standard cline axios settings mirroring `getAxiosSettings()`
+			adapter: "fetch",
+			...(config.fetch ? { fetch: config.fetch } : {}),
+			maxBodyLength: Number.POSITIVE_INFINITY,
+			maxContentLength: Number.POSITIVE_INFINITY,
+		},
 	});
 	return {
 		model: (modelId) =>
