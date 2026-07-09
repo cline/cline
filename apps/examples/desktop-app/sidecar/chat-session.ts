@@ -193,6 +193,10 @@ export function buildSessionConnectionUpdate(
 				: undefined;
 	const baseUrl =
 		typeof config.baseUrl === "string" ? config.baseUrl.trim() : undefined;
+	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens = readPositiveInteger(
+		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+	);
 	return buildConnectionUpdate({
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
@@ -210,18 +214,8 @@ export function buildSessionConnectionUpdate(
 		...(typeof config.thinking === "boolean"
 			? { thinking: config.thinking }
 			: {}),
-		...(readReasoningEffort(config.reasoningEffort)
-			? { reasoningEffort: readReasoningEffort(config.reasoningEffort) }
-			: {}),
-		...(readPositiveInteger(
-			config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
-		)
-			? {
-					thinkingBudgetTokens: readPositiveInteger(
-						config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
-					),
-				}
-			: {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
 	});
 }
 

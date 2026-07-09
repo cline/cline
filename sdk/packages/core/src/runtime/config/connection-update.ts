@@ -29,9 +29,11 @@ export interface ConnectionUpdateInput {
  * connection. Shared by clients (CLI, desktop sidecar, …) so the
  * thinking/reasoning transition rules stay consistent:
  * - `thinking: false` disables reasoning and clears effort/budget.
- * - `thinking: true` (or a provided effort/budget) enables reasoning; when no
- *   effort accompanies an explicit `thinking: true`, a stale effort from the
- *   previous connection is cleared rather than carried over.
+ * - `thinking: true` (or a provided effort/budget) enables reasoning; an
+ *   explicit `thinking: true` resets the reasoning state, so a stale effort or
+ *   token budget from the previous connection is cleared unless a replacement
+ *   accompanies it. A bare effort/budget without a `thinking` flag updates
+ *   only the provided field.
  * - `thinking: undefined` leaves the session's reasoning state untouched.
  * Connection fields are included only when defined; an empty string is passed
  * through (it means "clear"), so callers that want to skip blanks must drop
@@ -58,6 +60,9 @@ export function buildConnectionUpdate(
 	if (input.thinking === true) {
 		update.thinking = true;
 		update.reasoningEffort = input.reasoningEffort ?? null;
+		// Cleared symmetrically with reasoningEffort; a valid budget below
+		// overwrites the null.
+		update.thinkingBudgetTokens = null;
 	} else if (input.reasoningEffort !== undefined) {
 		update.thinking = true;
 		update.reasoningEffort = input.reasoningEffort;

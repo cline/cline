@@ -53,14 +53,35 @@ describe("buildConnectionUpdate", () => {
 				thinking: true,
 				reasoningEffort: "low",
 			}),
-		).toEqual({ ...base, thinking: true, reasoningEffort: "low" });
+		).toEqual({
+			...base,
+			thinking: true,
+			reasoningEffort: "low",
+			thinkingBudgetTokens: null,
+		});
 	});
 
-	it("clears a stale effort when thinking is enabled without one", () => {
+	it("clears stale effort and budget when thinking is enabled without them", () => {
 		expect(buildConnectionUpdate({ ...base, thinking: true })).toEqual({
 			...base,
 			thinking: true,
 			reasoningEffort: null,
+			thinkingBudgetTokens: null,
+		});
+	});
+
+	it("keeps a provided budget when thinking is enabled explicitly", () => {
+		expect(
+			buildConnectionUpdate({
+				...base,
+				thinking: true,
+				thinkingBudgetTokens: 1024,
+			}),
+		).toEqual({
+			...base,
+			thinking: true,
+			reasoningEffort: null,
+			thinkingBudgetTokens: 1024,
 		});
 	});
 
