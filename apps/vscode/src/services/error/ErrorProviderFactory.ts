@@ -1,4 +1,5 @@
 import { ClineEndpoint } from "@/config"
+import { StateManager } from "@/core/storage/StateManager"
 import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"
 import { ClineError } from "./ClineError"
@@ -53,12 +54,23 @@ export class ErrorProviderFactory {
 	 * @returns Default configuration using PostHog, or no-op for self-hosted mode
 	 */
 	public static getDefaultConfig(): ErrorProviderConfig {
-		// Use no-op provider in self-hosted mode to avoid external network calls
+		// Use no-op provider in self-hosted mode or when telemetry is disabled
 		if (ClineEndpoint.isSelfHosted()) {
 			return {
 				type: "no-op",
 				config: posthogConfig,
 			}
+		}
+		try {
+			const telemetrySetting = StateManager.get().getGlobalSettingsKey("telemetrySetting")
+			if (telemetrySetting === "disabled") {
+				return {
+					type: "no-op",
+					config: posthogConfig,
+				}
+			}
+		} catch {
+			// StateManager not available yet; use PostHog as default
 		}
 		return {
 			type: "posthog",
