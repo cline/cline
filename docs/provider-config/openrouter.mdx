@@ -23,27 +23,13 @@ OpenRouter is an AI platform that provides access to a wide variety of language 
 4.  **Select Provider Model:** Choose your desired model from the "Model" dropdown.
 5.  **(Optional) Custom Base URL:** If you need to use a custom base URL for the OpenRouter API, check "Use custom base URL" and enter the URL. Leave this blank for most users.
 
-### TrustedRouter
+### Using OpenRouter-compatible services
 
-OpenRouter-compatible services can be used from this provider when they support the same API shape. For TrustedRouter, use a TrustedRouter API key and set a custom base URL.
+Services that expose the same API shape as OpenRouter (for example [TrustedRouter](https://trustedrouter.com)) can be used from this provider with a custom base URL:
 
-1.  **Create a TrustedRouter API key:** Sign in to the [TrustedRouter console](https://trustedrouter.com/console/api-keys), create a key, and copy it.
-2.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
-3.  **Select Provider:** Choose "OpenRouter" from the "API Provider" dropdown.
-4.  **Enter API Key:** Paste your TrustedRouter API key into the "OpenRouter API Key" field.
-5.  **Enable Custom Base URL:** Check "Use custom base URL" and enter:
-
-    ```txt
-    https://api.trustedrouter.com/v1
-    ```
-
-6.  **Choose a model:** Type a TrustedRouter model ID directly into the model field, such as:
-
-    ```txt
-    trustedrouter/auto
-    trustedrouter/zdr
-    trustedrouter/e2e
-    ```
+1.  Choose "OpenRouter" from the "API Provider" dropdown and paste the service's API key into the "OpenRouter API Key" field.
+2.  Check "Use custom base URL" and enter the service's endpoint (e.g. `https://api.trustedrouter.com/v1`).
+3.  Note that the model dropdown is populated from OpenRouter's catalog, not from the custom endpoint — type the service's model ID directly into the model field (e.g. `trustedrouter/auto`).
 
 ### Tips and Notes
 
