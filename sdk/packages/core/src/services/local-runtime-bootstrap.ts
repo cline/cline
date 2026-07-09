@@ -10,7 +10,12 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	buildClineClientRequestHeaders,
+	hasRuntimeConfigExtension,
+	mergeClineClientRequestHeaders,
+} from "@cline/shared";
+import { version as corePackageVersion } from "../../package.json";
 import { decodeJwtPayload } from "../auth/utils";
 import {
 	resolveAndLoadAgentPlugins,
@@ -38,6 +43,7 @@ import type {
 	StartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
+import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
 	type ProviderConfig,
@@ -182,6 +188,7 @@ function deriveOpenAICodexAccountId(
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
+	source: StartSessionInput["source"],
 	providerSettingsManager: ProviderSettingsManager,
 	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
 	defaultFetch?: typeof fetch,
@@ -198,23 +205,44 @@ function buildProviderConfig(
 		config.providerConfig?.providerId === config.providerId
 			? config.providerConfig
 			: undefined;
+	const clineClientHeaders = buildClineClientRequestHeaders({
+		providerId: config.providerId,
+		sessionId,
+		source,
+		defaultSource: SessionSource.CLI,
+		clientVersion: config.extensionContext?.client?.version,
+		clientVersionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
+		coreVersion: corePackageVersion,
+	});
+	const resolvedHeaders =
+		config.providerId === "openai-codex"
+			? buildOpenAICodexHeaders({
+					sessionId,
+					configHeaders: config.headers,
+					storedHeaders: stored?.headers,
+					accountId: stored?.auth?.accountId,
+					accessToken:
+						config.apiKey ?? stored?.auth?.accessToken ?? stored?.apiKey,
+				})
+			: clineClientHeaders
+				? mergeClineClientRequestHeaders({
+						providerId: config.providerId,
+						sessionId,
+						source,
+						defaultSource: SessionSource.CLI,
+						clientVersion: config.extensionContext?.client?.version,
+						clientVersionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
+						coreVersion: corePackageVersion,
+						headers: [stored?.headers, config.headers],
+					})
+				: (config.headers ?? stored?.headers);
 	const settings: ProviderSettings = {
 		...(stored ?? {}),
 		provider: config.providerId,
 		model: config.modelId,
 		apiKey: config.apiKey ?? stored?.apiKey,
 		baseUrl: config.baseUrl ?? stored?.baseUrl,
-		headers:
-			config.providerId === "openai-codex"
-				? buildOpenAICodexHeaders({
-						sessionId,
-						configHeaders: config.headers,
-						storedHeaders: stored?.headers,
-						accountId: stored?.auth?.accountId,
-						accessToken:
-							config.apiKey ?? stored?.auth?.accessToken ?? stored?.apiKey,
-					})
-				: (config.headers ?? stored?.headers),
+		headers: resolvedHeaders,
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 		modelCatalog,
 	};
@@ -222,6 +250,13 @@ function buildProviderConfig(
 		...toProviderConfig(settings),
 		...(sessionProviderConfig ?? {}),
 	};
+	if (clineClientHeaders) {
+		providerConfig.headers = {
+			...(resolvedHeaders ?? {}),
+			...(sessionProviderConfig?.headers ?? {}),
+			...clineClientHeaders,
+		};
+	}
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
 	}
@@ -419,6 +454,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const providerConfig = buildProviderConfig(
 		baseConfig,
 		sessionId,
+		input.source,
 		providerSettingsManager,
 		modelCatalogDefaults,
 		defaultFetch,

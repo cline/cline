@@ -15,6 +15,7 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
@@ -1043,6 +1044,7 @@ export async function runCli(): Promise<void> {
 			reasoningEffort: args.reasoningEffort,
 			persistedReasoning: selectedProviderSettings?.reasoning,
 		});
+		const cliBuildInfo = getCliBuildInfo();
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
@@ -1093,7 +1095,7 @@ export async function runCli(): Promise<void> {
 			cwd,
 			workspaceRoot,
 			extensionContext: {
-				client: { name: "cline-cli" },
+				client: { name: "cline-cli", version: cliBuildInfo.version },
 				workspace: {
 					rootPath: workspaceRoot,
 					cwd,
