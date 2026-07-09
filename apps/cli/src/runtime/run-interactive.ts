@@ -1,4 +1,5 @@
 import {
+	createComputerUseToolFromEnv,
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
@@ -215,7 +216,15 @@ export async function runInteractive(
 		tuiModeChanged,
 	});
 
-	config.extraTools = config.mode === "plan" ? [switchToActModeTool] : [];
+	// Proof-of-concept computer-use support: only enabled when
+	// CLINE_COMPUTER_USE_PORT points at a running backend. See
+	// @cline/core's extensions/computer-use/README.md for the wire protocol.
+	const computerUseTool = await createComputerUseToolFromEnv();
+
+	config.extraTools = [
+		...(config.mode === "plan" ? [switchToActModeTool] : []),
+		...(computerUseTool ? [computerUseTool] : []),
+	];
 
 	const uiEvents = getUIEventEmitter();
 	const chatCommandState: ChatCommandState = {

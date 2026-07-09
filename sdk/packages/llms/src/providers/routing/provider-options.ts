@@ -104,7 +104,11 @@ export function composeAiSdkProviderOptions(
 		target,
 		suppressions,
 	});
-	const anthropicOptions = buildAnthropicProviderOptions(request, context);
+	const anthropicOptions = buildAnthropicProviderOptions(
+		request,
+		context,
+		target,
+	);
 	const buildInput = {
 		...matchInput,
 		compatibleOptions,

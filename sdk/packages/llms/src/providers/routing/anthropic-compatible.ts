@@ -12,7 +12,21 @@ import {
 	modelRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
+import type { AiSdkProviderOptionsTarget } from "./provider-options-types";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
+
+/**
+ * Anthropic beta features gated behind the `anthropic-beta` request header.
+ *
+ * `computer-use-2025-11-24` unlocks the extended computer-use action set
+ * (scroll, wait, zoom, etc.) on the direct Anthropic Messages API. This is
+ * always sent for the direct `anthropic` wire target for now (proof of
+ * concept); it is intentionally NOT sent for other Anthropic-lineage wire
+ * adapters (Bedrock, Vertex, MiniMax, SAP AI Core, ...) since those go
+ * through different request shapes/protocols that don't necessarily accept
+ * this header the same way.
+ */
+const ANTHROPIC_BETA_FEATURES: readonly string[] = ["computer-use-2025-11-24"];
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
@@ -409,6 +423,7 @@ export function resolveAnthropicReasoningRequestPolicy(
 export function buildAnthropicProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
+	target?: AiSdkProviderOptionsTarget,
 ) {
 	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
 	const wantsAnthropicThinking =
@@ -441,6 +456,12 @@ export function buildAnthropicProviderOptions(
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
 			? createEphemeralCacheControl()
+			: {}),
+		// POC: always send the computer-use beta header on the direct
+		// Anthropic wire target. Not gated per-model/per-tool yet; revisit
+		// before this leaves proof-of-concept status.
+		...(target === "anthropic"
+			? { anthropicBeta: [...ANTHROPIC_BETA_FEATURES] }
 			: {}),
 	};
 }

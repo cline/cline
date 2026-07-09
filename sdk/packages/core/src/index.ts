@@ -844,6 +844,21 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export {
+	ComputerUseClient,
+	type ComputerUseClientOptions,
+	type ComputerUseAction,
+	type ComputerUseCoordinate,
+	type ComputerUseDisplayInfo,
+	type ComputerUseImage,
+	type ComputerUseRequest,
+	type ComputerUseResponse,
+	createComputerUseTool,
+	createComputerUseToolFromEnv,
+	GET_DISPLAY_INFO_ACTION,
+	isComputerUseResponse,
+	type ComputerUseToolOptions,
+} from "./extensions/computer-use";
+export {
 	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
 	FALLBACK_CLINE_RECOMMENDED_MODELS,

@@ -2,6 +2,7 @@ import type {
 	GatewayModelRoute,
 	GatewayProviderContext,
 	GatewayProviderManifest,
+	GatewayStreamRequest,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../model-facts";
 import {
 	applyPromptCacheToLastTextPart,
+	buildAnthropicProviderOptions,
 	resolveAnthropicReasoningRequestPolicy,
 	resolvePromptCacheRoute,
 	shouldApplyPromptCache,
@@ -499,5 +501,53 @@ describe("anthropic-compatible routing helpers", () => {
 				openrouter: { cache_control: { type: "ephemeral" } },
 			},
 		});
+	});
+});
+
+describe("buildAnthropicProviderOptions computer-use beta header", () => {
+	function makeRequest(
+		overrides: Partial<GatewayStreamRequest> = {},
+	): GatewayStreamRequest {
+		return {
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			messages: [],
+			...overrides,
+		};
+	}
+
+	it("sends the computer-use beta header for the direct anthropic wire target", () => {
+		const options = buildAnthropicProviderOptions(
+			makeRequest(),
+			makeContext("anthropic"),
+			"anthropic",
+		);
+
+		expect(options.anthropicBeta).toEqual(["computer-use-2025-11-24"]);
+	});
+
+	it("does not send the beta header for other Anthropic-lineage wire targets", () => {
+		const bedrockOptions = buildAnthropicProviderOptions(
+			makeRequest({ providerId: "bedrock" }),
+			makeContext("anthropic"),
+			"bedrock",
+		);
+		expect(bedrockOptions.anthropicBeta).toBeUndefined();
+
+		const vertexOptions = buildAnthropicProviderOptions(
+			makeRequest({ providerId: "vertex" }),
+			makeContext("anthropic"),
+			"vertex",
+		);
+		expect(vertexOptions.anthropicBeta).toBeUndefined();
+	});
+
+	it("does not send the beta header when target is omitted", () => {
+		const options = buildAnthropicProviderOptions(
+			makeRequest(),
+			makeContext("anthropic"),
+		);
+
+		expect(options.anthropicBeta).toBeUndefined();
 	});
 });
