@@ -6,12 +6,12 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionHost } from "./session-host"
+import { getEffectiveTerminalExecutionMode, type VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
-type TerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 
 export interface SdkTerminalExecutionModeCoordinatorOptions {
 	stateManager: StateManager
@@ -26,10 +26,14 @@ export interface SdkTerminalExecutionModeCoordinatorOptions {
 
 export class SdkTerminalExecutionModeCoordinator {
 	private restartPending = false
+	// Serializes concurrent restart calls the same way SdkProviderChangeCoordinator
+	// does — without this, two rapid mode changes could race replaceActiveSession
+	// against itself and leave the session in an inconsistent state.
+	private restartInFlight: Promise<void> | undefined
 
 	constructor(private readonly options: SdkTerminalExecutionModeCoordinatorOptions) {}
 
-	handleTerminalExecutionModeChanged(previous: TerminalExecutionMode, next: TerminalExecutionMode): void {
+	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
 		if (previous === next) {
 			return
 		}
@@ -59,8 +63,18 @@ export class SdkTerminalExecutionModeCoordinator {
 		}
 		this.restartPending = false
 
-		if (!this.options.sessions.getActiveSession()) {
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession) {
 			Logger.log("[SdkController] Deferred terminal mode restart: no active session, skipping")
+			return
+		}
+
+		// The turn that was running when the mode change was requested may still
+		// be running (or a new turn may have started) by the time this check
+		// runs — re-defer rather than restarting mid-turn.
+		if (activeSession.isRunning) {
+			Logger.log("[SdkController] Deferred terminal mode restart: session is still running")
+			this.restartPending = true
 			return
 		}
 
@@ -71,13 +85,36 @@ export class SdkTerminalExecutionModeCoordinator {
 	}
 
 	async restartSessionForTerminalExecutionMode(): Promise<void> {
+		if (this.restartInFlight) {
+			this.restartPending = true
+			return this.restartInFlight
+		}
+
+		const operation = this.performRestartSessionForTerminalExecutionMode()
+		this.restartInFlight = operation.then(
+			() => undefined,
+			// restartInFlight is only a serialization gate. The caller awaits
+			// operation below, where restart failures are reported to the user.
+			() => undefined,
+		)
+
+		try {
+			await operation
+		} finally {
+			this.restartInFlight = undefined
+			this.checkDeferredRestart()
+		}
+	}
+
+	private async performRestartSessionForTerminalExecutionMode(): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
 			return
 		}
 
 		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
-		const terminalMode = this.options.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
+		const requestedTerminalMode = this.options.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
+		const terminalMode = getEffectiveTerminalExecutionMode(requestedTerminalMode)
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for terminal execution mode ${terminalMode}`)
 

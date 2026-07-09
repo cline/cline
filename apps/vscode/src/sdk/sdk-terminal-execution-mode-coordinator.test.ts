@@ -50,6 +50,40 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce()
 	})
 
+	it("re-defers a deferred restart if the session started running again before the check", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalExecutionModeChanged("backgroundExec", "vscodeTerminal")
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+
+		// A new turn started before the deferred check ran — must not restart
+		// mid-turn; must instead re-defer.
+		coordinator.checkDeferredRestart()
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+
+		// Once the session actually stops running, the re-deferred restart fires.
+		activeSession.isRunning = false
+		coordinator.checkDeferredRestart()
+		await waitFor(() => options.sessions.replaceActiveSession.mock.calls.length === 1)
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce()
+	})
+
+	it("serializes concurrent restart calls into a single in-flight restart", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		const [first, second] = [
+			coordinator.restartSessionForTerminalExecutionMode(),
+			coordinator.restartSessionForTerminalExecutionMode(),
+		]
+		await Promise.all([first, second])
+
+		// The second call joined the first's in-flight promise rather than
+		// starting a second concurrent restart.
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledTimes(1)
+	})
+
 	it("rebuilds the active session with preserved messages", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession, mode: "plan", terminalMode: "vscodeTerminal" })

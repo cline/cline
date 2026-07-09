@@ -82,6 +82,7 @@ import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-hi
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
+import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
@@ -327,6 +328,13 @@ export class Controller {
 			},
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			getTerminalManager: () => {
+				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
+				// (vscode-session-host.ts, sdk-terminal-execution-mode-coordinator.ts):
+				// this factory itself is only invoked when a caller has already
+				// resolved to "vscodeTerminal" mode on a real VS Code host, but
+				// VscodeTerminalManager's constructor still assumes
+				// vscode.window.onDidStartTerminalShellExecution exists, which the
+				// standalone (JetBrains/CLI) stub does not provide.
 				if (!this._terminalManager) {
 					this._terminalManager = new VscodeTerminalManager()
 					this.applyTerminalSettings(this._terminalManager)
@@ -619,10 +627,7 @@ export class Controller {
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
 	}
 
-	handleTerminalExecutionModeChanged(
-		previous: "vscodeTerminal" | "backgroundExec",
-		next: "vscodeTerminal" | "backgroundExec",
-	): void {
+	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
 		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
 	}
 
