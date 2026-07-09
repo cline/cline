@@ -390,6 +390,18 @@ describe("LocalRuntimeHost", () => {
 		);
 		sessionService.writeSessionManifest.mockClear();
 
+		// A disk-only writer (compaction path, rename) updated the manifest
+		// behind the in-memory copy's back; the connection update must re-read
+		// and preserve it instead of clobbering it with the stale copy.
+		const diskManifest = {
+			...manifest,
+			compaction_path: "/tmp/compaction.json",
+			title: "renamed session",
+		};
+		const readSessionManifest = vi.fn().mockResolvedValue(diskManifest);
+		(sessionService as Record<string, unknown>).readSessionManifest =
+			readSessionManifest;
+
 		await manager.updateSessionConnection(sessionId, {
 			providerId: "openai",
 			modelId: "codex-test",
@@ -401,6 +413,8 @@ describe("LocalRuntimeHost", () => {
 				session_id: sessionId,
 				provider: "openai",
 				model: "codex-test",
+				compaction_path: "/tmp/compaction.json",
+				title: "renamed session",
 			}),
 		);
 
