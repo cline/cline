@@ -814,6 +814,36 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe("session-2");
 	});
 
+	it("preserves the session id when restarting with the current messages", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.restartWithCurrentMessages();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				config: expect.objectContaining({ sessionId: "session-1" }),
+			}),
+		);
+	});
+
+	it("does not reuse the session id when restarting empty", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.restartEmpty();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		const secondStart = manager.start.mock.calls[1]?.[0] as {
+			config?: { sessionId?: string };
+		};
+		expect(secondStart?.config?.sessionId).toBeUndefined();
+	});
+
 	it("recovers empty read-driven restarts when the active interactive session disappeared", async () => {
 		const manager = makeManager();
 		manager.readMessages.mockRejectedValueOnce(
