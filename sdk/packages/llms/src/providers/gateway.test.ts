@@ -2363,6 +2363,123 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("strips OpenAI-unsupported regex lookaround patterns from Cline tool schemas", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "cline", apiKey: "cline-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "read_handoff",
+						description: "Read handoff content",
+						inputSchema: {
+							type: "object",
+							properties: {
+								path: {
+									type: "string",
+									pattern: "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+								},
+								slug: {
+									type: "string",
+									pattern: "^[a-z0-9_-]+$",
+								},
+								literal: {
+									type: "string",
+									pattern: "\\(?!literal",
+								},
+							},
+							patternProperties: {
+								"^(?!secret_)": { type: "string" },
+								"^public_": { type: "number" },
+							},
+							propertyNames: { pattern: "^(?!invalid$)" },
+							required: ["path"],
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.read_handoff.inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				path: { type: "string" },
+				slug: { type: "string", pattern: "^[a-z0-9_-]+$" },
+				literal: { type: "string", pattern: "\\(?!literal" },
+			},
+			patternProperties: {
+				".*": { type: "string" },
+				"^public_": { type: "number" },
+			},
+			propertyNames: {},
+			required: ["path"],
+		});
+	});
+
+	it("preserves regex lookaround patterns for non-OpenAI tool schemas", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "read_handoff",
+						description: "Read handoff content",
+						inputSchema: {
+							type: "object",
+							properties: {
+								path: {
+									type: "string",
+									pattern: "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+								},
+							},
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.read_handoff.inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					pattern: "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+				},
+			},
+		});
+	});
+
 	it("passes reasoning effort through to Anthropic provider options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

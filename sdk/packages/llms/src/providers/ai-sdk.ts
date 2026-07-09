@@ -368,6 +368,9 @@ function toAiSdkMessages(
 
 function toAiSdkTools(
 	request: GatewayStreamRequest,
+	options: {
+		sanitizeOpenAiSchemaPatterns?: boolean;
+	} = {},
 ): Record<string, unknown> | undefined {
 	if (!request.tools?.length) {
 		return undefined;
@@ -384,11 +387,126 @@ function toAiSdkTools(
 			{
 				description: definition.description,
 				inputSchema: jsonSchema(
-					normalizeAiSdkToolInputSchema(definition.inputSchema),
+					normalizeAiSdkToolInputSchema(
+						options.sanitizeOpenAiSchemaPatterns === true
+							? sanitizeOpenAiUnsupportedToolSchemaPatterns(
+									definition.inputSchema,
+								)
+							: definition.inputSchema,
+					),
 				) as never,
 			} as unknown,
 		]),
 	);
+}
+
+const OPENAI_UNSUPPORTED_REGEX_LOOKAROUNDS = new Set(["=", "!", "<=", "<!"]);
+const OPENAI_PATTERN_PROPERTIES_FALLBACK = ".*";
+
+function hasOpenAiUnsupportedRegexLookaround(pattern: string): boolean {
+	let groupStart = pattern.indexOf("(?");
+	while (groupStart !== -1) {
+		let escapeCount = 0;
+		for (let i = groupStart - 1; i >= 0 && pattern[i] === "\\"; i -= 1) {
+			escapeCount += 1;
+		}
+		if (escapeCount % 2 === 0) {
+			const operator =
+				pattern[groupStart + 2] === "<"
+					? pattern.slice(groupStart + 2, groupStart + 4)
+					: pattern[groupStart + 2];
+			if (OPENAI_UNSUPPORTED_REGEX_LOOKAROUNDS.has(operator)) {
+				return true;
+			}
+		}
+		groupStart = pattern.indexOf("(?", groupStart + 2);
+	}
+	return false;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function appendPatternPropertiesFallback(
+	output: Record<string, unknown>,
+	schema: unknown,
+): void {
+	const existing = output[OPENAI_PATTERN_PROPERTIES_FALLBACK];
+	if (existing === undefined) {
+		output[OPENAI_PATTERN_PROPERTIES_FALLBACK] = schema;
+		return;
+	}
+	if (
+		isRecord(existing) &&
+		Array.isArray(existing.anyOf) &&
+		Object.keys(existing).length === 1
+	) {
+		existing.anyOf = [...existing.anyOf, schema];
+		return;
+	}
+	output[OPENAI_PATTERN_PROPERTIES_FALLBACK] = { anyOf: [existing, schema] };
+}
+
+function sanitizePatternProperties(
+	schemaMap: Record<string, unknown>,
+): Record<string, unknown> {
+	const output: Record<string, unknown> = {};
+	for (const [pattern, schema] of Object.entries(schemaMap)) {
+		const sanitized = sanitizeOpenAiUnsupportedSchemaNode(schema);
+		if (hasOpenAiUnsupportedRegexLookaround(pattern)) {
+			appendPatternPropertiesFallback(output, sanitized);
+			continue;
+		}
+		output[pattern] = sanitized;
+	}
+	return output;
+}
+
+function sanitizeOpenAiUnsupportedSchemaNode(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(sanitizeOpenAiUnsupportedSchemaNode);
+	}
+	if (!isRecord(value)) {
+		return value;
+	}
+
+	const output: Record<string, unknown> = {};
+	for (const [key, child] of Object.entries(value)) {
+		if (
+			key === "pattern" &&
+			typeof child === "string" &&
+			hasOpenAiUnsupportedRegexLookaround(child)
+		) {
+			continue;
+		}
+		if (key === "patternProperties" && isRecord(child)) {
+			output[key] = sanitizePatternProperties(child);
+			continue;
+		}
+		output[key] = sanitizeOpenAiUnsupportedSchemaNode(child);
+	}
+	return output;
+}
+
+export function sanitizeOpenAiUnsupportedToolSchemaPatterns(
+	inputSchema: Record<string, unknown>,
+): Record<string, unknown> {
+	const sanitized = sanitizeOpenAiUnsupportedSchemaNode(inputSchema);
+	return isRecord(sanitized) ? sanitized : inputSchema;
+}
+
+function shouldSanitizeOpenAiToolSchemaPatterns(
+	kind: ProviderModuleKind,
+): boolean {
+	switch (kind) {
+		case "openai":
+		case "openai-compatible":
+		case "openai-codex":
+			return true;
+		default:
+			return false;
+	}
 }
 
 interface RepairableToolCall {
@@ -1160,7 +1278,10 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				);
 				const tools = providerDisablesExternalToolExecution(context)
 					? undefined
-					: toAiSdkTools(request);
+					: toAiSdkTools(request, {
+							sanitizeOpenAiSchemaPatterns:
+								shouldSanitizeOpenAiToolSchemaPatterns(kind),
+						});
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
