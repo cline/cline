@@ -458,6 +458,10 @@ function sanitizePatternProperties(
 			appendPatternPropertiesFallback(output, sanitized);
 			continue;
 		}
+		if (pattern === OPENAI_PATTERN_PROPERTIES_FALLBACK) {
+			appendPatternPropertiesFallback(output, sanitized);
+			continue;
+		}
 		output[pattern] = sanitized;
 	}
 	return output;

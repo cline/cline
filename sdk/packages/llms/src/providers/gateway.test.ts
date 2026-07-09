@@ -2401,6 +2401,7 @@ describe("sdk-gateway", () => {
 							},
 							patternProperties: {
 								"^(?!secret_)": { type: "string" },
+								".*": { type: "boolean" },
 								"^public_": { type: "number" },
 							},
 							propertyNames: { pattern: "^(?!invalid$)" },
@@ -2423,7 +2424,7 @@ describe("sdk-gateway", () => {
 				literal: { type: "string", pattern: "\\(?!literal" },
 			},
 			patternProperties: {
-				".*": { type: "string" },
+				".*": { anyOf: [{ type: "string" }, { type: "boolean" }] },
 				"^public_": { type: "number" },
 			},
 			propertyNames: {},
