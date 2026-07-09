@@ -48,7 +48,11 @@ describe("buildConnectionUpdate", () => {
 
 	it("enables reasoning with the selected effort", () => {
 		expect(
-			buildConnectionUpdate({ ...base, thinking: true, reasoningEffort: "low" }),
+			buildConnectionUpdate({
+				...base,
+				thinking: true,
+				reasoningEffort: "low",
+			}),
 		).toEqual({ ...base, thinking: true, reasoningEffort: "low" });
 	});
 
@@ -61,9 +65,9 @@ describe("buildConnectionUpdate", () => {
 	});
 
 	it("enables thinking when only an effort is provided", () => {
-		expect(buildConnectionUpdate({ ...base, reasoningEffort: "medium" })).toEqual(
-			{ ...base, thinking: true, reasoningEffort: "medium" },
-		);
+		expect(
+			buildConnectionUpdate({ ...base, reasoningEffort: "medium" }),
+		).toEqual({ ...base, thinking: true, reasoningEffort: "medium" });
 	});
 
 	it("enables thinking and truncates a fractional budget", () => {

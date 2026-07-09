@@ -83,7 +83,6 @@ export function resolveReasoningForModelChange(
 	return existing.reasoning;
 }
 
-
 export async function runInteractive(
 	config: Config,
 	userInstructionService?: UserInstructionConfigService,
