@@ -1361,7 +1361,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
-		if (!prompt) throw new Error("prompt cannot be empty");
+		const images = preparedInput?.userImages?.length;
+		const files = preparedInput?.userFiles?.length;
+		if (!prompt && !images && !files) throw new Error("prompt cannot be empty");
 
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;

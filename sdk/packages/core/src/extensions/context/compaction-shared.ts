@@ -485,6 +485,7 @@ export function resolveSummarizerConfig(options: {
 		apiKey: summarizer.apiKey ?? baseProviderConfig?.apiKey,
 		baseUrl: summarizer.baseUrl ?? baseProviderConfig?.baseUrl,
 		headers: summarizer.headers ?? baseProviderConfig?.headers,
+		modelInfo: summarizer.modelInfo ?? baseProviderConfig?.modelInfo,
 		knownModels: summarizer.knownModels ?? baseProviderConfig?.knownModels,
 		maxOutputTokens:
 			summarizer.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,

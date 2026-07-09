@@ -140,9 +140,9 @@ export class SdkTaskStartCoordinator {
 			await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
 			await this.options.postStateToWebview()
 
-			if (prompt?.trim()) {
+			if (prompt?.trim() || images?.length || files?.length) {
 				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(prompt)
+				const resolvedTask = await this.options.resolveContextMentions(prompt || "")
 				this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
 			}
 
