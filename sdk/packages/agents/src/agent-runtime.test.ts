@@ -1284,6 +1284,96 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("applies a beforeModel systemPrompt override to the model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.systemPrompt).toBe("overridden system");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			systemPrompt: "original system",
+			hooks: {
+				beforeModel: () => ({ systemPrompt: "overridden system" }),
+			},
+		});
+
+		const result = await runtime.run("override the prompt");
+
+		expect(result.status).toBe("completed");
+		expect(model.requests[0]?.systemPrompt).toBe("overridden system");
+	});
+
+	it("replaces the assistant message from afterModel and executes injected tool calls", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "<echo><text>hi</text></echo>" },
+				{ type: "usage", usage: { inputTokens: 7, outputTokens: 3 } },
+				{ type: "finish", reason: "stop" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: {
+				afterModel: ({ assistantMessage }) => {
+					const text = assistantMessage.content
+						.filter((part) => part.type === "text")
+						.map((part) => part.text)
+						.join("");
+					if (!text.includes("<echo>")) {
+						return undefined;
+					}
+					return {
+						message: {
+							...assistantMessage,
+							content: [
+								{
+									type: "tool-call",
+									toolCallId: "call_xml_1",
+									toolName: "echo",
+									input: { text: "hi" },
+								},
+							],
+						},
+					};
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done");
+		const assistantWithToolCall = result.messages.find(
+			(message) =>
+				message.role === "assistant" &&
+				message.content.some((part) => part.type === "tool-call"),
+		);
+		expect(assistantWithToolCall).toBeDefined();
+		expect(assistantWithToolCall?.metrics).toMatchObject({
+			inputTokens: 7,
+			outputTokens: 3,
+		});
+		const toolMessages = result.messages.filter(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessages).toHaveLength(1);
+		expect(JSON.stringify(toolMessages[0]?.content)).toContain("hi");
+	});
+
 	it("stamps runtime identity metadata onto model requests", async () => {
 		const model = new ScriptedModel([
 			(request) => {

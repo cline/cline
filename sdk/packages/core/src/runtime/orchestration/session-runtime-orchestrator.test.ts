@@ -649,6 +649,78 @@ describe("SessionRuntime message preparation", () => {
 		expect(configs).toHaveLength(0);
 	});
 
+	it("chains afterModel message replacements across extensions", async () => {
+		const seenBySecondHook: unknown[] = [];
+		const replacer: AgentExtension = {
+			name: "xml-parser-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				afterModel: ({ assistantMessage }) => ({
+					message: {
+						...assistantMessage,
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "call_xml_1",
+								toolName: "echo",
+								input: { text: "hi" },
+							},
+						],
+					},
+				}),
+			},
+		};
+		const observer: AgentExtension = {
+			name: "observer-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				afterModel: ({ assistantMessage }) => {
+					seenBySecondHook.push(assistantMessage.content[0]?.type);
+					return undefined;
+				},
+			},
+		};
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [replacer, observer] }),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const afterModel = hooks?.afterModel;
+		expect(afterModel).toBeDefined();
+
+		const result = await afterModel?.({
+			snapshot: makeSnapshot(),
+			assistantMessage: {
+				id: "a1",
+				role: "assistant",
+				content: [{ type: "text", text: "<echo><text>hi</text></echo>" }],
+				createdAt: 1,
+			},
+			finishReason: "stop",
+		});
+
+		expect(result?.message?.content).toEqual([
+			{
+				type: "tool-call",
+				toolCallId: "call_xml_1",
+				toolName: "echo",
+				input: { text: "hi" },
+			},
+		]);
+		expect(seenBySecondHook).toEqual(["tool-call"]);
+	});
+
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
 		const prepareTurn = vi.fn(() => ({
 			messages: [
