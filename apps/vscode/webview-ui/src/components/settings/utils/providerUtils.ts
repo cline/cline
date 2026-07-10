@@ -24,6 +24,7 @@ import {
 	fireworksModels,
 	geminiDefaultModelId,
 	geminiModels,
+	getVertexCustomModelInfo,
 	groqDefaultModelId,
 	groqModels,
 	hicapModelInfoSaneDefaults,
@@ -262,8 +263,24 @@ export function normalizeApiConfiguration(
 			}
 			return getProviderData(bedrockModels, bedrockDefaultModelId);
 		}
-		case "vertex":
+		case "vertex": {
+			const vertexCustomModelSelected =
+				currentMode === "plan"
+					? apiConfiguration?.planModeVertexCustomModelSelected
+					: apiConfiguration?.actModeVertexCustomModelSelected;
+			if (vertexCustomModelSelected) {
+				const vertexCustomModelInfo =
+					currentMode === "plan"
+						? apiConfiguration?.planModeVertexCustomModelInfo
+						: apiConfiguration?.actModeVertexCustomModelInfo;
+				return {
+					selectedProvider: provider,
+					selectedModelId: modelId || "",
+					selectedModelInfo: getVertexCustomModelInfo(vertexCustomModelInfo),
+				};
+			}
 			return getProviderData(vertexModels, vertexDefaultModelId);
+		}
 		case "gemini":
 			return getProviderData(geminiModels, geminiDefaultModelId);
 		case "openai-native":
@@ -708,6 +725,10 @@ export function getModeSpecificFields(
 			awsBedrockCustomSelected: undefined,
 			awsBedrockCustomModelBaseId: undefined,
 
+			// Vertex custom model fields
+			vertexCustomModelSelected: undefined,
+			vertexCustomModelInfo: undefined,
+
 			// Huawei Cloud Maas Model Info
 			huaweiCloudMaasModelInfo: undefined,
 
@@ -879,6 +900,16 @@ export function getModeSpecificFields(
 				? apiConfiguration.planModeAwsBedrockCustomModelBaseId
 				: apiConfiguration.actModeAwsBedrockCustomModelBaseId,
 
+		// Vertex custom model fields
+		vertexCustomModelSelected:
+			mode === "plan"
+				? apiConfiguration.planModeVertexCustomModelSelected
+				: apiConfiguration.actModeVertexCustomModelSelected,
+		vertexCustomModelInfo:
+			mode === "plan"
+				? apiConfiguration.planModeVertexCustomModelInfo
+				: apiConfiguration.actModeVertexCustomModelInfo,
+
 		// Huawei Cloud Maas Model Info
 		huaweiCloudMaasModelInfo:
 			mode === "plan"
@@ -1036,6 +1067,19 @@ export async function syncModeConfigurations(
 			updates.actModeAwsBedrockCustomModelBaseId =
 				sourceFields.awsBedrockCustomModelBaseId;
 			break;
+
+		case "vertex":
+			updates.planModeApiModelId = sourceFields.apiModelId;
+			updates.actModeApiModelId = sourceFields.apiModelId;
+			updates.planModeVertexCustomModelSelected =
+				sourceFields.vertexCustomModelSelected;
+			updates.actModeVertexCustomModelSelected =
+				sourceFields.vertexCustomModelSelected;
+			updates.planModeVertexCustomModelInfo =
+				sourceFields.vertexCustomModelInfo;
+			updates.actModeVertexCustomModelInfo =
+				sourceFields.vertexCustomModelInfo;
+			break;
 		case "huawei-cloud-maas":
 			updates.planModeHuaweiCloudMaasModelId =
 				sourceFields.huaweiCloudMaasModelId;
@@ -1091,7 +1135,6 @@ export async function syncModeConfigurations(
 		// Providers that use apiProvider + apiModelId fields
 		case "anthropic":
 		case "claude-code":
-		case "vertex":
 		case "gemini":
 		case "openai-native":
 		case "openai-codex":

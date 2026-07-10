@@ -331,6 +331,10 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo act_mode_cline_model_info = 236;
   optional string act_mode_cline_pass_model_id = 237;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 238;
+  optional bool plan_mode_vertex_custom_model_selected = 239;
+  optional OpenRouterModelInfo plan_mode_vertex_custom_model_info = 240;
+  optional bool act_mode_vertex_custom_model_selected = 241;
+  optional OpenRouterModelInfo act_mode_vertex_custom_model_info = 242;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -698,4 +702,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
   optional string act_mode_cline_pass_model_id = 242;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 243;
+  optional bool plan_mode_vertex_custom_model_selected = 244;
+  optional OpenRouterModelInfo plan_mode_vertex_custom_model_info = 245;
+  optional bool act_mode_vertex_custom_model_selected = 246;
+  optional OpenRouterModelInfo act_mode_vertex_custom_model_info = 247;
 }

@@ -1,7 +1,7 @@
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
-import { CLAUDE_SONNET_1M_SUFFIX, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { CLAUDE_SONNET_1M_SUFFIX, getVertexCustomModelInfo, ModelInfo, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -16,6 +16,7 @@ interface VertexHandlerOptions extends CommonApiHandlerOptions {
 	vertexProjectId?: string
 	vertexRegion?: string
 	apiModelId?: string
+	vertexCustomModelInfo?: ModelInfo
 	thinkingBudgetTokens?: number
 	geminiApiKey?: string
 	geminiBaseUrl?: string
@@ -267,11 +268,14 @@ export class VertexHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: VertexModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in vertexModels) {
-			const id = modelId as VertexModelId
+			const id = modelId as keyof typeof vertexModels
 			return { id, info: vertexModels[id] }
+		}
+		if (modelId) {
+			return { id: modelId, info: getVertexCustomModelInfo(this.options.vertexCustomModelInfo) }
 		}
 		return {
 			id: vertexDefaultModelId,
