@@ -130,7 +130,7 @@ describe("compactInteractiveMessages", () => {
 		expect(result.compactionState?.messages).toEqual([messages[0]]);
 	});
 
-	it("falls back to legacy contextWindow for manual compaction", async () => {
+	it("uses 90 percent of legacy contextWindow for manual compaction", async () => {
 		const longText = "x".repeat(16_000);
 		const messages = Array.from({ length: 10 }, (_, index) => ({
 			role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
@@ -138,7 +138,7 @@ describe("compactInteractiveMessages", () => {
 		}));
 		const config = createConfig();
 		const compact = vi.fn((context: CoreCompactionContext) => {
-			expect(context.maxInputTokens).toBe(400_000);
+			expect(context.maxInputTokens).toBe(360_000);
 			return { messages: [messages[0]] };
 		});
 		config.knownModels = {

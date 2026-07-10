@@ -628,7 +628,7 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * Trigger mode for a compaction attempt.
  *
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
- *   when input tokens exceed the configured threshold.
+ *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
  */
 export type TelemetryCompactionMode = "auto" | "manual";

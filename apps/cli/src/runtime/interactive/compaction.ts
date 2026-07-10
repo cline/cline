@@ -62,7 +62,6 @@ export async function compactInteractiveMessages(input: {
 }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
 	const maxInputTokens =
-		input.config.compaction?.maxInputTokens ??
 		modelInfo?.maxInputTokens ??
 		modelInfo?.contextWindow ??
 		FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS;

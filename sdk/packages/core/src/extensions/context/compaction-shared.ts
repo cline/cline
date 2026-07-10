@@ -7,16 +7,13 @@ import {
 
 export { CHARS_PER_TOKEN, estimateTokens };
 
-import type {
-	CoreCompactionContext,
-	CoreCompactionSummarizerConfig,
-} from "../../types/config";
+import type { CoreCompactionSummarizerConfig } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 
 export const DEFAULT_MAX_INPUT_TOKENS = 128_000;
-export const DEFAULT_THRESHOLD_RATIO = 0.9;
+export const CONTEXT_WINDOW_INPUT_RATIO = 0.9;
+export const COMPACTION_TRIGGER_RATIO = 0.9;
 export const DEFAULT_TARGET_RATIO = 0.7;
-export const DEFAULT_RESERVE_TOKENS = 16_384;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
 export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
@@ -37,6 +34,35 @@ export interface CompactionSummaryMetadata {
 }
 
 export type EstimateMessageTokens = (message: MessageWithMetadata) => number;
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/** Resolve the model's usable input budget from its token-limit metadata. */
+export function resolveEffectiveMaxInputTokens(input: {
+	maxInputTokens?: number;
+	contextWindow?: number;
+	maxTokens?: number;
+}): number | undefined {
+	const contextWindow = isPositiveFiniteNumber(input.contextWindow)
+		? input.contextWindow
+		: undefined;
+	const maxInputTokens = isPositiveFiniteNumber(input.maxInputTokens)
+		? input.maxInputTokens
+		: contextWindow;
+
+	if (maxInputTokens === undefined || maxInputTokens !== contextWindow) {
+		return maxInputTokens;
+	}
+
+	if (!isPositiveFiniteNumber(input.maxTokens)) {
+		return contextWindow * CONTEXT_WINDOW_INPUT_RATIO;
+	}
+
+	const derivedMaxInputTokens = contextWindow - input.maxTokens;
+	return derivedMaxInputTokens > 0 ? derivedMaxInputTokens : contextWindow;
+}
 
 export function truncateText(text: string, limit: number): string {
 	if (text.length <= limit) {
@@ -508,10 +534,4 @@ export function buildSummaryMessage(options: {
 			generatedAt: Date.now(),
 		} satisfies CompactionSummaryMetadata,
 	};
-}
-
-export function getMaxInputTokens(
-	context: Pick<CoreCompactionContext, "maxInputTokens">,
-): number {
-	return context.maxInputTokens;
 }

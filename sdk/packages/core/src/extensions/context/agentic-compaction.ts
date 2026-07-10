@@ -7,8 +7,8 @@ import type {
 } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 import {
-	buildBudgetProjection,
 	type BudgetProjectionResult,
+	buildBudgetProjection,
 } from "./budget-projection";
 import {
 	buildSummaryMessage,
@@ -20,6 +20,7 @@ import {
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
+	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
 } from "./compaction-shared";
@@ -29,23 +30,21 @@ const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
 function resolveProviderMaxInputTokens(
 	providerConfig: ProviderConfig,
 ): number | undefined {
-	const explicit = providerConfig.maxInputTokens;
-	if (typeof explicit === "number" && Number.isFinite(explicit)) {
-		return explicit;
-	}
-	const modelInfoLimit =
-		providerConfig.modelInfo?.maxInputTokens ??
-		providerConfig.modelInfo?.contextWindow;
-	if (typeof modelInfoLimit === "number" && Number.isFinite(modelInfoLimit)) {
+	const modelInfoLimit = resolveEffectiveMaxInputTokens({
+		maxInputTokens:
+			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
+		contextWindow: providerConfig.modelInfo?.contextWindow,
+		maxTokens: providerConfig.modelInfo?.maxTokens,
+	});
+	if (modelInfoLimit !== undefined) {
 		return modelInfoLimit;
 	}
 	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
-	const knownModelLimit =
-		knownModelInfo?.maxInputTokens ?? knownModelInfo?.contextWindow;
-	if (typeof knownModelLimit === "number" && Number.isFinite(knownModelLimit)) {
-		return knownModelLimit;
-	}
-	return undefined;
+	return resolveEffectiveMaxInputTokens({
+		maxInputTokens: knownModelInfo?.maxInputTokens,
+		contextWindow: knownModelInfo?.contextWindow,
+		maxTokens: knownModelInfo?.maxTokens,
+	});
 }
 
 export function buildAgenticSummaryInputBudget(options: {
@@ -147,10 +146,7 @@ export async function runAgenticCompaction(options: {
 		options.context.triggerTokens,
 		MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
 	);
-	if (
-		resolvedSummarizerInputLimit === undefined &&
-		!canUseActiveContextLimit
-	) {
+	if (resolvedSummarizerInputLimit === undefined && !canUseActiveContextLimit) {
 		options.logger?.log(
 			"Agentic compaction summarizer has no known input limit; using conservative summary budget",
 			{
@@ -176,12 +172,15 @@ export async function runAgenticCompaction(options: {
 	const availableSummaryInputTokens =
 		summarizerInputLimit - summaryRequestOverheadTokens;
 	if (availableSummaryInputTokens <= 0) {
-		options.logger?.debug("Skipped agentic compaction: summarizer budget exhausted", {
-			summarizerProviderId: summarizerProviderConfig.providerId,
-			summarizerModelId: summarizerProviderConfig.modelId,
-			summarizerInputLimit,
-			summaryRequestOverheadTokens,
-		});
+		options.logger?.debug(
+			"Skipped agentic compaction: summarizer budget exhausted",
+			{
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				summarizerInputLimit,
+				summaryRequestOverheadTokens,
+			},
+		);
 		return undefined;
 	}
 	const summaryInputBudget = buildAgenticSummaryInputBudget({
@@ -270,8 +269,7 @@ export async function runAgenticCompaction(options: {
 	});
 	const budgetActionCount = summaryInputBudget.actions.filter(
 		(action) =>
-			action.reason === "over_budget" ||
-			action.reason === "tool_pair_boundary",
+			action.reason === "over_budget" || action.reason === "tool_pair_boundary",
 	).length;
 	return {
 		messages: resultMessages,

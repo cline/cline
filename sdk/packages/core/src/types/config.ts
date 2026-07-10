@@ -124,10 +124,7 @@ export type CoreCompactionStrategy = "basic" | "agentic";
 export interface CoreCompactionConfig {
 	enabled?: boolean;
 	strategy?: CoreCompactionStrategy;
-	thresholdRatio?: number;
-	reserveTokens?: number;
 	preserveRecentTokens?: number;
-	maxInputTokens?: number;
 	summarizer?: CoreCompactionSummarizerConfig;
 	compact?: (
 		context: CoreCompactionContext,
