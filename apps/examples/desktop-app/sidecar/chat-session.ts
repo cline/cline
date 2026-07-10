@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import {
+	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type CoreSessionConfig,
@@ -179,58 +180,43 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 export function buildSessionConnectionUpdate(
 	config: JsonRecord,
 ): SessionConnectionUpdate {
-	const thinking =
-		typeof config.thinking === "boolean" ? config.thinking : undefined;
-	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
-	const thinkingBudgetTokens = readPositiveInteger(
-		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
-	);
-	const updates: SessionConnectionUpdate = {};
+	// Coerce the untrusted webview JSON (snake_case aliases, blank strings)
+	// into typed fields; the thinking/reasoning transition rules live in the
+	// shared @cline/core builder.
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	if (providerId) {
-		updates.providerId = providerId;
-	}
 	const modelId = String(config.model ?? config.modelId ?? "").trim();
-	if (modelId) {
-		updates.modelId = modelId;
-	}
-	const apiKey =
+	const rawApiKey =
 		typeof config.apiKey === "string"
 			? config.apiKey.trim()
 			: typeof config.api_key === "string"
 				? config.api_key.trim()
 				: undefined;
-	if (apiKey) {
-		updates.apiKey = apiKey;
-	}
-	if (typeof config.baseUrl === "string" && config.baseUrl.trim()) {
-		updates.baseUrl = config.baseUrl.trim();
-	}
-	if (config.headers && typeof config.headers === "object") {
-		updates.headers = config.headers as Record<string, string>;
-	}
-	if (config.providerConfig && typeof config.providerConfig === "object") {
-		updates.providerConfig =
-			config.providerConfig as SessionConnectionUpdate["providerConfig"];
-	}
-	if (thinking === false) {
-		updates.thinking = false;
-		updates.reasoningEffort = null;
-		updates.thinkingBudgetTokens = null;
-		return updates;
-	}
-	if (thinking === true) {
-		updates.thinking = true;
-	}
-	if (reasoningEffort) {
-		updates.thinking = true;
-		updates.reasoningEffort = reasoningEffort;
-	}
-	if (thinkingBudgetTokens !== undefined) {
-		updates.thinking = true;
-		updates.thinkingBudgetTokens = thinkingBudgetTokens;
-	}
-	return updates;
+	const baseUrl =
+		typeof config.baseUrl === "string" ? config.baseUrl.trim() : undefined;
+	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens = readPositiveInteger(
+		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+	);
+	return buildConnectionUpdate({
+		...(providerId ? { providerId } : {}),
+		...(modelId ? { modelId } : {}),
+		...(rawApiKey ? { apiKey: rawApiKey } : {}),
+		...(baseUrl ? { baseUrl } : {}),
+		...(config.headers && typeof config.headers === "object"
+			? { headers: config.headers as Record<string, string> }
+			: {}),
+		...(config.providerConfig && typeof config.providerConfig === "object"
+			? {
+					providerConfig:
+						config.providerConfig as SessionConnectionUpdate["providerConfig"],
+				}
+			: {}),
+		...(typeof config.thinking === "boolean"
+			? { thinking: config.thinking }
+			: {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
+	});
 }
 
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
