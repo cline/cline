@@ -281,3 +281,10 @@ The extension auto-registers the MCP server on startup. If you need manual regis
 python setup_mcp.py --ide vscode
 python setup_mcp.py --ide claude-code   # for Claude Code CLI
 ```
+
+---
+
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md) for exactly what telemetry is collected by
+default, what's opt-in only, and how to turn it off.
