@@ -35,9 +35,12 @@ export type FrontmatterParseResult = {
  * - If no frontmatter exists, returns data={} and body=original markdown.
  */
 export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
-	const cleanMarkdown = markdown.replace(/^\uFEFF/, ""); // Remove BOM if present
+	if (markdown.charCodeAt(0) === 0xfeff) {
+		markdown = markdown.slice(1); // Remove BOM format if present
+	}
+
 	const frontmatterRegex = /^\s*---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-	const match = cleanMarkdown.match(frontmatterRegex);
+	const match = markdown.match(frontmatterRegex);
 
 	if (!match) {
 		return { data: {}, body: markdown, hadFrontmatter: false };
