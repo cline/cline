@@ -9,6 +9,7 @@ const rendererMock = vi.hoisted(() => ({
 		defaultForeground: null,
 	})),
 	on: vi.fn(),
+	setTerminalTitle: vi.fn(),
 }));
 
 const rootMock = vi.hoisted(() => ({
@@ -38,6 +39,7 @@ describe("renderOpenTui", () => {
 	beforeEach(() => {
 		destroyHandlers.length = 0;
 		rendererMock.destroy.mockReset();
+		rendererMock.setTerminalTitle.mockReset();
 		rendererMock.on.mockReset();
 		rendererMock.on.mockImplementation((event: string, handler: () => void) => {
 			if (event === "destroy") {
@@ -95,5 +97,20 @@ describe("renderOpenTui", () => {
 
 		expect(rendererMock.destroy).toHaveBeenCalledTimes(1);
 		expect(rootMock.unmount).toHaveBeenCalledTimes(1);
+	});
+
+	it("resets the terminal title before destroying the renderer", async () => {
+		const { renderOpenTui } = await import("./index");
+		const tui = await renderOpenTui({} as TuiProps);
+
+		tui.destroy();
+		await Promise.resolve();
+
+		expect(rendererMock.setTerminalTitle).toHaveBeenCalledWith("");
+		expect(rendererMock.destroy).toHaveBeenCalledTimes(1);
+		const titleCallOrder =
+			rendererMock.setTerminalTitle.mock.invocationCallOrder[0];
+		const destroyCallOrder = rendererMock.destroy.mock.invocationCallOrder[0];
+		expect(titleCallOrder).toBeLessThan(destroyCallOrder);
 	});
 });

@@ -472,13 +472,21 @@ function App(props: TuiProps) {
 		};
 	}, [renderer, showToast]);
 
+	// setTerminalTitle writes into memory owned by the native renderer, so it
+	// must never run after destroy — React flushes passive effect cleanups in a
+	// macrotask, which can land after the renderer's memory has been freed.
 	useEffect(() => {
+		if (renderer.isDestroyed) {
+			return;
+		}
 		renderer.setTerminalTitle(terminalTitle);
 	}, [renderer, terminalTitle]);
 
 	useEffect(() => {
 		return () => {
-			renderer.setTerminalTitle("");
+			if (!renderer.isDestroyed) {
+				renderer.setTerminalTitle("");
+			}
 		};
 	}, [renderer]);
 
