@@ -45,6 +45,44 @@ export function formatModeSwitchNotice(
 	return `<mode_notice>The user switched from ${from} mode to ${to} mode before sending this message.</mode_notice>`;
 }
 
+export type ModeSwitchNotice = {
+	from: "act" | "plan";
+	to: "act" | "plan";
+};
+
+/**
+ * Tracks a user-initiated mode switch so the next user message can carry a
+ * <mode_notice> marking it. Only UI toggles should be recorded: the
+ * model-initiated switch_to_act_mode path already announces itself via the
+ * continuation prompt. A round trip (plan -> act -> plan before sending
+ * anything) cancels out, since the mode the model last saw never effectively
+ * changed.
+ */
+export function createModeSwitchNoticeTracker() {
+	let pending: ModeSwitchNotice | null = null;
+	return {
+		record(from: "act" | "plan", to: "act" | "plan"): void {
+			if (from === to) {
+				return;
+			}
+			if (pending) {
+				pending = pending.from === to ? null : { from: pending.from, to };
+				return;
+			}
+			pending = { from, to };
+		},
+		consume(): ModeSwitchNotice | null {
+			const notice = pending;
+			pending = null;
+			return notice;
+		},
+	};
+}
+
+export type ModeSwitchNoticeTracker = ReturnType<
+	typeof createModeSwitchNoticeTracker
+>;
+
 export type UserCommandEnvelope = {
 	slash: string;
 	content: string;
