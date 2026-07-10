@@ -452,10 +452,11 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 	switch (toolName) {
 		case "read_files":
 		case "read_file": {
-			const filePath = extractFirstFilePath(parsedInput)
+			const fileRead = extractFileReads(parsedInput)[0]
 			return {
 				tool: "readFile",
-				path: filePath,
+				path: fileRead?.path ?? "",
+				...readLineRangeFields(fileRead),
 			}
 		}
 
@@ -665,32 +666,53 @@ function getCompletionResultText(input: unknown): string {
 	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
 }
 
-/** Extract file paths from a read_files/read_file input */
-function extractFilePaths(input: Record<string, unknown> | undefined): string[] {
+/** A single file read request parsed from a read_files/read_file input */
+interface FileReadRequest {
+	path: string
+	startLine?: number
+	endLine?: number
+}
+
+/** Extract file read requests (path + optional one-based inclusive line range) from a read_files/read_file input */
+function extractFileReads(input: Record<string, unknown> | undefined): FileReadRequest[] {
 	if (!input) return []
 	const files = input.files
 	if (Array.isArray(files) && files.length > 0) {
-		const paths = files
-			.map((f) => {
-				if (typeof f === "string") return f
+		const reads = files
+			.map((f): FileReadRequest => {
+				if (typeof f === "string") return { path: f }
 				if (typeof f === "object" && f !== null) {
-					return ((f as Record<string, unknown>).path as string) ?? ""
+					const entry = f as Record<string, unknown>
+					return {
+						path: (entry.path as string) ?? "",
+						startLine: getNumberField(entry, "start_line"),
+						endLine: getNumberField(entry, "end_line"),
+					}
 				}
-				return ""
+				return { path: "" }
 			})
-			.filter(Boolean)
-		if (paths.length > 0) {
-			return paths
+			.filter((read) => read.path)
+		if (reads.length > 0) {
+			return reads
 		}
 	}
 	const singlePath =
 		(input.path as string) ?? (input.file_path as string) ?? (input.filePath as string) ?? (input.filename as string) ?? ""
-	return singlePath ? [singlePath] : []
+	return singlePath
+		? [{ path: singlePath, startLine: getNumberField(input, "start_line"), endLine: getNumberField(input, "end_line") }]
+		: []
 }
 
-/** Extract the first file path from a read_files input */
-function extractFirstFilePath(input: Record<string, unknown> | undefined): string {
-	return extractFilePaths(input)[0] ?? ""
+/**
+ * Map a read request's line range onto ClineSayTool fields. An omitted start_line with an
+ * explicit end_line means the read began at line 1; an omitted end_line stays undefined
+ * (open-ended read — the UI renders it as "start+").
+ */
+function readLineRangeFields(read: FileReadRequest | undefined): Pick<ClineSayTool, "readLineStart" | "readLineEnd"> {
+	if (!read || (read.startLine == null && read.endLine == null)) {
+		return {}
+	}
+	return { readLineStart: read.startLine ?? 1, readLineEnd: read.endLine }
 }
 
 /** Get a string field from a parsed input object */
@@ -698,6 +720,14 @@ function getStringField(input: Record<string, unknown> | undefined, field: strin
 	if (!input) return undefined
 	const value = input[field]
 	if (typeof value === "string") return value
+	return undefined
+}
+
+/** Get a finite number field from a parsed input object (null/non-number → undefined) */
+function getNumberField(input: Record<string, unknown> | undefined, field: string): number | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "number" && Number.isFinite(value)) return value
 	return undefined
 }
 
@@ -1295,16 +1325,17 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// list reflect what was actually read.
 					if (toolName === "read_files" || toolName === "read_file") {
 						const parsedInput = parseToolInput(storedInput)
-						const filePaths = extractFilePaths(parsedInput)
-						if (filePaths.length > 1) {
-							filePaths.forEach((filePath, index) => {
+						const fileReads = extractFileReads(parsedInput)
+						if (fileReads.length > 1) {
+							fileReads.forEach((fileRead, index) => {
 								messages.push({
 									ts: index === 0 ? ts : state.nextTs(),
 									type: "say",
 									say: "tool",
 									text: JSON.stringify({
 										tool: "readFile",
-										path: filePath,
+										path: fileRead.path,
+										...readLineRangeFields(fileRead),
 									} satisfies ClineSayTool),
 									partial: false,
 								})
