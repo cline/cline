@@ -826,6 +826,8 @@ function ChatThreadPane({
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
+	const isWelcomeState =
+		displayedMessages.length === 0 && !displayedIsSwitching;
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -934,6 +936,7 @@ function ChatThreadPane({
 						}}
 						onRenameTitle={handleRenameTitle}
 						renamingTitle={renamingSession}
+						showSessionActions={!isWelcomeState}
 						status={status}
 						title={threadTitle}
 					/>

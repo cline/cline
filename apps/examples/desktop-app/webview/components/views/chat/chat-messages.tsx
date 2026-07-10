@@ -376,7 +376,7 @@ function ChatMessagesImpl({
 				className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
 				ref={scrollAreaRef}
 			>
-				<div className="relative mx-auto w-full min-w-0 max-w-full overflow-x-hidden px-6 py-6">
+				<div className="relative mx-auto w-full h-full min-w-0 max-w-full overflow-x-hidden px-6 py-6">
 					{showIdleDetails ? (
 						<WelcomeScreen
 							provider={provider}
