@@ -79,6 +79,49 @@ function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
 }
 
+/**
+ * Ask an OpenAI-compatible endpoint for its model list (`GET <baseUrl>/models`)
+ * using the provider's stored API key and headers, mirroring the extension's
+ * refreshOpenAiModels handler. Returns [] on any failure so callers fall back
+ * to manual model-id entry.
+ */
+async function fetchOpenAiCompatibleModelIds(
+	providerId: string,
+): Promise<string[]> {
+	try {
+		const manager = new ProviderSettingsManager();
+		const settings = manager.getProviderSettings(providerId);
+		const baseUrl = settings?.baseUrl?.trim().replace(/\/+$/, "");
+		if (!baseUrl || !URL.canParse(baseUrl)) return [];
+
+		const headers: Record<string, string> = { ...(settings?.headers ?? {}) };
+		const apiKey = settings?.apiKey?.trim();
+		if (
+			apiKey &&
+			!Object.keys(headers).some((h) => h.toLowerCase() === "authorization")
+		) {
+			headers.Authorization = `Bearer ${apiKey}`;
+		}
+
+		const response = await fetch(`${baseUrl}/models`, {
+			headers,
+			signal: AbortSignal.timeout(5_000),
+		});
+		if (!response.ok) return [];
+		const payload = (await response.json()) as { data?: unknown };
+		const list = Array.isArray(payload?.data) ? payload.data : [];
+		const ids = list
+			.map((model) => {
+				const id = (model as { id?: unknown } | null)?.id;
+				return typeof id === "string" ? id.trim() : "";
+			})
+			.filter(Boolean);
+		return [...new Set(ids)];
+	} catch {
+		return [];
+	}
+}
+
 function providerToExistingProviderOptions(input: {
 	providerId: string;
 	providerName: string;
@@ -275,12 +318,28 @@ export function useModelSelector(opts: {
 				config.knownModels as Record<string, Llms.ModelInfo>,
 			);
 			let providerDisplayName = config.providerId;
+			let endpointModelOptions: ModelOption[] = [];
 
 			const refreshProviderContext = async () => {
 				modelOptions = buildModelOptions(
 					config.knownModels as Record<string, Llms.ModelInfo>,
 				);
 				providerDisplayName = await getProviderDisplayName(config.providerId);
+				// Free-text providers (openai-compatible) can still suggest model
+				// ids when their endpoint answers /models; otherwise they keep the
+				// manual input.
+				endpointModelOptions = usesModelIdInput(config.providerId)
+					? buildModelOptions(
+							Object.fromEntries(
+								(await fetchOpenAiCompatibleModelIds(config.providerId)).map(
+									(id) => [id, { id, name: id }],
+								),
+							),
+						)
+					: [];
+				if (endpointModelOptions.length > 0) {
+					modelOptions = endpointModelOptions;
+				}
 			};
 
 			if (!options?.startWithProviderChange) {
@@ -316,7 +375,10 @@ export function useModelSelector(opts: {
 			let pickingModel = true;
 
 			while (pickingModel) {
-				if (usesModelIdInput(config.providerId)) {
+				if (
+					usesModelIdInput(config.providerId) &&
+					endpointModelOptions.length === 0
+				) {
 					const modelId = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
 						content: (ctx: ChoiceContext<string>) => (
