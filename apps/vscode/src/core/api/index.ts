@@ -294,9 +294,9 @@ function createHandlerForProvider(
 				mode === "plan" ? options.planModeClinePassModelId : options.actModeClinePassModelId
 			const configuredClinePassModelInfo =
 				mode === "plan" ? options.planModeClinePassModelInfo : options.actModeClinePassModelInfo
-			const clineModelId = configuredClinePassModelId?.startsWith("cline-pass/")
-				? configuredClinePassModelId
-				: clinePassDefaultModelId
+			// ClinePass users may also select Cline free models (OpenRouter-style ids without
+			// the cline-pass/ prefix), so pass any configured id through to the Cline API.
+			const clineModelId = configuredClinePassModelId || clinePassDefaultModelId
 			const clineModelInfo = resolveClinePassModelInfo(
 				clineModelId,
 				configuredClinePassModelInfo

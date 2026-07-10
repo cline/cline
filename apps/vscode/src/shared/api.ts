@@ -1111,19 +1111,6 @@ export const clinePassModels = {
 		cacheWritesPrice: 0,
 		description: "",
 	},
-	"cline-pass/glm-5.1": {
-		name: "cline-pass/glm-5.1",
-		maxTokens: 131_072,
-		contextWindow: 202_752,
-		supportsImages: false,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 0.98,
-		outputPrice: 3.08,
-		cacheReadsPrice: 0.182,
-		cacheWritesPrice: 0,
-		description: "",
-	},
 } as const satisfies Record<string, ModelInfo>
 
 export function getModelSlug(modelId: string): string {
@@ -5395,8 +5382,7 @@ export const fireworksModels = {
 		outputPrice: 8,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.3,
-		description:
-			"Kimi K2.6 Turbo router for high-performance agentic workloads with vision and text reasoning.",
+		description: "Kimi K2.6 Turbo router for high-performance agentic workloads with vision and text reasoning.",
 	},
 	"accounts/fireworks/routers/kimi-k2p6-fast": {
 		maxTokens: 262000,
@@ -5407,8 +5393,7 @@ export const fireworksModels = {
 		outputPrice: 8,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.3,
-		description:
-			"Kimi K2.6 Fast router for high-performance agentic workloads with vision and text reasoning.",
+		description: "Kimi K2.6 Fast router for high-performance agentic workloads with vision and text reasoning.",
 	},
 	"accounts/fireworks/routers/kimi-k2p7-code-fast": {
 		maxTokens: 262000,
@@ -5419,8 +5404,7 @@ export const fireworksModels = {
 		outputPrice: 8,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.38,
-		description:
-			"Kimi K2.7 Code Fast router for high-performance coding workloads with vision and text reasoning.",
+		description: "Kimi K2.7 Code Fast router for high-performance coding workloads with vision and text reasoning.",
 	},
 	"accounts/fireworks/models/deepseek-v4-flash": {
 		maxTokens: 384000,
@@ -5455,7 +5439,8 @@ export const fireworksModels = {
 		outputPrice: 4.4,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.26,
-		description: "GLM 5.2 is a next-generation general-purpose model optimized for coding, reasoning, and agentic workflows with a 1M context window.",
+		description:
+			"GLM 5.2 is a next-generation general-purpose model optimized for coding, reasoning, and agentic workflows with a 1M context window.",
 	},
 	"accounts/fireworks/models/glm-5p1": {
 		maxTokens: 131072,
@@ -5499,7 +5484,8 @@ export const fireworksModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.06,
-		description: "MiniMax M2.7 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
+		description:
+			"MiniMax M2.7 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
 	},
 	"accounts/fireworks/models/qwen3p7-plus": {
 		maxTokens: 262144,

@@ -125,12 +125,12 @@ describe("buildConnectorStartRequest", () => {
 			io: { writeln: vi.fn(), writeErr: vi.fn() },
 			loggerConfig: { enabled: false, level: "info", destination: "stdout" },
 			systemRules: "Rules",
-			defaultModel: "cline-pass/glm-5.1",
+			defaultModel: "cline-pass/glm-5.2",
 		});
 
 		expect(request.provider).toBe("cline-pass");
 		expect(request.apiKey).toBe("workos:resolved-token");
-		expect(request.model).toBe("cline-pass/glm-5.1");
+		expect(request.model).toBe("cline-pass/glm-5.2");
 	});
 
 	it("uses auth material resolved by provider settings manager", async () => {
@@ -153,11 +153,11 @@ describe("buildConnectorStartRequest", () => {
 			io: { writeln: vi.fn(), writeErr: vi.fn() },
 			loggerConfig: { enabled: false, level: "info", destination: "stdout" },
 			systemRules: "Rules",
-			defaultModel: "cline-pass/glm-5.1",
+			defaultModel: "cline-pass/glm-5.2",
 		});
 
 		expect(request.provider).toBe("cline-pass");
 		expect(request.apiKey).toBe("workos:resolved-token");
-		expect(request.model).toBe("cline-pass/glm-5.1");
+		expect(request.model).toBe("cline-pass/glm-5.2");
 	});
 });

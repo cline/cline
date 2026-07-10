@@ -1,9 +1,17 @@
 import type { ClineMessage } from "@shared/ExtensionMessage";
+import { ApiProvider } from "@shared/proto/cline/models";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ErrorRow from "./ErrorRow";
 
 const mockSetUserOrganization = vi.hoisted(() => vi.fn());
+const mockUpdateApiConfigurationProto = vi.hoisted(() => vi.fn());
+const mockApiConfiguration = vi.hoisted(() => ({
+	planModeApiProvider: "cline-pass",
+	actModeApiProvider: "cline-pass",
+	planModeClinePassModelId: "cline-pass/test-plan-model",
+	actModeClinePassModelId: "cline-pass/test-act-model",
+}));
 
 // Mock the auth context
 vi.mock("@/context/ClineAuthContext", () => ({
@@ -30,9 +38,18 @@ vi.mock("@/components/chat/EntitlementError", () => ({
 	),
 }));
 
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({
+		apiConfiguration: mockApiConfiguration,
+	}),
+}));
+
 vi.mock("@/services/grpc-client", () => ({
 	AccountServiceClient: {
 		setUserOrganization: mockSetUserOrganization,
+	},
+	ModelsServiceClient: {
+		updateApiConfigurationProto: mockUpdateApiConfigurationProto,
 	},
 }));
 
@@ -47,7 +64,9 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		Auth: "auth",
 		Entitlement: "entitlement",
 		OrgClinePassRestriction: "orgClinePassRestriction",
+		ClinePassLimit: "clinePassLimit",
 	},
+	extractClinePassLimitMessage: vi.fn((text: string) => text),
 }));
 
 describe("ErrorRow", () => {
@@ -61,6 +80,7 @@ describe("ErrorRow", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockSetUserOrganization.mockResolvedValue({});
+		mockUpdateApiConfigurationProto.mockResolvedValue({});
 	});
 
 	it("renders basic error message", () => {
@@ -264,6 +284,83 @@ describe("ErrorRow", () => {
 			expect(
 				screen.getByText("Switched to personal account"),
 			).toBeInTheDocument();
+		});
+
+		it("renders ClinePass limit error and switches to Cline usage-based billing", async () => {
+			const limitMessage =
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.";
+			const mockClineError = {
+				message: limitMessage,
+				isErrorType: vi.fn((type) => type === "clinePassLimit"),
+				providerId: "cline-pass",
+				_error: {
+					message: limitMessage,
+				},
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+
+			render(
+				<ErrorRow
+					apiRequestFailedMessage={limitMessage}
+					errorType="error"
+					message={mockMessage}
+				/>,
+			);
+
+			expect(screen.getByTestId("cline-pass-limit-error")).toBeInTheDocument();
+			expect(screen.getByText(limitMessage)).toBeInTheDocument();
+
+			fireEvent.click(screen.getByText("Switch to Usage-Based billing"));
+
+			await waitFor(() =>
+				expect(mockUpdateApiConfigurationProto).toHaveBeenCalledTimes(1),
+			);
+			// The proto conversion maps provider id strings to ApiProvider enum values.
+			const request = mockUpdateApiConfigurationProto.mock.calls[0][0];
+			expect(request.apiConfiguration.planModeApiProvider).toBe(
+				ApiProvider.CLINE,
+			);
+			expect(request.apiConfiguration.actModeApiProvider).toBe(
+				ApiProvider.CLINE,
+			);
+			expect(
+				screen.getByText("Switched to Usage-Based billing"),
+			).toBeInTheDocument();
+		});
+
+		it("does not offer the usage-based billing switch when already on the cline provider", async () => {
+			const limitMessage =
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.";
+			const mockClineError = {
+				message: limitMessage,
+				isErrorType: vi.fn((type) => type === "clinePassLimit"),
+				providerId: "cline",
+				_error: {
+					message: limitMessage,
+				},
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+
+			render(
+				<ErrorRow
+					apiRequestFailedMessage={limitMessage}
+					errorType="error"
+					message={mockMessage}
+				/>,
+			);
+
+			expect(
+				screen.queryByTestId("cline-pass-limit-error"),
+			).not.toBeInTheDocument();
+			expect(screen.getByText(limitMessage)).toBeInTheDocument();
 		});
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {

@@ -1,6 +1,11 @@
 import { describe, it } from "mocha";
 import "should";
-import { ClineError, ClineErrorType } from "../ClineError";
+import {
+	ClineError,
+	ClineErrorType,
+	extractClinePassLimitMessage,
+	isClinePassLimitMessage,
+} from "../ClineError";
 
 describe("ClineError", () => {
 	describe("getErrorType", () => {
@@ -59,7 +64,7 @@ describe("ClineError", () => {
 							"Error 403: the user is not subscribed to required model plan",
 					},
 				},
-				"cline-pass/glm-5.1",
+				"cline-pass/glm-5.2",
 				"cline-pass",
 			);
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement);
@@ -88,6 +93,75 @@ describe("ClineError", () => {
 
 			const result = ClineError.getErrorType(err);
 			(result !== ClineErrorType.OrgClinePassRestriction).should.be.true();
+		});
+
+		it("should classify ClinePass period limit messages as ClinePassLimit", () => {
+			const err = new ClineError(
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
+			);
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit);
+		});
+
+		it("should classify nested ClinePass period limit messages as ClinePassLimit", () => {
+			// ClineError maps `error.error` into `details`, matching the real provider error shape.
+			const err = new ClineError({
+				message: "403 Error 403",
+				error: {
+					message:
+						"You have reached your monthly ClinePass limit. The limit resets in 12h, please try again later.",
+				},
+			});
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit);
+		});
+
+		it("should prefer ClinePassLimit over Auth for a 403 with the limit message", () => {
+			// status 403 falls inside the generic auth-status range; the limit message must win.
+			const err = new ClineError({
+				message:
+					"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.",
+				status: 403,
+			});
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit);
+		});
+	});
+
+	describe("isClinePassLimitMessage", () => {
+		it("matches limit messages with variable period and reset", () => {
+			isClinePassLimitMessage(
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
+			).should.be.true();
+			isClinePassLimitMessage(
+				"You have reached your 5-hour ClinePass limit. The limit resets in 5h, please try again later.",
+			).should.be.true();
+		});
+
+		it("does not match unrelated or partial messages", () => {
+			isClinePassLimitMessage(
+				"the user is not subscribed to required model plan",
+			).should.be.false();
+			isClinePassLimitMessage(
+				`You have reached your\t-\tClinepass limit.The limit resets in\t${"\t".repeat(10_000)}`,
+			).should.be.false();
+		});
+	});
+
+	describe("extractClinePassLimitMessage", () => {
+		it("extracts the limit message out of a wrapped error string", () => {
+			const message =
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.";
+
+			extractClinePassLimitMessage(`429 Error: ${message}`)!.should.equal(
+				message,
+			);
+		});
+
+		it("returns undefined when there is no limit message", () => {
+			(
+				extractClinePassLimitMessage("some other error") === undefined
+			).should.be.true();
 		});
 	});
 });

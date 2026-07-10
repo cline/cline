@@ -1,6 +1,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage";
 import { isClineProvider } from "@shared/utils/cline";
 import { memo } from "react";
+import ClinePassLimitError from "@/components/chat/ClinePassLimitError";
 import CreditLimitError from "@/components/chat/CreditLimitError";
 import EntitlementError from "@/components/chat/EntitlementError";
 import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrictionError";
@@ -10,6 +11,7 @@ import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext";
 import {
 	ClineError,
 	ClineErrorType,
+	extractClinePassLimitMessage,
 } from "../../../../src/services/error/ClineError";
 
 const _errorColor = "var(--vscode-errorForeground)";
@@ -88,6 +90,19 @@ const ErrorRow = memo(
 							clineError?.isErrorType(ClineErrorType.OrgClinePassRestriction)
 						) {
 							return <OrgClinePassRestrictionError />;
+						}
+
+						// Gated on the ClinePass provider: users already on usage-based
+						// billing shouldn't be offered a switch to what they're on.
+						if (
+							clineError?.isErrorType(ClineErrorType.ClinePassLimit) &&
+							providerId === "cline-pass"
+						) {
+							const detailMessage =
+								clineError?._error?.details?.message || errorMessage;
+							const limitMessage =
+								extractClinePassLimitMessage(detailMessage) ?? detailMessage;
+							return <ClinePassLimitError message={limitMessage} />;
 						}
 
 						if (clineError?.isErrorType(ClineErrorType.RateLimit)) {

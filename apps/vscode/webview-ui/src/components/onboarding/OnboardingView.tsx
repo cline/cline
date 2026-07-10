@@ -1,5 +1,7 @@
 import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
+import { StringRequest } from "@shared/proto/cline/common"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
@@ -9,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
@@ -233,7 +235,25 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections 
 						</ItemMedia>
 						<ItemContent className="w-full">
 							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>{option.description}</ItemDescription>
+							<ItemDescription>
+								{option.description}
+								{option.learnMoreUrl && (
+									<>
+										{" "}
+										<VSCodeLink
+											className="inline"
+											style={{ fontSize: "inherit" }}
+											onClick={(e) => {
+												e.stopPropagation()
+												UiServiceClient.openUrl(
+													StringRequest.create({ value: option.learnMoreUrl }),
+												).catch((err) => console.error("Failed to open learn more link:", err))
+											}}>
+											Learn more
+										</VSCodeLink>
+									</>
+								)}
+							</ItemDescription>
 						</ItemContent>
 					</Item>
 				)
@@ -309,7 +329,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [searchTerm, setSearchTerm] = useState("")
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
-	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
+	// ClinePass model IDs (e.g. "cline-pass/glm-5.2") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 

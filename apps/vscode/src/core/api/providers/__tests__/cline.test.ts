@@ -180,7 +180,7 @@ describe("ClineHandler", () => {
 		const fakeClient = { chat: { completions: { create: sinon.stub().rejects(apiError) } } }
 		sinon.stub(handler as any, "ensureClient").resolves(fakeClient as any)
 		sinon.stub(handler as any, "getFreeModelIdSet").resolves(new Set())
-		sinon.stub(handler, "getModel").returns({ id: "cline-pass/glm-5.1", info: openRouterDefaultModelInfo })
+		sinon.stub(handler, "getModel").returns({ id: "cline-pass/glm-5.2", info: openRouterDefaultModelInfo })
 
 		let thrown: unknown
 		try {
@@ -191,7 +191,7 @@ describe("ClineHandler", () => {
 			thrown = e
 		}
 
-		const clineError = ClineError.transform(thrown, "cline-pass/glm-5.1", "cline-pass")
+		const clineError = ClineError.transform(thrown, "cline-pass/glm-5.2", "cline-pass")
 		clineError.isErrorType(ClineErrorType.Entitlement).should.be.true()
 	})
 })
