@@ -277,9 +277,10 @@ jobs:
         run: |
           # Grab content between the first "## " header and the next one in sdk/CHANGELOG.md
           CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' sdk/CHANGELOG.md)
-          echo "content<<EOF" >> $GITHUB_OUTPUT
+          DELIMITER=$(openssl rand -hex 8)
+          echo "content<<${DELIMITER}" >> $GITHUB_OUTPUT
           echo "$CONTENT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "${DELIMITER}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
