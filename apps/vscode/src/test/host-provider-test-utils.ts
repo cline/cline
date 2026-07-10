@@ -1,6 +1,7 @@
 import {
 	CommentReviewControllerCreator,
 	DiffViewProviderCreator,
+	EditPreviewCreator,
 	HostProvider,
 	TerminalManagerCreator,
 	WebviewProviderCreator,
@@ -18,6 +19,7 @@ import { ITerminalManager } from "@/integrations/terminal/types"
 export function setVscodeHostProviderMock(options?: {
 	webviewProviderCreator?: WebviewProviderCreator
 	diffViewProviderCreator?: DiffViewProviderCreator
+	editPreviewCreator?: EditPreviewCreator
 	commentReviewControllerCreator?: CommentReviewControllerCreator
 	terminalManagerCreator?: TerminalManagerCreator
 	hostBridgeClient?: HostBridgeClientProvider
@@ -31,6 +33,7 @@ export function setVscodeHostProviderMock(options?: {
 	HostProvider.initialize(
 		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
 		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
+		options?.editPreviewCreator ?? ((() => {}) as EditPreviewCreator),
 		options?.commentReviewControllerCreator ?? ((() => {}) as CommentReviewControllerCreator),
 		options?.terminalManagerCreator ?? ((() => ({}) as ITerminalManager) as TerminalManagerCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,

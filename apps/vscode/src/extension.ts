@@ -47,6 +47,7 @@ import {
 } from "./hosts/vscode/review/VscodeCommentReviewController"
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
+import { VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
@@ -603,6 +604,7 @@ function setupHostProvider(context: ExtensionContext) {
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
+	const createEditPreview = () => new VscodeEditPreview()
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
@@ -624,6 +626,7 @@ function setupHostProvider(context: ExtensionContext) {
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createEditPreview,
 		createCommentReview,
 		createTerminalManager,
 		vscodeHostBridgeClient,

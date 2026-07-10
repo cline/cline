@@ -284,13 +284,8 @@ export class Controller {
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
-			messages: this.messages,
-			getSessionId: () => this.sessions.getActiveSession()?.sessionId ?? "",
-			postStateToWebview: () => this.postStateToWebview(),
 			getCwd: () => this.getWorkspaceRoot(),
 			isBackgroundEditEnabled: () => !!this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
-			// Share the single id/seq/epoch authority so user_feedback_diff ids never collide.
-			getMinter: () => this.messageTranslatorState.getMinter(),
 		})
 		this.interactions = new SdkInteractionCoordinator({
 			messages: this.messages,
@@ -306,9 +301,9 @@ export class Controller {
 				this.messageTranslatorState.recordApprovedToolMessageTs(toolCallId, messageTs),
 			recordDeniedToolApproval: (toolCallId, toolName, reason) => {
 				this.messageTranslatorState.recordDeniedToolApproval(toolCallId, toolName, reason)
-				// A denied edit's executor never runs, so revert its diff preview here. Covers
+				// A denied edit's executor never runs, so close its diff preview here. Covers
 				// manual Reject and clearPending (task cancel/abort) in one place.
-				void this.diffEdits.revert(toolCallId)
+				void this.diffEdits.discardPreview(toolCallId)
 			},
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -343,7 +338,7 @@ export class Controller {
 			},
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
-				void this.diffEdits.revertAll("turn complete")
+				void this.diffEdits.discardAllPreviews("turn complete")
 				await this.providerChanges.handleTurnComplete(this.mode)
 
 				this.postStateToWebview().catch((err) => {
@@ -352,7 +347,7 @@ export class Controller {
 			},
 			onSendError: async (error, sessionId) => {
 				// A turn failed — the UI shows error recovery (Retry / Sign In / Add Credits).
-				void this.diffEdits.revertAll("turn error")
+				void this.diffEdits.discardAllPreviews("turn error")
 				this.turnStateTracker.set("error")
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
@@ -699,7 +694,7 @@ export class Controller {
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
-		await this.diffEdits.revertAll("controller dispose")
+		await this.diffEdits.discardAllPreviews("controller dispose")
 		await this.clearTask()
 		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()

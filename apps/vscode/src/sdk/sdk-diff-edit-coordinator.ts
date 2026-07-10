@@ -9,98 +9,71 @@ import {
 	PatchActionType,
 } from "@cline/core"
 import type { AgentToolContext } from "@cline/shared"
-import { formatResponse } from "@core/prompts/responses"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import type { ClineMessage, ClineSayTool } from "@/shared/ExtensionMessage"
+import type { EditPreview } from "@/integrations/editor/EditPreview"
 import { Logger } from "@/shared/services/Logger"
-import { MessageIdMinter } from "./message-id-minter"
-import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 
 /**
- * Delay after an auto-approved edit is rendered in the diff editor before saving,
- * giving the language servers time to analyze the new (unsaved) buffer so
- * saveChanges() can report new problems. Mirrors the legacy WriteToFileToolHandler
- * behavior; for manually-approved edits the user's decision time serves this purpose.
+ * How long an auto-approved edit's preview stays visible after the write, so the
+ * user can watch the change land without stalling the agent loop for long.
+ * Manually-approved edits don't need this: the preview is open while the user decides.
  */
-const AUTO_APPROVE_DIAGNOSTICS_SETTLE_MS = 3_500
-
-/** Delay after the final diff-view update before scrolling, letting the editor repaint (legacy parity). */
-const DIFF_VIEW_SETTLE_MS = 300
+const AUTO_APPROVE_PREVIEW_LINGER_MS = 1_500
 
 export interface SdkDiffEditCoordinatorOptions {
-	messages: SdkMessageCoordinator
-	getSessionId: () => string
-	postStateToWebview: () => Promise<void>
-	/** Workspace root used to resolve relative tool paths at approval time. */
+	/** Workspace root used to resolve relative tool paths. */
 	getCwd: () => Promise<string>
-	/** When Background Edit is enabled, edits apply headlessly via the SDK's default executors. */
+	/** When Background Edit is enabled, edits apply headlessly with no preview. */
 	isBackgroundEditEnabled: () => boolean
-	/** Shared id/seq/epoch authority (see SdkInteractionCoordinator). Optional for tests. */
-	getMinter?: () => MessageIdMinter
 	/** Injectable for tests. Defaults to the host-registered factory. */
-	createDiffViewProvider?: () => DiffViewProvider
+	createEditPreview?: () => EditPreview
 	/** Injectable for tests. Defaults to the SDK's disk-writing editor executor. */
 	fallbackEditorExecutor?: EditorExecutor
 	/** Injectable for tests. Defaults to the SDK's disk-writing apply_patch executor. */
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
-	/** Test seam: overrides the auto-approve diagnostics settle and post-update repaint delays. */
-	settleDelays?: { autoApproveMs?: number; repaintMs?: number }
+	/** Test seam: overrides the auto-approve preview linger. */
+	autoApprovePreviewLingerMs?: number
 }
 
 interface DiffEditSession {
-	provider: DiffViewProvider
-	editType: "create" | "modify"
+	/** Undefined once the preview has been displaced by a newer same-file preview. */
+	preview: EditPreview | undefined
 	absolutePath: string
-	/** The path as the model provided it, used for UI rows and model-facing results. */
-	displayPath: string
-	newContent: string
-	/** True when the diff was opened before approval (the user's decision time doubled as the diagnostics settle). */
-	openedPreApproval: boolean
-	/**
-	 * apply_patch sessions are preview-only: the diff shows the patch's first file change,
-	 * but on approve the preview is reverted and the SDK's default executor applies the
-	 * whole patch. User edits typed into a preview-only pane are NOT preserved.
-	 */
-	previewOnly: boolean
 }
 
 /**
- * Restores the legacy editor diff view for SDK edit tools.
+ * Shows a read-only diff preview of SDK edit-tool changes (editor / apply_patch).
  *
- * Owns one DiffViewProvider-backed session per toolCallId. The diff opens populated
- * at approval time (the SDK surfaces tool input only after the model's stream
- * completes, so streaming-during-generation is not possible), the user can review
- * and amend the proposed content, and the overridden `editor` executor saves through
- * the diff document so user edits and post-save auto-formatting flow back to the model.
+ * The preview is a virtual-document diff — both sides are virtual, the real file is
+ * never opened or modified by the preview — so opening it has no side effects,
+ * rejecting an edit only closes a tab, and multiple previews (even of the same file)
+ * can't interfere with each other. The actual write is always the SDK's default
+ * disk-writing executor, which the overridden executors delegate to after closing
+ * the preview; its results and error strings reach the model unchanged.
  *
- * Any failure in the diff pipeline reverts the visual session and delegates to the
- * SDK's default disk-writing executor, so edits degrade to today's headless behavior
- * rather than breaking, and model-fault errors (old_text not found/ambiguous, bad
- * insert_line) keep their canonical SDK error strings.
+ * Previews open at approval time (the SDK surfaces tool input only after the model's
+ * stream completes, so the approval callback is the only pre-execution point with
+ * full input; streaming-during-generation is not possible). Auto-approved edits get
+ * a brief preview during execution instead.
  */
 export class SdkDiffEditCoordinator {
 	private readonly sessions = new Map<string, DiffEditSession>()
-	/** Serializes visual applies so concurrent edit tool calls can't interleave diff-editor operations. */
-	private applyMutex: Promise<unknown> = Promise.resolve()
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
-	private readonly autoApproveSettleMs: number
-	private readonly repaintSettleMs: number
+	private readonly autoApprovePreviewLingerMs: number
 
 	constructor(private readonly options: SdkDiffEditCoordinatorOptions) {
 		this.fallbackEditorExecutor = options.fallbackEditorExecutor ?? createEditorExecutor()
 		this.fallbackApplyPatchExecutor = options.fallbackApplyPatchExecutor ?? createApplyPatchExecutor()
-		this.autoApproveSettleMs = options.settleDelays?.autoApproveMs ?? AUTO_APPROVE_DIAGNOSTICS_SETTLE_MS
-		this.repaintSettleMs = options.settleDelays?.repaintMs ?? DIFF_VIEW_SETTLE_MS
+		this.autoApprovePreviewLingerMs = options.autoApprovePreviewLingerMs ?? AUTO_APPROVE_PREVIEW_LINGER_MS
 	}
 
 	/**
-	 * Opens the diff editor for an edit tool BEFORE its approval ask is shown, so the
+	 * Opens the diff preview for an edit tool BEFORE its approval ask is shown, so the
 	 * user decides while looking at the actual change. Never throws; on any failure the
-	 * approval flow proceeds without a visual preview and the executor path recovers.
+	 * approval flow proceeds without a preview and the executor still applies the edit.
 	 */
 	async openForApproval(toolCallId: string, toolName: string, input: unknown): Promise<void> {
 		if (this.options.isBackgroundEditEnabled() || this.sessions.has(toolCallId)) {
@@ -108,172 +81,107 @@ export class SdkDiffEditCoordinator {
 		}
 		try {
 			if (toolName === "editor") {
-				await this.openEditorPreview(toolCallId, input as EditFileInput, /* openedPreApproval */ true)
+				await this.openEditorPreview(toolCallId, input as EditFileInput)
 			} else if (toolName === "apply_patch") {
 				await this.openPatchPreview(toolCallId, input as ApplyPatchInput)
 			}
 		} catch (error) {
 			Logger.warn(`[SdkDiffEditCoordinator] Failed to open diff preview for ${toolName}: ${error}`)
-			await this.revert(toolCallId)
+			await this.discardPreview(toolCallId)
 		}
 	}
 
 	/**
-	 * The `editor` tool executor override. Saves through the open diff session when one
-	 * exists (or opens one now for auto-approved edits), and falls back to the SDK's
-	 * default disk executor whenever the visual pipeline can't complete.
+	 * The `editor` tool executor override: delegate the write to the SDK's disk executor,
+	 * with the preview visible around it. Auto-approved edits (no pre-approval preview)
+	 * get a brief preview that lingers shortly after the write so the user sees it land.
 	 */
 	async executeEditorTool(input: EditFileInput, cwd: string, context: AgentToolContext): Promise<string> {
-		return this.runExclusive(async () => {
-			const toolCallId = context.toolCallId ?? ""
-			if (this.options.isBackgroundEditEnabled() && !this.sessions.has(toolCallId)) {
-				return this.fallbackEditorExecutor(input, cwd, context)
+		const toolCallId = context.toolCallId ?? ""
+		const hadPreApprovalPreview = this.sessions.has(toolCallId)
+		try {
+			if (!hadPreApprovalPreview && !this.options.isBackgroundEditEnabled()) {
+				// Auto-approved (or hook-approved) edit: no preview was opened at approval
+				// time, so show one now. Best-effort — never blocks the edit.
+				try {
+					await this.openEditorPreview(toolCallId, input)
+				} catch (error) {
+					Logger.warn(`[SdkDiffEditCoordinator] Failed to show auto-approve preview: ${error}`)
+				}
 			}
-
-			let session = this.sessions.get(toolCallId)
-			try {
-				if (!session) {
-					// Auto-approved (or hook-approved) edit: no preview was opened at approval
-					// time, so open the populated diff now and let the user watch it land.
-					session = await this.openEditorPreview(toolCallId, input, /* openedPreApproval */ false)
-				} else {
-					session = await this.refreshSessionIfStale(toolCallId, session, input)
-				}
-
-				if (!session.openedPreApproval) {
-					await abortableDelay(this.autoApproveSettleMs, context.signal)
-				}
-
-				let result = await session.provider.saveChanges()
-				if (result.finalContent === undefined) {
-					// The diff document was closed under us (a sibling edit's save closes all
-					// cline-diff tabs, or the user closed the tab). Reopen once and retry.
-					Logger.log("[SdkDiffEditCoordinator] Diff document closed before save; reopening and retrying once")
-					await session.provider.reset()
-					this.sessions.delete(toolCallId)
-					session = await this.openEditorPreview(toolCallId, input, session.openedPreApproval)
-					result = await session.provider.saveChanges()
-				}
-				if (result.finalContent === undefined) {
-					throw new Error("diff document unavailable after reopen")
-				}
-
-				if (result.userEdits) {
-					this.sayUserFeedbackDiff(session, result.userEdits)
-					return formatResponse.fileEditWithUserChanges(
-						session.displayPath,
-						result.userEdits,
-						result.autoFormattingEdits,
-						result.finalContent,
-						result.newProblemsMessage,
-					)
-				}
-				return formatResponse.fileEditWithoutUserChanges(
-					session.displayPath,
-					result.autoFormattingEdits,
-					result.finalContent,
-					result.newProblemsMessage,
-				)
-			} catch (error) {
-				// Revert any visual state, then delegate to the SDK's disk executor: infra
-				// failures still apply the edit, and model-fault failures (old_text not
-				// found/ambiguous, bad insert_line) reproduce their canonical error strings.
-				if (isAbortError(error)) {
-					await this.revert(toolCallId)
-					throw error
-				}
-				Logger.warn(`[SdkDiffEditCoordinator] Diff edit pipeline failed, falling back to disk executor: ${error}`)
-				await this.revert(toolCallId)
-				return this.fallbackEditorExecutor(input, cwd, context)
-			} finally {
-				this.sessions.delete(toolCallId)
+			const result = await this.fallbackEditorExecutor(input, cwd, context)
+			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
+				// Keep the auto-approve preview visible briefly after the write; an abort
+				// just cuts the linger short (the edit has already been applied).
+				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
-		})
+			return result
+		} finally {
+			await this.discardPreview(toolCallId)
+		}
 	}
 
 	/**
-	 * The `apply_patch` tool executor override. The preview (if one was opened at
-	 * approval time) is strictly visual: revert it first so the default executor's
-	 * disk writes cannot be clobbered by a later document save, then apply the whole
-	 * patch with the SDK's untouched implementation.
+	 * The `apply_patch` tool executor override: close the preview, then delegate the
+	 * whole patch application to the SDK's default executor.
 	 */
 	async executeApplyPatchTool(input: ApplyPatchInput, cwd: string, context: AgentToolContext): Promise<string> {
-		return this.runExclusive(async () => {
-			const toolCallId = context.toolCallId ?? ""
-			if (this.sessions.has(toolCallId)) {
-				await this.revert(toolCallId)
-			}
-			return this.fallbackApplyPatchExecutor(input, cwd, context)
-		})
+		await this.discardPreview(context.toolCallId ?? "")
+		return this.fallbackApplyPatchExecutor(input, cwd, context)
 	}
 
-	/** Reverts one session (reject / abort / cleanup). Never throws; no-op for unknown ids. */
-	async revert(toolCallId: string): Promise<void> {
+	/** Closes one preview (reject / abort / edit applied). Never throws; unknown ids are a no-op. */
+	async discardPreview(toolCallId: string): Promise<void> {
 		const session = this.sessions.get(toolCallId)
 		this.sessions.delete(toolCallId)
-		if (!session) {
+		if (!session?.preview) {
 			return
 		}
 		try {
-			await session.provider.revertChanges()
+			await session.preview.close()
 		} catch (error) {
-			Logger.warn(`[SdkDiffEditCoordinator] Failed to revert diff edit session: ${error}`)
-			try {
-				await session.provider.reset()
-			} catch {
-				// best effort
-			}
+			Logger.warn(`[SdkDiffEditCoordinator] Failed to close diff preview: ${error}`)
 		}
 	}
 
-	/** Reverts every open session. Called on turn end, task end, and controller dispose. */
-	async revertAll(reason: string): Promise<void> {
+	/** Closes every open preview. Called on turn end, task end, and controller dispose. */
+	async discardAllPreviews(reason: string): Promise<void> {
 		if (this.sessions.size === 0) {
 			return
 		}
-		Logger.log(`[SdkDiffEditCoordinator] Reverting ${this.sessions.size} diff edit session(s): ${reason}`)
-		const ids = [...this.sessions.keys()]
-		for (const toolCallId of ids) {
-			await this.revert(toolCallId)
+		Logger.log(`[SdkDiffEditCoordinator] Closing ${this.sessions.size} diff preview(s): ${reason}`)
+		for (const toolCallId of [...this.sessions.keys()]) {
+			await this.discardPreview(toolCallId)
 		}
 	}
 
-	private async openEditorPreview(
-		toolCallId: string,
-		input: EditFileInput,
-		openedPreApproval: boolean,
-	): Promise<DiffEditSession> {
+	private async openEditorPreview(toolCallId: string, input: EditFileInput): Promise<void> {
 		if (typeof input?.path !== "string" || input.path.length === 0 || typeof input.new_text !== "string") {
 			throw new Error("editor input missing path or new_text")
 		}
 		const cwd = await this.options.getCwd()
 		const absolutePath = resolveEditPath(cwd, input.path)
-		const exists = await fileExists(absolutePath)
-		if (input.insert_line != null && !exists) {
-			// The SDK's insert path reads the file first; let the fallback produce its canonical error.
+		let originalContent: string | undefined
+		try {
+			originalContent = await fs.readFile(absolutePath, "utf-8")
+		} catch {
+			originalContent = undefined
+		}
+		if (input.insert_line != null && originalContent === undefined) {
+			// The SDK's insert path requires an existing file; skip the preview and let
+			// the executor produce its canonical error.
 			throw new Error(`cannot insert into missing file ${absolutePath}`)
 		}
-		const editType = exists ? "modify" : "create"
+		const editType = originalContent === undefined ? "create" : "modify"
+		const newContent = computeNewEditorContent(originalContent ?? "", input, absolutePath, editType)
 
-		const provider = this.createProvider()
-		provider.editType = editType
-		await provider.open(absolutePath, { displayPath: input.path })
-		const newContent = computeNewEditorContent(provider.originalContent ?? "", input, absolutePath, editType)
-		await provider.update(newContent, true)
-		await delay(this.repaintSettleMs)
-		await provider.scrollToFirstDiff()
-
-		const session: DiffEditSession = {
-			provider,
-			editType,
+		await this.openPreview(toolCallId, {
 			absolutePath,
 			displayPath: input.path,
-			newContent,
-			openedPreApproval,
-			previewOnly: false,
-		}
-		this.sessions.set(toolCallId, session)
-		return session
+			editType,
+			leftContent: originalContent ?? "",
+			rightContent: newContent,
+		})
 	}
 
 	private async openPatchPreview(toolCallId: string, input: ApplyPatchInput): Promise<void> {
@@ -293,105 +201,66 @@ export class SdkDiffEditCoordinator {
 			return
 		}
 		const [filePath, change] = first
-		const absolutePath = resolveEditPath(cwd, filePath)
-		const editType = change.type === PatchActionType.ADD ? "create" : "modify"
-
-		const provider = this.createProvider()
-		provider.editType = editType
-		await provider.open(absolutePath, { displayPath: filePath })
-		await provider.update(change.newContent ?? "", true)
-		await delay(this.repaintSettleMs)
-		await provider.scrollToFirstDiff()
-
-		this.sessions.set(toolCallId, {
-			provider,
-			editType,
-			absolutePath,
+		await this.openPreview(toolCallId, {
+			absolutePath: resolveEditPath(cwd, filePath),
 			displayPath: filePath,
-			newContent: change.newContent ?? "",
-			openedPreApproval: true,
-			previewOnly: true,
+			editType: change.type === PatchActionType.ADD ? "create" : "modify",
+			leftContent: change.oldContent ?? "",
+			rightContent: change.newContent ?? "",
 		})
 	}
 
-	/**
-	 * A pre-approval session's proposed content was computed against the disk state at
-	 * approval time. If the file changed since (e.g. an earlier edit in the same turn
-	 * saved), reopen against the current content so we never clobber newer disk state.
-	 */
-	private async refreshSessionIfStale(
+	private async openPreview(
 		toolCallId: string,
-		session: DiffEditSession,
-		input: EditFileInput,
-	): Promise<DiffEditSession> {
-		if (session.editType === "create") {
-			// open() created the placeholder file, so an exists-check can't detect staleness;
-			// a same-turn create+modify of one path lands in the modify branch below instead.
-			return session
+		content: {
+			absolutePath: string
+			displayPath: string
+			editType: "create" | "modify"
+			leftContent: string
+			rightContent: string
+		},
+	): Promise<void> {
+		// A newer preview for the same file supersedes an older pending one (approvals
+		// resolve sequentially, so the older edit is already decided — its executor only
+		// needs the session entry, not the tab).
+		for (const [id, session] of this.sessions) {
+			if (session.preview && session.absolutePath === content.absolutePath) {
+				try {
+					await session.preview.close()
+				} catch (error) {
+					Logger.warn(`[SdkDiffEditCoordinator] Failed to close superseded preview: ${error}`)
+				}
+				session.preview = undefined
+				Logger.log(`[SdkDiffEditCoordinator] Superseded pending preview ${id} for ${content.displayPath}`)
+			}
 		}
-		let currentContent: string
-		try {
-			currentContent = await fs.readFile(session.absolutePath, "utf-8")
-		} catch {
-			currentContent = ""
-		}
-		// Encoding differences can produce false positives here; the cost is a benign reopen.
-		if (currentContent === session.provider.originalContent) {
-			return session
-		}
-		Logger.log("[SdkDiffEditCoordinator] File changed since approval preview; reopening diff against current content")
-		await session.provider.reset()
-		this.sessions.delete(toolCallId)
-		return this.openEditorPreview(toolCallId, input, session.openedPreApproval)
-	}
 
-	private createProvider(): DiffViewProvider {
-		return this.options.createDiffViewProvider?.() ?? HostProvider.get().createDiffViewProvider()
-	}
-
-	private sayUserFeedbackDiff(session: DiffEditSession, userEdits: string): void {
-		const sayTool: ClineSayTool = {
-			tool: session.editType === "create" ? "newFileCreated" : "editedExistingFile",
-			path: session.displayPath,
-			diff: userEdits,
-		}
-		const message: ClineMessage = {
-			ts: this.nextMessageTs(),
-			type: "say",
-			say: "user_feedback_diff",
-			text: JSON.stringify(sayTool),
-			partial: false,
-		}
-		this.options.messages.appendAndEmit([message], {
-			type: "status",
-			payload: { sessionId: this.options.getSessionId(), status: "running" },
+		const preview = this.createPreview()
+		const fileName = path.basename(content.absolutePath)
+		const title =
+			content.editType === "create"
+				? `${fileName}: New File (Preview)`
+				: `${fileName}: Original ↔ Cline's Changes (Preview)`
+		await preview.open({
+			title,
+			absolutePath: content.absolutePath,
+			displayPath: content.displayPath,
+			leftContent: content.leftContent,
+			rightContent: content.rightContent,
 		})
-		this.options.postStateToWebview().catch(() => {})
+		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
 	}
 
-	private runExclusive<T>(fn: () => Promise<T>): Promise<T> {
-		const run = this.applyMutex.then(fn, fn)
-		this.applyMutex = run.catch(() => {})
-		return run
-	}
-
-	private fallbackMinter: MessageIdMinter | undefined
-	private nextMessageTs(): number {
-		if (this.options.getMinter) {
-			return this.options.getMinter().nextId()
-		}
-		if (!this.fallbackMinter) {
-			this.fallbackMinter = new MessageIdMinter()
-		}
-		return this.fallbackMinter.nextId()
+	private createPreview(): EditPreview {
+		return this.options.createEditPreview?.() ?? HostProvider.get().createEditPreview()
 	}
 }
 
 /**
  * Computes the full proposed file content for an `editor` tool input, mirroring the
- * SDK executor's semantics exactly — including its error messages — so a preview
- * failure delegated to the disk executor produces byte-identical model-facing errors.
- * See sdk/packages/core/src/extensions/tools/executors/editor.ts.
+ * SDK executor's semantics (sdk/packages/core/src/extensions/tools/executors/editor.ts)
+ * so the preview shows exactly what the executor will write. Inputs the SDK would
+ * reject throw here too, and the preview is simply skipped.
  */
 export function computeNewEditorContent(
 	originalContent: string,
@@ -443,45 +312,20 @@ function resolveEditPath(cwd: string, inputPath: string): string {
 	return resolved
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-	try {
-		await fs.access(filePath)
-		return true
-	} catch {
-		return false
+/** Waits `ms`, resolving early (never rejecting) if the signal aborts. */
+function lingerDelay(ms: number, signal?: AbortSignal): Promise<void> {
+	if (signal?.aborted) {
+		return Promise.resolve()
 	}
-}
-
-function delay(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-	if (!signal) {
-		return delay(ms)
-	}
-	if (signal.aborted) {
-		return Promise.reject(makeAbortError())
-	}
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve) => {
 		const timer = setTimeout(() => {
-			signal.removeEventListener("abort", onAbort)
+			signal?.removeEventListener("abort", onAbort)
 			resolve()
 		}, ms)
 		const onAbort = () => {
 			clearTimeout(timer)
-			reject(makeAbortError())
+			resolve()
 		}
-		signal.addEventListener("abort", onAbort, { once: true })
+		signal?.addEventListener("abort", onAbort, { once: true })
 	})
-}
-
-function makeAbortError(): Error {
-	const error = new Error("The operation was aborted")
-	error.name = "AbortError"
-	return error
-}
-
-function isAbortError(error: unknown): boolean {
-	return error instanceof Error && error.name === "AbortError"
 }
