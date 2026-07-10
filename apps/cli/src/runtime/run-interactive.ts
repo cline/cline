@@ -1,5 +1,4 @@
 import {
-	buildConnectionUpdate,
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
@@ -81,6 +80,51 @@ export function resolveReasoningForModelChange(
 	}
 	if (config.thinking === true) return { enabled: true };
 	return existing.reasoning;
+}
+
+export async function applyInteractiveModelChange(input: {
+	config: Config;
+	providerSettingsManager: Pick<
+		ProviderSettingsManager,
+		"getProviderSettings" | "saveProviderSettings"
+	>;
+	sessionRuntime: Pick<
+		ReturnType<typeof createInteractiveSessionRuntime>,
+		| "ensureReady"
+		| "restartWithCurrentMessages"
+		| "updateCurrentSessionConnection"
+	>;
+}): Promise<void> {
+	const { config, providerSettingsManager, sessionRuntime } = input;
+	await sessionRuntime.ensureReady();
+	await onProviderChange({
+		config,
+		providerId: config.providerId,
+	});
+	const existing = providerSettingsManager.getProviderSettings(
+		config.providerId,
+	) ?? {
+		provider: config.providerId,
+	};
+	const reasoning = resolveReasoningForModelChange(config, existing);
+	providerSettingsManager.saveProviderSettings({
+		...existing,
+		model: config.modelId,
+		...(reasoning === undefined ? {} : { reasoning }),
+	});
+
+	// Provider changes affect more than the model connection: startup resolves
+	// the endpoint, headers, provider-specific options, tools, and plugins. Rebuild
+	// the runtime with the existing transcript so all of that state changes
+	// together. restartWithCurrentMessages preserves the session ID.
+	await sessionRuntime.restartWithCurrentMessages();
+	// A same-ID restart reuses the existing manifest. Sync its connection label
+	// after the fully configured runtime is live so session history reflects the
+	// provider/model that will handle subsequent turns.
+	await sessionRuntime.updateCurrentSessionConnection({
+		providerId: config.providerId,
+		modelId: config.modelId,
+	});
 }
 
 export async function runInteractive(
@@ -688,36 +732,12 @@ export async function runInteractive(
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
 		},
-		onModelChange: async () => {
-			await sessionRuntime.ensureReady();
-			await onProviderChange({
+		onModelChange: () =>
+			applyInteractiveModelChange({
 				config,
-				providerId: config.providerId,
-			});
-			const existing = providerSettingsManager.getProviderSettings(
-				config.providerId,
-			) ?? {
-				provider: config.providerId,
-			};
-			const reasoning = resolveReasoningForModelChange(config, existing);
-			providerSettingsManager.saveProviderSettings({
-				...existing,
-				model: config.modelId,
-				...(reasoning === undefined ? {} : { reasoning }),
-			});
-			// A model/provider switch only changes connection options, so update
-			// the live session in place instead of restarting it — a restart would
-			// split the conversation into a new session history entry.
-			await sessionRuntime.updateCurrentSessionConnection(
-				buildConnectionUpdate({
-					providerId: config.providerId,
-					modelId: config.modelId,
-					apiKey: config.apiKey,
-					thinking: config.thinking,
-					reasoningEffort: config.reasoningEffort,
-				}),
-			);
-		},
+				providerSettingsManager,
+				sessionRuntime,
+			}),
 		onSessionRestart: async () => {
 			await sessionRuntime.ensureReady();
 			await sessionRuntime.restartEmpty();

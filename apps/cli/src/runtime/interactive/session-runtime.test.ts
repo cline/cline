@@ -815,18 +815,47 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe("session-2");
 	});
 
-	it("preserves the session id when restarting with the current messages", async () => {
+	it("preserves the session id and applies changed provider config when restarting with the current messages", async () => {
 		const manager = makeManager();
-		const runtime = await makeRuntime(manager);
+		const config = {
+			...createConfig(),
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "cline-key",
+		};
+		const messages: Message[] = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+		];
+		manager.readMessages.mockResolvedValue(messages);
+		const runtime = await makeRuntime(manager, { config });
 
 		await runtime.ensureReady();
+		expect(manager.start).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				config: expect.objectContaining({
+					providerId: "cline",
+					modelId: "anthropic/claude-sonnet-4.6",
+					apiKey: "cline-key",
+				}),
+			}),
+		);
+		config.providerId = "openai-compatible";
+		config.modelId = "custom-model";
+		config.apiKey = "new-key";
 		await runtime.restartWithCurrentMessages();
 
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(manager.start).toHaveBeenNthCalledWith(
 			2,
 			expect.objectContaining({
-				config: expect.objectContaining({ sessionId: "session-1" }),
+				config: expect.objectContaining({
+					sessionId: "session-1",
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					apiKey: "new-key",
+				}),
+				initialMessages: messages,
 			}),
 		);
 	});
