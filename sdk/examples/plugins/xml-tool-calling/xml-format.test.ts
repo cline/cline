@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
-	buildXmlToolPromptSection,
+	buildXmlToolDocs,
 	coerceToolInput,
 	formatToolResultText,
 	parseAssistantXml,
 	serializeToolCallXml,
 	toXmlToolSpecs,
+	XML_TOOL_CALLING_RULE,
 	type XmlToolDefinition,
 } from "./xml-format.ts";
 
@@ -187,26 +188,35 @@ describe("coerceToolInput", () => {
 	});
 });
 
-describe("buildXmlToolPromptSection", () => {
-	const section = buildXmlToolPromptSection(specs);
+describe("prompt content", () => {
+	const docs = buildXmlToolDocs(specs);
+
+	it("keeps the static rule free of tool-specific content", () => {
+		expect(XML_TOOL_CALLING_RULE).toContain("TOOL USE");
+		expect(XML_TOOL_CALLING_RULE).toContain("<tool_name>");
+		for (const tool of TOOLS) {
+			expect(XML_TOOL_CALLING_RULE).not.toContain(tool.name);
+		}
+	});
 
 	it("documents every tool with usage skeletons", () => {
+		expect(docs).toContain("TOOL DOCUMENTATION");
 		for (const tool of TOOLS) {
-			expect(section).toContain(`## ${tool.name}`);
-			expect(section).toContain(`<${tool.name}>`);
-			expect(section).toContain(`</${tool.name}>`);
+			expect(docs).toContain(`## ${tool.name}`);
+			expect(docs).toContain(`<${tool.name}>`);
+			expect(docs).toContain(`</${tool.name}>`);
 		}
-		expect(section).toContain("- path: (required, text)");
-		expect(section).toContain("- commands: (required, JSON array)");
-		expect(section).toContain("- background: (optional, true or false)");
+		expect(docs).toContain("- path: (required, text)");
+		expect(docs).toContain("- commands: (required, JSON array)");
+		expect(docs).toContain("- background: (optional, true or false)");
 	});
 
 	it("points at completion tools when present", () => {
-		expect(section).toContain("`attempt_completion`");
+		expect(docs).toContain("`attempt_completion`");
 	});
 
 	it("falls back to plain-text completion guidance without completion tools", () => {
-		const withoutCompletion = buildXmlToolPromptSection(
+		const withoutCompletion = buildXmlToolDocs(
 			toXmlToolSpecs(TOOLS.filter((tool) => !tool.lifecycle?.completesRun)),
 		);
 		expect(withoutCompletion).toContain("reply in plain text");

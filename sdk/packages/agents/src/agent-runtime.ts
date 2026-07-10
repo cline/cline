@@ -824,9 +824,6 @@ export class AgentRuntime {
 			if (result?.tools) {
 				request = { ...request, tools: [...result.tools] };
 			}
-			if (result?.systemPrompt !== undefined) {
-				request = { ...request, systemPrompt: result.systemPrompt };
-			}
 			if (result?.options) {
 				request = {
 					...request,

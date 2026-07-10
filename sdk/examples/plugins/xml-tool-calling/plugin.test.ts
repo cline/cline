@@ -108,12 +108,18 @@ describe("beforeModel", () => {
 		});
 
 		expect(result?.tools).toEqual([]);
-		expect(result?.systemPrompt).toContain("You are a helpful assistant.");
-		expect(result?.systemPrompt).toContain("TOOL USE");
-		expect(result?.systemPrompt).toContain("## echo");
 
 		const messages = result?.messages;
 		expect(messages).toHaveLength(3);
+		// Tool docs are injected at the top of the first user message.
+		const firstUser = messages?.[0];
+		expect(firstUser?.role).toBe("user");
+		const docsPart = firstUser?.content[0];
+		if (docsPart?.type !== "text") throw new Error("expected text part");
+		expect(docsPart.text).toContain("TOOL DOCUMENTATION");
+		expect(docsPart.text).toContain("## echo");
+		expect(firstUser?.content[1]).toEqual({ type: "text", text: "echo hi" });
+
 		const assistant = messages?.[1];
 		expect(assistant?.content).toEqual([
 			{ type: "text", text: "Echoing." },
@@ -224,6 +230,27 @@ describe("afterModel", () => {
 	});
 });
 
+describe("setup", () => {
+	it("registers the static XML instructions as a rule", async () => {
+		const rules: Array<{ id: string; content: unknown }> = [];
+		const api = {
+			registerTool: () => {},
+			registerCommand: () => {},
+			registerRule: (rule: { id: string; content: unknown }) => {
+				rules.push(rule);
+			},
+			registerMessageBuilder: () => {},
+			registerProvider: () => {},
+			registerAutomationEventType: () => {},
+		};
+		await plugin.setup?.(api as never, {});
+		expect(rules).toHaveLength(1);
+		expect(rules[0]?.id).toBe("xml-tool-calling:instructions");
+		expect(String(rules[0]?.content)).toContain("TOOL USE");
+		expect(String(rules[0]?.content)).toContain("<tool_name>");
+	});
+});
+
 describe("rewriteHistoryForXml", () => {
 	it("returns undefined for histories without tool parts", () => {
 		expect(
@@ -244,8 +271,16 @@ describe("end to end with AgentRuntime", () => {
 		const model = new ScriptedModel([
 			(request) => {
 				expect(request.tools).toEqual([]);
-				expect(request.systemPrompt).toContain("TOOL USE");
-				expect(request.systemPrompt).toContain("## echo");
+				// Tool docs ride in the provider-bound first user message. (The
+				// static rule is merged into the system prompt by the core
+				// orchestrator, which this runtime-level test bypasses.)
+				const firstUser = request.messages.find(
+					(message) => message.role === "user",
+				);
+				expect(JSON.stringify(firstUser?.content)).toContain(
+					"TOOL DOCUMENTATION",
+				);
+				expect(JSON.stringify(firstUser?.content)).toContain("## echo");
 				return [
 					{
 						type: "text-delta",

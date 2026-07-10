@@ -140,7 +140,9 @@ describe("plugin-sandbox", () => {
 				"    beforeModel(ctx) {",
 				"      return {",
 				"        tools: [],",
-				"        systemPrompt: (ctx.request.systemPrompt ?? '') + ' [xml-mode]',",
+				"        messages: ctx.request.messages.concat([",
+				"          { id: 'docs', role: 'user', content: [{ type: 'text', text: 'TOOL DOCUMENTATION' }], createdAt: 0 },",
+				"        ]),",
 				"      };",
 				"    },",
 				"    afterModel(ctx) {",
@@ -451,7 +453,14 @@ describe("plugin-sandbox", () => {
 			snapshot: makeSnapshot(),
 			request: {
 				systemPrompt: "base prompt",
-				messages: [],
+				messages: [
+					{
+						id: "u1",
+						role: "user",
+						content: [{ type: "text", text: "hi" }],
+						createdAt: 1,
+					},
+				],
 				tools: [
 					{
 						name: "echo",
@@ -462,7 +471,10 @@ describe("plugin-sandbox", () => {
 			},
 		});
 		expect(beforeResult?.tools).toEqual([]);
-		expect(beforeResult?.systemPrompt).toBe("base prompt [xml-mode]");
+		expect(beforeResult?.messages).toHaveLength(2);
+		expect(beforeResult?.messages?.[1]?.content).toEqual([
+			{ type: "text", text: "TOOL DOCUMENTATION" },
+		]);
 
 		const afterResult = await extension?.hooks?.afterModel?.({
 			snapshot: makeSnapshot(),

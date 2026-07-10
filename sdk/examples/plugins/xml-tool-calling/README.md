@@ -12,14 +12,18 @@ state stays in native form; only the provider-bound request is translated, so
 approvals, tool executors, completion tools, events, and persistence all work
 exactly as they do with native tool calling.
 
-Per model call:
+A registered rule adds the static `TOOL USE` instructions (the XML format and
+usage guidelines) to the system prompt. Then, per model call:
 
 1. **`beforeModel`** strips the native tool schemas from the request
-   (`tools: []`), appends a `TOOL USE` section to the system prompt with
-   per-tool XML documentation generated from the live tool registry (including
-   tools contributed by other plugins), and rewrites prior turns in the
-   provider-bound history — native tool calls become XML text, tool results
-   become plain user messages.
+   (`tools: []`), injects a `TOOL DOCUMENTATION` block into the
+   provider-bound first user message with per-tool XML docs generated from
+   the live tool registry (including tools contributed by other plugins),
+   and rewrites prior turns in the provider-bound history — native tool
+   calls become XML text, tool results become plain user messages. The docs
+   can't live in the rule: rules are resolved before the effective tool set
+   (mode filtering, tool policies, other plugins' tools) is knowable, and
+   the set can change between runs.
 2. The model replies with tool uses as XML tags:
 
    ```
@@ -68,8 +72,8 @@ await host.start({
 });
 ```
 
-Requires an SDK build where `beforeModel` hook results support `systemPrompt`
-and `afterModel` hook results support `message` replacement.
+Requires an SDK build where `afterModel` hook results support `message`
+replacement.
 
 ## Caveats
 

@@ -181,9 +181,6 @@ function mergeRuntimeHooks(
 					...request,
 					...(result.messages ? { messages: result.messages } : {}),
 					...(result.tools ? { tools: result.tools } : {}),
-					...(result.systemPrompt !== undefined
-						? { systemPrompt: result.systemPrompt }
-						: {}),
 					...(result.options
 						? { options: mergeModelOptions(request.options, result.options) }
 						: {}),

@@ -6,10 +6,12 @@
  * schemas. This plugin recreates that mode on the SDK runtime as a pure
  * translation shim at the model boundary:
  *
+ * - A registered rule adds the static XML "TOOL USE" instructions to the
+ *   system prompt.
  * - `beforeModel` strips the native tool schemas from the provider request,
- *   appends an XML "TOOL USE" section (generated from the live tool
- *   registry) to the system prompt, and rewrites prior tool calls/results in
- *   history into the XML wire format.
+ *   injects per-turn "TOOL DOCUMENTATION" (generated from the live tool
+ *   registry) into the provider-bound first user message, and rewrites prior
+ *   tool calls/results in history into the XML wire format.
  * - `afterModel` parses XML tool uses out of the assistant's text and
  *   replaces the message with one carrying native `tool-call` parts.
  *
@@ -20,12 +22,13 @@
 
 import type { AgentPlugin } from "@cline/core";
 import {
-	buildXmlToolPromptSection,
+	buildXmlToolDocs,
 	coerceToolInput,
 	formatToolResultText,
 	parseAssistantXml,
 	serializeToolCallXml,
 	toXmlToolSpecs,
+	XML_TOOL_CALLING_RULE,
 	type XmlToolSpec,
 } from "./xml-format.ts";
 
@@ -148,13 +151,61 @@ function convertAssistantXml(
 }
 
 // ---------------------------------------------------------------------------
+// Per-turn tool documentation, injected into the provider-bound messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Prepend the TOOL DOCUMENTATION block to the first user message of the
+ * provider-bound copy. The docs cannot live in the registered rule because
+ * rules are resolved before the effective tool set (mode filtering, tool
+ * policies, other plugins' tools) is knowable, and the set can change
+ * between runs — `request.tools` in `beforeModel` is the only accurate
+ * per-turn source.
+ */
+function injectToolDocs(
+	messages: readonly RuntimeMessage[],
+	docs: string,
+): RuntimeMessage[] {
+	const docsPart: RuntimeMessagePart = {
+		type: "text",
+		text: `${docs}\n\n====\n`,
+	};
+	const firstUserIndex = messages.findIndex(
+		(message) => message.role === "user",
+	);
+	if (firstUserIndex === -1) {
+		return [
+			{
+				id: "xml-tool-docs",
+				role: "user",
+				content: [docsPart],
+				createdAt: 0,
+			},
+			...messages,
+		];
+	}
+	return messages.map((message, index) =>
+		index === firstUserIndex
+			? { ...message, content: [docsPart, ...message.content] }
+			: message,
+	);
+}
+
+// ---------------------------------------------------------------------------
 // The plugin
 // ---------------------------------------------------------------------------
 
 const plugin: AgentPlugin = {
 	name: "xml-tool-calling",
 	manifest: {
-		capabilities: ["hooks"],
+		capabilities: ["hooks", "rules"],
+	},
+	setup(api) {
+		api.registerRule({
+			id: "xml-tool-calling:instructions",
+			source: "xml-tool-calling",
+			content: XML_TOOL_CALLING_RULE,
+		});
 	},
 	hooks: {
 		beforeModel({ snapshot, request }: BeforeModelContext) {
@@ -165,13 +216,11 @@ const plugin: AgentPlugin = {
 			}
 			const specs = toXmlToolSpecs(request.tools);
 			toolSpecsByAgent.set(snapshot.agentId, specs);
-			const basePrompt = request.systemPrompt?.trim() ?? "";
-			const section = buildXmlToolPromptSection(specs);
-			return {
-				tools: [],
-				systemPrompt: basePrompt ? `${basePrompt}\n\n${section}` : section,
-				...(historyRewrite ? { messages: historyRewrite } : {}),
-			};
+			const messages = injectToolDocs(
+				historyRewrite ?? request.messages,
+				buildXmlToolDocs(specs),
+			);
+			return { tools: [], messages };
 		},
 		afterModel({ snapshot, assistantMessage }: AfterModelContext) {
 			const specs = toolSpecsByAgent.get(snapshot.agentId);

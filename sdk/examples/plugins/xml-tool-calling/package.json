@@ -19,7 +19,8 @@
 					"./index.ts"
 				],
 				"capabilities": [
-					"hooks"
+					"hooks",
+					"rules"
 				]
 			}
 		]

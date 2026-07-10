@@ -180,11 +180,43 @@ function buildToolDoc(spec: XmlToolSpec): string {
 }
 
 /**
- * The "TOOL USE" section appended to the system prompt each turn. Adapted
- * from the legacy Cline extension's XML tool-use prompt, with per-tool
- * documentation generated from the live tool registry.
+ * Static XML tool-use instructions, registered as a system prompt rule via
+ * `api.registerRule`. Adapted from the legacy Cline extension's XML tool-use
+ * prompt. The per-tool documentation is dynamic (the tool set varies per
+ * turn) and travels separately — see `buildXmlToolDocs`.
  */
-export function buildXmlToolPromptSection(
+export const XML_TOOL_CALLING_RULE = `====
+
+TOOL USE
+
+You do NOT have access to native function calling. Instead, you use tools by writing XML-style tags directly in your plain-text reply. Tool uses are parsed from your reply and executed by the user's system; you receive each result in the next user message. The available tools are documented under "TOOL DOCUMENTATION" in the first user message.
+
+# Tool Use Formatting
+
+A tool use is formatted with the tool name as the outer XML tag and each parameter inside its own tag:
+
+<tool_name>
+<parameter1_name>value 1</parameter1_name>
+<parameter2_name>value 2</parameter2_name>
+</tool_name>
+
+Always use the actual tool name as the XML tag name, exactly as documented. Do not wrap tool calls in code fences or JSON. Parameter values are plain text between the tags; for parameters typed as JSON array or JSON object, write valid JSON between the tags.
+
+# Tool Use Guidelines
+
+1. Use exactly ONE tool per message, at the end of your reply.
+2. Wait for the tool result in the next message before continuing. NEVER assume a tool succeeded.
+3. If a tool result reports an error, address it before retrying.
+4. Only use tools listed in TOOL DOCUMENTATION.`;
+
+/**
+ * The dynamic "TOOL DOCUMENTATION" block generated from the live tool
+ * registry each turn and injected into the provider-bound first user
+ * message. Kept out of the rule because rules are resolved before the
+ * effective tool set (mode filtering, policies, other plugins' tools) is
+ * knowable, and the set can change between runs.
+ */
+export function buildXmlToolDocs(
 	specs: ReadonlyMap<string, XmlToolSpec>,
 ): string {
 	const completionTools = [...specs.values()]
@@ -197,33 +229,13 @@ export function buildXmlToolPromptSection(
 					.map((name) => `\`${name}\``)
 					.join(" or ")} to finish.`
 			: "When the task is fully complete, reply in plain text without any tool tags.";
-	return `====
+	return `TOOL DOCUMENTATION
 
-TOOL USE
-
-You do NOT have access to native function calling. Instead, you use tools by writing XML-style tags directly in your plain-text reply. Tool uses are parsed from your reply and executed by the user's system; you receive each result in the next user message.
-
-# Tool Use Formatting
-
-A tool use is formatted with the tool name as the outer XML tag and each parameter inside its own tag:
-
-<tool_name>
-<parameter1_name>value 1</parameter1_name>
-<parameter2_name>value 2</parameter2_name>
-</tool_name>
-
-Always use the actual tool name as the XML tag name, exactly as documented below. Do not wrap tool calls in code fences or JSON. Parameter values are plain text between the tags; for parameters typed as JSON array or JSON object, write valid JSON between the tags.
-
-# Tools
+These are the tools currently available to you. Invoke them with XML tags as described in the TOOL USE section of your instructions.
 
 ${docs}
 
-# Tool Use Guidelines
-
-1. Use exactly ONE tool per message, at the end of your reply.
-2. Wait for the tool result in the next message before continuing. NEVER assume a tool succeeded.
-3. If a tool result reports an error, address it before retrying.
-4. ${completionGuidance}`;
+${completionGuidance}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -281,7 +281,6 @@ export interface AgentBeforeModelResult {
 	reason?: string;
 	messages?: readonly AgentMessage[];
 	tools?: readonly AgentToolDefinition[];
-	systemPrompt?: string;
 	options?: Record<string, unknown>;
 }
 

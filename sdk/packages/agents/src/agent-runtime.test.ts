@@ -1284,30 +1284,6 @@ describe("AgentRuntime", () => {
 		});
 	});
 
-	it("applies a beforeModel systemPrompt override to the model request", async () => {
-		const model = new ScriptedModel([
-			(request) => {
-				expect(request.systemPrompt).toBe("overridden system");
-				return [
-					{ type: "text-delta", text: "done" },
-					{ type: "finish", reason: "stop" },
-				];
-			},
-		]);
-		const runtime = new AgentRuntime({
-			model,
-			systemPrompt: "original system",
-			hooks: {
-				beforeModel: () => ({ systemPrompt: "overridden system" }),
-			},
-		});
-
-		const result = await runtime.run("override the prompt");
-
-		expect(result.status).toBe("completed");
-		expect(model.requests[0]?.systemPrompt).toBe("overridden system");
-	});
-
 	it("replaces the assistant message from afterModel and executes injected tool calls", async () => {
 		const model = new ScriptedModel([
 			() => [
