@@ -87,6 +87,16 @@ describe("resolveEffectiveMaxInputTokens", () => {
 		).toBe(200_000);
 	});
 
+	it("caps maxInputTokens at contextWindow", () => {
+		expect(
+			resolveEffectiveMaxInputTokens({
+				maxInputTokens: 500_000,
+				contextWindow: 400_000,
+				maxTokens: 128_000,
+			}),
+		).toBe(400_000);
+	});
+
 	it("subtracts maxTokens when maxInputTokens equals contextWindow", () => {
 		expect(
 			resolveEffectiveMaxInputTokens({
