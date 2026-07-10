@@ -81,7 +81,6 @@ export interface ModelInfo {
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
-	pricingUnknown?: boolean
 	description?: string
 	tiers?: {
 		contextWindow: number
@@ -1870,7 +1869,6 @@ export const vertexCustomModelInfoSaneDefaults: ModelInfo = {
 	supportsReasoning: true,
 	supportsPromptCache: true,
 	supportsGlobalEndpoint: true,
-	pricingUnknown: true,
 }
 
 export function getVertexCustomModelInfo(customModelInfo?: ModelInfo): ModelInfo {
@@ -1880,7 +1878,6 @@ export function getVertexCustomModelInfo(customModelInfo?: ModelInfo): ModelInfo
 		// Fixed for all custom Vertex models regardless of user edits.
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
-		pricingUnknown: true,
 	}
 }
 
