@@ -108,6 +108,11 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	transform-origin: right center;
 	margin-left: 0;
 	user-select: none; // Prevent text selection
+
+	&:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: 1px;
+	}
 `
 
 const Slider = styled.div.withConfig({
@@ -1632,8 +1637,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
-						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<TooltipTrigger asChild>
+							<SwitchContainer
+								aria-label="Plan/Act mode"
+								data-testid="mode-switch"
+								disabled={false}
+								onClick={onModeToggle}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault()
+										onModeToggle()
+									}
+								}}
+								role="radiogroup"
+								tabIndex={0}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
@@ -1644,7 +1661,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										)}
 										onMouseLeave={() => setShownTooltipMode(null)}
 										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
+										role="radio">
 										{m}
 									</div>
 								))}
