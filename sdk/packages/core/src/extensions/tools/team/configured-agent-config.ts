@@ -40,6 +40,13 @@ function splitFrontmatter(content: string): {
 	frontmatter: string;
 	body: string;
 } {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding).
+	// Node's `utf-8` decoding does not strip the BOM character (\uFEFF), so without this the
+	// frontmatter match below never matches a file that starts with "\uFEFF---" (see cline/cline#12151).
+	if (content.charCodeAt(0) === 0xfeff) {
+		content = content.slice(1);
+	}
+
 	const firstLineMatch = content.match(/^(---)[^\S\r\n]*(?:\r?\n|$)/);
 	if (!firstLineMatch) {
 		throw new Error("Missing YAML frontmatter block in agent config file.");

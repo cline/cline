@@ -193,10 +193,17 @@ async function discoverManagedPluginRoots(
 function parseMarkdownFrontmatter(
 	content: string,
 ): ParseMarkdownFrontmatterResult {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding).
+	// Node's `utf-8` decoding does not strip the BOM character (\uFEFF), so without this the
+	// frontmatter regex below never matches a file that starts with "\uFEFF---", causing the
+	// frontmatter to be silently ignored (see cline/cline#12151).
+	const normalizedContent =
+		content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-	const match = content.match(frontmatterRegex);
+	const match = normalizedContent.match(frontmatterRegex);
 	if (!match) {
-		return { data: {}, body: content, hadFrontmatter: false };
+		return { data: {}, body: normalizedContent, hadFrontmatter: false };
 	}
 
 	const [, yamlContent, body] = match;
@@ -211,7 +218,7 @@ function parseMarkdownFrontmatter(
 		const message = error instanceof Error ? error.message : String(error);
 		return {
 			data: {},
-			body: content,
+			body: normalizedContent,
 			hadFrontmatter: true,
 			parseError: message,
 		};

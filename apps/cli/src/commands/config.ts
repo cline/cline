@@ -209,7 +209,9 @@ async function runAgentsConfigCommand(
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				const raw = readFileSync(filePath, "utf8");
+				// Strip a leading UTF-8 BOM (e.g. Windows Notepad's "UTF-8 with BOM"
+				// encoding) so the frontmatter regex below still matches (see cline/cline#12151).
+				const raw = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);

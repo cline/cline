@@ -179,6 +179,11 @@ function parseFrontmatter(md: string): {
 	data: Record<string, unknown>;
 	body: string;
 } {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding),
+	// otherwise the frontmatter match below never matches (see cline/cline#12151).
+	if (md.charCodeAt(0) === 0xfeff) {
+		md = md.slice(1);
+	}
 	const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
 	if (!m) return { data: {}, body: md.trim() };
 	try {

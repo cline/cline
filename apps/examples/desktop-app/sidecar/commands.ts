@@ -558,7 +558,9 @@ async function listUserInstructionConfigs(
 					const ext = extname(entry.name).toLowerCase();
 					if (ext !== ".yml" && ext !== ".yaml") continue;
 					const filePath = join(directory, entry.name);
-					const raw = readFileSync(filePath, "utf8");
+					// Strip a leading UTF-8 BOM (e.g. Windows Notepad's "UTF-8 with BOM"
+					// encoding) so the frontmatter regex below still matches (see cline/cline#12151).
+					const raw = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
 					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 					const fm = fmMatch?.[1] ?? "";
 					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);
