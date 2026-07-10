@@ -109,7 +109,10 @@ export default defineConfig({
 	},
 	server: {
 		host: "127.0.0.1",
-		port: 25463,
+		// NOT 25463: that's CLINE_HUB_PORT (@cline/shared rpc), which the installed
+		// cline CLI's hub daemon holds — vite would silently bump to a random port.
+		// 25466 is CLINE_HUB_DEV_PORT; keep clear of both.
+		port: 25465,
 		fs: {
 			allow: [resolve(__dirname), resolve(__dirname, "../src/shared")],
 		},

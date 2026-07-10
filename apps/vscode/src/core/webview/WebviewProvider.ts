@@ -128,7 +128,9 @@ export abstract class WebviewProvider {
 	 * If the file doesn't exist or can't be read, it resolves to the default port
 	 */
 	private getDevServerPort(): Promise<number> {
-		const DEFAULT_PORT = 25463
+		// Must match webview-ui/vite.config.ts server.port. NOT 25463 (CLINE_HUB_PORT) or
+		// 25466 (CLINE_HUB_DEV_PORT) — the cline CLI's hub daemon holds those.
+		const DEFAULT_PORT = 25465
 
 		const portFilePath = path.join(__dirname, "..", "webview-ui", ".vite-port")
 
