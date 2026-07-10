@@ -3,7 +3,7 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest"
-import { EditPreview, type EditPreviewContent } from "@/integrations/editor/EditPreview"
+import { buildEditPreviewAnimation, EditPreview, type EditPreviewContent } from "@/integrations/editor/EditPreview"
 import { computeNewEditorContent, SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 
 /** Records open/close calls; previews are purely visual so no other behavior is needed. */
@@ -83,6 +83,106 @@ describe("computeNewEditorContent", () => {
 		expect(() => computeNewEditorContent("a\nb", input, filePath, "modify")).toThrow(
 			"Invalid insert_line: 5. insert_line must be a positive one-based boundary line in the range 1-3. Use 3 to append at EOF.",
 		)
+	})
+})
+
+describe("buildEditPreviewAnimation", () => {
+	it("types fully-changed content in line by line and ends exactly at rightContent", () => {
+		const left = "one\ntwo\nthree\nfour"
+		const right = "ONE\nTWO\nTHREE\nFOUR"
+		const { frames, firstChangedLine } = buildEditPreviewAnimation(left, right)
+
+		expect(firstChangedLine).toBe(0)
+		expect(frames.map((f) => f.activeLine)).toEqual([0, 1, 2, 3])
+		expect(frames.every((f) => !f.zip)).toBe(true)
+		expect(frames[0].content).toBe("ONE\ntwo\nthree\nfour")
+		expect(frames[frames.length - 1].content).toBe(right)
+	})
+
+	it("caps typing frames for large changes and still ends at rightContent", () => {
+		const left = Array.from({ length: 500 }, (_, i) => `old ${i}`).join("\n")
+		const right = Array.from({ length: 500 }, (_, i) => `new ${i}`).join("\n")
+		const { frames } = buildEditPreviewAnimation(left, right)
+
+		expect(frames.length).toBeLessThanOrEqual(40)
+		expect(frames[frames.length - 1].content).toBe(right)
+		// Intermediate frames are a prefix of the new content over the original's tail.
+		expect(frames[0].content.startsWith("new 0\n")).toBe(true)
+		expect(frames[0].content.endsWith("old 499")).toBe(true)
+	})
+
+	it("handles new-file previews (empty left) and single-line contents", () => {
+		const single = buildEditPreviewAnimation("", "hello")
+		expect(single.frames).toHaveLength(1)
+		expect(single.frames[0].content).toBe("hello")
+		const { frames } = buildEditPreviewAnimation("", "a\nb\nc")
+		expect(frames[frames.length - 1].content).toBe("a\nb\nc")
+	})
+
+	it("returns a single instant frame for identical content", () => {
+		expect(buildEditPreviewAnimation("a\nb", "a\nb").frames).toHaveLength(1)
+	})
+
+	it("pauses at a pure deletion point and ends at the shrunken content", () => {
+		const { frames } = buildEditPreviewAnimation("a\nb\nc\nd\ne", "a\ne")
+		expect(frames.some((f) => !f.zip)).toBe(true) // the deletion point gets a typing pause
+		expect(frames[frames.length - 1].content).toBe("a\ne")
+	})
+
+	it("zips through unchanged spans and slows through the change (mid-file edit)", () => {
+		// 400-line file with a 30-line change in the middle: start at the top, zip to
+		// the change, type through it, zip to the bottom.
+		const original = Array.from({ length: 400 }, (_, i) => `line ${i}`)
+		const modified = [...original]
+		for (let i = 185; i < 215; i++) {
+			modified[i] = `CHANGED ${i}`
+		}
+		const { frames, firstChangedLine } = buildEditPreviewAnimation(original.join("\n"), modified.join("\n"))
+
+		expect(firstChangedLine).toBe(185)
+		const typing = frames.filter((f) => !f.zip)
+		const zipsBefore = frames.filter((f) => f.zip && f.activeLine < 185)
+		const zipsAfter = frames.filter((f) => f.zip && f.activeLine >= 215)
+
+		expect(typing).toHaveLength(30) // one typing frame per changed line
+		expect(typing.every((f) => f.activeLine >= 185 && f.activeLine < 215)).toBe(true)
+		expect(typing.every((f) => f.delayMs >= 45)).toBe(true)
+		// Unchanged spans are motion (several small fast steps), not a couple of teleports…
+		expect(zipsBefore.length).toBeGreaterThanOrEqual(5)
+		expect(zipsAfter.length).toBeGreaterThanOrEqual(5)
+		// …but their total time stays a fraction of the typing time.
+		const zipTime = [...zipsBefore, ...zipsAfter].reduce((ms, f) => ms + f.delayMs, 0)
+		const typeTime = typing.reduce((ms, f) => ms + f.delayMs, 0)
+		expect(zipTime).toBeLessThan(typeTime)
+		// The sweep is monotonic top → bottom and ends exactly at the final content.
+		for (let i = 1; i < frames.length; i++) {
+			expect(frames[i].activeLine).toBeGreaterThan(frames[i - 1].activeLine)
+		}
+		expect(frames[frames.length - 1].content).toBe(modified.join("\n"))
+	})
+
+	it("slows down separately at each hunk of a multi-hunk edit", () => {
+		// Two 5-line changes with a 100-line unchanged gap: the gap must zip.
+		const original = Array.from({ length: 300 }, (_, i) => `line ${i}`)
+		const modified = [...original]
+		for (let i = 50; i < 55; i++) {
+			modified[i] = `FIRST ${i}`
+		}
+		for (let i = 155; i < 160; i++) {
+			modified[i] = `SECOND ${i}`
+		}
+		const { frames, firstChangedLine } = buildEditPreviewAnimation(original.join("\n"), modified.join("\n"))
+
+		expect(firstChangedLine).toBe(50)
+		const typing = frames.filter((f) => !f.zip)
+		expect(typing.filter((f) => f.activeLine >= 50 && f.activeLine < 55)).toHaveLength(5)
+		expect(typing.filter((f) => f.activeLine >= 155 && f.activeLine < 160)).toHaveLength(5)
+		// The gap between the hunks zips — no typing frames inside it.
+		expect(typing.some((f) => f.activeLine >= 55 && f.activeLine < 155)).toBe(false)
+		expect(frames.some((f) => f.zip && f.activeLine >= 55 && f.activeLine < 155)).toBe(true)
+		// Short hunks still dwell perceptibly (~350ms per hunk).
+		const firstHunkMs = typing.filter((f) => f.activeLine < 55).reduce((ms, f) => ms + f.delayMs, 0)
+		expect(firstHunkMs).toBeGreaterThanOrEqual(300)
 	})
 })
 

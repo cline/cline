@@ -47,7 +47,7 @@ import {
 } from "./hosts/vscode/review/VscodeCommentReviewController"
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
-import { VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
+import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
@@ -158,6 +158,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
+
+	// Edit previews use a separate, mutable provider (content set programmatically and
+	// re-rendered via onDidChange) so the diff's right side can play the simulated
+	// streaming animation. See VscodeEditPreview.
+	context.subscriptions.push(
+		vscode.workspace.registerTextDocumentContentProvider(EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider),
+	)
 
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
