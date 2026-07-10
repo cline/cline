@@ -172,6 +172,39 @@
 			"plugins": [
 				"src/dev/grit/use-cache-service.grit"
 			]
+		},
+		{
+			// AI-Hydro-authored surfaces (not inherited Cline code): stricter
+			// correctness + a11y than the repo-wide baseline above. The global
+			// `a11y: "off"` / relaxed `correctness` was a one-time migration
+			// staging measure for the Cline fork's much larger, pre-existing
+			// codebase (see the TODO comment on the top-level `linter.rules`
+			// block) — it should not apply to code AI-Hydro wrote itself.
+			// Scope is deliberately narrow (audit finding E-7, 2026-07-09):
+			// widen it directory-by-directory as each area is verified clean,
+			// rather than flipping the global default and inheriting whatever
+			// Cline's upstream code violates.
+			"includes": [
+				"src/services/**",
+				"webview-ui/src/components/map/**",
+				"webview-ui/src/components/html_preview/**",
+				"webview-ui/src/components/connectors/**",
+				"webview-ui/src/components/skills/**",
+				"webview-ui/src/components/aihydro-rules/**"
+			],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"recommended": true
+					},
+					"correctness": {
+						"noEmptyPattern": "error",
+						"noConstructorReturn": "error",
+						"noInvalidPositionAtImportRule": "error",
+						"noSwitchDeclarations": "error"
+					}
+				}
+			}
 		}
 	]
 }
