@@ -4,7 +4,7 @@ import { MessageTranslatorState, translateSessionEvent } from "./message-transla
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
@@ -128,7 +128,8 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
-		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", "too risky")
+		const expectedReason = `${DEFAULT_TOOL_APPROVAL_DENIAL_REASON} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", expectedReason)
 		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
 			type: "say",
 			say: "user_feedback",
@@ -137,7 +138,51 @@ describe("SdkInteractionCoordinator", () => {
 			files: ["a.ts"],
 			partial: false,
 		})
-		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: expectedReason })
+	})
+
+	it("denies edit tools with an explicit file-was-not-modified reason", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "a", new_text: "b" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		// Feedback typed into the approval row denies the edit; the model-facing reason must
+		// state the file is unchanged, or it will treat the feedback as iteration on an
+		// applied edit and target old_text at content that never landed on disk.
+		expect(coordinator.resolvePendingToolApproval("make them bigger", "noButtonClicked")).toBe(true)
+		const result = await approvalPromise
+		expect(result.approved).toBe(false)
+		expect(result.reason).toContain("The file was NOT modified")
+		expect(result.reason).toContain("<feedback>\nmake them bigger\n</feedback>")
+
+		// Plain rejection (no feedback) also carries the file-unchanged statement.
+		const secondApproval = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 2,
+			toolCallId: "tool-call-2",
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "a", new_text: "b" },
+			policy: { autoApprove: false },
+		})
+		// Prior messages: ask #1 + the user_feedback say from the first denial.
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages().length).toBeGreaterThanOrEqual(3))
+		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
+		await expect(secondApproval).resolves.toEqual({ approved: false, reason: EDIT_TOOL_APPROVAL_DENIAL_REASON })
 	})
 
 	it("routes message responses as queued follow-ups without resolving pending tool approval", async () => {

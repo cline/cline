@@ -5,7 +5,7 @@ import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -174,7 +174,9 @@ export class SdkInteractionCoordinator {
 		// Approved or rejected by approval controls, the agent resumes its turn and returns to streaming.
 		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
-		const denialReason = prompt || DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+		// The reason must state the operation did NOT happen (for edits: the file is
+		// unchanged) — raw feedback alone reads like iteration on an applied change.
+		const denialReason = buildToolApprovalDenialReason(pendingMessage?.toolName, prompt)
 		if (!approved && (prompt?.trim() || images?.length || files?.length)) {
 			const userMessage: ClineMessage = {
 				ts: this.nextMessageTs(),
