@@ -440,8 +440,9 @@ const HandoffPathInput = z
 	.trim()
 	.min(1)
 	.max(240)
-	.describe(
-		"Relative file path using letters, numbers, '.', '_', '-', or '/'. Must not be absolute or contain '..' segments.",
+	.regex(
+		/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/,
+		"Use a relative file path with letters, numbers, '.', '_', '-', or '/'.",
 	);
 
 const StartSubagentInput = z
@@ -538,7 +539,15 @@ const plugin: AgentPlugin = {
 	name: "portable-subagents",
 	manifest: { capabilities: ["tools"] },
 
-	setup(api) {
+	setup(api, ctx) {
+		const logger = ctx.logger;
+		logger?.log("portable-subagents plugin setup", {
+			sessionId: ctx.session?.sessionId,
+			defaultPreset: DEFAULT_AGENT_PRESET,
+			backendMode: DEFAULT_BACKEND_MODE,
+			workspaceRoot: ctx.workspaceInfo?.rootPath,
+		});
+
 		// -- start_subagent: Start a new subagent session --
 		api.registerTool(
 			toRegisteredTool(
@@ -603,6 +612,14 @@ const plugin: AgentPlugin = {
 							status: "running",
 						};
 						subagents.set(sessionId, subagent);
+						logger?.log("Started subagent", {
+							sessionId,
+							toolName: "start_subagent",
+							label: input.label,
+							preset: def?.name ?? input.preset,
+							providerId,
+							modelId,
+						});
 						void runSubagentTurn(
 							subagent,
 							input.task,
@@ -687,6 +704,11 @@ const plugin: AgentPlugin = {
 						subagent.error = undefined;
 						subagents.set(subagent.sessionId, subagent);
 
+						logger?.log("Queued subagent follow-up", {
+							sessionId: subagent.sessionId,
+							toolName: "message_subagent",
+							label: subagent.name,
+						});
 						void runSubagentTurn(
 							subagent,
 							input.prompt,
