@@ -136,6 +136,11 @@ export {
 	type UserRemoteConfigResponse,
 } from "./account";
 export {
+	hashSecret,
+	setSdkLogger,
+	sdkDebug,
+} from "./logging/early-logger";
+export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,
 } from "./auth/client";
