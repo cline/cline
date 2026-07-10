@@ -17,11 +17,17 @@ import { VscodeSessionHost } from "./vscode-session-host"
 
 type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
 type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
+type EditorExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["editorExecutor"]>
+type ApplyPatchExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["applyPatchExecutor"]>
 
 export interface SdkSessionLifecycleOptions {
 	mcpHub: McpHub
 	requestToolApproval: RequestToolApprovalHandler
 	askQuestion: AskQuestionHandler
+	/** Custom `editor` executor (diff-view edit pipeline); replaces the SDK's disk writer. */
+	editorExecutor?: EditorExecutorHandler
+	/** Custom `apply_patch` executor (reverts the diff preview, then applies via the SDK default). */
+	applyPatchExecutor?: ApplyPatchExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
 	getTerminalManager?: () => ITerminalManager
@@ -298,6 +304,8 @@ export class SdkSessionLifecycle {
 				mcpHub: this.options.mcpHub,
 				requestToolApproval: this.options.requestToolApproval,
 				askQuestion: this.options.askQuestion,
+				editorExecutor: this.options.editorExecutor,
+				applyPatchExecutor: this.options.applyPatchExecutor,
 				getTerminalManager: this.options.getTerminalManager,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,
