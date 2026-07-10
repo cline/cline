@@ -1,13 +1,12 @@
-import { vertexGlobalModels, vertexModels } from "@shared/api"
+import { type ModelInfo, vertexCustomModelInfoSaneDefaults, vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
@@ -29,12 +28,20 @@ const SUPPORTED_THINKING_MODELS = [
 	"claude-sonnet-5:1m",
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-6:1m",
+	"claude-fable-5",
+	"claude-haiku-4-5",
 	"claude-haiku-4-5@20251001",
+	"claude-sonnet-4-5",
 	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
 	"claude-opus-4@20250514",
+	"claude-opus-4-1",
 	"claude-opus-4-1@20250805",
+	"claude-opus-4-5",
+	"claude-opus-4-6",
+	"claude-opus-4-7",
+	"claude-opus-4-8",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",
@@ -47,7 +54,7 @@ const REGIONS = VertexData.regions
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Get the normalized configuration
@@ -58,6 +65,17 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
+
+	const isCustomModelSelected = !!modeFields.vertexCustomModelSelected
+	const customModelInfo = modeFields.vertexCustomModelInfo ?? vertexCustomModelInfoSaneDefaults
+
+	const handleCustomModelInfoChange = (updates: Partial<ModelInfo>) => {
+		handleModeFieldChange(
+			{ plan: "planModeVertexCustomModelInfo", act: "actModeVertexCustomModelInfo" },
+			{ ...customModelInfo, ...updates },
+			currentMode,
+		)
+	}
 
 	return (
 		<div
@@ -127,19 +145,126 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 			{showModelOptions && (
 				<>
-					<ModelSelector
-						label="Model"
-						models={modelsToUse}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
-						selectedModelId={selectedModelId}
-						zIndex={DROPDOWN_Z_INDEX - 2}
-					/>
+					<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 2}>
+						<label htmlFor="vertex-model-dropdown">
+							<span className="font-medium">Model</span>
+						</label>
+						<VSCodeDropdown
+							className="w-full"
+							id="vertex-model-dropdown"
+							onChange={(e: any) => {
+								const isCustom = e.target.value === "custom"
+
+								handleModeFieldsChange(
+									{
+										apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
+										vertexCustomModelSelected: {
+											plan: "planModeVertexCustomModelSelected",
+											act: "actModeVertexCustomModelSelected",
+										},
+										vertexCustomModelInfo: {
+											plan: "planModeVertexCustomModelInfo",
+											act: "actModeVertexCustomModelInfo",
+										},
+									},
+									{
+										apiModelId: isCustom ? "" : e.target.value,
+										vertexCustomModelSelected: isCustom,
+										vertexCustomModelInfo: isCustom ? { ...vertexCustomModelInfoSaneDefaults } : undefined,
+									},
+									currentMode,
+								)
+							}}
+							value={isCustomModelSelected ? "custom" : selectedModelId}>
+							<VSCodeOption value="">Select a model...</VSCodeOption>
+							{Object.keys(modelsToUse).map((modelId) => (
+								<VSCodeOption
+									className="whitespace-normal wrap-break-word max-w-full"
+									key={modelId}
+									value={modelId}>
+									{modelId}
+								</VSCodeOption>
+							))}
+							<VSCodeOption value="custom">Custom</VSCodeOption>
+						</VSCodeDropdown>
+					</DropdownContainer>
+
+					{isCustomModelSelected && (
+						<div>
+							<p className="mt-1 text-sm text-description">
+								Select "Custom" to use a Vertex AI model that isn't in the list. Enter the model ID and adjust the
+								model's capabilities below if needed.
+							</p>
+							<DebouncedTextField
+								className="w-full mt-0.5"
+								id="vertex-custom-model-input"
+								initialValue={modeFields.apiModelId || ""}
+								onChange={(value) =>
+									handleModeFieldChange(
+										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+										value,
+										currentMode,
+									)
+								}
+								placeholder="Enter custom model ID...">
+								<span className="font-medium">Model ID</span>
+							</DebouncedTextField>
+
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<DebouncedTextField
+									initialValue={
+										customModelInfo.contextWindow?.toString() ??
+										vertexCustomModelInfoSaneDefaults.contextWindow?.toString() ??
+										""
+									}
+									onChange={(value) => {
+										// Only save valid values so clearing the field doesn't
+										// snap it back to the previously saved value mid-edit.
+										const parsed = Number.parseInt(value, 10)
+										if (!Number.isNaN(parsed) && parsed > 0) {
+											handleCustomModelInfoChange({ contextWindow: parsed })
+										}
+									}}
+									style={{ flex: 1 }}>
+									<span className="font-medium">Context Window Size</span>
+								</DebouncedTextField>
+
+								<DebouncedTextField
+									initialValue={
+										customModelInfo.maxTokens?.toString() ??
+										vertexCustomModelInfoSaneDefaults.maxTokens?.toString() ??
+										""
+									}
+									onChange={(value) => {
+										const parsed = Number.parseInt(value, 10)
+										if (!Number.isNaN(parsed) && parsed > 0) {
+											handleCustomModelInfoChange({ maxTokens: parsed })
+										}
+									}}
+									style={{ flex: 1 }}>
+									<span className="font-medium">Max Output Tokens</span>
+								</DebouncedTextField>
+							</div>
+
+							<div className="flex flex-col gap-1 mt-1">
+								<VSCodeCheckbox
+									checked={!!customModelInfo.supportsImages}
+									onChange={(e: any) =>
+										handleCustomModelInfoChange({ supportsImages: e.target.checked === true })
+									}>
+									Supports Images
+								</VSCodeCheckbox>
+
+								<VSCodeCheckbox
+									checked={!!customModelInfo.supportsReasoning}
+									onChange={(e: any) =>
+										handleCustomModelInfoChange({ supportsReasoning: e.target.checked === true })
+									}>
+									Supports Reasoning
+								</VSCodeCheckbox>
+							</div>
+						</div>
+					)}
 
 					{isAdaptiveThinkingModel ? (
 						<ReasoningEffortSelector
@@ -149,7 +274,8 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 						/>
-					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ? (
+					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ||
+						(isCustomModelSelected && customModelInfo.supportsReasoning) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					) : null}
 
