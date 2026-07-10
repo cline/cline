@@ -8,6 +8,7 @@ const rendererMock = vi.hoisted(() => ({
 		defaultBackground: null,
 		defaultForeground: null,
 	})),
+	isDestroyed: false,
 	on: vi.fn(),
 	setTerminalTitle: vi.fn(),
 }));
@@ -38,6 +39,7 @@ describe("renderOpenTui", () => {
 
 	beforeEach(() => {
 		destroyHandlers.length = 0;
+		rendererMock.isDestroyed = false;
 		rendererMock.destroy.mockReset();
 		rendererMock.setTerminalTitle.mockReset();
 		rendererMock.on.mockReset();
@@ -112,5 +114,23 @@ describe("renderOpenTui", () => {
 			rendererMock.setTerminalTitle.mock.invocationCallOrder[0];
 		const destroyCallOrder = rendererMock.destroy.mock.invocationCallOrder[0];
 		expect(titleCallOrder).toBeLessThan(destroyCallOrder);
+	});
+
+	it("skips the title reset when the renderer is destroyed before the teardown microtask runs", async () => {
+		const { renderOpenTui } = await import("./index");
+		const tui = await renderOpenTui({} as TuiProps);
+
+		tui.destroy();
+		// Simulate OpenTUI's own signal handler destroying the renderer in the
+		// same dispatch (e.g. an idle SIGTERM fires both our handler and
+		// OpenTUI's exitHandler before microtasks drain).
+		rendererMock.isDestroyed = true;
+		for (const handler of destroyHandlers) {
+			handler();
+		}
+
+		await Promise.resolve();
+
+		expect(rendererMock.setTerminalTitle).not.toHaveBeenCalled();
 	});
 });
