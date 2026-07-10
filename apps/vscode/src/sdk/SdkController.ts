@@ -322,6 +322,9 @@ export class Controller {
 			onSendStart: () => {
 				this.beginProviderFailureTelemetryTurn()
 			},
+			// this.mode is assigned later in this constructor; the closure only
+			// runs at send time, long after construction completes.
+			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
 			onSendComplete: async () => {
 				await this.providerChanges.handleTurnComplete(this.mode)
 
