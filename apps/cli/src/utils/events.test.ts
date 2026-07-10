@@ -4,6 +4,7 @@ import {
 	handleEvent,
 	handleTeamEvent,
 	resolveStatusNoticeLabel,
+	shouldRenderGenericToolEvent,
 } from "./events";
 import { setCurrentOutputMode } from "./output";
 import type { Config } from "./types";
@@ -145,6 +146,11 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toBe("");
+	});
+
+	it("marks ask_question as handled outside the generic tool renderer", () => {
+		expect(shouldRenderGenericToolEvent("ask_question")).toBe(false);
+		expect(shouldRenderGenericToolEvent("read_files")).toBe(true);
 	});
 
 	it("prints tool errors inline", () => {

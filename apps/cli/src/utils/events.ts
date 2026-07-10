@@ -39,6 +39,10 @@ export function resolveStatusNoticeLabel(
 	return event.message.trim() || undefined;
 }
 
+export function shouldRenderGenericToolEvent(toolName: string): boolean {
+	return toolName !== "ask_question";
+}
+
 export function closeInlineStreamIfNeeded(): void {
 	if (!inlineStreamHasOutput) {
 		return;
@@ -120,7 +124,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					closeInlineStreamIfNeeded();
 					const toolName = event.toolName ?? "unknown_tool";
 					const inputStr = formatToolInput(toolName, event.input);
-					if (toolName === "ask_question") {
+					if (!shouldRenderGenericToolEvent(toolName)) {
 						break;
 					}
 					write(
@@ -139,7 +143,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					break;
 				case "tool":
 					closeInlineStreamIfNeeded();
-					if (event.toolName === "ask_question") {
+					if (!shouldRenderGenericToolEvent(event.toolName ?? "unknown_tool")) {
 						break;
 					}
 					if (event.error) {
