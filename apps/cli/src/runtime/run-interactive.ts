@@ -1,4 +1,5 @@
 import {
+	buildConnectionUpdate,
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
@@ -704,7 +705,18 @@ export async function runInteractive(
 				model: config.modelId,
 				...(reasoning === undefined ? {} : { reasoning }),
 			});
-			await sessionRuntime.restartWithCurrentMessages();
+			// A model/provider switch only changes connection options, so update
+			// the live session in place instead of restarting it — a restart would
+			// split the conversation into a new session history entry.
+			await sessionRuntime.updateCurrentSessionConnection(
+				buildConnectionUpdate({
+					providerId: config.providerId,
+					modelId: config.modelId,
+					apiKey: config.apiKey,
+					thinking: config.thinking,
+					reasoningEffort: config.reasoningEffort,
+				}),
+			);
 		},
 		onSessionRestart: async () => {
 			await sessionRuntime.ensureReady();
