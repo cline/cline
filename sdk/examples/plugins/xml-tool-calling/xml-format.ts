@@ -58,9 +58,6 @@ function schemaTypeOf(propSchema: unknown): string {
 			return first;
 		}
 	}
-	if (record.enum) {
-		return "string";
-	}
 	return "string";
 }
 

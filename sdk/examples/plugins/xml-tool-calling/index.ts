@@ -67,19 +67,14 @@ function nextToolCallId(): string {
 
 function rewriteHistoryForXml(
 	messages: readonly RuntimeMessage[],
-): RuntimeMessage[] | undefined {
-	let changed = false;
-	const rewritten = messages.map((message) => {
-		const hasToolCall = message.content.some(
-			(part) => part.type === "tool-call",
+): RuntimeMessage[] {
+	return messages.map((message) => {
+		const hasToolPart = message.content.some(
+			(part) => part.type === "tool-call" || part.type === "tool-result",
 		);
-		const hasToolResult = message.content.some(
-			(part) => part.type === "tool-result",
-		);
-		if (!hasToolCall && !hasToolResult) {
+		if (!hasToolPart) {
 			return message;
 		}
-		changed = true;
 		const content: RuntimeMessagePart[] = message.content.map((part) => {
 			if (part.type === "tool-call") {
 				return {
@@ -101,7 +96,6 @@ function rewriteHistoryForXml(
 		const role = message.role === "tool" ? "user" : message.role;
 		return { ...message, role, content };
 	});
-	return changed ? rewritten : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,14 +118,10 @@ function convertAssistantXml(
 				content.push({ type: "text", text: block.text });
 				continue;
 			}
-			if (block.partial) {
+			const spec = specs.get(block.name);
+			if (block.partial || !spec) {
 				// Unclosed tool use (truncation or malformed XML): keep the raw
 				// source as text rather than executing a half-parsed call.
-				content.push({ type: "text", text: block.raw });
-				continue;
-			}
-			const spec = specs.get(block.name);
-			if (!spec) {
 				content.push({ type: "text", text: block.raw });
 				continue;
 			}
@@ -173,17 +163,6 @@ function injectToolDocs(
 	const firstUserIndex = messages.findIndex(
 		(message) => message.role === "user",
 	);
-	if (firstUserIndex === -1) {
-		return [
-			{
-				id: "xml-tool-docs",
-				role: "user",
-				content: [docsPart],
-				createdAt: 0,
-			},
-			...messages,
-		];
-	}
 	return messages.map((message, index) =>
 		index === firstUserIndex
 			? { ...message, content: [docsPart, ...message.content] }
@@ -209,15 +188,14 @@ const plugin: AgentPlugin = {
 	},
 	hooks: {
 		beforeModel({ snapshot, request }: BeforeModelContext) {
-			const historyRewrite = rewriteHistoryForXml(request.messages);
 			if (request.tools.length === 0) {
 				toolSpecsByAgent.delete(snapshot.agentId);
-				return historyRewrite ? { messages: historyRewrite } : undefined;
+				return undefined;
 			}
 			const specs = toXmlToolSpecs(request.tools);
 			toolSpecsByAgent.set(snapshot.agentId, specs);
 			const messages = injectToolDocs(
-				historyRewrite ?? request.messages,
+				rewriteHistoryForXml(request.messages),
 				buildXmlToolDocs(specs),
 			);
 			return { tools: [], messages };

@@ -135,7 +135,7 @@ describe("beforeModel", () => {
 		]);
 	});
 
-	it("does nothing when the request has no tools and no tool history", async () => {
+	it("does nothing when the request has no tools", async () => {
 		const result = await plugin.hooks?.beforeModel?.({
 			snapshot: makeSnapshot(),
 			request: {
@@ -252,17 +252,14 @@ describe("setup", () => {
 });
 
 describe("rewriteHistoryForXml", () => {
-	it("returns undefined for histories without tool parts", () => {
-		expect(
-			rewriteHistoryForXml([
-				{
-					id: "u1",
-					role: "user",
-					content: [{ type: "text", text: "hello" }],
-					createdAt: 1,
-				},
-			]),
-		).toBeUndefined();
+	it("leaves messages without tool parts untouched", () => {
+		const message = {
+			id: "u1",
+			role: "user" as const,
+			content: [{ type: "text" as const, text: "hello" }],
+			createdAt: 1,
+		};
+		expect(rewriteHistoryForXml([message])).toEqual([message]);
 	});
 });
 
