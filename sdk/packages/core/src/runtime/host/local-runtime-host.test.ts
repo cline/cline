@@ -342,6 +342,87 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("persists provider/model connection updates to the session manifest", async () => {
+		const sessionId = "sess-connection-manifest-update";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+		sessionService.writeSessionManifest.mockClear();
+
+		// A disk-only writer (compaction path, rename) updated the manifest
+		// behind the in-memory copy's back; the connection update must re-read
+		// and preserve it instead of clobbering it with the stale copy.
+		const diskManifest = {
+			...manifest,
+			compaction_path: "/tmp/compaction.json",
+			title: "renamed session",
+		};
+		const readSessionManifest = vi.fn().mockResolvedValue(diskManifest);
+		(sessionService as Record<string, unknown>).readSessionManifest =
+			readSessionManifest;
+
+		await manager.updateSessionConnection(sessionId, {
+			providerId: "openai",
+			modelId: "codex-test",
+		});
+
+		expect(sessionService.writeSessionManifest).toHaveBeenCalledWith(
+			"/tmp/manifest.json",
+			expect.objectContaining({
+				session_id: sessionId,
+				provider: "openai",
+				model: "codex-test",
+				compaction_path: "/tmp/compaction.json",
+				title: "renamed session",
+			}),
+		);
+
+		sessionService.writeSessionManifest.mockClear();
+		await manager.updateSessionConnection(sessionId, { thinking: true });
+		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+	});
+
 	it("persists thinking budget token connection updates", async () => {
 		const sessionId = "sess-thinking-budget-update";
 		const manifest = createManifest(sessionId);
