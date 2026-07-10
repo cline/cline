@@ -14,20 +14,10 @@ import type { Controller } from "@core/controller"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { type PreviewCommandPayload, previewCommandSchema } from "./previewCommandSchema"
 
 const PREVIEW_COMMANDS_DIR = path.join(os.homedir(), ".aihydro", "preview_commands")
 const POLL_INTERVAL_MS = 250
-
-interface PreviewCommandPayload {
-	type: string
-	module_id?: string
-	cell_id?: string
-	section_id?: string
-	new_html?: string
-	comment_id?: string
-	new_text?: string
-	[key: string]: unknown
-}
 
 export class PreviewCommandWatcher {
 	private intervalId: NodeJS.Timeout | null = null
@@ -64,8 +54,12 @@ export class PreviewCommandWatcher {
 				try {
 					const raw = await fs.readFile(filePath, "utf8")
 					await fs.unlink(filePath)
-					const cmd = JSON.parse(raw) as PreviewCommandPayload
-					await this.applyCommand(cmd)
+					const parsed = previewCommandSchema.safeParse(JSON.parse(raw))
+					if (!parsed.success) {
+						console.warn("[PreviewCommandWatcher] Rejected malformed command file:", file, parsed.error.message)
+						continue
+					}
+					await this.applyCommand(parsed.data)
 				} catch (err) {
 					console.warn("[PreviewCommandWatcher] Failed command file:", file, err)
 					try {

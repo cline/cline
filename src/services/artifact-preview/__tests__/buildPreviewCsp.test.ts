@@ -55,4 +55,17 @@ describe("buildPreviewCsp", () => {
 		const csp = buildPreviewCsp({ cspSource, nonce, allowScripts: true })
 		expect(csp).to.match(/default-src 'none'/)
 	})
+
+	it("scopes connect-src to known CDN/tile origins instead of blanket https: (E-3)", () => {
+		const csp = buildPreviewCsp({ cspSource, nonce, allowScripts: true })
+		const connectMatch = csp.match(/connect-src ([^;]*);/)
+		expect(connectMatch).to.not.be.null
+		const directive = connectMatch?.[1] ?? ""
+		// Must not contain a bare "https:" token (that would re-open fetch to
+		// any HTTPS host — the exfiltration channel this change closes).
+		expect(directive.split(/\s+/)).to.not.include("https:")
+		expect(directive).to.contain("https://cdn.jsdelivr.net")
+		expect(directive).to.contain("https://*.tile.openstreetmap.org")
+		expect(directive).to.contain(cspSource)
+	})
 })

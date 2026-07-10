@@ -12,6 +12,7 @@ import {
 } from "./discoverPythonEnvironments"
 import type { KernelProfile } from "./KernelProfile"
 import { buildSessionKeyForArtifact } from "./kernelSessionKey"
+import { scrubKernelEnv } from "./scrubKernelEnv"
 
 export type ArtifactKernelState = "stopped" | "starting" | "ready" | "busy" | "error"
 
@@ -407,7 +408,10 @@ export class ArtifactKernelService {
 			nextId: 1,
 		}
 
-		const env = { ...process.env, PYTHONUNBUFFERED: "1", ...profile.env }
+		// Secret-shaped vars (API keys, tokens, cloud credentials) are scrubbed
+		// before the child sees them — artifact code is workspace-trusted, not
+		// credential-trusted. See scrubKernelEnv.ts.
+		const env = { ...scrubKernelEnv(process.env), PYTHONUNBUFFERED: "1", ...profile.env }
 		const child = spawn(profile.interpreterPath, [runnerPath], {
 			cwd: profile.cwd,
 			env,

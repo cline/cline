@@ -51,6 +51,15 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            # Fails the build on high/critical vulnerabilities in the runtime
+            # dependency tree (audit finding E-1, 2026-07-09). Dev-only deps
+            # are excluded — they don't ship in the packaged extension, and a
+            # dev-tool CVE alone shouldn't block a release. `continue-on-error`
+            # is deliberately NOT set: a real high/critical prod-path CVE
+            # should block merge, not just warn.
+            - name: Audit production dependencies (fails on high/critical)
+              run: npm audit --omit=dev --audit-level=high
+
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
 
