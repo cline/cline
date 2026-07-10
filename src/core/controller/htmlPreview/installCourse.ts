@@ -6,6 +6,7 @@ import * as os from "os"
 import * as path from "path"
 import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import type { Controller } from "../index"
+import { assertTrustedMarketplaceUrl } from "./marketplaceUrlAllowlist"
 
 type RegistryEntry = { id: string; title: string; localPath: string; installedAt: string; courseId?: string }
 
@@ -20,6 +21,7 @@ export async function installCourse(controller: Controller, request: InstallCour
 	const { courseId, manifestUrl } = request
 	try {
 		if (!manifestUrl) throw new Error("Missing course manifest URL")
+		assertTrustedMarketplaceUrl(manifestUrl, "installCourse manifestUrl")
 
 		// 1. Fetch the course manifest.
 		const manifestResp = await axios.get(manifestUrl, { responseType: "json", timeout: 30000 })
@@ -56,6 +58,7 @@ export async function installCourse(controller: Controller, request: InstallCour
 			if (!moduleId || !downloadUrl) continue
 			const relPath = `${moduleId}/module.html`
 			try {
+				assertTrustedMarketplaceUrl(downloadUrl, `installCourse module ${moduleId} downloadUrl`)
 				const html = await axios.get(downloadUrl, { responseType: "text", timeout: 30000 })
 				const dest = path.join(courseDir, relPath)
 				await fs.mkdir(path.dirname(dest), { recursive: true })
