@@ -1,0 +1,9 @@
+{
+	"extends": "../../tsconfig.json",
+	"include": [
+		"index.ts",
+		"xml-format.ts",
+		"xml-format.test.ts",
+		"plugin.test.ts"
+	]
+}
