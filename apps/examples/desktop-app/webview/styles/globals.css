@@ -1,9 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/azeret-mono/latin.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
+	--font-desktop-sans: "Schibsted Grotesk Variable";
+	--font-desktop-mono: "Azeret Mono";
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
 	--card: oklch(1 0 0);
@@ -75,8 +79,68 @@
 }
 
 @theme inline {
-	--font-sans: "Geist", "Geist Fallback";
-	--font-mono: "Geist Mono", "Geist Mono Fallback";
+	--font-sans: var(--font-desktop-sans), sans-serif;
+	--font-mono:
+		var(--font-desktop-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Liberation Mono", monospace;
+	--font-weight-normal: 480;
+	--font-weight-medium: 560;
+	--font-weight-semibold: 640;
+	--font-weight-bold: 640;
+	--text-step-1: 12px;
+	--text-step-1--line-height: 16px;
+	--text-step-1--letter-spacing: 0.0025em;
+	--text-step-2: 14px;
+	--text-step-2--line-height: 20px;
+	--text-step-2--letter-spacing: 0em;
+	--text-step-3: 16px;
+	--text-step-3--line-height: 24px;
+	--text-step-3--letter-spacing: 0em;
+	--text-step-4: 18px;
+	--text-step-4--line-height: 26px;
+	--text-step-4--letter-spacing: -0.0025em;
+	--text-step-5: 20px;
+	--text-step-5--line-height: 28px;
+	--text-step-5--letter-spacing: -0.005em;
+	--text-step-6: 24px;
+	--text-step-6--line-height: 30px;
+	--text-step-6--letter-spacing: -0.00625em;
+	--text-step-7: 28px;
+	--text-step-7--line-height: 36px;
+	--text-step-7--letter-spacing: -0.0075em;
+	--text-step-8: 35px;
+	--text-step-8--line-height: 40px;
+	--text-step-8--letter-spacing: -0.01em;
+	--text-step-9: 60px;
+	--text-step-9--line-height: 60px;
+	--text-step-9--letter-spacing: -0.025em;
+	--text-xs: var(--text-step-1);
+	--text-xs--line-height: var(--text-step-1--line-height);
+	--text-xs--letter-spacing: var(--text-step-1--letter-spacing);
+	--text-sm: var(--text-step-2);
+	--text-sm--line-height: var(--text-step-2--line-height);
+	--text-sm--letter-spacing: var(--text-step-2--letter-spacing);
+	--text-base: var(--text-step-3);
+	--text-base--line-height: var(--text-step-3--line-height);
+	--text-base--letter-spacing: var(--text-step-3--letter-spacing);
+	--text-lg: var(--text-step-4);
+	--text-lg--line-height: var(--text-step-4--line-height);
+	--text-lg--letter-spacing: var(--text-step-4--letter-spacing);
+	--text-xl: var(--text-step-5);
+	--text-xl--line-height: var(--text-step-5--line-height);
+	--text-xl--letter-spacing: var(--text-step-5--letter-spacing);
+	--text-2xl: var(--text-step-6);
+	--text-2xl--line-height: var(--text-step-6--line-height);
+	--text-2xl--letter-spacing: var(--text-step-6--letter-spacing);
+	--text-3xl: var(--text-step-7);
+	--text-3xl--line-height: var(--text-step-7--line-height);
+	--text-3xl--letter-spacing: var(--text-step-7--letter-spacing);
+	--text-4xl: var(--text-step-8);
+	--text-4xl--line-height: var(--text-step-8--line-height);
+	--text-4xl--letter-spacing: var(--text-step-8--letter-spacing);
+	--text-6xl: var(--text-step-9);
+	--text-6xl--line-height: var(--text-step-9--line-height);
+	--text-6xl--letter-spacing: var(--text-step-9--letter-spacing);
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -120,6 +184,6 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-base font-normal text-foreground;
 	}
 }
