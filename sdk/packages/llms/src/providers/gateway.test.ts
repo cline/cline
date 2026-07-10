@@ -2424,7 +2424,7 @@ describe("sdk-gateway", () => {
 				literal: { type: "string", pattern: "\\(?!literal" },
 			},
 			patternProperties: {
-				".*": { anyOf: [{ type: "string" }, { type: "boolean" }] },
+				".*": { type: "boolean" },
 				"^public_": { type: "number" },
 			},
 			propertyNames: {},

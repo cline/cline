@@ -401,7 +401,6 @@ function toAiSdkTools(
 }
 
 const OPENAI_UNSUPPORTED_REGEX_LOOKAROUNDS = new Set(["=", "!", "<=", "<!"]);
-const OPENAI_PATTERN_PROPERTIES_FALLBACK = ".*";
 
 function hasOpenAIUnsupportedRegexLookaround(pattern: string): boolean {
 	let groupStart = pattern.indexOf("(?");
@@ -428,41 +427,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function appendPatternPropertiesFallback(
-	output: Record<string, unknown>,
-	schema: unknown,
-): void {
-	const existing = output[OPENAI_PATTERN_PROPERTIES_FALLBACK];
-	if (existing === undefined) {
-		output[OPENAI_PATTERN_PROPERTIES_FALLBACK] = schema;
-		return;
-	}
-	if (
-		isRecord(existing) &&
-		Array.isArray(existing.anyOf) &&
-		Object.keys(existing).length === 1
-	) {
-		existing.anyOf = [...existing.anyOf, schema];
-		return;
-	}
-	output[OPENAI_PATTERN_PROPERTIES_FALLBACK] = { anyOf: [existing, schema] };
-}
-
 function sanitizePatternProperties(
 	schemaMap: Record<string, unknown>,
 ): Record<string, unknown> {
 	const output: Record<string, unknown> = {};
 	for (const [pattern, schema] of Object.entries(schemaMap)) {
-		const sanitized = sanitizeOpenAIUnsupportedSchemaNode(schema);
 		if (hasOpenAIUnsupportedRegexLookaround(pattern)) {
-			appendPatternPropertiesFallback(output, sanitized);
 			continue;
 		}
-		if (pattern === OPENAI_PATTERN_PROPERTIES_FALLBACK) {
-			appendPatternPropertiesFallback(output, sanitized);
-			continue;
-		}
-		output[pattern] = sanitized;
+		output[pattern] = sanitizeOpenAIUnsupportedSchemaNode(schema);
 	}
 	return output;
 }
