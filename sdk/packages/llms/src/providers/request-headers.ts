@@ -1,3 +1,5 @@
+import { decodeJwtPayload } from "@cline/shared";
+
 export interface ProviderRequestHeaderClientContext {
 	name?: string;
 	version?: string;
@@ -25,7 +27,7 @@ export interface ResolveProviderRequestHeadersInput {
 	source?: string;
 	defaultSource: string;
 	client?: ProviderRequestHeaderClientContext;
-	coreVersion?: string;
+	coreVersion: string;
 	openAiCodex?: OpenAICodexRequestHeaderContext;
 	headers?: ProviderRequestHeaderLayers;
 }
@@ -83,34 +85,9 @@ function buildClineRequestHeaders(
 		"X-CLIENT-VERSION": clientVersion,
 		"X-PLATFORM": platform,
 		"X-PLATFORM-VERSION": platformVersion,
-		"X-CORE-VERSION": input.coreVersion ?? "unknown",
+		"X-CORE-VERSION": input.coreVersion,
 		"X-Task-ID": input.sessionId,
 	};
-}
-
-function decodeJwtPayload(token?: string): Record<string, unknown> | undefined {
-	const trimmed = token?.trim();
-	if (!trimmed) {
-		return undefined;
-	}
-	try {
-		const parts = trimmed.split(".");
-		if (parts.length !== 3) {
-			return undefined;
-		}
-		const payload = parts[1];
-		if (!payload) {
-			return undefined;
-		}
-		const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-		const padded = normalized.padEnd(
-			normalized.length + ((4 - (normalized.length % 4)) % 4),
-			"=",
-		);
-		return JSON.parse(globalThis.atob(padded)) as Record<string, unknown>;
-	} catch {
-		return undefined;
-	}
 }
 
 function deriveOpenAICodexAccountId(

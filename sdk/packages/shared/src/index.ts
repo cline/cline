@@ -227,6 +227,7 @@ export {
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
+export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {

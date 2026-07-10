@@ -1,4 +1,5 @@
 import {
+	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
 } from "@cline/shared";
@@ -12,7 +13,6 @@ import {
 import { getValidOpenAICodexCredentials, loginOpenAICodex } from "./codex";
 import { getValidOcaCredentials, loginOcaOAuth } from "./oca";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
-import { decodeJwtPayload } from "./utils";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
 

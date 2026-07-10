@@ -92,6 +92,7 @@ describe("resolveProviderRequestHeaders", () => {
 			providerId: "openai-codex",
 			sessionId: "sess-codex",
 			defaultSource: "cli",
+			coreVersion: "0.2.0",
 			openAiCodex: {
 				accessToken: token,
 				userAgentVersion: "3.0.38",
@@ -124,6 +125,7 @@ describe("resolveProviderRequestHeaders", () => {
 				providerId: "anthropic",
 				sessionId: "sess-plain",
 				defaultSource: "cli",
+				coreVersion: "0.2.0",
 				headers: {
 					stored: { "x-stored": "stored" },
 					config: { "x-config": "config" },
@@ -136,6 +138,7 @@ describe("resolveProviderRequestHeaders", () => {
 				providerId: "anthropic",
 				sessionId: "sess-plain",
 				defaultSource: "cli",
+				coreVersion: "0.2.0",
 				headers: {
 					stored: { "x-stored": "stored" },
 					config: { "x-config": "config" },
