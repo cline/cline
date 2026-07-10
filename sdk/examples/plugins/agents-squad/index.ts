@@ -440,9 +440,8 @@ const HandoffPathInput = z
 	.trim()
 	.min(1)
 	.max(240)
-	.regex(
-		/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/,
-		"Use a relative file path with letters, numbers, '.', '_', '-', or '/'.",
+	.describe(
+		"Relative file path using letters, numbers, '.', '_', '-', or '/'. Must not be absolute or contain '..' segments.",
 	);
 
 const StartSubagentInput = z
