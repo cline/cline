@@ -260,6 +260,40 @@ jobs:
             git push origin "refs/tags/${TAG}"
           done
 
+      - name: Get Previous SDK Tag
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
+        id: prev_tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The checkout is shallow and tagless, so fetch the release tags explicitly.
+          git fetch origin "+refs/tags/sdk/sdk/v*:refs/tags/sdk/sdk/v*"
+          PREV_TAG=$(git tag -l 'sdk/sdk/v*' | grep -vx "sdk/sdk/v${VERSION}" | sort -V | tail -1 || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Get Changelog Entry
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
+        id: changelog
+        run: |
+          # Grab content between the first "## " header and the next one in sdk/CHANGELOG.md
+          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' sdk/CHANGELOG.md)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: sdk/sdk/v${{ steps.version.outputs.version }}
+          name: "SDK v${{ steps.version.outputs.version }}"
+          body: |
+            ${{ steps.changelog.outputs.content }}
+
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...sdk/sdk/v{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.version) || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -280,3 +314,26 @@ jobs:
             echo "  - sdk/core/v${VERSION}"
             echo "  - sdk/sdk/v${VERSION}"
           fi
+
+      - name: Post release to Slack
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          payload: |
+            channel: "C0APVKGGZFC"
+            text: "Cline SDK v${{ steps.version.outputs.version }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "Cline SDK v${{ steps.version.outputs.version }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ${{ toJSON(steps.changelog.outputs.content) }}
+              - type: "context"
+                elements:
+                  - type: "mrkdwn"
+                    text: "<https://www.npmjs.com/package/@cline/sdk/v/${{ steps.version.outputs.version }}|View on npm>${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...sdk/sdk/v{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.version) || '' }}"
