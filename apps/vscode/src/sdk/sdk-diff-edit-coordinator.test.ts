@@ -339,7 +339,7 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews[0].closed).toBe(1)
 	})
 
-	it("still applies auto-approved edits when the preview fails to open", async () => {
+	it("still applies auto-approved edits when the preview fails to open, and closes the partial preview", async () => {
 		previewTweak = (preview) => {
 			preview.failOpen = true
 		}
@@ -348,6 +348,9 @@ describe("SdkDiffEditCoordinator", () => {
 
 		const result = await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
 		expect(result).toBe("fallback editor result")
+		// A failed open() may have partially opened a tab before throwing; it is closed
+		// directly since the session was never registered for discardPreview to find.
+		expect(previews[0].closed).toBe(1)
 	})
 
 	it("delegates directly with no preview when background edit is enabled", async () => {

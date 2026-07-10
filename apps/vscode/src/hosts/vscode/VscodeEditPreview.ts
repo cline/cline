@@ -45,6 +45,19 @@ export const editPreviewContentProvider = new EditPreviewContentStore()
 
 let nextPreviewId = 1
 
+/** 0-based first line where the two contents differ (cheap prefix scan, no full diff). */
+function firstDifferingLine(leftContent: string, rightContent: string): number {
+	const leftLines = leftContent.split("\n")
+	const rightLines = rightContent.split("\n")
+	const max = Math.min(leftLines.length, rightLines.length)
+	for (let i = 0; i < max; i++) {
+		if (leftLines[i] !== rightLines[i]) {
+			return i
+		}
+	}
+	return leftLines.length === rightLines.length ? 0 : max
+}
+
 /**
  * VS Code implementation of the read-only edit preview: a `vscode.diff` tab whose
  * BOTH sides are virtual documents. The real file is never opened or modified, so
@@ -96,11 +109,19 @@ export class VscodeEditPreview extends EditPreview {
 			return
 		}
 		const totalLines = content.rightContent.split("\n").length
-		const { frames, firstChangedLine } = buildEditPreviewAnimation(content.leftContent, content.rightContent)
 		const editor = await this.findRightEditor(rightUri)
-		if (!editor || totalLines > MAX_ANIMATED_LINES || frames.length <= 1) {
+		if (!editor || totalLines > MAX_ANIMATED_LINES) {
+			// Skip the animation (and its line-diff computation) entirely; a cheap
+			// prefix scan is enough to aim the viewport at the change.
 			editPreviewContentProvider.set(rightUri, content.rightContent)
-			editor?.revealRange(new vscode.Range(firstChangedLine, 0, firstChangedLine, 0), vscode.TextEditorRevealType.InCenter)
+			const firstDiff = firstDifferingLine(content.leftContent, content.rightContent)
+			editor?.revealRange(new vscode.Range(firstDiff, 0, firstDiff, 0), vscode.TextEditorRevealType.InCenter)
+			return
+		}
+		const { frames, firstChangedLine } = buildEditPreviewAnimation(content.leftContent, content.rightContent)
+		if (frames.length <= 1) {
+			editPreviewContentProvider.set(rightUri, content.rightContent)
+			editor.revealRange(new vscode.Range(firstChangedLine, 0, firstChangedLine, 0), vscode.TextEditorRevealType.InCenter)
 			return
 		}
 

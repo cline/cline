@@ -241,13 +241,20 @@ export class SdkDiffEditCoordinator {
 			content.editType === "create"
 				? `${fileName}: New File (Preview)`
 				: `${fileName}: Original ↔ Cline's Changes (Preview)`
-		await preview.open({
-			title,
-			absolutePath: content.absolutePath,
-			displayPath: content.displayPath,
-			leftContent: content.leftContent,
-			rightContent: content.rightContent,
-		})
+		try {
+			await preview.open({
+				title,
+				absolutePath: content.absolutePath,
+				displayPath: content.displayPath,
+				leftContent: content.leftContent,
+				rightContent: content.rightContent,
+			})
+		} catch (error) {
+			// open() can fail after partially opening (the session isn't registered yet,
+			// so discardPreview couldn't reach it) — close directly to avoid an orphaned tab.
+			await preview.close().catch(() => {})
+			throw error
+		}
 		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
 	}
 
