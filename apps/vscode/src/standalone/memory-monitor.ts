@@ -1,6 +1,3 @@
-// Memory monitor: periodically logs process memory usage.
-// Useful for tracking down leaks and long-running memory growth.
-// See logMemoryUsage below for the grep-friendly output format. DO YOU SEE THIS CHANGE?
 import { log } from "./utils"
 
 const MEMORY_LOG_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
