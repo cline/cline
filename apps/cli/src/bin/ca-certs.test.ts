@@ -222,6 +222,17 @@ describe("ca-certs", () => {
 			expect(env.NODE_EXTRA_CA_CERTS).toBe("/user/corp.pem");
 		});
 
+		it("reports api-unavailable on Nodes without getCACertificates", () => {
+			const env: Record<string, string> = {
+				CLINE_DIR: dir,
+				NODE_EXTRA_CA_CERTS: "/user/corp.pem",
+			};
+			const out = caCerts.configureNodeExtraCaCerts(env, { tls: {} });
+			expect(out.action).toBe("api-unavailable");
+			expect(out.path).toBeNull();
+			expect(env.NODE_EXTRA_CA_CERTS).toBe("/user/corp.pem");
+		});
+
 		it("reports write-failed when the bundle cannot be written", () => {
 			const realFs = require("node:fs");
 			const failingFs = {

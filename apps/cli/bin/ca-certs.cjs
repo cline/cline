@@ -154,14 +154,26 @@ function writeBundle(fs, dir, target, content) {
  * points env.NODE_EXTRA_CA_CERTS at a single managed PEM bundle. Mutates `env`
  * in place. Returns an outcome the caller can log; `action` is one of
  * "unchanged" | "written" | "write-failed-reused" | "write-failed" |
- * "no-system-certs".
+ * "no-system-certs" | "api-unavailable".
  */
 function configureNodeExtraCaCerts(env, deps = {}) {
 	const fs = deps.fs || require("node:fs");
 	const os = deps.os || require("node:os");
 	const path = deps.path || require("node:path");
+	const tls = deps.tls || require("node:tls");
 
-	const systemCerts = harvestSystemCerts(deps.tls);
+	// tls.getCACertificates("system") needs Node >= 22.15; on older Nodes the
+	// harvest cannot run at all, which the caller should surface to the user.
+	if (typeof tls.getCACertificates !== "function") {
+		return {
+			action: "api-unavailable",
+			path: null,
+			systemCertCount: 0,
+			userCertCount: 0,
+		};
+	}
+
+	const systemCerts = harvestSystemCerts(tls);
 	if (systemCerts.length === 0) {
 		// Nothing to add: leave any user-provided NODE_EXTRA_CA_CERTS untouched
 		// and let the runtime fall back to its bundled CAs.

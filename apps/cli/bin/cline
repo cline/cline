@@ -31,6 +31,18 @@ try {
 	const outcome = require("./ca-certs.cjs").configureNodeExtraCaCerts(childEnv);
 	const debug =
 		process.env.CLINE_DEBUG === "1" || process.env.CLINE_DEBUG === "true";
+	// Not debug-gated: on old Nodes the harvest silently doing nothing is
+	// indistinguishable from a broken corporate proxy, so tell the user once.
+	if (
+		outcome &&
+		outcome.action === "api-unavailable" &&
+		!childEnv.NODE_EXTRA_CA_CERTS
+	) {
+		console.warn(
+			`[cline] Node ${process.versions.node} cannot read the OS trust store (needs >= 22.15); ` +
+				"corporate or self-signed CAs may fail TLS. Upgrade Node or set NODE_EXTRA_CA_CERTS.",
+		);
+	}
 	if (debug && outcome) {
 		if (outcome.action === "no-system-certs") {
 			console.warn(
