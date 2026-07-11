@@ -53,6 +53,7 @@ import { useRootKeyboard } from "./hooks/use-root-keyboard";
 import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
 import { TerminalColorsContext } from "./hooks/use-terminal-background";
+import { useTerminalTitle } from "./hooks/use-terminal-title";
 import type { AppView, TuiProps } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
@@ -472,23 +473,7 @@ function App(props: TuiProps) {
 		};
 	}, [renderer, showToast]);
 
-	// setTerminalTitle writes into memory owned by the native renderer, so it
-	// must never run after destroy — React flushes passive effect cleanups in a
-	// macrotask, which can land after the renderer's memory has been freed.
-	useEffect(() => {
-		if (renderer.isDestroyed) {
-			return;
-		}
-		renderer.setTerminalTitle(terminalTitle);
-	}, [renderer, terminalTitle]);
-
-	useEffect(() => {
-		return () => {
-			if (!renderer.isDestroyed) {
-				renderer.setTerminalTitle("");
-			}
-		};
-	}, [renderer]);
+	useTerminalTitle(renderer, terminalTitle);
 
 	useEffect(() => {
 		return () => {
