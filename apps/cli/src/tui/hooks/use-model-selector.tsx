@@ -90,12 +90,12 @@ async function fetchOpenAiCompatibleModelIds(
 ): Promise<string[]> {
 	try {
 		const manager = new ProviderSettingsManager();
-		const settings = manager.getProviderSettings(providerId);
-		const baseUrl = settings?.baseUrl?.trim().replace(/\/+$/, "");
+		const config = manager.getProviderConfig(providerId, { includeKnownModels: false });
+		const baseUrl = config?.baseUrl?.trim().replace(/\/+$/, "");
 		if (!baseUrl || !URL.canParse(baseUrl)) return [];
 
-		const headers: Record<string, string> = { ...(settings?.headers ?? {}) };
-		const apiKey = settings?.apiKey?.trim();
+		const headers: Record<string, string> = { ...(config?.headers ?? {}) };
+		const apiKey = config?.apiKey?.trim();
 		if (
 			apiKey &&
 			!Object.keys(headers).some((h) => h.toLowerCase() === "authorization")
