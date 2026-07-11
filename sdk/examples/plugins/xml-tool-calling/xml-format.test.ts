@@ -41,7 +41,9 @@ const TOOLS: XmlToolDefinition[] = [
 			type: "object",
 			properties: {
 				commands: { type: "array", items: { type: "string" } },
-				timeout_secs: { type: "integer" },
+				timeout_secs: {
+					anyOf: [{ type: "integer" }, { type: "null" }],
+				},
 				background: { type: "boolean" },
 			},
 			required: ["commands"],
@@ -89,6 +91,16 @@ describe("parseAssistantXml", () => {
 		if (tool?.type !== "tool_use") throw new Error("expected tool_use");
 		expect(tool.params).toEqual({ path: "a.txt", content: "hello world" });
 		expect(tool.partial).toBe(false);
+	});
+
+	it("preserves meaningful parameter whitespace", () => {
+		const blocks = parseAssistantXml(
+			"<write_to_file>\n<path>a.txt</path>\n<content>\n\n  indented\n\n</content>\n</write_to_file>",
+			specs,
+		);
+		const tool = blocks[0];
+		if (tool?.type !== "tool_use") throw new Error("expected tool_use");
+		expect(tool.params.content).toBe("\n  indented\n");
 	});
 
 	it("recovers content values containing their own closing tag", () => {

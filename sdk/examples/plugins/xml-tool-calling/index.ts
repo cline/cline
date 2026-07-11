@@ -44,6 +44,38 @@ type AfterModelContext = Parameters<NonNullable<RuntimeHooks["afterModel"]>>[0];
 type RuntimeMessage = BeforeModelContext["request"]["messages"][number];
 type RuntimeMessagePart = RuntimeMessage["content"][number];
 
+function isInsideMarkdownFence(text: string): boolean {
+	let activeFence: { marker: string; length: number } | undefined;
+	for (const line of text.split(/\r?\n/)) {
+		const match = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+		if (!match) continue;
+		const run = match[1];
+		if (!run) continue;
+		if (!activeFence) {
+			activeFence = { marker: run[0] ?? "", length: run.length };
+		} else if (
+			run[0] === activeFence.marker &&
+			run.length >= activeFence.length &&
+			line.slice(match[0].length).trim().length === 0
+		) {
+			activeFence = undefined;
+		}
+	}
+	return activeFence !== undefined;
+}
+
+function isExecutableXmlCall(text: string, raw: string): boolean {
+	const callStart = text.indexOf(raw);
+	if (callStart === -1 || text.slice(callStart + raw.length).trim()) {
+		return false;
+	}
+	const lineStart = text.lastIndexOf("\n", callStart - 1) + 1;
+	return (
+		/^ {0,3}$/.test(text.slice(lineStart, callStart)) &&
+		!isInsideMarkdownFence(text.slice(0, callStart))
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Per-agent state
 // ---------------------------------------------------------------------------
@@ -106,14 +138,40 @@ function convertAssistantXml(
 	message: AfterModelContext["assistantMessage"],
 	specs: ReadonlyMap<string, XmlToolSpec>,
 ): AfterModelContext["assistantMessage"] | undefined {
+	const parsedParts = message.content.map((part) =>
+		part.type === "text" ? parseAssistantXml(part.text, specs) : undefined,
+	);
+	const candidates = parsedParts.flatMap((blocks, partIndex) =>
+		(blocks ?? [])
+			.filter((block) => block.type === "tool_use")
+			.map((block) => ({ block, partIndex })),
+	);
+	const candidate = candidates[0];
+	const candidatePart = candidate && message.content[candidate.partIndex];
+	if (
+		candidates.length !== 1 ||
+		!candidate ||
+		candidatePart?.type !== "text" ||
+		candidate.block.partial ||
+		!specs.has(candidate.block.name) ||
+		message.content
+			.slice(candidate.partIndex + 1)
+			.some((part) =>
+				part.type === "text" ? part.text.trim().length > 0 : true,
+			) ||
+		!isExecutableXmlCall(candidatePart.text, candidate.block.raw)
+	) {
+		return undefined;
+	}
+
 	const content: RuntimeMessagePart[] = [];
 	let converted = false;
-	for (const part of message.content) {
+	for (const [partIndex, part] of message.content.entries()) {
 		if (part.type !== "text") {
 			content.push(part);
 			continue;
 		}
-		for (const block of parseAssistantXml(part.text, specs)) {
+		for (const block of parsedParts[partIndex] ?? []) {
 			if (block.type === "text") {
 				content.push({ type: "text", text: block.text });
 				continue;

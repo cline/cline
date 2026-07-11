@@ -790,6 +790,7 @@ export class AgentRuntime {
 				name: tool.name,
 				description: tool.description,
 				inputSchema: tool.inputSchema,
+				lifecycle: tool.lifecycle ? { ...tool.lifecycle } : undefined,
 			})),
 			signal: this.abortController?.signal,
 			options: mergeModelOptions(this.config.modelOptions, {

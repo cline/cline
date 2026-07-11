@@ -228,6 +228,35 @@ describe("afterModel", () => {
 		});
 		expect(result).toBeUndefined();
 	});
+
+	it("does not execute quoted, fenced, trailing, or multiple XML calls", async () => {
+		const snapshot = makeSnapshot();
+		await plugin.hooks?.beforeModel?.({
+			snapshot,
+			request: { messages: [], tools: [ECHO_TOOL] },
+		});
+		const calls = [
+			"Example: <echo>\n<text>quoted</text>\n</echo>",
+			"```xml\n<echo>\n<text>fenced</text>\n</echo>\n```",
+			"```xml\n<echo>\n<text>unclosed fence</text>\n</echo>",
+			"<echo>\n<text>not terminal</text>\n</echo>\nMore text.",
+			"<echo>\n<text>one</text>\n</echo>\n<echo>\n<text>two</text>\n</echo>",
+		];
+
+		for (const text of calls) {
+			const result = await plugin.hooks?.afterModel?.({
+				snapshot,
+				assistantMessage: {
+					id: "a1",
+					role: "assistant",
+					content: [{ type: "text", text }],
+					createdAt: 1,
+				},
+				finishReason: "stop",
+			});
+			expect(result).toBeUndefined();
+		}
+	});
 });
 
 describe("setup", () => {

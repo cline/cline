@@ -1286,11 +1286,14 @@ describe("AgentRuntime", () => {
 
 	it("replaces the assistant message from afterModel and executes injected tool calls", async () => {
 		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "<echo><text>hi</text></echo>" },
-				{ type: "usage", usage: { inputTokens: 7, outputTokens: 3 } },
-				{ type: "finish", reason: "stop" },
-			],
+			(request) => {
+				expect(request.tools[0]?.lifecycle).toEqual({ completesRun: false });
+				return [
+					{ type: "text-delta", text: "<echo><text>hi</text></echo>" },
+					{ type: "usage", usage: { inputTokens: 7, outputTokens: 3 } },
+					{ type: "finish", reason: "stop" },
+				];
+			},
 			(request) => {
 				const toolMessage = request.messages.at(-1) as AgentMessage;
 				expect(toolMessage.role).toBe("tool");
@@ -1302,7 +1305,7 @@ describe("AgentRuntime", () => {
 		]);
 		const runtime = new AgentRuntime({
 			model,
-			tools: [createEchoTool()],
+			tools: [{ ...createEchoTool(), lifecycle: { completesRun: false } }],
 			hooks: {
 				afterModel: ({ assistantMessage }) => {
 					const text = assistantMessage.content

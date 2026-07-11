@@ -41,13 +41,13 @@ export interface XmlToolSpec {
 	completesRun: boolean;
 }
 
-function schemaTypeOf(propSchema: unknown): string {
+function concreteSchemaTypeOf(propSchema: unknown): string | undefined {
 	if (!propSchema || typeof propSchema !== "object") {
-		return "string";
+		return undefined;
 	}
 	const record = propSchema as Record<string, unknown>;
 	const type = record.type;
-	if (typeof type === "string") {
+	if (typeof type === "string" && type !== "null") {
 		return type;
 	}
 	if (Array.isArray(type)) {
@@ -58,7 +58,19 @@ function schemaTypeOf(propSchema: unknown): string {
 			return first;
 		}
 	}
-	return "string";
+	for (const keyword of ["anyOf", "oneOf"] as const) {
+		const alternatives = record[keyword];
+		if (!Array.isArray(alternatives)) continue;
+		for (const alternative of alternatives) {
+			const nestedType = concreteSchemaTypeOf(alternative);
+			if (nestedType) return nestedType;
+		}
+	}
+	return undefined;
+}
+
+function schemaTypeOf(propSchema: unknown): string {
+	return concreteSchemaTypeOf(propSchema) ?? "string";
 }
 
 function schemaDescriptionOf(propSchema: unknown): string | undefined {
@@ -268,6 +280,15 @@ interface OpenToolState {
 	paramCloseEnds: Map<string, number>;
 }
 
+function removeStructuralNewlines(value: string): string {
+	const start = value.startsWith("\r\n") ? 2 : value.startsWith("\n") ? 1 : 0;
+	let end = value.length;
+	if (end > start) {
+		end -= value.endsWith("\r\n") ? 2 : value.endsWith("\n") ? 1 : 0;
+	}
+	return value.slice(start, Math.max(start, end));
+}
+
 /**
  * Recover parameter values whose text contains their own closing tag (the
  * classic case: file content containing `</content>`). Sequential parsing
@@ -294,9 +315,9 @@ function recoverTruncatedParams(
 		if (openIndex === -1 || lastClose <= openIndex) {
 			continue;
 		}
-		tool.params[paramName] = contentSlice
-			.slice(openIndex + openTag.length, lastClose)
-			.trim();
+		tool.params[paramName] = removeStructuralNewlines(
+			contentSlice.slice(openIndex + openTag.length, lastClose),
+		);
 	}
 }
 
@@ -324,9 +345,9 @@ export function parseAssistantXml(
 				i >= closeTag.length - 1 &&
 				text.startsWith(closeTag, i - closeTag.length + 1)
 			) {
-				tool.params[paramName] = text
-					.slice(paramValueStart, i - closeTag.length + 1)
-					.trim();
+				tool.params[paramName] = removeStructuralNewlines(
+					text.slice(paramValueStart, i - closeTag.length + 1),
+				);
 				tool.paramCloseEnds.set(paramName, i + 1);
 				paramName = undefined;
 			} else {
