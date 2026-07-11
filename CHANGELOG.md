@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.8]
+
+### Added
+
+- Add more models to the GCP Vertex provider, plus a free-form entry option in the model dropdown for specifying custom Vertex models.
+
 ## [4.0.7]
 
 ### Added
