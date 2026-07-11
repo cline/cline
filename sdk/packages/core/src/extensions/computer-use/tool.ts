@@ -100,8 +100,7 @@ const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
 			items: { type: "number" },
 			minItems: 4,
 			maxItems: 4,
-			description:
-				"(x, y, width, height) region to zoom into, required for the zoom action.",
+			description: "(x0, y0, x1, y1) region to zoom into, required for the zoom action.",
 		},
 	},
 	required: ["action"],
