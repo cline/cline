@@ -70,9 +70,6 @@
 		"webview-ui",
 		"src/test/e2e/**/*",
 		"src/test/scenarios/**/*",
-		// bun/vitest-only test infrastructure: the @cline/core stub re-exports the real
-		// (dependency-light) edit executors from the sdk package SOURCE, which tsc's
-		// rootDir forbids. bun and vite transpile these directly; tsc never compiles them.
 		"src/test/cline-core-vitest-stub.ts",
 		"src/test/bun-test-preload.ts"
 	]
