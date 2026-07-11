@@ -111,6 +111,27 @@ describe("buildEditPreviewAnimation", () => {
 		expect(frames[0].content.endsWith("old 499")).toBe(true)
 	})
 
+	it("renders immediately when many small hunks would exceed the global animation budget", () => {
+		const left = Array.from({ length: 3_000 }, (_, i) => (i < 10 || i % 2 !== 0 ? `same ${i}` : `old ${i}`)).join("\n")
+		const right = Array.from({ length: 3_000 }, (_, i) => (i < 10 || i % 2 !== 0 ? `same ${i}` : `new ${i}`)).join("\n")
+
+		const { frames, firstChangedLine } = buildEditPreviewAnimation(left, right)
+
+		expect(firstChangedLine).toBe(10)
+		expect(frames).toEqual([{ content: right, activeLine: 10, delayMs: 0, zip: true }])
+	})
+
+	it("renders immediately before cumulative full-document frames cross the retained-byte budget", () => {
+		const wideTail = "x".repeat(20_000)
+		const left = Array.from({ length: 30 }, (_, i) => `old ${i} ${wideTail}`).join("\n")
+		const right = Array.from({ length: 30 }, (_, i) => `new ${i} ${wideTail}`).join("\n")
+
+		const { frames, firstChangedLine } = buildEditPreviewAnimation(left, right)
+
+		expect(firstChangedLine).toBe(0)
+		expect(frames).toEqual([{ content: right, activeLine: 0, delayMs: 0, zip: true }])
+	})
+
 	it("handles new-file previews (empty left) and single-line contents", () => {
 		const single = buildEditPreviewAnimation("", "hello")
 		expect(single.frames).toHaveLength(1)
