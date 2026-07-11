@@ -1,4 +1,5 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
+import { formatCliErrorMessage } from "./cline-pass-errors";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -181,7 +182,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(event.error.message);
+				writeErr(formatCliErrorMessage(event.error));
 			}
 			break;
 		case "notice":
