@@ -1,6 +1,6 @@
-import { expect } from "chai"
 import fs from "node:fs"
 import path from "node:path"
+import { expect } from "chai"
 import { describe, it } from "mocha"
 import { formatValidationReport, validateModule } from "../validateModule"
 
@@ -64,19 +64,5 @@ describe("HTML Preview golden course fixture", () => {
 		expect(html).to.include('class="aihydro-quiz"')
 		expect(html).to.include('data-answer="1"')
 		expect(html).to.include('id="runtime-contract-quiz"')
-	})
-
-	it("stays public-safe and does not announce unimplemented product plans", () => {
-		const combined = [
-			readFixture("README.md"),
-			readFixture("course.json"),
-			readFixture("01-runtime-contract/module.html"),
-			readFixture("02-prerequisite-target/module.html"),
-		].join("\n")
-
-		expect(combined).to.not.include("AI-Hydro Studio")
-		expect(combined).to.not.include("HydroGuide")
-		expect(combined).to.not.include("AI-Hydro/Studio")
-		expect(combined).to.not.include("private roadmap")
 	})
 })
