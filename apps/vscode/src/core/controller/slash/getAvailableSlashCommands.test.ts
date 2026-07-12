@@ -20,6 +20,7 @@ function remoteSkill(overrides: Partial<GlobalInstructionsFile> = {}): GlobalIns
 		name: "remote-skill",
 		description: "Remote skill",
 		alwaysEnabled: false,
+		contents: "# Remote skill",
 		...overrides,
 	} as GlobalInstructionsFile
 }
@@ -39,7 +40,7 @@ describe("filterEnabledSkillItems", () => {
 		const result = filterEnabledSkillItems({
 			skills: [
 				skill({ name: "alpha", path: "/skills/alpha/SKILL.md" }),
-				skill({ name: "off", path: "/skills/off/SKILL.md", disabled: true }),
+				skill({ name: "off", path: "/skills/off/SKILL.md", enabled: false }),
 			],
 			remoteConfigSkills: [],
 			remoteSkillsToggles: {},

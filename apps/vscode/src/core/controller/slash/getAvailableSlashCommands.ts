@@ -113,7 +113,7 @@ export function filterEnabledSkillItems(input: {
 	const seenNames = new Set<string>()
 
 	for (const skill of input.skills) {
-		if (skill.disabled) {
+		if (skill.enabled === false) {
 			continue
 		}
 		if (seenNames.has(skill.name)) {
