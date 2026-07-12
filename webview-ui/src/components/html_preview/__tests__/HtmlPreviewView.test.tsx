@@ -71,6 +71,14 @@ const inlineItem: HtmlPreviewItem = {
 	htmlContent: "<!doctype html><html><body><h1>hello</h1></body></html>",
 }
 
+// Low-frequency toolbar actions (diagnostics, copy path, open in editor/browser,
+// reload, restart kernel, remove) live behind the "More actions" kebab menu
+// (see HtmlPreviewToolbar.tsx's kebabItems) rather than as directly-titled
+// buttons. Items render as visible text, not a `title` attribute.
+function openKebabMenu() {
+	fireEvent.click(screen.getByTitle("More actions"))
+}
+
 describe("HtmlPreviewView", () => {
 	it("renders empty state when no item is provided", () => {
 		render(<HtmlPreviewView />)
@@ -108,7 +116,8 @@ describe("HtmlPreviewView", () => {
 	it("shows technical diagnostics only when Details is clicked", () => {
 		render(<HtmlPreviewView item={inlineItem} />)
 		expect(screen.queryByText(/PREVIEW/)).not.toBeInTheDocument()
-		fireEvent.click(screen.getByTitle("Show technical diagnostics"))
+		openKebabMenu()
+		fireEvent.click(screen.getByText("Show diagnostics"))
 		expect(screen.getByText(/PREVIEW/)).toBeInTheDocument()
 	})
 
@@ -120,17 +129,20 @@ describe("HtmlPreviewView", () => {
 	it("copies the file path via the extension clipboard API", async () => {
 		copyToClipboardMock.mockClear()
 		render(<HtmlPreviewView item={baseItem} />)
-		fireEvent.click(screen.getByTitle("Copy file path"))
+		openKebabMenu()
+		fireEvent.click(screen.getByText("Copy file path"))
 		expect(copyToClipboardMock).toHaveBeenCalled()
 		const req = copyToClipboardMock.mock.calls[0][0] as ReturnType<typeof StringRequest.create>
 		expect(req.value).to.equal(baseItem.filePath)
-		expect(await screen.findByText("Copied")).toBeInTheDocument()
+		openKebabMenu()
+		expect(await screen.findByText("Path copied!")).toBeInTheDocument()
 	})
 
 	it("opens the source file in the default browser via the extension", () => {
 		openUrlMock.mockClear()
 		render(<HtmlPreviewView item={baseItem} />)
-		fireEvent.click(screen.getByTitle("Open in browser"))
+		openKebabMenu()
+		fireEvent.click(screen.getByText("Open in external browser"))
 		expect(openUrlMock).toHaveBeenCalled()
 		const req = openUrlMock.mock.calls[0][0] as ReturnType<typeof StringRequest.create>
 		expect(req.value).to.equal(baseItem.filePath)
@@ -139,14 +151,16 @@ describe("HtmlPreviewView", () => {
 	it("opens the source file in VS Code", () => {
 		openFileMock.mockClear()
 		render(<HtmlPreviewView item={baseItem} />)
-		fireEvent.click(screen.getByTitle("Open source file"))
+		openKebabMenu()
+		fireEvent.click(screen.getByText("Open source in editor"))
 		expect(openFileMock).toHaveBeenCalled()
 	})
 
 	it("dispatches htmlPreviewClear on Clear click", () => {
 		const spy = vi.spyOn(window, "dispatchEvent")
 		render(<HtmlPreviewView item={baseItem} />)
-		fireEvent.click(screen.getByTitle("Remove this preview"))
+		openKebabMenu()
+		fireEvent.click(screen.getByText("Remove this preview"))
 		const evt = spy.mock.calls[spy.mock.calls.length - 1][0] as CustomEvent
 		expect(evt.type).to.equal("htmlPreviewClear")
 		expect(evt.detail).to.deep.equal({ id: "html_test" })
@@ -156,7 +170,8 @@ describe("HtmlPreviewView", () => {
 	it("remounts the iframe with a new key after Refresh", () => {
 		render(<HtmlPreviewView item={baseItem} />)
 		const before = screen.getByTitle("Test Preview")
-		fireEvent.click(screen.getByTitle("Refresh preview"))
+		openKebabMenu()
+		fireEvent.click(screen.getByText("Reload preview iframe"))
 		const after = screen.getByTitle("Test Preview")
 		expect(after).toBeInTheDocument()
 		expect(after).not.to.equal(before)
@@ -209,13 +224,12 @@ describe("HtmlPreviewView", () => {
 
 	it("shows kernel restart in the toolbar", () => {
 		render(<HtmlPreviewView item={baseItem} />)
-		expect(screen.getByTitle("Restart kernel (clears variables for this artifact)")).toBeInTheDocument()
+		openKebabMenu()
+		expect(screen.getByText("Restart kernel")).toBeInTheDocument()
 	})
 
 	it("shows Run Cell control in the toolbar", () => {
 		render(<HtmlPreviewView item={baseItem} />)
-		expect(screen.getAllByTitle(/Run focused Python cell|No Python cells detected in this artifact/).length).toBeGreaterThan(
-			0,
-		)
+		expect(screen.getAllByTitle(/Run focused cell \(or first cell\)|No Python cells detected/).length).toBeGreaterThan(0)
 	})
 })
