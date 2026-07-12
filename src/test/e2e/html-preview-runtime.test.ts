@@ -113,6 +113,32 @@ async function waitForShell(page: Page): Promise<Frame> {
 	return waitForFrame(page, async (frame) => (await frame.title()) === "AI-Hydro HTML Preview")
 }
 
+async function waitForShellWithSrcdoc(page: Page, marker: string): Promise<Frame> {
+	return waitForFrame(page, async (frame) => {
+		if ((await frame.title()) !== "AI-Hydro HTML Preview") {
+			return false
+		}
+		const srcdoc = await frame.locator("iframe").first().getAttribute("srcdoc")
+		return srcdoc?.includes(marker) ?? false
+	})
+}
+
+async function countCourseOptions(page: Page): Promise<number> {
+	for (const frame of page.frames()) {
+		if (frame.isDetached()) {
+			continue
+		}
+		try {
+			if ((await frame.title()) === "AI-Hydro HTML Preview") {
+				return frame.getByTitle("Course options").count()
+			}
+		} catch {
+			// The provider replaces its frame while switching artifacts.
+		}
+	}
+	return 0
+}
+
 async function waitForCourseShell(page: Page): Promise<Frame> {
 	return waitForFrame(page, async (frame) => {
 		if ((await frame.title()) !== "AI-Hydro HTML Preview") {
@@ -197,14 +223,13 @@ runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async
 	)
 
 	await openWorkspaceFile(page, "index.html", true)
-	shell = await waitForShell(page)
 	await waitForFrame(page, async (frame) => (await frame.getByRole("heading", { name: "Test Workspace" }).count()) === 1)
-	await expect.poll(async () => shell.getByTitle("Course options").count()).toBe(0)
+	await expect.poll(async () => countCourseOptions(page)).toBe(0)
 
 	await openWorkspaceFile(page, "phase0/standalone-module.html")
 	artifact = await waitForCellFrame(page, "standalone-python")
-	shell = await waitForShell(page)
-	await expect.poll(async () => shell.getByTitle("Course options").count()).toBe(0)
+	await waitForShellWithSrcdoc(page, "standalone-runtime-fixture")
+	await expect.poll(async () => countCourseOptions(page)).toBe(0)
 	await runCell(artifact, "standalone-python")
 	const standaloneOutput = artifact.locator('[data-aihydro-cell-id="standalone-python"] .aihydro-output')
 	await expect(standaloneOutput).toContainText("standalone_execution=ok", { timeout: 30_000 })
@@ -214,12 +239,9 @@ runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async
 runtimeE2E("HTML Preview starts and executes a standalone module @phase0-smoke", async ({ page }) => {
 	await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, (route) => route.abort())
 	await openWorkspaceFile(page, "phase0/standalone-module.html")
-	const shell = await waitForShell(page)
-	await expect(shell.locator("iframe").first()).toHaveAttribute("srcdoc", /standalone-runtime-fixture/, {
-		timeout: 30_000,
-	})
 	const artifact = await waitForCellFrame(page, "standalone-python")
-	await expect.poll(async () => shell.getByTitle("Course options").count()).toBe(0)
+	await waitForShellWithSrcdoc(page, "standalone-runtime-fixture")
+	await expect.poll(async () => countCourseOptions(page)).toBe(0)
 	await runCell(artifact, "standalone-python")
 	const output = artifact.locator('[data-aihydro-cell-id="standalone-python"] .aihydro-output')
 	await expect(output).toContainText("standalone_execution=ok", { timeout: 60_000 })
