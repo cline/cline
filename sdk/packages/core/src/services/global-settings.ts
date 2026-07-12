@@ -42,6 +42,9 @@ export const GlobalSettingsSchema = z
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		compactionStrategy: GlobalCompactionStrategySchema.optional(),
+		autoApprove: z.boolean().optional(),
+		mode: z.enum(["plan", "act"]).optional(),
+		verbose: z.boolean().optional(),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -51,6 +54,9 @@ export const GlobalSettingsSchema = z
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
 			compactionStrategy?: GlobalCompactionStrategy;
+			autoApprove?: boolean;
+			mode?: "plan" | "act";
+			verbose?: boolean;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
@@ -59,6 +65,15 @@ export const GlobalSettingsSchema = z
 		};
 		if (settings.compactionStrategy) {
 			normalized.compactionStrategy = settings.compactionStrategy;
+		}
+		if (settings.autoApprove !== undefined) {
+			normalized.autoApprove = settings.autoApprove;
+		}
+		if (settings.mode !== undefined) {
+			normalized.mode = settings.mode;
+		}
+		if (settings.verbose !== undefined) {
+			normalized.verbose = settings.verbose;
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
@@ -201,6 +216,30 @@ export function setCompactionStrategyGlobally(
 	compactionStrategy: GlobalCompactionStrategy,
 ): void {
 	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
+}
+
+export function readAutoApproveGlobally(): boolean | undefined {
+	return readGlobalSettings().autoApprove;
+}
+
+export function setAutoApproveGlobally(autoApprove: boolean): void {
+	writeGlobalSettings({ ...readGlobalSettings(), autoApprove });
+}
+
+export function readModeGlobally(): "plan" | "act" | undefined {
+	return readGlobalSettings().mode;
+}
+
+export function setModeGlobally(mode: "plan" | "act"): void {
+	writeGlobalSettings({ ...readGlobalSettings(), mode });
+}
+
+export function readVerboseGlobally(): boolean | undefined {
+	return readGlobalSettings().verbose;
+}
+
+export function setVerboseGlobally(verbose: boolean): void {
+	writeGlobalSettings({ ...readGlobalSettings(), verbose });
 }
 
 export function resolveDisabledToolNames(

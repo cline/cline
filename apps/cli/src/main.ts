@@ -1,7 +1,11 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
-import type { ToolPolicy } from "@cline/core";
+import {
+	readAutoApproveGlobally,
+	readCompactionStrategyGlobally,
+	type ToolPolicy,
+} from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
@@ -844,7 +848,8 @@ export async function runCli(): Promise<void> {
 		}
 	}
 	setCurrentOutputMode(args.outputMode);
-	const defaultToolAutoApprove = true;
+	const persistedAutoApprove = readAutoApproveGlobally();
+	const defaultToolAutoApprove = persistedAutoApprove ?? true;
 	const effectiveToolAutoApprove =
 		args.autoApproveOverride ?? defaultToolAutoApprove;
 	const toolPolicies: Record<string, ToolPolicy> = {
@@ -1092,7 +1097,9 @@ export async function runCli(): Promise<void> {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
-			compaction: buildCliCompactionConfig(args.compactionMode),
+			compaction: buildCliCompactionConfig(
+				args.compactionMode ?? readCompactionStrategyGlobally(),
+			),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,

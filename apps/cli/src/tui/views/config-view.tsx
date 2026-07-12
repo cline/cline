@@ -1,4 +1,8 @@
-import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
+import {
+	readGlobalSettings,
+	setAutoUpdateEnabledGlobally,
+	setVerboseGlobally,
+} from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -618,10 +622,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						props.onSetCompactionMode(nextMode);
 						break;
 					}
-					case "verbose":
-						config.verbose = !verbose;
-						setVerbose(!verbose);
+					case "verbose": {
+						const next = !verbose;
+						config.verbose = next;
+						setVerbose(next);
+						setVerboseGlobally(next);
 						break;
+					}
 				}
 				break;
 			case "ext": {
