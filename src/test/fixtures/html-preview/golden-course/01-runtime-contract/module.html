@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-Hydro Interactive Module Contract Fixture</title>
+  <script type="application/vnd.aihydro.module+json">
+  {
+    "id": "runtime-contract-01",
+    "title": "AI-Hydro Interactive Module Contract Fixture",
+    "version": "0.1.0",
+    "authors": [{ "name": "AI-Hydro Research Team" }],
+    "license": "CC-BY-4.0",
+    "topic": "runtime-contract",
+    "level": "intro",
+    "estimated_minutes": 10,
+    "requires": {
+      "executable": true,
+      "python": ["matplotlib"]
+    }
+  }
+  </script>
+</head>
+<body class="aihydro-module">
+  <header class="aihydro-module-header">
+    <span class="aihydro-brand-mark">AI-Hydro</span>
+    <div>
+      <h1 class="aihydro-module-title">Interactive Module Contract Fixture</h1>
+      <p class="aihydro-authors">Deterministic runtime and course test fixture</p>
+    </div>
+  </header>
+
+  <main class="aihydro-content">
+    <section class="aihydro-step" data-aihydro-status="active">
+      <span class="aihydro-step-index">1 · State and controls</span>
+      <h2>Close a one-step water balance</h2>
+      <p>
+        The calculation uses equivalent water depths over one watershed and one common time step:
+        <strong>ending storage = beginning storage + precipitation − evapotranspiration − runoff</strong>.
+      </p>
+      <div class="aihydro-callout is-note">
+        <span class="aihydro-callout-title">Expected result</span>
+        With the authored default beginning storage of 100 mm, the ending storage is 110 mm.
+      </div>
+
+      <div class="aihydro-params">
+        <div class="aihydro-param-row">
+          <label for="fixture-storage">Beginning storage (mm)</label>
+          <input id="fixture-storage" type="range" min="50" max="150" step="5" value="100">
+          <span class="aihydro-param-value"><span data-aihydro-mirror="storage">100</span> mm</span>
+        </div>
+      </div>
+
+      <div class="aihydro-cell" data-aihydro-cell-id="fixture-state-create" data-language="python" data-execution="kernel">
+        <div class="aihydro-cell-header">
+          <span class="aihydro-cell-lang">python</span>
+          <span>Create deterministic kernel state</span>
+          <button class="aihydro-run" type="button">Run</button>
+        </div>
+        <pre class="aihydro-source">storage = {{storage}}
+precipitation = 20.0
+evapotranspiration = 4.0
+runoff = 6.0
+storage_next = storage + precipitation - evapotranspiration - runoff
+print(f"ending_storage={storage_next:.1f} mm")
+storage_next</pre>
+        <div class="aihydro-output" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="aihydro-step">
+      <span class="aihydro-step-index">2 · Shared namespace and image</span>
+      <h2>Read prior state and render a figure</h2>
+      <p>This cell intentionally reads <code>storage_next</code> from the first cell to test persistent state within one artifact.</p>
+
+      <div class="aihydro-cell" data-aihydro-cell-id="fixture-state-read-plot" data-language="python" data-execution="kernel">
+        <div class="aihydro-cell-header">
+          <span class="aihydro-cell-lang">python</span>
+          <span>Read state and return a matplotlib figure</span>
+          <button class="aihydro-run" type="button">Run</button>
+        </div>
+        <pre class="aihydro-source">import matplotlib.pyplot as plt
+
+labels = ["Initial storage", "Ending storage"]
+values = [storage, storage_next]
+fig, ax = plt.subplots(figsize=(5, 3))
+ax.bar(labels, values)
+ax.set_ylabel("Equivalent water depth (mm)")
+ax.set_title("Deterministic water-balance state")
+fig.tight_layout()
+fig</pre>
+        <div class="aihydro-output" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="aihydro-step">
+      <span class="aihydro-step-index">3 · Error recovery</span>
+      <h2>Render a deliberate error without crashing the panel</h2>
+      <p>The error is intentional. Run All should continue to completion after the error result is returned.</p>
+
+      <div class="aihydro-cell" data-aihydro-cell-id="fixture-error" data-language="python" data-execution="kernel">
+        <div class="aihydro-cell-header">
+          <span class="aihydro-cell-lang">python</span>
+          <span>Deterministic error</span>
+          <button class="aihydro-run" type="button">Run</button>
+        </div>
+        <pre class="aihydro-source">raise ValueError("intentional runtime-contract fixture error")</pre>
+        <div class="aihydro-output" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="aihydro-step">
+      <span class="aihydro-step-index">4 · Self-check</span>
+      <h2>Complete the deterministic checkpoint</h2>
+      <div id="runtime-contract-quiz" class="aihydro-quiz">
+        <div class="aihydro-quiz-question" data-answer="1">
+          <p class="q-text">Using the authored defaults, what is the ending storage?</p>
+          <label class="aihydro-quiz-option">
+            <input type="radio" name="runtime-contract-q1" value="0"> 90 mm
+          </label>
+          <label class="aihydro-quiz-option">
+            <input type="radio" name="runtime-contract-q1" value="1"> 110 mm
+          </label>
+          <label class="aihydro-quiz-option">
+            <input type="radio" name="runtime-contract-q1" value="2"> 130 mm
+          </label>
+          <div class="aihydro-quiz-feedback" data-fb="0">Inputs were subtracted from storage instead of added.</div>
+          <div class="aihydro-quiz-feedback" data-fb="2">Both losses must be subtracted from the initial storage plus precipitation.</div>
+        </div>
+        <button class="aihydro-quiz-submit" type="button">Check answers</button>
+        <span id="quizScore" aria-live="polite"></span>
+      </div>
+      <p class="aihydro-callout is-warning">
+        This is an inspectable self-check fixture, not a secure graded assessment. The current answer index is present in the HTML contract.
+      </p>
+    </section>
+
+    <section>
+      <h2>References</h2>
+      <p>Mass closure is used here as an internal-consistency check, not as proof that process partitioning is physically correct.</p>
+    </section>
+
+    <footer class="aihydro-provenance">
+      <dl>
+        <dt>Purpose</dt>
+        <dd>Runtime, kernel, state, output, quiz, progress, and navigation contract testing.</dd>
+        <dt>License</dt>
+        <dd><a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></dd>
+      </dl>
+    </footer>
+  </main>
+
+  <script>
+  (function waitForAiHydroBridge() {
+    if (!window.aihydro) {
+      window.setTimeout(waitForAiHydroBridge, 50);
+      return;
+    }
+    window.aihydro.bindParam({
+      from: "#fixture-storage",
+      cellId: "fixture-state-create",
+      name: "storage",
+      autorun: false
+    });
+  })();
+  </script>
+</body>
+</html>
