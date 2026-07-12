@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import * as path from "node:path"
 import * as vscode from "vscode"
 import { type DetectedMode, detectMode } from "./detectMode"
+import { getHtmlUtf8ByteLength } from "./inlineHtmlPolicy"
 
 /**
  * A single artifact tracked by the preview system.
@@ -26,12 +27,9 @@ export interface ArtifactRef {
 	contentHash: string
 	createdAt: number
 	/**
-	 * Raw HTML of the artifact at registration time. Used by the webview
-	 * to render via `<iframe srcdoc>`, which is the only reliable way to
-	 * preview the content in a VS Code webview: `asWebviewUri()` serves
-	 * the file from a *different* origin than the parent webview, so
-	 * cross-origin frame blocking can render the iframe blank even when
-	 * the response status is 200.
+	 * Raw HTML of the artifact at registration time. Artifacts within the
+	 * inline payload cap use this for the preferred `<iframe srcdoc>` path;
+	 * larger artifacts remain available through their webview URI fallback.
 	 */
 	html: string
 	byteLength: number
@@ -167,6 +165,7 @@ export class ArtifactPreviewService {
 		html: string
 		preferredMode?: DetectedMode
 	}): ArtifactRef {
+		const byteLength = getHtmlUtf8ByteLength(args.html)
 		const contentHash = createHash("sha256").update(args.html).digest("hex")
 		const id = `${args.source}_${createHash("sha1").update(args.fsPath).digest("hex").slice(0, 16)}`
 		const mode = args.preferredMode ?? detectMode(args.html)
@@ -180,13 +179,13 @@ export class ArtifactPreviewService {
 			contentHash,
 			createdAt: Date.now(),
 			html: args.html,
-			byteLength: args.html.length,
+			byteLength,
 			metadata: {
 				timestamp: new Date().toISOString(),
 				source: args.source,
 				contentType: "text/html",
 				detectedMode: mode,
-				byteLength: String(args.html.length),
+				byteLength: String(byteLength),
 			},
 		}
 	}

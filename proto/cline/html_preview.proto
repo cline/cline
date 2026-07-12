@@ -10,18 +10,15 @@ import "cline/common.proto";
 
 // Message representing an HTML preview item.
 //
-// IMPORTANT (post-redesign): `html_content` is no longer streamed to the
-// webview. The webview always renders the artifact by setting an <iframe>
-// src to `webview_uri`, which is a URL produced by
-// `vscode.Webview.asWebviewUri()` and served by VS Code as a real HTTP
-// response from disk. This makes relative paths, CDN scripts (Folium,
-// Leaflet, Plotly), and large files work the same way they would in a
-// real browser. `html_content` is kept for backward compatibility only
-// and is intentionally left empty by the extension.
+// The extension sends `html_content` when the UTF-8 payload is at or below
+// the inline cap so the webview can use the preferred same-origin `srcdoc`
+// path and inject the executable-module bridge. Larger artifacts leave this
+// field empty and render from `webview_uri`. The URI is also retained for
+// file identity, relative resources, and cache busting.
 message HtmlPreviewItem {
     string id = 1;                    // Unique preview identifier
     string title = 2;                 // Display title
-    string html_content = 3;          // Deprecated. Kept empty; never sent to the webview.
+    string html_content = 3;          // Inline HTML for srcdoc when within the extension's payload cap.
     string file_path = 4;             // Workspace-relative or absolute filesystem path
     bool interactive = 5;             // Deprecated convenience flag. See resolved_mode.
     map<string, string> metadata = 6; // Free-form metadata (timestamp, source, contentType, …)

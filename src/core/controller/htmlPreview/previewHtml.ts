@@ -17,13 +17,12 @@ import type { Controller } from ".."
  *      served via `webview.asWebviewUri()` like any on-disk file.
  *
  *   2. FILE — `file_path` is set: an absolute or workspace-relative path
- *      to an existing `.html`/`.htm` file. The file is read once at
- *      registration time to compute its hash and detect interactive mode,
- *      but its contents are NOT shipped over gRPC. The webview iframe
- *      loads the file directly via `asWebviewUri`.
+ *      to an existing `.html`/`.htm` file. The file is registered from its
+ *      original location so sibling resources keep their relative base.
  *
- * The legacy `htmlContent` field on `HtmlPreviewItem` is intentionally
- * left empty in both cases; see `proto/cline/html_preview.proto`.
+ * Both registrations use the same wire policy: HTML at or below the UTF-8
+ * inline cap is sent for the preferred `srcdoc` path; larger artifacts leave
+ * `htmlContent` empty and fall back to `webviewUri`.
  */
 export async function previewHtml(controller: Controller, request: PreviewHtmlRequest): Promise<Empty> {
 	const svc = controller.getArtifactPreviewService()

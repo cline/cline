@@ -15,6 +15,7 @@ import { AiHydroAccountService } from "@services/account/AiHydroAccountService"
 import { ArtifactKernelService } from "@services/artifact-preview/ArtifactKernelService"
 import type { ArtifactRef } from "@services/artifact-preview/ArtifactPreviewService"
 import { ArtifactPreviewService } from "@services/artifact-preview/ArtifactPreviewService"
+import { shouldInlineHtml } from "@services/artifact-preview/inlineHtmlPolicy"
 import { geoFormatConverter } from "@services/geo/GeoFormatConverter"
 import { GeoConversionError } from "@services/geo/types"
 import { McpHub } from "@services/mcp/McpHub"
@@ -123,14 +124,6 @@ export class Controller {
 	private htmlPreviewSubscribers: Set<(item: HtmlPreviewItem) => void> = new Set()
 	private htmlPreviewVersion = 0
 	private htmlPreviewActiveId: string | null = null
-
-	/**
-	 * Cap on the inline `htmlContent` payload we put on the wire. Folium
-	 * maps with embedded GeoJSON can be 4–8 MB; gRPC + JSON serialization
-	 * across the webview boundary tolerates that fine. Beyond this cap we
-	 * tell the webview to load via `webviewUri` instead.
-	 */
-	private static readonly MAX_INLINE_HTML_BYTES = 8 * 1024 * 1024
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -1442,10 +1435,9 @@ export class Controller {
 		}
 		const { src, dir } = VscodeHtmlPreviewProvider.getArtifactWebviewUri(ref)
 		// Ship HTML inline so the iframe can use `srcdoc` (same-origin with
-		// the parent webview, our CSP applies). For very large artifacts we
-		// skip the inline copy to keep gRPC messages reasonable; the webview
-		// can fall back to `webviewUri` in those cases.
-		const inlineHtml = ref.byteLength <= Controller.MAX_INLINE_HTML_BYTES ? ref.html : ""
+		// the parent webview, our CSP applies). Above the UTF-8 byte cap we
+		// skip the inline copy and fall back to `webviewUri`.
+		const inlineHtml = shouldInlineHtml(ref.byteLength) ? ref.html : ""
 		return HtmlPreviewItem.create({
 			id: ref.id,
 			title: ref.title,
