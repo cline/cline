@@ -4,6 +4,7 @@
  * Factory functions for creating the default tools.
  */
 
+import path from "node:path";
 import {
 	type AgentTool,
 	type AgentToolContext,
@@ -343,6 +344,18 @@ export function createSearchTool(
 ): AgentTool<SearchCodebaseInput, ToolOperationResult[]> {
 	const timeoutMs = config.searchTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
+	const isWindowsAbsolutePath = (value: string): boolean =>
+		/^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(value);
+	const resolveSearchRoot = (inputPath: string | undefined): string => {
+		const trimmed = inputPath?.trim();
+		if (!trimmed) {
+			return cwd;
+		}
+		if (path.isAbsolute(trimmed) || isWindowsAbsolutePath(trimmed)) {
+			return trimmed;
+		}
+		return path.resolve(cwd, trimmed);
+	};
 
 	return createTool<SearchCodebaseInput, ToolOperationResult[]>({
 		name: "search_codebase",
@@ -358,19 +371,28 @@ export function createSearchTool(
 		execute: async (input, context) => {
 			// Validate input with Zod schema
 			const validate = validateWithZod(SearchCodebaseUnionInputSchema, input);
+			const inputPath =
+				typeof validate === "object" &&
+				!Array.isArray(validate) &&
+				"path" in validate
+					? validate.path
+					: undefined;
+			const searchRoot = resolveSearchRoot(inputPath);
 			const queries = Array.isArray(validate)
 				? validate
 				: typeof validate === "object"
-					? Array.isArray(validate.queries)
-						? validate.queries
-						: [validate.queries]
+					? "regex" in validate
+						? [validate.regex]
+						: Array.isArray(validate.queries)
+							? validate.queries
+							: [validate.queries]
 					: [validate];
 
 			return Promise.all(
 				queries.map(async (query): Promise<ToolOperationResult> => {
 					try {
 						const results = await withTimeout(
-							executor(query, cwd, context),
+							executor(query, searchRoot, context),
 							timeoutMs,
 							`Search timed out after ${timeoutMs}ms`,
 						);
