@@ -64,8 +64,6 @@ interface HtmlPreviewViewProps {
 	/** Whether the parent side panel (Files/Modules/Skills/Comments) is open. Optional — defaults to true with a no-op toggle. */
 	sidePanelOpen?: boolean
 	onToggleSidePanel?: () => void
-	/** Fired when a checkpoint quiz inside the artifact is submitted. Lets the panel advance course progress. */
-	onQuizComplete?: (info: { passed: boolean; score?: number; total?: number; quizId?: string }) => void
 }
 
 interface FetchInfo {
@@ -209,7 +207,7 @@ function sendModuleState(
 	})
 }
 
-const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel, onQuizComplete }) => {
+const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel }) => {
 	const { setManifest, loadWorkspaceFile } = useHtmlPreviewContext()
 	// Phase A: detect a course.json in the active module's parent folder
 	const { course, courseRoot, currentModuleId } = useCourse(item?.filePath)
@@ -733,7 +731,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 					{ ...eventBase, quizId: data.quizId, passed: data.passed, score: data.score, total: data.total },
 					"user",
 				)
-				onQuizComplete?.({ passed: Boolean(data.passed), score: data.score, total: data.total, quizId: data.quizId })
+				if (data.passed && course && currentModuleId && !courseProgress.isCompleted(currentModuleId)) {
+					void courseProgress.markComplete(currentModuleId)
+				}
 				return
 			}
 			// Module-state persistence (Phase 1c): the bridge asks for saved state
@@ -754,7 +754,17 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		}
 		window.addEventListener("message", onMessage)
 		return () => window.removeEventListener("message", onMessage)
-	}, [handleArtifactRunCode, item?.id, item?.filePath, refreshKernelInfo, setManifest, onQuizComplete, postResultToIframe])
+	}, [
+		course,
+		courseProgress,
+		currentModuleId,
+		handleArtifactRunCode,
+		item?.id,
+		item?.filePath,
+		postResultToIframe,
+		refreshKernelInfo,
+		setManifest,
+	])
 
 	// ── Bridge event relay (iframe → webview → host) ────────────────────────
 	// The aihydro-bridge core posts `aihydro-preview-event` messages from inside

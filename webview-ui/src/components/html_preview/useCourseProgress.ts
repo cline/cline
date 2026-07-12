@@ -42,6 +42,16 @@ interface ProgressRequest {
 	timeSpentMs?: number
 }
 
+const COURSE_PROGRESS_CHANGED_EVENT = "aihydro-course-progress-changed"
+
+function publishProgress(progress: CourseProgress): void {
+	window.dispatchEvent(
+		new CustomEvent(COURSE_PROGRESS_CHANGED_EVENT, {
+			detail: { courseId: progress.courseId, progress },
+		}),
+	)
+}
+
 function emptyProgress(courseId: string): CourseProgress {
 	const now = Date.now()
 	return { courseId, startedAt: now, lastVisitedAt: now, currentModuleId: null, completed: {} }
@@ -141,6 +151,17 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 		}
 	}, [courseId])
 
+	useEffect(() => {
+		const onProgressChanged = (event: Event) => {
+			const detail = (event as CustomEvent<{ courseId?: string; progress?: CourseProgress }>).detail
+			if (detail?.courseId === courseId && detail.progress) {
+				setProgress(detail.progress)
+			}
+		}
+		window.addEventListener(COURSE_PROGRESS_CHANGED_EVENT, onProgressChanged)
+		return () => window.removeEventListener(COURSE_PROGRESS_CHANGED_EVENT, onProgressChanged)
+	}, [courseId])
+
 	const markComplete = useCallback(
 		async (moduleId: string, timeSpentMs?: number) => {
 			if (!courseId) {
@@ -149,6 +170,7 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 			const fresh = await sendProgress({ action: "complete", courseId, moduleId, timeSpentMs })
 			if (fresh) {
 				setProgress(fresh)
+				publishProgress(fresh)
 			}
 		},
 		[courseId],
@@ -162,6 +184,7 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 			const fresh = await sendProgress({ action: "uncomplete", courseId, moduleId })
 			if (fresh) {
 				setProgress(fresh)
+				publishProgress(fresh)
 			}
 		},
 		[courseId],
@@ -174,6 +197,7 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 		const fresh = await sendProgress({ action: "reset", courseId })
 		if (fresh) {
 			setProgress(fresh)
+			publishProgress(fresh)
 		}
 	}, [courseId])
 
@@ -185,6 +209,7 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 			const fresh = await sendProgress({ action: "set-current", courseId, moduleId })
 			if (fresh) {
 				setProgress(fresh)
+				publishProgress(fresh)
 			}
 		},
 		[courseId],
