@@ -167,7 +167,6 @@ async function showExplorer(page: Page): Promise<void> {
 		await sidebar.waitFor({ state: "visible", timeout: 2_000 })
 	} catch {
 		await page.getByRole("button", { name: /Toggle Primary Side Bar/ }).click()
-		await explorerTab.click()
 	}
 	await sidebar.waitFor({ state: "visible", timeout: 10_000 })
 }
