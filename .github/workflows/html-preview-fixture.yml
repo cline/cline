@@ -1,0 +1,42 @@
+name: HTML Preview Fixture
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/test/fixtures/html-preview/**"
+      - "src/services/artifact-preview/__tests__/goldenFixture.test.ts"
+      - "src/services/artifact-preview/validateModule.ts"
+      - ".github/workflows/html-preview-fixture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-fixture:
+    name: Validate golden fixture
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run fixture unit test
+        env:
+          TS_NODE_PROJECT: ./tsconfig.unit-test.json
+        run: >-
+          npx mocha
+          --no-config
+          --require ts-node/register
+          --require source-map-support/register
+          --require ./src/test/requires.ts
+          src/services/artifact-preview/__tests__/goldenFixture.test.ts

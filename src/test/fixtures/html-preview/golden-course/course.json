@@ -1,0 +1,29 @@
+{
+	"courseId": "aihydro-runtime-contract-fixture",
+	"title": "AI-Hydro Runtime Contract Fixture",
+	"version": "0.1.0",
+	"license": "CC-BY-4.0",
+	"abstract": "Deterministic fixture for the current HTML Preview course, progress, and prerequisite contracts.",
+	"kernel": "isolated",
+	"estimatedHours": 0.25,
+	"modules": [
+		{
+			"id": "runtime-contract-01",
+			"path": "01-runtime-contract/module.html",
+			"title": "Runtime Contract",
+			"abstract": "Exercises executable cells, outputs, state persistence, errors, and a self-check.",
+			"estimatedMinutes": 10,
+			"prerequisites": []
+		},
+		{
+			"id": "runtime-contract-02",
+			"path": "02-prerequisite-target/module.html",
+			"title": "Prerequisite Target",
+			"abstract": "Verifies that course navigation unlocks after the first module is completed.",
+			"estimatedMinutes": 5,
+			"prerequisites": [
+				"runtime-contract-01"
+			]
+		}
+	]
+}
