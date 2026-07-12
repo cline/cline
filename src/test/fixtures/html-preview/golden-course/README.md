@@ -26,6 +26,12 @@ The fixture should become the compatibility target for:
 
 Future generators may target this contract only after the corresponding runtime behavior is covered by tests.
 
+## Validation stages
+
+1. Static validator and contract assertions.
+2. VS Code runtime execution and persistence checks.
+3. Quarto-generated output equivalence after the runtime contract is fully audited.
+
 ## Scope
 
 This fixture does not claim secure assessment: the current canonical self-check quiz stores its answer index in HTML markup. It is suitable for deterministic learning checkpoints and runtime tests.
