@@ -109,7 +109,12 @@ export class VscodeExperimentTableProvider {
 						panel.webview.postMessage({ type: "session_list", sessions: listSessionIds() })
 						break
 					case "load_experiment":
-						VscodeExperimentTableProvider.handleLoadExperiment(panel, message.session_id, message.experiment_id)
+						VscodeExperimentTableProvider.handleLoadExperiment(
+							panel,
+							message.session_id,
+							message.experiment_id,
+							message.request_tag,
+						)
 						break
 					case "open_replay":
 						{
@@ -184,13 +189,24 @@ export class VscodeExperimentTableProvider {
 		}
 	}
 
-	private static handleLoadExperiment(panel: vscode.WebviewPanel, sessionId: string, experimentId?: string): void {
+	private static handleLoadExperiment(
+		panel: vscode.WebviewPanel,
+		sessionId: string,
+		experimentId?: string,
+		requestTag?: string,
+	): void {
+		// request_tag round-trips whatever the webview sent (e.g. "compare") so
+		// it can route this response to a different piece of state (comparing
+		// a second experiment) without a second message type or touching the
+		// primary load_experiment/experiment_table_data contract.
+		const tag = requestTag ? { request_tag: String(requestTag) } : {}
 		try {
 			if (!sessionId?.trim()) {
 				panel.webview.postMessage({
 					type: "experiment_table_error",
 					message:
 						"Enter a session_id/path. Experiment id is optional; the first available experiment will load automatically.",
+					...tag,
 				})
 				return
 			}
@@ -204,6 +220,7 @@ export class VscodeExperimentTableProvider {
 				results: exp.results,
 				available_experiment_ids: exp.availableExperimentIds,
 				session_path: exp.sessionPath,
+				...tag,
 			})
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err)
@@ -211,6 +228,7 @@ export class VscodeExperimentTableProvider {
 				panel.webview.postMessage({
 					type: "experiment_table_empty",
 					message: `${msg} This is normal for single-gauge analyses that have replay runs/signatures but no explicit experiment matrix yet.`,
+					...tag,
 				})
 				return
 			}
@@ -218,6 +236,7 @@ export class VscodeExperimentTableProvider {
 			panel.webview.postMessage({
 				type: "experiment_table_error",
 				message: `Failed to load experiment: ${msg}`,
+				...tag,
 			})
 		}
 	}

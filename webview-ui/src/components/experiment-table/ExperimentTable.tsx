@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { PLATFORM_CONFIG } from "../../config/platform.config"
+import { ExperimentDeltaView } from "./ExperimentDeltaView"
+import { type DistributionPoint, MetricDistributionChart } from "./MetricDistributionChart"
 
 interface ExperimentDefn {
 	experiment_id: string
@@ -172,6 +174,10 @@ export const ExperimentTable: React.FC = () => {
 	const [sortDir, setSortDir] = useState<SortDir>("asc")
 	const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
 	const [recentSessions, setRecentSessions] = useState<string[]>([])
+	const [activeTab, setActiveTab] = useState<"table" | "plots">("table")
+	const [compareExperimentId, setCompareExperimentId] = useState<string>("")
+	const [compareData, setCompareData] = useState<ExperimentData | null>(null)
+	const [compareLoading, setCompareLoading] = useState(false)
 	const listenerRef = useRef<((e: MessageEvent) => void) | null>(null)
 
 	useEffect(() => {
@@ -180,7 +186,23 @@ export const ExperimentTable: React.FC = () => {
 			if (!msg?.type) {
 				return
 			}
-			if (msg.type === "experiment_table_data") {
+			if (msg.type === "experiment_table_data" && msg.request_tag === "compare") {
+				setCompareData({
+					sessionId: String(msg.session_id ?? msg.session_path ?? ""),
+					experiment_id: msg.experiment_id,
+					defn: msg.defn,
+					results: msg.results,
+					availableExperimentIds: msg.available_experiment_ids ?? [],
+					sessionPath: msg.session_path,
+				})
+				setCompareLoading(false)
+			} else if (
+				(msg.type === "experiment_table_empty" || msg.type === "experiment_table_error") &&
+				msg.request_tag === "compare"
+			) {
+				setCompareData(null)
+				setCompareLoading(false)
+			} else if (msg.type === "experiment_table_data") {
 				const resolvedExperimentId = String(msg.experiment_id ?? "")
 				setExperimentId(resolvedExperimentId)
 				setData({
@@ -233,8 +255,28 @@ export const ExperimentTable: React.FC = () => {
 		setError(null)
 		setEmptyMessage(null)
 		setData(null)
+		setCompareData(null)
+		setCompareExperimentId("")
 		postMessage({ type: "load_experiment", session_id: sessionId.trim(), experiment_id: experimentId.trim() || undefined })
 	}, [sessionId, experimentId])
+
+	const loadCompareExperiment = useCallback(
+		(otherExperimentId: string) => {
+			setCompareExperimentId(otherExperimentId)
+			if (!otherExperimentId || !data) {
+				setCompareData(null)
+				return
+			}
+			setCompareLoading(true)
+			postMessage({
+				type: "load_experiment",
+				session_id: data.sessionPath ?? data.sessionId,
+				experiment_id: otherExperimentId,
+				request_tag: "compare",
+			})
+		},
+		[data],
+	)
 
 	const loadDemo = useCallback(() => {
 		setSessionId("demo-reproducibility-cockpit")
@@ -243,6 +285,8 @@ export const ExperimentTable: React.FC = () => {
 		setError(null)
 		setEmptyMessage(null)
 		setData(null)
+		setCompareData(null)
+		setCompareExperimentId("")
 		postMessage({ type: "load_experiment", session_id: "demo-reproducibility-cockpit", experiment_id: "panel_smoke_exp" })
 	}, [])
 
@@ -333,6 +377,30 @@ export const ExperimentTable: React.FC = () => {
 		}
 		return `${pass}/${total} basins pass monitored skill metrics for this experiment.`
 	}, [tableData, data])
+
+	const distributionsByMetric = React.useMemo(() => {
+		if (!tableData) {
+			return {} as Record<string, DistributionPoint[]>
+		}
+		const out: Record<string, DistributionPoint[]> = {}
+		for (const metric of tableData.metrics) {
+			out[metric] = tableData.rows
+				.map((row) => {
+					const cell = row[metric] as MetricCell | null
+					if (!cell || typeof cell.value !== "number" || !Number.isFinite(cell.value)) {
+						return null
+					}
+					const status = metricStatus(metric, cell.value)
+					return {
+						featureId: String(row.feature_id),
+						value: cell.value,
+						statusColor: metricStatusColor(status),
+					}
+				})
+				.filter((p): p is DistributionPoint => p !== null)
+		}
+		return out
+	}, [tableData])
 
 	const handleRowClick = useCallback((featureId: string) => {
 		setSelectedFeatureId((prev) => (prev === featureId ? null : featureId))
@@ -522,114 +590,238 @@ export const ExperimentTable: React.FC = () => {
 						</div>
 					)}
 
-					<div className="flex-1 overflow-auto rounded border border-[var(--vscode-panel-border)]">
-						<table className="text-[10px] border-collapse w-full">
-							<thead className="sticky top-0 bg-[var(--vscode-editor-background)] z-10">
-								<tr>
-									{tableData.columns.map((col) => (
-										<SortHeader col={col} key={col} onSort={handleSort} sortCol={sortCol} sortDir={sortDir} />
-									))}
-								</tr>
-							</thead>
-							<tbody>
-								{sortedRows.map((row, i) => {
-									const fid = String(row.feature_id)
-									const isSelected = fid === selectedFeatureId
-									const review = String(row.row_status) as MetricStatus
-									return (
-										<tr
-											className={[
-												"border-b border-[var(--vscode-panel-border)] cursor-pointer",
-												isSelected
-													? "outline outline-1 outline-[var(--vscode-focusBorder)] shadow-[inset_3px_0_0_var(--vscode-focusBorder)] bg-[var(--vscode-list-hoverBackground)]"
-													: i % 2 === 0
-														? "hover:bg-[var(--vscode-list-hoverBackground)]"
-														: "bg-[var(--vscode-list-inactiveSelectionBackground)] hover:bg-[var(--vscode-list-hoverBackground)]",
-											].join(" ")}
-											key={fid}
-											onClick={() => handleRowClick(fid)}
-											title="Click row to highlight basin on map">
-											<td className="px-2 py-1 font-mono font-semibold whitespace-nowrap">{fid}</td>
-											<td className="px-2 py-1">
-												<span
-													className="text-[9px] px-1.5 py-0.5 rounded border border-[var(--vscode-panel-border)]"
-													style={{ color: metricStatusColor(review) }}>
-													{review === "warn" ? "review" : review}
-												</span>
-											</td>
-											{tableData.metrics.map((metric) => {
-												const cell = row[metric] as MetricCell | null
-												const status = metricStatus(metric, cell?.value)
-												return (
-													<td className="px-2 py-1 font-mono min-w-[110px]" key={metric}>
-														<div className="flex items-center gap-1">
-															<span className="font-semibold">{fmt(cell?.value)}</span>
-															{status !== "unknown" && (
-																<span
-																	className="text-[8px] px-1 rounded border border-[var(--vscode-panel-border)]"
-																	style={{ color: metricStatusColor(status) }}>
-																	{status}
-																</span>
-															)}
-														</div>
-														{tableData.metricHasCi[metric] && (
-															<div className="text-[8px] opacity-65">
-																CI {fmt(cell?.ci_low)}–{fmt(cell?.ci_high)}
-															</div>
-														)}
-													</td>
-												)
-											})}
-											<td className="px-2 py-1">
-												<RunChip
-													runId={row.run_id as string | null}
-													sessionId={data.sessionPath ?? data.sessionId}
-												/>
-											</td>
-										</tr>
-									)
-								})}
-							</tbody>
-						</table>
+					<div className="flex items-center gap-1 shrink-0">
+						<button
+							className={`text-[10px] px-2 py-0.5 rounded-t border border-b-0 border-[var(--vscode-panel-border)] ${
+								activeTab === "table"
+									? "bg-[var(--vscode-editor-background)] font-semibold"
+									: "bg-[var(--vscode-list-inactiveSelectionBackground)] opacity-70 hover:opacity-100"
+							}`}
+							onClick={() => setActiveTab("table")}
+							type="button">
+							<span className="codicon codicon-table text-[10px] mr-1" />
+							Table
+						</button>
+						<button
+							className={`text-[10px] px-2 py-0.5 rounded-t border border-b-0 border-[var(--vscode-panel-border)] ${
+								activeTab === "plots"
+									? "bg-[var(--vscode-editor-background)] font-semibold"
+									: "bg-[var(--vscode-list-inactiveSelectionBackground)] opacity-70 hover:opacity-100"
+							}`}
+							onClick={() => setActiveTab("plots")}
+							type="button">
+							<span className="codicon codicon-graph-line text-[10px] mr-1" />
+							Plots
+						</button>
 					</div>
 
-					{Object.keys(tableData.agg).length > 0 && (
-						<div
-							className="grid gap-2 shrink-0"
-							style={{ gridTemplateColumns: `repeat(${Math.min(tableData.metrics.length, 3)}, 1fr)` }}>
-							{tableData.metrics.map(
-								(metric) =>
-									tableData.agg[metric] && (
-										<div
-											className="text-[9px] rounded border border-[var(--vscode-panel-border)] px-2 py-1 bg-[var(--vscode-list-inactiveSelectionBackground)]"
-											key={metric}>
-											<div className="font-semibold opacity-75 mb-0.5 uppercase tracking-wide">
-												{metric}
-											</div>
-											<div className="font-mono flex gap-3 flex-wrap">
-												<span>
-													<span className="opacity-55">mean </span>
-													{fmt(tableData.agg[metric].mean)}
-												</span>
-												<span>
-													<span className="opacity-55">±std </span>
-													{fmt(tableData.agg[metric].std)}
-												</span>
-												<span>
-													<span className="opacity-55">range </span>
-													{fmt(tableData.agg[metric].min)}–{fmt(tableData.agg[metric].max)}
-												</span>
-											</div>
-										</div>
-									),
+					{activeTab === "table" && (
+						<>
+							<div className="flex-1 overflow-auto rounded border border-[var(--vscode-panel-border)]">
+								<table className="text-[10px] border-collapse w-full">
+									<thead className="sticky top-0 bg-[var(--vscode-editor-background)] z-10">
+										<tr>
+											{tableData.columns.map((col) => (
+												<SortHeader
+													col={col}
+													key={col}
+													onSort={handleSort}
+													sortCol={sortCol}
+													sortDir={sortDir}
+												/>
+											))}
+										</tr>
+									</thead>
+									<tbody>
+										{sortedRows.map((row, i) => {
+											const fid = String(row.feature_id)
+											const isSelected = fid === selectedFeatureId
+											const review = String(row.row_status) as MetricStatus
+											return (
+												<tr
+													className={[
+														"border-b border-[var(--vscode-panel-border)] cursor-pointer",
+														isSelected
+															? "outline outline-1 outline-[var(--vscode-focusBorder)] shadow-[inset_3px_0_0_var(--vscode-focusBorder)] bg-[var(--vscode-list-hoverBackground)]"
+															: i % 2 === 0
+																? "hover:bg-[var(--vscode-list-hoverBackground)]"
+																: "bg-[var(--vscode-list-inactiveSelectionBackground)] hover:bg-[var(--vscode-list-hoverBackground)]",
+													].join(" ")}
+													key={fid}
+													onClick={() => handleRowClick(fid)}
+													title="Click row to highlight basin on map">
+													<td className="px-2 py-1 font-mono font-semibold whitespace-nowrap">{fid}</td>
+													<td className="px-2 py-1">
+														<span
+															className="text-[9px] px-1.5 py-0.5 rounded border border-[var(--vscode-panel-border)]"
+															style={{ color: metricStatusColor(review) }}>
+															{review === "warn" ? "review" : review}
+														</span>
+													</td>
+													{tableData.metrics.map((metric) => {
+														const cell = row[metric] as MetricCell | null
+														const status = metricStatus(metric, cell?.value)
+														return (
+															<td className="px-2 py-1 font-mono min-w-[110px]" key={metric}>
+																<div className="flex items-center gap-1">
+																	<span className="font-semibold">{fmt(cell?.value)}</span>
+																	{status !== "unknown" && (
+																		<span
+																			className="text-[8px] px-1 rounded border border-[var(--vscode-panel-border)]"
+																			style={{ color: metricStatusColor(status) }}>
+																			{status}
+																		</span>
+																	)}
+																</div>
+																{tableData.metricHasCi[metric] && (
+																	<div className="text-[8px] opacity-65">
+																		CI {fmt(cell?.ci_low)}–{fmt(cell?.ci_high)}
+																	</div>
+																)}
+															</td>
+														)
+													})}
+													<td className="px-2 py-1">
+														<RunChip
+															runId={row.run_id as string | null}
+															sessionId={data.sessionPath ?? data.sessionId}
+														/>
+													</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</table>
+							</div>
+
+							{Object.keys(tableData.agg).length > 0 && (
+								<div
+									className="grid gap-2 shrink-0"
+									style={{ gridTemplateColumns: `repeat(${Math.min(tableData.metrics.length, 3)}, 1fr)` }}>
+									{tableData.metrics.map(
+										(metric) =>
+											tableData.agg[metric] && (
+												<div
+													className="text-[9px] rounded border border-[var(--vscode-panel-border)] px-2 py-1 bg-[var(--vscode-list-inactiveSelectionBackground)]"
+													key={metric}>
+													<div className="font-semibold opacity-75 mb-0.5 uppercase tracking-wide">
+														{metric}
+													</div>
+													<div className="font-mono flex gap-3 flex-wrap">
+														<span>
+															<span className="opacity-55">mean </span>
+															{fmt(tableData.agg[metric].mean)}
+														</span>
+														<span>
+															<span className="opacity-55">±std </span>
+															{fmt(tableData.agg[metric].std)}
+														</span>
+														<span>
+															<span className="opacity-55">range </span>
+															{fmt(tableData.agg[metric].min)}–{fmt(tableData.agg[metric].max)}
+														</span>
+													</div>
+												</div>
+											),
+									)}
+								</div>
 							)}
+							<div className="text-[9px] opacity-55 flex items-center gap-2 shrink-0">
+								<span>Run chips open Session Replay at the selected run.</span>
+								<span>Rows highlight matching map layers.</span>
+								{selectedFeatureId && <span className="ml-auto font-mono">highlighting {selectedFeatureId}</span>}
+							</div>
+						</>
+					)}
+
+					{activeTab === "plots" && (
+						<div className="flex-1 overflow-auto flex flex-col gap-2">
+							<div className="flex items-center gap-3 text-[9px] shrink-0 px-0.5">
+								<span className="opacity-60">Status:</span>
+								<span className="flex items-center gap-1">
+									<span
+										className="inline-block w-2 h-2 rounded-full"
+										style={{ background: metricStatusColor("pass") }}
+									/>
+									pass
+								</span>
+								<span className="flex items-center gap-1">
+									<span
+										className="inline-block w-2 h-2 rounded-full"
+										style={{ background: metricStatusColor("warn") }}
+									/>
+									warn
+								</span>
+								<span className="flex items-center gap-1">
+									<span
+										className="inline-block w-2 h-2 rounded-full"
+										style={{ background: metricStatusColor("fail") }}
+									/>
+									fail
+								</span>
+								<span className="flex items-center gap-1">
+									<span
+										className="inline-block w-2 h-2 rounded-full"
+										style={{ background: metricStatusColor("unknown") }}
+									/>
+									unmonitored metric
+								</span>
+							</div>
+
+							{tableData.metrics.map((metric) => (
+								<MetricDistributionChart
+									key={metric}
+									metric={metric}
+									points={distributionsByMetric[metric] ?? []}
+								/>
+							))}
+
+							{(data.availableExperimentIds?.length ?? 0) > 1 && (
+								<div className="rounded border border-[var(--vscode-panel-border)] px-2 py-1.5 flex flex-col gap-1.5 shrink-0">
+									<div className="flex items-center gap-1.5 text-[10px]">
+										<span className="codicon codicon-diff text-[11px] opacity-75" />
+										<span className="opacity-75">Compare {data.experiment_id} against:</span>
+										<select
+											className="text-[10px] rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] px-1 py-0.5"
+											onChange={(e) => loadCompareExperiment(e.target.value)}
+											value={compareExperimentId}>
+											<option value="">Select an experiment…</option>
+											{data.availableExperimentIds
+												?.filter((id) => id !== data.experiment_id)
+												.map((id) => (
+													<option key={id} value={id}>
+														{id}
+													</option>
+												))}
+										</select>
+										{compareLoading && (
+											<span className="codicon codicon-loading codicon-modifier-spin text-[10px]" />
+										)}
+									</div>
+									{compareData?.defn && compareData.results && (
+										<ExperimentDeltaView
+											baseline={{
+												experiment_id: data.experiment_id,
+												metrics: tableData.metrics,
+												cells: data.results?.cells ?? {},
+											}}
+											comparison={{
+												experiment_id: compareData.experiment_id,
+												metrics: compareData.defn.metrics,
+												cells: compareData.results.cells,
+											}}
+										/>
+									)}
+								</div>
+							)}
+
+							<div className="text-[9px] opacity-55 shrink-0">
+								Box: interquartile range (25th–75th percentile); center line: median; whiskers: true min/max (not
+								1.5×IQR — sample sizes here are too small for that rule to be reliable). Dots: individual basins,
+								colored by the same pass/warn/fail thresholds as the Table tab.
+							</div>
 						</div>
 					)}
-					<div className="text-[9px] opacity-55 flex items-center gap-2 shrink-0">
-						<span>Run chips open Session Replay at the selected run.</span>
-						<span>Rows highlight matching map layers.</span>
-						{selectedFeatureId && <span className="ml-auto font-mono">highlighting {selectedFeatureId}</span>}
-					</div>
 				</div>
 			)}
 		</div>
