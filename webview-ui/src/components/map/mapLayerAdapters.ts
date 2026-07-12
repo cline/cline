@@ -25,7 +25,6 @@ export function isRasterLikeLayer(layer: MapLayer): boolean {
 	return layer.layerType === "raster" || layer.layerType === "gee_tile"
 }
 
-/** Sample topmost visible raster/gee_tile at lon/lat (render order: last in layerOrder wins). */
 interface RasterCacheReader {
 	get(id: string):
 		| {
@@ -35,6 +34,7 @@ interface RasterCacheReader {
 		| undefined
 }
 
+/** Sample topmost visible raster/gee_tile at lon/lat (render order: last in layerOrder wins). */
 export function sampleTopRasterAtPoint(
 	layers: MapLayer[],
 	visibleLayerIds: Set<string>,
