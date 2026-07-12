@@ -105,17 +105,22 @@ const EvidenceBadge: React.FC<{ span: EvidenceSpanRecord; sessionId: string; com
 	compact,
 }) => {
 	const isRun = span.sourceType === "run"
+	const isExperiment = span.sourceType === "experiment"
+	const isNavigable = isRun || isExperiment
+	const navLabel = isRun ? " · open replay" : isExperiment ? " · open experiment table" : ""
 	return (
 		<button
 			className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] hover:border-[var(--vscode-focusBorder)] disabled:opacity-75 disabled:cursor-default"
-			disabled={!isRun}
+			disabled={!isNavigable}
 			onClick={(event) => {
 				event.stopPropagation()
 				if (isRun) {
 					postMessage({ type: "open_replay", session_id: sessionId, run_id: span.sourceId })
+				} else if (isExperiment) {
+					postMessage({ type: "open_experiment", session_id: sessionId, experiment_id: span.sourceId })
 				}
 			}}
-			title={`${span.sourceType}:${span.sourceId}${span.metricRef ? ` #${span.metricRef}` : ""}${span.description ? ` — ${span.description}` : ""}${isRun ? " · open replay" : ""}`}
+			title={`${span.sourceType}:${span.sourceId}${span.metricRef ? ` #${span.metricRef}` : ""}${span.description ? ` — ${span.description}` : ""}${navLabel}`}
 			type="button">
 			<span className={`codicon ${sourceIcon(span.sourceType)} text-[8px]`} />
 			<span className="font-mono truncate max-w-[180px]">{compact ? shortSource(span) : span.sourceId}</span>
@@ -303,11 +308,71 @@ const ClaimDetail: React.FC<{ claim: ClaimRecord | null }> = ({ claim }) => {
 	)
 }
 
+/**
+ * Start an agent task from Evidence Board (e.g. "check claim staleness").
+ * Mirrors startPreviewAgentTask in html_preview/previewBridge.ts.
+ */
+function startLedgerAgentTask(prompt: string): Promise<{ ok: boolean; error?: string }> {
+	const requestId = `ledger-agent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+	return new Promise((resolve) => {
+		const cleanup = () => {
+			window.clearTimeout(timeout)
+			window.removeEventListener("message", onMessage)
+		}
+		const timeout = window.setTimeout(() => {
+			cleanup()
+			resolve({ ok: false, error: "Timed out waiting for agent task to start" })
+		}, 15_000)
+		const onMessage = (e: MessageEvent) => {
+			const d = e.data
+			if (!d || d.type !== "aihydro-ledger-agent-result" || d.requestId !== requestId) {
+				return
+			}
+			cleanup()
+			resolve({ ok: Boolean(d.ok), error: d.error })
+		}
+		window.addEventListener("message", onMessage)
+		try {
+			postMessage({ type: "aihydro-ledger-agent-task", requestId, prompt })
+		} catch {
+			cleanup()
+			resolve({ ok: false, error: "postMessage failed" })
+		}
+	})
+}
+
 export const EvidenceBoard: React.FC = () => {
 	const { claims, sessionId, loadSession, loading, error } = useLedgerContext()
 	const [filterType, setFilterType] = useState<string>("all")
 	const [requestedSessionId, setRequestedSessionId] = useState("")
 	const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null)
+	const [stalenessCheck, setStalenessCheck] = useState<{ status: "idle" | "starting" | "started" | "error"; message?: string }>(
+		{ status: "idle" },
+	)
+
+	const handleCheckStaleness = async () => {
+		if (!sessionId) {
+			return
+		}
+		setStalenessCheck({ status: "starting" })
+		// check_registry_staleness (aihydro-tools, Tier 2) already exists and is
+		// already agent-callable from chat — this closes the UI-reachability
+		// gap (F-4), it does not reimplement the staleness logic itself. The
+		// result only confirms the agent TASK started, not that the tool call
+		// (and its content-hash comparison) has finished — hence "Reload" being
+		// a separate, explicit step rather than an automatic refresh.
+		const result = await startLedgerAgentTask(
+			`Call check_registry_staleness for session "${sessionId}" and report which claims (if any) became stale.`,
+		)
+		setStalenessCheck(
+			result.ok
+				? {
+						status: "started",
+						message: "Agent task started — watch the chat sidebar, then click Reload here when it finishes.",
+					}
+				: { status: "error", message: result.error ?? "Failed to start the staleness-check task." },
+		)
+	}
 
 	useEffect(() => {
 		if (sessionId && !requestedSessionId) {
@@ -376,6 +441,14 @@ export const EvidenceBoard: React.FC = () => {
 						Demo
 					</button>
 					<button
+						className={BUTTON_BASE}
+						disabled={!sessionId || stalenessCheck.status === "starting"}
+						onClick={() => void handleCheckStaleness()}
+						title="Ask the agent to re-check promoted claims against current data (check_registry_staleness)"
+						type="button">
+						{stalenessCheck.status === "starting" ? "Starting…" : "Check staleness"}
+					</button>
+					<button
 						className={`${BUTTON_BASE} px-1.5`}
 						onClick={() => void loadSession(requestedSessionId.trim())}
 						title="Reload claims"
@@ -389,6 +462,25 @@ export const EvidenceBoard: React.FC = () => {
 				<div className="mx-3 mt-2 px-2 py-1.5 rounded border border-[var(--vscode-testing-iconFailed)] text-[11px] text-[var(--vscode-testing-iconFailed)] bg-[var(--vscode-editor-background)]">
 					<span className="codicon codicon-error text-[10px] mr-1" />
 					Ledger load failed: {error}
+				</div>
+			)}
+
+			{stalenessCheck.status === "started" && (
+				<div className="mx-3 mt-2 px-2 py-1.5 rounded border border-[var(--vscode-textLink-foreground)] text-[11px] text-[var(--vscode-textLink-foreground)] bg-[var(--vscode-editor-background)] flex items-center gap-2">
+					<span className="codicon codicon-comment-discussion text-[10px]" />
+					{stalenessCheck.message}
+					<button
+						className={`${BUTTON_BASE} ml-auto`}
+						onClick={() => setStalenessCheck({ status: "idle" })}
+						type="button">
+						Dismiss
+					</button>
+				</div>
+			)}
+			{stalenessCheck.status === "error" && (
+				<div className="mx-3 mt-2 px-2 py-1.5 rounded border border-[var(--vscode-testing-iconFailed)] text-[11px] text-[var(--vscode-testing-iconFailed)] bg-[var(--vscode-editor-background)]">
+					<span className="codicon codicon-error text-[10px] mr-1" />
+					{stalenessCheck.message}
 				</div>
 			)}
 

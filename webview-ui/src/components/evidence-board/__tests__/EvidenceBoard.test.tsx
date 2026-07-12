@@ -13,6 +13,15 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
+// EvidenceBoard posts directly via PLATFORM_CONFIG (open_replay,
+// open_experiment, aihydro-ledger-agent-task), not through grpc-client. Mock
+// it so tests can capture the real, internally-generated requestId and
+// simulate the host's response.
+const platformPostMessageMock = vi.fn()
+vi.mock("@/config/platform.config", () => ({
+	PLATFORM_CONFIG: { postMessage: (...args: unknown[]) => platformPostMessageMock(...args) },
+}))
+
 const SUPPORTED_CLAIM = {
 	claimId: "claim-kge-acceptable",
 	sessionId: "demo-reproducibility-cockpit",
@@ -128,5 +137,100 @@ describe("EvidenceBoard", () => {
 		renderBoard()
 
 		expect(await screen.findByText(/Ledger load failed: session not found/)).toBeInTheDocument()
+	})
+
+	it("F-4: an 'experiment'-typed evidence span is clickable (unlike unnavigable source types)", async () => {
+		const claimWithExperimentSpan = {
+			...SUPPORTED_CLAIM,
+			evidenceSpans: [
+				{ sourceType: "experiment", sourceId: "panel_smoke_exp", metricRef: "", description: "" },
+				{ sourceType: "paper", sourceId: "10.1234/example", metricRef: "", description: "" },
+			],
+		}
+		getLedgerStateMock.mockResolvedValue({
+			sessionId: "demo-reproducibility-cockpit",
+			claims: [claimWithExperimentSpan],
+			updatedAtMs: Date.now(),
+		})
+
+		renderBoard()
+		await waitFor(() => expect(screen.getByText("1 claims")).toBeInTheDocument())
+
+		// Renders twice each (compact badge on the card + full badge in the
+		// auto-selected detail pane) -- assert every instance has the right
+		// enabled/disabled state, not just one.
+		const experimentBadges = screen.getAllByTitle(/experiment:panel_smoke_exp.*open experiment table/)
+		const paperBadges = screen.getAllByTitle(/^paper:10\.1234\/example$/)
+		expect(experimentBadges.length).toBeGreaterThan(0)
+		expect(paperBadges.length).toBeGreaterThan(0)
+		for (const badge of experimentBadges) {
+			expect(badge).not.toBeDisabled()
+		}
+		for (const badge of paperBadges) {
+			expect(badge).toBeDisabled()
+		}
+	})
+
+	it("F-4: Check staleness posts a real agent-task prompt naming the session, then reflects the host's started/error response", async () => {
+		platformPostMessageMock.mockClear()
+		getLedgerStateMock.mockResolvedValue({
+			sessionId: "demo-reproducibility-cockpit",
+			claims: [SUPPORTED_CLAIM],
+			updatedAtMs: Date.now(),
+		})
+
+		renderBoard()
+		await waitFor(() => expect(screen.getByText("1 claims")).toBeInTheDocument())
+
+		fireEvent.click(screen.getByText("Check staleness"))
+		expect(screen.getByText("Starting…")).toBeInTheDocument()
+
+		// Real prompt content, not a placeholder: names the actual session and
+		// the actual MCP tool the agent is expected to call.
+		const call = platformPostMessageMock.mock.calls.find(([msg]) => msg?.type === "aihydro-ledger-agent-task")
+		expect(call).toBeDefined()
+		const sentMessage = call?.[0] as { requestId: string; prompt: string }
+		expect(sentMessage.prompt).toContain("check_registry_staleness")
+		expect(sentMessage.prompt).toContain("demo-reproducibility-cockpit")
+
+		// Simulate the host confirming the task started, using the REAL
+		// requestId EvidenceBoard generated (not a stub) -- proves the
+		// request/response round-trip actually correlates.
+		fireEvent(
+			window,
+			new MessageEvent("message", {
+				data: { type: "aihydro-ledger-agent-result", requestId: sentMessage.requestId, ok: true },
+			}),
+		)
+		expect(await screen.findByText(/Agent task started/)).toBeInTheDocument()
+	})
+
+	it("F-4: Check staleness shows an error state when the host reports failure", async () => {
+		platformPostMessageMock.mockClear()
+		getLedgerStateMock.mockResolvedValue({
+			sessionId: "demo-reproducibility-cockpit",
+			claims: [SUPPORTED_CLAIM],
+			updatedAtMs: Date.now(),
+		})
+
+		renderBoard()
+		await waitFor(() => expect(screen.getByText("1 claims")).toBeInTheDocument())
+
+		fireEvent.click(screen.getByText("Check staleness"))
+		const call = platformPostMessageMock.mock.calls.find(([msg]) => msg?.type === "aihydro-ledger-agent-task")
+		const sentMessage = call?.[0] as { requestId: string }
+
+		fireEvent(
+			window,
+			new MessageEvent("message", {
+				data: {
+					type: "aihydro-ledger-agent-result",
+					requestId: sentMessage.requestId,
+					ok: false,
+					error: "No main webview instance — cannot start an agent task",
+				},
+			}),
+		)
+		expect(await screen.findByText("No main webview instance — cannot start an agent task")).toBeInTheDocument()
 	})
 })

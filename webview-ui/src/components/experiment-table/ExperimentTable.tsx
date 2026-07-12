@@ -241,6 +241,10 @@ export const ExperimentTable: React.FC = () => {
 			}
 		}
 		postMessage({ type: "list_sessions" })
+		// Signals readiness for VscodeExperimentTableProvider.openWithExperiment()
+		// (F-4) — a load_experiment sent before this listener is registered
+		// would otherwise be lost.
+		postMessage({ type: "experiment_table_ready" })
 		window.addEventListener("message", handler)
 		listenerRef.current = handler
 		return () => window.removeEventListener("message", handler)

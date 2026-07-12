@@ -1,4 +1,5 @@
 import type { Controller } from "@core/controller"
+import { handleLedgerAgentTaskMessage } from "@core/ledger/handleLedgerAgentTask"
 import * as vscode from "vscode"
 
 /**
@@ -109,6 +110,50 @@ export class VscodeEvidenceBoardProvider {
 								String(message.session_id ?? ""),
 								String(message.run_id ?? "") || undefined,
 							)
+						}
+						break
+					case "open_experiment":
+						{
+							// F-4: evidence spans with sourceType "experiment" navigate to
+							// Experiment Table instead of rendering as an inert badge.
+							const { VscodeExperimentTableProvider } = require("@/hosts/vscode/VscodeExperimentTableProvider")
+							void VscodeExperimentTableProvider.openWithExperiment(
+								String(message.session_id ?? ""),
+								String(message.experiment_id ?? "") || undefined,
+							)
+						}
+						break
+					case "aihydro-ledger-agent-task":
+						// F-4: "Check staleness" starts an agent task that calls the
+						// already-built check_registry_staleness MCP tool (Tier 2,
+						// aihydro-tools) — mirrors handlePreviewAgentTaskMessage. The
+						// staleness *check* itself is real Python logic (content-hash
+						// comparison); this only makes it reachable from the panel.
+						if (mainWebview?.controller) {
+							try {
+								await handleLedgerAgentTaskMessage(
+									mainWebview.controller,
+									message as { requestId?: string; prompt?: string },
+									async (response) => {
+										await panel.webview.postMessage(response)
+									},
+								)
+							} catch (err) {
+								console.warn("[VscodeEvidenceBoardProvider] ledger-agent-task failed:", err)
+								panel.webview.postMessage({
+									type: "aihydro-ledger-agent-result",
+									requestId: (message as { requestId?: string }).requestId ?? "unknown",
+									ok: false,
+									error: err instanceof Error ? err.message : String(err),
+								})
+							}
+						} else {
+							panel.webview.postMessage({
+								type: "aihydro-ledger-agent-result",
+								requestId: (message as { requestId?: string }).requestId ?? "unknown",
+								ok: false,
+								error: "No main webview instance — cannot start an agent task",
+							})
 						}
 						break
 					default:

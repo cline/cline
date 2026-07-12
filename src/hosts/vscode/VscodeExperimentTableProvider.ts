@@ -25,6 +25,8 @@ export class VscodeExperimentTableProvider {
 	private static context: vscode.ExtensionContext
 	private static controller: Controller | undefined
 	private static disposables: vscode.Disposable[] = []
+	private static tableWebviewReady = false
+	private static pendingInitialLoad: { sessionId: string; experimentId?: string } | undefined
 
 	public static initialize(context: vscode.ExtensionContext, controller: Controller): void {
 		VscodeExperimentTableProvider.context = context
@@ -64,12 +66,15 @@ export class VscodeExperimentTableProvider {
 		})
 
 		VscodeExperimentTableProvider.currentPanel = panel
+		VscodeExperimentTableProvider.tableWebviewReady = false
 		panel.webview.html = VscodeExperimentTableProvider.buildShellHtml(panel.webview)
 		VscodeExperimentTableProvider.setupMessageHandler(panel)
 
 		panel.onDidDispose(
 			() => {
 				VscodeExperimentTableProvider.currentPanel = undefined
+				VscodeExperimentTableProvider.tableWebviewReady = false
+				VscodeExperimentTableProvider.pendingInitialLoad = undefined
 				while (VscodeExperimentTableProvider.disposables.length) {
 					const d = VscodeExperimentTableProvider.disposables.pop()
 					d?.dispose()
@@ -78,6 +83,34 @@ export class VscodeExperimentTableProvider {
 			null,
 			VscodeExperimentTableProvider.disposables,
 		)
+	}
+
+	/**
+	 * Open the Experiment Table and load a specific experiment once the
+	 * webview reports readiness. Used by Evidence Board's "experiment"-typed
+	 * evidence-span badges (F-4) — mirrors VscodeReplayProvider.openWithSession.
+	 */
+	public static async openWithExperiment(sessionId: string, experimentId?: string): Promise<void> {
+		const trimmedSessionId = sessionId.trim()
+		if (!trimmedSessionId) {
+			return
+		}
+		VscodeExperimentTableProvider.pendingInitialLoad = { sessionId: trimmedSessionId, experimentId: experimentId?.trim() }
+		await VscodeExperimentTableProvider.createOrShow()
+		VscodeExperimentTableProvider.flushPendingInitialLoad()
+	}
+
+	private static flushPendingInitialLoad(): void {
+		if (
+			!VscodeExperimentTableProvider.currentPanel ||
+			!VscodeExperimentTableProvider.tableWebviewReady ||
+			!VscodeExperimentTableProvider.pendingInitialLoad
+		) {
+			return
+		}
+		const { sessionId, experimentId } = VscodeExperimentTableProvider.pendingInitialLoad
+		VscodeExperimentTableProvider.pendingInitialLoad = undefined
+		VscodeExperimentTableProvider.handleLoadExperiment(VscodeExperimentTableProvider.currentPanel, sessionId, experimentId)
 	}
 
 	private static setupMessageHandler(panel: vscode.WebviewPanel): void {
@@ -107,6 +140,10 @@ export class VscodeExperimentTableProvider {
 						break
 					case "list_sessions":
 						panel.webview.postMessage({ type: "session_list", sessions: listSessionIds() })
+						break
+					case "experiment_table_ready":
+						VscodeExperimentTableProvider.tableWebviewReady = true
+						VscodeExperimentTableProvider.flushPendingInitialLoad()
 						break
 					case "load_experiment":
 						VscodeExperimentTableProvider.handleLoadExperiment(
