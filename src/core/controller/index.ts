@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { LedgerEventWatcher } from "@core/ledger/LedgerEventWatcher"
 import { MapCommandWatcher } from "@core/map/MapCommandWatcher"
 import { MapEventWatcher } from "@core/map/MapEventWatcher"
 import { buildMapLayerCatalogAsync, persistMapLayerCatalog } from "@core/map/mapLayerCatalog"
@@ -24,6 +25,7 @@ import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { HtmlPreviewItem, HtmlPreviewMode, LearningModuleCatalog } from "@shared/proto/cline/html_preview"
+import type { ClaimUpdate } from "@shared/proto/cline/ledger"
 import { MapLayer } from "@shared/proto/cline/map"
 import { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@shared/storage/types"
@@ -111,6 +113,13 @@ export class Controller {
 	readonly mapSessionService: MapSessionService
 	readonly previewSessionService: PreviewSessionService
 	private previewCommandWatcher?: PreviewCommandWatcher
+
+	// Claims ledger: LedgerEventWatcher polls ~/.aihydro/ledger_events/ for
+	// claim events pushed by MCP tools (add_claim, update_claim_status) and
+	// broadcasts them to subscribeToClaimUpdates() streaming subscribers
+	// (the Evidence Board webview).
+	private ledgerEventWatcher: LedgerEventWatcher
+	private claimUpdateSubscribers: Set<(update: ClaimUpdate) => void> = new Set()
 
 	// HTML preview storage and streaming.
 	//
@@ -205,6 +214,8 @@ export class Controller {
 		this.previewCommandWatcher.start()
 		this.mapCommandWatcher = new MapCommandWatcher(this)
 		this.mapCommandWatcher.start()
+		this.ledgerEventWatcher = new LedgerEventWatcher(this)
+		this.ledgerEventWatcher.start()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
 				console.error("[Controller] Cache persistence failed, recovering:", error)
@@ -266,6 +277,7 @@ export class Controller {
 
 		// Stop map event watcher
 		this.mapEventWatcher.stop()
+		this.ledgerEventWatcher.stop()
 
 		// Dispose file scanner
 		if (this.fileScanner) {
@@ -1402,6 +1414,33 @@ export class Controller {
 		return () => {
 			console.log("[Controller] Layer subscription removed")
 			this.mapLayerSubscribers.delete(callback)
+		}
+	}
+
+	// ─── Ledger / claims management ─────────────────────────────────────────
+
+	/**
+	 * Called by LedgerEventWatcher when a claim event arrives from the MCP server.
+	 * Broadcasts the update to all subscribeToClaimUpdates() streaming subscribers.
+	 */
+	notifyClaimUpdate(update: ClaimUpdate): void {
+		for (const cb of this.claimUpdateSubscribers) {
+			try {
+				cb(update)
+			} catch (err) {
+				console.error("[Controller] claimUpdateSubscribers callback error:", err)
+			}
+		}
+	}
+
+	/**
+	 * Subscribe to claim updates from the MCP ledger.
+	 * @returns Unsubscribe function.
+	 */
+	subscribeToClaimUpdates(callback: (update: ClaimUpdate) => void): () => void {
+		this.claimUpdateSubscribers.add(callback)
+		return () => {
+			this.claimUpdateSubscribers.delete(callback)
 		}
 	}
 

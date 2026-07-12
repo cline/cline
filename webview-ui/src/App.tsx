@@ -20,6 +20,9 @@ const ExperimentTable = lazy(() =>
 	import("./components/experiment-table/ExperimentTable").then((mod) => ({ default: mod.ExperimentTable })),
 )
 const ReplayPanel = lazy(() => import("./components/replay-panel/ReplayPanel").then((mod) => ({ default: mod.ReplayPanel })))
+const EvidenceBoard = lazy(() =>
+	import("./components/evidence-board/EvidenceBoard").then((mod) => ({ default: mod.EvidenceBoard })),
+)
 
 // ─── ErrorBoundary for standalone HTML preview panel ─────────────────────
 
@@ -80,6 +83,11 @@ const isStandaloneExperimentTableMode = () => {
 // Check if running in standalone Session Replay mode (separate panel)
 const isStandaloneReplayMode = () => {
 	return typeof window !== "undefined" && (window as any).AIHYDRO_REPLAY_PANEL_STANDALONE === true
+}
+
+// Check if running in standalone Evidence Board mode (separate panel)
+const isStandaloneEvidenceBoardMode = () => {
+	return typeof window !== "undefined" && (window as any).AIHYDRO_EVIDENCE_BOARD_STANDALONE === true
 }
 
 const AppContent = () => {
@@ -209,6 +217,17 @@ const App = () => {
 			<Providers>
 				<Suspense fallback={null}>
 					<ExperimentTable />
+				</Suspense>
+			</Providers>
+		)
+	}
+
+	// Check if in standalone Evidence Board mode and render directly with Providers
+	if (isStandaloneEvidenceBoardMode()) {
+		return (
+			<Providers>
+				<Suspense fallback={null}>
+					<EvidenceBoard />
 				</Suspense>
 			</Providers>
 		)

@@ -16,6 +16,7 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendSkillsButtonClickedEvent } from "./core/controller/ui/subscribeToSkillsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createAiHydroAPI } from "./exports"
+import { VscodeEvidenceBoardProvider } from "./hosts/vscode/VscodeEvidenceBoardProvider"
 import { VscodeExperimentTableProvider } from "./hosts/vscode/VscodeExperimentTableProvider"
 import { VscodeHtmlPreviewProvider } from "./hosts/vscode/VscodeHtmlPreviewProvider"
 import { VscodeMapPanelProvider } from "./hosts/vscode/VscodeMapPanelProvider"
@@ -232,9 +233,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize HTML preview panel provider with controller
 	VscodeHtmlPreviewProvider.initialize(context, webview.controller)
 
-	// Initialize reproducibility panels (Experiment Table, Session Replay) with controller
+	// Initialize reproducibility panels (Experiment Table, Session Replay, Evidence Board) with controller
 	VscodeExperimentTableProvider.initialize(context, webview.controller)
 	VscodeReplayProvider.initialize(context, webview.controller)
+	VscodeEvidenceBoardProvider.initialize(context, webview.controller)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.MapButton, async () => {
@@ -264,6 +266,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(commands.ExperimentTableButton, async () => {
 			telemetryService.captureButtonClick("aihydro_experimentTableButton", webview.controller?.task?.ulid)
 			await VscodeExperimentTableProvider.createOrShow()
+		}),
+	)
+
+	// Register "AI-Hydro: Evidence Board" — kanban view over a session's
+	// claims ledger, live-updated via LedgerEventWatcher.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.EvidenceBoardButton, async () => {
+			telemetryService.captureButtonClick("aihydro_evidenceBoardButton", webview.controller?.task?.ulid)
+			await VscodeEvidenceBoardProvider.createOrShow()
 		}),
 	)
 

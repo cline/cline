@@ -177,6 +177,12 @@
 				"icon": "$(debug-rerun)"
 			},
 			{
+				"command": "aihydro.evidenceBoardButtonClicked",
+				"title": "Evidence Board",
+				"category": "AI-Hydro",
+				"icon": "$(checklist)"
+			},
+			{
 				"command": "aihydro.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -382,6 +388,11 @@
 				{
 					"command": "aihydro.sessionReplayButtonClicked",
 					"group": "navigation@6.2",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
+					"command": "aihydro.evidenceBoardButtonClicked",
+					"group": "navigation@6.3",
 					"when": "view == aihydro.SidebarProvider"
 				},
 				{

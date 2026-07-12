@@ -43,6 +43,7 @@ const AiHydroCommands = {
 	SkillsButton: prefix + ".skillsButtonClicked",
 	ExperimentTableButton: prefix + ".experimentTableButtonClicked",
 	SessionReplayButton: prefix + ".sessionReplayButtonClicked",
+	EvidenceBoardButton: prefix + ".evidenceBoardButtonClicked",
 }
 
 /**
