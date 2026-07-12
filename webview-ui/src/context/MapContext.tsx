@@ -101,7 +101,11 @@ export const MapContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 	}, [applyIncomingLayer])
 
 	const setActiveRoiOnHost = useCallback(async (roi: ActiveRoi | undefined, geojson?: string) => {
-		if (!roi?.name && !geojson) {
+		// `!roi` must be part of this guard, not just `!roi?.name`: the old
+		// check let a call with roi=undefined and a truthy geojson fall
+		// through to `roi.id` below and throw. No current caller passes
+		// geojson without roi, but the exported type allows it.
+		if (!roi || (!roi.name && !geojson)) {
 			await MapServiceClient.setActiveRoi(SetActiveRoiRequest.create({}))
 			setActiveRoi(undefined)
 			return

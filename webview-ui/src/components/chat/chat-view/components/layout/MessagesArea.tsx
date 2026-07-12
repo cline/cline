@@ -67,8 +67,13 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		if (groupedMessages.length === 0) return false
 		const last = groupedMessages[groupedMessages.length - 1]
 		if (Array.isArray(last)) return false
-		// User messages are type "ask" with ask === "user_feedback"
-		if (last.type === "ask" && last.ask === "user_feedback") return true
+		// User messages are type "say" with say === "user_feedback" (see
+		// config.callbacks.say("user_feedback", ...) call sites) -- this
+		// previously checked type === "ask" with ask === "user_feedback",
+		// a combination "user_feedback" never appears under (it's an
+		// AiHydroSay value, not AiHydroAsk), so the typing indicator could
+		// never fire for the user's own message.
+		if (last.type === "say" && last.say === "user_feedback") return true
 		// API request started but no text response yet
 		if (last.type === "say" && last.say === "api_req_started") return true
 		return false

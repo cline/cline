@@ -26,19 +26,22 @@ export function isRasterLikeLayer(layer: MapLayer): boolean {
 }
 
 /** Sample topmost visible raster/gee_tile at lon/lat (render order: last in layerOrder wins). */
+interface RasterCacheReader {
+	get(id: string):
+		| {
+				bounds?: LayerBounds
+				rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
+		  }
+		| undefined
+}
+
 export function sampleTopRasterAtPoint(
 	layers: MapLayer[],
 	visibleLayerIds: Set<string>,
 	layerOrder: string[],
 	lon: number,
 	lat: number,
-	rasterCache?: Map<
-		string,
-		{
-			bounds?: LayerBounds
-			rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
-		}
-	>,
+	rasterCache?: RasterCacheReader,
 ): CursorRasterReading | null {
 	const byId = new Map(layers.map((l) => [l.id, l]))
 	const ordered: MapLayer[] = []
@@ -66,13 +69,7 @@ function sampleRasterAtPoint(
 	layer: MapLayer,
 	lon: number,
 	lat: number,
-	rasterCache?: Map<
-		string,
-		{
-			bounds?: LayerBounds
-			rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
-		}
-	>,
+	rasterCache?: RasterCacheReader,
 ): CursorRasterReading | null {
 	if (layer.layerType === "gee_tile") {
 		return null
@@ -111,7 +108,10 @@ function sampleRasterAtPoint(
 }
 
 /** Resolve WGS84 bounds for zoom / fit (raster, gee_tile, geojson). */
-export function getLayerBounds(layer: MapLayer, rasterCache?: Map<string, { bounds?: LayerBounds }>): LayerBounds | undefined {
+export function getLayerBounds(
+	layer: MapLayer,
+	rasterCache?: { get(id: string): { bounds?: LayerBounds } | undefined },
+): LayerBounds | undefined {
 	if (layer.layerType === "gee_tile") {
 		return parseBoundsJson(layer.metadata?.gee_bounds)
 	}

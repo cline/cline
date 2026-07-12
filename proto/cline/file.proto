@@ -41,6 +41,9 @@ service FileService {
   // Toggle a Cline rule (enable or disable)
   rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
 
+  // Toggle an AI-Hydro rule (enable or disable)
+  rpc toggleAiHydroRule(ToggleClineRuleRequest) returns (ToggleClineRules);
+
   // Toggle a Cursor rule (enable or disable)
   rpc toggleCursorRule(ToggleCursorRuleRequest) returns (ClineRulesToggles);
   
@@ -74,6 +77,8 @@ message RefreshedRules {
   ClineRulesToggles local_windsurf_rules_toggles = 4;
   ClineRulesToggles local_workflow_toggles = 5;
   ClineRulesToggles global_workflow_toggles = 6;
+  ClineRulesToggles global_ai_hydro_rules_toggles = 7;
+  ClineRulesToggles local_ai_hydro_rules_toggles = 8;
 }
 
 // Request to toggle a Windsurf rule
@@ -167,10 +172,16 @@ message ClineRulesToggles {
   map<string, bool> toggles = 1;
 }
 
-// Response for toggleClineRule operation
+// Response for toggleClineRule / toggleAiHydroRule operations. Both RPCs
+// share this message; each populates only the pair of fields matching its
+// own rule family (global_cline_rules_toggles/local_cline_rules_toggles for
+// toggleClineRule, global_ai_hydro_rules_toggles/local_ai_hydro_rules_toggles
+// for toggleAiHydroRule).
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles global_ai_hydro_rules_toggles = 3;
+  ClineRulesToggles local_ai_hydro_rules_toggles = 4;
 }
 
 // Request to toggle a Cursor rule

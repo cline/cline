@@ -1,6 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import {
-	AiHydroRulesToggles,
+	ClineRulesToggles,
 	RefreshedRules,
 	ToggleClineRuleRequest,
 	ToggleCursorRuleRequest,
@@ -144,7 +144,7 @@ const AiHydroRulesToggleModal: React.FC = () => {
 				enabled,
 			} as ToggleWindsurfRuleRequest),
 		)
-			.then((response: AiHydroRulesToggles) => {
+			.then((response: ClineRulesToggles) => {
 				if (response.toggles) {
 					setLocalWindsurfRulesToggles(response.toggles)
 				}

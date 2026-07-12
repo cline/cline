@@ -1721,7 +1721,12 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 			.slice(0, 250)
 			.map((feature) => ({
 				type: "Feature" as const,
-				geometry: feature.geometry,
+				// ClickedFeature.geometry is `unknown` -- it comes from
+				// arbitrary parsed GeoJSON (user-loaded files, backend
+				// layers). The `.filter` above already guarantees it's
+				// defined; the GeoJSON shape itself is validated upstream
+				// wherever the feature was first parsed.
+				geometry: feature.geometry as GeoJSON.Geometry,
 				properties: feature.properties,
 			}))
 		if (features.length === 0) {
@@ -2124,7 +2129,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 			/>
 
 			<MapBottomBar
-				bearing={viewState.bearing}
+				bearing={viewState.bearing ?? 0}
 				cursorCoord={cursorCoord}
 				mapStyle={mapStyle}
 				onResetNorth={() => setViewState((prev) => ({ ...prev, bearing: 0, pitch: 0 }))}

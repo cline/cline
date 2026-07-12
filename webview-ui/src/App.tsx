@@ -172,7 +172,11 @@ const App = () => {
 		return (
 			<Providers>
 				<div className="flex h-screen w-full">
-					<MapView height={window.innerHeight} width={window.innerWidth} />
+					{/* MapViewProps only declares mapStyle -- sizing comes from this
+					flex wrapper, not props; height/width here were dead (React
+					silently ignores unknown props at runtime, so this only ever
+					surfaced as a type error, never a behavior difference). */}
+					<MapView />
 				</div>
 			</Providers>
 		)
