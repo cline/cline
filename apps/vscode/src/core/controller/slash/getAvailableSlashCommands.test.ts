@@ -1,5 +1,5 @@
 import type { CoreSettingsItem } from "@cline/core"
-import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import type { ValidatedRemoteSkill } from "@core/context/instructions/user-instructions/skills"
 import { describe, expect, it } from "vitest"
 import { filterEnabledSkillItems } from "./getAvailableSlashCommands"
 
@@ -15,14 +15,14 @@ function skill(overrides: Partial<CoreSettingsItem>): CoreSettingsItem {
 	}
 }
 
-function remoteSkill(overrides: Partial<GlobalInstructionsFile> = {}): GlobalInstructionsFile {
+function remoteSkill(overrides: Partial<ValidatedRemoteSkill> = {}): ValidatedRemoteSkill {
 	return {
 		name: "remote-skill",
 		description: "Remote skill",
 		alwaysEnabled: false,
 		contents: "# Remote skill",
 		...overrides,
-	} as GlobalInstructionsFile
+	}
 }
 
 describe("filterEnabledSkillItems", () => {
