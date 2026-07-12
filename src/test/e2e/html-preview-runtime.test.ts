@@ -46,6 +46,10 @@ const runtimeE2E = e2e.extend<{ workspaceDir: string }>({
 
 runtimeE2E.describe.configure({ mode: "serial" })
 runtimeE2E.setTimeout(180_000)
+runtimeE2E.skip(
+	!process.env.AIHYDRO_E2E_PYTHON,
+	"Phase 0 runtime tests require AIHYDRO_E2E_PYTHON to select the deterministic test interpreter",
+)
 
 async function openWorkspaceFile(page: Page, relativePath: string, confirmPlainHtml = false): Promise<void> {
 	await page.waitForLoadState("domcontentloaded")
