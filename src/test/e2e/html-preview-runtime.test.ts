@@ -121,7 +121,9 @@ async function runCell(frame: Frame, cellId: string): Promise<void> {
 	const cell = frame.locator(`[data-aihydro-cell-id="${cellId}"]`)
 	const run = cell.locator(".aihydro-run")
 	await expect(run).toBeVisible()
-	await run.click()
+	// VS Code's built-in Chat pane and startup toasts can overlap a narrow
+	// preview group on hosted macOS even though the iframe control is visible.
+	await run.click({ force: true })
 }
 
 runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async ({ page }) => {
