@@ -328,6 +328,7 @@ const SECRETS_KEYS = [
 	"asksageApiKey",
 	"xaiApiKey",
 	"moonshotApiKey",
+	"kimiForCodingApiKey",
 	"zaiApiKey",
 	"huggingFaceApiKey",
 	"nebiusApiKey",

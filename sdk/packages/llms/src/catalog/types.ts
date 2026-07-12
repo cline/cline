@@ -72,6 +72,16 @@ export type ProviderClient = z.infer<typeof ProviderClientSchema>;
 export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
 export type ProviderSource = z.infer<typeof ProviderSourceSchema>;
 
+const ProviderMetadataSchema = z
+	.object({
+		modelSelection: z
+			.object({
+				mode: z.literal("curated"),
+			})
+			.optional(),
+	})
+	.catchall(z.unknown());
+
 export const ProviderInfoSchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -84,7 +94,7 @@ export const ProviderInfoSchema = z.object({
 	env: z.array(z.string()).optional(),
 	client: ProviderClientSchema,
 	source: ProviderSourceSchema.default("system"),
-	metadata: z.record(z.string(), z.unknown()).optional(),
+	metadata: ProviderMetadataSchema.optional(),
 });
 
 export type ProviderInfo = z.infer<typeof ProviderInfoSchema>;

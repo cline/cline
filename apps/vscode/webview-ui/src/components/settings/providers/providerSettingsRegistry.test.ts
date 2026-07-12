@@ -75,6 +75,7 @@ describe("providerSettingsRegistry", () => {
 			["wandb", "W&B", "https://wandb.ai"],
 			["xiaomi", "Xiaomi", undefined],
 			["zai-coding-plan", "Z.AI Coding Plan", undefined],
+			["kimi-for-coding", "Kimi For Coding", "https://www.kimi.com/code/console"],
 		] as const
 
 		for (const [providerId, providerName, signupUrl] of migratedProviders) {

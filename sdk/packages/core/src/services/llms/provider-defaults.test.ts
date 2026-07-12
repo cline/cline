@@ -24,6 +24,39 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {}).length).toBeGreaterThan(0);
 	});
 
+	it("keeps Kimi's generated catalog IDs out of the selectable model list", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							"kimi-for-coding": {
+								models: {
+									k2p7: { name: "Kimi K2.7 Code" },
+								},
+							},
+						}),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					),
+			),
+		);
+
+		const resolved = await resolveProviderConfig("kimi-for-coding", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+		});
+
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+			"kimi-for-coding",
+			"kimi-for-coding-highspeed",
+		]);
+		expect(resolved?.knownModels?.["kimi-for-coding"]).toMatchObject({
+			name: "Kimi K2.7 Code",
+		});
+	});
+
 	it("uses catalog aliases when loading live models", async () => {
 		vi.stubGlobal(
 			"fetch",

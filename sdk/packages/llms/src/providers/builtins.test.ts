@@ -1,6 +1,6 @@
 import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BUILTIN_SPECS } from "./builtins";
+import { BUILTIN_SPECS, buildKimiForCodingModels } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 
 function findClineSpec() {
@@ -146,6 +146,45 @@ describe("built-in provider metadata", () => {
 				contextWindow: expect.any(Number),
 			}),
 		);
+	});
+
+	it("uses Kimi's documented K2.7 model IDs and enables thinking by default", async () => {
+		const models = await getModelsForProvider("kimi-for-coding");
+		const provider = await getProvider("kimi-for-coding");
+
+		expect(provider?.defaultModelId).toBe("kimi-for-coding");
+		expect(Object.keys(models)).toEqual([
+			"kimi-for-coding",
+			"kimi-for-coding-highspeed",
+		]);
+		expect(models["kimi-for-coding"]).toMatchObject({
+			id: "kimi-for-coding",
+			name: "Kimi K2.7 Code",
+			contextWindow: 262144,
+			maxTokens: 32768,
+			capabilities: expect.arrayContaining(["images", "tools", "reasoning"]),
+			metadata: { reasoningDefaultOn: true },
+		});
+		expect(models["kimi-for-coding-highspeed"]).toMatchObject({
+			id: "kimi-for-coding-highspeed",
+			name: "Kimi K2.7 Code HighSpeed",
+			family: "kimi-k2",
+			metadata: { reasoningDefaultOn: true },
+		});
+	});
+
+	it("keeps Kimi's public aliases when generated K2.7 metadata is unavailable", () => {
+		const models = buildKimiForCodingModels({});
+
+		expect(Object.keys(models)).toEqual([
+			"kimi-for-coding",
+			"kimi-for-coding-highspeed",
+		]);
+		expect(models["kimi-for-coding"]).toMatchObject({
+			contextWindow: 262144,
+			maxTokens: 32768,
+			family: "kimi-k2",
+		});
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {

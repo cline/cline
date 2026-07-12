@@ -76,16 +76,23 @@ export interface GatewayStickySessionMetadata {
 	metadataKey: string;
 }
 
+export interface GatewayProviderModelSelection {
+	/** Only provider-declared models are selectable; catalog models are metadata inputs. */
+	mode: "curated";
+}
+
 export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
 	stickySession?: GatewayStickySessionMetadata;
+	modelSelection?: GatewayProviderModelSelection;
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
 		| GatewayProviderRouting
 		| GatewayStickySessionMetadata
+		| GatewayProviderModelSelection
 		| readonly ProviderConfigField[]
 		| undefined;
 }

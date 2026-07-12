@@ -25,6 +25,7 @@ export type ApiProvider =
 	| "cline-pass"
 	| "litellm"
 	| "moonshot"
+	| "kimi-for-coding"
 	| "nebius"
 	| "fireworks"
 	| "asksage"

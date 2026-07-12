@@ -57,6 +57,7 @@ export enum BUILT_IN_PROVIDER {
 	DOUBAO = "doubao",
 	MISTRAL = "mistral",
 	MOONSHOT = "moonshot",
+	KIMI_FOR_CODING = "kimi-for-coding",
 	ASKSAGE = "asksage",
 	MINIMAX = "minimax",
 	DIFY = "dify",

@@ -319,6 +319,7 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	asksage: "asksageApiKey",
 	xai: "xaiApiKey",
 	moonshot: "moonshotApiKey",
+	"kimi-for-coding": "kimiForCodingApiKey",
 	zai: "zaiApiKey",
 	huggingface: "huggingFaceApiKey",
 	nebius: "nebiusApiKey",

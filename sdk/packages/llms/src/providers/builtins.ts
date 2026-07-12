@@ -33,6 +33,7 @@ import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	ANTHROPIC_ROUTING_METADATA,
+	KIMI_FOR_CODING_ROUTING_METADATA,
 	QWEN_CACHE_ROUTING_METADATA,
 } from "./routing/anthropic-compatible";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
@@ -373,6 +374,42 @@ function buildClineModels(): Record<string, ModelInfo> {
 		},
 		VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 	);
+}
+
+export function buildKimiForCodingModels(
+	models = generatedModels("kimi-for-coding"),
+): Record<string, ModelInfo> {
+	const base: ModelInfo = models.k2p7 ?? {
+		id: "k2p7",
+		name: "Kimi K2.7 Code",
+		contextWindow: 262_144,
+		maxInputTokens: 262_144,
+		maxTokens: 32_768,
+		capabilities: ["images", "tools", "reasoning", "structured_output"],
+		family: "kimi-k2",
+	};
+	// Kimi exposes stable standard/high-speed aliases rather than catalog IDs.
+	const standard: ModelInfo = {
+		...base,
+		id: "kimi-for-coding",
+		name: "Kimi K2.7 Code",
+		description:
+			"Latest Kimi coding model. Requires thinking; Kimi routes Standard to K2.6 when thinking is disabled.",
+		metadata: {
+			...base.metadata,
+			reasoningDefaultOn: true,
+		},
+	};
+	return {
+		"kimi-for-coding": standard,
+		"kimi-for-coding-highspeed": {
+			...standard,
+			id: "kimi-for-coding-highspeed",
+			name: "Kimi K2.7 Code HighSpeed",
+			description:
+				"High-speed variant of the latest Kimi coding model. Roughly 5–6× faster output than Standard with the same coding ability; consumes ~3× the quota. Requires an Allegretto plan or above.",
+		},
+	};
 }
 
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
@@ -1116,6 +1153,23 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "minimax",
 		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
 		metadata: MINIMAX_THINKING_ROUTING_METADATA,
+	},
+	{
+		id: "kimi-for-coding",
+		name: "Kimi For Coding",
+		description: "Kimi coding models via Anthropic-compatible API",
+		family: "anthropic",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "kimi-for-coding",
+		apiKeyEnv: ["KIMI_API_KEY"],
+		modelsFactory: buildKimiForCodingModels,
+		docsUrl:
+			"https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html",
+		defaults: { baseUrl: "https://api.kimi.com/coding/v1" },
+		metadata: {
+			...KIMI_FOR_CODING_ROUTING_METADATA,
+			modelSelection: { mode: "curated" },
+		},
 	},
 	{
 		id: "opencode",

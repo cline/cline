@@ -9,6 +9,7 @@ import type {
 import {
 	isAnthropicCompatibleModel,
 	isQwenModel,
+	modelReasoningDefaultsOn,
 	modelRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
@@ -82,6 +83,21 @@ export const ANTHROPIC_ROUTING_METADATA = createAnthropicRoutingMetadata();
 export const QWEN_CACHE_ROUTING_METADATA = createAnthropicRoutingMetadata({
 	promptCacheRoutes: [QWEN_PROMPT_CACHE_ROUTE],
 	reasoningRoutes: [],
+});
+
+const KIMI_FOR_CODING_REASONING_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "kimi-thinking",
+};
+
+const KIMI_K2_REASONING_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "kimi-k2",
+};
+
+export const KIMI_FOR_CODING_ROUTING_METADATA = createAnthropicRoutingMetadata({
+	promptCacheRoutes: [],
+	reasoningRoutes: [KIMI_FOR_CODING_REASONING_ROUTE, KIMI_K2_REASONING_ROUTE],
 });
 
 export const ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA =
@@ -415,7 +431,9 @@ export function buildAnthropicProviderOptions(
 		request.reasoning?.enabled === true ||
 		request.reasoning?.effort !== undefined ||
 		(typeof request.reasoning?.budgetTokens === "number" &&
-			request.reasoning.budgetTokens > 0);
+			request.reasoning.budgetTokens > 0) ||
+		(request.reasoning?.enabled === undefined &&
+			modelReasoningDefaultsOn({ request, context }));
 
 	const thinking: Record<string, unknown> | undefined = wantsAnthropicThinking
 		? policy.kind === "anthropic-adaptive"
@@ -429,6 +447,7 @@ export function buildAnthropicProviderOptions(
 							effort: request.reasoning?.effort,
 							maxTokens: request.maxTokens,
 							explicitBudgetTokens: request.reasoning?.budgetTokens,
+							supportsManualThinking: policy.kind === "anthropic-manual",
 						}),
 					}
 				: undefined
@@ -451,6 +470,7 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 	effort?: string;
 	maxTokens?: number;
 	explicitBudgetTokens?: number;
+	supportsManualThinking?: boolean;
 }) {
 	if (
 		typeof options.explicitBudgetTokens === "number" &&
@@ -461,10 +481,11 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 
 	if (
 		(!options.modelId && !options.family) ||
-		!isAnthropicCompatibleModel({
-			modelId: options.modelId,
-			family: options.family,
-		})
+		(!options.supportsManualThinking &&
+			!isAnthropicCompatibleModel({
+				modelId: options.modelId,
+				family: options.family,
+			}))
 	) {
 		return undefined;
 	}
@@ -513,6 +534,7 @@ export function buildAnthropicCompatibleReasoningOptions(
 		effort: request.reasoning?.effort,
 		maxTokens: request.maxTokens,
 		explicitBudgetTokens: request.reasoning?.budgetTokens,
+		supportsManualThinking: policy.kind === "anthropic-manual",
 	});
 	const reasoning: Record<string, unknown> = {};
 
@@ -579,6 +601,7 @@ export function buildGatewayReasoningOptions(
 					effort: request.reasoning?.effort,
 					maxTokens: request.maxTokens,
 					explicitBudgetTokens: request.reasoning?.budgetTokens,
+					supportsManualThinking: policy.kind === "anthropic-manual",
 				})
 			: request.reasoning?.budgetTokens;
 	const shouldSendDisabledReasoning =

@@ -112,6 +112,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "requesty", generatedProviderId: "requesty" },
 	{ modelsDevKey: "amazon-bedrock", generatedProviderId: "bedrock" },
 	{ modelsDevKey: "moonshotai", generatedProviderId: "moonshot" },
+	{ modelsDevKey: "kimi-for-coding", generatedProviderId: "kimi-for-coding" },
 	{ modelsDevKey: "minimax", generatedProviderId: "minimax" },
 	{ modelsDevKey: "wandb", generatedProviderId: "wandb" },
 	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
