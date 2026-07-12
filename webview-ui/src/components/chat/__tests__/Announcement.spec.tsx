@@ -70,13 +70,16 @@ describe("Announcement", () => {
 		vi.clearAllMocks()
 	})
 
-	it("renders the announcement with the correct version", () => {
+	it("renders the onboarding checklist", () => {
 		render(
 			<TestWrapper>
 				<Announcement hideAnnouncement={hideAnnouncement} version="2.0.0" />
 			</TestWrapper>,
 		)
-		expect(screen.getByText(/Welcome to AI-Hydro v2.0/)).toBeInTheDocument()
+		// `version` is kept for API compatibility but is no longer rendered —
+		// the announcement is now a 3-step "Get started" onboarding checklist
+		// (model / MCP tools / researcher profile), not a version banner.
+		expect(screen.getByText(/Get started with AI-Hydro/)).toBeInTheDocument()
 	})
 
 	it("calls hideAnnouncement when close button is clicked", () => {
@@ -85,7 +88,10 @@ describe("Announcement", () => {
 				<Announcement hideAnnouncement={hideAnnouncement} version="2.0.0" />
 			</TestWrapper>,
 		)
-		fireEvent.click(screen.getByTestId("close-button"))
+		// The close (X) icon button has no data-testid; its title is unique
+		// (the footer "Skip for now" button has the same label as visible
+		// text, not a `title` attribute, so this doesn't collide with it).
+		fireEvent.click(screen.getByTitle("Skip for now"))
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
 })
