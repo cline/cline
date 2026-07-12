@@ -165,6 +165,18 @@
 				"icon": "$(book)"
 			},
 			{
+				"command": "aihydro.experimentTableButtonClicked",
+				"title": "Experiment Table",
+				"category": "AI-Hydro",
+				"icon": "$(table)"
+			},
+			{
+				"command": "aihydro.sessionReplayButtonClicked",
+				"title": "Session Replay",
+				"category": "AI-Hydro",
+				"icon": "$(debug-rerun)"
+			},
+			{
 				"command": "aihydro.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -360,6 +372,16 @@
 				{
 					"command": "aihydro.skillsButtonClicked",
 					"group": "navigation@6",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
+					"command": "aihydro.experimentTableButtonClicked",
+					"group": "navigation@6.1",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
+					"command": "aihydro.sessionReplayButtonClicked",
+					"group": "navigation@6.2",
 					"when": "view == aihydro.SidebarProvider"
 				},
 				{

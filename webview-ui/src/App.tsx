@@ -1,5 +1,5 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import { Component, type ReactNode, useEffect } from "react"
+import { Component, lazy, type ReactNode, Suspense, useEffect } from "react"
 import ChatView from "./components/chat/ChatView"
 import ConnectorsView from "./components/connectors/ConnectorsView"
 import HistoryView from "./components/history/HistoryView"
@@ -13,6 +13,13 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
+
+// Lazy-loaded: a crash while rendering one of these reproducibility panels
+// must not blank the rest of the webview (chat, map, etc. share this bundle).
+const ExperimentTable = lazy(() =>
+	import("./components/experiment-table/ExperimentTable").then((mod) => ({ default: mod.ExperimentTable })),
+)
+const ReplayPanel = lazy(() => import("./components/replay-panel/ReplayPanel").then((mod) => ({ default: mod.ReplayPanel })))
 
 // ─── ErrorBoundary for standalone HTML preview panel ─────────────────────
 
@@ -63,6 +70,16 @@ const isStandaloneMapMode = () => {
 // Check if running in standalone HTML preview mode (separate panel)
 const isStandaloneHtmlPreviewMode = () => {
 	return typeof window !== "undefined" && (window as any).AIHYDRO_HTML_PREVIEW_STANDALONE === true
+}
+
+// Check if running in standalone Experiment Table mode (separate panel)
+const isStandaloneExperimentTableMode = () => {
+	return typeof window !== "undefined" && (window as any).AIHYDRO_EXPERIMENT_TABLE_STANDALONE === true
+}
+
+// Check if running in standalone Session Replay mode (separate panel)
+const isStandaloneReplayMode = () => {
+	return typeof window !== "undefined" && (window as any).AIHYDRO_REPLAY_PANEL_STANDALONE === true
 }
 
 const AppContent = () => {
@@ -171,6 +188,28 @@ const App = () => {
 						<HtmlPreviewPanel />
 					</div>
 				</HtmlPreviewErrorBoundary>
+			</Providers>
+		)
+	}
+
+	// Check if in standalone Session Replay mode and render directly with Providers
+	if (isStandaloneReplayMode()) {
+		return (
+			<Providers>
+				<Suspense fallback={null}>
+					<ReplayPanel />
+				</Suspense>
+			</Providers>
+		)
+	}
+
+	// Check if in standalone Experiment Table mode and render directly with Providers
+	if (isStandaloneExperimentTableMode()) {
+		return (
+			<Providers>
+				<Suspense fallback={null}>
+					<ExperimentTable />
+				</Suspense>
 			</Providers>
 		)
 	}

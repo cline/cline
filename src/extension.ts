@@ -16,8 +16,10 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendSkillsButtonClickedEvent } from "./core/controller/ui/subscribeToSkillsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createAiHydroAPI } from "./exports"
+import { VscodeExperimentTableProvider } from "./hosts/vscode/VscodeExperimentTableProvider"
 import { VscodeHtmlPreviewProvider } from "./hosts/vscode/VscodeHtmlPreviewProvider"
 import { VscodeMapPanelProvider } from "./hosts/vscode/VscodeMapPanelProvider"
+import { VscodeReplayProvider } from "./hosts/vscode/VscodeReplayProvider"
 import { GeeService } from "./services/gee/GeeService"
 import { GeeTileProxyService } from "./services/gee/GeeTileProxyService"
 import type { GeeProjectInfo, GeeStatusResult } from "./services/gee/types"
@@ -230,6 +232,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize HTML preview panel provider with controller
 	VscodeHtmlPreviewProvider.initialize(context, webview.controller)
 
+	// Initialize reproducibility panels (Experiment Table, Session Replay) with controller
+	VscodeExperimentTableProvider.initialize(context, webview.controller)
+	VscodeReplayProvider.initialize(context, webview.controller)
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.MapButton, async () => {
 			console.log("[DEBUG] aihydro.mapButtonClicked - opening side-by-side map panel")
@@ -249,6 +255,24 @@ export async function activate(context: vscode.ExtensionContext) {
 			console.log("[DEBUG] aihydro.htmlPreviewButtonClicked - opening side-by-side HTML preview panel")
 			telemetryService.captureButtonClick("aihydro_htmlPreviewButton", webview.controller?.task?.ulid)
 			await VscodeHtmlPreviewProvider.createOrShow()
+		}),
+	)
+
+	// Register "AI-Hydro: Experiment Table" — reads a session's _experiments
+	// slot and renders the metric matrix; no Python round-trip required.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ExperimentTableButton, async () => {
+			telemetryService.captureButtonClick("aihydro_experimentTableButton", webview.controller?.task?.ulid)
+			await VscodeExperimentTableProvider.createOrShow()
+		}),
+	)
+
+	// Register "AI-Hydro: Session Replay" — reads a session's _run_log slot
+	// and renders it as a chronological audit timeline.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.SessionReplayButton, async () => {
+			telemetryService.captureButtonClick("aihydro_sessionReplayButton", webview.controller?.task?.ulid)
+			await VscodeReplayProvider.createOrShow()
 		}),
 	)
 
