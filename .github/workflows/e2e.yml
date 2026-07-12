@@ -100,9 +100,13 @@ jobs:
               if: matrix.runner != 'ubuntu'
               run: npm run test:e2e:optimal
 
+            - name: Sanitize allowlisted failure evidence
+              if: ${{ failure() }}
+              run: node scripts/sanitize-e2e-artifacts.mjs test-results/playwright test-results/sanitized
+
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}
               with:
                   name: playwright-recordings-${{ matrix.runner }}
-                  path: |
-                      test-results/playwright/
+                  path: test-results/sanitized/
+                  if-no-files-found: ignore

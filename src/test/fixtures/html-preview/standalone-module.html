@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Standalone Executable Module Fixture</title>
+	<script type="application/vnd.aihydro.module+json">
+	{
+		"id": "standalone-runtime-fixture",
+		"title": "Standalone Executable Module Fixture",
+		"version": "0.1.0",
+		"license": "CC0-1.0",
+		"requires": { "executable": true }
+	}
+	</script>
+</head>
+<body class="aihydro-module">
+	<main class="aihydro-content">
+		<h1>Standalone executable module</h1>
+		<p>This module has executable cells but no course association.</p>
+		<div class="aihydro-cell" data-aihydro-cell-id="standalone-python" data-language="python" data-execution="kernel">
+			<div class="aihydro-cell-header">
+				<span class="aihydro-cell-lang">python</span>
+				<button class="aihydro-run" type="button">Run</button>
+			</div>
+			<pre class="aihydro-source">print("standalone_execution=ok")
+6 * 7</pre>
+			<div class="aihydro-output" aria-live="polite"></div>
+		</div>
+	</main>
+</body>
+</html>

@@ -8,6 +8,7 @@ per line to stdout. Maintains a single global namespace across exec calls.
 
 from __future__ import annotations
 
+import ast
 import base64
 import io
 import json
@@ -186,8 +187,17 @@ def _exec_code(namespace: dict[str, Any], code: str) -> dict[str, Any]:
         warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive")
         warnings.filterwarnings("ignore", message=".*non-interactive.*")
         try:
-            compiled = compile(code, "<aihydro-cell>", "exec")
-            exec(compiled, namespace, namespace)  # noqa: S102
+            parsed = ast.parse(code, "<aihydro-cell>", "exec")
+            if parsed.body and isinstance(parsed.body[-1], ast.Expr):
+                statements = ast.Module(body=parsed.body[:-1], type_ignores=parsed.type_ignores)
+                if statements.body:
+                    exec(compile(statements, "<aihydro-cell>", "exec"), namespace, namespace)  # noqa: S102
+                expression = ast.Expression(parsed.body[-1].value)
+                value = eval(compile(expression, "<aihydro-cell>", "eval"), namespace, namespace)  # noqa: S307
+                if value is not None:
+                    result_repr = repr(value)
+            else:
+                exec(compile(parsed, "<aihydro-cell>", "exec"), namespace, namespace)  # noqa: S102
         except Exception:
             error = traceback.format_exc()
         finally:
@@ -195,9 +205,6 @@ def _exec_code(namespace: dict[str, Any], code: str) -> dict[str, Any]:
 
     stdout = stdout_buf.getvalue()
     stderr = _filter_stderr(stderr_buf.getvalue())
-
-    if error is None and not stdout and not stderr:
-        result_repr = ""
 
     images = [] if error else _collect_matplotlib_images()
 

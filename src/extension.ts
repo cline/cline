@@ -52,6 +52,7 @@ import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 
 const MAP_FILE_EXTENSIONS = new Set([".geojson", ".json", ".topojson", ".kml", ".kmz", ".gpx", ".zip", ".tif", ".tiff", ".csv"])
+const HTML_FILE_EXTENSIONS = new Set([".html", ".htm"])
 
 function activeMapFileUri(): vscode.Uri | undefined {
 	const activeEditorUri = vscode.window.activeTextEditor?.document.uri
@@ -75,6 +76,28 @@ function mapUrisFromCommandArgs(args: unknown[]): vscode.Uri[] {
 		return fromArgs
 	}
 	const active = activeMapFileUri()
+	return active ? [active] : []
+}
+
+function activeHtmlFileUri(): vscode.Uri | undefined {
+	const activeEditorUri = vscode.window.activeTextEditor?.document.uri
+	if (activeEditorUri?.scheme === "file" && HTML_FILE_EXTENSIONS.has(path.extname(activeEditorUri.fsPath).toLowerCase())) {
+		return activeEditorUri
+	}
+	const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab
+	const input = activeTab?.input
+	if (input instanceof vscode.TabInputText && input.uri.scheme === "file") {
+		return HTML_FILE_EXTENSIONS.has(path.extname(input.uri.fsPath).toLowerCase()) ? input.uri : undefined
+	}
+	return undefined
+}
+
+function htmlUrisFromCommandArgs(args: unknown[]): vscode.Uri[] {
+	const fromArgs = args.flat().filter((a): a is vscode.Uri => a instanceof vscode.Uri)
+	if (fromArgs.length > 0) {
+		return fromArgs
+	}
+	const active = activeHtmlFileUri()
 	return active ? [active] : []
 }
 
@@ -407,7 +430,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Accepts one or more URIs (VS Code passes selected items as args when multi-select).
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.AddFileToHtmlPreview, async (...args: unknown[]) => {
-			const uris: vscode.Uri[] = args.flat().filter((a): a is vscode.Uri => a instanceof vscode.Uri)
+			const uris = htmlUrisFromCommandArgs(args)
 			if (uris.length === 0) {
 				return
 			}

@@ -15,10 +15,16 @@ const BASE: RunArtifactCodeResult = {
 }
 
 describe("mapRunResultToOutputs", () => {
-	it("maps stdout, stderr and error to typed outputs", () => {
-		const outputs = mapRunResultToOutputs({ ...BASE, stdout: "hi", stderr: "warn", error: "boom" })
+	it("maps stdout, stderr, error and result representation to typed outputs", () => {
+		const outputs = mapRunResultToOutputs({
+			...BASE,
+			stdout: "hi",
+			stderr: "warn",
+			error: "boom",
+			resultRepr: "42",
+		})
 		const byType = outputs.map((o) => o.type)
-		expect(byType).to.include.members(["stdout", "stderr", "error"])
+		expect(byType).to.include.members(["stdout", "stderr", "error", "result"])
 	})
 
 	it("maps PNG images to image/png outputs", () => {
