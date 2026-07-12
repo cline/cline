@@ -7,6 +7,7 @@ Cline supports a wide range of AI model providers that offer APIs compatible wit
 
 -   **Local models** running through tools like Ollama and LM Studio (which are covered in their respective sections).
 -   **Cloud providers** like Perplexity, Together AI, Anyscale, and many others.
+-   **Multi-model gateways** such as [DaoXE](https://daoxe.com) (`https://daoxe.com/v1`).
 -   **Any other provider** that offers an OpenAI-compatible API endpoint.
 
 This document focuses on setting up providers _other than_ the official OpenAI API (which has its own [dedicated configuration page](/provider-config/openai)).
@@ -25,6 +26,20 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 -   **Base URL:** Enter the base URL provided by your chosen provider. **This is a crucial step.**
 -   **API Key:** Enter your API key from the provider.
 -   **Model:** Choose or enter the model ID.
+
+### Example: DaoXE
+
+[DaoXE](https://daoxe.com) is a multi-model multi-protocol AI API gateway.
+
+1. Select **OpenAI Compatible** as the API Provider.
+2. Set **Base URL** to `https://daoxe.com/v1`.
+3. Paste your DaoXE API key.
+4. Enter an exact model ID currently available to your DaoXE account.
+
+DaoXE supports OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and image-compatible endpoints. Cline uses the OpenAI Chat Completions path above.
+
+DaoXE is **not available in mainland China**. Public examples: [DaoXE-AI](https://github.com/seven7763/DaoXE-AI).
+
 -   **Use Azure Identity Authentication:** Check the box to authenticate with your Azure managed identity (Note that this will not trigger the authentication, it will use the existing one (e.g., "az login"))
 -   **Model Configuration:** This section allows you to customize advanced parameters for the model, such as:
     -   Max Output Tokens
