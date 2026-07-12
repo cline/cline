@@ -160,6 +160,7 @@ async function runCell(frame: Frame, cellId: string): Promise<void> {
 	const cell = frame.locator(`[data-aihydro-cell-id="${cellId}"]`)
 	const run = cell.locator(".aihydro-run")
 	await expect(run).toBeVisible()
+	await expect(run).toHaveAttribute("data-aihydro-wired", "1", { timeout: 30_000 })
 	// VS Code's built-in Chat pane and startup toasts can overlap a narrow
 	// preview group on hosted macOS even though the iframe control is visible.
 	await run.click({ force: true })
