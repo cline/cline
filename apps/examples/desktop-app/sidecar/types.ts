@@ -115,4 +115,7 @@ export type BunRuntimeApi = {
 export const BunRuntime = (globalThis as { Bun?: BunRuntimeApi }).Bun;
 
 export const SIDECAR_PORT = Number(process.env.CLINE_SIDECAR_PORT) || 3126;
+// Loopback-only by default. Set CLINE_SIDECAR_HOST=0.0.0.0 to accept
+// connections from outside the local host (e.g. Docker port publishing).
+export const SIDECAR_HOST = process.env.CLINE_SIDECAR_HOST?.trim() || "127.0.0.1";
 export const SIDECAR_MODE = "sidecar";

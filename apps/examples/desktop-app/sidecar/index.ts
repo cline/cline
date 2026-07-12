@@ -5,7 +5,7 @@ import {
 } from "./context";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
-import { BunRuntime, SIDECAR_MODE, SIDECAR_PORT } from "./types";
+import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
@@ -59,8 +59,10 @@ async function main() {
 
 	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
 
-	const endpoint = `http://127.0.0.1:${port}`;
-	const wsEndpoint = `ws://127.0.0.1:${port}/transport`;
+	// A wildcard bind isn't a dialable address; advertise loopback instead.
+	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
+	const endpoint = `http://${dialHost}:${port}`;
+	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
 	process.stdout.write(
 		`${JSON.stringify({
 			type: "ready",
