@@ -768,6 +768,11 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
         er.className = "aihydro-error";
         er.textContent = o.text;
         container.appendChild(er);
+	  } else if (o.type === "result" && o.text) {
+		var result = document.createElement("pre");
+		result.className = "aihydro-result";
+		result.textContent = o.text;
+		container.appendChild(result);
       } else if (o.type === "image/png" && o.data) {
         renderImages(container, [o.data]);
       } else if (o.type === "video/mp4" && o.data) {

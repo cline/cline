@@ -1,0 +1,93 @@
+name: HTML Preview Runtime
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/test/e2e/html-preview-runtime.test.ts"
+      - "src/test/e2e/utils/helpers.ts"
+      - "src/test/fixtures/html-preview/**"
+      - "src/extension.ts"
+      - "src/services/artifact-preview/**"
+      - "webview-ui/src/components/html_preview/**"
+      - "scripts/sanitize-e2e-artifacts.mjs"
+      - ".github/workflows/html-preview-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu
+            grep: "@phase0-full"
+          - runner: windows
+            grep: "@phase0-smoke"
+          - runner: macos
+            grep: "@phase0-smoke"
+    runs-on: ${{ matrix.runner }}-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Configure deterministic Python runtime
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check matplotlib
+          python -c 'import sys; print("AIHYDRO_E2E_PYTHON=" + sys.executable)' >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm ci
+          cd webview-ui
+          npm ci
+
+      - name: Install xvfb
+        if: matrix.runner == 'ubuntu'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Build extension and E2E assets
+        shell: bash
+        run: |
+          npm run test:e2e:build
+          node src/test/e2e/utils/build.mjs
+
+      - name: Run complete Ubuntu matrix
+        if: matrix.runner == 'ubuntu'
+        shell: bash
+        run: xvfb-run -a npx playwright test -c playwright.config.ts src/test/e2e/html-preview-runtime.test.ts --grep '${{ matrix.grep }}'
+
+      - name: Run platform-sensitive smoke test
+        if: matrix.runner != 'ubuntu'
+        shell: bash
+        run: npx playwright test -c playwright.config.ts src/test/e2e/html-preview-runtime.test.ts --grep '${{ matrix.grep }}'
+
+      - name: Sanitize allowlisted failure evidence
+        if: failure()
+        run: node scripts/sanitize-e2e-artifacts.mjs test-results/playwright test-results/sanitized
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: html-preview-runtime-${{ matrix.runner }}
+          path: test-results/sanitized/
+          if-no-files-found: ignore

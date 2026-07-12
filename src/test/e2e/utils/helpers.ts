@@ -1,4 +1,5 @@
-import { mkdtempSync, type PathLike, type RmOptions, rmSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { mkdirSync, mkdtempSync, type PathLike, type RmOptions, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
@@ -11,6 +12,7 @@ interface E2ETestDirectories {
 	multiRootWorkspaceDir: string
 	userDataDir: string
 	extensionsDir: string
+	homeDir: string
 }
 
 export interface E2ETestConfigs {
@@ -138,10 +140,7 @@ export class E2ETestHelper {
 	}
 
 	public static async openAiHydroSidebar(page: Page): Promise<void> {
-		await page
-			.getByRole("tab", { name: /AI-Hydro/ })
-			.locator("a")
-			.click()
+		await page.getByRole("tab", { name: "AI-Hydro", exact: true }).locator("a").click()
 	}
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
@@ -233,20 +232,36 @@ export const e2e = test
 		extensionsDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
+		homeDir: async ({}, use) => {
+			await use(mkdtempSync(path.join(os.tmpdir(), "aihydro-e2e-home-")))
+		},
 	})
 	.extend<E2ETestConfigs>({
 		workspaceType: "single",
 		channel: "stable",
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
-		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
+		openVSCode: async ({ userDataDir, extensionsDir, homeDir, channel }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
+			const matplotlibConfigDir = path.join(homeDir, ".cache", "matplotlib")
+			mkdirSync(matplotlibConfigDir, { recursive: true })
+			const pythonInterpreter = process.env.AIHYDRO_E2E_PYTHON
+			if (pythonInterpreter) {
+				execFileSync(pythonInterpreter, ["-c", "import matplotlib.pyplot"], {
+					env: { ...process.env, HOME: homeDir, USERPROFILE: homeDir, MPLCONFIGDIR: matplotlibConfigDir },
+					timeout: 60_000,
+				})
+			}
 
 			await use(async (workspacePath: string) => {
 				const app = await _electron.launch({
 					executablePath,
 					env: {
 						...process.env,
+						HOME: homeDir,
+						USERPROFILE: homeDir,
+						MPLCONFIGDIR: matplotlibConfigDir,
+						PYTHONHASHSEED: "0",
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						AIHYDRO_ENVIRONMENT: "local",
@@ -261,12 +276,15 @@ export const e2e = test
 					},
 					args: [
 						"--no-sandbox",
+						"--password-store=basic",
+						"--use-inmemory-secretstorage",
 						"--disable-updates",
 						"--disable-workspace-trust",
 						"--disable-extensions", // Run VS Code with all extensions disabled other than the one under test.
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
+						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspacePath,
@@ -278,7 +296,10 @@ export const e2e = test
 		},
 	})
 	.extend<{ app: ElectronApplication }>({
-		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
+		app: async (
+			{ openVSCode, userDataDir, extensionsDir, homeDir, workspaceType, workspaceDir, multiRootWorkspaceDir },
+			use,
+		) => {
 			const workspacePath = workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir
 			const app = await openVSCode(workspacePath)
 
@@ -290,6 +311,7 @@ export const e2e = test
 				await Promise.allSettled([
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
 					E2ETestHelper.rmForRetries(extensionsDir, { recursive: true }),
+					E2ETestHelper.rmForRetries(homeDir, { recursive: true }),
 				])
 			}
 		},

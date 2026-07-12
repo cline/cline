@@ -12,6 +12,9 @@ export function mapRunResultToOutputs(result: RunArtifactCodeResult): ArtifactCe
 	if (result.error) {
 		outputs.push(ArtifactCellOutput.create({ type: "error", text: result.error }))
 	}
+	if (result.resultRepr) {
+		outputs.push(ArtifactCellOutput.create({ type: "result", text: result.resultRepr }))
+	}
 	for (const b64 of result.imagesPngBase64) {
 		outputs.push(ArtifactCellOutput.create({ type: "image/png", data: b64 }))
 	}

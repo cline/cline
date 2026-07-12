@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import * as path from "node:path"
+import { fileURLToPath } from "node:url"
 import { expect } from "chai"
 import { describe, it } from "mocha"
 
-const RUNNER = path.resolve(__dirname, "..", "artifact_kernel_runner.py")
+const RUNNER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "artifact_kernel_runner.py")
 
 function runKernel(lines: string[]): Promise<Record<string, unknown>[]> {
 	return new Promise((resolve, reject) => {
@@ -59,6 +60,17 @@ describe("artifact_kernel_runner.py", function () {
 		expect(responses[0]?.status).to.equal("ok")
 		expect(responses[2]?.status).to.equal("ok")
 		expect(String(responses[2]?.stdout)).to.include("42")
+	})
+
+	it("returns the representation of the final expression", async () => {
+		const responses = await runKernel([
+			JSON.stringify({ op: "ping", id: "ping" }),
+			JSON.stringify({ op: "exec", id: "result", code: 'print("ready")\n6 * 7' }),
+		])
+
+		expect(responses[1]?.status).to.equal("ok")
+		expect(responses[1]?.stdout).to.equal("ready\n")
+		expect(responses[1]?.result_repr).to.equal("42")
 	})
 
 	it("returns traceback on syntax errors", async () => {
