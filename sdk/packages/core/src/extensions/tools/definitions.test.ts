@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -448,7 +449,7 @@ describe("default search_codebase tool", () => {
 
 		expect(execute).toHaveBeenCalledWith(
 			"needle",
-			"/workspace/src",
+			path.resolve("/workspace", "src"),
 			expect.objectContaining({ agentId: "agent-1" }),
 		);
 	});
