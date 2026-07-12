@@ -113,6 +113,19 @@ async function waitForShell(page: Page): Promise<Frame> {
 	return waitForFrame(page, async (frame) => (await frame.title()) === "AI-Hydro HTML Preview")
 }
 
+async function waitForCourseShell(page: Page): Promise<Frame> {
+	return waitForFrame(page, async (frame) => {
+		if ((await frame.title()) !== "AI-Hydro HTML Preview") {
+			return false
+		}
+		if ((await frame.getByTitle("Course options").count()) !== 1) {
+			return false
+		}
+		const srcdoc = await frame.locator("iframe").first().getAttribute("srcdoc")
+		return srcdoc?.includes("application/vnd.aihydro.module+json") ?? false
+	})
+}
+
 async function waitForCellFrame(page: Page, cellId: string): Promise<Frame> {
 	return waitForFrame(page, async (frame) => (await frame.locator(`[data-aihydro-cell-id="${cellId}"]`).count()) === 1)
 }
@@ -137,10 +150,7 @@ runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async
 	await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, (route) => route.abort())
 
 	await openWorkspaceFile(page, "phase0/golden-course/01-runtime-contract/module.html")
-	let shell = await waitForShell(page)
-	await expect(shell.getByTitle("Course options")).toBeVisible({ timeout: 30_000 })
-	const previewIframe = shell.locator("iframe").first()
-	await expect(previewIframe).toHaveAttribute("srcdoc", /application\/vnd\.aihydro\.module\+json/)
+	let shell = await waitForCourseShell(page)
 
 	let artifact = await waitForCellFrame(page, "fixture-state-create")
 	await runCell(artifact, "fixture-state-create")
