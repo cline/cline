@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/test/e2e/html-preview-runtime.test.ts"
+      - "src/test/e2e/html-preview-state-course.test.ts"
       - "src/test/e2e/utils/helpers.ts"
       - "src/test/fixtures/html-preview/**"
       - "src/extension.ts"
@@ -28,13 +29,13 @@ jobs:
       matrix:
         include:
           - runner: ubuntu
-            grep: "@phase0-full"
+            grep: "@phase0-(full|state-course-full)"
           - runner: windows
-            grep: "@phase0-smoke"
+            grep: "@phase0-(smoke|state-course-smoke)"
           - runner: macos
-            grep: "@phase0-smoke"
+            grep: "@phase0-(smoke|state-course-smoke)"
     runs-on: ${{ matrix.runner }}-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -74,12 +75,12 @@ jobs:
       - name: Run complete Ubuntu matrix
         if: matrix.runner == 'ubuntu'
         shell: bash
-        run: xvfb-run -a npx playwright test -c playwright.config.ts src/test/e2e/html-preview-runtime.test.ts --grep '${{ matrix.grep }}'
+        run: xvfb-run -a npx playwright test -c playwright.config.ts src/test/e2e/html-preview-*.test.ts --grep '${{ matrix.grep }}'
 
       - name: Run platform-sensitive smoke test
         if: matrix.runner != 'ubuntu'
         shell: bash
-        run: npx playwright test -c playwright.config.ts src/test/e2e/html-preview-runtime.test.ts --grep '${{ matrix.grep }}'
+        run: npx playwright test -c playwright.config.ts src/test/e2e/html-preview-*.test.ts --grep '${{ matrix.grep }}'
 
       - name: Sanitize allowlisted failure evidence
         if: failure()
