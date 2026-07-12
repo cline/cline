@@ -107,12 +107,19 @@ The panel supports:
 - focused-run opening from Experiment Table run chips;
 - quality-flag and diff-status badges.
 
-Today's `_run_log` records tool name, timestamp, and a lean, size-capped
-`key_outputs` snapshot only — it does not record what inputs a run consumed
-or which prior run's output it depended on. Replay is therefore a
-per-run audit trail today, not a full provenance graph; see the extension
+`_run_log` records tool name, timestamp, and a lean, size-capped
+`key_outputs` snapshot, plus — for tools that opt in via
+`post_run(..., inputs={...})` — a scrubbed `inputs` dict of the call's own
+scalar kwargs (secret-shaped keys and long strings such as inline GeoJSON
+are dropped or length-only; see `_scrub_tool_inputs` in
+`aihydro-tools/ai_hydro/mcp/enforcement.py`). As of this writing, 4 tools
+(`fetch_streamflow_data`, `extract_hydrological_signatures`,
+`map_flood_inundation`, `map_flood_inundation_hydrograph`) record inputs;
+most Tier 1 tools do not yet. Replay still does not record which prior
+run's output a run depended on (no `upstream_run_ids`) — that remains a
+per-run audit trail, not a full provenance graph; see the extension
 feature audit (`audits/extension-feature-audit-2026-07-09.md`, ecosystem
-root) for the plan to extend it.
+root, finding F-2) for the full picture and the plan for the rest.
 
 ## Shared file-contract reader
 
