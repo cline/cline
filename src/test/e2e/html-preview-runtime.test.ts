@@ -162,8 +162,9 @@ async function runCell(frame: Frame, cellId: string): Promise<void> {
 	await expect(run).toBeVisible()
 	await expect(run).toHaveAttribute("data-aihydro-wired", "1", { timeout: 30_000 })
 	// VS Code's built-in Chat pane and startup toasts can overlap a narrow
-	// preview group on hosted macOS even though the iframe control is visible.
-	await run.click({ force: true })
+	// preview group on hosted macOS. Invoke the wired DOM control directly so
+	// layout overlays cannot swallow the event while preserving the real bridge.
+	await run.evaluate((element: HTMLElement) => element.click())
 }
 
 async function expectPngOutput(cell: Locator): Promise<void> {
