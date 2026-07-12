@@ -371,14 +371,14 @@ function ClinePassBrowserPageContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 
 			<text>{status}</text>
 
 			<text fg="gray">{pageLabel}:</text>
-			<text fg="cyan" selectable>
+			<text fg={palette.act} selectable>
 				<a href={url}>{url}</a>
 			</text>
 
@@ -596,7 +596,7 @@ export function ProviderConfigInputContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 
@@ -689,7 +689,7 @@ export function CodexCliStatusContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 
@@ -707,7 +707,7 @@ export function CodexCliStatusContent(
 					<text fg="yellow">Codex CLI was not found</text>
 					<text fg="gray">{status.reason}</text>
 					<text fg="gray">Install Codex CLI from:</text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						{CODEX_CLI_INSTALL_URL}
 					</text>
 				</box>
@@ -869,7 +869,7 @@ export function OAuthLoginContent(
 	if (mode === "device") {
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
-				<text fg="cyan">
+				<text fg={palette.act}>
 					<strong>{providerName}</strong>
 				</text>
 
@@ -884,7 +884,7 @@ export function OAuthLoginContent(
 							<strong>{deviceUserCode}</strong>
 						</text>
 						<text fg="gray">Visit this URL and enter the code above:</text>
-						<text fg="cyan" selectable>
+						<text fg={palette.act} selectable>
 							<a href={deviceVerifyUrl}>{deviceVerifyUrl}</a>
 						</text>
 					</box>
@@ -901,7 +901,7 @@ export function OAuthLoginContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 

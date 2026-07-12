@@ -47,9 +47,6 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	optimizeDeps: {
-		force: true, // Forces re-optimization
-	},
 	plugins: [react(), tailwindcss(), writePortToFile()],
 	test: {
 		environment: "jsdom",
@@ -111,9 +108,13 @@ export default defineConfig({
 		chunkSizeWarningLimit: 100000,
 	},
 	server: {
+		host: "127.0.0.1",
 		port: 25463,
+		fs: {
+			allow: [resolve(__dirname), resolve(__dirname, "../src/shared")],
+		},
 		hmr: {
-			host: "localhost",
+			host: "127.0.0.1",
 			protocol: "ws",
 		},
 		cors: {

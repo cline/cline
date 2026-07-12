@@ -38,6 +38,23 @@ const {
 	})),
 }));
 
+const {
+	mockDaemonTelemetryService,
+	mockDaemonTelemetryDispose,
+	mockCreateHubDaemonTelemetry,
+} = vi.hoisted(() => {
+	const telemetry = { capture: vi.fn() };
+	const dispose = vi.fn(async () => undefined);
+	return {
+		mockDaemonTelemetryService: telemetry,
+		mockDaemonTelemetryDispose: dispose,
+		mockCreateHubDaemonTelemetry: vi.fn(() => ({
+			telemetry,
+			dispose,
+		})),
+	};
+});
+
 vi.mock("@cline/shared", () => ({
 	initVcr: mockInitVcr,
 	resolveClineBuildEnv: () => "production",
@@ -61,6 +78,10 @@ vi.mock("../server", () => ({
 	startHubWebSocketServer: mockStartHubWebSocketServer,
 }));
 
+vi.mock("./telemetry", () => ({
+	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -78,6 +99,8 @@ describe("hub daemon entry", () => {
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockStartHubWebSocketServer.mockClear();
+		mockCreateHubDaemonTelemetry.mockClear();
+		mockDaemonTelemetryDispose.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -111,9 +134,33 @@ describe("hub daemon entry", () => {
 				port: 30000,
 				pathname: "/hub",
 				owner: expect.objectContaining({ ownerId: "production" }),
+				telemetry: mockDaemonTelemetryService,
 				cronOptions: { workspaceRoot: cwd },
 			}),
 		);
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledOnce();
+		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
+			telemetry: mockDaemonTelemetryService,
+		});
+	});
+
+	it("disposes telemetry and exits when server startup fails", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		mockStartHubWebSocketServer.mockRejectedValueOnce(
+			new Error("port already in use"),
+		);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
 	});
 });

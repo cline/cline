@@ -15,6 +15,7 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
@@ -46,6 +47,7 @@ import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
+	identifyTelemetryAccount,
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
@@ -924,7 +926,18 @@ export async function runCli(): Promise<void> {
 		coreServer: { createUserInstructionConfigService },
 		resolveSystemPrompt,
 		runAgent,
-	} = await loadCliRuntimeModules();
+		} = await loadCliRuntimeModules();
+
+	// Register the SDK early logger as early as possible — before any
+	// provider settings reads — so the full startup sequence is captured.
+	// These components operate before/outside ClineCore sessions, so the
+	// session-scoped logger can't reach them.
+	const { createCliLoggerAdapter } = await import("./logging/adapter");
+	const loggerAdapter = createCliLoggerAdapter({
+		runtime: "cli",
+		component: "main",
+	});
+	coreServer.setSdkLogger(loggerAdapter.core);
 
 	const userInstructionService = createUserInstructionConfigService({
 		skills: {
@@ -962,6 +975,19 @@ export async function runCli(): Promise<void> {
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
+
+		// Apply locally persisted Cline account identity so subsequent events
+		// (task.*, workspace.initialized) carry user_id when available.
+		// Note: user.extension_activated fires anonymously earlier in startup
+		// and cannot be retroactively updated; this is by design for
+		// lightweight subcommand and pre-auth CLI flows. See CLINE-2406.
+		if (provider === "cline") {
+			const savedAccountId = selectedProviderSettings?.auth?.accountId;
+			if (savedAccountId) {
+				identifyTelemetryAccount({ id: savedAccountId, provider: "cline" });
+			}
+		}
+
 		const persistedApiKey = getPersistedProviderApiKey(
 			provider,
 			selectedProviderSettings,
@@ -1029,6 +1055,7 @@ export async function runCli(): Promise<void> {
 			reasoningEffort: args.reasoningEffort,
 			persistedReasoning: selectedProviderSettings?.reasoning,
 		});
+		const cliBuildInfo = getCliBuildInfo();
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
@@ -1038,7 +1065,7 @@ export async function runCli(): Promise<void> {
 			interactive: args.interactive === true,
 			hasPrompt: !!args.prompt?.trim(),
 			cwd,
-		});
+			});
 
 		const config: Config = {
 			providerId: provider,
@@ -1079,7 +1106,13 @@ export async function runCli(): Promise<void> {
 			cwd,
 			workspaceRoot,
 			extensionContext: {
-				client: { name: "cline-cli" },
+				client: {
+					name: "cline-cli",
+					version: cliBuildInfo.version,
+					platform: "cli",
+					platformVersion: cliBuildInfo.version,
+					isMultiRoot: false,
+				},
 				workspace: {
 					rootPath: workspaceRoot,
 					cwd,

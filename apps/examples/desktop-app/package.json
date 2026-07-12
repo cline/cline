@@ -1,6 +1,6 @@
 {
 	"name": "@cline/code",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"private": true,
 	"scripts": {
 		"dev:web": "next dev webview -p 3125 --turbo",
@@ -10,6 +10,11 @@
 		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
 		"build:binary": "tauri build",
+		"package": "bun run package:desktop",
+		"package:desktop": "bun run scripts/package-desktop.ts",
+		"package:desktop:mac": "bun run scripts/package-desktop.ts --platform mac",
+		"package:desktop:windows": "bun run scripts/package-desktop.ts --platform windows",
+		"package:desktop:linux": "bun run scripts/package-desktop.ts --platform linux",
 		"start": "next start webview",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
@@ -19,7 +24,8 @@
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
-		"@fontsource-variable/geist": "^5.2.8",
+		"@fontsource-variable/schibsted-grotesk": "^5.2.8",
+		"@fontsource/azeret-mono": "^5.2.9",
 		"@hookform/resolvers": "^3.9.1",
 		"@radix-ui/react-accordion": "1.2.12",
 		"@radix-ui/react-alert-dialog": "1.1.15",

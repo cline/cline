@@ -18,8 +18,9 @@ async function tryTauriInvoke<T>(
 	try {
 		const { invoke } = await import("@tauri-apps/api/core");
 		return await invoke<T>(command, args);
-	} catch {
-		throw new Error(`Tauri invoke unavailable for command: ${command}`);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Tauri invoke failed for ${command}: ${message}`);
 	}
 }
 
@@ -37,7 +38,7 @@ let resolvedEndpointCache: string | null = null;
  * 3. Fallback to `ws://127.0.0.1:3126/transport` — the sidecar's default port
  *    when running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
  */
-async function resolveBackendEndpoint(): Promise<string> {
+export async function resolveDesktopBackendWsEndpoint(): Promise<string> {
 	if (resolvedEndpointCache) return resolvedEndpointCache;
 
 	// 1. Explicit injection from sidecar or test harness.
@@ -51,7 +52,7 @@ async function resolveBackendEndpoint(): Promise<string> {
 	}
 
 	// 2. Tauri command (full desktop app).
-	try {
+	if (isTauriAvailable()) {
 		const endpoint = await tryTauriInvoke<string>(
 			"get_desktop_backend_endpoint",
 		);
@@ -60,13 +61,24 @@ async function resolveBackendEndpoint(): Promise<string> {
 			resolvedEndpointCache = trimmed;
 			return resolvedEndpointCache;
 		}
-	} catch {
-		// Tauri not available — fall through to default.
+		throw new Error("Tauri returned an empty desktop backend endpoint");
 	}
 
-	// 3. Default sidecar port for local dev mode.
+	// 3. Default sidecar port for local dev mode without the Tauri bridge.
 	resolvedEndpointCache = "ws://127.0.0.1:3126/transport";
 	return resolvedEndpointCache;
+}
+
+export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
+	const wsEndpoint = await resolveDesktopBackendWsEndpoint();
+	const endpoint = new URL(wsEndpoint);
+	endpoint.protocol = endpoint.protocol === "wss:" ? "https:" : "http:";
+	if (endpoint.pathname.endsWith("/transport")) {
+		endpoint.pathname = endpoint.pathname.slice(0, -"/transport".length);
+	}
+	endpoint.search = "";
+	endpoint.hash = "";
+	return endpoint.toString().replace(/\/$/, "");
 }
 
 type PendingRequest = {
@@ -102,6 +114,7 @@ class DesktopClient {
 	private handlers = new Map<string, Set<EventHandler>>();
 	private transportStateHandlers = new Set<TransportStateHandler>();
 	private transportState: DesktopTransportState = "connecting";
+	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
 
@@ -116,7 +129,7 @@ class DesktopClient {
 		if (this.endpoint?.trim()) {
 			return this.endpoint;
 		}
-		const endpoint = await resolveBackendEndpoint();
+		const endpoint = await resolveDesktopBackendWsEndpoint();
 		this.endpoint = endpoint;
 		return this.endpoint;
 	}
@@ -203,6 +216,7 @@ class DesktopClient {
 				this.socket = socket;
 				socket.onopen = () => {
 					this.hasConnectedOnce = true;
+					this.transportError = null;
 					this.setTransportState("connected");
 					resolve();
 				};
@@ -217,7 +231,9 @@ class DesktopClient {
 						this.socket = null;
 					}
 					if (this.transportState !== "connected") {
-						reject(new Error("Desktop backend transport unavailable"));
+						reject(
+							new Error(`Desktop backend transport unavailable at ${endpoint}`),
+						);
 						return;
 					}
 					this.setTransportState("reconnecting");
@@ -225,9 +241,18 @@ class DesktopClient {
 					this.scheduleReconnect();
 				};
 			});
-		})().finally(() => {
-			this.connectPromise = null;
-		});
+		})()
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				this.transportError = message;
+				if (!this.hasConnectedOnce) {
+					this.setTransportState("unavailable");
+				}
+				throw error;
+			})
+			.finally(() => {
+				this.connectPromise = null;
+			});
 
 		return this.connectPromise;
 	}
@@ -306,6 +331,10 @@ class DesktopClient {
 
 	getTransportState(): DesktopTransportState {
 		return this.transportState;
+	}
+
+	getTransportError(): string | null {
+		return this.transportError;
 	}
 }
 

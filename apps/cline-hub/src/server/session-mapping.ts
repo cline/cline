@@ -1,3 +1,4 @@
+import { formatDisplayUserInput } from "@cline/shared";
 import type {
 	WebviewActionSessionSummary,
 	WebviewChatMessage,
@@ -213,10 +214,16 @@ export function mapHistoryToWebviewMessages(
 		const currentToolBlockIndexes = new Map<string, number>();
 		let reasoningRedacted = false;
 
+		// Persisted user text arrives raw, including runtime-generated
+		// <user_input>/<mode_notice> wrappers -- format at this display
+		// boundary so the webview never renders them.
+		const displayText = (text: string): string =>
+			role === "user" ? formatDisplayUserInput(text) : text;
+
 		const contentParts = historyContentParts(record.content);
 		if (contentParts.length === 0) {
 			const text = stringifyContent(record.content ?? record.text ?? record);
-			pushTextBlock(blocks, textParts, messageKey, 0, text);
+			pushTextBlock(blocks, textParts, messageKey, 0, displayText(text));
 		}
 
 		for (const [partIndex, part] of contentParts.entries()) {
@@ -227,7 +234,7 @@ export function mapHistoryToWebviewMessages(
 					textParts,
 					messageKey,
 					partIndex,
-					asString(part.text) ?? asString(part.content) ?? "",
+					displayText(asString(part.text) ?? asString(part.content) ?? ""),
 				);
 				continue;
 			}

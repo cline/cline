@@ -30,7 +30,7 @@ export type TextareaHandle = Pick<
 
 export interface InputBarProps {
 	accent: string;
-	inputBackground: string;
+	ruleColor: string;
 	inputForeground: string;
 	inputPlaceholder: string;
 	placeholder: string;
@@ -62,7 +62,7 @@ function readTextPaste(event: PasteEvent): string | null {
 export function InputBar(props: InputBarProps) {
 	const {
 		accent,
-		inputBackground,
+		ruleColor,
 		inputForeground,
 		inputPlaceholder,
 		placeholder,
@@ -197,13 +197,13 @@ export function InputBar(props: InputBarProps) {
 		<box
 			flexDirection="row"
 			alignItems="flex-start"
-			backgroundColor={inputBackground}
-			paddingX={2}
-			paddingY={1}
+			border={["top", "bottom"]}
+			borderStyle="single"
+			borderColor={ruleColor}
 			onMouseDown={props.onFocusRequest}
 		>
 			<text fg={accent}>
-				<strong>{">"}</strong>
+				<strong>{"❯"}</strong>
 			</text>
 			<box flexGrow={1} paddingLeft={1}>
 				<textarea

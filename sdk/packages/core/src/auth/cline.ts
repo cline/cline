@@ -11,6 +11,7 @@ import {
 } from "../services/telemetry/core-events";
 import { startLocalOAuthServer } from "./server";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
+import { hashSecret, sdkDebug } from "../logging/early-logger";
 import {
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,
@@ -621,8 +622,10 @@ export async function refreshClineToken(
 	current: ClineOAuthCredentials,
 	options: ClineOAuthProviderOptions,
 ): Promise<ClineOAuthCredentials> {
+	const refreshUrl = resolveUrl(options.apiBaseUrl, DEFAULT_AUTH_ENDPOINTS.refresh);
+	sdkDebug(`cline.refresh.request url=${refreshUrl} refreshTokenHash=${hashSecret(current.refresh)}`);
 	const response = await fetch(
-		resolveUrl(options.apiBaseUrl, DEFAULT_AUTH_ENDPOINTS.refresh),
+		refreshUrl,
 		{
 			method: "POST",
 			headers: {
@@ -642,6 +645,7 @@ export async function refreshClineToken(
 	if (!response.ok) {
 		const text = await response.text().catch(() => "");
 		const details = parseOAuthError(text);
+		sdkDebug(`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"}`);
 		throw new ClineOAuthTokenError(
 			`Token refresh failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
 			{ status: response.status, errorCode: details.code },
@@ -651,11 +655,13 @@ export async function refreshClineToken(
 	const json = (await response.json()) as ClineTokenResponse;
 	const provider =
 		(current.metadata?.provider as string | undefined) ?? options.provider;
-	return toClineCredentials(
+	const result = toClineCredentials(
 		requireClineTokenResponse(json, "Invalid token refresh response"),
 		provider,
 		current,
 	);
+	sdkDebug(`cline.refresh.success newAccessTokenHash=${hashSecret(result.access)} newRefreshTokenHash=${hashSecret(result.refresh)} expires=${result.expires}`);
+	return result;
 }
 
 export async function getValidClineCredentials(
@@ -664,6 +670,7 @@ export async function getValidClineCredentials(
 	options?: ClineTokenResolution,
 ): Promise<ClineOAuthCredentials | null> {
 	if (!currentCredentials) {
+		sdkDebug("cline.getCredentials outcome=no_current_credentials");
 		return null;
 	}
 
@@ -676,13 +683,17 @@ export async function getValidClineCredentials(
 		!forceRefresh &&
 		!isCredentialLikelyExpired(currentCredentials, refreshBufferMs)
 	) {
+		sdkDebug(`cline.getCredentials outcome=still_valid forceRefresh=${forceRefresh}`);
 		return currentCredentials;
 	}
+
+	sdkDebug(`cline.getCredentials outcome=needs_refresh forceRefresh=${forceRefresh} accessTokenHash=${hashSecret(currentCredentials.access)}`);
 
 	try {
 		return await refreshClineToken(currentCredentials, providerOptions);
 	} catch (error) {
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
+			sdkDebug(`cline.getCredentials outcome=invalid_grant status=${error.status} errorCode=${error.errorCode ?? "none"}`);
 			captureAuthLoggedOut(
 				providerOptions.telemetry,
 				providerOptions.provider ?? "cline",
@@ -692,8 +703,10 @@ export async function getValidClineCredentials(
 		}
 		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
 			// Keep current token on transient refresh failures while still valid.
+			sdkDebug(`cline.getCredentials outcome=transient_failure_kept_current error=${error instanceof Error ? error.message : String(error)}`);
 			return currentCredentials;
 		}
+		sdkDebug(`cline.getCredentials outcome=transient_failure_expired error=${error instanceof Error ? error.message : String(error)}`);
 		return null;
 	}
 }

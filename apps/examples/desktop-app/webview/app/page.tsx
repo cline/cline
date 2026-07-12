@@ -22,17 +22,21 @@ import {
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
+import { SessionsView } from "@/components/views/sessions/sessions-view";
 import { SettingsView } from "@/components/views/settings/settings-view";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -70,17 +74,24 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
-	const [view, setView] = useState<"chat" | "diff" | "settings">("chat");
+	const [view, setView] = useState<"chat" | "sessions" | "settings">("chat");
 	const [threads, setThreads] = useState<Thread[]>(() => [
 		{ id: makeThreadId() },
 	]);
 	const [activeThreadId, setActiveThreadId] = useState<string>(
 		() => threads[0]?.id,
 	);
+
+	useEffect(() => {
+		syncHubTheme();
+		return watchSystemHubTheme();
+	}, []);
+
 	const handleNewThread = useCallback(() => {
 		const id = makeThreadId();
 		setThreads((prev) => [...prev, { id }]);
 		setActiveThreadId(id);
+		setView("chat");
 	}, []);
 
 	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
@@ -98,6 +109,7 @@ export default function Home() {
 			return [...prev, { id: threadId, historySession: session }];
 		});
 		setActiveThreadId(threadId);
+		setView("chat");
 	}, []);
 
 	const handleDeleteSession = useCallback(
@@ -176,6 +188,12 @@ export default function Home() {
 			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	const sessionHistory = useSessionHistory({
+		activeSessionId: activeHistorySessionId,
+		onDeleteSession: handleDeleteSession,
+		onOpenSession: handleOpenSession,
+		onUpdateSessionMetadata: handleUpdateSessionMetadata,
+	});
 
 	return (
 		<>
@@ -188,13 +206,18 @@ export default function Home() {
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
 							onNewThread={handleNewThread}
-							onOpenSession={handleOpenSession}
+							sessionHistory={sessionHistory}
 							setView={setView}
 						/>
 						<SidebarRail />
 					</Sidebar>
 					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						{activeThread ? (
+						{view === "sessions" ? (
+							<SessionsView
+								activeSessionId={activeHistorySessionId}
+								history={sessionHistory}
+							/>
+						) : activeThread ? (
 							<div className="flex min-h-0 flex-1 flex-col">
 								<ChatThreadPane
 									key={activeThread.id}
@@ -241,6 +264,7 @@ function ChatThreadPane({
 		sessionId,
 		status,
 		chatTransportState,
+		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
 		config,
@@ -454,7 +478,12 @@ function ChatThreadPane({
 		async (preferredWorkspace?: string) => {
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
-				setWorkspaces(results);
+				setWorkspaces((current) =>
+					current.length === results.length &&
+					current.every((workspace, index) => workspace === results[index])
+						? current
+						: results,
+				);
 			} finally {
 				setWorkspacesLoaded(true);
 			}
@@ -594,6 +623,26 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		await sendPrompt(trimmed, toSend);
 	}, [pendingAttachments, promptInput, sendPrompt]);
+
+	const handleReasoningChange = useCallback(
+		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
+			setConfig((prev) => {
+				if (
+					prev.thinking === next.thinking &&
+					prev.reasoningEffort === next.reasoningEffort
+				) {
+					return prev;
+				}
+				return {
+					...prev,
+					thinking: next.thinking,
+					reasoningEffort:
+						next.thinking === false ? undefined : next.reasoningEffort,
+				};
+			});
+		},
+		[setConfig],
+	);
 
 	const handleUndoQueuedPrompt = useCallback(
 		async (item: PromptInQueue) => {
@@ -777,6 +826,8 @@ function ChatThreadPane({
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
+	const isWelcomeState =
+		displayedMessages.length === 0 && !displayedIsSwitching;
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -827,9 +878,7 @@ function ChatThreadPane({
 			workspaceRoot: resolvedWorkspaceRoot,
 			workspaces,
 			listWorkspaces,
-			refreshWorkspaces: async () => {
-				await refreshWorkspaces();
-			},
+			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
 		}),
@@ -851,8 +900,17 @@ function ChatThreadPane({
 			<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
 				<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 				<p className="text-sm text-muted-foreground">
-					{chatTransportState !== "connected" ? "Connecting..." : "Loading..."}
+					{chatTransportState === "unavailable"
+						? "Desktop backend unavailable"
+						: chatTransportState !== "connected"
+							? "Connecting..."
+							: "Loading..."}
 				</p>
+				{chatTransportError ? (
+					<p className="max-w-xl px-6 text-center text-xs text-muted-foreground">
+						{chatTransportError}
+					</p>
+				) : null}
 			</div>
 		);
 	}
@@ -878,6 +936,7 @@ function ChatThreadPane({
 						}}
 						onRenameTitle={handleRenameTitle}
 						renamingTitle={renamingSession}
+						showSessionActions={!isWelcomeState}
 						status={status}
 						title={threadTitle}
 					/>
@@ -959,6 +1018,7 @@ function ChatThreadPane({
 							}))
 						}
 						onPromptInputChange={setPromptInput}
+						onReasoningChange={handleReasoningChange}
 						onSteerPromptInQueue={(promptId) => {
 							void steerPromptInQueue(promptId);
 						}}
@@ -996,8 +1056,10 @@ function ChatThreadPane({
 						promptsInQueue={promptsInQueue}
 						promptInput={promptInput}
 						provider={config.provider}
+						reasoningEffort={config.reasoningEffort}
 						status={status}
 						summary={summary}
+						thinking={config.thinking}
 					/>
 				</div>
 			</div>

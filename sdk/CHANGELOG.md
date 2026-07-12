@@ -1,5 +1,28 @@
 # Cline SDK Changelog
 
+## 0.0.59
+
+- You can now select Cline free models on the ClinePass provider
+- The SDK now recognizes ClinePass rate-limit responses and surfaces them as a typed `ClinePassLimitError` (with `isClinePassLimitMessage` / `extractClinePassLimitMessage` helpers)
+- Removed references to the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- The detached hub daemon process now emits telemetry
+- SDK/CLI telemetry identity attributes now include `user_id`
+- Cline provider requests now send versioned Cline client-identity headers
+- Fixed context compaction so canonical session history is preserved
+- `str_replace` edits now report accurate diffs
+- Fixed a performance issue where listing sessions could hang the extension host
+
+## 0.0.58
+
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected
+
+## 0.0.57
+
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit (up from 4,096), so under-specified models get a usable context budget
+- The default max input-token budget used for context compaction is now 128K
+- Added a shared prompt-format helper in `@cline/shared` and simplified runtime host support
+
 ## 0.0.56
 
 - Tool calls from weaker models that use slightly-off argument shapes (e.g. a bare string where an array is expected) or malformed/truncated JSON are now coerced or repaired and executed, instead of being rejected before the tools can handle them

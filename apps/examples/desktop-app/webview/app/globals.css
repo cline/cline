@@ -1,52 +1,145 @@
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/azeret-mono/latin.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-	--font-geist-sans: "Geist Variable";
-	--font-geist-mono:
-		ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo,
-		monospace;
-	--background: oklch(0.13 0.005 260);
-	--foreground: oklch(0.93 0 0);
-	--card: oklch(0.16 0.005 260);
-	--card-foreground: oklch(0.93 0 0);
-	--popover: oklch(0.16 0.005 260);
-	--popover-foreground: oklch(0.93 0 0);
+	--font-desktop-sans: "Schibsted Grotesk Variable";
+	--font-desktop-mono: "Azeret Mono";
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.145 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.145 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.145 0 0);
 	--primary: oklch(0.75 0.12 165);
-	--primary-foreground: oklch(0.13 0.005 260);
-	--secondary: oklch(0.22 0.005 260);
-	--secondary-foreground: oklch(0.85 0 0);
-	--muted: oklch(0.2 0.005 260);
-	--muted-foreground: oklch(0.55 0 0);
-	--accent: oklch(0.22 0.01 260);
-	--accent-foreground: oklch(0.93 0 0);
-	--destructive: oklch(0.55 0.2 25);
-	--destructive-foreground: oklch(0.93 0 0);
-	--border: oklch(0.25 0.005 260);
-	--input: oklch(0.2 0.005 260);
-	--ring: oklch(0.75 0.12 165);
-	--chart-1: oklch(0.75 0.12 165);
-	--chart-2: oklch(0.65 0.15 250);
-	--chart-3: oklch(0.7 0.15 50);
-	--chart-4: oklch(0.65 0.18 320);
-	--chart-5: oklch(0.6 0.12 200);
+	--primary-foreground: oklch(0.962 0.018 272.314);
+	--secondary: oklch(0.97 0 0);
+	--secondary-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.97 0 0);
+	--muted-foreground: oklch(0.556 0 0);
+	--accent: oklch(0.97 0 0);
+	--accent-foreground: oklch(0.205 0 0);
+	--destructive: oklch(0.577 0.245 27.325);
+	--destructive-foreground: oklch(0.985 0 0);
+	--border: oklch(0.922 0 0);
+	--input: oklch(0.922 0 0);
+	--ring: oklch(0.708 0 0);
+	--chart-1: oklch(0.646 0.222 41.116);
+	--chart-2: oklch(0.6 0.118 184.704);
+	--chart-3: oklch(0.398 0.07 227.392);
+	--chart-4: oklch(0.828 0.189 84.429);
+	--chart-5: oklch(0.769 0.188 70.08);
 	--radius: 0.5rem;
-	--sidebar: oklch(0.11 0.005 260);
-	--sidebar-foreground: oklch(0.85 0 0);
-	--sidebar-primary: oklch(0.75 0.12 165);
-	--sidebar-primary-foreground: oklch(0.13 0.005 260);
-	--sidebar-accent: oklch(0.18 0.008 260);
-	--sidebar-accent-foreground: oklch(0.93 0 0);
-	--sidebar-border: oklch(0.22 0.005 260);
-	--sidebar-ring: oklch(0.75 0.12 165);
+	--sidebar: oklch(0.985 0 0);
+	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.922 0 0);
+	--sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+	--background: oklch(0.145 0 0);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.205 0 0);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.205 0 0);
+	--popover-foreground: oklch(0.985 0 0);
+	--primary: oklch(0.75 0.12 165);
+	--primary-foreground: oklch(0.962 0.018 272.314);
+	--secondary: oklch(0.274 0.006 286.033);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.269 0 0);
+	--muted-foreground: oklch(0.708 0 0);
+	--accent: oklch(0.269 0 0);
+	--accent-foreground: oklch(0.985 0 0);
+	--destructive: oklch(0.704 0.191 22.216);
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.556 0 0);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.585 0.233 277.117);
+	--sidebar-primary-foreground: oklch(0.962 0.018 272.314);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
-	--font-sans: var(--font-geist-sans), "Geist Fallback";
-	--font-mono: var(--font-geist-mono), "Geist Mono Fallback";
+	--font-sans: var(--font-desktop-sans), sans-serif;
+	--font-mono:
+		var(--font-desktop-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Liberation Mono", monospace;
+	--font-weight-normal: 480;
+	--font-weight-medium: 560;
+	--font-weight-semibold: 640;
+	--font-weight-bold: 640;
+	--text-step-1: 12px;
+	--text-step-1--line-height: 16px;
+	--text-step-1--letter-spacing: 0.0025em;
+	--text-step-2: 14px;
+	--text-step-2--line-height: 20px;
+	--text-step-2--letter-spacing: 0em;
+	--text-step-3: 16px;
+	--text-step-3--line-height: 24px;
+	--text-step-3--letter-spacing: 0em;
+	--text-step-4: 18px;
+	--text-step-4--line-height: 26px;
+	--text-step-4--letter-spacing: -0.0025em;
+	--text-step-5: 20px;
+	--text-step-5--line-height: 28px;
+	--text-step-5--letter-spacing: -0.005em;
+	--text-step-6: 24px;
+	--text-step-6--line-height: 30px;
+	--text-step-6--letter-spacing: -0.00625em;
+	--text-step-7: 28px;
+	--text-step-7--line-height: 36px;
+	--text-step-7--letter-spacing: -0.0075em;
+	--text-step-8: 35px;
+	--text-step-8--line-height: 40px;
+	--text-step-8--letter-spacing: -0.01em;
+	--text-step-9: 60px;
+	--text-step-9--line-height: 60px;
+	--text-step-9--letter-spacing: -0.025em;
+	--text-xs: var(--text-step-1);
+	--text-xs--line-height: var(--text-step-1--line-height);
+	--text-xs--letter-spacing: var(--text-step-1--letter-spacing);
+	--text-sm: var(--text-step-2);
+	--text-sm--line-height: var(--text-step-2--line-height);
+	--text-sm--letter-spacing: var(--text-step-2--letter-spacing);
+	--text-base: var(--text-step-3);
+	--text-base--line-height: var(--text-step-3--line-height);
+	--text-base--letter-spacing: var(--text-step-3--letter-spacing);
+	--text-lg: var(--text-step-4);
+	--text-lg--line-height: var(--text-step-4--line-height);
+	--text-lg--letter-spacing: var(--text-step-4--letter-spacing);
+	--text-xl: var(--text-step-5);
+	--text-xl--line-height: var(--text-step-5--line-height);
+	--text-xl--letter-spacing: var(--text-step-5--letter-spacing);
+	--text-2xl: var(--text-step-6);
+	--text-2xl--line-height: var(--text-step-6--line-height);
+	--text-2xl--letter-spacing: var(--text-step-6--letter-spacing);
+	--text-3xl: var(--text-step-7);
+	--text-3xl--line-height: var(--text-step-7--line-height);
+	--text-3xl--letter-spacing: var(--text-step-7--letter-spacing);
+	--text-4xl: var(--text-step-8);
+	--text-4xl--line-height: var(--text-step-8--line-height);
+	--text-4xl--letter-spacing: var(--text-step-8--letter-spacing);
+	--text-6xl: var(--text-step-9);
+	--text-6xl--line-height: var(--text-step-9--line-height);
+	--text-6xl--letter-spacing: var(--text-step-9--letter-spacing);
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -99,13 +192,22 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply m-0 bg-background text-foreground;
+		@apply m-0 bg-background text-base font-normal text-foreground;
 	}
 }
 
 @layer components {
+	.markdown {
+		@apply leading-relaxed;
+	}
 	.markdown * {
-		@apply text-sm;
+		@apply text-sm leading-relaxed;
+	}
+	.markdown + .markdown {
+		@apply mt-2;
+	}
+	.markdown p {
+		@apply my-2 first:mt-0 last:mb-0;
 	}
 	.markdown a {
 		@apply underline;
@@ -162,4 +264,74 @@
 /* Selection color */
 ::selection {
 	background: oklch(0.75 0.12 165 / 0.25);
+}
+
+/* Aurora background (components/ui/aurora-bg.tsx) */
+@keyframes aurora-drift {
+	0%,
+	100% {
+		transform: translate(0, 0) rotate(0deg) scale(1);
+	}
+	25% {
+		transform: translate(14%, -10%) rotate(18deg) scale(1.25);
+	}
+	50% {
+		transform: translate(-4%, 6%) rotate(-6deg) scale(1.05);
+	}
+	75% {
+		transform: translate(-12%, -4%) rotate(-16deg) scale(0.9);
+	}
+}
+
+/* Curtain ribbons: sway side-to-side while skewing and stretching, like an
+   aurora curtain rippling. Ribbons are bottom-anchored (transform-origin
+   bottom), so skew/scale fan out from the horizon. */
+@keyframes aurora-wave {
+	0%,
+	100% {
+		transform: translateX(0) skewX(0deg) scaleY(1);
+		opacity: 0.7;
+	}
+	20% {
+		transform: translateX(4%) skewX(8deg) scaleY(1.15);
+		opacity: 1;
+	}
+	45% {
+		transform: translateX(-3%) skewX(-10deg) scaleY(0.9);
+		opacity: 0.55;
+	}
+	70% {
+		transform: translateX(5%) skewX(12deg) scaleY(1.25);
+		opacity: 0.9;
+	}
+}
+
+/* Traveling wave: a 200%-wide striped sheet slides left by half its width,
+   looping seamlessly, while bobbing vertically — bands visibly roll across. */
+@keyframes aurora-flow {
+	0% {
+		transform: translateX(0) translateY(0) skewX(-6deg);
+	}
+	25% {
+		transform: translateX(-12.5%) translateY(-4%) skewX(4deg);
+	}
+	50% {
+		transform: translateX(-25%) translateY(2%) skewX(-3deg);
+	}
+	75% {
+		transform: translateX(-37.5%) translateY(-5%) skewX(6deg);
+	}
+	100% {
+		transform: translateX(-50%) translateY(0) skewX(-6deg);
+	}
+}
+
+@keyframes aurora-twinkle {
+	0%,
+	100% {
+		opacity: 0.15;
+	}
+	50% {
+		opacity: 1;
+	}
 }
