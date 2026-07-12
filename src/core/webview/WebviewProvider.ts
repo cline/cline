@@ -121,8 +121,18 @@ export abstract class WebviewProvider {
 			<body>
 				<noscript>You need to enable JavaScript to run this app.</noscript>
 				<div id="root"></div>
+				<script nonce="${nonce}">
+					// @vscode/webview-ui-toolkit's fast-element lazily calls
+					// new CSSStyleSheet() the first time a toolkit component's
+					// styles are adopted. Constructable Stylesheets are absent in
+					// some webview runtimes (documented failure: a blank webview,
+					// module-init crash) -- this no-op stub is a cheap, harmless
+					// guard so that codepath can't take the whole app down.
+					if (typeof window.CSSStyleSheet === "undefined") {
+						window.CSSStyleSheet = function CSSStyleSheet() {};
+					}
+				</script>
 				<script type="module" nonce="${nonce}" src="${scriptUrl}"></script>
-				<script src="http://localhost:8097"></script> 
 			</body>
 		</html>
 		`
@@ -221,6 +231,11 @@ export abstract class WebviewProvider {
 				</head>
 				<body>
 					<div id="root"></div>
+					<script nonce="${nonce}">
+						if (typeof window.CSSStyleSheet === "undefined") {
+							window.CSSStyleSheet = function CSSStyleSheet() {};
+						}
+					</script>
 					${reactRefresh}
 					<script type="module" src="${scriptUrl}"></script>
 				</body>

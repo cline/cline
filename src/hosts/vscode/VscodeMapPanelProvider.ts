@@ -1103,6 +1103,12 @@ export class VscodeMapPanelProvider {
 	<script nonce="${nonce}">
 		// Set standalone map mode flag
 		window.AIHYDRO_MAP_STANDALONE = true;
+		// See WebviewProvider.ts for why: guards against a documented blank-webview
+		// crash in some runtimes when @vscode/webview-ui-toolkit's fast-element
+		// lazily calls new CSSStyleSheet().
+		if (typeof window.CSSStyleSheet === "undefined") {
+			window.CSSStyleSheet = function CSSStyleSheet() {};
+		}
 	</script>
 	<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
