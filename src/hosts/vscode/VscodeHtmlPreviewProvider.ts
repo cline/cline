@@ -22,10 +22,8 @@ import { loadModuleState, resetModuleState, saveModuleState } from "@/services/h
  *   │  WebviewPanel "aihydroHtmlPreviewView"                           │
  *   │                                                                  │
  *   │  ┌───────── parent React shell (sidebar + toolbar) ─────────┐    │
- *   │  │  <iframe src={item.webviewUri} sandbox=…>                │    │
- *   │  │     ↑ artifact loaded directly from disk via             │    │
- *   │  │       webview.asWebviewUri() — same scheme VS Code       │    │
- *   │  │       uses for its built-in markdown preview.            │    │
+ *   │  │  <iframe srcdoc={item.htmlContent} sandbox=…>            │    │
+ *   │  │     or src={item.webviewUri} for large-file fallback     │    │
  *   │  └──────────────────────────────────────────────────────────┘    │
  *   └──────────────────────────────────────────────────────────────────┘
  *

@@ -11,9 +11,9 @@ import { useExtensionState } from "./ExtensionStateContext"
  * The contract with the extension (post-redesign):
  *   • `HtmlPreviewItem.webviewUri` is the URL the iframe should load
  *     (produced by `webview.asWebviewUri()` on the extension side).
- *   • `htmlContent` carries inline HTML when the artifact fits the size cap
- *     (preferred `srcdoc` render path); otherwise the webview falls back to
- *     `webviewUri`.
+ *   • `htmlContent` carries inline HTML when its UTF-8 encoding is at or
+ *     below 8 MiB (preferred `srcdoc` render path); otherwise the webview
+ *     falls back to `webviewUri`.
  *   • Rendering profile (scripts on/off) is chosen on the extension via
  *     `detectMode()` — the UI exposes a single "Preview" experience.
  */
