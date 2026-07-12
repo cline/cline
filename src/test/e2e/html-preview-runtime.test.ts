@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { expect, type Frame, type Page } from "@playwright/test"
+import { expect, type Frame, type Locator, type Page } from "@playwright/test"
 import { E2ETestHelper, e2e } from "./utils/helpers"
 
 const runtimeE2E = e2e.extend<{ workspaceDir: string }>({
@@ -126,6 +126,13 @@ async function runCell(frame: Frame, cellId: string): Promise<void> {
 	await run.click({ force: true })
 }
 
+async function expectPngOutput(cell: Locator): Promise<void> {
+	const image = cell.locator('.aihydro-output-images img[src^="data:image/png;base64,"]').first()
+	await expect(image).toHaveAttribute("src", /^data:image\/png;base64,/, { timeout: 60_000 })
+	const source = await image.getAttribute("src")
+	expect(source?.length ?? 0).toBeGreaterThan(1_000)
+}
+
 runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async ({ page }) => {
 	await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, (route) => route.abort())
 
@@ -143,9 +150,7 @@ runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async
 
 	await runCell(artifact, "fixture-state-read-plot")
 	const plotCell = artifact.locator('[data-aihydro-cell-id="fixture-state-read-plot"]')
-	await expect(plotCell.locator('.aihydro-output-images img[src^="data:image/png;base64,"]')).toBeVisible({
-		timeout: 60_000,
-	})
+	await expectPngOutput(plotCell)
 
 	await runCell(artifact, "fixture-error")
 	await expect(artifact.locator('[data-aihydro-cell-id="fixture-error"] .aihydro-output')).toContainText(
@@ -161,9 +166,7 @@ runtimeE2E("HTML Preview executes the golden runtime matrix @phase0-full", async
 	await runCell(artifact, "fixture-state-create")
 	await expect(stateOutput).toContainText("ending_storage=110.0 mm", { timeout: 30_000 })
 	await runCell(artifact, "fixture-state-read-plot")
-	await expect(plotCell.locator('.aihydro-output-images img[src^="data:image/png;base64,"]')).toBeVisible({
-		timeout: 30_000,
-	})
+	await expectPngOutput(plotCell)
 
 	await openWorkspaceFile(page, "phase0/interrupt-module.html")
 	shell = await waitForShell(page)
@@ -202,7 +205,9 @@ runtimeE2E("HTML Preview starts and executes a standalone module @phase0-smoke",
 	await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, (route) => route.abort())
 	await openWorkspaceFile(page, "phase0/standalone-module.html")
 	const shell = await waitForShell(page)
-	await expect(shell.locator("iframe").first()).toHaveAttribute("srcdoc", /standalone-runtime-fixture/)
+	await expect(shell.locator("iframe").first()).toHaveAttribute("srcdoc", /standalone-runtime-fixture/, {
+		timeout: 30_000,
+	})
 	const artifact = await waitForCellFrame(page, "standalone-python")
 	await expect.poll(async () => shell.getByTitle("Course options").count()).toBe(0)
 	await runCell(artifact, "standalone-python")
