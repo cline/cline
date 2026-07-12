@@ -302,6 +302,14 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	const [runAllTotal, setRunAllTotal] = useState(0)
 	const registeredCellIdsRef = useRef<Set<string>>(new Set())
 	const isRunningRef = useRef(false)
+	// Reactive-param sliders (aihydro.bindParam autorun / timeline scrubber) debounce
+	// re-runs at 80–250ms, far below a real Python round-trip. Without coalescing, a
+	// run that arrives while the kernel is busy was silently dropped, so the final
+	// slider value never executed and the output lagged behind the visible code. We
+	// keep only the LATEST dropped request and fire it on the trailing edge once the
+	// in-flight run finishes — latest-wins so intermediate drags don't queue up.
+	const pendingRunRef = useRef<{ code: string; language: string; cellId?: string } | null>(null)
+	const handleArtifactRunCodeRef = useRef<((code: string, language: string, cellId?: string) => void) | null>(null)
 	// Phase 4: Edit Mode state
 	const [editModeActive, setEditModeActive] = useState(false)
 	// UI Refinement: batch state from the iframe editor adapter
@@ -550,6 +558,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				return
 			}
 			if (isRunningRef.current) {
+				// Kernel busy: coalesce to the most recent request and run it on the
+				// trailing edge (see pendingRunRef above) instead of dropping it.
+				pendingRunRef.current = { code, language, cellId }
 				return
 			}
 			const artifactIdFromContext = item.id
@@ -605,10 +616,24 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			} finally {
 				isRunningRef.current = false
 				setIsRunning(false)
+				// Trailing-edge drain: if slider input arrived while we were busy,
+				// run the latest coalesced request now so the output catches up to
+				// where the user actually left the control.
+				const pending = pendingRunRef.current
+				if (pending) {
+					pendingRunRef.current = null
+					handleArtifactRunCodeRef.current?.(pending.code, pending.language, pending.cellId)
+				}
 			}
 		},
 		[item?.id, activeProfileId, postResultToIframe, refreshKernelInfo],
 	)
+
+	// Keep a ref to the latest callback so the trailing-edge drain in the finally
+	// block above can re-invoke it without a stale-closure or self-reference cycle.
+	useEffect(() => {
+		handleArtifactRunCodeRef.current = handleArtifactRunCode
+	}, [handleArtifactRunCode])
 
 	const handleProfileChange = useCallback(
 		async (profileId: string) => {
