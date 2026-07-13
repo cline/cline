@@ -18,8 +18,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { PLATFORM_CONFIG } from "../../config/platform.config"
-import type { CourseManifest, CourseModuleEntry } from "./useCourse"
 import type { LearningPackScope } from "./installedPackCsp"
+import type { CourseManifest, CourseModuleEntry } from "./useCourse"
 
 export interface ModuleCompletion {
 	completedAt: number
@@ -103,7 +103,8 @@ export interface CourseProgressHook {
 	missingPrerequisites: (module: CourseModuleEntry) => string[]
 	/** 0–100 percentage of completed modules */
 	completionPct: number
-	markComplete: (moduleId: string, timeSpentMs?: number) => Promise<void>
+	/** Persist completion and return the canonical host snapshot, or null on failure. */
+	markComplete: (moduleId: string, timeSpentMs?: number) => Promise<CourseProgress | null>
 	markUncomplete: (moduleId: string) => Promise<void>
 	reset: () => Promise<void>
 	setCurrent: (moduleId: string | null) => Promise<void>
@@ -111,7 +112,18 @@ export interface CourseProgressHook {
 	refresh: () => Promise<void>
 }
 
-export function useCourseProgress(course: CourseManifest | null, learningPackScope?: LearningPackScope | null): CourseProgressHook {
+export function missingPrerequisitesForProgress(module: CourseModuleEntry, progress: CourseProgress): string[] {
+	return (module.prerequisites ?? []).filter((id) => !progress.completed[id])
+}
+
+export function canAccessCourseModule(module: CourseModuleEntry, progress: CourseProgress): boolean {
+	return missingPrerequisitesForProgress(module, progress).length === 0
+}
+
+export function useCourseProgress(
+	course: CourseManifest | null,
+	learningPackScope?: LearningPackScope | null,
+): CourseProgressHook {
 	const courseId = course?.courseId ?? ""
 	const scope = learningPackScope?.courseId === courseId ? learningPackScope : undefined
 	const [progress, setProgress] = useState<CourseProgress>(() => emptyProgress(courseId))
@@ -166,15 +178,16 @@ export function useCourseProgress(course: CourseManifest | null, learningPackSco
 	}, [courseId])
 
 	const markComplete = useCallback(
-		async (moduleId: string, timeSpentMs?: number) => {
+		async (moduleId: string, timeSpentMs?: number): Promise<CourseProgress | null> => {
 			if (!courseId) {
-				return
+				return null
 			}
 			const fresh = await sendProgress({ action: "complete", courseId, moduleId, timeSpentMs, learningPackScope: scope })
 			if (fresh) {
 				setProgress(fresh)
 				publishProgress(fresh)
 			}
+			return fresh
 		},
 		[courseId, scope],
 	)
@@ -221,12 +234,7 @@ export function useCourseProgress(course: CourseManifest | null, learningPackSco
 	const isCompleted = useCallback((moduleId: string) => !!progress.completed[moduleId], [progress.completed])
 
 	const missingPrerequisites = useCallback(
-		(mod: CourseModuleEntry): string[] => {
-			if (!mod.prerequisites || mod.prerequisites.length === 0) {
-				return []
-			}
-			return mod.prerequisites.filter((id) => !progress.completed[id])
-		},
+		(mod: CourseModuleEntry): string[] => missingPrerequisitesForProgress(mod, progress),
 		[progress.completed],
 	)
 

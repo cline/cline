@@ -17,7 +17,7 @@
 
 import React, { useState } from "react"
 import type { CourseManifest } from "./useCourse"
-import type { CourseProgressHook } from "./useCourseProgress"
+import { type CourseProgressHook, canAccessCourseModule } from "./useCourseProgress"
 
 interface CourseHeaderProps {
 	course: CourseManifest
@@ -58,9 +58,9 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 		if (isCurrentCompleted) {
 			await progress.markUncomplete(currentModule.id)
 		} else {
-			await progress.markComplete(currentModule.id)
+			const fresh = await progress.markComplete(currentModule.id)
 			// Auto-advance after a tick so the user sees the ✓ before navigating
-			if (next && progress.canAccess(next)) {
+			if (next && fresh && canAccessCourseModule(next, fresh)) {
 				window.setTimeout(() => onNavigate(next.id), 350)
 			}
 		}
