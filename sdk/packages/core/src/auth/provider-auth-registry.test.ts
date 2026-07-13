@@ -4,6 +4,7 @@ import {
 	getPersistedProviderApiKey,
 	getProviderAuthHandler,
 	getProviderAuthStorageId,
+	getProviderOAuthCredentialsFromSettings,
 	isOAuthProvider,
 	loginAndSaveProviderOAuthCredentials,
 	resolveProviderApiKeyFromSettings,
@@ -76,6 +77,7 @@ describe("provider auth registry", () => {
 			refresh: "new-refresh",
 			expires: 4_000_000_000_000,
 			accountId: "acct-new",
+			metadata: { sessionStartedAt: 1_700_000_000_000 },
 		});
 		const getProviderSettings = vi.fn().mockReturnValue({
 			provider: "cline",
@@ -107,6 +109,7 @@ describe("provider auth registry", () => {
 				refreshToken: "new-refresh",
 				accountId: "acct-new",
 				expiresAt: 4_000_000_000_000,
+				metadata: { sessionStartedAt: 1_700_000_000_000 },
 			},
 		});
 		expect(saveProviderSettings).toHaveBeenCalledWith(
@@ -134,6 +137,7 @@ describe("provider auth registry", () => {
 			refresh: "new-refresh",
 			expires: 4_000_000_000_000,
 			accountId: "acct-new",
+			metadata: { sessionStartedAt: 1_700_000_000_001 },
 		});
 		const getProviderSettings = vi.fn().mockReturnValue({
 			provider: "cline",
@@ -161,11 +165,33 @@ describe("provider auth registry", () => {
 				refreshToken: "new-refresh",
 				accountId: "acct-new",
 				expiresAt: 4_000_000_000_000,
+				metadata: { sessionStartedAt: 1_700_000_000_001 },
 			},
 		});
 		expect(saveProviderSettings).toHaveBeenCalledWith(
 			expect.objectContaining({ provider: "cline" }),
 			{ tokenSource: "oauth" },
 		);
+	});
+
+	it("reads persisted auth metadata back into OAuth credentials", () => {
+		const handler = getProviderAuthHandler("cline")
+		const credentials = handler && getProviderOAuthCredentialsFromSettings("cline", {
+			provider: "cline",
+			auth: {
+				accessToken: "workos:stored-access",
+				refreshToken: "stored-refresh",
+				expiresAt: 4_000_000_000_000,
+				accountId: "acct-stored",
+				metadata: { sessionStartedAt: 1_700_000_000_002 },
+			},
+		})
+
+		expect(credentials).toMatchObject({
+			access: "stored-access",
+			refresh: "stored-refresh",
+			accountId: "acct-stored",
+			metadata: { sessionStartedAt: 1_700_000_000_002 },
+		})
 	});
 });

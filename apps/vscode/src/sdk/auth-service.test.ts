@@ -200,7 +200,18 @@ function createTestOAuthCredentials(): OAuthCredentials {
 		expires: Date.now() + 3600 * 1000, // 1 hour from now (ms)
 		accountId: "acct-456",
 		email: "oauth@example.com",
+		metadata: { sessionStartedAt: 1_700_000_000_000 },
 	}
+}
+
+async function waitForCondition(condition: () => boolean): Promise<void> {
+	for (let i = 0; i < 20; i++) {
+		if (condition()) {
+			return
+		}
+		await new Promise((resolve) => setTimeout(resolve, 0))
+	}
+	throw new Error("Timed out waiting for condition")
 }
 
 // ---------------------------------------------------------------------------
@@ -360,6 +371,23 @@ describe("AuthService", () => {
 			const response = await authService.createAuthRequest()
 
 			expect(response.value).toBe("Enter this code in your browser: ABCD-EFGH")
+		})
+
+		it("persists the session start time in Cline auth metadata", async () => {
+			mockLoginClineOAuth.mockImplementationOnce(async ({ callbacks }) => {
+				callbacks.onAuth({
+					url: "https://example.com/device?user_code=ABCD-EFGH",
+					instructions: "Enter this code in your browser: ABCD-EFGH",
+				})
+
+				return createTestOAuthCredentials()
+			})
+
+			await authService.createAuthRequest()
+			await waitForCondition(() => mockProviderSettings.has("cline"))
+
+			const persisted = mockProviderSettings.get("cline") as { auth?: { metadata?: Record<string, unknown> } }
+			expect(persisted.auth?.metadata?.sessionStartedAt).toBe(1_700_000_000_000)
 		})
 	})
 

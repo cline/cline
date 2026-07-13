@@ -150,6 +150,7 @@ function toClineCredentials(
 		accountId: accountId ?? undefined,
 		email: responseData.userInfo.email || fallback.email,
 		metadata: {
+			...(fallback.metadata ?? {}),
 			provider,
 			tokenType: responseData.tokenType,
 			userInfo: responseData.userInfo,
