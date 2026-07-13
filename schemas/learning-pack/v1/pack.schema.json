@@ -1,0 +1,149 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://ai-hydro.org/schemas/learning-pack/v1/pack.schema.json",
+	"title": "AI-Hydro Learning Pack v1",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schemaVersion",
+		"packId",
+		"version",
+		"edition",
+		"title",
+		"license",
+		"publisher",
+		"ownership",
+		"entryModuleId",
+		"compatibility",
+		"capabilities",
+		"environmentPath",
+		"provenancePath"
+	],
+	"properties": {
+		"schemaVersion": {
+			"const": 1
+		},
+		"packId": {
+			"$ref": "#/definitions/id"
+		},
+		"version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"edition": {
+			"enum": [
+				"student",
+				"instructor"
+			]
+		},
+		"title": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 200
+		},
+		"license": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 100
+		},
+		"publisher": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"name",
+				"keyId"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"keyId": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				}
+			}
+		},
+		"ownership": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"courseId",
+				"moduleIds"
+			],
+			"properties": {
+				"courseId": {
+					"$ref": "#/definitions/id"
+				},
+				"moduleIds": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/definitions/id"
+					}
+				}
+			}
+		},
+		"entryModuleId": {
+			"$ref": "#/definitions/id"
+		},
+		"compatibility": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"aiHydro",
+				"packApi",
+				"runtimeContract"
+			],
+			"properties": {
+				"aiHydro": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 100
+				},
+				"packApi": {
+					"const": 1
+				},
+				"runtimeContract": {
+					"const": "html-preview-v1"
+				}
+			}
+		},
+		"capabilities": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"localPython",
+				"webExternalOrigins"
+			],
+			"properties": {
+				"localPython": {
+					"enum": [
+						"none",
+						"terminal-equivalent"
+					]
+				},
+				"webExternalOrigins": {
+					"type": "array",
+					"maxItems": 0
+				}
+			}
+		},
+		"environmentPath": {
+			"const": "environments/environment.json"
+		},
+		"provenancePath": {
+			"const": "provenance/provenance.json"
+		}
+	},
+	"definitions": {
+		"id": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"pattern": "^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$"
+		}
+	}
+}
