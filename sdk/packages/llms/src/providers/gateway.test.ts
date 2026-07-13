@@ -584,6 +584,68 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
 	});
 
+	it("forwards reasoning-delta parts that use the delta key", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "reasoning-delta", delta: "thinking..." },
+				{
+					type: "finish",
+					finishReason: "stop",
+					usage: { inputTokens: 1, outputTokens: 1 },
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "reasoning-delta",
+			text: "thinking...",
+			metadata: undefined,
+		});
+	});
+
+	it("forwards reasoning (non-delta) parts that use the delta key", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "reasoning", delta: "complete thought" },
+				{
+					type: "finish",
+					finishReason: "stop",
+					usage: { inputTokens: 1, outputTokens: 1 },
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "reasoning-delta",
+			text: "complete thought",
+			metadata: undefined,
+		});
+	});
+
 	it("surfaces nested AI SDK stream errors as human-readable finish messages", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeFailingStreamParts(

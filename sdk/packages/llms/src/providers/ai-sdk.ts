@@ -921,6 +921,7 @@ async function* emitAiSdkEvents(
 					const text =
 						(part.textDelta as string | undefined) ??
 						(part.text as string | undefined) ??
+						(part.delta as string | undefined) ??
 						(part.reasoning as string | undefined);
 					if (text) {
 						yield {
