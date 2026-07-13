@@ -24,6 +24,7 @@ import type { GeeProjectInfo, GeeStatusResult } from "./services/gee/types"
 import { Logger } from "./services/logging/Logger"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import { PreviewHtmlRequest } from "./shared/proto/cline/html_preview"
+import { registerLearningPackCommands } from "./hosts/vscode/registerLearningPackCommands"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import path from "node:path"
@@ -210,6 +211,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	const { commands } = ExtensionRegistryInfo
+	registerLearningPackCommands(context, webview.controller, {
+		install: commands.LearningPacksInstall,
+		rollback: commands.LearningPacksRollback,
+		remove: commands.LearningPacksRemove,
+		manageTrustedPublishers: commands.LearningPacksManageTrustedPublishers,
+	})
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {

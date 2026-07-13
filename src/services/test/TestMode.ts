@@ -34,6 +34,10 @@ export function isInTestMode(): boolean {
  * Check if we're in test mode by looking for evals.env file in workspace folders
  */
 async function checkForTestMode(): Promise<boolean> {
+	// The isolated Playwright launcher sets this only on the Extension
+	// Development Host process. Recognizing it makes native-dialog decisions
+	// injectable without relying on a file-watcher race during startup.
+	if (process.env.E2E_TEST === "true") return true
 	// Get all workspace folders
 	const workspaceFolders = await HostProvider.workspace.getWorkspacePaths({})
 

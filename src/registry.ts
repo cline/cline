@@ -41,6 +41,10 @@ const AiHydroCommands = {
 	AddFileToHtmlPreview: prefix + ".addFileToHtmlPreview",
 	ValidateModule: prefix + ".validateModule",
 	SkillsButton: prefix + ".skillsButtonClicked",
+	LearningPacksInstall: prefix + ".learningPacks.install",
+	LearningPacksRollback: prefix + ".learningPacks.rollback",
+	LearningPacksRemove: prefix + ".learningPacks.remove",
+	LearningPacksManageTrustedPublishers: prefix + ".learningPacks.manageTrustedPublishers",
 }
 
 /**
