@@ -57,6 +57,9 @@ vi.mock("@cline/core", async (importOriginal) => {
 			saveProviderSettings(settings: unknown, options?: unknown) {
 				coreMocks.saveProviderSettings(settings, options);
 			}
+			getFilePath() {
+				return `${process.env.TMPDIR ?? "/tmp"}/cline-account-test-providers.json`;
+			}
 		},
 	};
 });

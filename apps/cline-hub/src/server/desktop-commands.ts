@@ -8,7 +8,6 @@ import {
 	getLocalProviderModels,
 	getPersistedProviderApiKey,
 	getProviderOAuthCredentialsFromSettings,
-	getValidClineCredentials,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	markLocalProviderEnabled,
@@ -18,7 +17,7 @@ import {
 	type ProviderProtocol,
 	type ProviderSettings,
 	readGlobalSettings,
-	saveLocalProviderOAuthCredentials,
+	refreshProviderOAuthCredentialsFromStore,
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
@@ -75,26 +74,23 @@ async function resolveHubClineAccountAuthToken(input: {
 		return getPersistedProviderApiKey("cline", input.settings);
 	}
 
-	const nextCredentials = await getValidClineCredentials(credentials, {
+	// Rotate through the shared store helper: cross-process lock + re-read
+	// from disk + adopt-on-invalid-grant, and persistence handled inside.
+	const outcome = await refreshProviderOAuthCredentialsFromStore({
+		manager: providerSettingsManager,
+		providerId: "cline",
 		apiBaseUrl: input.apiBaseUrl,
 	});
-	if (!nextCredentials) {
+	if (outcome.status === "reauth_required") {
 		throw new Error(
 			"Cline account requires re-authentication. Run cline auth cline.",
 		);
 	}
-
-	if (nextCredentials !== credentials) {
-		saveLocalProviderOAuthCredentials(
-			providerSettingsManager,
-			"cline",
-			input.settings,
-			nextCredentials,
-			{ setLastUsed: false },
-		);
+	if (outcome.status === "no_credentials") {
+		return getPersistedProviderApiKey("cline", input.settings);
 	}
 
-	return formatProviderOAuthApiKey("cline", nextCredentials);
+	return formatProviderOAuthApiKey("cline", outcome.credentials);
 }
 
 export async function handleDesktopCommand(

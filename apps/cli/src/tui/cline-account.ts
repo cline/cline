@@ -2,17 +2,16 @@ import {
 	type ClineAccountBalance,
 	type ClineAccountOrganization,
 	type ClineAccountOrganizationBalance,
-	type ClineSubscriptionPlan,
-	type UserCurrentPlan,
 	ClineAccountService,
 	type ClineAccountUser,
+	type ClineSubscriptionPlan,
 	formatProviderOAuthApiKey,
 	getPersistedProviderApiKey,
 	getProviderOAuthCredentialsFromSettings,
-	getValidClineCredentials,
 	type ProviderSettings,
 	ProviderSettingsManager,
-	saveLocalProviderOAuthCredentials,
+	refreshProviderOAuthCredentialsFromStore,
+	type UserCurrentPlan,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
@@ -103,25 +102,23 @@ async function resolveValidClineAccountAuthToken(input: {
 		? getProviderOAuthCredentialsFromSettings("cline", settings)
 		: null;
 	if (settings && credentials) {
-		const nextCredentials = await getValidClineCredentials(credentials, {
+		// Rotate through the shared store helper: cross-process lock + re-read
+		// from disk + adopt-on-invalid-grant, and persistence handled inside.
+		const outcome = await refreshProviderOAuthCredentialsFromStore({
+			manager: input.manager,
+			providerId: "cline",
 			apiBaseUrl: input.apiBaseUrl,
 		});
-		if (!nextCredentials) {
+		if (outcome.status === "reauth_required") {
 			throw new Error(
 				"Cline account requires re-authentication. Run cline auth cline.",
 			);
 		}
-		const nextAccessToken = formatProviderOAuthApiKey("cline", nextCredentials);
-		if (nextCredentials !== credentials) {
-			saveLocalProviderOAuthCredentials(
-				input.manager,
-				"cline",
-				settings,
-				nextCredentials,
-				{ setLastUsed: false },
-			);
+		if (outcome.status === "ok") {
+			return formatProviderOAuthApiKey("cline", outcome.credentials);
 		}
-		return nextAccessToken;
+		// no_credentials: the store had nothing (settings came from elsewhere) —
+		// fall through to the persisted/config token below.
 	}
 	return resolveClineAccountAuthToken({
 		config: input.config,
