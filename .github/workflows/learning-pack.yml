@@ -36,7 +36,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version-file: .nvmrc
+          node-version: 22
           cache: npm
 
       - name: Install dependencies from the repository lock
@@ -50,4 +50,12 @@ jobs:
           TS_NODE_PROJECT: ./tsconfig.unit-test.json
         run: >-
           npx mocha --no-config --require ts-node/register --extension ts
-          "src/services/learning-pack/__tests__/*.test.ts" --reporter spec
+          "src/services/learning-pack/__tests__/*.test.ts" --reporter spec --timeout 15000
+
+      - name: Install webview dependencies from the repository lock
+        run: npm ci --prefix webview-ui --no-audit --no-fund
+
+      - name: Validate installed-pack CSP boundaries
+        run: >-
+          npm test --prefix webview-ui -- --run
+          src/components/html_preview/__tests__/installedPackCsp.test.ts
