@@ -1,48 +1,48 @@
 import { describe, expect, it } from "vitest"
-import { shouldClearModeToggleDraft, shouldRestoreModeToggleDraft } from "./chat-textarea-mode-toggle"
+import { getModeToggleDraftAction } from "./chat-textarea-mode-toggle"
 
 describe("chat textarea mode toggle draft handling", () => {
 	it("clears only when the toggle consumed the submitted text", () => {
 		expect(
-			shouldClearModeToggleDraft({
+			getModeToggleDraftAction({
 				consumed: true,
 				currentText: "draft message",
 				submittedText: "draft message",
 			}),
-		).toBe(true)
+		).toBe("clear")
 
 		expect(
-			shouldClearModeToggleDraft({
+			getModeToggleDraftAction({
 				consumed: true,
 				currentText: "draft message plus more",
 				submittedText: "draft message",
 			}),
-		).toBe(false)
+		).toBe("keep")
 	})
 
 	it("restores a dropped draft after an unconsumed toggle", () => {
 		expect(
-			shouldRestoreModeToggleDraft({
+			getModeToggleDraftAction({
 				consumed: false,
 				currentText: "",
 				submittedText: "draft message",
 			}),
-		).toBe(true)
+		).toBe("restore")
 
 		expect(
-			shouldRestoreModeToggleDraft({
+			getModeToggleDraftAction({
 				consumed: false,
 				currentText: "still here",
 				submittedText: "draft message",
 			}),
-		).toBe(false)
+		).toBe("keep")
 
 		expect(
-			shouldRestoreModeToggleDraft({
+			getModeToggleDraftAction({
 				consumed: true,
 				currentText: "",
 				submittedText: "draft message",
 			}),
-		).toBe(false)
+		).toBe("keep")
 	})
 })

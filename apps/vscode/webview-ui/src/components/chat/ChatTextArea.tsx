@@ -43,7 +43,7 @@ import {
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
-import { shouldClearModeToggleDraft, shouldRestoreModeToggleDraft } from "./chat-textarea-mode-toggle"
+import { getModeToggleDraftAction } from "./chat-textarea-mode-toggle"
 import ServersToggleModal from "./ServersToggleModal"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
@@ -1039,32 +1039,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setTimeout(() => {
 					const consumedComposerContent = response.value === true
 					const currentText = textAreaRef.current?.value ?? ""
-					if (consumedComposerContent) {
-						// The toggle consumed the composer content as the continuation
-						// message. Clear only what was submitted: the rebuild can take a
-						// moment and the user may have typed or attached new content in
-						// the meantime, which must not be wiped.
-						if (
-							shouldClearModeToggleDraft({
-								consumed: consumedComposerContent,
-								currentText,
-								submittedText,
-							})
-						) {
+					// Reconcile only the submitted draft: the rebuild can take a moment
+					// and the user may have typed new content in the meantime.
+					const draftAction = getModeToggleDraftAction({
+						consumed: consumedComposerContent,
+						currentText,
+						submittedText,
+					})
+
+					switch (draftAction) {
+						case "clear":
 							setInputValue("")
-						}
+							break
+						case "restore":
+							setInputValue(submittedText)
+							break
+						case "keep":
+							break
+					}
+
+					if (consumedComposerContent) {
 						setSelectedImages((current) => (current === submittedImages ? [] : current))
 						setSelectedFiles((current) => (current === submittedFiles ? [] : current))
 					} else {
-						if (
-							shouldRestoreModeToggleDraft({
-								consumed: consumedComposerContent,
-								currentText,
-								submittedText,
-							})
-						) {
-							setInputValue(submittedText)
-						}
 						if (submittedImages.length > 0) {
 							setSelectedImages((current) => (current.length === 0 ? submittedImages : current))
 						}
