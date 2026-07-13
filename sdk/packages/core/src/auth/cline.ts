@@ -6,6 +6,7 @@ import { hashSecret, sdkDebug } from "../logging/early-logger";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
@@ -710,6 +711,12 @@ export async function getValidClineCredentials(
 	try {
 		return await refreshClineToken(currentCredentials, providerOptions);
 	} catch (error) {
+		const failureDetails = {
+			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
+			errorCode:
+				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
+			errorName: error instanceof Error ? error.name : undefined,
+		};
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
 			sdkDebug(
 				`cline.getCredentials outcome=invalid_grant status=${error.status} errorCode=${error.errorCode ?? "none"}`,
@@ -718,6 +725,7 @@ export async function getValidClineCredentials(
 				providerOptions.telemetry,
 				providerOptions.provider ?? "cline",
 				"invalid_grant",
+				{ status: error.status, errorCode: error.errorCode },
 			);
 			return null;
 		}
@@ -725,6 +733,11 @@ export async function getValidClineCredentials(
 			// Keep current token on transient refresh failures while still valid.
 			sdkDebug(
 				`cline.getCredentials outcome=transient_failure_kept_current error=${error instanceof Error ? error.message : String(error)}`,
+			);
+			captureAuthRefreshSoftFailure(
+				providerOptions.telemetry,
+				providerOptions.provider ?? "cline",
+				{ ...failureDetails, tokenExpired: false },
 			);
 			return currentCredentials;
 		}
@@ -735,6 +748,13 @@ export async function getValidClineCredentials(
 		// credentials over it, logging out every Cline process on the machine.
 		sdkDebug(
 			`cline.getCredentials outcome=transient_failure_rethrown error=${error instanceof Error ? error.message : String(error)}`,
+		);
+		// Every one of these events was a hard logout before the
+		// transient-vs-invalid_grant fix — the "prevented logout" counter.
+		captureAuthRefreshSoftFailure(
+			providerOptions.telemetry,
+			providerOptions.provider ?? "cline",
+			{ ...failureDetails, tokenExpired: true },
 		);
 		throw error;
 	}

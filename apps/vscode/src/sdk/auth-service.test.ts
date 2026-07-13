@@ -18,6 +18,8 @@ import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 
 const mockFeatureFlagsPoll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockIdentifyAccount = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockTelemetryCapture = vi.hoisted(() => vi.fn())
+const mockCaptureAuthLoggedOut = vi.hoisted(() => vi.fn())
 
 // Mock StateManager
 const mockSecrets = new Map<string, string>()
@@ -90,6 +92,8 @@ vi.mock("@/services/feature-flags", () => ({
 vi.mock("@/services/telemetry", () => ({
 	telemetryService: {
 		identifyAccount: mockIdentifyAccount,
+		capture: mockTelemetryCapture,
+		captureAuthLoggedOut: mockCaptureAuthLoggedOut,
 	},
 }))
 

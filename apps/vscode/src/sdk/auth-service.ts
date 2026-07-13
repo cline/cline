@@ -366,6 +366,7 @@ export class AuthService {
 				const newCredentials = await this.resolveValidClineCredentials(currentInfo, { forceRefresh: true })
 				if (!newCredentials) {
 					sdkDebug("[SdkAuthService] refreshAccessToken: refresh returned null — clearing credentials")
+					telemetryService.captureAuthLoggedOut("cline", "refresh_rejected")
 					this._clineAuthInfo = null
 					this._authenticated = false
 					clearClineCredentials()
@@ -417,6 +418,16 @@ export class AuthService {
 				return this._clineAuthInfo.idToken
 			} catch (error) {
 				Logger.error("[SdkAuthService] Token refresh failed:", error)
+				// Recoverable failure (network/5xx): credentials were kept. Same
+				// event the SDK emits, so dashboards aggregate both clients.
+				telemetryService.capture({
+					event: "user.auth_refresh_soft_failure",
+					properties: {
+						provider: "cline",
+						source: "extension_refresh",
+						errorName: error instanceof Error ? error.name : undefined,
+					},
+				})
 				return undefined
 			} finally {
 				this._refreshPromise = null
@@ -747,8 +758,9 @@ export class AuthService {
 	/**
 	 * Handle deauthentication — clear tokens from providers.json and push unauthenticated state.
 	 */
-	async handleDeauth(_reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
+	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
+			telemetryService.captureAuthLoggedOut("cline", reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
 			clearClineCredentials()
@@ -881,6 +893,7 @@ export class AuthService {
 
 			const validCredentials = await this.resolveValidClineCredentials(restoredAuthInfo)
 			if (!validCredentials) {
+				telemetryService.captureAuthLoggedOut("cline", "restore_refresh_rejected")
 				this._authenticated = false
 				this._clineAuthInfo = null
 				clearClineCredentials()
@@ -927,6 +940,14 @@ export class AuthService {
 			})
 		} catch (error) {
 			Logger.error("[SdkAuthService] Error restoring auth token:", error)
+			telemetryService.capture({
+				event: "user.auth_refresh_soft_failure",
+				properties: {
+					provider: "cline",
+					source: "extension_restore",
+					errorName: error instanceof Error ? error.name : undefined,
+				},
+			})
 			this._authenticated = false
 			this._clineAuthInfo = null
 		}
