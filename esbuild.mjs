@@ -69,6 +69,19 @@ const aliasResolverPlugin = {
 	},
 }
 
+// jsonc-parser's CommonJS entry is a UMD wrapper that performs relative
+// requires through a factory parameter. esbuild cannot statically follow
+// those calls, leaving `require("./impl/format")` in the single-file extension
+// bundle. The package's ESM entry is equivalent and fully bundleable.
+const jsoncParserEsmPlugin = {
+	name: "jsonc-parser-esm",
+	setup(build) {
+		build.onResolve({ filter: /^jsonc-parser$/ }, () => ({
+			path: path.join(__dirname, "node_modules", "jsonc-parser", "lib", "esm", "main.js"),
+		}))
+	},
+}
+
 const esbuildProblemMatcherPlugin = {
 	name: "esbuild-problem-matcher",
 
@@ -191,6 +204,7 @@ const baseConfig = {
 	plugins: [
 		copyWasmFiles,
 		copyArtifactKernelRunner,
+		jsoncParserEsmPlugin,
 		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
@@ -228,7 +242,7 @@ const e2eBuildConfig = {
 	outfile: `${destDir}/e2e-build.mjs`,
 	external: ["@vscode/test-electron", "execa"],
 	sourcemap: false,
-	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
+	plugins: [jsoncParserEsmPlugin, aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
 async function main() {

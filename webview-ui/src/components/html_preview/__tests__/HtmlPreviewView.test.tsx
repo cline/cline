@@ -92,6 +92,25 @@ describe("HtmlPreviewView", () => {
 		expect(iframe.getAttribute("src")).to.equal(null)
 	})
 
+	it("applies the host-owned CSP only to installed Learning Pack srcdoc", () => {
+		const authored = '<html><head><meta http-equiv="Content-Security-Policy" content="default-src *"></head><body>pack</body></html>'
+		const packItem = {
+			...inlineItem,
+			htmlContent: authored,
+			metadata: { ...inlineItem.metadata, artifactKind: "learning-pack-v1" },
+		}
+		const { rerender } = render(<HtmlPreviewView item={packItem} />)
+		let iframe = screen.getByTitle("Test Preview") as HTMLIFrameElement
+		const securedSrcdoc = iframe.getAttribute("srcdoc") ?? ""
+		expect(securedSrcdoc).to.contain("default-src 'none'")
+		expect(securedSrcdoc).not.to.contain("default-src *")
+		expect(securedSrcdoc.indexOf("Content-Security-Policy")).to.be.lessThan(securedSrcdoc.indexOf("<script"))
+
+		rerender(<HtmlPreviewView item={{ ...inlineItem, htmlContent: authored }} />)
+		iframe = screen.getByTitle("Test Preview") as HTMLIFrameElement
+		expect(iframe.getAttribute("srcdoc")).to.contain("default-src *")
+	})
+
 	it("uses a single sandboxed profile (scripts allowed)", () => {
 		render(<HtmlPreviewView item={baseItem} />)
 		const iframe = screen.getByTitle("Test Preview") as HTMLIFrameElement

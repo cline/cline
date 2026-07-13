@@ -4,6 +4,7 @@ import { HtmlPreviewMode, type PreviewHtmlRequest } from "@shared/proto/cline/ht
 import { ShowMessageType } from "@shared/proto/host/window"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { learningPackArtifactMetadata, resolveInstalledLearningPackArtifact } from "@/services/learning-pack/runtimeIntegration"
 import type { Controller } from ".."
 
 /**
@@ -73,7 +74,18 @@ export async function previewHtml(controller: Controller, request: PreviewHtmlRe
 				})
 				return Empty.create()
 			}
-			ref = await svc.registerFile({ fsPath, title: title || path.basename(fsPath), preferredMode })
+			const packArtifact = await resolveInstalledLearningPackArtifact(fsPath)
+			ref = await svc.registerFile({
+				fsPath,
+				title: title || path.basename(fsPath),
+				preferredMode,
+				...(packArtifact
+					? {
+							metadata: learningPackArtifactMetadata(packArtifact.scope),
+							localResourceRoot: packArtifact.installationRoot,
+						}
+					: {}),
+			})
 		} else if (html) {
 			ref = await svc.registerInline({ html, title, preferredMode })
 		} else {

@@ -13,6 +13,11 @@ import {
 	setCurrentModule as setCourseCurrentModule,
 } from "@/services/htmlPreview/courseProgressStore"
 import { loadModuleState, resetModuleState, saveModuleState } from "@/services/htmlPreview/moduleStateStore"
+import {
+	learningPackControlsKey,
+	learningPackProgressKey,
+	parseInstalledLearningPackScope,
+} from "@/services/learning-pack/runtimeIntegration"
 
 /**
  * Owns the single AI-Hydro HTML Preview webview panel.
@@ -311,6 +316,9 @@ export class VscodeHtmlPreviewProvider {
 						// the webview can update its UI from a single source of truth.
 						const requestId = String(message.requestId ?? "")
 						const courseId = String(message.courseId ?? "")
+						const parsedPackScope = parseInstalledLearningPackScope(message.learningPackScope)
+						const packScope = parsedPackScope?.courseId === courseId ? parsedPackScope : null
+						const progressKey = packScope ? learningPackProgressKey(packScope) : courseId
 						const moduleId = typeof message.moduleId === "string" ? message.moduleId : null
 						const action = String(message.action ?? "load")
 						try {
@@ -319,25 +327,26 @@ export class VscodeHtmlPreviewProvider {
 								case "complete":
 									if (!moduleId) throw new Error("complete requires moduleId")
 									progress = await markCourseComplete(
-										courseId,
+										progressKey,
 										moduleId,
 										typeof message.timeSpentMs === "number" ? message.timeSpentMs : undefined,
 									)
 									break
 								case "uncomplete":
 									if (!moduleId) throw new Error("uncomplete requires moduleId")
-									progress = await markCourseUncomplete(courseId, moduleId)
+									progress = await markCourseUncomplete(progressKey, moduleId)
 									break
 								case "set-current":
-									progress = await setCourseCurrentModule(courseId, moduleId)
+									progress = await setCourseCurrentModule(progressKey, moduleId)
 									break
 								case "reset":
-									progress = await resetCourseProgress(courseId)
+									progress = await resetCourseProgress(progressKey)
 									break
 								case "load":
 								default:
-									progress = await loadCourseProgress(courseId)
+									progress = await loadCourseProgress(progressKey)
 							}
+							if (packScope) progress = { ...progress, courseId }
 							panel.webview.postMessage({
 								type: "aihydro-course-progress-result",
 								requestId,
@@ -417,6 +426,8 @@ export class VscodeHtmlPreviewProvider {
 						// current snapshot so the webview stays a view over disk state.
 						const requestId = String(message.requestId ?? "")
 						const moduleKey = String(message.moduleKey ?? "")
+						const packScope = parseInstalledLearningPackScope(message.learningPackScope)
+						const storageKey = packScope ? learningPackControlsKey(packScope) : moduleKey
 						const action = String(message.action ?? "get")
 						try {
 							let state
@@ -426,15 +437,15 @@ export class VscodeHtmlPreviewProvider {
 										message.values && typeof message.values === "object"
 											? (message.values as Record<string, string>)
 											: {}
-									state = await saveModuleState(moduleKey, values)
+									state = await saveModuleState(storageKey, values)
 									break
 								}
 								case "reset":
-									state = await resetModuleState(moduleKey)
+									state = await resetModuleState(storageKey)
 									break
 								case "get":
 								default:
-									state = await loadModuleState(moduleKey)
+									state = await loadModuleState(storageKey)
 							}
 							panel.webview.postMessage({
 								type: "aihydro-module-state-result",
