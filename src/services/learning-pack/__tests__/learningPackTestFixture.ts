@@ -26,6 +26,7 @@ export function createValidLearningPackFiles(options?: {
 	packId?: string
 	courseId?: string
 	privateKey?: KeyObject
+	provenanceBytes?: Uint8Array
 }): {
 	files: Map<string, Uint8Array>
 	fingerprint: string
@@ -61,7 +62,10 @@ export function createValidLearningPackFiles(options?: {
 		[`modules/${TEST_MODULE_IDS[0]}/module.html`, options?.firstModuleBytes ?? moduleHtml(TEST_MODULE_IDS[0], false)],
 		[`modules/${TEST_MODULE_IDS[1]}/module.html`, options?.secondModuleBytes ?? moduleHtml(TEST_MODULE_IDS[1], true)],
 		["environments/environment.json", canonicalJsonBytes({ python: ">=3.11" })],
-		["provenance/provenance.json", canonicalJsonBytes({ buildKind: "development", sourceCommit: "a".repeat(40) })],
+		[
+			"provenance/provenance.json",
+			options?.provenanceBytes ?? canonicalJsonBytes({ buildKind: "development", sourceCommit: "a".repeat(40) }),
+		],
 	])
 	const entries = [...payload.entries()]
 		.map(([path, value]) => ({ path, sha256: createHash("sha256").update(value).digest("hex"), size: value.byteLength }))

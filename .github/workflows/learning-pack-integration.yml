@@ -1,0 +1,182 @@
+name: Learning Pack Reusable Integration
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        required: true
+        type: string
+      book_repository:
+        required: true
+        type: string
+      book_commit:
+        required: true
+        type: string
+      runtime_commit:
+        required: true
+        type: string
+      schema_sha256:
+        required: true
+        type: string
+      student_archive:
+        required: true
+        type: string
+      student_sha256:
+        required: true
+        type: string
+      instructor_archive:
+        required: true
+        type: string
+      instructor_sha256:
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  phase1-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out the pinned public runtime
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: AI-Hydro/AI-Hydro
+          ref: ${{ inputs.runtime_commit }}
+          path: runtime
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: runtime/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            runtime/package-lock.json
+            runtime/webview-ui/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Download the caller's same-run pack artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/phase1/artifacts
+
+      - name: Install the pinned runtime dependencies
+        working-directory: runtime
+        shell: bash
+        run: |
+          npm ci
+          npm ci --prefix webview-ui
+          python -m pip install --disable-pip-version-check matplotlib
+
+      - name: Configure pinned integration inputs
+        working-directory: runtime
+        shell: bash
+        env:
+          INPUT_BOOK_REPOSITORY: ${{ inputs.book_repository }}
+          INPUT_BOOK_COMMIT: ${{ inputs.book_commit }}
+          CALLER_REPOSITORY: ${{ github.repository }}
+          CALLER_COMMIT: ${{ github.sha }}
+          INPUT_RUNTIME_COMMIT: ${{ inputs.runtime_commit }}
+          INPUT_SCHEMA_SHA256: ${{ inputs.schema_sha256 }}
+          INPUT_STUDENT_ARCHIVE: ${{ inputs.student_archive }}
+          INPUT_STUDENT_SHA256: ${{ inputs.student_sha256 }}
+          INPUT_INSTRUCTOR_ARCHIVE: ${{ inputs.instructor_archive }}
+          INPUT_INSTRUCTOR_SHA256: ${{ inputs.instructor_sha256 }}
+        run: |
+          runtime_checkout="$(git rev-parse HEAD)"
+          test "$runtime_checkout" = "$INPUT_RUNTIME_COMMIT"
+          test "$INPUT_BOOK_REPOSITORY" = "$CALLER_REPOSITORY"
+          test "$INPUT_BOOK_COMMIT" = "$CALLER_COMMIT"
+          [[ "$INPUT_BOOK_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          [[ "$INPUT_BOOK_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$INPUT_RUNTIME_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$INPUT_SCHEMA_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$INPUT_STUDENT_ARCHIVE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.aihydropack$ ]]
+          [[ "$INPUT_INSTRUCTOR_ARCHIVE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.aihydropack$ ]]
+          [[ "$INPUT_STUDENT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$INPUT_INSTRUCTOR_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          mkdir -p "$RUNNER_TEMP/phase1" test-results
+          {
+            echo "AIHYDRO_E2E_PYTHON=$(python -c 'import sys; print(sys.executable)')"
+            echo "PHASE1_ARTIFACT_DIR=$RUNNER_TEMP/phase1/artifacts"
+            echo "PHASE1_STUDENT_ARCHIVE=$INPUT_STUDENT_ARCHIVE"
+            echo "PHASE1_INSTRUCTOR_ARCHIVE=$INPUT_INSTRUCTOR_ARCHIVE"
+            echo "PHASE1_STUDENT_SHA256=$INPUT_STUDENT_SHA256"
+            echo "PHASE1_INSTRUCTOR_SHA256=$INPUT_INSTRUCTOR_SHA256"
+            echo "PHASE1_BOOK_REPOSITORY=$INPUT_BOOK_REPOSITORY"
+            echo "PHASE1_BOOK_COMMIT=$INPUT_BOOK_COMMIT"
+            echo "PHASE1_RUNTIME_COMMIT=$INPUT_RUNTIME_COMMIT"
+            echo "PHASE1_RUNTIME_CHECKOUT_COMMIT=$runtime_checkout"
+            echo "PHASE1_SCHEMA_SHA256=$INPUT_SCHEMA_SHA256"
+            echo "PHASE1_RUNTIME_SCHEMA=$GITHUB_WORKSPACE/runtime/schemas/learning-pack/v1/pack.schema.json"
+            echo "PHASE1_AIHYDRO_VERSION=$(node -p 'require("./package.json").version')"
+            echo "PHASE1_VERIFICATION_PATH=$RUNNER_TEMP/phase1/verification.json"
+            echo "PHASE1_EVIDENCE_PATH=$GITHUB_WORKSPACE/runtime/test-results/phase1-evidence.json"
+            echo "AIHYDRO_PHASE1_PACK_PATH=$RUNNER_TEMP/phase1/artifacts/$INPUT_STUDENT_ARCHIVE"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify commits, schema snapshot, archives, signatures, and provenance
+        id: verify
+        continue-on-error: true
+        working-directory: runtime
+        shell: bash
+        run: >-
+          TS_NODE_PROJECT=./tsconfig.unit-test.json
+          node --require ts-node/register --require tsconfig-paths/register
+          scripts/phase1-integration-evidence.ts verify
+
+      - name: Build the pinned extension and E2E assets
+        if: steps.verify.outcome == 'success'
+        working-directory: runtime
+        shell: bash
+        run: |
+          npm run test:e2e:build
+          node src/test/e2e/utils/build.mjs
+
+      - name: Install and execute the book artifact through the real panel
+        if: steps.verify.outcome == 'success'
+        id: runtime
+        continue-on-error: true
+        working-directory: runtime
+        shell: bash
+        run: >-
+          xvfb-run -a npx playwright test -c playwright.config.ts
+          src/test/e2e/learning-pack-artifact-integration.test.ts
+          --grep '@phase1-cross-repo'
+
+      - name: Emit bounded sanitized evidence
+        if: always()
+        working-directory: runtime
+        shell: bash
+        env:
+          PHASE1_VERIFICATION_RESULT: ${{ steps.verify.outcome }}
+          PHASE1_RUNTIME_RESULT: ${{ steps.runtime.outcome }}
+        run: >-
+          TS_NODE_PROJECT=./tsconfig.unit-test.json
+          node --require ts-node/register --require tsconfig-paths/register
+          scripts/phase1-integration-evidence.ts finalize
+
+      - name: Upload only the sanitized Phase 1 evidence record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: phase1-evidence-${{ inputs.book_commit }}
+          path: runtime/test-results/phase1-evidence.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce verification and real-panel success
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.verify.outcome }}" = "success"
+          test "${{ steps.runtime.outcome }}" = "success"
