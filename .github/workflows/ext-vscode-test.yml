@@ -8,6 +8,7 @@ on:
     pull_request:
         branches:
             - main
+            - legacy-extension
     workflow_call:
 
 # Set default permissions for all jobs
