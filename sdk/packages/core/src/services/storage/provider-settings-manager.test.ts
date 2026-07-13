@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
@@ -49,6 +56,50 @@ describe("ProviderSettingsManager", () => {
 			reloaded.getProviderConfig("anthropic", { includeKnownModels: false }),
 		).not.toHaveProperty("knownModels");
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
+	});
+
+	it("writes atomically, leaving no temp file behind", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{ provider: "anthropic", apiKey: "test-key" },
+			{ setLastUsed: true },
+		);
+
+		const siblings = readdirSync(tempDir);
+		expect(siblings).toEqual(["provider-settings.json"]);
+	});
+
+	it("preserves the previous file when the staged write cannot be renamed", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		manager.saveProviderSettings(
+			{ provider: "anthropic", apiKey: "before" },
+			{ setLastUsed: true },
+		);
+		const before = readFileSync(filePath, "utf8");
+
+		// Occupying the temp path with a directory makes writeFileSync fail,
+		// simulating a mid-write crash: the destination must be untouched.
+		mkdirSync(`${filePath}.${process.pid}.tmp`);
+		expect(() =>
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "after" },
+				{ setLastUsed: true },
+			),
+		).toThrow();
+		rmSync(`${filePath}.${process.pid}.tmp`, { recursive: true, force: true });
+
+		expect(readFileSync(filePath, "utf8")).toBe(before);
 	});
 
 	it("resolves auth storage settings for providers registered with a storage provider id", () => {

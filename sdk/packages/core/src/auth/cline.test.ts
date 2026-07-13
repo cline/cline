@@ -122,6 +122,31 @@ describe("auth/cline getValidClineCredentials", () => {
 		expect(result).toBe(current);
 		nowSpy.mockRestore();
 	});
+
+	it("throws on transient refresh error when the token is already expired", async () => {
+		// A network blip landing after expiry is NOT an invalid grant; returning
+		// null here is what made clients wipe stored credentials over an outage.
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const current = createCredentials({ expires: 90_000 });
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						error: "server_error",
+						error_description: "temporary issue",
+					}),
+					{
+						status: 500,
+						headers: { "Content-Type": "application/json" },
+					},
+				),
+		) as unknown as typeof fetch;
+
+		await expect(
+			getValidClineCredentials(current, PROVIDER_OPTIONS),
+		).rejects.toThrow("Token refresh failed: 500");
+		nowSpy.mockRestore();
+	});
 });
 
 describe("auth/cline loginClineOAuth", () => {
