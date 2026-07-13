@@ -34,8 +34,20 @@ interface LoadedPlugins {
 	shutdown: () => Promise<void>
 }
 
+export interface SdkPluginCommandCoordinatorOptions {
+	getWorkspaceRoot: () => Promise<string>
+	loadPlugins?: typeof resolveAndLoadAgentPlugins
+}
+
+export function normalizePluginCommandName(name: string): string {
+	const trimmed = name.trim()
+	return (trimmed.startsWith("/") ? trimmed.slice(1) : trimmed).toLowerCase()
+}
+
 export class SdkPluginCommandCoordinator {
 	private loadedPromise: Promise<LoadedPlugins | undefined> | undefined
+
+	constructor(private readonly options: SdkPluginCommandCoordinatorOptions) {}
 
 	/**
 	 * Lazily load plugins and initialize the contribution registry. The result
@@ -49,7 +61,10 @@ export class SdkPluginCommandCoordinator {
 		this.loadedPromise = (async () => {
 			let loaded: Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 			try {
-				loaded = await resolveAndLoadAgentPlugins({
+				const workspaceRoot = await this.options.getWorkspaceRoot()
+				loaded = await (this.options.loadPlugins ?? resolveAndLoadAgentPlugins)({
+					cwd: workspaceRoot,
+					workspacePath: workspaceRoot,
 					logger: noopBasicLogger,
 				})
 			} catch (error) {
@@ -96,9 +111,10 @@ export class SdkPluginCommandCoordinator {
 		return loaded.commands
 			.filter((cmd) => typeof cmd.handler === "function")
 			.map((cmd) => ({
-				name: cmd.name,
+				name: normalizePluginCommandName(cmd.name),
 				description: cmd.description,
 			}))
+			.filter((cmd) => cmd.name.length > 0)
 	}
 
 	/**
@@ -114,14 +130,16 @@ export class SdkPluginCommandCoordinator {
 		if (!match?.[1]) {
 			return null
 		}
-		const name = match[1]
+		const name = normalizePluginCommandName(match[1])
 		const remainder = text.slice(name.length + 1).trim()
 
 		const loaded = await this.ensureLoaded()
 		if (!loaded) {
 			return null
 		}
-		const command = loaded.commands.find((cmd) => cmd.name === name && typeof cmd.handler === "function")
+		const command = loaded.commands.find(
+			(cmd) => normalizePluginCommandName(cmd.name) === name && typeof cmd.handler === "function",
+		)
 		if (!command?.handler) {
 			return null
 		}
