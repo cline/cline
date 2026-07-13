@@ -7,10 +7,8 @@ import {
 	ChevronDown,
 	CircleStop,
 	Coins,
-	Mic,
 	Paperclip,
 	Pencil,
-	RotateCcw,
 	Undo2,
 	X,
 } from "lucide-react";
@@ -188,6 +186,7 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 }
 
 type ChatInputBarProps = {
+	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
 	provider: string;
 	model: string;
@@ -203,12 +202,10 @@ type ChatInputBarProps = {
 	onReasoningChange: (
 		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
 	) => void;
-	onRefreshGitBranch: () => void;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onSend: () => void;
 	onAbort: () => void;
-	onReset: () => void;
 	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
@@ -227,6 +224,7 @@ type ChatInputBarProps = {
 };
 
 export function ChatInputBar({
+	variant = "conversation",
 	status,
 	provider,
 	model,
@@ -240,12 +238,10 @@ export function ChatInputBar({
 	onModelChange,
 	onModeToggle,
 	onReasoningChange,
-	onRefreshGitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
 	onSend,
 	onAbort,
-	onReset,
 	promptsInQueue,
 	attachments,
 	onAttachFiles,
@@ -266,8 +262,30 @@ export function ChatInputBar({
 		status === "starting" || status === "running" || status === "stopping";
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
 
-	const [modelSupportsReasoning, setModelSupportsReasoning] = useState(() =>
-		hasReasoningCapability(FALLBACK_PROVIDER_REASONING_MODELS, provider, model),
+	const [reasoningCapability, setReasoningCapability] = useState<{
+		provider: string;
+		model: string;
+		supported: boolean | null;
+	} | null>(null);
+	const modelSupportsReasoning =
+		reasoningCapability?.provider === provider &&
+		reasoningCapability.model === model
+			? reasoningCapability.supported
+			: null;
+	const handleModelSupportsReasoningChange = useCallback(
+		(supported: boolean | null) => {
+			setReasoningCapability((current) => {
+				if (
+					current?.provider === provider &&
+					current.model === model &&
+					current.supported === supported
+				) {
+					return current;
+				}
+				return { provider, model, supported };
+			});
+		},
+		[model, provider],
 	);
 	const canSend = hasDraft;
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -312,11 +330,16 @@ export function ChatInputBar({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
-	const effortLabel = modelSupportsReasoning
-		? (EFFORT_LEVELS[effortIndex]?.label ?? "Low")
-		: "None";
+	const effortLabel =
+		modelSupportsReasoning === true
+			? (EFFORT_LEVELS[effortIndex]?.label ?? "Low")
+			: modelSupportsReasoning === false
+				? "None"
+				: thinking !== false && reasoningEffort
+					? (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning")
+					: "Reasoning";
 	const handleEffortCycle = useCallback(() => {
-		if (!modelSupportsReasoning) {
+		if (modelSupportsReasoning !== true) {
 			return;
 		}
 		const nextOption = EFFORT_LEVELS[(effortIndex + 1) % EFFORT_LEVELS.length];
@@ -327,6 +350,9 @@ export function ChatInputBar({
 	}, [effortIndex, modelSupportsReasoning, onReasoningChange]);
 
 	useEffect(() => {
+		if (modelSupportsReasoning === null) {
+			return;
+		}
 		if (!modelSupportsReasoning) {
 			if (thinking !== false || reasoningEffort !== undefined) {
 				onReasoningChange({ thinking: false, reasoningEffort: undefined });
@@ -337,6 +363,19 @@ export function ChatInputBar({
 			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
+
+	useEffect(() => {
+		const input = promptInputRef.current;
+		if (!input) return;
+		if (
+			variant === "conversation" ||
+			(variant === "welcome" &&
+				promptInput.trim().length > 0 &&
+				document.activeElement !== input)
+		) {
+			input.focus();
+		}
+	}, [promptInput, variant]);
 
 	const startQueuedPromptEdit = useCallback((item: PromptInQueue) => {
 		setEditingQueuedPromptId(item.id);
@@ -589,9 +628,16 @@ export function ChatInputBar({
 	);
 
 	return (
-		<div className="border-t border-border bg-card">
+		<div
+			className={cn(
+				"bg-card",
+				variant === "welcome"
+					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--cline-violet)_72%,transparent)] backdrop-blur-md"
+					: "border-t border-border bg-card/95 backdrop-blur-sm",
+			)}
+		>
 			{/* Input area */}
-			<div className="px-4 py-3">
+			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
 				{promptsInQueue.length > 0 && (
 					<div className="mb-3 rounded-lg border border-border bg-background/70 p-2">
 						<div className="mb-2 flex items-center justify-between gap-2">
@@ -734,7 +780,11 @@ export function ChatInputBar({
 				)}
 				<div className="relative">
 					{slashOpen && (
-						<div className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
+						<div
+							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+							id="slash-command-suggestions"
+							role="listbox"
+						>
 							{filteredSlashCommands.length === 0 ? (
 								<div className="px-3 py-2 text-xs text-muted-foreground">
 									{slashLoading
@@ -745,6 +795,7 @@ export function ChatInputBar({
 								<>
 									{filteredSlashCommands.map((cmd, index) => (
 										<button
+											aria-selected={index === slashSelectedIndex}
 											className={cn(
 												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs transition-colors",
 												index === slashSelectedIndex
@@ -752,7 +803,9 @@ export function ChatInputBar({
 													: "text-muted-foreground hover:bg-accent hover:text-foreground",
 											)}
 											key={cmd.name}
+											id={`slash-command-option-${index}`}
 											onClick={() => insertSlashCommandItem(cmd.name)}
+											role="option"
 											type="button"
 										>
 											<span className="font-medium">/{cmd.name}</span>
@@ -773,7 +826,11 @@ export function ChatInputBar({
 						</div>
 					)}
 					{mentionOpen && (
-						<div className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
+						<div
+							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+							id="mention-file-suggestions"
+							role="listbox"
+						>
 							{mentionFiles.length === 0 ? (
 								<div className="px-3 py-2 text-xs text-muted-foreground">
 									{mentionLoading ? "Searching files..." : "No matching files"}
@@ -782,6 +839,7 @@ export function ChatInputBar({
 								<>
 									{mentionFiles.map((filePath, index) => (
 										<button
+											aria-selected={index === mentionSelectedIndex}
 											className={cn(
 												"block w-full rounded-md px-3 py-2 text-left text-xs transition-colors",
 												index === mentionSelectedIndex
@@ -789,7 +847,9 @@ export function ChatInputBar({
 													: "text-muted-foreground hover:bg-accent hover:text-foreground",
 											)}
 											key={filePath}
+											id={`mention-file-option-${index}`}
 											onClick={() => insertMentionFile(filePath)}
+											role="option"
 											type="button"
 										>
 											{filePath}
@@ -804,8 +864,31 @@ export function ChatInputBar({
 							)}
 						</div>
 					)}
-					<div className="flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+					<div
+						className={cn(
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							variant === "welcome" &&
+								"min-h-16 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+						)}
+					>
 						<textarea
+							aria-activedescendant={
+								slashOpen && filteredSlashCommands.length > 0
+									? `slash-command-option-${slashSelectedIndex}`
+									: mentionOpen && mentionFiles.length > 0
+										? `mention-file-option-${mentionSelectedIndex}`
+										: undefined
+							}
+							aria-autocomplete="list"
+							aria-controls={
+								slashOpen
+									? "slash-command-suggestions"
+									: mentionOpen
+										? "mention-file-suggestions"
+										: undefined
+							}
+							aria-expanded={slashOpen || mentionOpen}
+							aria-haspopup="listbox"
 							className="max-h-60 min-h-5 flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none"
 							onChange={(e) => {
 								onPromptInputChange(e.target.value);
@@ -893,15 +976,20 @@ export function ChatInputBar({
 								)
 							}
 							placeholder={
-								isBusy
-									? "Agent is working... submit to queue another message"
-									: "Enter your question or type / for commands or @ for context"
+								variant === "welcome"
+									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+									: isBusy
+										? "Agent is working... submit to queue another message"
+										: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
+							role="combobox"
 							rows={
-								promptInputFocused
-									? PROMPT_INPUT_FOCUSED_ROWS
-									: PROMPT_INPUT_COLLAPSED_ROWS
+								variant === "welcome"
+									? 2
+									: promptInputFocused
+										? PROMPT_INPUT_FOCUSED_ROWS
+										: PROMPT_INPUT_COLLAPSED_ROWS
 							}
 							value={promptInput}
 						/>
@@ -916,6 +1004,7 @@ export function ChatInputBar({
 							>
 								{attachment.isImage ? "image:" : "file:"} {attachment.name}
 								<button
+									aria-label={`Remove ${attachment.name}`}
 									className="rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
 									onClick={() => onRemoveAttachment(attachment.id)}
 									type="button"
@@ -928,51 +1017,111 @@ export function ChatInputBar({
 				)}
 			</div>
 
-			{/* Controls row */}
-			<div className="flex items-center justify-between px-4 pb-2">
-				<div className="flex items-center gap-1">
-					<button
-						className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-						onClick={() => fileInputRef.current?.click()}
-						type="button"
-					>
-						<Paperclip className="h-4 w-4" />
-					</button>
-					<input
-						accept="*/*"
-						className="hidden"
-						multiple
-						onChange={(event) => {
-							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) {
-								onAttachFiles(files);
-							}
-							event.currentTarget.value = "";
-						}}
-						ref={fileInputRef}
-						type="file"
-					/>
+			{/* Attachments action */}
+			<div className="flex items-center px-4 pb-2">
+				<button
+					aria-label="Attach files"
+					className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					onClick={() => fileInputRef.current?.click()}
+					type="button"
+				>
+					<Paperclip className="h-4 w-4" />
+				</button>
+				<input
+					accept="*/*"
+					className="hidden"
+					multiple
+					onChange={(event) => {
+						const files = Array.from(event.target.files ?? []);
+						if (files.length > 0) onAttachFiles(files);
+						event.currentTarget.value = "";
+					}}
+					ref={fileInputRef}
+					type="file"
+				/>
+			</div>
 
+			{/* Composer settings and submit */}
+			<div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground max-[560px]:items-stretch">
+				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-[560px]:w-full max-[560px]:flex-none">
+					<div className="flex shrink-0 items-center rounded-md bg-muted p-0.5">
+						<button
+							aria-pressed={mode === "plan"}
+							className={cn(
+								"rounded px-2 py-1 transition-colors",
+								mode === "plan"
+									? "bg-background text-foreground shadow-xs"
+									: "hover:text-foreground",
+							)}
+							onClick={() => {
+								if (mode !== "plan") onModeToggle();
+							}}
+							type="button"
+						>
+							Plan
+						</button>
+						<button
+							aria-pressed={mode === "act"}
+							className={cn(
+								"rounded px-2 py-1 transition-colors",
+								mode === "act"
+									? "bg-background text-foreground shadow-xs"
+									: "hover:text-foreground",
+							)}
+							onClick={() => {
+								if (mode !== "act") onModeToggle();
+							}}
+							type="button"
+						>
+							Act
+						</button>
+					</div>
 					<ModelSelector
 						isBusy={isBusy}
 						model={model}
 						onModelChange={onModelChange}
-						onModelSupportsReasoningChange={setModelSupportsReasoning}
+						onModelSupportsReasoningChange={handleModelSupportsReasoningChange}
 						onProviderChange={onProviderChange}
 						provider={provider}
+						variant={variant}
 					/>
+					<StatusItem
+						disabled={modelSupportsReasoning !== true}
+						icon={Brain}
+						label={effortLabel}
+						onClick={handleEffortCycle}
+					/>
+					{tokensSummary ? (
+						<span className="max-[900px]:hidden">
+							<StatusItem
+								icon={Coins}
+								label={tokensSummary}
+								hasOption={false}
+							/>
+						</span>
+					) : null}
 				</div>
 
-				<div className="flex items-center gap-1">
-					<button
-						className="hidden rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-						type="button"
-					>
-						<Mic className="h-4 w-4" />
-					</button>
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:w-full max-[560px]:justify-between">
+					<div className="max-w-48 truncate max-[720px]:max-w-36">
+						<WorkspaceSelector
+							currentBranch={gitBranch}
+							onListGitBranches={onListGitBranches}
+							onRefreshWorkspaces={onRefreshWorkspaces}
+							onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+							onSwitchGitBranch={onSwitchGitBranch}
+							onSwitchWorkspace={onSwitchWorkspace}
+							workspaces={workspaces}
+							workspaceRoot={workspaceRoot}
+						/>
+					</div>
 					{isBusy && (
 						<button
-							className="rounded-full bg-foreground p-1.5 text-background hover:bg-foreground/80 transition-colors"
+							aria-label="Stop agent"
+							className={cn(
+								"bg-foreground p-1.5 text-background transition-colors hover:bg-foreground/80",
+								variant === "welcome" ? "rounded-md" : "rounded-full",
+							)}
 							onClick={onAbort}
 							type="button"
 						>
@@ -981,7 +1130,13 @@ export function ChatInputBar({
 					)}
 					{(!isBusy || canSend) && (
 						<button
-							className="rounded-full bg-foreground p-1.5 text-background hover:bg-foreground/80 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+							aria-label="Send message"
+							className={cn(
+								"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+								variant === "welcome"
+									? "rounded-md bg-[linear-gradient(145deg,var(--cline-violet-strong),var(--cline-violet))] text-white shadow-sm hover:brightness-110"
+									: "rounded-full bg-foreground text-background hover:bg-foreground/80",
+							)}
 							disabled={!canSend}
 							onClick={onSend}
 							type="button"
@@ -989,52 +1144,6 @@ export function ChatInputBar({
 							<ArrowUp className="h-4 w-4" />
 						</button>
 					)}
-				</div>
-			</div>
-
-			{/* Status bar */}
-			<div className="flex items-center justify-between border-t border-border px-4 py-1.5 text-[11px] text-muted-foreground">
-				<div className="flex items-center gap-3">
-					<StatusItem
-						label={mode === "act" ? "Act" : "Plan"}
-						onClick={onModeToggle}
-					/>
-					<StatusItem
-						disabled={!modelSupportsReasoning}
-						icon={Brain}
-						label={effortLabel}
-						onClick={handleEffortCycle}
-					/>
-					{tokensSummary && (
-						<StatusItem icon={Coins} label={tokensSummary} hasOption={false} />
-					)}
-				</div>
-				{/* GIT BRANCH */}
-				<div className="flex items-center gap-3">
-					<WorkspaceSelector
-						currentBranch={gitBranch}
-						onListGitBranches={onListGitBranches}
-						onRefreshWorkspaces={onRefreshWorkspaces}
-						onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-						onSwitchGitBranch={onSwitchGitBranch}
-						onSwitchWorkspace={onSwitchWorkspace}
-						workspaces={workspaces}
-						workspaceRoot={workspaceRoot}
-					/>
-					<button
-						className="hidden items-center gap-1 hover:text-foreground transition-colors"
-						onClick={onRefreshGitBranch}
-						type="button"
-					>
-						<RotateCcw className="h-3 w-3" />
-					</button>
-					<button
-						className="hidden items-center gap-1 hover:text-foreground transition-colors"
-						onClick={onReset}
-						type="button"
-					>
-						<RotateCcw className="h-4 w-4" />
-					</button>
 				</div>
 			</div>
 		</div>
@@ -1045,6 +1154,7 @@ function ModelSelector({
 	provider,
 	model,
 	isBusy,
+	variant,
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
@@ -1052,9 +1162,10 @@ function ModelSelector({
 	provider: string;
 	model: string;
 	isBusy: boolean;
+	variant: "conversation" | "welcome";
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
-	onModelSupportsReasoningChange: (supportsReasoning: boolean) => void;
+	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1063,6 +1174,9 @@ function ModelSelector({
 	const [providerReasoningModels, setProviderReasoningModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_REASONING_MODELS);
+	const [reasoningCapabilitySource, setReasoningCapabilitySource] = useState<
+		"loading" | "catalog" | "fallback"
+	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
@@ -1120,6 +1234,7 @@ function ModelSelector({
 
 	useEffect(() => {
 		let cancelled = false;
+		setReasoningCapabilitySource("loading");
 
 		async function loadCatalog() {
 			try {
@@ -1129,6 +1244,7 @@ function ModelSelector({
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
+				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
 					if (normalizedProvider) {
@@ -1142,7 +1258,7 @@ function ModelSelector({
 					return Array.from(nextProviderIds);
 				});
 			} catch {
-				// Keep local fallback values when provider catalog is unavailable.
+				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
 		}
 
@@ -1180,6 +1296,7 @@ function ModelSelector({
 					...current,
 					[normalizedProvider]: reasoningModelIds,
 				}));
+				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
 					current.includes(normalizedProvider)
 						? current
@@ -1246,6 +1363,16 @@ function ModelSelector({
 	]);
 
 	useEffect(() => {
+		if (reasoningCapabilitySource === "loading") {
+			return;
+		}
+		if (
+			reasoningCapabilitySource === "fallback" &&
+			!(FALLBACK_PROVIDER_MODELS[normalizedProvider] ?? []).includes(model)
+		) {
+			onModelSupportsReasoningChange(null);
+			return;
+		}
 		onModelSupportsReasoningChange(
 			hasReasoningCapability(
 				providerReasoningModels,
@@ -1258,10 +1385,11 @@ function ModelSelector({
 		onModelSupportsReasoningChange,
 		normalizedProvider,
 		providerReasoningModels,
+		reasoningCapabilitySource,
 	]);
 
 	return (
-		<div className="flex items-center gap-1 text-xxs">
+		<div className="flex min-w-0 shrink-0 items-center gap-1 text-[11px]">
 			<Combobox
 				items={providers}
 				onValueChange={(value) => {
@@ -1287,7 +1415,11 @@ function ModelSelector({
 				value={resolvedProvider}
 			>
 				<ComboboxInput
-					className="h-7 text-xxs"
+					aria-label="Provider"
+					className={cn(
+						"h-7 text-[11px] max-[560px]:w-20",
+						variant === "welcome" && "w-24 border-0 bg-transparent shadow-none",
+					)}
 					disabled={isBusy || providers.length === 0}
 					readOnly
 					showClear={false}
@@ -1297,7 +1429,7 @@ function ModelSelector({
 					<ComboboxEmpty>No providers found.</ComboboxEmpty>
 					<ComboboxList>
 						{(item) => (
-							<ComboboxItem className="text-xxs" key={item} value={item}>
+							<ComboboxItem className="text-[11px]" key={item} value={item}>
 								{item}
 							</ComboboxItem>
 						)}
@@ -1316,7 +1448,11 @@ function ModelSelector({
 				value={resolvedModel}
 			>
 				<ComboboxInput
-					className="h-7"
+					aria-label="Model"
+					className={cn(
+						"h-7 text-[11px] max-[560px]:w-32",
+						variant === "welcome" && "w-52 border-0 bg-transparent shadow-none",
+					)}
 					disabled={isBusy || modelsForProvider.length === 0}
 					readOnly
 					showClear={false}
@@ -1326,7 +1462,7 @@ function ModelSelector({
 					<ComboboxEmpty>No models found.</ComboboxEmpty>
 					<ComboboxList>
 						{(item) => (
-							<ComboboxItem className="text-xxs" key={item} value={item}>
+							<ComboboxItem className="text-[11px]" key={item} value={item}>
 								{item}
 							</ComboboxItem>
 						)}
@@ -1361,7 +1497,7 @@ function StatusItem({
 			type="button"
 		>
 			{Icon ? <Icon className="h-3 w-3" /> : null}
-			<span>{label}</span>
+			<span className="max-[560px]:sr-only">{label}</span>
 			{hasOption ? <ChevronDown className="h-2.5 w-2.5" /> : null}
 		</button>
 	);

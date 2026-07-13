@@ -35,7 +35,6 @@ import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
 import { normalizeTitle } from "../../utils";
-import { WelcomeScreen } from "./welcome-chat";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -46,8 +45,6 @@ type ChatMessagesProps = {
 		| "connected"
 		| "unavailable";
 	isSessionSwitching?: boolean;
-	provider: string;
-	model: string;
 	messages: ChatMessage[];
 	error: string | null;
 	streamingMessageId?: string | null;
@@ -61,7 +58,6 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
-	onStartChat?: (prompt: string) => void;
 };
 
 type ToolApprovalRequestItem = {
@@ -97,8 +93,6 @@ function ChatMessagesImpl({
 	status,
 	chatTransportState = "connecting",
 	isSessionSwitching = false,
-	provider,
-	model,
 	messages,
 	error,
 	streamingMessageId = null,
@@ -109,7 +103,6 @@ function ChatMessagesImpl({
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
 	onForkSession,
-	onStartChat,
 }: ChatMessagesProps) {
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 	const shouldStickToBottomRef = useRef(true);
@@ -376,15 +369,13 @@ function ChatMessagesImpl({
 				className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
 				ref={scrollAreaRef}
 			>
-				<div className="relative mx-auto w-full h-full min-w-0 max-w-full overflow-x-hidden px-6 py-6">
-					{showIdleDetails ? (
-						<WelcomeScreen
-							provider={provider}
-							model={model}
-							onStartChat={onStartChat ?? (() => {})}
-							quickActions={[]}
-						/>
-					) : (
+				<div
+					className={cn(
+						"relative mx-auto h-full w-full min-w-0 max-w-full overflow-x-hidden",
+						showIdleDetails ? "p-0" : "px-6 py-6",
+					)}
+				>
+					{showIdleDetails ? null : (
 						<div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
@@ -1417,7 +1408,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 						) : null}
 						{inputPreview ? (
 							<div className="space-y-1">
-								<div className="text-xxs uppercase tracking-wide text-muted-foreground/80">
+								<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
 									Input
 								</div>
 								<pre className="max-h-52 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">

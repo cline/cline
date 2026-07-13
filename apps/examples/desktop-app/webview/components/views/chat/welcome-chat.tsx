@@ -1,18 +1,11 @@
 "use client";
 
-import { Check, FolderOpen } from "lucide-react";
+import { ArrowRight, FolderPlus, Plus } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { cn } from "@/lib/utils";
 
 interface QuickAction {
 	id: string;
@@ -21,68 +14,101 @@ interface QuickAction {
 	prompt: string;
 }
 
+const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
+	{
+		id: "review-changes",
+		label: "Review changes",
+		description: "Review the current changes and call out anything risky.",
+		prompt: "Review the current changes and call out anything risky.",
+	},
+	{
+		id: "check-build",
+		label: "Check for build errors",
+		description: "Run the relevant checks and help me fix any failures.",
+		prompt: "Check this project for build errors and help me fix any failures.",
+	},
+];
+
 function normalizeWorkspacePath(path: string): string {
 	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
-}
-function toWorkspaceName(path: string): string {
-	const trimmed = path.trim().replace(/[\\/]+$/, "");
-	if (!trimmed) return "workspace";
-	const parts = trimmed.split(/[\\/]/);
-	return parts[parts.length - 1] || "workspace";
+	if (!normalized) return "";
+	return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
 }
 
-function formatWorkspaceLabel(workspacePath: string): string {
-	const trimmed = workspacePath.trim();
-	if (!trimmed) return workspacePath;
-	const unixHome = trimmed.match(/^\/Users\/[^/]+\/(.*)$/);
-	if (unixHome) return unixHome[1] ? `~/${unixHome[1]}` : "~";
-	const linuxHome = trimmed.match(/^\/home\/[^/]+\/(.*)$/);
-	if (linuxHome) return linuxHome[1] ? `~/${linuxHome[1]}` : "~";
-	const windowsHome = trimmed.match(/^[A-Za-z]:\\Users\\[^\\]+\\(.*)$/);
-	if (windowsHome) {
-		const tail = windowsHome[1]?.replaceAll("\\", "/") || "";
-		return tail ? `~/${tail}` : "~";
-	}
-	return workspacePath;
+function toWorkspaceName(path: string): string {
+	const trimmed = path.trim().replace(/[\\/]+$/, "");
+	if (!trimmed) return "Workspace";
+	const parts = trimmed.split(/[\\/]/);
+	return parts[parts.length - 1] || "Workspace";
+}
+
+function workspaceLabels(paths: string[]): Map<string, string> {
+	const segments = paths.map((path) =>
+		path
+			.trim()
+			.replace(/[\\/]+$/, "")
+			.split(/[\\/]/)
+			.filter(Boolean),
+	);
+	return new Map(
+		paths.map((path, index) => {
+			const parts = segments[index] ?? [];
+			for (let depth = 1; depth <= parts.length; depth += 1) {
+				const candidate = parts.slice(-depth).join("/");
+				const matches = segments.filter(
+					(other) => other.slice(-depth).join("/") === candidate,
+				).length;
+				if (matches === 1) return [path, candidate];
+			}
+			return [path, toWorkspaceName(path)];
+		}),
+	);
 }
 
 export function WelcomeScreen({
+	active,
+	body,
+	composer,
+	onStartChat,
 	quickActions,
 }: {
-	provider: string;
-	model: string;
+	active: boolean;
+	body: ReactNode;
+	composer: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: QuickAction[];
 }) {
-	const { workspaceRoot, workspaces, refreshWorkspaces, switchWorkspace } =
-		useWorkspace();
-	const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
+	const {
+		workspaceRoot,
+		workspaces,
+		refreshWorkspaces,
+		switchWorkspace,
+		pickWorkspaceDirectory,
+	} = useWorkspace();
+	const [switchingWorkspace, setSwitchingWorkspace] = useState<string | null>(
+		null,
+	);
+	const [addingWorkspace, setAddingWorkspace] = useState(false);
 	const availableWorkspaces = useMemo(() => {
 		const next = new Map<string, string>();
 		const register = (path: string) => {
 			const trimmed = path.trim();
-			if (!trimmed) {
-				return;
-			}
-			next.set(normalizeWorkspacePath(trimmed), trimmed);
+			if (trimmed) next.set(normalizeWorkspacePath(trimmed), trimmed);
 		};
 		register(workspaceRoot);
-		for (const workspacePath of workspaces) {
-			register(workspacePath);
-		}
+		for (const workspacePath of workspaces) register(workspacePath);
 		return [...next.values()];
 	}, [workspaceRoot, workspaces]);
+	const actions =
+		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
+	const labelsByWorkspace = useMemo(
+		() => workspaceLabels(availableWorkspaces),
+		[availableWorkspaces],
+	);
 
 	useEffect(() => {
-		void refreshWorkspaces();
-	}, [refreshWorkspaces]);
+		if (active) void refreshWorkspaces();
+	}, [active, refreshWorkspaces]);
 
 	const handleSelectWorkspace = useCallback(
 		async (path: string) => {
@@ -90,109 +116,143 @@ export function WelcomeScreen({
 				normalizeWorkspacePath(path) ===
 					normalizeWorkspacePath(workspaceRoot) ||
 				switchingWorkspace
-			)
+			) {
 				return;
-			setSwitchingWorkspace(true);
-			await switchWorkspace(path);
-			setSwitchingWorkspace(false);
+			}
+			setSwitchingWorkspace(path);
+			try {
+				await switchWorkspace(path);
+			} finally {
+				setSwitchingWorkspace(null);
+			}
 		},
-		[workspaceRoot, switchWorkspace, switchingWorkspace],
+		[switchWorkspace, switchingWorkspace, workspaceRoot],
 	);
 
-	const handleQuickAction = (action: QuickAction) => {
-		// TODO: wire up quick action prompt to chat input
-		void action;
-	};
+	const handleAddWorkspace = useCallback(async () => {
+		if (addingWorkspace) return;
+		setAddingWorkspace(true);
+		try {
+			const selected = await pickWorkspaceDirectory(workspaceRoot || undefined);
+			if (selected) await switchWorkspace(selected);
+		} finally {
+			setAddingWorkspace(false);
+		}
+	}, [addingWorkspace, pickWorkspaceDirectory, switchWorkspace, workspaceRoot]);
 
 	return (
-		<div className="flex flex-1 flex-col items-center overflow-hidden bg-background">
-			<AuroraBackground />
-			<div className="relative z-10 flex w-full max-w-3xl flex-1 flex-col items-center px-6 py-12">
-				<div className="mb-8 flex flex-col items-center">
-					<h1 className="text-balance text-center text-3xl font-bold tracking-tight text-foreground">
-						What can I do for you?
-					</h1>
-					<p className="mt-2 text-balance text-center text-muted-foreground">
-						Let's explore, edit, and ship code together!
-					</p>
-				</div>
+		<div
+			className={cn(
+				active
+					? "relative h-full min-h-0 overflow-hidden bg-background"
+					: "contents",
+			)}
+		>
+			{active ? <AuroraBackground /> : null}
+			<div
+				className={cn(
+					active
+						? "relative z-10 h-full w-full overflow-x-hidden overflow-y-auto"
+						: "contents",
+				)}
+			>
+				<div
+					className={cn(
+						active
+							? "mx-auto flex w-full max-w-[960px] flex-col px-6 pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
+							: "contents",
+					)}
+				>
+					{active ? (
+						<>
+							<h1 className="text-balance text-center text-[clamp(2rem,3vw,2.6rem)] font-semibold leading-[1.12] tracking-[-0.025em] text-foreground">
+								What would you like to build?
+							</h1>
 
-				{/* Workspace selector */}
-				<div className="mb-8 w-full max-w-md">
-					<Label className="mb-2 block text-xs font-medium text-muted-foreground">
-						Workspace
-					</Label>
-					<Command className="rounded-xl border border-border bg-card">
-						<CommandInput placeholder="Search workspaces..." />
-						<CommandList>
-							<CommandEmpty>No workspaces found.</CommandEmpty>
-							<CommandGroup>
-								{availableWorkspaces.map((wsPath) => {
+							<fieldset className="mt-11 flex min-h-8 items-center gap-1.5 overflow-x-auto pb-1 text-sm">
+								<legend className="sr-only">Workspaces</legend>
+								{availableWorkspaces.slice(0, 4).map((path) => {
 									const isActive =
-										normalizeWorkspacePath(wsPath) ===
+										normalizeWorkspacePath(path) ===
 										normalizeWorkspacePath(workspaceRoot);
+									const isSwitching = switchingWorkspace === path;
 									return (
-										<CommandItem
-											key={wsPath}
-											value={wsPath}
-											onSelect={() => {
-												void handleSelectWorkspace(wsPath);
-											}}
-											disabled={switchingWorkspace}
-											className="gap-3 py-2.5"
-										>
-											<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
-												<FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-											</div>
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2">
-													<p className="truncate text-sm font-medium text-foreground">
-														{toWorkspaceName(wsPath)}
-													</p>
-													{isActive && (
-														<span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-															Active
-														</span>
-													)}
-												</div>
-												<p className="truncate text-xs text-muted-foreground">
-													{formatWorkspaceLabel(wsPath)}
-												</p>
-											</div>
-											{isActive && (
-												<Check className="ml-auto h-4 w-4 text-primary" />
+										<button
+											aria-pressed={isActive}
+											className={cn(
+												"shrink-0 rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+												isActive
+													? "bg-foreground text-background"
+													: "text-muted-foreground hover:bg-accent hover:text-foreground",
 											)}
-										</CommandItem>
+											disabled={Boolean(switchingWorkspace)}
+											key={path}
+											onClick={() => void handleSelectWorkspace(path)}
+											title={path}
+											type="button"
+										>
+											{isSwitching
+												? "Switching..."
+												: (labelsByWorkspace.get(path) ??
+													toWorkspaceName(path))}
+										</button>
 									);
 								})}
-							</CommandGroup>
-						</CommandList>
-					</Command>
-				</div>
-
-				{/* Quick actions */}
-				<div className="mb-8 w-full">
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-						{quickActions?.map((action) => {
-							return (
 								<button
+									className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									disabled={addingWorkspace}
+									onClick={() => void handleAddWorkspace()}
 									type="button"
-									key={action.id}
-									onClick={() => handleQuickAction(action)}
-									className="group flex flex-col items-start gap-2 rounded-xl border border-border bg-card/50 p-4 text-left transition-all hover:border-primary/30 hover:bg-card"
 								>
-									<div>
-										<p className="text-sm font-medium text-foreground">
-											{action.label}
-										</p>
-										<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-											{action.description}
-										</p>
-									</div>
+									{addingWorkspace ? (
+										<FolderPlus className="size-4 animate-pulse" />
+									) : (
+										<Plus className="size-4" />
+									)}
+									New project
 								</button>
-							);
-						})}
+							</fieldset>
+						</>
+					) : null}
+
+					<div
+						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						key="conversation-body"
+					>
+						{body}
 					</div>
+
+					<div
+						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
+						key="persistent-composer"
+					>
+						{composer}
+					</div>
+
+					{active ? (
+						<div className="mt-11 w-full divide-y divide-border/80 overflow-hidden rounded-xl border border-border/60 bg-background/95 px-2 shadow-sm">
+							{actions.map((action) => (
+								<button
+									className="group flex w-full items-center justify-between gap-5 px-3 py-3 text-left transition-colors hover:bg-background/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+									key={action.id}
+									onClick={() => onStartChat(action.prompt)}
+									type="button"
+								>
+									<span className="min-w-0">
+										<span className="block text-[15px] font-medium text-foreground">
+											{action.label}
+										</span>
+										<span className="mt-0.5 block truncate text-sm text-muted-foreground">
+											{action.description}
+										</span>
+									</span>
+									<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+										<ArrowRight className="size-3" />
+									</span>
+								</button>
+							))}
+						</div>
+					) : null}
 				</div>
 			</div>
 		</div>

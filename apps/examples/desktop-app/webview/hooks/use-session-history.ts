@@ -19,6 +19,7 @@ export interface SessionThread {
 	id: string;
 	title: string;
 	codebase: string;
+	workspacePath: string;
 	time: string;
 	provider: string;
 	model: string;
@@ -224,10 +225,12 @@ function inferStatusFromMessages(
 }
 
 function toThread(session: SessionHistoryItem): SessionThread {
+	const workspacePath = (session.workspaceRoot || session.cwd).trim();
 	return {
 		id: session.sessionId,
 		title: toTitle(session),
-		codebase: basenamePath(session.workspaceRoot || session.cwd),
+		codebase: basenamePath(workspacePath),
+		workspacePath,
 		time: formatRelativeTime(session.endedAt || session.startedAt),
 		provider: session.provider || "",
 		model: session.model || "",
@@ -355,6 +358,7 @@ function areThreadsEquivalent(
 			a.id !== b.id ||
 			a.title !== b.title ||
 			a.codebase !== b.codebase ||
+			a.workspacePath !== b.workspacePath ||
 			a.time !== b.time ||
 			a.provider !== b.provider ||
 			a.model !== b.model ||
