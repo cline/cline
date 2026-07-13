@@ -33,6 +33,8 @@ export interface ArtifactRef {
 	 */
 	html: string
 	byteLength: number
+	/** Optional verified package root exposed to the webview resource server. */
+	localResourceRoot?: string
 	/** Free-form, persisted across the gRPC boundary. */
 	metadata: Record<string, string>
 }
@@ -73,7 +75,13 @@ export class ArtifactPreviewService {
 	}
 
 	/** Register an HTML file already on disk (workspace file or absolute path). */
-	async registerFile(opts: { fsPath: string; title?: string; preferredMode?: DetectedMode }): Promise<ArtifactRef> {
+	async registerFile(opts: {
+		fsPath: string
+		title?: string
+		preferredMode?: DetectedMode
+		metadata?: Readonly<Record<string, string>>
+		localResourceRoot?: string
+	}): Promise<ArtifactRef> {
 		const fileUri = vscode.Uri.file(path.resolve(opts.fsPath))
 		const bytes = await vscode.workspace.fs.readFile(fileUri)
 		this.assertSize(bytes.byteLength, fileUri.fsPath)
@@ -84,6 +92,8 @@ export class ArtifactPreviewService {
 			source: "file",
 			html,
 			preferredMode: opts.preferredMode,
+			metadata: opts.metadata,
+			localResourceRoot: opts.localResourceRoot,
 		})
 		this.upsert(ref)
 		return ref
@@ -144,6 +154,10 @@ export class ArtifactPreviewService {
 		for (const a of this.artifacts.values()) {
 			const dirUri = vscode.Uri.file(a.dirFsPath)
 			roots.set(dirUri.toString(), dirUri)
+			if (a.localResourceRoot) {
+				const packageRoot = vscode.Uri.file(a.localResourceRoot)
+				roots.set(packageRoot.toString(), packageRoot)
+			}
 		}
 		for (const wf of vscode.workspace.workspaceFolders ?? []) {
 			roots.set(wf.uri.toString(), wf.uri)
@@ -164,6 +178,8 @@ export class ArtifactPreviewService {
 		source: "file" | "inline"
 		html: string
 		preferredMode?: DetectedMode
+		metadata?: Readonly<Record<string, string>>
+		localResourceRoot?: string
 	}): ArtifactRef {
 		const byteLength = getHtmlUtf8ByteLength(args.html)
 		const contentHash = createHash("sha256").update(args.html).digest("hex")
@@ -180,12 +196,14 @@ export class ArtifactPreviewService {
 			createdAt: Date.now(),
 			html: args.html,
 			byteLength,
+			localResourceRoot: args.localResourceRoot,
 			metadata: {
 				timestamp: new Date().toISOString(),
 				source: args.source,
 				contentType: "text/html",
 				detectedMode: mode,
 				byteLength: String(byteLength),
+				...args.metadata,
 			},
 		}
 	}

@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { PLATFORM_CONFIG } from "../../config/platform.config"
 import type { CourseManifest, CourseModuleEntry } from "./useCourse"
+import type { LearningPackScope } from "./installedPackCsp"
 
 export interface ModuleCompletion {
 	completedAt: number
@@ -40,6 +41,7 @@ interface ProgressRequest {
 	courseId: string
 	moduleId?: string | null
 	timeSpentMs?: number
+	learningPackScope?: LearningPackScope
 }
 
 const COURSE_PROGRESS_CHANGED_EVENT = "aihydro-course-progress-changed"
@@ -109,8 +111,9 @@ export interface CourseProgressHook {
 	refresh: () => Promise<void>
 }
 
-export function useCourseProgress(course: CourseManifest | null): CourseProgressHook {
+export function useCourseProgress(course: CourseManifest | null, learningPackScope?: LearningPackScope | null): CourseProgressHook {
 	const courseId = course?.courseId ?? ""
+	const scope = learningPackScope?.courseId === courseId ? learningPackScope : undefined
 	const [progress, setProgress] = useState<CourseProgress>(() => emptyProgress(courseId))
 	const [loading, setLoading] = useState<boolean>(false)
 
@@ -120,12 +123,12 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 			return
 		}
 		setLoading(true)
-		const fresh = await sendProgress({ action: "load", courseId })
+		const fresh = await sendProgress({ action: "load", courseId, learningPackScope: scope })
 		if (fresh) {
 			setProgress(fresh)
 		}
 		setLoading(false)
-	}, [courseId])
+	}, [courseId, scope?.packId, scope?.courseId, scope?.edition, scope?.moduleId])
 
 	useEffect(() => {
 		if (!courseId) {
@@ -135,7 +138,7 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 		}
 		let cancelled = false
 		setLoading(true)
-		sendProgress({ action: "load", courseId }).then((fresh) => {
+		sendProgress({ action: "load", courseId, learningPackScope: scope }).then((fresh) => {
 			if (cancelled) {
 				return
 			}
@@ -149,7 +152,7 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 		return () => {
 			cancelled = true
 		}
-	}, [courseId])
+	}, [courseId, scope?.packId, scope?.courseId, scope?.edition, scope?.moduleId])
 
 	useEffect(() => {
 		const onProgressChanged = (event: Event) => {
@@ -167,13 +170,13 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 			if (!courseId) {
 				return
 			}
-			const fresh = await sendProgress({ action: "complete", courseId, moduleId, timeSpentMs })
+			const fresh = await sendProgress({ action: "complete", courseId, moduleId, timeSpentMs, learningPackScope: scope })
 			if (fresh) {
 				setProgress(fresh)
 				publishProgress(fresh)
 			}
 		},
-		[courseId],
+		[courseId, scope],
 	)
 
 	const markUncomplete = useCallback(
@@ -181,38 +184,38 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 			if (!courseId) {
 				return
 			}
-			const fresh = await sendProgress({ action: "uncomplete", courseId, moduleId })
+			const fresh = await sendProgress({ action: "uncomplete", courseId, moduleId, learningPackScope: scope })
 			if (fresh) {
 				setProgress(fresh)
 				publishProgress(fresh)
 			}
 		},
-		[courseId],
+		[courseId, scope],
 	)
 
 	const reset = useCallback(async () => {
 		if (!courseId) {
 			return
 		}
-		const fresh = await sendProgress({ action: "reset", courseId })
+		const fresh = await sendProgress({ action: "reset", courseId, learningPackScope: scope })
 		if (fresh) {
 			setProgress(fresh)
 			publishProgress(fresh)
 		}
-	}, [courseId])
+	}, [courseId, scope])
 
 	const setCurrent = useCallback(
 		async (moduleId: string | null) => {
 			if (!courseId) {
 				return
 			}
-			const fresh = await sendProgress({ action: "set-current", courseId, moduleId })
+			const fresh = await sendProgress({ action: "set-current", courseId, moduleId, learningPackScope: scope })
 			if (fresh) {
 				setProgress(fresh)
 				publishProgress(fresh)
 			}
 		},
-		[courseId],
+		[courseId, scope],
 	)
 
 	const isCompleted = useCallback((moduleId: string) => !!progress.completed[moduleId], [progress.completed])

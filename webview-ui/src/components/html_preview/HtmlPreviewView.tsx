@@ -24,6 +24,12 @@ import { CourseHeader } from "./CourseHeader"
 import { resolveAgentCourseNavigation } from "./courseAgentNavigation"
 import { EditContextRibbon } from "./EditContextRibbon"
 import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
+import {
+	applyInstalledPackCsp,
+	isInstalledLearningPack,
+	learningPackScopeFromItem,
+	type LearningPackScope,
+} from "./installedPackCsp"
 import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
 import { reportPreviewEvent, requestSaveDocument, startPreviewAgentTask } from "./previewBridge"
 import { resolveModuleFilePath, useCourse } from "./useCourse"
@@ -181,6 +187,7 @@ function sendModuleState(
 	action: "get" | "set" | "reset",
 	moduleKey: string,
 	values?: Record<string, string>,
+	learningPackScope?: LearningPackScope | null,
 ): Promise<Record<string, string> | null> {
 	const requestId = `mstate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 	return new Promise((resolve) => {
@@ -200,7 +207,14 @@ function sendModuleState(
 		}
 		window.addEventListener("message", onMessage)
 		try {
-			PLATFORM_CONFIG.postMessage({ type: "aihydro-module-state", requestId, action, moduleKey, values })
+			PLATFORM_CONFIG.postMessage({
+				type: "aihydro-module-state",
+				requestId,
+				action,
+				moduleKey,
+				values,
+				learningPackScope: learningPackScope ?? undefined,
+			})
 		} catch {
 			cleanup()
 			resolve(null)
@@ -210,9 +224,10 @@ function sendModuleState(
 
 const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel }) => {
 	const { setManifest, loadWorkspaceFile } = useHtmlPreviewContext()
+	const learningPackScope = useMemo(() => learningPackScopeFromItem(item), [item?.id, item?.metadata])
 	// Phase A: detect a course.json in the active module's parent folder
 	const { course, courseRoot, currentModuleId } = useCourse(item?.filePath)
-	const courseProgress = useCourseProgress(course)
+	const courseProgress = useCourseProgress(course, learningPackScope)
 	// Persist "currently visiting" module ID whenever it changes (Phase B)
 	useEffect(() => {
 		if (course && currentModuleId) {
@@ -323,6 +338,8 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			return ""
 		}
 		const html = item.htmlContent
+		const finalize = (injectedHtml: string) =>
+			isInstalledLearningPack(item) ? applyInstalledPackCsp(injectedHtml, item.dirUri) : injectedHtml
 		const artifactContext = buildArtifactContextScript(item)
 		const headCloseIdx = html.search(/<\/head\s*>/i)
 		const bodyCloseIdx = html.search(/<\/body\s*>/i)
@@ -359,14 +376,14 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				withHeadAssets.slice(closeIdx + 1)
 			const bodyCloseAfterDiag = withDiag.search(/<\/body\s*>/i)
 			if (bodyCloseAfterDiag >= 0) {
-				return withDiag.slice(0, bodyCloseAfterDiag) + LEAFLET_NORMALIZER_SCRIPT + withDiag.slice(bodyCloseAfterDiag)
+				return finalize(withDiag.slice(0, bodyCloseAfterDiag) + LEAFLET_NORMALIZER_SCRIPT + withDiag.slice(bodyCloseAfterDiag))
 			}
 			if (bodyCloseIdx >= 0) {
-				return withDiag + LEAFLET_NORMALIZER_SCRIPT
+				return finalize(withDiag + LEAFLET_NORMALIZER_SCRIPT)
 			}
-			return withDiag + LEAFLET_NORMALIZER_SCRIPT
+			return finalize(withDiag + LEAFLET_NORMALIZER_SCRIPT)
 		}
-		return (
+		return finalize(
 			artifactContext +
 			DIAG_SCRIPT +
 			AIHYDRO_BRIDGE_CORE_SCRIPT +
@@ -375,9 +392,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			AIHYDRO_BRIDGE_EDITOR_SCRIPT +
 			CELL_BRIDGE_SCRIPT +
 			withHeadAssets +
-			LEAFLET_NORMALIZER_SCRIPT
+			LEAFLET_NORMALIZER_SCRIPT,
 		)
-	}, [renderPath, item?.htmlContent, item?.id, item?.filePath])
+	}, [renderPath, item?.htmlContent, item?.id, item?.filePath, item?.dirUri, item?.metadata?.artifactKind])
 
 	useEffect(() => {
 		setError(null)
@@ -736,14 +753,14 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			const moduleKey = item?.filePath || item?.id || ""
 			if (data.type === "artifact/stateRequest") {
 				if (moduleKey) {
-					void sendModuleState("get", moduleKey).then((values) => {
+					void sendModuleState("get", moduleKey, undefined, learningPackScope).then((values) => {
 						postResultToIframe({ type: "artifact/stateRestore", state: values ?? {} })
 					})
 				}
 				return
 			}
 			if (data.type === "artifact/stateChanged") {
-				if (moduleKey) void sendModuleState("set", moduleKey, data.state ?? {})
+				if (moduleKey) void sendModuleState("set", moduleKey, data.state ?? {}, learningPackScope)
 				return
 			}
 		}
@@ -756,6 +773,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		handleArtifactRunCode,
 		item?.id,
 		item?.filePath,
+		learningPackScope,
 		postResultToIframe,
 		refreshKernelInfo,
 		setManifest,
