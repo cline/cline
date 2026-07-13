@@ -6,22 +6,26 @@ import * as vscode from "vscode"
 import type { Controller } from "@/core/controller"
 import { previewHtml } from "@/core/controller/htmlPreview/previewHtml"
 import { VscodeHtmlPreviewProvider } from "@/hosts/vscode/VscodeHtmlPreviewProvider"
-import { PreviewHtmlRequest } from "@/shared/proto/cline/html_preview"
-import { isInTestMode } from "@/services/test/TestMode"
+import {
+	createLearningPackApprovalPresentation,
+	requestLearningPackApproval,
+} from "@/services/learning-pack/approvalPresentation"
 import {
 	inspectLearningPackArchiveFile,
 	type LearningPackArchiveInspection,
 } from "@/services/learning-pack/inspectLearningPackArchive"
 import {
 	installLearningPack,
+	type LearningPackApproval,
+	type LegacyOwnership,
 	loadLearningPackRegistry,
 	removeLearningPack,
 	rollbackLearningPack,
-	type LearningPackApproval,
-	type LegacyOwnership,
 } from "@/services/learning-pack/learningPackLifecycle"
 import { defaultLearningPackRoot, resolveActiveLearningPackEntry } from "@/services/learning-pack/runtimeIntegration"
 import { loadTrustedPublishers, removeTrustedPublisher } from "@/services/learning-pack/trustStore"
+import { isInTestMode } from "@/services/test/TestMode"
+import { PreviewHtmlRequest } from "@/shared/proto/cline/html_preview"
 
 export interface LearningPackCommandIds {
 	readonly install: string
@@ -74,46 +78,11 @@ async function readLegacyOwnership(): Promise<LegacyOwnership> {
 	return { courseIds, moduleIds }
 }
 
-function inspectionDetails(inspection: LearningPackArchiveInspection): string {
-	const manifest = inspection.contract.manifest
-	return [
-		`Edition: ${manifest.edition}`,
-		`Signer: ${inspection.contract.signerFingerprint}`,
-		`AI-Hydro compatibility: ${manifest.compatibility.aiHydro}`,
-		`Local Python: ${manifest.capabilities.localPython} (terminal-equivalent, not sandboxed)`,
-		`Environment metadata: ${manifest.environmentPath}`,
-		`External web origins: none`,
-	].join("\n")
-}
-
 async function chooseApproval(root: string, inspection: LearningPackArchiveInspection): Promise<LearningPackApproval> {
-	const manifest = inspection.contract.manifest
-	if (manifest.edition === "instructor") {
-		const acknowledged = await vscode.window.showWarningMessage(
-			"Install instructor Learning Pack? Instructor materials may include inspectable solutions and are not role-protected.",
-			{ modal: true, detail: inspectionDetails(inspection) },
-			"Continue",
-		)
-		if (acknowledged !== "Continue") return "cancel"
-	}
 	const trusted = (await loadTrustedPublishers(root)).fingerprints.includes(inspection.contract.signerFingerprint)
-	if (trusted) {
-		const result = await vscode.window.showWarningMessage(
-			`Install ${manifest.title} ${manifest.version}?`,
-			{ modal: true, detail: inspectionDetails(inspection) },
-			"Install",
-		)
-		return result === "Install" ? "install-once" : "cancel"
-	}
-	const result = await vscode.window.showWarningMessage(
-		`The publisher key for ${manifest.title} is signed but not trusted.`,
-		{ modal: true, detail: inspectionDetails(inspection) },
-		"Install Once",
-		"Trust Publisher and Install",
+	return requestLearningPackApproval(createLearningPackApprovalPresentation(inspection, trusted), (prompt) =>
+		vscode.window.showWarningMessage(prompt.message, { modal: true, detail: prompt.detail }, ...prompt.items),
 	)
-	if (result === "Install Once") return "install-once"
-	if (result === "Trust Publisher and Install") return "trust-publisher"
-	return "cancel"
 }
 
 async function openActiveEntry(controller: Controller, root: string, packId: string): Promise<void> {
