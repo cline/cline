@@ -7,6 +7,14 @@ const PROVIDER_OPTIONS = {
 };
 const ORIGINAL_FETCH = globalThis.fetch;
 
+function toBase64Url(value: string): string {
+	return Buffer.from(value, "utf8").toString("base64url");
+}
+
+function createJwt(payload: Record<string, unknown>): string {
+	return `${toBase64Url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${toBase64Url(JSON.stringify(payload))}.sig`;
+}
+
 function createCredentials(
 	overrides: Partial<ClineOAuthCredentials> = {},
 ): ClineOAuthCredentials {
@@ -125,7 +133,10 @@ describe("auth/cline getValidClineCredentials", () => {
 
 	it("returns null when refresh fails with invalid_grant", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
-		const current = createCredentials({ expires: 101_000 });
+		const current = createCredentials({
+			access: createJwt({ sid: "sid-1", sub: "user-1" }),
+			expires: 101_000,
+		});
 		globalThis.fetch = vi.fn(
 			async () =>
 				new Response(
@@ -153,6 +164,8 @@ describe("auth/cline getValidClineCredentials", () => {
 					reason: "invalid_grant",
 					status: 401,
 					errorCode: "invalid_grant",
+					session_id: "sid-1",
+					user_id: "user-1",
 				}),
 			}),
 		);
@@ -161,7 +174,10 @@ describe("auth/cline getValidClineCredentials", () => {
 
 	it("keeps current credentials on transient refresh error while token remains valid", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
-		const current = createCredentials({ expires: 150_000 });
+		const current = createCredentials({
+			access: createJwt({ sid: "sid-2", sub: "user-2" }),
+			expires: 150_000,
+		});
 		globalThis.fetch = vi.fn(
 			async () =>
 				new Response(
@@ -192,6 +208,8 @@ describe("auth/cline getValidClineCredentials", () => {
 				properties: expect.objectContaining({
 					status: 500,
 					tokenExpired: false,
+					session_id: "sid-2",
+					user_id: "user-2",
 				}),
 			}),
 		);
