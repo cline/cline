@@ -152,7 +152,6 @@ async function runProviderChange(
 		});
 
 	let needsAuth = true;
-	let useManualApiKey = false;
 	if (isProviderConfigured(newProviderId, existingSettings)) {
 		let option: ExistingProviderOption | undefined;
 		const extraOptions = providerToExistingProviderOptions({
@@ -161,12 +160,6 @@ async function runProviderChange(
 			dialog,
 			termHeight,
 		});
-		if (supportsManualApiKey) {
-			extraOptions.push({
-				value: "use_api_key",
-				label: "Enter API key manually",
-			});
-		}
 		while (true) {
 			option = await dialog.choice<ExistingProviderOption>({
 				style: { maxHeight: termHeight - 2 },
@@ -187,14 +180,11 @@ async function runProviderChange(
 			break;
 		}
 		needsAuth = option.value === "reconfigure";
-		useManualApiKey = option.value === "use_api_key";
 	}
 
-	if (needsAuth || useManualApiKey) {
+	if (needsAuth) {
 		let saved: boolean | undefined;
-		if (useManualApiKey) {
-			saved = await openManualApiKeyDialog();
-		} else if (isOAuthProvider(newProviderId)) {
+		if (isOAuthProvider(newProviderId)) {
 			const loginResult = await dialog.choice<OAuthLoginResult>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,

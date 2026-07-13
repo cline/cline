@@ -255,7 +255,6 @@ export function ProviderPickerContent(
 export type ExistingProviderAction =
 	| "use_existing"
 	| "reconfigure"
-	| "use_api_key"
 	| "open_subscription_page"
 	| "open_usage_billing";
 
