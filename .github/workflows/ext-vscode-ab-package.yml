@@ -1,0 +1,139 @@
+name: ext-vscode-ab-package
+
+# Build (and optionally publish) the combined A/B VSIX: a tiny loader plus two
+# complete extension bundles — `next/` from the SDK-based apps/vscode on main,
+# `legacy/` from the legacy-extension branch. Cohort selection happens at
+# runtime via PostHog flags; see apps/vscode-rollout/README.md for the design
+# and the rollout runbook.
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Combined VSIX version — must exceed every previously published version (e.g. 4.1.0)"
+                required: true
+                type: string
+            next-ref:
+                description: "Ref to build the next (SDK) bundle from"
+                required: true
+                default: "main"
+                type: string
+            legacy-ref:
+                description: "Ref to build the legacy bundle from"
+                required: true
+                default: "legacy-extension"
+                type: string
+            publish:
+                description: "Publish to the VS Code Marketplace (unchecked: just build the .vsix artifact)"
+                required: true
+                default: false
+                type: boolean
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ext-vscode-ab-package-${{ github.event.inputs.version }}
+    cancel-in-progress: false
+
+jobs:
+    package:
+        name: Build combined (legacy + next) VSIX
+        runs-on: ubuntu-latest
+        environment: publish
+        steps:
+            - name: Checkout next (SDK) source
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.next-ref }}
+                  path: next-src
+                  lfs: true
+
+            - name: Checkout legacy source
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.legacy-ref }}
+                  path: legacy-src
+                  lfs: true
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.3.14
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Build next bundle
+              working-directory: next-src
+              env:
+                  CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+              run: |
+                  bun install
+                  cd apps/vscode
+                  bun run package
+
+            - name: Install legacy dependencies
+              working-directory: legacy-src
+              run: |
+                  npm --prefix apps/vscode install --include=optional
+                  npm --prefix apps/vscode/webview-ui install --include=optional
+
+            - name: Build legacy bundle
+              working-directory: legacy-src/apps/vscode
+              env:
+                  CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+              run: npm run package
+
+            - name: Build loader and run rollout tests
+              working-directory: next-src/apps/vscode-rollout
+              env:
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+              run: |
+                  bun run typecheck
+                  bun run test
+                  bun run build:production
+
+            - name: Stitch combined VSIX staging
+              working-directory: next-src/apps/vscode-rollout
+              run: |
+                  node scripts/stitch.mjs \
+                    --next "$GITHUB_WORKSPACE/next-src/apps/vscode" \
+                    --legacy "$GITHUB_WORKSPACE/legacy-src/apps/vscode" \
+                    --loader dist/extension.js \
+                    --version "${{ github.event.inputs.version }}" \
+                    --out "$GITHUB_WORKSPACE/staging"
+
+            - name: Smoke-test loader against staging
+              working-directory: next-src/apps/vscode-rollout
+              run: node scripts/smoke-loader.mjs "$GITHUB_WORKSPACE/staging"
+
+            - name: Package VSIX
+              working-directory: staging
+              run: |
+                  npm install -g @vscode/vsce
+                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "claude-dev-${{ github.event.inputs.version }}.vsix"
+
+            - name: Upload VSIX artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: claude-dev-${{ github.event.inputs.version }}
+                  path: staging/claude-dev-${{ github.event.inputs.version }}.vsix
+                  if-no-files-found: error
+
+            - name: Publish to Marketplace
+              if: ${{ github.event.inputs.publish == 'true' }}
+              working-directory: staging
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+              run: |
+                  if [[ -z "$VSCE_PAT" ]]; then
+                    echo "Error: VSCE_PAT is required to publish."
+                    exit 1
+                  fi
+                  vsce publish --no-dependencies --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix"
