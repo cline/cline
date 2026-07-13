@@ -5,9 +5,9 @@ import { filterEnabledSkillItems } from "./getAvailableSlashCommands"
 
 function skill(overrides: Partial<CoreSettingsItem>): CoreSettingsItem {
 	return {
-		id: overrides.id ?? overrides.path ?? overrides.name ?? "skill",
-		name: overrides.name ?? "skill",
-		path: overrides.path ?? "/skills/skill/SKILL.md",
+		id: overrides.id ?? overrides.path ?? overrides.name ?? "test-skill",
+		name: overrides.name ?? "test-skill",
+		path: overrides.path ?? "/skills/test-skill/SKILL.md",
 		kind: "skill",
 		source: "global",
 		enabled: true,
@@ -59,14 +59,28 @@ describe("filterEnabledSkillItems", () => {
 		expect(result).toEqual([])
 	})
 
-	it("deduplicates remote skill when a local skill with the same name already exists", () => {
+	it("uses disk-global skill when a workspace skill with the same name exists", () => {
 		const result = filterEnabledSkillItems({
-			skills: [skill({ name: "shared", path: "/skills/shared/SKILL.md" })],
+			skills: [
+				skill({ name: "shared", path: "/project/skills/shared/SKILL.md", source: "workspace" }),
+				skill({ name: "shared", path: "/global/skills/shared/SKILL.md", source: "global" }),
+			],
+			remoteConfigSkills: [],
+			remoteSkillsToggles: {},
+		})
+
+		expect(result).toHaveLength(1)
+		expect(result[0].path).toBe("/global/skills/shared/SKILL.md")
+	})
+
+	it("uses remote skill when a local skill with the same name exists", () => {
+		const result = filterEnabledSkillItems({
+			skills: [skill({ name: "shared", path: "/global/skills/shared/SKILL.md" })],
 			remoteConfigSkills: [remoteSkill({ name: "shared" })],
 			remoteSkillsToggles: {},
 		})
 
 		expect(result).toHaveLength(1)
-		expect(result[0].path).toBe("/skills/shared/SKILL.md")
+		expect(result[0].path).toBe("remote:shared")
 	})
 })

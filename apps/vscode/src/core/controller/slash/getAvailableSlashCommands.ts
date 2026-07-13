@@ -109,29 +109,22 @@ export function filterEnabledSkillItems(input: {
 	remoteConfigSkills: ReturnType<typeof parseRemoteSkillEntries>
 	remoteSkillsToggles: Record<string, boolean>
 }): CoreSettingsItem[] {
-	const enabled: CoreSettingsItem[] = []
-	const seenNames = new Set<string>()
+	const candidates: CoreSettingsItem[] = []
+	const selectedByName = new Map<string, CoreSettingsItem>()
 
 	for (const skill of input.skills) {
 		if (skill.enabled === false) {
 			continue
 		}
-		if (seenNames.has(skill.name)) {
-			continue
-		}
-		seenNames.add(skill.name)
-		enabled.push(skill)
+		candidates.push(skill)
+		selectedByName.set(skill.name, skill)
 	}
 
 	for (const remoteSkill of input.remoteConfigSkills) {
 		if (!remoteSkill.alwaysEnabled && input.remoteSkillsToggles[remoteSkill.name] === false) {
 			continue
 		}
-		if (seenNames.has(remoteSkill.name)) {
-			continue
-		}
-		seenNames.add(remoteSkill.name)
-		enabled.push({
+		const skill = {
 			id: `remote:${remoteSkill.name}`,
 			name: remoteSkill.name,
 			description: remoteSkill.description,
@@ -139,10 +132,12 @@ export function filterEnabledSkillItems(input: {
 			kind: "skill",
 			source: "global",
 			enabled: true,
-		})
+		} satisfies CoreSettingsItem
+		candidates.push(skill)
+		selectedByName.set(skill.name, skill)
 	}
 
-	return enabled
+	return candidates.filter((skill) => selectedByName.get(skill.name) === skill)
 }
 
 async function listEnabledSkills(controller: Controller): Promise<CoreSettingsItem[]> {
