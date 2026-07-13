@@ -194,17 +194,7 @@ function isIncomingCompactionStateStale(
 }
 
 function isLikelyOAuthAuthEvent(event: AgentEvent): boolean {
-	if (event.type === "error") {
-		return isLikelyAuthError(event.error);
-	}
-	if (event.type === "done" && event.reason === "error") {
-		return isLikelyAuthError(event.text.toLowerCase());
-	}
-	return (
-		event.type === "notice" &&
-		event.reason === "api_error" &&
-		isLikelyAuthError(event.message.toLowerCase())
-	);
+	return event.type === "error" && isLikelyAuthError(event.error);
 }
 
 export interface LocalRuntimeHostOptions {

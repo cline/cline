@@ -5127,9 +5127,9 @@ describe("LocalRuntimeHost", () => {
 		expect(updateConnectionDefaults).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
 		});
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledTimes(1);
 		if (secondAttempt.finishReason !== "completed") return;
 
-		expect(sessionService.persistSessionMessages).toHaveBeenCalledTimes(1);
 		const persisted = (
 			sessionService.persistSessionMessages as ReturnType<typeof vi.fn>
 		).mock.calls[0]?.[1] as Array<Record<string, unknown>> | undefined;
