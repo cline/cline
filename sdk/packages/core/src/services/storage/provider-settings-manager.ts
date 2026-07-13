@@ -3,12 +3,15 @@ import {
 	existsSync,
 	mkdirSync,
 	readFileSync,
+	renameSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
 import { getLiveModelsCatalog } from "../..";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
+import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	emptyStoredProviderSettings,
 	type ProviderConfig,
@@ -24,7 +27,6 @@ import {
 	ensureCustomProvidersLoadedSync,
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
-import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {
@@ -119,11 +121,21 @@ export class ProviderSettingsManager {
 		if (!existsSync(dir)) {
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
 		}
-		writeFileSync(
-			this.filePath,
-			`${JSON.stringify(normalized, null, 2)}\n`,
-			"utf8",
-		);
+		// Stage to a pid-unique temp file and rename into place. Concurrent
+		// Cline processes (CLI, extension, hub) share this file; a bare
+		// writeFileSync lets readers catch a partial file, which read() treats
+		// as empty settings — indistinguishable from being logged out.
+		const tempPath = `${this.filePath}.${process.pid}.tmp`;
+		try {
+			writeFileSync(tempPath, `${JSON.stringify(normalized, null, 2)}\n`, {
+				encoding: "utf8",
+				mode: 0o600,
+			});
+			renameSync(tempPath, this.filePath);
+		} catch (error) {
+			rmSync(tempPath, { force: true });
+			throw error;
+		}
 		// Restrict file to owner-only read/write (best-effort; no-op on Windows).
 		try {
 			chmodSync(this.filePath, 0o600);
