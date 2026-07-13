@@ -15,6 +15,11 @@ on:
       runtime_commit:
         required: true
         type: string
+      expected_module_id:
+        description: Additional authored module that the real-panel test must execute
+        required: false
+        type: string
+        default: hmfp.water-balance.01
       schema_sha256:
         required: true
         type: string
@@ -81,6 +86,7 @@ jobs:
           CALLER_REPOSITORY: ${{ github.repository }}
           CALLER_COMMIT: ${{ github.sha }}
           INPUT_RUNTIME_COMMIT: ${{ inputs.runtime_commit }}
+          INPUT_EXPECTED_MODULE_ID: ${{ inputs.expected_module_id }}
           INPUT_SCHEMA_SHA256: ${{ inputs.schema_sha256 }}
           INPUT_STUDENT_ARCHIVE: ${{ inputs.student_archive }}
           INPUT_STUDENT_SHA256: ${{ inputs.student_sha256 }}
@@ -94,6 +100,7 @@ jobs:
           [[ "$INPUT_BOOK_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
           [[ "$INPUT_BOOK_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$INPUT_RUNTIME_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$INPUT_EXPECTED_MODULE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
           [[ "$INPUT_SCHEMA_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$INPUT_STUDENT_ARCHIVE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.aihydropack$ ]]
           [[ "$INPUT_INSTRUCTOR_ARCHIVE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.aihydropack$ ]]
@@ -110,6 +117,7 @@ jobs:
             echo "PHASE1_BOOK_REPOSITORY=$INPUT_BOOK_REPOSITORY"
             echo "PHASE1_BOOK_COMMIT=$INPUT_BOOK_COMMIT"
             echo "PHASE1_RUNTIME_COMMIT=$INPUT_RUNTIME_COMMIT"
+            echo "AIHYDRO_EXPECTED_BOOK_MODULE_ID=$INPUT_EXPECTED_MODULE_ID"
             echo "PHASE1_RUNTIME_CHECKOUT_COMMIT=$runtime_checkout"
             echo "PHASE1_SCHEMA_SHA256=$INPUT_SCHEMA_SHA256"
             echo "PHASE1_RUNTIME_SCHEMA=$GITHUB_WORKSPACE/runtime/schemas/learning-pack/v1/pack.schema.json"

@@ -5,6 +5,7 @@ import { expect, type Frame, type Locator, type Page } from "@playwright/test"
 import { E2ETestHelper, e2e } from "./utils/helpers"
 
 const sourceArchive = process.env.AIHYDRO_PHASE1_PACK_PATH
+const expectedBookModuleId = process.env.AIHYDRO_EXPECTED_BOOK_MODULE_ID ?? "hmfp.water-balance.01"
 
 const artifactIntegrationE2E = e2e.extend<{ workspaceDir: string }>({
 	workspaceDir: async ({}, use) => {
@@ -158,5 +159,32 @@ artifactIntegrationE2E(
 		await runCell(artifact, "hmfp.water-balance.01.state-create")
 		await runCell(artifact, "hmfp.water-balance.01.state-read-plot")
 		await expectPng(plotCell)
+
+		if (expectedBookModuleId === "hmfp.water-balance.01") return
+		expect(expectedBookModuleId).toBe("hmfp.depth-volume-discharge.02")
+
+		shell = await waitForCourseShell(page)
+		const completeWaterBalance = shell.getByTitle("Mark complete & continue to next module")
+		await expect(completeWaterBalance).toBeVisible({ timeout: 30_000 })
+		await completeWaterBalance.evaluate((element: HTMLElement) => element.click())
+		const nextConversion = shell.getByTitle("Next: Convert Depth, Volume, and Discharge")
+		await expect(nextConversion).toBeEnabled({ timeout: 30_000 })
+		await nextConversion.evaluate((element: HTMLElement) => element.click())
+
+		const conversion = await waitForCellFrame(page, "hmfp.depth-volume-discharge.02.state-create")
+		const conversionOutput = await runCell(conversion, "hmfp.depth-volume-discharge.02.state-create")
+		await expect(conversionOutput).toContainText("volume=36000 m^3", { timeout: 60_000 })
+		await expect(conversionOutput).toContainText("interval_mean_discharge=2.000 m^3/s")
+		await expect(conversionOutput).toContainText("recovered_depth=3.600 mm")
+
+		await runCell(conversion, "hmfp.depth-volume-discharge.02.state-read-plot")
+		const conversionPlot = conversion.locator('[data-aihydro-cell-id="hmfp.depth-volume-discharge.02.state-read-plot"]')
+		await expectPng(conversionPlot)
+
+		const conversionError = await runCell(conversion, "hmfp.depth-volume-discharge.02.intentional-error")
+		await expect(conversionError).toContainText("intentional duration-unit diagnostic", { timeout: 30_000 })
+		const conversionRecovery = await runCell(conversion, "hmfp.depth-volume-discharge.02.error-recovery")
+		await expect(conversionRecovery).toContainText("recovered_after_error=True", { timeout: 30_000 })
+		await expect(conversionRecovery).toContainText("interval_mean_discharge=2.000 m^3/s")
 	},
 )
