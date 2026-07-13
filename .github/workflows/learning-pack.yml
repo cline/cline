@@ -39,8 +39,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies from the repository lock
+        # The inherited lock omits optional binaries for non-authoring OSes, so
+        # npm ci rejects it cross-platform. npm install still honors locked
+        # resolved versions while materializing the runner-specific optional set.
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Validate archive and signed-contract boundaries
         run: npm run test:unit -- --grep "inspectLearningPackArchive|validateLearningPackFiles"
