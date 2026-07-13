@@ -6,10 +6,14 @@ on:
     paths:
       - "src/test/e2e/html-preview-runtime.test.ts"
       - "src/test/e2e/html-preview-state-course.test.ts"
+      - "src/test/e2e/html-preview-trust-identity-events.test.ts"
       - "src/test/e2e/utils/helpers.ts"
       - "src/test/fixtures/html-preview/**"
       - "src/extension.ts"
       - "src/services/artifact-preview/**"
+      - "src/services/htmlPreview/**"
+      - "src/core/controller/htmlPreview/**"
+      - "src/hosts/vscode/VscodeHtmlPreviewProvider.ts"
       - "webview-ui/src/components/html_preview/**"
       - "scripts/sanitize-e2e-artifacts.mjs"
       - ".github/workflows/html-preview-runtime.yml"
@@ -29,11 +33,11 @@ jobs:
       matrix:
         include:
           - runner: ubuntu
-            grep: "@phase0-(full|state-course-full)"
+            grep: "@phase0-(full|state-course-full|trust-identity-full)"
           - runner: windows
-            grep: "@phase0-(smoke|state-course-smoke)"
+            grep: "@phase0-(smoke|state-course-smoke|trust-smoke)"
           - runner: macos
-            grep: "@phase0-(smoke|state-course-smoke)"
+            grep: "@phase0-(smoke|state-course-smoke|trust-smoke)"
     runs-on: ${{ matrix.runner }}-latest
     timeout-minutes: 30
     steps:
@@ -71,6 +75,13 @@ jobs:
         run: |
           npm run test:e2e:build
           node src/test/e2e/utils/build.mjs
+
+      - name: Run deterministic trust, identity, event, and navigation contracts
+        shell: bash
+        run: |
+          npm run test:unit -- --grep 'HTML Preview Python execution policy|PreviewSessionService observable module identity|HTML Preview agent navigation intent|runArtifactCode'
+          cd webview-ui
+          npx vitest run src/components/html_preview/__tests__/courseAgentNavigation.test.ts
 
       - name: Run complete Ubuntu matrix
         if: matrix.runner == 'ubuntu'

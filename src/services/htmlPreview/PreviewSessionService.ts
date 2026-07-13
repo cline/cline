@@ -93,6 +93,7 @@ export class PreviewSessionService {
 	private eventSubscribers = new Set<PreviewEventSubscriber>()
 	private stateSubscribers = new Set<PreviewStateSubscriber>()
 	private nextSeq = 1
+	private diskQueue: Promise<void> = Promise.resolve()
 
 	constructor() {
 		// The preview_session / preview_events directories are *ephemeral* live
@@ -102,7 +103,7 @@ export class PreviewSessionService {
 		// panel is open yet), so wipe it on startup.  This also clears any legacy
 		// entries written under VS Code file IDs before module-ID resolution
 		// existed, so the agent never sees orphaned `file_*` sessions again.
-		void PreviewSessionService.purgeDiskState()
+		this.enqueueDisk(() => PreviewSessionService.purgeDiskState())
 	}
 
 	/** Remove all mirrored session + event files. Best-effort, non-fatal. */
@@ -116,7 +117,7 @@ export class PreviewSessionService {
 	/** Drop all in-memory sessions and their mirrored disk state. */
 	clearAll(): void {
 		this.sessions.clear()
-		void PreviewSessionService.purgeDiskState()
+		this.enqueueDisk(() => PreviewSessionService.purgeDiskState())
 	}
 
 	getSnapshot(moduleId: string): PreviewSessionSnapshot | undefined {
@@ -183,8 +184,8 @@ export class PreviewSessionService {
 		this.notifyState(session)
 
 		// Mirror to disk for MCP server consumption (Phase 1 file-bridge).
-		void this.mirrorEventToDisk(event)
-		void this.mirrorSnapshotToDisk(session)
+		this.enqueueDisk(() => this.mirrorEventToDisk(event))
+		this.enqueueDisk(() => this.mirrorSnapshotToDisk(session))
 		return event
 	}
 
@@ -222,9 +223,59 @@ export class PreviewSessionService {
 	 * before the manifest.loaded event established the canonical module ID.
 	 */
 	cleanupDiskFiles(id: string): void {
+		this.enqueueDisk(() => this.removeDiskFiles(id))
+	}
+
+	private async removeDiskFiles(id: string): Promise<void> {
 		const safeId = id.replace(/[^a-zA-Z0-9._-]+/g, "_") || "unknown"
-		void fs.rm(path.join(PREVIEW_SESSION_DIR, `${safeId}.json`), { force: true }).catch(() => undefined)
-		void fs.rm(path.join(PREVIEW_EVENTS_DIR, safeId), { recursive: true, force: true }).catch(() => undefined)
+		await Promise.all([
+			fs.rm(path.join(PREVIEW_SESSION_DIR, `${safeId}.json`), { force: true }).catch(() => undefined),
+			fs.rm(path.join(PREVIEW_EVENTS_DIR, safeId), { recursive: true, force: true }).catch(() => undefined),
+		])
+	}
+
+	/**
+	 * Replace a temporary host artifact ID with the manifest's logical module
+	 * identity. Existing registry/events are merged so observers never retain a
+	 * second logical session after manifest resolution.
+	 */
+	resolveModuleIdentity(temporaryId: string, canonicalId: string): void {
+		if (!temporaryId || !canonicalId || temporaryId === canonicalId) {
+			return
+		}
+		const temporary = this.sessions.get(temporaryId)
+		if (!temporary) {
+			this.cleanupDiskFiles(temporaryId)
+			return
+		}
+
+		const canonical = this.ensureSession(canonicalId)
+		for (const [cellId, cell] of temporary.cells) {
+			canonical.cells.set(cellId, { ...canonical.cells.get(cellId), ...cell })
+		}
+		if (!canonical.manifest && temporary.manifest) {
+			canonical.manifest = { ...temporary.manifest, moduleId: canonicalId }
+		}
+		canonical.events = [
+			...canonical.events,
+			...temporary.events.map((event) => this.rekeyEvent(event, temporaryId, canonicalId)),
+		]
+			.sort((left, right) => left.eventSeq - right.eventSeq)
+			.slice(-MAX_EVENTS)
+		canonical.updatedAtMs = Math.max(canonical.updatedAtMs, temporary.updatedAtMs)
+		this.sessions.delete(temporaryId)
+		this.cleanupDiskFiles(temporaryId)
+		this.notifyState(canonical)
+		for (const event of canonical.events) {
+			this.enqueueDisk(() => this.mirrorEventToDisk(event))
+		}
+		this.enqueueDisk(() => this.mirrorSnapshotToDisk(canonical))
+	}
+
+	private enqueueDisk(operation: () => Promise<void>): void {
+		this.diskQueue = this.diskQueue.then(operation).catch((error) => {
+			console.warn("[PreviewSessionService] queued disk operation failed:", error)
+		})
 	}
 
 	private ensureSession(moduleId: string): ModuleSession {
@@ -372,6 +423,17 @@ export class PreviewSessionService {
 			return JSON.parse(json) as Record<string, unknown>
 		} catch {
 			return {}
+		}
+	}
+
+	private rekeyEvent(event: PreviewEvent, temporaryId: string, canonicalId: string): PreviewEvent {
+		const payload = this.parsePayload(event.payloadJson)
+		if (payload.moduleId === temporaryId) payload.moduleId = canonicalId
+		if (payload.module_id === temporaryId) payload.module_id = canonicalId
+		return {
+			...event,
+			moduleId: canonicalId,
+			payloadJson: JSON.stringify(payload),
 		}
 	}
 

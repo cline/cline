@@ -15,9 +15,24 @@ interface E2ETestDirectories {
 	homeDir: string
 }
 
+const vscodeExecutablePathPromises = new Map<"stable" | "insiders", Promise<string>>()
+
+function getVSCodeExecutablePath(channel: "stable" | "insiders"): Promise<string> {
+	let executablePath = vscodeExecutablePathPromises.get(channel)
+	if (!executablePath) {
+		executablePath = downloadAndUnzipVSCode(channel, undefined, new SilentReporter()).catch((error) => {
+			vscodeExecutablePathPromises.delete(channel)
+			throw error
+		})
+		vscodeExecutablePathPromises.set(channel, executablePath)
+	}
+	return executablePath
+}
+
 export interface E2ETestConfigs {
 	workspaceType: "single" | "multi"
 	channel: "stable" | "insiders"
+	workspaceTrust: "disabled" | "enabled"
 }
 
 export class E2ETestHelper {
@@ -117,6 +132,21 @@ export class E2ETestHelper {
 				await new Promise((resolve) => setTimeout(resolve, 50 * attempt)) // Progressive delay
 			}
 		}
+	}
+
+	public static async closeElectronApp(app: ElectronApplication, timeoutMs = 15_000): Promise<void> {
+		let timer: NodeJS.Timeout | undefined
+		const closed = await Promise.race([
+			app
+				.close()
+				.then(() => true)
+				.catch(() => true),
+			new Promise<boolean>((resolve) => {
+				timer = setTimeout(() => resolve(false), timeoutMs)
+			}),
+		])
+		if (timer) clearTimeout(timer)
+		if (!closed && app.process().exitCode === null) app.process().kill()
 	}
 
 	public async signin(webview: Frame): Promise<void> {
@@ -239,10 +269,11 @@ export const e2e = test
 	.extend<E2ETestConfigs>({
 		workspaceType: "single",
 		channel: "stable",
+		workspaceTrust: "disabled",
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
-		openVSCode: async ({ userDataDir, extensionsDir, homeDir, channel }, use, testInfo) => {
-			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
+		openVSCode: async ({ userDataDir, extensionsDir, homeDir, channel, workspaceTrust }, use, testInfo) => {
+			const executablePath = await getVSCodeExecutablePath(channel)
 			const matplotlibConfigDir = path.join(homeDir, ".cache", "matplotlib")
 			mkdirSync(matplotlibConfigDir, { recursive: true })
 			const pythonInterpreter = process.env.AIHYDRO_E2E_PYTHON
@@ -279,7 +310,7 @@ export const e2e = test
 						"--password-store=basic",
 						"--use-inmemory-secretstorage",
 						"--disable-updates",
-						"--disable-workspace-trust",
+						...(workspaceTrust === "disabled" ? ["--disable-workspace-trust"] : []),
 						"--disable-extensions", // Run VS Code with all extensions disabled other than the one under test.
 						"--skip-welcome",
 						"--skip-release-notes",
@@ -306,7 +337,7 @@ export const e2e = test
 			try {
 				await use(app)
 			} finally {
-				await app.close()
+				await E2ETestHelper.closeElectronApp(app)
 				// Cleanup in parallel
 				await Promise.allSettled([
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),

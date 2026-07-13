@@ -21,6 +21,7 @@ import { AIHYDRO_BRIDGE_LEAFLET_SCRIPT } from "@/integrations/aihydro-bridge/lea
 import { FileServiceClient, HtmlPreviewServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { AIHYDRO_PREVIEW_STYLE, CELL_BRIDGE_SCRIPT } from "./aihydroCellBridge"
 import { CourseHeader } from "./CourseHeader"
+import { resolveAgentCourseNavigation } from "./courseAgentNavigation"
 import { EditContextRibbon } from "./EditContextRibbon"
 import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
 import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
@@ -249,18 +250,12 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		const onMessage = (e: MessageEvent) => {
 			const d = e.data
 			if (!d || d.type !== "aihydro-agent-navigate") return
-			if (d.courseId && d.courseId !== course.courseId) return
-			const moduleId = String(d.moduleId ?? "")
-			if (!moduleId) return
-			// We don't call handleCourseNavigate by reference (it would
-			// require listing it in the dep array which churns the listener).
-			// Inline the logic that needs the latest course/progress state.
-			const target = course.modules.find((m) => m.id === moduleId)
+			const target = resolveAgentCourseNavigation(
+				{ courseId: String(d.courseId ?? ""), moduleId: String(d.moduleId ?? "") },
+				course,
+				courseProgress.canAccess,
+			)
 			if (!target || !courseRoot) return
-			if (!courseProgress.canAccess(target)) {
-				console.info("[HtmlPreviewView] agent navigate refused: locked", moduleId)
-				return
-			}
 			const fullPath = resolveModuleFilePath(courseRoot, target.path)
 			void loadWorkspaceFile(fullPath, target.title)
 		}

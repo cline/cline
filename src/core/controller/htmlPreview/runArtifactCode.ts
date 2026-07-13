@@ -35,6 +35,7 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 	const code = request.code ?? ""
 	const profileId = request.profileId?.trim() || ""
 	const cellId = request.cellId?.trim() || ""
+	const moduleId = controller.resolvePreviewModuleId?.(artifactId) ?? artifactId
 
 	if (request.language !== ArtifactCodeLanguage.ARTIFACT_CODE_LANGUAGE_PYTHON) {
 		return RunArtifactCodeResponse.create({
@@ -74,9 +75,9 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 	}
 
 	// ── Phase 1: tell the agent a cell run is starting ───────────────────
-	emitPreviewEvent(controller, "cell.run.started", artifactId, cellId || undefined, {
+	emitPreviewEvent(controller, "cell.run.started", moduleId, cellId || undefined, {
 		cellId: cellId || undefined,
-		moduleId: artifactId,
+		moduleId,
 	})
 
 	try {
@@ -91,9 +92,9 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 
 		// ── Phase 1: emit outcome event ───────────────────────────────────
 		if (result.status === "ok") {
-			emitPreviewEvent(controller, "cell.run.completed", artifactId, cellId || undefined, {
+			emitPreviewEvent(controller, "cell.run.completed", moduleId, cellId || undefined, {
 				cellId: cellId || undefined,
-				moduleId: artifactId,
+				moduleId,
 				stdout: result.stdout,
 				stderr: result.stderr,
 				resultRepr: result.resultRepr,
@@ -102,9 +103,9 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 			})
 		} else {
 			// "error" or "interrupted" status reported by the kernel
-			emitPreviewEvent(controller, "cell.error", artifactId, cellId || undefined, {
+			emitPreviewEvent(controller, "cell.error", moduleId, cellId || undefined, {
 				cellId: cellId || undefined,
-				moduleId: artifactId,
+				moduleId,
 				status: result.status,
 				message: result.error ?? result.stderr ?? "Unknown kernel error",
 				stdout: result.stdout,
@@ -128,9 +129,9 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 	} catch (error) {
 		const msg = error instanceof Error ? error.message : String(error)
 		// ── Phase 1: emit caught exceptions as cell.error ─────────────────
-		emitPreviewEvent(controller, "cell.error", artifactId, cellId || undefined, {
+		emitPreviewEvent(controller, "cell.error", moduleId, cellId || undefined, {
 			cellId: cellId || undefined,
-			moduleId: artifactId,
+			moduleId,
 			status: "error",
 			message: msg,
 		})
