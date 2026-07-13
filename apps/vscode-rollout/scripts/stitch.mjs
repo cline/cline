@@ -160,6 +160,8 @@ export function stitch({ next, legacy, loader, version, out }) {
 	);
 
 	console.log(`\nstaged ${out} (version ${version})`);
+	// Keep the scanner exemption category-scoped to match the standalone bundle
+	// workflows; see the README for its scope and verification notes.
 	console.log(
 		`package it with:\n  cd ${out} && vsce package --no-dependencies --allow-package-secrets sendgrid`,
 	);

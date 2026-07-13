@@ -117,6 +117,9 @@ jobs:
               working-directory: staging
               run: |
                   npm install -g @vscode/vsce
+                  # Preserve the narrowly scoped VSCE `sendgrid` scanner exemption used by
+                  # both standalone bundle workflows. No SendGrid credential is intentionally
+                  # supplied here; inspect the reported artifact before widening the exemption.
                   vsce package --no-dependencies --allow-package-secrets sendgrid --out "claude-dev-${{ github.event.inputs.version }}.vsix"
 
             - name: Upload VSIX artifact

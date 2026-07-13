@@ -13,13 +13,14 @@
  *   its bundle doesn't register — and shared buttons that moved position
  *   don't show up twice. Commands exclusive to one bundle are likewise hidden
  *   from the other cohort's command palette.
- * - views / viewsContainers / engines MUST be identical in both manifests —
- *   they can't be gated at runtime, so divergence is a hard error.
+ * - views / viewsContainers / configuration / walkthroughs / engines MUST be
+ *   identical in both manifests — they can't be safely gated at runtime, so
+ *   divergence is a hard error.
  *
  * Usage: node gen-manifest.mjs --next <pkg.json> --legacy <pkg.json> --version <x.y.z> [--out <file>]
  */
 
-import { deepEqual } from "node:assert";
+import { deepStrictEqual } from "node:assert";
 import { readFileSync, writeFileSync } from "node:fs";
 
 export function generateManifest(nextPkg, legacyPkg, version) {
@@ -30,9 +31,17 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 			);
 		}
 	}
-	for (const field of ["views", "viewsContainers"]) {
+	for (const field of [
+		"views",
+		"viewsContainers",
+		"configuration",
+		"walkthroughs",
+	]) {
 		try {
-			deepEqual(nextPkg.contributes?.[field], legacyPkg.contributes?.[field]);
+			deepStrictEqual(
+				nextPkg.contributes?.[field],
+				legacyPkg.contributes?.[field],
+			);
 		} catch {
 			throw new Error(
 				`contributes.${field} diverged between bundles — it cannot be gated at runtime; reconcile the branches`,
@@ -40,7 +49,7 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 		}
 	}
 	try {
-		deepEqual(nextPkg.engines, legacyPkg.engines);
+		deepStrictEqual(nextPkg.engines, legacyPkg.engines);
 	} catch {
 		throw new Error(
 			`engines diverged: ${JSON.stringify(nextPkg.engines)} vs ${JSON.stringify(legacyPkg.engines)}`,

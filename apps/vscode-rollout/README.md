@@ -31,8 +31,10 @@ Per window, the loader:
    resolves its own webview build and assets without knowing it was relocated.
    Storage properties pass through untouched: both bundles share the same
    `~/.cline/data` + VS Code storage they used as standalone extensions.
-4. In the background, evaluates the PostHog flags and caches the assignment
-   **for the next window**. Flag changes never flip a live window.
+4. After the selected bundle activates, evaluates the PostHog flags in the
+   background and caches the assignment **for the next window**. Flag changes
+   never flip a live window. A crash fallback skips this refresh so it cannot
+   overwrite the legacy pin.
 
 If the next bundle throws during activation, the loader disposes whatever it
 half-registered, pins this VSIX version back to legacy
@@ -72,9 +74,10 @@ regenerates it at stitch time from both branches' real manifests:
   twice).
 - Commands exclusive to one bundle are hidden from the other cohort's command
   palette.
-- `views` / `viewsContainers` / `engines` **must be identical** in both
-  manifests — they can't be gated at runtime, so divergence fails the build.
-  Keep view IDs and container IDs in sync between the branches.
+- `views` / `viewsContainers` / `configuration` / `walkthroughs` / `engines`
+  **must be identical** in both manifests — they can't be safely gated at
+  runtime, so divergence fails the build. Keep these static contributions in
+  sync between the branches.
 
 Because the manifest is regenerated from both branches on every build,
 contribution drift between the branches can't ship silently — it either merges
@@ -96,6 +99,12 @@ node scripts/stitch.mjs \
 node scripts/smoke-loader.mjs /tmp/cline-ab-staging   # loader behavior smoke
 cd /tmp/cline-ab-staging && vsce package --no-dependencies --allow-package-secrets sendgrid
 ```
+
+The narrowly scoped `sendgrid` scanner exemption mirrors the existing next and
+legacy packaging workflows. This workflow supplies only the existing PostHog
+project-key inputs; it does not declare a SendGrid credential. Identify the
+exact matching string in production staging output before changing or
+broadening the exemption.
 
 Local builds have no `TELEMETRY_SERVICE_API_KEY`, so the loader skips PostHog
 entirely and everyone stays on legacy unless `CLINE_BUNDLE_OVERRIDE` is set.

@@ -192,6 +192,60 @@ describe("generateManifest", () => {
 		expect(() => generateManifest(next, legacy, "1.0.0")).toThrow(/views/);
 	});
 
+	it("rejects diverged walkthroughs", () => {
+		const next = pkg({
+			contributes: {
+				walkthroughs: [
+					{
+						id: "ClineWalkthrough",
+						title: "Meet Cline",
+						steps: [{ id: "welcome", title: "Start here" }],
+					},
+				],
+			},
+		});
+		const legacy = pkg({
+			contributes: {
+				walkthroughs: [
+					{
+						id: "ClineWalkthrough",
+						title: "Meet Cline",
+						steps: [{ id: "welcome", title: "Start somewhere else" }],
+					},
+				],
+			},
+		});
+		expect(() => generateManifest(next, legacy, "1.0.0")).toThrow(
+			/contributes\.walkthroughs diverged/,
+		);
+	});
+
+	it("rejects diverged configuration", () => {
+		const next = pkg({
+			contributes: {
+				configuration: {
+					title: "Cline",
+					properties: {
+						"cline.enabled": { type: "boolean", default: false },
+					},
+				},
+			},
+		});
+		const legacy = pkg({
+			contributes: {
+				configuration: {
+					title: "Cline",
+					properties: {
+						"cline.enabled": { type: "boolean", default: 0 },
+					},
+				},
+			},
+		});
+		expect(() => generateManifest(next, legacy, "1.0.0")).toThrow(
+			/contributes\.configuration diverged/,
+		);
+	});
+
 	it("rejects diverged engines", () => {
 		const legacy = { ...pkg({}), engines: { vscode: "^1.90.0" } };
 		expect(() => generateManifest(pkg({}), legacy, "1.0.0")).toThrow(/engines/);

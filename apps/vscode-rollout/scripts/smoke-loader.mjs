@@ -8,7 +8,8 @@
  *   3. kill-switch cached              -> activates legacy despite cached next
  *   4. CLINE_BUNDLE_OVERRIDE=next      -> activates next
  *   5. next activation throws          -> disposes partial registrations, falls
- *                                         back to legacy, pins version
+ *                                         back to legacy, pins version, and
+ *                                         skips the cohort refresh
  *
  * Usage: node smoke-loader.mjs <staging-dir>
  * Copies the staging dir to a temp sandbox; the input is never modified.
@@ -63,6 +64,64 @@ function makeContext(sandbox, globalStateSeed = {}) {
 	};
 }
 
+function flagResponse(flags = { rollout: false, killswitch: false }) {
+	return {
+		ok: true,
+		json: async () => ({
+			featureFlags: {
+				"ext-sdk-bundle-rollout": flags.rollout,
+				"ext-sdk-bundle-killswitch": flags.killswitch,
+			},
+		}),
+	};
+}
+
+function makeFlagFetch(flags) {
+	const calls = [];
+	const fetch = async (...args) => {
+		calls.push(args);
+		return flagResponse(flags);
+	};
+	return { calls, fetch };
+}
+
+function makeDeferredFlagFetch(flags) {
+	const calls = [];
+	let resolveResponse;
+	let markStarted;
+	const started = new Promise((resolve) => {
+		markStarted = resolve;
+	});
+	const fetch = (...args) => {
+		calls.push(args);
+		markStarted();
+		return new Promise((resolve) => {
+			resolveResponse = () => resolve(flagResponse(flags));
+		});
+	};
+	return {
+		calls,
+		fetch,
+		started,
+		resolve: () => resolveResponse?.(),
+	};
+}
+
+async function waitFor(predicate, message, timeoutMs = 500) {
+	const deadline = Date.now() + timeoutMs;
+	while (!predicate()) {
+		if (Date.now() >= deadline) {
+			assert.fail(message);
+		}
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
+}
+
+async function flushAsyncWork() {
+	await new Promise((resolve) => setImmediate(resolve));
+	await new Promise((resolve) => setImmediate(resolve));
+}
+
 // ---- sandbox setup -----------------------------------------------------------
 function makeSandbox({ nextThrows = false } = {}) {
 	const sandbox = mkdtempSync(path.join(tmpdir(), "cline-ab-smoke-"));
@@ -74,7 +133,7 @@ function makeSandbox({ nextThrows = false } = {}) {
 		mkdirSync(path.join(sandbox, bundle, "dist"), { recursive: true });
 		const throwLine =
 			bundle === "next" && nextThrows
-				? `ctx.subscriptions.push({ dispose() { global.__smoke.disposed.push("${bundle}") } });\n\t\tthrow new Error("smoke: next activation exploded");`
+				? `await global.__smoke.beforeNextFailure?.();\n\t\tctx.subscriptions.push({ dispose() { global.__smoke.disposed.push("${bundle}") } });\n\t\tthrow new Error("smoke: next activation exploded");`
 				: "";
 		writeFileSync(
 			path.join(sandbox, bundle, "dist", "extension.js"),
@@ -86,23 +145,50 @@ function makeSandbox({ nextThrows = false } = {}) {
 	exports.deactivate = () => { global.__smoke.deactivated.push("${bundle}"); };`,
 		);
 	}
+	mkdirSync(path.join(sandbox, "data"), { recursive: true });
+	writeFileSync(
+		path.join(sandbox, "data", "globalState.json"),
+		JSON.stringify({ "cline.generatedMachineId": "smoke-machine" }),
+	);
 	return sandbox;
 }
 
 async function runScenario(
 	name,
-	{ seed = {}, env = {}, nextThrows = false },
+	{
+		seed = {},
+		env = {},
+		nextThrows = false,
+		fetchController = makeFlagFetch(),
+		beforeNextFailure,
+		expectRefresh = true,
+	},
 	checks,
+	afterDeactivateChecks = async () => {},
 ) {
 	const sandbox = makeSandbox({ nextThrows });
-	global.__smoke = { activated: [], deactivated: [], disposed: [] };
+	global.__smoke = {
+		activated: [],
+		deactivated: [],
+		disposed: [],
+		beforeNextFailure,
+	};
 	executedCommands.length = 0;
 
 	const previousEnv = {};
-	for (const [key, value] of Object.entries(env)) {
+	const scenarioEnv = {
+		CLINE_DIR: sandbox,
+		// A dev build leaves this lookup dynamic; production builds inline the
+		// real PostHog key. Either way, the smoke must exercise refreshCohort.
+		TELEMETRY_SERVICE_API_KEY: "smoke-posthog-project-key",
+		...env,
+	};
+	for (const [key, value] of Object.entries(scenarioEnv)) {
 		previousEnv[key] = process.env[key];
 		process.env[key] = value;
 	}
+	const originalFetch = global.fetch;
+	global.fetch = fetchController.fetch;
 	const originalResolve = Module._resolveFilename;
 	Module._resolveFilename = function (request, ...rest) {
 		if (request === "vscode") {
@@ -123,12 +209,35 @@ async function runScenario(
 		const loader = require(loaderPath);
 		const context = makeContext(sandbox, seed);
 		const api = await loader.activate(context);
-		await checks({ context, api, sandbox });
+		if (expectRefresh) {
+			await waitFor(
+				() => fetchController.calls.length > 0,
+				`${name} did not refresh its cohort after activation`,
+			);
+			await flushAsyncWork();
+			assert.equal(
+				fetchController.calls.length,
+				1,
+				`${name} should refresh its cohort exactly once`,
+			);
+		}
+		await checks({
+			context,
+			api,
+			sandbox,
+			fetchCalls: fetchController.calls,
+		});
 		await loader.deactivate();
+		await afterDeactivateChecks({ context, api, sandbox });
 		console.log(`PASS ${name}`);
 	} finally {
 		Module._resolveFilename = originalResolve;
 		delete require.cache.vscode;
+		if (originalFetch === undefined) {
+			delete global.fetch;
+		} else {
+			global.fetch = originalFetch;
+		}
 		for (const [key, value] of Object.entries(previousEnv)) {
 			if (value === undefined) {
 				delete process.env[key];
@@ -193,10 +302,24 @@ await runScenario(
 	},
 );
 
+const failedNextRefresh = makeDeferredFlagFetch({
+	rollout: true,
+	killswitch: false,
+});
 await runScenario(
 	"next activation failure falls back to legacy",
-	{ seed: { "cline.rollout.bundle": "next" }, nextThrows: true },
-	async ({ context, api }) => {
+	{
+		seed: { "cline.rollout.bundle": "next" },
+		nextThrows: true,
+		fetchController: failedNextRefresh,
+		expectRefresh: false,
+		beforeNextFailure: () =>
+			Promise.race([
+				failedNextRefresh.started,
+				new Promise((resolve) => setTimeout(resolve, 100)),
+			]),
+	},
+	async ({ context, api, fetchCalls }) => {
 		assert.deepEqual(api, { bundle: "legacy" });
 		assert.deepEqual(
 			global.__smoke.disposed,
@@ -220,38 +343,31 @@ await runScenario(
 			"cline.sdkBundle",
 			false,
 		]);
+		// Keep the fetch stub installed long enough for an incorrectly delayed
+		// refresh to reach the network boundary before asserting its absence.
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		// Settle a refresh if the loader incorrectly launched one. With the old
+		// ordering it would now promote COHORT_STATE_KEY back to next.
+		if (fetchCalls.length > 0) {
+			failedNextRefresh.resolve();
+			await flushAsyncWork();
+		}
+		assert.equal(
+			fetchCalls.length,
+			0,
+			"crash fallback must not refresh the failed cohort",
+		);
+		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "legacy");
 	},
 );
 
-// deactivate() delegates to the active bundle
-{
-	const sandbox = makeSandbox();
-	global.__smoke = { activated: [], deactivated: [], disposed: [] };
-	const originalResolve = Module._resolveFilename;
-	Module._resolveFilename = function (request, ...rest) {
-		return request === "vscode"
-			? "vscode"
-			: originalResolve.call(this, request, ...rest);
-	};
-	require.cache.vscode = {
-		id: "vscode",
-		filename: "vscode",
-		loaded: true,
-		exports: makeVscodeStub(sandbox),
-	};
-	try {
-		const loaderPath = path.join(sandbox, "extension.js");
-		delete require.cache[loaderPath];
-		const loader = require(loaderPath);
-		await loader.activate(makeContext(sandbox));
-		await loader.deactivate();
+await runScenario(
+	"deactivate delegates to active bundle",
+	{},
+	async () => {},
+	async () => {
 		assert.deepEqual(global.__smoke.deactivated, ["legacy"]);
-		console.log("PASS deactivate delegates to active bundle");
-	} finally {
-		Module._resolveFilename = originalResolve;
-		delete require.cache.vscode;
-		rmSync(sandbox, { recursive: true, force: true });
-	}
-}
+	},
+);
 
 console.log("\nall loader smoke scenarios passed");

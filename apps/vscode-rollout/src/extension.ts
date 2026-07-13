@@ -50,16 +50,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			loaderVersion,
 	});
 
-	// Refresh the assignment for the next window; fire-and-forget by design.
-	void refreshCohort(context).catch(() => {});
-
-	return activateBundle(context, bundle, loaderVersion);
+	return activateBundle(context, bundle, loaderVersion, true);
 }
 
 async function activateBundle(
 	context: vscode.ExtensionContext,
 	bundle: Bundle,
 	loaderVersion: string,
+	refreshAssignmentOnSuccess: boolean,
 ): Promise<unknown> {
 	// Menus/keybindings gated per cohort in package.json key off this.
 	await vscode.commands.executeCommand(
@@ -75,6 +73,12 @@ async function activateBundle(
 		) as BundleModule;
 		const api = await module.activate(scopedContext(context, bundle));
 		activeBundle = { module, name: bundle };
+		// Cache the next window's assignment only after the originally selected
+		// bundle activates. A crash fallback must not start a refresh that could
+		// promote the cohort back to next after the handler pins it to legacy.
+		if (refreshAssignmentOnSuccess) {
+			void refreshCohort(context).catch(() => {});
+		}
 		void reportActivation(context, bundle, { fallback: false }).catch(() => {});
 		return api;
 	} catch (error) {
@@ -98,7 +102,7 @@ async function activateBundle(
 					? `${error.message}\n${error.stack ?? ""}`.slice(0, 2000)
 					: String(error),
 		}).catch(() => {});
-		return activateBundle(context, "legacy", loaderVersion);
+		return activateBundle(context, "legacy", loaderVersion, false);
 	}
 }
 
