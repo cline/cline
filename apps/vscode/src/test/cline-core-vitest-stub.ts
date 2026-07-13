@@ -481,6 +481,10 @@ export async function getValidClineCredentials(): Promise<OAuthCredentials | und
 	return undefined
 }
 
+export async function refreshProviderOAuthCredentialsFromStore(): Promise<{ status: string }> {
+	return { status: "no_credentials" }
+}
+
 export async function loginClineOAuth(): Promise<OAuthCredentials> {
 	return {}
 }

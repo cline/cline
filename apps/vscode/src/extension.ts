@@ -532,8 +532,10 @@ ${ctx.cellJson || "{}"}
 				// Secret was added or updated - restore auth info (login from another window)
 				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
 			} else {
-				// Secret was removed - handle logout for all windows
-				authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
+				// Secret was removed. Only the legacy extension writes this secret,
+				// and it also clears it when IT loses a refresh-token race — so
+				// reconcile against providers.json instead of deauthing blindly.
+				authService?.syncAuthStateFromDisk(LogoutReason.CROSS_WINDOW_SYNC)
 			}
 		}
 	})

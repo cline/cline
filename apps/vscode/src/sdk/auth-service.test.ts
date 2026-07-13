@@ -107,6 +107,7 @@ vi.mock("axios", () => ({
 }))
 
 const mockLoginClineOAuth = vi.hoisted(() => vi.fn())
+const mockRefreshFromStore = vi.hoisted(() => vi.fn())
 
 // Mock @cline/core OAuth functions
 vi.mock("@cline/core", async () => ({
@@ -129,6 +130,7 @@ vi.mock("@cline/core", async () => ({
 	loginOpenAICodex: vi.fn(),
 	refreshClineToken: vi.fn(),
 	getValidClineCredentials: vi.fn(),
+	refreshProviderOAuthCredentialsFromStore: mockRefreshFromStore,
 }))
 
 // Stateful in-memory provider-settings store. Cline credentials are persisted
@@ -484,12 +486,17 @@ describe("AuthService", () => {
 					accountId: "user-123",
 				},
 			})
-			vi.mocked(getValidClineCredentials).mockResolvedValue({
-				access: "persisted-access-token",
-				refresh: "persisted-refresh-token",
-				expires: Date.now() + 3600 * 1000,
-				accountId: "user-123",
-				email: "test@example.com",
+			mockRefreshFromStore.mockResolvedValue({
+				status: "ok",
+				refreshed: false,
+				settings: { provider: "cline" },
+				credentials: {
+					access: "persisted-access-token",
+					refresh: "persisted-refresh-token",
+					expires: Date.now() + 3600 * 1000,
+					accountId: "user-123",
+					email: "test@example.com",
+				},
 			})
 
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
@@ -556,14 +563,66 @@ describe("AuthService", () => {
 				provider: "cline",
 				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
 			})
-			// getValidClineCredentials returning null models an unrecoverable token.
-			vi.mocked(getValidClineCredentials).mockResolvedValue(null)
+			// reauth_required models a refresh token the server rejected even after
+			// the helper's adopt-from-disk recovery — the only genuine logout.
+			mockRefreshFromStore.mockResolvedValue({ status: "reauth_required" })
 
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
 			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+		})
+
+		it("keeps persisted credentials when the refresh fails transiently", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
+			})
+			// Transient failures (network, 5xx) THROW from the store helper.
+			mockRefreshFromStore.mockRejectedValue(new Error("fetch failed"))
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			// Credentials must survive for the next attempt.
+			expect(mockProviderSettings.get("cline")?.auth).toBeDefined()
+		})
+	})
+
+	describe("syncAuthStateFromDisk()", () => {
+		it("restores instead of deauthing when credentials are still on disk", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:live", refreshToken: "live-refresh", accountId: "user-123" },
+			})
+			mockRefreshFromStore.mockResolvedValue({
+				status: "ok",
+				refreshed: false,
+				settings: { provider: "cline" },
+				credentials: {
+					access: "live",
+					refresh: "live-refresh",
+					expires: Date.now() + 3600 * 1000,
+					accountId: "user-123",
+				},
+			})
+
+			await authService.syncAuthStateFromDisk(LogoutReason.CROSS_WINDOW_SYNC)
+
+			expect(testAccess(authService)._authenticated).toBe(true)
+			expect(mockProviderSettings.get("cline")?.auth).toBeDefined()
+		})
+
+		it("deauths when the disk really has no credentials", async () => {
+			const authInfo = createTestAuthInfo()
+			testAccess(authService)._clineAuthInfo = authInfo
+			testAccess(authService)._authenticated = true
+
+			await authService.syncAuthStateFromDisk(LogoutReason.CROSS_WINDOW_SYNC)
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(testAccess(authService)._clineAuthInfo).toBeNull()
 		})
 	})
 
@@ -573,12 +632,17 @@ describe("AuthService", () => {
 				provider: "cline",
 				auth: { accessToken: "workos:raw-access-token", refreshToken: "r", accountId: "user-123" },
 			})
-			vi.mocked(getValidClineCredentials).mockResolvedValue({
-				access: "raw-access-token",
-				refresh: "r",
-				expires: Date.now() + 3600 * 1000,
-				accountId: "user-123",
-				email: "test@example.com",
+			mockRefreshFromStore.mockResolvedValue({
+				status: "ok",
+				refreshed: false,
+				settings: { provider: "cline" },
+				credentials: {
+					access: "raw-access-token",
+					refresh: "r",
+					expires: Date.now() + 3600 * 1000,
+					accountId: "user-123",
+					email: "test@example.com",
+				},
 			})
 
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()

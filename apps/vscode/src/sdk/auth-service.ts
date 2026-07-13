@@ -11,11 +11,11 @@
 import type { ITelemetryService, OAuthCredentials, ProviderSettings } from "@cline/core"
 import {
 	createOAuthClientCallbacks,
-	getValidClineCredentials,
 	hashSecret,
 	loginClineOAuth,
 	loginOcaOAuth,
 	loginOpenAICodex,
+	refreshProviderOAuthCredentialsFromStore,
 	sdkDebug,
 } from "@cline/core"
 import type { ApiProvider } from "@shared/api"
@@ -324,32 +324,6 @@ export class AuthService {
 		}
 	}
 
-	private toOAuthCredentials(authInfo: ClineAuthInfo): OAuthCredentials {
-		return {
-			access: authInfo.idToken,
-			refresh: authInfo.refreshToken ?? "",
-			expires: authInfo.expiresAt ? authInfo.expiresAt * 1000 : 0,
-			accountId: authInfo.userInfo.id || undefined,
-			email: authInfo.userInfo.email || undefined,
-			metadata: authInfo.startedAt ? { sessionStartedAtMs: authInfo.startedAt } : undefined,
-		}
-	}
-
-	private async resolveValidClineCredentials(
-		authInfo: ClineAuthInfo,
-		options?: { forceRefresh?: boolean },
-	): Promise<OAuthCredentials | null> {
-		if (options?.forceRefresh && !authInfo.refreshToken) {
-			return null
-		}
-
-		return getValidClineCredentials(
-			this.toOAuthCredentials(authInfo),
-			{ apiBaseUrl: ClineEnv.config().apiBaseUrl, telemetry: this._telemetry },
-			{ forceRefresh: options?.forceRefresh },
-		)
-	}
-
 	// ---- Public API (used by gRPC handlers) ----
 
 	/**
@@ -405,9 +379,21 @@ export class AuthService {
 				if (!currentInfo) {
 					return undefined
 				}
-				const newCredentials = await this.resolveValidClineCredentials(currentInfo, { forceRefresh: true })
-				if (!newCredentials) {
-					sdkDebug("[SdkAuthService] refreshAccessToken: refresh returned null — clearing credentials")
+				// Refresh against the shared store (providers.json) rather than our
+				// in-memory snapshot: the helper re-reads the file inside a
+				// cross-process lock, so a token that another window or the CLI
+				// already rotated is adopted instead of presenting a consumed
+				// refresh token upstream. Transient failures THROW (handled by the
+				// catch below) and leave stored credentials untouched; a non-"ok"
+				// outcome means the refresh token itself was rejected.
+				const outcome = await refreshProviderOAuthCredentialsFromStore({
+					manager: getProviderSettingsManager(),
+					providerId: "cline",
+					forceRefresh: true,
+					apiBaseUrl: ClineEnv.config().apiBaseUrl,
+				})
+				if (outcome.status !== "ok") {
+					sdkDebug(`[SdkAuthService] refreshAccessToken: ${outcome.status} — clearing credentials`)
 					this._clineAuthInfo = null
 					this._authenticated = false
 					clearClineCredentials()
@@ -416,6 +402,7 @@ export class AuthService {
 					})
 					return undefined
 				}
+				const newCredentials = outcome.credentials
 
 				const credentialsChanged =
 					newCredentials.access !== currentInfo.idToken ||
@@ -440,14 +427,8 @@ export class AuthService {
 					sdkDebug(
 						`[SdkAuthService] refreshAccessToken: credentials changed (newTokenHash=${hashSecret(newCredentials.access)})`,
 					)
-					writeClineCredentials({
-						accessToken: newCredentials.access,
-						refreshToken: newCredentials.refresh,
-						expiresAt: newCredentials.expires,
-						accountId: this._clineAuthInfo.userInfo.id,
-						metadata: newCredentials.metadata,
-						sessionStartedAtMs: readSessionStartedAtMs(newCredentials.metadata),
-					})
+					// refreshProviderOAuthCredentialsFromStore already persisted the
+					// rotated tokens to providers.json (atomically, inside the lock).
 
 					setImmediate(() => {
 						this.sendAuthStatusUpdate().catch((err) => {
@@ -837,6 +818,25 @@ export class AuthService {
 	}
 
 	/**
+	 * Reconcile auth state with providers.json after a cross-window signal.
+	 *
+	 * The cline:clineAccountId secret is only ever written by the LEGACY
+	 * extension; its removal historically triggered an unconditional deauth
+	 * here. But the legacy extension also clears that secret when it loses a
+	 * refresh race (its own bug), which used to cascade a healthy new-stack
+	 * session into a hard logout. Disk is the source of truth: if credentials
+	 * are still there, validate and adopt them; only deauth when they are gone.
+	 */
+	async syncAuthStateFromDisk(reason: LogoutReason): Promise<void> {
+		if (readClineCredentials()) {
+			sdkDebug("[SdkAuthService] syncAuthStateFromDisk: credentials on disk — restoring instead of deauthing")
+			await this.restoreRefreshTokenAndRetrieveAuthInfo()
+		} else {
+			await this.handleDeauth(reason)
+		}
+	}
+
+	/**
 	 * Handle auth callback from URI handler.
 	 * This is called when the browser redirects back to the extension after OAuth.
 	 */
@@ -962,23 +962,25 @@ export class AuthService {
 				startedAt: creds.sessionStartedAtMs,
 			}
 
-			const validCredentials = await this.resolveValidClineCredentials(restoredAuthInfo)
-			if (!validCredentials) {
+			const outcome = await refreshProviderOAuthCredentialsFromStore({
+				manager: getProviderSettingsManager(),
+				providerId: "cline",
+				apiBaseUrl: ClineEnv.config().apiBaseUrl,
+			})
+			if (outcome.status !== "ok") {
 				this._authenticated = false
 				this._clineAuthInfo = null
-				clearClineCredentials()
+				if (outcome.status === "reauth_required") {
+					// The stored refresh token was rejected — a genuine logout.
+					// (Transient failures throw and are handled by the outer catch,
+					// which keeps the stored credentials for the next attempt.)
+					clearClineCredentials()
+				}
 				await this.sendAuthStatusUpdate()
 				return
 			}
-
-			writeClineCredentials({
-				accessToken: validCredentials.access,
-				refreshToken: validCredentials.refresh,
-				expiresAt: validCredentials.expires,
-				accountId: validCredentials.accountId ?? restoredAuthInfo.userInfo.id,
-				metadata: validCredentials.metadata,
-				sessionStartedAtMs: readSessionStartedAtMs(validCredentials.metadata),
-			})
+			const validCredentials = outcome.credentials
+			// Helper already persisted any rotation to providers.json.
 
 			this._clineAuthInfo = {
 				idToken: validCredentials.access,
