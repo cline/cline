@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	OAuthReauthRequiredError,
@@ -54,6 +57,8 @@ describe("RuntimeOAuthTokenManager", () => {
 			providerSettingsManager: {
 				getProviderSettings,
 				saveProviderSettings,
+				getFilePath: () =>
+					join(mkdtempSync(join(tmpdir(), "oauth-test-")), "providers.json"),
 			} as never,
 		});
 
@@ -103,6 +108,8 @@ describe("RuntimeOAuthTokenManager", () => {
 			providerSettingsManager: {
 				getProviderSettings,
 				saveProviderSettings,
+				getFilePath: () =>
+					join(mkdtempSync(join(tmpdir(), "oauth-test-")), "providers.json"),
 			} as never,
 		});
 
@@ -117,7 +124,7 @@ describe("RuntimeOAuthTokenManager", () => {
 				refresh: "refresh-old",
 			}),
 			expect.objectContaining({ apiBaseUrl: "https://api.cline.test" }),
-			{ forceRefresh: false },
+			{ forceRefresh: false, emitLoggedOutTelemetry: false },
 		);
 		expect(result).toMatchObject({
 			apiKey: "workos:access-new",
@@ -151,6 +158,8 @@ describe("RuntimeOAuthTokenManager", () => {
 					},
 				}),
 				saveProviderSettings: vi.fn(),
+				getFilePath: () =>
+					join(mkdtempSync(join(tmpdir(), "oauth-test-")), "providers.json"),
 			} as never,
 		});
 
@@ -180,6 +189,8 @@ describe("RuntimeOAuthTokenManager", () => {
 					},
 				}),
 				saveProviderSettings: vi.fn(),
+				getFilePath: () =>
+					join(mkdtempSync(join(tmpdir(), "oauth-test-")), "providers.json"),
 			} as never,
 		});
 

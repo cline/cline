@@ -176,6 +176,8 @@ export {
 	type ProviderAuthRefreshInput,
 	type ProviderAuthSaveCredentialsInput,
 	type ProviderOAuthCredentials,
+	type ProviderOAuthRefreshOutcome,
+	refreshProviderOAuthCredentialsFromStore,
 	resolveProviderApiKeyFromSettings,
 	saveProviderOAuthCredentials,
 } from "./auth/provider-auth-registry";

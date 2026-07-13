@@ -1,32 +1,12 @@
 import type { ITelemetryService } from "@cline/shared";
-import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	getProviderAuthHandler,
-	getProviderOAuthCredentialsFromSettings,
-	saveProviderOAuthCredentials,
+	refreshProviderOAuthCredentialsFromStore,
 } from "../../auth/provider-auth-registry";
+import { sdkDebug } from "../../logging/early-logger";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
-import type { ProviderSettings } from "../../types/provider-settings";
 
 type ManagedOAuthProviderId = string;
-
-function authSettingsEqual(
-	a: ProviderSettings["auth"] | undefined,
-	b: ProviderSettings["auth"] | undefined,
-): boolean {
-	const aExpiry = (
-		a as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
-	)?.expiresAt;
-	const bExpiry = (
-		b as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
-	)?.expiresAt;
-	return (
-		a?.accessToken === b?.accessToken &&
-		a?.refreshToken === b?.refreshToken &&
-		a?.accountId === b?.accountId &&
-		aExpiry === bExpiry
-	);
-}
 
 export class OAuthReauthRequiredError extends Error {
 	public readonly providerId: ManagedOAuthProviderId;
@@ -87,11 +67,7 @@ export class RuntimeOAuthTokenManager {
 		if (currentInFlight) {
 			return currentInFlight;
 		}
-		const pending = this.resolveProviderApiKeyInternal(
-			providerId,
-			storageProviderId,
-			forceRefresh,
-		)
+		const pending = this.resolveProviderApiKeyInternal(providerId, forceRefresh)
 			.catch((error) => {
 				throw error;
 			})
@@ -104,75 +80,41 @@ export class RuntimeOAuthTokenManager {
 
 	private async resolveProviderApiKeyInternal(
 		providerId: ManagedOAuthProviderId,
-		storageProviderId: ManagedOAuthProviderId,
 		forceRefresh: boolean,
 	): Promise<RuntimeOAuthResolution | null> {
 		const handler = getProviderAuthHandler(providerId);
 		if (!handler) {
 			return null;
 		}
-		const settings =
-			this.providerSettingsManager.getProviderSettings(storageProviderId);
-		if (!settings) {
-			sdkDebug(
-				`oauth.resolve providerId=${providerId} storageProviderId=${storageProviderId} outcome=no_settings`,
-			);
-			return null;
-		}
-
-		const currentCredentials = getProviderOAuthCredentialsFromSettings(
-			providerId,
-			settings,
-		);
-		if (!currentCredentials) {
-			sdkDebug(
-				`oauth.resolve providerId=${providerId} storageProviderId=${storageProviderId} outcome=no_credentials`,
-			);
-			return null;
-		}
-
 		sdkDebug(
-			`oauth.resolve.start providerId=${providerId} storageProviderId=${storageProviderId} forceRefresh=${forceRefresh} accessTokenHash=${hashSecret(currentCredentials.access)} refreshTokenHash=${hashSecret(currentCredentials.refresh)}`,
+			`oauth.resolve.start providerId=${providerId} storageProviderId=${handler.storageProviderId} forceRefresh=${forceRefresh}`,
 		);
 
-		const nextCredentials = await handler.refresh({
-			settings,
-			credentials: currentCredentials,
+		const outcome = await refreshProviderOAuthCredentialsFromStore({
+			manager: this.providerSettingsManager,
+			providerId,
 			forceRefresh,
 			telemetry: this.telemetry,
 		});
-		if (!nextCredentials) {
+
+		if (outcome.status === "no_credentials") {
+			sdkDebug(`oauth.resolve providerId=${providerId} outcome=no_credentials`);
+			return null;
+		}
+		if (outcome.status === "reauth_required") {
 			sdkDebug(
-				`oauth.resolve providerId=${providerId} outcome=refresh_returned_null`,
+				`oauth.resolve providerId=${providerId} outcome=reauth_required`,
 			);
 			throw new OAuthReauthRequiredError(providerId);
 		}
 
-		const nextSettings: ProviderSettings = saveProviderOAuthCredentials({
-			manager: this.providerSettingsManager,
-			providerId,
-			settings,
-			credentials: nextCredentials,
-			setLastUsed: false,
-			save: false,
-		});
-		const wasRefreshed = !authSettingsEqual(settings.auth, nextSettings.auth);
-		if (wasRefreshed) {
-			sdkDebug(
-				`oauth.resolve.refreshed providerId=${providerId} newAccessTokenHash=${hashSecret(nextCredentials.access)} newRefreshTokenHash=${hashSecret(nextCredentials.refresh)} savingToDisk=true`,
-			);
-			this.providerSettingsManager.saveProviderSettings(nextSettings, {
-				setLastUsed: false,
-				tokenSource: "oauth",
-			});
-		} else {
-			sdkDebug(`oauth.resolve providerId=${providerId} outcome=not_refreshed`);
-		}
-
+		sdkDebug(
+			`oauth.resolve providerId=${providerId} outcome=ok refreshed=${outcome.refreshed}`,
+		);
 		return {
-			apiKey: handler.getApiKey(nextSettings) ?? nextCredentials.access,
-			accountId: nextCredentials.accountId,
-			refreshed: wasRefreshed,
+			apiKey: handler.getApiKey(outcome.settings) ?? outcome.credentials.access,
+			accountId: outcome.credentials.accountId,
+			refreshed: outcome.refreshed,
 		};
 	}
 }

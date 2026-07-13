@@ -57,6 +57,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
 		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
 		AUTH_RUN_RETRY: "user.auth_run_retry",
+		AUTH_REFRESH_RECOVERED: "user.auth_refresh_recovered",
 		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
@@ -334,6 +335,23 @@ export function captureAuthRunRetry(
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_RUN_RETRY, {
 		provider,
 		recovered: details?.recovered,
+	});
+}
+
+/**
+ * Fires when a refresh that failed (or would have failed) with invalid_grant
+ * was recovered by adopting credentials another process had already rotated on
+ * disk. Production evidence for the cross-process refresh-token race: every
+ * one of these events used to be a hard logout.
+ */
+export function captureAuthRefreshRecovered(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	recovery?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_RECOVERED, {
+		provider,
+		recovery,
 	});
 }
 
