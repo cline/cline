@@ -578,6 +578,7 @@ body.aihydro-module, .aihydro-module {
   border-radius: 0 4px 4px 0;
   display: none;
 }
+.aihydro-quiz-question.aq-correct .aihydro-quiz-feedback[data-show="true"],
 .aihydro-quiz-question.aq-incorrect .aihydro-quiz-feedback[data-show="true"] { display: block; }
 .aihydro-quiz-submit {
   padding: 7px 18px;
@@ -592,6 +593,10 @@ body.aihydro-module, .aihydro-module {
 }
 .aihydro-quiz-submit:hover { background: rgba(0,221,255,0.10); }
 #quizScore { font-size: 14px; color: var(--aihydro-text-accent); margin-left: 14px; }
+.aihydro-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 /* ── Interactivity primitives (timeline / compare / sim) ─────────────── */
 .aihydro-timeline {
@@ -1509,6 +1514,7 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
         if (!quizRoot) return;
         var questions = quizRoot.querySelectorAll(".aihydro-quiz-question[data-answer]");
         var correct = 0;
+        var feedbackMessages = [];
         questions.forEach(function(q) {
           q.classList.remove("aq-correct", "aq-incorrect");
           q.querySelectorAll(".aihydro-quiz-feedback").forEach(function(f) { f.setAttribute("data-show", "false"); });
@@ -1516,17 +1522,29 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
           var checked = q.querySelector("input[type='radio']:checked");
           if (!checked) return;
           var selectedIdx = parseInt(checked.value, 10);
+          var fb = q.querySelector(".aihydro-quiz-feedback[data-fb='" + selectedIdx + "']");
+          if (fb) {
+            fb.setAttribute("data-show", "true");
+            var feedbackText = (fb.textContent || "").trim();
+            if (feedbackText) feedbackMessages.push(feedbackText);
+          }
           if (selectedIdx === correctIdx) {
             q.classList.add("aq-correct"); correct++;
           } else {
             q.classList.add("aq-incorrect");
-            var fb = q.querySelector(".aihydro-quiz-feedback[data-fb='" + selectedIdx + "']");
-            if (fb) fb.setAttribute("data-show", "true");
           }
         });
         var scoreEl = btn.parentElement && btn.parentElement.querySelector("#quizScore, [id$='Score']");
         if (!scoreEl) scoreEl = document.getElementById("quizScore");
-        if (scoreEl) scoreEl.textContent = correct + " / " + questions.length + " correct";
+        if (scoreEl) {
+          scoreEl.textContent = correct + " / " + questions.length + " correct";
+          if (feedbackMessages.length) {
+            var feedbackAnnouncement = document.createElement("span");
+            feedbackAnnouncement.className = "aihydro-sr-only";
+            feedbackAnnouncement.textContent = ". Selected feedback: " + feedbackMessages.join(" ");
+            scoreEl.appendChild(feedbackAnnouncement);
+          }
+        }
         // Report checkpoint result to the host so course progress can advance.
         var passed = questions.length > 0 && correct === questions.length;
         postToParent(artifactPayload({

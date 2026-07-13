@@ -139,7 +139,7 @@ evidenceE2E(
 		)
 		await artifact.getByLabel("90 mm").check()
 		await artifact.getByRole("button", { name: "Check answers" }).click()
-		await expect(artifact.locator("#quizScore")).toHaveText("0 / 1 correct")
+		await expect(artifact.locator("#quizScore")).toContainText("0 / 1 correct")
 
 		const canonicalId = "runtime-contract-01"
 		const sessionDir = path.join(homeDir, ".aihydro", "preview_session")
