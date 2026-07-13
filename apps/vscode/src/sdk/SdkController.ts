@@ -482,7 +482,9 @@ export class Controller {
 			},
 			postStateToWebview: () => this.postStateToWebview(),
 		})
-		this.pluginCommands = new SdkPluginCommandCoordinator()
+		this.pluginCommands = new SdkPluginCommandCoordinator({
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+		})
 		this.taskStart = new SdkTaskStartCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
