@@ -28,6 +28,7 @@ import {
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
+import { withSettingsMutationLockSync } from "./settings-file-lock";
 
 function nowIso(): string {
 	return new Date().toISOString();
@@ -150,6 +151,19 @@ export class ProviderSettingsManager {
 		options: SaveProviderSettingsOptions = {},
 	): StoredProviderSettings {
 		const validatedSettings = ProviderSettingsSchema.parse(settings);
+		// The read→merge→write below must not interleave with another process's
+		// save: a merge built from a stale read writes the OLD cline auth entry
+		// back over a freshly rotated (single-use) refresh token, killing the
+		// session for every process sharing this file.
+		return withSettingsMutationLockSync(this.filePath, () =>
+			this.saveProviderSettingsLocked(validatedSettings, options),
+		);
+	}
+
+	private saveProviderSettingsLocked(
+		validatedSettings: ProviderSettings,
+		options: SaveProviderSettingsOptions,
+	): StoredProviderSettings {
 		const previous = this.read();
 		const providerId = validatedSettings.provider;
 		const shouldSetLastUsed = options.setLastUsed !== false;
