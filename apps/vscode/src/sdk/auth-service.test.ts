@@ -8,7 +8,7 @@
 // - Streaming subscription management
 // - workos: prefix handling
 
-import { getValidClineCredentials, type OAuthCredentials } from "@cline/core"
+import { getValidClineCredentials, type ITelemetryService, type OAuthCredentials } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 
@@ -18,8 +18,8 @@ import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 
 const mockFeatureFlagsPoll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockIdentifyAccount = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
-const mockTelemetryCapture = vi.hoisted(() => vi.fn())
 const mockCaptureAuthLoggedOut = vi.hoisted(() => vi.fn())
+const mockSdkTelemetry = { capture: vi.fn() } as unknown as ITelemetryService
 
 // Mock StateManager
 const mockSecrets = new Map<string, string>()
@@ -92,7 +92,6 @@ vi.mock("@/services/feature-flags", () => ({
 vi.mock("@/services/telemetry", () => ({
 	telemetryService: {
 		identifyAccount: mockIdentifyAccount,
-		capture: mockTelemetryCapture,
 		captureAuthLoggedOut: mockCaptureAuthLoggedOut,
 	},
 }))
@@ -214,7 +213,7 @@ describe("AuthService", () => {
 	beforeEach(() => {
 		// Reset the singleton between tests
 		resetSingleton()
-		authService = AuthService.getInstance()
+		authService = AuthService.getInstance(undefined, mockSdkTelemetry)
 		mockSecrets.clear()
 		mockProviderSettings.clear()
 		vi.clearAllMocks()
@@ -384,6 +383,7 @@ describe("AuthService", () => {
 
 			// Persisted credentials should be cleared from providers.json.
 			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+			expect(mockCaptureAuthLoggedOut).toHaveBeenCalledWith("cline", LogoutReason.USER_INITIATED)
 		})
 	})
 
@@ -413,6 +413,11 @@ describe("AuthService", () => {
 
 			expect(testAccess(authService)._authenticated).toBe(true)
 			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("persisted-access-token")
+			expect(getValidClineCredentials).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ telemetry: mockSdkTelemetry }),
+				expect.any(Object),
+			)
 		})
 
 		it("sets unauthenticated state when providers.json has no Cline auth", async () => {
