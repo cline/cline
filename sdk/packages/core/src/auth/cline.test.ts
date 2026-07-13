@@ -93,8 +93,22 @@ describe("auth/cline getValidClineCredentials", () => {
 				),
 		) as unknown as typeof fetch;
 
-		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS);
+		const capture = vi.fn();
+		const result = await getValidClineCredentials(current, {
+			...PROVIDER_OPTIONS,
+			telemetry: { capture } as never,
+		});
 		expect(result).toBeNull();
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_logged_out",
+				properties: expect.objectContaining({
+					reason: "invalid_grant",
+					status: 401,
+					errorCode: "invalid_grant",
+				}),
+			}),
+		);
 		nowSpy.mockRestore();
 	});
 
@@ -115,11 +129,25 @@ describe("auth/cline getValidClineCredentials", () => {
 				),
 		) as unknown as typeof fetch;
 
-		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS, {
-			refreshBufferMs: 60_000,
-			retryableTokenGraceMs: 30_000,
-		});
+		const capture = vi.fn();
+		const result = await getValidClineCredentials(
+			current,
+			{ ...PROVIDER_OPTIONS, telemetry: { capture } as never },
+			{
+				refreshBufferMs: 60_000,
+				retryableTokenGraceMs: 30_000,
+			},
+		);
 		expect(result).toBe(current);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					status: 500,
+					tokenExpired: false,
+				}),
+			}),
+		);
 		nowSpy.mockRestore();
 	});
 
@@ -142,9 +170,27 @@ describe("auth/cline getValidClineCredentials", () => {
 				),
 		) as unknown as typeof fetch;
 
+		const capture = vi.fn();
 		await expect(
-			getValidClineCredentials(current, PROVIDER_OPTIONS),
+			getValidClineCredentials(current, {
+				...PROVIDER_OPTIONS,
+				telemetry: { capture } as never,
+			}),
 		).rejects.toThrow("Token refresh failed: 500");
+		// The "prevented logout" counter: this exact situation used to wipe
+		// stored credentials.
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					status: 500,
+					tokenExpired: true,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
 		nowSpy.mockRestore();
 	});
 });

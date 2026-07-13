@@ -8,7 +8,7 @@
 // disk — it's fetched from the Cline API on startup and cached in memory.
 // This matches the CLI's pattern (see apps/cli/src/runtime/interactive-welcome.ts).
 
-import type { OAuthCredentials } from "@cline/core"
+import type { ITelemetryService, OAuthCredentials } from "@cline/core"
 import {
 	createOAuthClientCallbacks,
 	getValidClineCredentials,
@@ -202,6 +202,7 @@ export class AuthService {
 	private _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	private _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	private _refreshPromise: Promise<string | undefined> | null = null
+	private _telemetry?: ITelemetryService
 
 	private constructor() {}
 
@@ -209,9 +210,12 @@ export class AuthService {
 	 * Gets the singleton instance of AuthService.
 	 * On first call with a controller, initializes BannerService.
 	 */
-	public static getInstance(controller?: Controller): AuthService {
+	public static getInstance(controller?: Controller, telemetry?: ITelemetryService): AuthService {
 		if (!AuthService.instance) {
 			AuthService.instance = new AuthService()
+		}
+		if (telemetry) {
+			AuthService.instance._telemetry = telemetry
 		}
 		// Initialize BannerService on first call with a controller
 		// (mirrors classic AuthService behavior)
@@ -303,7 +307,7 @@ export class AuthService {
 
 		return getValidClineCredentials(
 			this.toOAuthCredentials(authInfo),
-			{ apiBaseUrl: ClineEnv.config().apiBaseUrl },
+			{ apiBaseUrl: ClineEnv.config().apiBaseUrl, telemetry: this._telemetry },
 			{ forceRefresh: options?.forceRefresh },
 		)
 	}
@@ -747,8 +751,9 @@ export class AuthService {
 	/**
 	 * Handle deauthentication — clear tokens from providers.json and push unauthenticated state.
 	 */
-	async handleDeauth(_reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
+	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
+			telemetryService.captureAuthLoggedOut("cline", reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
 			clearClineCredentials()
