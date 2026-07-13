@@ -6,6 +6,7 @@ import {
 	refreshProviderModelsFromSource,
 	resolveProviderConfig,
 } from "@cline/core";
+import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
@@ -21,7 +22,9 @@ import {
 	ClinePassSubscriptionContent,
 	CodexCliStatusContent,
 	type ExistingProviderOption,
+	OAuthApiKeyInputContent,
 	OAuthLoginContent,
+	type OAuthLoginResult,
 	ProviderConfigInputContent,
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
@@ -131,7 +134,25 @@ async function runProviderChange(
 	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
 
+	// Manual API key entry is the escape hatch for when OAuth login isn't
+	// working; only the Cline providers accept a dashboard API key.
+	const supportsManualApiKey = isClineProvider(newProviderId);
+	const openManualApiKeyDialog = async (): Promise<boolean | undefined> =>
+		await dialog.choice<boolean>({
+			style: { maxHeight: termHeight - 2 },
+			closeOnEscape: false,
+			content: (ctx: ChoiceContext<boolean>) => (
+				<OAuthApiKeyInputContent
+					{...ctx}
+					providerId={newProviderId}
+					providerName={displayName}
+					providerSettingsManager={manager}
+				/>
+			),
+		});
+
 	let needsAuth = true;
+	let useManualApiKey = false;
 	if (isProviderConfigured(newProviderId, existingSettings)) {
 		let option: ExistingProviderOption | undefined;
 		const extraOptions = providerToExistingProviderOptions({
@@ -140,6 +161,12 @@ async function runProviderChange(
 			dialog,
 			termHeight,
 		});
+		if (supportsManualApiKey) {
+			extraOptions.push({
+				value: "use_api_key",
+				label: "Enter API key manually",
+			});
+		}
 		while (true) {
 			option = await dialog.choice<ExistingProviderOption>({
 				style: { maxHeight: termHeight - 2 },
@@ -160,22 +187,30 @@ async function runProviderChange(
 			break;
 		}
 		needsAuth = option.value === "reconfigure";
+		useManualApiKey = option.value === "use_api_key";
 	}
 
-	if (needsAuth) {
+	if (needsAuth || useManualApiKey) {
 		let saved: boolean | undefined;
-		if (isOAuthProvider(newProviderId)) {
-			saved = await dialog.choice<boolean>({
+		if (useManualApiKey) {
+			saved = await openManualApiKeyDialog();
+		} else if (isOAuthProvider(newProviderId)) {
+			const loginResult = await dialog.choice<OAuthLoginResult>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
-				content: (ctx: ChoiceContext<boolean>) => (
+				content: (ctx: ChoiceContext<OAuthLoginResult>) => (
 					<OAuthLoginContent
 						{...ctx}
 						providerId={newProviderId}
 						providerName={displayName}
+						allowApiKeyFallback={supportsManualApiKey}
 					/>
 				),
 			});
+			saved =
+				loginResult === "use_api_key"
+					? await openManualApiKeyDialog()
+					: loginResult;
 		} else if (isOpenAICodexCliProvider(newProviderId)) {
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
