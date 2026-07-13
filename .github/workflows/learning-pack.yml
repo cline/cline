@@ -45,5 +45,8 @@ jobs:
         # resolved versions while materializing the runner-specific optional set.
         run: npm install --ignore-scripts --no-audit --no-fund
 
+      - name: Generate protocol types required by the test harness
+        run: npm run protos
+
       - name: Validate archive and signed-contract boundaries
         run: npm run test:unit -- --grep "inspectLearningPackArchive|validateLearningPackFiles"
