@@ -124,8 +124,11 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 			return
 		}
 
-		// Only handle POST requests to /task
-		if (req.method !== "POST" || req.url !== "/task") {
+		// Test-only command injection is restricted to Learning Pack lifecycle
+		// commands so CI can exercise approval decisions without automating native
+		// file pickers or modal dialogs. This server exists only in evals.env mode.
+		const commandEndpoint = req.method === "POST" && req.url === "/learning-pack-command"
+		if (req.method !== "POST" || (req.url !== "/task" && !commandEndpoint)) {
 			res.writeHead(404)
 			res.end(JSON.stringify({ error: "Not found" }))
 			return
@@ -140,7 +143,26 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 		req.on("end", async () => {
 			try {
 				// Parse the JSON body
-				const { task, apiKey } = JSON.parse(body)
+				const parsedBody = JSON.parse(body)
+				if (commandEndpoint) {
+					const allowedCommands = new Set([
+						ExtensionRegistryInfo.commands.LearningPacksInstall,
+						ExtensionRegistryInfo.commands.LearningPacksRollback,
+						ExtensionRegistryInfo.commands.LearningPacksRemove,
+					])
+					const command = String(parsedBody.command ?? "")
+					if (!allowedCommands.has(command)) {
+						res.writeHead(403, { "Content-Type": "application/json" })
+						res.end(JSON.stringify({ error: "Command is not allowed by the Learning Pack test endpoint" }))
+						return
+					}
+					const result = await vscode.commands.executeCommand(command, parsedBody.options)
+					res.writeHead(200, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ result }))
+					return
+				}
+
+				const { task, apiKey } = parsedBody
 
 				if (!task) {
 					res.writeHead(400)

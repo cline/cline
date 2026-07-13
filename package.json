@@ -150,6 +150,26 @@
 				"category": "AI-Hydro"
 			},
 			{
+				"command": "aihydro.learningPacks.install",
+				"title": "Install Learning Pack",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.learningPacks.rollback",
+				"title": "Roll Back Learning Pack",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.learningPacks.remove",
+				"title": "Remove Learning Pack",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.learningPacks.manageTrustedPublishers",
+				"title": "Manage Trusted Learning Pack Publishers",
+				"category": "AI-Hydro"
+			},
+			{
 				"command": "aihydro.historyButtonClicked",
 				"title": "Analysis History",
 				"icon": "$(history)"
@@ -378,6 +398,11 @@
 					"command": "aihydro.addFileToHtmlPreview",
 					"group": "aihydro@2",
 					"when": "resourceExtname == .html || resourceExtname == .htm"
+				},
+				{
+					"command": "aihydro.learningPacks.install",
+					"group": "aihydro@3",
+					"when": "resourceExtname == .aihydropack"
 				}
 			],
 			"editor/title": [
