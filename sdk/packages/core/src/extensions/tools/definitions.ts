@@ -344,14 +344,12 @@ export function createSearchTool(
 ): AgentTool<SearchCodebaseInput, ToolOperationResult[]> {
 	const timeoutMs = config.searchTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
-	const isWindowsAbsolutePath = (value: string): boolean =>
-		/^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(value);
 	const resolveSearchRoot = (inputPath: string | undefined): string => {
 		const trimmed = inputPath?.trim();
 		if (!trimmed) {
 			return cwd;
 		}
-		if (path.isAbsolute(trimmed) || isWindowsAbsolutePath(trimmed)) {
+		if (path.isAbsolute(trimmed) || path.win32.isAbsolute(trimmed)) {
 			return trimmed;
 		}
 		return path.resolve(cwd, trimmed);

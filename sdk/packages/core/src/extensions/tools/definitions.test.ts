@@ -434,18 +434,15 @@ describe("default search_codebase tool", () => {
 		);
 	});
 
-	it("resolves relative search paths under cwd", async () => {
+	it("resolves relative paths from legacy search_files input under cwd", async () => {
 		const execute = vi.fn(async () => "ok");
 		const tool = createSearchTool(execute, { cwd: "/workspace" });
 
-		await tool.execute(
-			{ queries: ["needle"], path: "src" },
-			{
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				iteration: 1,
-			},
-		);
+		await tool.execute({ regex: "needle", path: "src" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
 
 		expect(execute).toHaveBeenCalledWith(
 			"needle",
