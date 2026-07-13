@@ -258,7 +258,7 @@ export class Controller {
 		)
 
 		// Initialize SDK-backed auth and account services.
-		this.authService = AuthService.getInstance(this)
+		this.authService = AuthService.getInstance(this, this.sdkTelemetry.telemetry)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
