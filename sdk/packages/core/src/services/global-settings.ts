@@ -42,9 +42,8 @@ export const GlobalSettingsSchema = z
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		compactionStrategy: GlobalCompactionStrategySchema.optional(),
-		autoApprove: z.boolean().optional(),
-		mode: z.enum(["plan", "act"]).optional(),
-		verbose: z.boolean().optional(),
+		toolAutoApprove: z.boolean().optional(),
+		planActMode: z.enum(["plan", "act"]).optional(),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -54,9 +53,8 @@ export const GlobalSettingsSchema = z
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
 			compactionStrategy?: GlobalCompactionStrategy;
-			autoApprove?: boolean;
-			mode?: "plan" | "act";
-			verbose?: boolean;
+			toolAutoApprove?: boolean;
+			planActMode?: "plan" | "act";
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
@@ -66,14 +64,11 @@ export const GlobalSettingsSchema = z
 		if (settings.compactionStrategy) {
 			normalized.compactionStrategy = settings.compactionStrategy;
 		}
-		if (settings.autoApprove !== undefined) {
-			normalized.autoApprove = settings.autoApprove;
+		if (settings.toolAutoApprove !== undefined) {
+			normalized.toolAutoApprove = settings.toolAutoApprove;
 		}
-		if (settings.mode !== undefined) {
-			normalized.mode = settings.mode;
-		}
-		if (settings.verbose !== undefined) {
-			normalized.verbose = settings.verbose;
+		if (settings.planActMode !== undefined) {
+			normalized.planActMode = settings.planActMode;
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
@@ -218,28 +213,20 @@ export function setCompactionStrategyGlobally(
 	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
 }
 
-export function readAutoApproveGlobally(): boolean | undefined {
-	return readGlobalSettings().autoApprove;
+export function readToolAutoApproveGlobally(): boolean | undefined {
+	return readGlobalSettings().toolAutoApprove;
 }
 
-export function setAutoApproveGlobally(autoApprove: boolean): void {
-	writeGlobalSettings({ ...readGlobalSettings(), autoApprove });
+export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
+	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
 }
 
-export function readModeGlobally(): "plan" | "act" | undefined {
-	return readGlobalSettings().mode;
+export function readPlanActModeGlobally(): "plan" | "act" | undefined {
+	return readGlobalSettings().planActMode;
 }
 
-export function setModeGlobally(mode: "plan" | "act"): void {
-	writeGlobalSettings({ ...readGlobalSettings(), mode });
-}
-
-export function readVerboseGlobally(): boolean | undefined {
-	return readGlobalSettings().verbose;
-}
-
-export function setVerboseGlobally(verbose: boolean): void {
-	writeGlobalSettings({ ...readGlobalSettings(), verbose });
+export function setPlanActModeGlobally(planActMode: "plan" | "act"): void {
+	writeGlobalSettings({ ...readGlobalSettings(), planActMode });
 }
 
 export function resolveDisabledToolNames(

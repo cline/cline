@@ -2,8 +2,9 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import {
-	readAutoApproveGlobally,
 	readCompactionStrategyGlobally,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	type ToolPolicy,
 } from "@cline/core";
 
@@ -848,7 +849,7 @@ export async function runCli(): Promise<void> {
 		}
 	}
 	setCurrentOutputMode(args.outputMode);
-	const persistedAutoApprove = readAutoApproveGlobally();
+	const persistedAutoApprove = readToolAutoApproveGlobally();
 	const defaultToolAutoApprove = persistedAutoApprove ?? true;
 	const effectiveToolAutoApprove =
 		args.autoApproveOverride ?? defaultToolAutoApprove;
@@ -1091,7 +1092,7 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: args.mode ?? "act",
+				mode: args.mode ?? readPlanActModeGlobally() ?? "act",
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,

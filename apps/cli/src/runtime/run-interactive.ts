@@ -2,9 +2,9 @@ import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
-	setAutoApproveGlobally,
 	setCompactionStrategyGlobally,
-	setModeGlobally,
+	setPlanActModeGlobally,
+	setToolAutoApproveGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import { formatModeSwitchNotice } from "@cline/shared";
@@ -715,7 +715,7 @@ export async function runInteractive(
 		onTurnErrorReported: () => {},
 		onAutoApproveChange: (enabled) => {
 			setInteractiveAutoApprove(enabled);
-			setAutoApproveGlobally(enabled);
+			setToolAutoApproveGlobally(enabled);
 			void refreshInteractiveSessionPolicies();
 		},
 		onCompactionModeChange: async (mode) => {
@@ -726,7 +726,7 @@ export async function runInteractive(
 		},
 		onModeChange: async (mode) => {
 			if (!isInteractiveMode(mode)) return;
-			setModeGlobally(mode);
+			setPlanActModeGlobally(mode);
 			if (isRunning) {
 				pendingModeChange.current = mode;
 				pendingModeChange.source = "ui";
