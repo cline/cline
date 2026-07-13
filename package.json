@@ -623,6 +623,7 @@
 		"@types/sinon": "^17.0.4",
 		"@types/turndown": "^5.0.5",
 		"@types/vscode": "1.84.0",
+		"@types/yauzl": "^2.10.3",
 		"@vscode/test-cli": "^0.0.10",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.2",
@@ -652,6 +653,7 @@
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
+		"@ar-nelson/foldcase": "^1.0.1",
 		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
 		"@aws-sdk/credential-providers": "^3.840.0",
 		"@bufbuild/protobuf": "^2.2.5",
@@ -745,6 +747,7 @@
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
+		"yauzl": "^3.4.0",
 		"zod": "^3.24.2"
 	},
 	"c8": {

@@ -1,0 +1,53 @@
+name: Learning Pack Contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/learning-pack.yml"
+      - "package-lock.json"
+      - "package.json"
+      - "schemas/learning-pack/**"
+      - "src/services/learning-pack/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/learning-pack.yml"
+      - "package-lock.json"
+      - "package.json"
+      - "schemas/learning-pack/**"
+      - "src/services/learning-pack/**"
+
+permissions:
+  contents: read
+
+jobs:
+  archive-contract:
+    name: archive-contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies from the repository lock
+        # The inherited lock omits optional binaries for non-authoring OSes, so
+        # npm ci rejects it cross-platform. npm install still honors locked
+        # resolved versions while materializing the runner-specific optional set.
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Validate archive and signed-contract boundaries
+        env:
+          TS_NODE_PROJECT: ./tsconfig.unit-test.json
+        run: >-
+          npx mocha --no-config --require ts-node/register --extension ts
+          "src/services/learning-pack/__tests__/*.test.ts" --reporter spec
