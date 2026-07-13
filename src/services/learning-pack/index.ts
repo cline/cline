@@ -1,4 +1,7 @@
 export * from "./canonicalJson"
 export * from "./inspectLearningPackArchive"
+export * from "./lifecycleStorage"
+export * from "./learningPackLifecycle"
+export * from "./trustStore"
 export * from "./types"
 export * from "./validateLearningPack"
