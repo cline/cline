@@ -17,6 +17,7 @@ import { createSessionCompactionState } from "../../session/models/session-compa
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
+import type { CoreSessionEvent } from "../../types/events";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { type StartSessionInput, splitCoreSessionConfig } from "./runtime-host";
 
@@ -4927,7 +4928,68 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("force refreshes and retries once when turn fails with auth error", async () => {
+	const retriedOAuthResult = createResult({
+		text: "retried",
+		usage: {
+			inputTokens: 9,
+			outputTokens: 4,
+			cacheReadTokens: 2,
+			cacheWriteTokens: 1,
+			totalCost: 0.11,
+		},
+		model: {
+			id: "claude-sonnet-4-6",
+			provider: "anthropic",
+			info: {
+				id: "claude-sonnet-4-6",
+				family: "claude-sonnet-4",
+			},
+		},
+		messages: [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "retried" }] },
+		],
+	});
+
+	it.each([
+		{
+			behavior: "throws",
+			firstAttempt: () => Promise.reject(new Error("401 Unauthorized")),
+			secondAttempt: retriedOAuthResult,
+			expectedErrorEvents: 0,
+		},
+		{
+			behavior: "returns an error result",
+			firstAttempt: () =>
+				Promise.resolve(
+					createResult({
+						finishReason: "error",
+						text: "Unauthorized: Please re-authenticate your Cline account.",
+					}),
+				),
+			secondAttempt: retriedOAuthResult,
+			expectedErrorEvents: 0,
+		},
+		{
+			behavior: "remains unauthorized after retry",
+			firstAttempt: () =>
+				Promise.resolve(
+					createResult({
+						finishReason: "error",
+						text: "Unauthorized: Please re-authenticate your Cline account.",
+					}),
+				),
+			secondAttempt: createResult({
+				finishReason: "error",
+				text: "Unauthorized: Please re-authenticate your Cline account.",
+			}),
+			expectedErrorEvents: 1,
+		},
+	])("force refreshes and retries once when turn $behavior an auth error", async ({
+		firstAttempt,
+		secondAttempt,
+		expectedErrorEvents,
+	}) => {
 		const sessionId = "sess-oauth-retry";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -4955,33 +5017,29 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn(),
 			}),
 		};
+		let emitAgentEvent: ((event: AgentEvent) => void) | undefined;
 		const run = vi
 			.fn()
-			.mockRejectedValueOnce(new Error("401 Unauthorized"))
-			.mockResolvedValueOnce(
-				createResult({
-					text: "retried",
-					usage: {
-						inputTokens: 9,
-						outputTokens: 4,
-						cacheReadTokens: 2,
-						cacheWriteTokens: 1,
-						totalCost: 0.11,
-					},
-					model: {
-						id: "claude-sonnet-4-6",
-						provider: "anthropic",
-						info: {
-							id: "claude-sonnet-4-6",
-							family: "claude-sonnet-4",
-						},
-					},
-					messages: [
-						{ role: "user", content: [{ type: "text", text: "hello" }] },
-						{ role: "assistant", content: [{ type: "text", text: "retried" }] },
-					],
-				}),
-			);
+			.mockImplementationOnce(async () => {
+				emitAgentEvent?.({
+					type: "error",
+					error: new Error("401 Unauthorized"),
+					recoverable: false,
+					iteration: 1,
+				});
+				return await firstAttempt();
+			})
+			.mockImplementationOnce(async () => {
+				if (secondAttempt.finishReason === "error") {
+					emitAgentEvent?.({
+						type: "error",
+						error: new Error(secondAttempt.text),
+						recoverable: false,
+						iteration: 1,
+					});
+				}
+				return secondAttempt;
+			});
 		const restore = vi.fn();
 		const updateConnection = vi.fn();
 		const resolveProviderApiKey = vi
@@ -5003,7 +5061,10 @@ describe("LocalRuntimeHost", () => {
 					run,
 					continue: vi.fn(),
 					abort: vi.fn(),
-					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					subscribeEvents: vi.fn((listener: (event: AgentEvent) => void) => {
+						emitAgentEvent = listener;
+						return () => {};
+					}),
 					canStartRun: vi.fn().mockReturnValue(true),
 					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -5025,10 +5086,32 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
+		const events: CoreSessionEvent[] = [];
+		manager.subscribe((event) => events.push(event));
 		const result = await manager.runTurn({ sessionId, prompt: "hello" });
 
-		expect(result?.text).toBe("retried");
+		expect(result).toMatchObject({
+			text: secondAttempt.text,
+			finishReason: secondAttempt.finishReason,
+		});
 		expect(run).toHaveBeenCalledTimes(2);
+		expect(
+			events.filter(
+				(event) =>
+					event.type === "agent_event" && event.payload.event.type === "error",
+			),
+		).toHaveLength(expectedErrorEvents);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "agent_event",
+				payload: expect.objectContaining({
+					event: expect.objectContaining({
+						type: "error",
+						error: expect.objectContaining({ message: "401 Unauthorized" }),
+					}),
+				}),
+			}),
+		);
 		expect(restore).toHaveBeenCalledTimes(1);
 		expect(resolveProviderApiKey).toHaveBeenNthCalledWith(1, {
 			providerId: "openai-codex",
@@ -5044,6 +5127,8 @@ describe("LocalRuntimeHost", () => {
 		expect(updateConnectionDefaults).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
 		});
+		if (secondAttempt.finishReason !== "completed") return;
+
 		expect(sessionService.persistSessionMessages).toHaveBeenCalledTimes(1);
 		const persisted = (
 			sessionService.persistSessionMessages as ReturnType<typeof vi.fn>

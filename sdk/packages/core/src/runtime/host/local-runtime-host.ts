@@ -193,6 +193,20 @@ function isIncomingCompactionStateStale(
 	return Date.parse(incoming.updated_at) < Date.parse(current.updated_at);
 }
 
+function isLikelyOAuthAuthEvent(event: AgentEvent): boolean {
+	if (event.type === "error") {
+		return isLikelyAuthError(event.error);
+	}
+	if (event.type === "done" && event.reason === "error") {
+		return isLikelyAuthError(event.text.toLowerCase());
+	}
+	return (
+		event.type === "notice" &&
+		event.reason === "api_error" &&
+		isLikelyAuthError(event.message.toLowerCase())
+	);
+}
+
 export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
@@ -237,6 +251,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly pendingPromptsController: PendingPromptsController;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
+	private readonly deferredOAuthAuthEvents = new Map<
+		string,
+		Array<{ config: CoreSessionConfig; event: AgentEvent }>
+	>();
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -292,6 +310,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method, ...args) =>
 				this.invokeOptional(method, ...args),
 		});
+	}
+
+	private dispatchAgentEvent(
+		sessionId: string,
+		config: CoreSessionConfig,
+		event: AgentEvent,
+	): void {
+		const deferred = this.deferredOAuthAuthEvents.get(sessionId);
+		if (deferred && isLikelyOAuthAuthEvent(event)) {
+			deferred.push({ config, event });
+			return;
+		}
+		this.eventBridge.dispatchAgentEvent(sessionId, config, event);
+	}
+
+	private flushDeferredOAuthAuthEvents(sessionId: string): void {
+		const deferred = this.deferredOAuthAuthEvents.get(sessionId);
+		if (!deferred) return;
+		this.deferredOAuthAuthEvents.delete(sessionId);
+		for (const { config, event } of deferred) {
+			this.eventBridge.dispatchAgentEvent(sessionId, config, event);
+		}
 	}
 
 	private async applyInitialOAuthCredentials(
@@ -610,11 +650,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			logger: runtime.logger ?? configWithProvider.logger,
 			extensionContext: configWithProvider.extensionContext,
 			onEvent: (event: AgentEvent) =>
-				this.eventBridge.dispatchAgentEvent(
-					sessionId,
-					configWithProvider,
-					event,
-				),
+				this.dispatchAgentEvent(sessionId, configWithProvider, event),
 		} as AgentConfig;
 		agentConfig.hooks = {
 			...agentConfig.hooks,
@@ -1989,18 +2025,37 @@ export class LocalRuntimeHost implements RuntimeHost {
 		run: () => Promise<AgentResult>,
 		baselineMessages: LlmsProviders.Message[],
 	): Promise<AgentResult> {
+		const canRetry = isOAuthProvider(session.config.providerId);
+		if (canRetry) {
+			this.deferredOAuthAuthEvents.set(session.sessionId, []);
+		}
 		try {
-			return await run();
-		} catch (error) {
+			let result: AgentResult;
+			try {
+				result = await run();
+			} catch (error) {
+				if (!canRetry || !isLikelyAuthError(error)) {
+					throw error;
+				}
+				await this.syncOAuthCredentials(session, { forceRefresh: true });
+				session.agent.restore(baselineMessages);
+				this.deferredOAuthAuthEvents.delete(session.sessionId);
+				return await run();
+			}
+
 			if (
-				!isOAuthProvider(session.config.providerId) ||
-				!isLikelyAuthError(error)
+				!canRetry ||
+				result.finishReason !== "error" ||
+				!isLikelyAuthError(result.text.toLowerCase())
 			) {
-				throw error;
+				return result;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
 			session.agent.restore(baselineMessages);
-			return run();
+			this.deferredOAuthAuthEvents.delete(session.sessionId);
+			return await run();
+		} finally {
+			this.flushDeferredOAuthAuthEvents(session.sessionId);
 		}
 	}
 
