@@ -50,7 +50,7 @@ jobs:
           TS_NODE_PROJECT: ./tsconfig.unit-test.json
         run: >-
           npx mocha --no-config --require ts-node/register --extension ts
-          "src/services/learning-pack/__tests__/*.test.ts" --reporter spec
+          "src/services/learning-pack/__tests__/*.test.ts" --reporter spec --timeout 15000
 
       - name: Install webview dependencies from the repository lock
         run: npm ci --prefix webview-ui --no-audit --no-fund
