@@ -94,7 +94,8 @@ export class PreviewCommandWatcher {
 	}
 
 	private async applyCommand(cmd: PreviewCommandPayload): Promise<void> {
-		const moduleId = cmd.module_id ?? "unknown"
+		const requestedModuleId = cmd.module_id ?? "unknown"
+		const moduleId = this.controller.resolvePreviewModuleId?.(requestedModuleId) ?? requestedModuleId
 		switch (cmd.type) {
 			case "focus_cell": {
 				if (!cmd.cell_id) {

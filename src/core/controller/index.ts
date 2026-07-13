@@ -1489,6 +1489,10 @@ export class Controller {
 		this._moduleIdResolver = resolver
 	}
 
+	resolvePreviewModuleId(id: string): string {
+		return this._moduleIdResolver?.(id) ?? id
+	}
+
 	removeHtmlPreview(id: string): void {
 		console.log(`[Controller] Removing HTML preview: ${id}`)
 		this.artifactKernelService.stopSessionsForArtifact(id)
@@ -1505,7 +1509,7 @@ export class Controller {
 		// module once its tab is closed.  Use the pluggable resolver so the host
 		// can translate VS Code file IDs → manifest module IDs without a circular
 		// import between the controller and VscodeHtmlPreviewProvider.
-		const resolvedModuleId = this._moduleIdResolver?.(id) ?? id
+		const resolvedModuleId = this.resolvePreviewModuleId(id)
 		this.previewSessionService.clearModule(resolvedModuleId)
 		if (resolvedModuleId !== id) {
 			this.previewSessionService.cleanupDiskFiles(id)

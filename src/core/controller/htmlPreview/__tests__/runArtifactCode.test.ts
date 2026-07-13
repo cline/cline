@@ -38,6 +38,10 @@ describe("runArtifactCode", () => {
 					kernelDirty: true,
 				}),
 			})) as unknown as Controller["getArtifactKernelService"],
+			resolvePreviewModuleId: (id: string) => (id === "artifact_1" ? "water-balance" : id),
+			previewSessionService: {
+				appendEvent: sinon.stub(),
+			} as unknown as Controller["previewSessionService"],
 		}
 	})
 
@@ -77,6 +81,12 @@ describe("runArtifactCode", () => {
 		expect(executeStub.firstCall.args[1]).to.equal("artifact_1")
 		expect(executeStub.firstCall.args[2]).to.equal("profile_abc")
 		expect(executeStub.firstCall.args[4]).to.equal("cell-1")
+		const appendEvent = mockController.previewSessionService?.appendEvent as sinon.SinonStub
+		expect(appendEvent.calledTwice).to.be.true
+		for (const call of appendEvent.getCalls()) {
+			expect(call.args[0].moduleId).to.equal("water-balance")
+			expect(JSON.parse(call.args[0].payloadJson).moduleId).to.equal("water-balance")
+		}
 	})
 
 	it("requires artifact_id", async () => {

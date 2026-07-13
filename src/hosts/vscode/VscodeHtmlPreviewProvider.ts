@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import type { ArtifactRef } from "@/services/artifact-preview/ArtifactPreviewService"
 import { buildPreviewCsp } from "@/services/artifact-preview/buildPreviewCsp"
 import { loadCourseManifest } from "@/services/htmlPreview/courseLoader"
+import { resolveCourseNavigationIntent } from "@/services/htmlPreview/courseNavigationIntent"
 import {
 	loadProgress as loadCourseProgress,
 	markComplete as markCourseComplete,
@@ -227,15 +228,17 @@ export class VscodeHtmlPreviewProvider {
 									// written to disk under the raw VS Code file ID.  Retroactively
 									// delete those stale entries — the canonical module-ID file is
 									// the authoritative source from this point on.
-									svc.cleanupDiskFiles(rawId)
+									svc.resolveModuleIdentity(rawId, parsed.id)
 								}
 							}
 							const resolvedModuleId = VscodeHtmlPreviewProvider.fileIdToModuleId.get(rawId) ?? rawId
+							if (parsed.moduleId === rawId) parsed.moduleId = resolvedModuleId
+							if (parsed.module_id === rawId) parsed.module_id = resolvedModuleId
 							svc.appendEvent({
 								moduleId: resolvedModuleId,
 								cellId: typeof parsed.cellId === "string" ? parsed.cellId : undefined,
 								kind,
-								payloadJson: payload,
+								payloadJson: JSON.stringify(parsed),
 								timestampMs: Number(message.timestampMs) || Date.now(),
 								source: String(message.source ?? "user"),
 							})
@@ -506,20 +509,12 @@ export class VscodeHtmlPreviewProvider {
 					try {
 						const raw = fs.readFileSync(intentFile, "utf8")
 						const intent = JSON.parse(raw)
-						const ts = typeof intent.timestamp === "number" ? intent.timestamp : 0
-						// Ignore replays of already-handled intents and stale ones
-						if (ts <= lastTimestamp) return
-						if (Date.now() - ts > 10_000) {
-							lastTimestamp = ts
-							return
-						}
-						lastTimestamp = ts
+						const decision = resolveCourseNavigationIntent(intent, lastTimestamp)
+						lastTimestamp = decision.lastTimestamp
+						if (!decision.intent) return
 						panel.webview.postMessage({
 							type: "aihydro-agent-navigate",
-							courseId: String(intent.courseId ?? ""),
-							moduleId: String(intent.moduleId ?? ""),
-							reason: String(intent.reason ?? ""),
-							timestamp: ts,
+							...decision.intent,
 						})
 					} catch (err) {
 						console.warn("[VscodeHtmlPreviewProvider] nav-intent read failed:", err)
