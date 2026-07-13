@@ -51,7 +51,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version-file: runtime/.nvmrc
+          # Match the production runtime matrix. The repository's `lts/*`
+          # .nvmrc currently resolves to Node 24/npm 11, which rejects the
+          # inherited cross-platform optional-dependency lock representation.
+          node-version: 22
           cache: npm
           cache-dependency-path: |
             runtime/package-lock.json
@@ -68,14 +71,6 @@ jobs:
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ runner.temp }}/phase1/artifacts
-
-      - name: Install the pinned runtime dependencies
-        working-directory: runtime
-        shell: bash
-        run: |
-          npm ci
-          npm ci --prefix webview-ui
-          python -m pip install --disable-pip-version-check matplotlib
 
       - name: Configure pinned integration inputs
         working-directory: runtime
@@ -124,6 +119,16 @@ jobs:
             echo "AIHYDRO_PHASE1_PACK_PATH=$RUNNER_TEMP/phase1/artifacts/$INPUT_STUDENT_ARCHIVE"
           } >> "$GITHUB_ENV"
 
+      - name: Install the pinned runtime dependencies
+        working-directory: runtime
+        shell: bash
+        run: |
+          npm ci
+          npm ci --prefix webview-ui
+          python -m pip install --disable-pip-version-check matplotlib
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
       - name: Verify commits, schema snapshot, archives, signatures, and provenance
         id: verify
         continue-on-error: true
@@ -160,10 +165,13 @@ jobs:
         env:
           PHASE1_VERIFICATION_RESULT: ${{ steps.verify.outcome }}
           PHASE1_RUNTIME_RESULT: ${{ steps.runtime.outcome }}
-        run: >-
-          TS_NODE_PROJECT=./tsconfig.unit-test.json
-          node --require ts-node/register --require tsconfig-paths/register
-          scripts/phase1-integration-evidence.ts finalize
+          PHASE1_VERIFICATION_PATH: ${{ runner.temp }}/phase1/verification.json
+          PHASE1_EVIDENCE_PATH: ${{ github.workspace }}/runtime/test-results/phase1-evidence.json
+          PHASE1_BOOK_REPOSITORY: ${{ inputs.book_repository }}
+          PHASE1_BOOK_COMMIT: ${{ inputs.book_commit }}
+          PHASE1_RUNTIME_COMMIT: ${{ inputs.runtime_commit }}
+          PHASE1_SCHEMA_SHA256: ${{ inputs.schema_sha256 }}
+        run: node scripts/phase1-finalize-evidence.mjs
 
       - name: Upload only the sanitized Phase 1 evidence record
         if: always()
