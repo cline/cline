@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, sign } from "node:crypto"
+import { createHash, createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto"
 import { canonicalJsonBytes } from "../canonicalJson"
 import type { LearningPackManifest } from "../types"
 
@@ -18,22 +18,31 @@ function moduleHtml(id: string, executable: boolean): Buffer {
 	)
 }
 
-export function createValidLearningPackFiles(options?: { secondModuleBytes?: Uint8Array }): {
+export function createValidLearningPackFiles(options?: {
+	secondModuleBytes?: Uint8Array
+	version?: string
+	edition?: "student" | "instructor"
+	packId?: string
+	courseId?: string
+	privateKey?: KeyObject
+}): {
 	files: Map<string, Uint8Array>
 	fingerprint: string
 } {
-	const { privateKey, publicKey } = generateKeyPairSync("ed25519")
+	const generated = options?.privateKey ? undefined : generateKeyPairSync("ed25519")
+	const privateKey = options?.privateKey ?? generated!.privateKey
+	const publicKey = options?.privateKey ? createPublicKey(options.privateKey) : generated!.publicKey
 	const publicKeyDer = publicKey.export({ format: "der", type: "spki" })
 	const fingerprint = `sha256:${createHash("sha256").update(publicKeyDer).digest("hex")}`
 	const manifest: LearningPackManifest = {
 		schemaVersion: 1,
-		packId: "hmfp",
-		version: "0.1.0",
-		edition: "student",
+		packId: options?.packId ?? "hmfp",
+		version: options?.version ?? "0.1.0",
+		edition: options?.edition ?? "student",
 		title: "Hydrologic Modeling from First Principles",
 		license: "CC-BY-4.0",
 		publisher: { name: "Synthetic Test", keyId: fingerprint },
-		ownership: { courseId: "hmfp", moduleIds: TEST_MODULE_IDS },
+		ownership: { courseId: options?.courseId ?? "hmfp", moduleIds: TEST_MODULE_IDS },
 		entryModuleId: TEST_MODULE_IDS[0],
 		compatibility: { aiHydro: ">=0.2.5 <0.3.0", packApi: 1, runtimeContract: "html-preview-v1" },
 		capabilities: { localPython: "terminal-equivalent", webExternalOrigins: [] },
@@ -41,7 +50,7 @@ export function createValidLearningPackFiles(options?: { secondModuleBytes?: Uin
 		provenancePath: "provenance/provenance.json",
 	}
 	const course = {
-		courseId: "hmfp",
+		courseId: options?.courseId ?? "hmfp",
 		title: "Synthetic Course",
 		modules: TEST_MODULE_IDS.map((id) => ({ id, path: `modules/${id}/module.html`, title: id })),
 	}

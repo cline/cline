@@ -15,9 +15,34 @@ platform-ambiguous paths, and Unicode normalization or full case-folding
 collisions. After preflight, it streams file bytes into the same canonical
 contract validator and returns a defensive, immutable inspection result.
 
-It does not yet install or extract archives into runtime state, persist publisher
-trust, add remote or marketplace transport, install dependencies, authorize
-instructor roles, sandbox Python, or make client-side quizzes secure.
+It does not yet expose installation commands or resolve installed packs into the
+course runtime. It does not add remote or marketplace transport, install
+dependencies, authorize instructor roles, sandbox Python, or make client-side
+quizzes secure.
+
+## Transactional lifecycle
+
+The lifecycle service consumes only a valid immutable archive inspection. A
+cancelled approval returns before creating storage. Install Once approves only the
+exact inspected archive; Trust Publisher and Install adds the derived fingerprint
+to the atomic local trust store as part of the same recoverable transaction.
+
+Install, rollback, and removal use a per-pack cross-process lock plus a short
+registry lock for ownership collision safety. Staging and activation remain on the
+same filesystem. The persisted journal advances through `preflight`, `staged`,
+`verified`, `registry-prepared`, `activated`, `committed`, and
+`cleanup-complete`. Recovery rolls pre-commit work back and completes post-commit
+cleanup, and is safe to repeat.
+
+Normal upgrades require greater SemVer precedence. Identical same-version content
+is a no-op; altered same-precedence content and direct downgrades are rejected.
+Prerelease targets require explicit opt-in. The registry retains only the active
+version and one verified predecessor. Removal deletes their pack-owned directories
+and registry record while leaving publisher trust and learning/runtime state
+untouched.
+
+Command-palette UI, legacy-registry discovery, scoped course/control integration,
+and installed-pack CSP remain separate runtime-integration work.
 
 The signature binds the exact bytes in `checksums.json` to an Ed25519 key. AI-Hydro
 derives the key fingerprint from the verified public key. A valid signature from an
