@@ -354,7 +354,6 @@ export class Controller {
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
-				await this.providerChanges.handleTurnComplete(this.mode)
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)

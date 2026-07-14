@@ -128,7 +128,9 @@ export async function executeForeground(
 	}
 
 	const bufferedOutput =
-		droppedLines > 0 ? [...outputLines, `\n... (${droppedLines} earlier lines dropped) ...\n`].join("\n") : outputLines.join("\n")
+		droppedLines > 0
+			? [...outputLines, `\n... (${droppedLines} earlier lines dropped) ...\n`].join("\n")
+			: outputLines.join("\n")
 	const output = truncateCommandOutput(bufferedOutput.trim(), {
 		maxChars: maxOutputChars,
 	})
@@ -158,9 +160,7 @@ export async function executeForeground(
 	const exitCode = completionDetails?.exitCode
 	if (exitCode !== undefined && exitCode !== null && exitCode !== 0) {
 		const result =
-			output.length > 0
-				? `[Command exited with code ${exitCode}]\n${output}`
-				: `[Command exited with code ${exitCode}]`
+			output.length > 0 ? `[Command exited with code ${exitCode}]\n${output}` : `[Command exited with code ${exitCode}]`
 		throw new CommandExitError(exitCode, result)
 	}
 
