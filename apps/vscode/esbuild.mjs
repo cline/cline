@@ -145,6 +145,7 @@ const baseConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
+	target: "node22.15",
 	banner: {
 		js: "const _importMetaUrl=require('url').pathToFileURL(__filename)",
 	},

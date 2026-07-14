@@ -42,6 +42,7 @@ describe("VscodeTerminalManager", () => {
 					cwd: vscode.Uri.file("/tmp/cline-original"),
 					executeCommand: executeCommandStub,
 				},
+				show: sandbox.stub(),
 			} as unknown as vscode.Terminal,
 		}
 		const getAllTerminalsStub = sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])

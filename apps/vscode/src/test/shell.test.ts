@@ -100,14 +100,14 @@ describe("Shell Detection Tests", () => {
 			mockVsCodeConfig("windows", "WSL", {
 				WSL: { source: "WSL" },
 			})
-			expect(getShell()).to.equal("/bin/bash")
+			expect(getShell()).to.equal("C:\\Windows\\System32\\wsl.exe")
 		})
 
 		it("uses WSL bash when profile name includes 'wsl'", () => {
 			mockVsCodeConfig("windows", "Ubuntu WSL", {
 				"Ubuntu WSL": {},
 			})
-			expect(getShell()).to.equal("/bin/bash")
+			expect(getShell()).to.equal("C:\\Windows\\System32\\wsl.exe")
 		})
 
 		it("defaults to cmd.exe if no special profile is matched", () => {
