@@ -1,5 +1,8 @@
 # Cline v3.35.0 → v3.82.0 Triage Report (for AI-Hydro fork)
 
+> **Sync cadence:** see `DECISIONS.md` (2026-07-08 entry) — quarterly batches
+> with a security fast-path. Next scheduled sync: **2026-08-10**.
+
 ## Ported (Batch 1 + Batch 2 — 2026-05-10)
 
 ### Batch 1 (commit `592293271`, `552c42114`, `8ccba590b`)

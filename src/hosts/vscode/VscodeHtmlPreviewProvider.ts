@@ -580,6 +580,12 @@ export class VscodeHtmlPreviewProvider {
 	<div id="root"></div>
 	<script nonce="${nonce}">
 		window.AIHYDRO_HTML_PREVIEW_STANDALONE = true;
+		// See WebviewProvider.ts for why: guards against a documented blank-webview
+		// crash in some runtimes when @vscode/webview-ui-toolkit's fast-element
+		// lazily calls new CSSStyleSheet().
+		if (typeof window.CSSStyleSheet === "undefined") {
+			window.CSSStyleSheet = function CSSStyleSheet() {};
+		}
 	</script>
 	<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>

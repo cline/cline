@@ -3,7 +3,7 @@ import { AiHydroMessage, AiHydroSayBrowserAction, BrowserAction, BrowserActionRe
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"

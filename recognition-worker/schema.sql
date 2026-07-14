@@ -36,3 +36,20 @@ CREATE TABLE IF NOT EXISTS item_stars (
 
 CREATE INDEX IF NOT EXISTS idx_item_stars_marketplace_item
   ON item_stars (marketplace, item_id);
+
+-- Server-derived per-day dedup key (see hashDedupKey() in src/index.ts).
+-- Bounds how many times one (IP, User-Agent) pair can inflate a counter for
+-- the same (marketplace, item_id, event_type) in a UTC day. This raises the
+-- cost of casual/accidental inflation (e.g. a retry loop, a buggy client);
+-- it does not stop a determined attacker who controls IP + UA per request
+-- (unlike the previously-trusted client-supplied clientIdHash, at least this
+-- key is not directly client-chosen).
+CREATE TABLE IF NOT EXISTS daily_dedup (
+  marketplace TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  dedup_key TEXT NOT NULL,
+  day TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (marketplace, item_id, event_type, dedup_key, day)
+);

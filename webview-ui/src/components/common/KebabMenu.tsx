@@ -46,7 +46,7 @@ interface KebabMenuProps {
 
 export const KebabMenu: React.FC<KebabMenuProps> = ({ items, trigger, title }) => {
 	const [open, setOpen] = useState(false)
-	const triggerRef = useRef<HTMLButtonElement>(null)
+	const triggerRef = useRef<HTMLButtonElement | null>(null)
 
 	const { refs, floatingStyles } = useFloating({
 		placement: "bottom-end",

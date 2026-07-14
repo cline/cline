@@ -127,17 +127,17 @@ export function featureContainsPoint(feature: InspectFeatureRef["feature"], lon:
 	return false
 }
 
-export function collectFeaturesAtPoint(
-	layers: Array<{ id: string; name: string; geojson: string }>,
+export function collectFeaturesAtPoint<L extends { id: string; name: string; geojson: string }>(
+	layers: L[],
 	visibleLayerIds: Set<string>,
-	isVectorLayer: (layer: { geojson: string; layerType: string }) => boolean,
+	isVectorLayer: (layer: L) => boolean,
 	lon: number,
 	lat: number,
 ): Array<{ layerId: string; layerName: string; properties: Record<string, unknown>; geometry?: unknown }> {
 	const clicked: Array<{ layerId: string; layerName: string; properties: Record<string, unknown>; geometry?: unknown }> = []
 
 	for (const layer of layers) {
-		if (!visibleLayerIds.has(layer.id) || !isVectorLayer(layer as { geojson: string; layerType: string })) {
+		if (!visibleLayerIds.has(layer.id) || !isVectorLayer(layer)) {
 			continue
 		}
 		try {

@@ -13,6 +13,52 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.2.6] — 2026-07-09
+
+### Fixed — Security findings from the extension audit
+
+Nine findings from a focused security + product audit of the extension
+(`audits/extension-audit-2026-07-09.md`, ecosystem root) were closed:
+
+- **Dependency vulnerabilities**: `npm audit fix` (79 → 27 vulns); removed
+  two OpenTelemetry packages (`exporter-prometheus`, `sdk-node`) that were
+  the last remaining high-severity issues after confirming they were
+  imported nowhere in the codebase. Production dependency tree is now at
+  22 vulnerabilities, all moderate, zero high/critical. CI now hard-gates
+  on `npm audit --omit=dev --audit-level=high`.
+- **Marketplace download integrity**: module/course installs now validate
+  `downloadUrl`/`manifestUrl` against an allowlist of the configured
+  marketplace origins before fetching, instead of trusting any URL the
+  remote index returns.
+- **HTML preview iframe**: narrowed the Content-Security-Policy
+  `connect-src` from an unrestricted `https:` to the specific CDN/tile
+  origins already trusted for scripts and tiles, closing an exfiltration
+  channel for data rendered into preview artifacts.
+- **Artifact kernel**: the Python subprocess backing HTML Preview cells no
+  longer inherits the full host environment — secret-shaped variables
+  (API keys, tokens, cloud credentials) are scrubbed before spawn, matching
+  the hardening already applied on the Python `run_python` MCP tool.
+- **GEE tile proxy**: now allowlists the tile-template host to
+  `earthengine.googleapis.com` and reflects the CORS origin only for
+  `vscode-webview://*` callers instead of a wildcard `*`.
+- **Local command IPC**: the file-based command channel used by MCP tools
+  to drive the Map and HTML Preview panels now validates every command
+  against a schema before dispatch.
+- **Privacy documentation**: added `PRIVACY.md` describing exactly what
+  telemetry is collected by default (PostHog, opt-out via Settings), what's
+  opt-in only (OpenTelemetry), and what isn't telemetry at all (Firebase is
+  the auth backend). Removed the unused `@sentry/browser` dependency.
+- **Accessibility**: re-enabled Biome's `a11y` rule set for AI-Hydro-authored
+  components (map, HTML preview, connectors, skills panels) — found zero
+  violations.
+- Removed a stray, broken demo script at the repo root that was silently
+  breaking Python test collection.
+
+See `audits/STATUS.md` (ecosystem root) for the full finding-by-finding
+evidence trail.
+
+---
+
 ## [0.2.5] — 2026-05-30
 
 ### Fixed — Ghost file-ID session entries

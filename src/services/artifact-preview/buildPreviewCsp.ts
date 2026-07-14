@@ -32,6 +32,22 @@
  *      This bit us in 0.1.18: Leaflet loaded (`L=true`), the map div was
  *      properly sized, but `tiles=0` and no zoom controls — because the
  *      inline `L.map(…)` init script was silently blocked by CSP.
+ *
+ *   5. SECURITY NOTE — `allow-same-origin` on the `srcdoc` iframe
+ *      (HtmlPreviewView.tsx's `SANDBOX_ATTR`) is a deliberate, documented
+ *      trade-off, not an oversight (audit finding E-3, 2026-07-09). Dropping
+ *      it would sandbox the iframe into a unique opaque origin, which breaks
+ *      `captureFrameDiag()` — the Details diagnostics panel that reads
+ *      `iframe.contentDocument`/`contentWindow` directly to show script/
+ *      stylesheet inventory, Leaflet/Folium map-div sizing, and captured
+ *      runtime errors. That diagnostic is what turns "the map is blank" into
+ *      an actionable message, and rebuilding it on postMessage alone (every
+ *      artifact would need cooperative instrumentation for every DOM query
+ *      the diagnostics strip performs) is a larger refactor than this pass.
+ *      What we *can* and do narrow without that cost is `connect-src`
+ *      (below): previously `https:` (any HTTPS host — an open exfiltration
+ *      channel for anything rendered into the iframe), now scoped to the
+ *      same origins already trusted for scripts/tiles.
  */
 
 export interface BuildPreviewCspOptions {
@@ -93,9 +109,12 @@ export function buildPreviewCsp(options: BuildPreviewCspOptions): string {
 		// without an explicit media-src these are blocked under default-src 'none'.
 		`media-src ${cspSource} data: blob:`,
 		// Artifacts (Plotly, Leaflet) frequently make XHR/fetch requests for
-		// tile data and asset bundles; we allow https: broadly here because
-		// the iframe document context is the security boundary.
-		`connect-src ${cspSource} https: data: blob:`,
+		// tile data and asset bundles. Scoped to the same CDN/tile origins
+		// already trusted for script-src/img-src, rather than blanket
+		// `https:` — an artifact that could previously fetch() to any HTTPS
+		// host can no longer use that as an exfiltration channel for data
+		// rendered into the iframe (audit finding E-3, 2026-07-09).
+		`connect-src ${cspSource} data: blob: ${cdnScripts} ${tileSources}`,
 		// `frame-src` controls iframes our React shell can load. We allow:
 		//   • `'self'` — required by some CSP implementations for the
 		//     `about:srcdoc` URL that `<iframe srcdoc>` resolves to.

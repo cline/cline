@@ -8,30 +8,10 @@ import { MapRoi } from "@shared/proto/cline/map"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { type MapCommandPayload, mapCommandSchema } from "./mapCommandSchema"
 
 const MAP_COMMANDS_DIR = path.join(os.homedir(), ".aihydro", "map_commands")
 const POLL_INTERVAL_MS = 250
-
-interface MapCommandPayload {
-	type: string
-	layer_id?: string
-	roi?: {
-		id?: string
-		name?: string
-		source?: string
-		geojson?: string
-		area_ha?: number
-		workspace_path?: string
-	}
-	open_map?: boolean
-	visible?: boolean
-	display_name?: string
-	clear_graduated?: boolean
-	style?: Record<string, string | number>
-	metadata?: Record<string, string>
-	basemap_id?: string
-	basemap_name?: string
-}
 
 export class MapCommandWatcher {
 	private intervalId: NodeJS.Timeout | null = null
@@ -68,8 +48,12 @@ export class MapCommandWatcher {
 				try {
 					const raw = await fs.readFile(filePath, "utf8")
 					await fs.unlink(filePath)
-					const cmd = JSON.parse(raw) as MapCommandPayload
-					await this.applyCommand(cmd)
+					const parsed = mapCommandSchema.safeParse(JSON.parse(raw))
+					if (!parsed.success) {
+						console.warn("[MapCommandWatcher] Rejected malformed command file:", file, parsed.error.message)
+						continue
+					}
+					await this.applyCommand(parsed.data)
 				} catch (err) {
 					console.warn("[MapCommandWatcher] Failed command file:", file, err)
 					try {

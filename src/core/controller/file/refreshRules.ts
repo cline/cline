@@ -20,8 +20,12 @@ export async function refreshRules(controller: Controller, _request: EmptyReques
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller, cwd)
 
 		return RefreshedRules.create({
-			globalClineRulesToggles: { toggles: globalToggles },
-			localClineRulesToggles: { toggles: localToggles },
+			// globalToggles/localToggles come from refreshAiHydroRulesToggles and
+			// are AI-Hydro rules data -- populate the AI-Hydro-named fields, not
+			// the Cline-named ones (which belong to the separate, still-real
+			// toggleClineRule/.clinerules feature this handler never reads).
+			globalAiHydroRulesToggles: { toggles: globalToggles },
+			localAiHydroRulesToggles: { toggles: localToggles },
 			localCursorRulesToggles: { toggles: cursorLocalToggles },
 			localWindsurfRulesToggles: { toggles: windsurfLocalToggles },
 			localWorkflowToggles: { toggles: localWorkflowToggles },

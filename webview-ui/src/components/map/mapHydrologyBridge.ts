@@ -33,6 +33,7 @@ export interface HydroCommandPayload {
 	method?: string
 	expectedAreaKm2?: number
 	name?: string
+	includeLevel2?: boolean
 }
 
 export interface HydroCommandResult {

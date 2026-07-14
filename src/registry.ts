@@ -45,6 +45,9 @@ const AiHydroCommands = {
 	LearningPacksRollback: prefix + ".learningPacks.rollback",
 	LearningPacksRemove: prefix + ".learningPacks.remove",
 	LearningPacksManageTrustedPublishers: prefix + ".learningPacks.manageTrustedPublishers",
+	ExperimentTableButton: prefix + ".experimentTableButtonClicked",
+	SessionReplayButton: prefix + ".sessionReplayButtonClicked",
+	EvidenceBoardButton: prefix + ".evidenceBoardButtonClicked",
 }
 
 /**

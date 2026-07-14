@@ -81,8 +81,15 @@ export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
 ): NormalizedApiConfig {
-	const rawProvider = currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
-	const provider: ApiProvider = (rawProvider === "cline" || rawProvider === "oca" ? "openrouter" : rawProvider) || "anthropic"
+	// Typed as `string | undefined`, not `ApiProvider | undefined`: this reads
+	// persisted user settings, which can still carry legacy provider values
+	// ("cline", "oca") from before they were removed from the ApiProvider
+	// union -- the check below migrates them, so it needs to compare against
+	// values the current type no longer declares as valid.
+	const rawProvider: string | undefined =
+		currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+	const provider: ApiProvider = ((rawProvider === "cline" || rawProvider === "oca" ? "openrouter" : rawProvider) ||
+		"anthropic") as ApiProvider
 	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
 
 	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {

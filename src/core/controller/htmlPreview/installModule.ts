@@ -6,10 +6,12 @@ import * as os from "os"
 import * as path from "path"
 import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import type { Controller } from "../index"
+import { assertTrustedMarketplaceUrl } from "./marketplaceUrlAllowlist"
 
 export async function installModule(controller: Controller, request: InstallModuleRequest): Promise<InstallModuleResponse> {
 	const { moduleId, downloadUrl, title } = request
 	try {
+		assertTrustedMarketplaceUrl(downloadUrl, "installModule downloadUrl")
 		const modulesDir = path.join(os.homedir(), ".aihydro", "modules", moduleId)
 		await fs.mkdir(modulesDir, { recursive: true })
 		const localPath = path.join(modulesDir, "module.html")

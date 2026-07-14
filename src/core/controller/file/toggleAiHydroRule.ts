@@ -44,8 +44,10 @@ export async function toggleAiHydroRule(controller: Controller, request: ToggleC
 	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalAiHydroRulesToggles")
 	const localToggles = controller.stateManager.getWorkspaceStateKey("localAiHydroRulesToggles")
 
+	// ToggleClineRules is shared with toggleClineRule (a separate, real RPC for
+	// the .clinerules feature) -- populate only the AI-Hydro-named fields here.
 	return ToggleClineRules.create({
-		globalClineRulesToggles: { toggles: globalToggles },
-		localClineRulesToggles: { toggles: localToggles },
+		globalAiHydroRulesToggles: { toggles: globalToggles },
+		localAiHydroRulesToggles: { toggles: localToggles },
 	})
 }

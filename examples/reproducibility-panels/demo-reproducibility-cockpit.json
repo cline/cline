@@ -1,0 +1,406 @@
+{
+	"session_id": "demo-reproducibility-cockpit",
+	"gauge_id": "multi_basin_demo",
+	"title": "AI-Hydro reproducibility cockpit demo",
+	"claims": {
+		"claim-kge-acceptable": {
+			"statement": "The calibration experiment produced acceptable KGE values for two of three basins.",
+			"claim_type": "model_performance",
+			"status": "tested",
+			"confidence": "medium",
+			"created_at": "2026-06-25T12:02:00Z",
+			"updated_at": "2026-06-25T12:05:00Z",
+			"evidence_spans": [
+				{
+					"source_type": "run",
+					"source_id": "run.01031500.calibration",
+					"metric_ref": "panel_smoke_exp.kge",
+					"description": "KGE=0.78 with CI [0.71, 0.84]"
+				},
+				{
+					"source_type": "run",
+					"source_id": "run.01491000.calibration",
+					"metric_ref": "panel_smoke_exp.kge",
+					"description": "KGE=0.83 with CI [0.76, 0.88]"
+				}
+			],
+			"limitations": [
+				"Only two of three basins meet the illustrative KGE threshold.",
+				"Thresholds are experiment-specific and not universally calibrated.",
+				"Smoke fixture values are for UI validation, not publication evidence."
+			]
+		},
+		"claim-parameter-warning": {
+			"statement": "One calibration run requires review because a parameter-bound validator issued a warning.",
+			"claim_type": "quality_control",
+			"status": "weakly_supported",
+			"confidence": "medium",
+			"created_at": "2026-06-25T12:03:00Z",
+			"updated_at": "2026-06-25T12:05:00Z",
+			"evidence_spans": [
+				{
+					"source_type": "run",
+					"source_id": "run.01031500.calibration",
+					"metric_ref": "parameter_bounds",
+					"description": "Validator reported one parameter near upper bound."
+				}
+			],
+			"limitations": [
+				"Warning indicates review required, not automatic rejection."
+			]
+		},
+		"claim-rmse-heterogeneous": {
+			"statement": "RMSE varies substantially across the three basins, suggesting basin-specific residual structure.",
+			"claim_type": "empirical_result",
+			"status": "proposed",
+			"confidence": "low",
+			"created_at": "2026-06-25T12:04:00Z",
+			"updated_at": "2026-06-25T12:04:00Z",
+			"evidence_spans": [
+				{
+					"source_type": "run",
+					"source_id": "panel_smoke_exp",
+					"metric_ref": "rmse",
+					"description": "RMSE range is 9.7–18.9 in the experiment table."
+				}
+			],
+			"limitations": [
+				"Needs residual diagnostics before being treated as supported."
+			]
+		}
+	},
+	"_experiments": {
+		"data": {
+			"panel_smoke_exp": {
+				"defn": {
+					"experiment_id": "panel_smoke_exp",
+					"name": "Panel smoke experiment",
+					"tool": "run_experiment",
+					"features": [
+						"01031500",
+						"01109000",
+						"01491000"
+					],
+					"metrics": [
+						"kge",
+						"nse",
+						"rmse"
+					],
+					"params": {
+						"model": "demo-conceptual",
+						"split": "calibration"
+					},
+					"params_hash": "demo-smoke",
+					"created_at": "2026-06-25T11:54:00Z"
+				},
+				"results": {
+					"status": "complete",
+					"run_ids": {
+						"01031500": "run.01031500.calibration",
+						"01109000": "run.01109000.calibration",
+						"01491000": "run.01491000.calibration"
+					},
+					"cells": {
+						"01031500": {
+							"kge": {
+								"value": 0.78,
+								"ci_low": 0.71,
+								"ci_high": 0.84,
+								"run_id": "run.01031500.calibration"
+							},
+							"nse": {
+								"value": 0.72,
+								"run_id": "run.01031500.calibration"
+							},
+							"rmse": {
+								"value": 12.4,
+								"run_id": "run.01031500.calibration"
+							}
+						},
+						"01109000": {
+							"kge": {
+								"value": 0.64,
+								"ci_low": 0.57,
+								"ci_high": 0.7,
+								"run_id": "run.01109000.calibration"
+							},
+							"nse": {
+								"value": 0.59,
+								"run_id": "run.01109000.calibration"
+							},
+							"rmse": {
+								"value": 18.9,
+								"run_id": "run.01109000.calibration"
+							}
+						},
+						"01491000": {
+							"kge": {
+								"value": 0.83,
+								"ci_low": 0.76,
+								"ci_high": 0.88,
+								"run_id": "run.01491000.calibration"
+							},
+							"nse": {
+								"value": 0.8,
+								"run_id": "run.01491000.calibration"
+							},
+							"rmse": {
+								"value": 9.7,
+								"run_id": "run.01491000.calibration"
+							}
+						}
+					},
+					"errors": {},
+					"n_success": 3,
+					"n_error": 0,
+					"completed_at": "2026-06-25T12:00:00Z"
+				}
+			},
+			"panel_smoke_exp_validation": {
+				"defn": {
+					"experiment_id": "panel_smoke_exp_validation",
+					"name": "Panel smoke experiment (validation split)",
+					"tool": "run_experiment",
+					"features": [
+						"01031500",
+						"01109000",
+						"01491000"
+					],
+					"metrics": [
+						"kge",
+						"nse",
+						"rmse"
+					],
+					"params": {
+						"model": "demo-conceptual",
+						"split": "validation"
+					},
+					"params_hash": "demo-smoke-val",
+					"created_at": "2026-06-25T12:10:00Z"
+				},
+				"results": {
+					"status": "complete",
+					"run_ids": {
+						"01031500": "run.01031500.validation",
+						"01109000": "run.01109000.validation",
+						"01491000": "run.01491000.validation"
+					},
+					"cells": {
+						"01031500": {
+							"kge": {
+								"value": 0.69,
+								"ci_low": 0.6,
+								"ci_high": 0.77,
+								"run_id": "run.01031500.validation"
+							},
+							"nse": {
+								"value": 0.63,
+								"run_id": "run.01031500.validation"
+							},
+							"rmse": {
+								"value": 14.8,
+								"run_id": "run.01031500.validation"
+							}
+						},
+						"01109000": {
+							"kge": {
+								"value": 0.55,
+								"ci_low": 0.46,
+								"ci_high": 0.63,
+								"run_id": "run.01109000.validation"
+							},
+							"nse": {
+								"value": 0.49,
+								"run_id": "run.01109000.validation"
+							},
+							"rmse": {
+								"value": 21.3,
+								"run_id": "run.01109000.validation"
+							}
+						},
+						"01491000": {
+							"kge": {
+								"value": 0.79,
+								"ci_low": 0.71,
+								"ci_high": 0.85,
+								"run_id": "run.01491000.validation"
+							},
+							"nse": {
+								"value": 0.75,
+								"run_id": "run.01491000.validation"
+							},
+							"rmse": {
+								"value": 11.2,
+								"run_id": "run.01491000.validation"
+							}
+						}
+					},
+					"errors": {},
+					"n_success": 3,
+					"n_error": 0,
+					"completed_at": "2026-06-25T12:14:00Z"
+				}
+			}
+		}
+	},
+	"_run_log": {
+		"data": {
+			"run.01031500.fetch": {
+				"run_id": "run.01031500.fetch",
+				"tool_name": "fetch_streamflow",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T11:55:00Z",
+				"status": "pass",
+				"key_outputs": {
+					"basin_id": "01031500",
+					"records": 7305,
+					"_quality_flags": [
+						{
+							"validator": "date_continuity",
+							"status": "pass",
+							"message": "daily record is continuous"
+						}
+					]
+				}
+			},
+			"run.01031500.calibration": {
+				"run_id": "run.01031500.calibration",
+				"tool_name": "calibrate_model",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T11:58:00Z",
+				"status": "warn",
+				"key_outputs": {
+					"basin_id": "01031500",
+					"kge": 0.78,
+					"nse": 0.72,
+					"rmse": 12.4,
+					"_quality_flags": [
+						{
+							"validator": "performance_threshold",
+							"status": "pass",
+							"message": "KGE above illustrative threshold"
+						},
+						{
+							"validator": "parameter_bounds",
+							"status": "warn",
+							"message": "one parameter near upper bound"
+						}
+					]
+				},
+				"diff_notes": [
+					"Calibration improved KGE relative to baseline.",
+					"Parameter-bound warning should be reviewed before publication."
+				]
+			},
+			"run.01109000.calibration": {
+				"run_id": "run.01109000.calibration",
+				"tool_name": "calibrate_model",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T11:59:00Z",
+				"status": "warn",
+				"key_outputs": {
+					"basin_id": "01109000",
+					"kge": 0.64,
+					"nse": 0.59,
+					"rmse": 18.9,
+					"_quality_flags": [
+						{
+							"validator": "performance_threshold",
+							"status": "warn",
+							"message": "KGE below illustrative acceptance threshold"
+						}
+					]
+				},
+				"diff_notes": [
+					"This basin is the primary performance review target."
+				]
+			},
+			"run.01491000.calibration": {
+				"run_id": "run.01491000.calibration",
+				"tool_name": "calibrate_model",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T11:59:30Z",
+				"status": "pass",
+				"key_outputs": {
+					"basin_id": "01491000",
+					"kge": 0.83,
+					"nse": 0.8,
+					"rmse": 9.7,
+					"_quality_flags": [
+						{
+							"validator": "performance_threshold",
+							"status": "pass",
+							"message": "model skill acceptable"
+						}
+					]
+				}
+			},
+			"run.01031500.validation": {
+				"run_id": "run.01031500.validation",
+				"tool_name": "validate_model",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T12:11:00Z",
+				"status": "warn",
+				"key_outputs": {
+					"basin_id": "01031500",
+					"kge": 0.69,
+					"nse": 0.63,
+					"rmse": 14.8,
+					"_quality_flags": [
+						{
+							"validator": "performance_threshold",
+							"status": "warn",
+							"message": "KGE dropped below illustrative threshold on the validation split"
+						}
+					]
+				},
+				"diff_notes": [
+					"Validation KGE is lower than the calibration run for this basin — expected out-of-sample degradation, not a regression."
+				]
+			},
+			"run.01109000.validation": {
+				"run_id": "run.01109000.validation",
+				"tool_name": "validate_model",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T12:12:00Z",
+				"status": "fail",
+				"key_outputs": {
+					"basin_id": "01109000",
+					"kge": 0.55,
+					"nse": 0.49,
+					"rmse": 21.3,
+					"_quality_flags": [
+						{
+							"validator": "performance_threshold",
+							"status": "fail",
+							"message": "KGE below the illustrative acceptance threshold on the validation split"
+						}
+					]
+				},
+				"diff_notes": [
+					"This basin already flagged in calibration; validation confirms the review is warranted."
+				]
+			},
+			"run.01491000.validation": {
+				"run_id": "run.01491000.validation",
+				"tool_name": "validate_model",
+				"session_id": "demo-reproducibility-cockpit",
+				"timestamp": "2026-06-25T12:13:00Z",
+				"status": "pass",
+				"key_outputs": {
+					"basin_id": "01491000",
+					"kge": 0.79,
+					"nse": 0.75,
+					"rmse": 11.2,
+					"_quality_flags": [
+						{
+							"validator": "performance_threshold",
+							"status": "pass",
+							"message": "model skill acceptable on the validation split"
+						}
+					]
+				}
+			}
+		}
+	}
+}

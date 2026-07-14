@@ -133,7 +133,12 @@ export function useCourse(filePath: string | undefined | null): CourseInfo {
 		if (!filePath) return null
 		return cache.get(filePath) ?? null
 	})
-	const [loading, setLoading] = useState<boolean>(() => Boolean(filePath) && !cache.has(filePath))
+	const [loading, setLoading] = useState<boolean>(() => {
+		if (!filePath) {
+			return false
+		}
+		return !cache.has(filePath)
+	})
 
 	useEffect(() => {
 		if (!filePath) {

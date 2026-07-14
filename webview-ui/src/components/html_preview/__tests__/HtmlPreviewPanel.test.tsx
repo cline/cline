@@ -87,19 +87,12 @@ describe("HtmlPreviewPanel", () => {
 		expect(titles.length).toBeGreaterThanOrEqual(1)
 	})
 
-	it("hides tab bar when panel chrome is collapsed", () => {
-		localStorage.setItem("aihydro.htmlPreview.panelChromeExpanded", "false")
+	it("collapses and re-expands the file/modules side panel", () => {
 		render(<HtmlPreviewPanel />)
-		expect(screen.queryByRole("tab")).not.toBeInTheDocument()
-		expect(screen.getByTitle("Expand panel header")).toBeInTheDocument()
-		localStorage.removeItem("aihydro.htmlPreview.panelChromeExpanded")
-	})
-
-	it("expands panel chrome when collapse toggle is clicked", () => {
-		localStorage.setItem("aihydro.htmlPreview.panelChromeExpanded", "false")
-		render(<HtmlPreviewPanel />)
-		fireEvent.click(screen.getByTitle("Expand panel header"))
-		expect(screen.getAllByRole("tab").length).toBe(2)
-		localStorage.removeItem("aihydro.htmlPreview.panelChromeExpanded")
+		expect(screen.getByText("index.html")).toBeInTheDocument()
+		fireEvent.click(screen.getByTitle("Close side panel"))
+		expect(screen.queryByText("index.html")).not.toBeInTheDocument()
+		fireEvent.click(screen.getByTitle("Open side panel"))
+		expect(screen.getByText("index.html")).toBeInTheDocument()
 	})
 })

@@ -65,6 +65,13 @@ Every result slot contains a `meta` object:
 
 This metadata is what `export_session` uses to generate citable methods paragraphs.
 
+AI-Hydro's audit panels read the same persisted session contract:
+
+- Experiment Table reads `_experiments` from a session JSON or exported capsule.
+- Session Replay reads `_run_log` from a session JSON or exported capsule.
+
+See [Reproducibility Panels](reproducibility-panels.md) for the UI contract and regression test command.
+
 ---
 
 ## Session Tool Reference

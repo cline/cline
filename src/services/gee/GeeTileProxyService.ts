@@ -9,6 +9,29 @@ type RegisteredTileLayer = {
 
 const LOCALHOST = "127.0.0.1"
 
+// GEE tile templates come from `ee.Image.getMapId()["tile_fetcher"].url_format`
+// (aihydro-tools/ai_hydro/gee/map_layers.py), which always resolves to this
+// host. Rejecting anything else keeps this local proxy from being usable as a
+// general-purpose fetch relay if a future caller ever passes an untrusted
+// template.
+const ALLOWED_TILE_HOST = "earthengine.googleapis.com"
+
+// VS Code webviews run under one of these origin schemes depending on host
+// (desktop Electron vs. vscode.dev-style sandboxed iframe). We reflect the
+// request's Origin header back only when it matches one of these — never a
+// bare `*` — so the proxy isn't a token-gated-but-otherwise-open CORS relay
+// any arbitrary web origin could read from once it learned the port+token.
+const ALLOWED_ORIGIN_PATTERN = /^(vscode-webview:\/\/[a-z0-9-]+|https:\/\/[a-z0-9-]+\.vscode-webview\.net)$/i
+
+function isAllowedTileTemplate(template: string): boolean {
+	try {
+		const url = new URL(template.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0"))
+		return url.protocol === "https:" && url.hostname === ALLOWED_TILE_HOST
+	} catch {
+		return false
+	}
+}
+
 export class GeeTileProxyService {
 	private static server: http.Server | undefined
 	private static port: number | undefined
@@ -16,6 +39,9 @@ export class GeeTileProxyService {
 	private static readonly layers = new Map<string, RegisteredTileLayer>()
 
 	static async proxify(template: string, layerId?: string): Promise<string> {
+		if (!isAllowedTileTemplate(template)) {
+			throw new Error(`GEE tile proxy refused non-Earth-Engine template host: ${template}`)
+		}
 		await GeeTileProxyService.ensureServer()
 		const id = layerId || randomBytes(8).toString("hex")
 		GeeTileProxyService.layers.set(id, { template, createdAt: Date.now() })
@@ -54,7 +80,17 @@ export class GeeTileProxyService {
 	}
 
 	private static async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-		res.setHeader("Access-Control-Allow-Origin", "*")
+		// Reflect the caller's Origin only if it looks like a VS Code webview
+		// (desktop `vscode-webview://` or sandboxed `*.vscode-webview.net`).
+		// Never a bare `*` — this is a token-gated proxy, not a public CORS relay,
+		// and a wildcard would let any web origin that learns the port+token
+		// read tile bytes through it.
+		const requestOrigin = req.headers.origin
+		const allowedOrigin = requestOrigin && ALLOWED_ORIGIN_PATTERN.test(requestOrigin) ? requestOrigin : undefined
+		if (allowedOrigin) {
+			res.setHeader("Access-Control-Allow-Origin", allowedOrigin)
+			res.setHeader("Vary", "Origin")
+		}
 		res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
 		res.setHeader("Access-Control-Allow-Headers", "Content-Type")
 
@@ -89,10 +125,18 @@ export class GeeTileProxyService {
 		}
 
 		const remoteUrl = layer.template.replace("{z}", z).replace("{x}", x).replace("{y}", y)
-		GeeTileProxyService.pipeRemoteTile(remoteUrl, res)
+		if (!isAllowedTileTemplate(remoteUrl)) {
+			// Defence-in-depth: proxify() already rejects non-Earth-Engine
+			// templates at registration time, so this should be unreachable —
+			// but a registered layer's template is never re-validated per
+			// request, so check again before making an outbound fetch.
+			GeeTileProxyService.writeError(res, 502, "Refused non-Earth-Engine tile host")
+			return
+		}
+		GeeTileProxyService.pipeRemoteTile(remoteUrl, res, allowedOrigin)
 	}
 
-	private static pipeRemoteTile(remoteUrl: string, res: http.ServerResponse): void {
+	private static pipeRemoteTile(remoteUrl: string, res: http.ServerResponse, allowedOrigin: string | undefined): void {
 		https
 			.get(remoteUrl, (remoteRes) => {
 				if (!remoteRes.statusCode || remoteRes.statusCode < 200 || remoteRes.statusCode >= 300) {
@@ -108,7 +152,7 @@ export class GeeTileProxyService {
 				res.writeHead(200, {
 					"Cache-Control": remoteRes.headers["cache-control"] || "private, max-age=3600",
 					"Content-Type": remoteRes.headers["content-type"] || "image/png",
-					"Access-Control-Allow-Origin": "*",
+					...(allowedOrigin ? { "Access-Control-Allow-Origin": allowedOrigin } : {}),
 				})
 				remoteRes.pipe(res)
 			})
@@ -122,9 +166,11 @@ export class GeeTileProxyService {
 			res.end()
 			return
 		}
+		// No Access-Control-Allow-Origin here: handleRequest() already set it
+		// via res.setHeader() (reflected origin or omitted), which Node merges
+		// into this writeHead() call. Hardcoding "*" here would override that.
 		res.writeHead(status, {
 			"Content-Type": "application/json",
-			"Access-Control-Allow-Origin": "*",
 		})
 		res.end(JSON.stringify({ ok: false, message }))
 	}
