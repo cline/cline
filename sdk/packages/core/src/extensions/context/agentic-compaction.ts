@@ -140,8 +140,8 @@ export async function runAgenticCompaction(options: {
 	);
 	const canUseActiveContextLimit = options.summarizer === undefined;
 	const activeCompactionInputLimit = Math.max(
-		options.context.maxInputTokens,
-		options.context.triggerTokens,
+		options.context.budget.request.maxInputTokens,
+		options.context.budget.request.triggerTokens,
 		MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
 	);
 	if (resolvedSummarizerInputLimit === undefined && !canUseActiveContextLimit) {
@@ -227,8 +227,8 @@ export async function runAgenticCompaction(options: {
 		summarizerProviderId: summarizerProviderConfig.providerId,
 		summarizerModelId: summarizerProviderConfig.modelId,
 		summarizerInputLimit,
-		maxInputTokens: options.context.maxInputTokens,
-		triggerTokens: options.context.triggerTokens,
+		maxInputTokens: options.context.budget.request.maxInputTokens,
+		triggerTokens: options.context.budget.request.triggerTokens,
 	});
 	const rawSummary = await generateSummary({
 		providerConfig: summarizerProviderConfig,
@@ -263,7 +263,7 @@ export async function runAgenticCompaction(options: {
 		messagesPreserved: messages.length - cutIndex,
 		tokensBefore,
 		tokensAfter,
-		maxInputTokens: options.context.maxInputTokens,
+		maxInputTokens: options.context.budget.request.maxInputTokens,
 	});
 	const budgetActionCount = summaryInputBudget.actions.filter(
 		(action) =>

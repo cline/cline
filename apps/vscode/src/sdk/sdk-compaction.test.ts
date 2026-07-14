@@ -75,6 +75,29 @@ describe("compactSessionMessages", () => {
 		})
 	})
 
+	it("preserves context-only model limits for the shared resolver", async () => {
+		const compact = vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] })
+		createContextCompactionPrepareTurn.mockReturnValueOnce(compact)
+		const contextOnlyConfig = {
+			...baseConfig,
+			knownModels: { claude: { id: "claude", contextWindow: 400_000 } },
+		} as unknown as Parameters<typeof compactSessionMessages>[0]["config"]
+
+		await compactSessionMessages({
+			config: contextOnlyConfig,
+			sessionId: "s-context-only",
+			messages: [{ role: "user", content: "long context" }],
+		})
+
+		expect(compact).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({
+					info: { id: "claude", contextWindow: 400_000 },
+				}),
+			}),
+		)
+	})
+
 	it("returns compacted=false when prepareTurn is unavailable", async () => {
 		createContextCompactionPrepareTurn.mockReturnValueOnce(undefined)
 

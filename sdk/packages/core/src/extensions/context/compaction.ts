@@ -13,6 +13,7 @@ import {
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
+	CoreCompactionMode,
 	CoreCompactionResult,
 	CoreCompactionStrategy,
 	CoreSessionConfig,
@@ -61,7 +62,6 @@ type BuiltinCompactionStrategyOptions = {
 	context: CoreCompactionContext;
 	providerConfig: ProviderConfig;
 	compaction: CoreCompactionConfig | undefined;
-	mode: ContextCompactionMode;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger: Pick<CoreSessionConfig, "logger">["logger"];
 };
@@ -73,10 +73,8 @@ type BuiltinCompactionStrategyRunner = (
 	| CoreCompactionResult
 	| undefined;
 
-export type ContextCompactionMode = "auto" | "manual";
-
 export interface ContextCompactionPrepareTurnOptions {
-	mode?: ContextCompactionMode;
+	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
 }
 
@@ -133,7 +131,6 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 		context,
 		providerConfig,
 		compaction,
-		mode,
 		estimateMessageTokens,
 		logger,
 	}) =>
@@ -141,46 +138,38 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 			context,
 			providerConfig,
 			summarizer: compaction?.summarizer,
-			preserveRecentTokens:
-				mode === "manual"
-					? Math.min(
-							compaction?.preserveRecentTokens ??
-								DEFAULT_PRESERVE_RECENT_TOKENS,
-							context.triggerTokens,
-						)
-					: (compaction?.preserveRecentTokens ??
-						DEFAULT_PRESERVE_RECENT_TOKENS),
+			preserveRecentTokens: Math.min(
+				compaction?.preserveRecentTokens ?? DEFAULT_PRESERVE_RECENT_TOKENS,
+				context.budget.messages.targetTokens,
+			),
 			estimateMessageTokens,
 			logger,
 		}),
 } satisfies Record<CoreCompactionStrategy, BuiltinCompactionStrategyRunner>;
 
-function resolveManualTargetState(input: {
-	inputTokens: number;
-	maxInputTokens: number;
-	autoTriggerTokens: number;
+function resolveManualMessageTargetTokens(input: {
+	messageInputTokens: number;
+	messageTriggerTokens: number;
 	manualTargetRatio: number | undefined;
-}): { triggerTokens: number; thresholdRatio: number } {
+}): number {
 	const ratio =
 		typeof input.manualTargetRatio === "number" &&
 		Number.isFinite(input.manualTargetRatio)
 			? input.manualTargetRatio
 			: 0.5;
 	const targetRatio = Math.min(0.95, Math.max(0.05, ratio));
-	const targetTokens = Math.max(
+	return Math.max(
 		1,
 		Math.floor(
-			Math.min(input.autoTriggerTokens, input.inputTokens * targetRatio),
+			Math.min(
+				input.messageTriggerTokens,
+				input.messageInputTokens * targetRatio,
+			),
 		),
 	);
-	return {
-		triggerTokens: targetTokens,
-		thresholdRatio:
-			input.maxInputTokens > 0 ? targetTokens / input.maxInputTokens : 0,
-	};
 }
 
-function resolveBasicTargetTokens(input: {
+function resolveAutoRequestTargetTokens(input: {
 	maxInputTokens: number;
 	modelMaxTokens?: number;
 	triggerTokens: number;
@@ -198,6 +187,13 @@ function resolveBasicTargetTokens(input: {
 		1,
 		Math.min(targetTokens, input.maxInputTokens, triggerCeiling),
 	);
+}
+
+function translateRequestBudgetToMessages(
+	requestTokens: number,
+	overheadTokens: number,
+): number {
+	return Math.max(1, Math.floor(requestTokens - overheadTokens));
 }
 
 function countUserAssistantPairs(
@@ -271,28 +267,43 @@ export function createContextCompactionPrepareTurn(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
 		);
-		const inputTokens = estimateRequestInputTokens({
+		const requestInputTokens = estimateRequestInputTokens({
 			systemPrompt: context.systemPrompt,
 			messages: context.apiMessages,
 			tools: context.tools,
 		});
+		const messageInputTokens = context.messages.reduce(
+			(total: number, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		const requestOverheadTokens = Math.max(
+			0,
+			requestInputTokens - apiMessageTokens,
+		);
 		const maxInputTokens =
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: context.model.info?.maxInputTokens,
 				contextWindow: context.model.info?.contextWindow,
 			}) ?? DEFAULT_MAX_INPUT_TOKENS;
-		const triggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
-		const shouldCompact = inputTokens >= triggerTokens;
+		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
+		const messageTriggerTokens = translateRequestBudgetToMessages(
+			requestTriggerTokens,
+			requestOverheadTokens,
+		);
+		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode,
 			strategy,
 			iteration: context.iteration,
 			providerId: config.providerId,
 			modelId: config.modelId,
-			inputTokens,
+			requestInputTokens,
 			apiMessageTokens,
+			messageInputTokens,
+			requestOverheadTokens,
 			maxInputTokens,
-			triggerTokens,
+			requestTriggerTokens,
+			messageTriggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
 			shouldCompact,
 			messageCount: context.messages.length,
@@ -303,27 +314,27 @@ export function createContextCompactionPrepareTurn(
 		if (mode === "auto" && !shouldCompact) {
 			return undefined;
 		}
-		const targetState =
-			mode === "manual"
-				? resolveManualTargetState({
-						inputTokens: apiMessageTokens,
-						maxInputTokens,
-						autoTriggerTokens: triggerTokens,
-						manualTargetRatio: options.manualTargetRatio,
-					})
-				: {
-						triggerTokens,
-						thresholdRatio: COMPACTION_TRIGGER_RATIO,
-					};
-		const targetTokens =
-			mode === "auto"
-				? resolveBasicTargetTokens({
-						maxInputTokens,
-						modelMaxTokens: context.model.info?.maxTokens,
-						triggerTokens: targetState.triggerTokens,
-						messagePairCount: countUserAssistantPairs(context.messages),
-					})
-				: undefined;
+		let requestTargetTokens: number;
+		let messageTargetTokens: number;
+		if (mode === "auto") {
+			requestTargetTokens = resolveAutoRequestTargetTokens({
+				maxInputTokens,
+				modelMaxTokens: context.model.info?.maxTokens,
+				triggerTokens: requestTriggerTokens,
+				messagePairCount: countUserAssistantPairs(context.messages),
+			});
+			messageTargetTokens = translateRequestBudgetToMessages(
+				requestTargetTokens,
+				requestOverheadTokens,
+			);
+		} else {
+			messageTargetTokens = resolveManualMessageTargetTokens({
+				messageInputTokens,
+				messageTriggerTokens,
+				manualTargetRatio: options.manualTargetRatio,
+			});
+			requestTargetTokens = requestOverheadTokens + messageTargetTokens;
+		}
 
 		const compactionContext = {
 			agentId: context.agentId,
@@ -332,11 +343,24 @@ export function createContextCompactionPrepareTurn(
 			iteration: context.iteration,
 			messages: context.messages,
 			model: context.model,
-			maxInputTokens,
-			triggerTokens: targetState.triggerTokens,
-			targetTokens,
-			thresholdRatio: targetState.thresholdRatio,
-			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
+			mode,
+			budget: {
+				request: {
+					inputTokens: requestInputTokens,
+					maxInputTokens,
+					triggerTokens: requestTriggerTokens,
+					targetTokens: requestTargetTokens,
+					overheadTokens: requestOverheadTokens,
+					thresholdRatio: COMPACTION_TRIGGER_RATIO,
+					utilizationRatio:
+						maxInputTokens > 0 ? requestInputTokens / maxInputTokens : 0,
+				},
+				messages: {
+					inputTokens: messageInputTokens,
+					triggerTokens: messageTriggerTokens,
+					targetTokens: messageTargetTokens,
+				},
+			},
 		};
 
 		const statusReason =
@@ -347,16 +371,14 @@ export function createContextCompactionPrepareTurn(
 				kind: statusReason,
 				reason: statusReason,
 				iteration: context.iteration,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: requestTriggerTokens,
+				targetTokens: requestTargetTokens,
 				maxInputTokens,
+				messageTargetTokens,
 			},
 		);
 
 		const beforeMessageCount = context.messages.length;
-		const compactionInputTokens = context.messages.reduce(
-			(total: number, message) => total + estimateMessageTokens(message),
-			0,
-		);
 		const startedAt = Date.now();
 
 		const result = userCompaction?.compact
@@ -368,7 +390,6 @@ export function createContextCompactionPrepareTurn(
 						abortSignal: context.abortSignal,
 					},
 					compaction: userCompaction,
-					mode,
 					estimateMessageTokens,
 					logger: config.logger,
 				});
@@ -386,22 +407,25 @@ export function createContextCompactionPrepareTurn(
 		};
 
 		if (result?.messages) {
-			const afterTokens = result.messages.reduce(
+			const afterMessageTokens = result.messages.reduce(
 				(total: number, message) => total + estimateMessageTokens(message),
 				0,
 			);
+			const afterRequestTokens = requestOverheadTokens + afterMessageTokens;
 			config.logger?.log("Context compaction completed", {
 				severity: "info",
 				strategy: strategy,
 				maxInputTokens,
-				inputTokens: compactionInputTokens,
+				messageInputTokens,
 				apiInputTokens: apiMessageTokens,
-				requestInputTokens: inputTokens,
-				afterTokens,
-				tokensSaved: compactionInputTokens - afterTokens,
-				utilizationBefore: `${((compactionInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
-				utilizationAfter: `${((afterTokens / maxInputTokens) * 100).toFixed(1)}%`,
-				thresholdTrigger: `${(targetState.thresholdRatio * 100).toFixed(1)}%`,
+				requestInputTokens,
+				requestOverheadTokens,
+				afterMessageTokens,
+				afterRequestTokens,
+				tokensSaved: requestInputTokens - afterRequestTokens,
+				utilizationBefore: `${((requestInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
+				utilizationAfter: `${((afterRequestTokens / maxInputTokens) * 100).toFixed(1)}%`,
+				thresholdTrigger: `${(COMPACTION_TRIGGER_RATIO * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
@@ -413,12 +437,12 @@ export function createContextCompactionPrepareTurn(
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
-				tokensBefore: compactionInputTokens,
-				tokensAfter: afterTokens,
-				tokensSaved: compactionInputTokens - afterTokens,
-				triggerTokens: targetState.triggerTokens,
+				tokensBefore: requestInputTokens,
+				tokensAfter: afterRequestTokens,
+				tokensSaved: requestInputTokens - afterRequestTokens,
+				triggerTokens: requestTriggerTokens,
 				maxInputTokens,
-				thresholdRatio: targetState.thresholdRatio,
+				thresholdRatio: COMPACTION_TRIGGER_RATIO,
 				durationMs,
 				// Matches the field name used by other TASK telemetry helpers
 				// (e.g. captureTaskCompleted, captureToolUsage).
@@ -457,10 +481,10 @@ export function createContextCompactionPrepareTurn(
 				strategy: telemetryStrategy,
 				mode,
 				reason: "no_result",
-				tokensBefore: compactionInputTokens,
-				triggerTokens: targetState.triggerTokens,
+				tokensBefore: requestInputTokens,
+				triggerTokens: requestTriggerTokens,
 				maxInputTokens,
-				thresholdRatio: targetState.thresholdRatio,
+				thresholdRatio: COMPACTION_TRIGGER_RATIO,
 				durationMs,
 				provider: config.providerId,
 				modelId: config.modelId,

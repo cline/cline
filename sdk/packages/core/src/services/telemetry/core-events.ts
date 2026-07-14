@@ -671,6 +671,7 @@ export interface CaptureCompactionExecutedProperties {
 	messagesBefore: number;
 	messagesAfter: number;
 	messagesRemoved: number;
+	/** Full-request token estimates, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	tokensAfter: number;
 	tokensSaved: number;
@@ -710,6 +711,7 @@ export interface CaptureCompactionSkippedProperties {
 	 * be introduced without changing the schema.
 	 */
 	reason: string;
+	/** Full-request token estimate, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	triggerTokens: number;
 	maxInputTokens: number;

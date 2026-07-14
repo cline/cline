@@ -149,10 +149,23 @@ function runForcedBasicCompaction(
 				provider: "anthropic",
 				info: { id: "mock-model", maxInputTokens: targetTokens },
 			},
-			maxInputTokens: targetTokens,
-			triggerTokens: targetTokens,
-			thresholdRatio: 1,
-			utilizationRatio: 2,
+			mode: "manual",
+			budget: {
+				request: {
+					inputTokens: targetTokens * 2,
+					maxInputTokens: targetTokens,
+					triggerTokens: targetTokens,
+					targetTokens,
+					overheadTokens: 0,
+					thresholdRatio: 1,
+					utilizationRatio: 2,
+				},
+				messages: {
+					inputTokens: targetTokens * 2,
+					triggerTokens: targetTokens,
+					targetTokens,
+				},
+			},
 		},
 		estimateMessageTokens: estimateJsonTokens,
 	});
@@ -324,10 +337,23 @@ describe("createContextCompactionPrepareTurn", () => {
 					provider: "anthropic",
 					info: { id: "mock-model", maxInputTokens: 100_000 },
 				},
-				maxInputTokens: 100_000,
-				triggerTokens: 100_000,
-				thresholdRatio: 1,
-				utilizationRatio: 0.1,
+				mode: "manual",
+				budget: {
+					request: {
+						inputTokens: 10_000,
+						maxInputTokens: 100_000,
+						triggerTokens: 100_000,
+						targetTokens: 100_000,
+						overheadTokens: 0,
+						thresholdRatio: 1,
+						utilizationRatio: 0.1,
+					},
+					messages: {
+						inputTokens: 10_000,
+						triggerTokens: 100_000,
+						targetTokens: 100_000,
+					},
+				},
 			},
 			estimateMessageTokens: createTokenEstimator(),
 		});
@@ -561,11 +587,23 @@ describe("createContextCompactionPrepareTurn", () => {
 					provider: "openrouter",
 					info: { id: "mock-model", maxInputTokens: 1_000 },
 				},
-				maxInputTokens: 1_000,
-				triggerTokens: 900,
-				targetTokens: 100,
-				thresholdRatio: 0.9,
-				utilizationRatio: 2,
+				mode: "manual",
+				budget: {
+					request: {
+						inputTokens: 2_000,
+						maxInputTokens: 1_000,
+						triggerTokens: 900,
+						targetTokens: 100,
+						overheadTokens: 0,
+						thresholdRatio: 0.9,
+						utilizationRatio: 2,
+					},
+					messages: {
+						inputTokens: 2_000,
+						triggerTokens: 900,
+						targetTokens: 100,
+					},
+				},
 			},
 			estimateMessageTokens: estimateJsonTokens,
 		});
@@ -1346,8 +1384,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(inputTokens);
-		expect(context?.thresholdRatio).toBe(0.9);
+		expect(context?.budget.request.triggerTokens).toBe(inputTokens);
+		expect(context?.budget.request.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted at 90%" },
 		]);
@@ -1399,8 +1437,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBeCloseTo(contextWindow * 0.9);
-		expect(context?.triggerTokens).toBeCloseTo(inputTokens);
+		expect(context?.budget.request.maxInputTokens).toBeCloseTo(
+			contextWindow * 0.9,
+		);
+		expect(context?.budget.request.triggerTokens).toBeCloseTo(inputTokens);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted at 81%" },
 		]);
@@ -1456,6 +1496,53 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 	});
 
+	it("translates full-request targets into attainable message budgets", async () => {
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: `old request ${"u".repeat(800)}` },
+			{ role: "assistant", content: `old answer ${"a".repeat(800)}` },
+			{ role: "user", content: `latest request ${"l".repeat(800)}` },
+		];
+		const systemPrompt = "s".repeat(4_000);
+		const requestInputTokens = estimateRequestInputTokens({
+			systemPrompt,
+			messages,
+			tools: [],
+		});
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic" },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt,
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: {
+					id: "mock-model",
+					maxInputTokens: requestInputTokens / 0.91,
+				},
+			},
+		});
+
+		expect(result?.messages).toBeDefined();
+		expect(result?.messages).not.toEqual(messages);
+	});
+
 	it("triggers at 90 percent of maxInputTokens", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [{ role: "user" as const, content: "Compacted by ratio" }],
@@ -1497,8 +1584,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(180_000);
-		expect(context?.thresholdRatio).toBe(0.9);
+		expect(context?.budget.request.triggerTokens).toBe(180_000);
+		expect(context?.budget.request.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by ratio" },
 		]);
@@ -1606,8 +1693,12 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(244_800);
-		expect(context?.targetTokens).toBe(136_000);
+		expect(context?.budget.request.triggerTokens).toBe(244_800);
+		expect(context?.budget.request.targetTokens).toBe(136_000);
+		expect(context?.budget.messages.targetTokens).toBe(
+			(context?.budget.request.targetTokens ?? 0) -
+				(context?.budget.request.overheadTokens ?? 0),
+		);
 	});
 
 	it("keeps the long-conversation target below the fixed trigger", async () => {
@@ -1667,8 +1758,15 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(90);
-		expect(context?.targetTokens).toBe(50);
+		expect(context?.budget.request.triggerTokens).toBe(90);
+		expect(context?.budget.request.targetTokens).toBe(50);
+		expect(context?.budget.messages.targetTokens).toBe(
+			Math.max(
+				1,
+				(context?.budget.request.targetTokens ?? 0) -
+					(context?.budget.request.overheadTokens ?? 0),
+			),
+		);
 	});
 
 	it("uses a conservative input budget when only contextWindow is reported", async () => {
@@ -1717,9 +1815,9 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(360_000);
-		expect(context?.triggerTokens).toBe(324_000);
-		expect(context?.thresholdRatio).toBe(0.9);
+		expect(context?.budget.request.maxInputTokens).toBe(360_000);
+		expect(context?.budget.request.triggerTokens).toBe(324_000);
+		expect(context?.budget.request.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by derived input budget" },
 		]);
@@ -1772,9 +1870,9 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(200_000);
-		expect(context?.triggerTokens).toBe(180_000);
-		expect(context?.thresholdRatio).toBe(0.9);
+		expect(context?.budget.request.maxInputTokens).toBe(200_000);
+		expect(context?.budget.request.triggerTokens).toBe(180_000);
+		expect(context?.budget.request.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by split input" },
 		]);
@@ -1931,8 +2029,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(244_800);
-		expect(context?.utilizationRatio).toBeGreaterThan(0.9);
+		expect(context?.budget.request.triggerTokens).toBe(244_800);
+		expect(context?.budget.request.utilizationRatio).toBeGreaterThan(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted provider payload" },
 		]);
@@ -2027,8 +2125,11 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(100);
-		expect(context?.triggerTokens).toBeLessThan(90);
+		expect(context?.budget.request.maxInputTokens).toBe(100);
+		expect(context?.budget.request.triggerTokens).toBe(90);
+		expect(context?.budget.messages.targetTokens).toBeLessThan(
+			context?.budget.messages.triggerTokens ?? 0,
+		);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted manually" },
 		]);
@@ -2102,6 +2203,62 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages.length).toBeLessThan(4);
 	});
 
+	it("automatic agentic compaction clamps preservation to a small model budget", async () => {
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-auto-small",
+						text: "## Goal\nCompact a small context\n\n## Next\nContinue",
+					},
+					{ type: "done", id: "summary-auto-small", success: true },
+				]),
+			),
+		});
+		const repeatedText = "small model content ".repeat(100);
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: `Old request ${repeatedText}` },
+			{ role: "assistant", content: `Old reply ${repeatedText}` },
+			{ role: "user", content: `Latest request ${repeatedText}` },
+			{ role: "assistant", content: `Latest reply ${repeatedText}` },
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "small-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "small-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "agentic" },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "small-model",
+				provider: "anthropic",
+				info: { id: "small-model", maxInputTokens: 2_000 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		expect(result?.messages[0]).toMatchObject({
+			role: "user",
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(result?.messages.length).toBeLessThan(messages.length);
+	});
+
 	it("drops old user image blocks during basic compaction sanitization", () => {
 		const messages: LlmsProviders.Message[] = [
 			{
@@ -2127,10 +2284,23 @@ describe("createContextCompactionPrepareTurn", () => {
 					provider: "anthropic",
 					info: { id: "mock-model", maxInputTokens: 100 },
 				},
-				maxInputTokens: 100,
-				triggerTokens: 100,
-				thresholdRatio: 1,
-				utilizationRatio: 0.1,
+				mode: "manual",
+				budget: {
+					request: {
+						inputTokens: 10,
+						maxInputTokens: 100,
+						triggerTokens: 100,
+						targetTokens: 100,
+						overheadTokens: 0,
+						thresholdRatio: 1,
+						utilizationRatio: 0.1,
+					},
+					messages: {
+						inputTokens: 10,
+						triggerTokens: 100,
+						targetTokens: 100,
+					},
+				},
 			},
 			estimateMessageTokens: createTokenEstimator(),
 		});
@@ -2365,7 +2535,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
-	it("accounts executed compaction telemetry against compaction messages", async () => {
+	it("reports executed compaction telemetry in full-request token units", async () => {
 		const captureCalls: Array<{
 			event: string;
 			properties?: Record<string, unknown>;
@@ -2432,7 +2602,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			(call) => call.event === "task.compaction_executed",
 		);
 		const props = executed?.properties as Record<string, unknown>;
-		expect(props.tokensBefore as number).toBeLessThan(
+		expect(props.tokensBefore as number).toBeGreaterThanOrEqual(
 			props.triggerTokens as number,
 		);
 		expect(props.tokensSaved).toBe(
@@ -2495,6 +2665,11 @@ describe("createContextCompactionPrepareTurn", () => {
 			(total, message) => total + estimateMessageTokens(message),
 			0,
 		);
+		const requestInputTokens = estimateRequestInputTokens({
+			systemPrompt: "",
+			messages: apiMessages,
+			tools: [],
+		});
 		expect(apiInputTokens).not.toBe(sessionInputTokens);
 
 		const result = await prepareTurn?.({
@@ -2524,7 +2699,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(props.mode).toBe("auto");
 		expect(props.reason).toBe("no_result");
 		expect(props.ulid).toBe("ulid-test-skip");
-		expect(props.tokensBefore).toBe(sessionInputTokens);
+		expect(props.tokensBefore).toBe(requestInputTokens);
 		expect(typeof props.durationMs).toBe("number");
 		expect(
 			captureCalls.find((call) => call.event === "task.compaction_executed"),

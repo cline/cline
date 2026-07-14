@@ -61,10 +61,15 @@ export async function compactInteractiveMessages(input: {
 	compactionState?: SessionCompactionState;
 }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
-	const maxInputTokens =
-		modelInfo?.maxInputTokens ??
-		modelInfo?.contextWindow ??
-		FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS;
+	const compactionModelInfo = modelInfo
+		? {
+				...modelInfo,
+				id: modelInfo.id ?? input.config.modelId,
+			}
+		: {
+				id: input.config.modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			};
 	const compact = createContextCompactionPrepareTurn(
 		{
 			providerConfig: resolveCompactionProviderConfig(
@@ -105,11 +110,7 @@ export async function compactInteractiveMessages(input: {
 		model: {
 			id: input.config.modelId,
 			provider: input.config.providerId,
-			info: {
-				...(modelInfo ?? {}),
-				id: modelInfo?.id ?? input.config.modelId,
-				maxInputTokens: maxInputTokens,
-			},
+			info: compactionModelInfo,
 		},
 	});
 	if (!result?.messages) {
