@@ -159,6 +159,22 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				}
 				return false
 			}
+			case "reasoning": {
+				// A mode change cancels the in-flight request before rebuilding the
+				// session. Do not keep rendering that request's stale thinking row.
+				for (let i = index - 1; i >= 0; i--) {
+					const previous = arr[i]
+					if (previous.say !== "api_req_started") {
+						continue
+					}
+					try {
+						return JSON.parse(previous.text || "{}").cancelReason !== "mode_changed"
+					} catch {
+						return true
+					}
+				}
+				break
+			}
 			case "text":
 				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
 				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
@@ -276,6 +292,15 @@ export function findReasoningForApiReq(
 	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
 	if (apiReqIndex === -1) {
 		return { reasoning: undefined, responseStarted: false }
+	}
+
+	try {
+		const requestInfo = JSON.parse(allMessages[apiReqIndex].text || "{}")
+		if (requestInfo.cancelReason === "mode_changed") {
+			return { reasoning: undefined, responseStarted: false }
+		}
+	} catch {
+		// Preserve the existing tolerant behavior for legacy request metadata.
 	}
 
 	// Collect reasoning and check if response content has started

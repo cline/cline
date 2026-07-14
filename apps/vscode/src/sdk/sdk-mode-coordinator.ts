@@ -396,7 +396,7 @@ export class SdkModeCoordinator {
 		}
 
 		const current = task.messageStateHandler.getClineMessages()
-		const finalized = this.options.messages.finalizeMessagesForSave(current)
+		const finalized = this.options.messages.finalizeMessagesForSave(current, "mode_changed")
 		this.options.messages.appendMessages(finalized)
 	}
 }
