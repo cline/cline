@@ -514,6 +514,58 @@ describe("SdkSessionLifecycle", () => {
 		const error = new Error("aborted by user")
 		expect(isAbortError(error)).toBe(true)
 	})
+
+	it("stamps a pending mode-switch notice onto the outbound prompt", async () => {
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		// Real tracker semantics live in @cline/shared and SdkModeCoordinator;
+		// here a one-shot stub proves the consume-once wiring: first send is
+		// stamped, later sends go out untouched.
+		let pending: { from: "act"; to: "plan" } | null = { from: "act", to: "plan" }
+		const consumeModeSwitchNotice = vi.fn((sessionId: string) => {
+			if (sessionId !== "session-123") {
+				return null
+			}
+			const notice = pending
+			pending = null
+			return notice
+		})
+		const lifecycle = makeLifecycle({ consumeModeSwitchNotice })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "how should we refactor this?")
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "session-123",
+				prompt: "<mode_notice>The user switched from act mode to plan mode before sending this message.</mode_notice>\nhow should we refactor this?",
+			}),
+		)
+
+		// The notice was consumed by the first send; the next message is clean.
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "and the tests?")
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+		expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: "and the tests?" }))
+	})
+
+	it("sends prompts unchanged when no mode-switch notice is pending", async () => {
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ consumeModeSwitchNotice: vi.fn(() => null) })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(send).toHaveBeenCalled())
+
+		expect(send).toHaveBeenCalledWith(expect.objectContaining({ prompt: "hello" }))
+	})
 })
 
 function makeLifecycle(overrides: Partial<ConstructorParameters<typeof SdkSessionLifecycle>[0]> = {}) {

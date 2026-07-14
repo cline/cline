@@ -475,8 +475,7 @@ export function runBasicCompaction(options: {
 	);
 	const budgetActionCount = budgeted.actions.filter(
 		(action) =>
-			action.reason === "over_budget" ||
-			action.reason === "tool_pair_boundary",
+			action.reason === "over_budget" || action.reason === "tool_pair_boundary",
 	).length;
 	options.logger?.debug("Performed basic compaction", {
 		messagesBefore: options.context.messages.length,
