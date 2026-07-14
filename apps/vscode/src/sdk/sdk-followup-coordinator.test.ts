@@ -272,6 +272,37 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("adds a legacy warning to initial messages when resuming a legacy task", async () => {
+		const task = makeTask("legacy-task")
+		const historyItem = {
+			id: "legacy-task",
+			ts: 1,
+			task: "Legacy task",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem, isLegacyTask: true })
+		options.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce([
+			{ role: "user", content: "hello" },
+			{ role: "user", content: "warning" },
+		])
+
+		await coordinator.askResponse("continue")
+
+		expect(options.taskHistory.getLegacyResumeInitialMessages).toHaveBeenCalledWith("legacy-task", [
+			{ role: "user", content: "hello" },
+		])
+		expect(options.sessions.startNewSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: [
+					{ role: "user", content: "hello" },
+					{ role: "user", content: "warning" },
+				],
+			}),
+		)
+	})
+
 	it("echoes attachments on an attachment-only resume", async () => {
 		const task = makeTask("task-1")
 		const historyItem = {
@@ -373,6 +404,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			findHistoryItem: vi.fn(() => input.historyItem),
 			updateTaskHistory: vi.fn().mockResolvedValue([]),
 			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
+			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
+			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallbackMessages?: unknown[]) => fallbackMessages),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -409,6 +442,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			findHistoryItem: ReturnType<typeof vi.fn>
 			updateTaskHistory: ReturnType<typeof vi.fn>
 			updateTaskHistoryItem: ReturnType<typeof vi.fn>
+			isLegacyTask: ReturnType<typeof vi.fn>
+			getLegacyResumeInitialMessages: ReturnType<typeof vi.fn>
 		}
 		sessionConfigBuilder: SdkFollowupCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		getTask: ReturnType<typeof vi.fn>
@@ -444,6 +479,7 @@ interface MakeCoordinatorInput {
 	}
 	mode: "act" | "plan"
 	waitForPendingModeRebuild: () => Promise<void>
+	isLegacyTask: boolean
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
