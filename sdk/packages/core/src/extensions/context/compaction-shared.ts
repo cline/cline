@@ -42,12 +42,12 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 }
 
 /**
- * Resolve the model's usable prompt budget. A distinct input limit is
- * authoritative but cannot exceed the context window. Otherwise, reserve the
- * reported output budget from the shared context window when possible.
+ * Resolve the model's usable prompt budget. A reported input limit is
+ * authoritative but cannot exceed the context window. When the model only
+ * reports a context window, retain a conservative margin for request overhead.
  */
 export function resolveEffectiveMaxInputTokens(
-	input: Pick<ModelInfo, "maxInputTokens" | "contextWindow" | "maxTokens">,
+	input: Pick<ModelInfo, "maxInputTokens" | "contextWindow">,
 ): number | undefined {
 	const contextWindow = isPositiveFiniteNumber(input.contextWindow)
 		? input.contextWindow
@@ -56,22 +56,15 @@ export function resolveEffectiveMaxInputTokens(
 		? input.maxInputTokens
 		: undefined;
 
-	if (maxInputTokens !== undefined && maxInputTokens !== contextWindow) {
+	if (maxInputTokens !== undefined) {
 		return contextWindow === undefined
 			? maxInputTokens
 			: Math.min(maxInputTokens, contextWindow);
 	}
 
-	if (contextWindow === undefined) {
-		return maxInputTokens;
-	}
-
-	if (!isPositiveFiniteNumber(input.maxTokens)) {
-		return contextWindow * CONTEXT_WINDOW_INPUT_RATIO;
-	}
-
-	const derivedMaxInputTokens = contextWindow - input.maxTokens;
-	return derivedMaxInputTokens > 0 ? derivedMaxInputTokens : contextWindow;
+	return contextWindow === undefined
+		? undefined
+		: contextWindow * CONTEXT_WINDOW_INPUT_RATIO;
 }
 
 export function truncateText(text: string, limit: number): string {

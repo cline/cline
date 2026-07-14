@@ -1,5 +1,8 @@
 import type * as LlmsProviders from "@cline/llms";
-import type { MessageWithMetadata } from "@cline/shared";
+import {
+	estimateRequestInputTokens,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
@@ -82,7 +85,6 @@ describe("resolveEffectiveMaxInputTokens", () => {
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: 200_000,
 				contextWindow: 400_000,
-				maxTokens: 128_000,
 			}),
 		).toBe(200_000);
 	});
@@ -92,19 +94,17 @@ describe("resolveEffectiveMaxInputTokens", () => {
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: 500_000,
 				contextWindow: 400_000,
-				maxTokens: 128_000,
 			}),
 		).toBe(400_000);
 	});
 
-	it("subtracts maxTokens when maxInputTokens equals contextWindow", () => {
+	it("keeps maxInputTokens authoritative when it equals contextWindow", () => {
 		expect(
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: 400_000,
 				contextWindow: 400_000,
-				maxTokens: 128_000,
 			}),
-		).toBe(272_000);
+		).toBe(400_000);
 	});
 
 	it("uses 90 percent of contextWindow when maxTokens is unavailable", () => {
@@ -115,23 +115,21 @@ describe("resolveEffectiveMaxInputTokens", () => {
 		).toBe(360_000);
 	});
 
-	it("treats contextWindow as maxInputTokens when it is the only input limit", () => {
-		expect(
-			resolveEffectiveMaxInputTokens({
-				contextWindow: 400_000,
-				maxTokens: 128_000,
-			}),
-		).toBe(272_000);
+	it("does not reserve catalog maxTokens when only contextWindow is available", () => {
+		const modelInfo = {
+			contextWindow: 400_000,
+			maxTokens: 128_000,
+		};
+		expect(resolveEffectiveMaxInputTokens(modelInfo)).toBe(360_000);
 	});
 
-	it("uses contextWindow when maxTokens would leave no input budget", () => {
-		expect(
-			resolveEffectiveMaxInputTokens({
-				maxInputTokens: 200_000,
-				contextWindow: 200_000,
-				maxTokens: 200_000,
-			}),
-		).toBe(200_000);
+	it("keeps maxInputTokens when maxTokens would leave no input budget", () => {
+		const modelInfo = {
+			maxInputTokens: 200_000,
+			contextWindow: 200_000,
+			maxTokens: 200_000,
+		};
+		expect(resolveEffectiveMaxInputTokens(modelInfo)).toBe(200_000);
 	});
 });
 
@@ -1322,10 +1320,11 @@ describe("createContextCompactionPrepareTurn", () => {
 		const messages: MessageWithMetadata[] = [
 			{ role: "user", content: "At the exact compaction boundary" },
 		];
-		const inputTokens = messages.reduce(
-			(total, message) => total + createTokenEstimator()(message),
-			0,
-		);
+		const inputTokens = estimateRequestInputTokens({
+			systemPrompt: "You are helpful.",
+			messages,
+			tools: [],
+		});
 		const maxInputTokens = inputTokens / 0.9;
 		const result = await prepareTurn?.({
 			agentId: "agent-1",
@@ -1354,7 +1353,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
-	it("triggers at 81 percent of contextWindow when maxTokens is unavailable", async () => {
+	it("triggers at 81 percent when only contextWindow is available", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [{ role: "user" as const, content: "Compacted at 81%" }],
 		}));
@@ -1371,10 +1370,11 @@ describe("createContextCompactionPrepareTurn", () => {
 		const messages: MessageWithMetadata[] = [
 			{ role: "user", content: "At the context fallback boundary" },
 		];
-		const inputTokens = messages.reduce(
-			(total, message) => total + createTokenEstimator()(message),
-			0,
-		);
+		const inputTokens = estimateRequestInputTokens({
+			systemPrompt: "You are helpful.",
+			messages,
+			tools: [],
+		});
 		const contextWindow = inputTokens / 0.81;
 
 		const result = await prepareTurn?.({
@@ -1392,7 +1392,6 @@ describe("createContextCompactionPrepareTurn", () => {
 				provider: "anthropic",
 				info: {
 					id: "mock-model",
-					maxInputTokens: contextWindow,
 					contextWindow,
 				},
 			},
@@ -1405,6 +1404,56 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted at 81%" },
 		]);
+	});
+
+	it("includes system prompt and tools in the automatic trigger", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted full request" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "small message" },
+		];
+		const systemPrompt = "s".repeat(3_000);
+		const tools = [
+			{
+				name: "large_tool",
+				description: "t".repeat(3_000),
+				inputSchema: { type: "object" },
+			},
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt,
+			tools,
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 2_000 },
+			},
+		});
+
+		expect(createTokenEstimator()(messages[0])).toBeLessThan(1_800);
+		expect(
+			estimateRequestInputTokens({ systemPrompt, messages, tools }),
+		).toBeGreaterThanOrEqual(1_800);
+		expect(compact).toHaveBeenCalledTimes(1);
 	});
 
 	it("triggers at 90 percent of maxInputTokens", async () => {
@@ -1622,7 +1671,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(context?.targetTokens).toBe(50);
 	});
 
-	it("derives input budget by reserving model max output tokens from context window", async () => {
+	it("uses a conservative input budget when only contextWindow is reported", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [
 				{ role: "user" as const, content: "Compacted by derived input budget" },
@@ -1641,7 +1690,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const messages: MessageWithMetadata[] = [
 			{
 				role: "user",
-				content: "large prompt ".repeat(60_000),
+				content: "large prompt ".repeat(80_000),
 			},
 		];
 
@@ -1668,8 +1717,8 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(272_000);
-		expect(context?.triggerTokens).toBe(244_800);
+		expect(context?.maxInputTokens).toBe(360_000);
+		expect(context?.triggerTokens).toBe(324_000);
 		expect(context?.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by derived input budget" },
@@ -1772,7 +1821,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result).toBeUndefined();
 	});
 
-	it("uses contextWindow minus maxTokens even when the remainder is small", async () => {
+	it("does not compact early when maxInputTokens equals contextWindow", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [{ role: "user" as const, content: "Compacted by fallback" }],
 		}));
@@ -1809,18 +1858,14 @@ describe("createContextCompactionPrepareTurn", () => {
 				info: {
 					id: "minimax/minimax-m3",
 					contextWindow: 524_288,
+					maxInputTokens: 524_288,
 					maxTokens: 512_000,
 				},
 			},
 		});
 
-		expect(compact).toHaveBeenCalledTimes(1);
-		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(12_288);
-		expect(context?.triggerTokens).toBeCloseTo(11_059.2);
-		expect(result?.messages).toEqual([
-			{ role: "user", content: "Compacted by fallback" },
-		]);
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
 	});
 
 	it("triggers compaction from provider-sized tool result payloads", async () => {

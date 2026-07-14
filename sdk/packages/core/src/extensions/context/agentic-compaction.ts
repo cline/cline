@@ -34,7 +34,6 @@ function resolveProviderMaxInputTokens(
 		maxInputTokens:
 			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
 		contextWindow: providerConfig.modelInfo?.contextWindow,
-		maxTokens: providerConfig.modelInfo?.maxTokens,
 	});
 	if (modelInfoLimit !== undefined) {
 		return modelInfoLimit;
@@ -43,7 +42,6 @@ function resolveProviderMaxInputTokens(
 	return resolveEffectiveMaxInputTokens({
 		maxInputTokens: knownModelInfo?.maxInputTokens,
 		contextWindow: knownModelInfo?.contextWindow,
-		maxTokens: knownModelInfo?.maxTokens,
 	});
 }
 

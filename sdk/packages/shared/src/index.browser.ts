@@ -201,7 +201,12 @@ export {
 	mergeClineClientRequestHeaders,
 	serializeAbortReason,
 } from "./llms/requests";
-export { CHARS_PER_TOKEN, estimateTokens } from "./llms/tokens";
+export {
+	CHARS_PER_TOKEN,
+	estimateRequestInputTokens,
+	estimateTokens,
+	type TokenEstimatedRequest,
+} from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
 	ToolApprovalResult,

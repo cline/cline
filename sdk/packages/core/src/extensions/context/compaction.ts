@@ -1,3 +1,4 @@
+import { estimateRequestInputTokens } from "@cline/shared";
 import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
@@ -266,15 +267,19 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
-		const inputTokens = context.apiMessages.reduce(
+		const apiMessageTokens = context.apiMessages.reduce(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
 		);
+		const inputTokens = estimateRequestInputTokens({
+			systemPrompt: context.systemPrompt,
+			messages: context.apiMessages,
+			tools: context.tools,
+		});
 		const maxInputTokens =
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: context.model.info?.maxInputTokens,
 				contextWindow: context.model.info?.contextWindow,
-				maxTokens: context.model.info?.maxTokens,
 			}) ?? DEFAULT_MAX_INPUT_TOKENS;
 		const triggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
 		const shouldCompact = inputTokens >= triggerTokens;
@@ -285,6 +290,7 @@ export function createContextCompactionPrepareTurn(
 			providerId: config.providerId,
 			modelId: config.modelId,
 			inputTokens,
+			apiMessageTokens,
 			maxInputTokens,
 			triggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
@@ -300,7 +306,7 @@ export function createContextCompactionPrepareTurn(
 		const targetState =
 			mode === "manual"
 				? resolveManualTargetState({
-						inputTokens,
+						inputTokens: apiMessageTokens,
 						maxInputTokens,
 						autoTriggerTokens: triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
@@ -389,7 +395,8 @@ export function createContextCompactionPrepareTurn(
 				strategy: strategy,
 				maxInputTokens,
 				inputTokens: compactionInputTokens,
-				apiInputTokens: inputTokens,
+				apiInputTokens: apiMessageTokens,
+				requestInputTokens: inputTokens,
 				afterTokens,
 				tokensSaved: compactionInputTokens - afterTokens,
 				utilizationBefore: `${((compactionInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
