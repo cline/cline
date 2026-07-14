@@ -1,10 +1,17 @@
 import type { ApiConfiguration } from "@shared/api"
+import { StringRequest } from "@shared/proto/cline/common"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } from "@/sdk/model-catalog/contracts"
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import { fetch } from "@/shared/net"
 import { ApiFormat, OpenRouterModelInfo } from "@/shared/proto/cline/models"
+import type { Controller } from "../../index"
 import type { ProviderCatalogController } from "../providerCatalogShared"
+
+vi.mock("@/shared/net", () => ({
+	fetch: vi.fn(),
+}))
 
 type TestStateManager = {
 	setGlobalStateBatch: ReturnType<typeof vi.fn>
@@ -208,6 +215,23 @@ describe("provider model catalog handlers", () => {
 		})
 
 		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
+	})
+
+	it("getLmStudioModels uses the effective provider API key", async () => {
+		const { getLmStudioModels } = await import("../getLmStudioModels")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId, apiKey: "provider-settings-key" })
+		const controller = makeController(store, makeCatalog()) as unknown as Controller
+		vi.mocked(fetch).mockResolvedValue({
+			json: async () => ({ data: [{ id: "model-1" }] }),
+		} as Response)
+
+		const response = await getLmStudioModels(controller, StringRequest.create({ value: "http://localhost:1234" }))
+
+		expect(fetch).toHaveBeenCalledWith("http://localhost:1234/api/v0/models", {
+			headers: { Authorization: "Bearer provider-settings-key" },
+		})
+		expect(response.values).toEqual(['{"id":"model-1"}'])
 	})
 
 	it("commitModelSelection validates mode and commits the full selection envelope", async () => {

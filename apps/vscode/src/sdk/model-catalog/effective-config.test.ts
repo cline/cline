@@ -58,6 +58,23 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("builds LM Studio config from its provider-specific StateManager fields", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setApiConfiguration({
+			apiKey: "anthropic-key-should-not-be-used",
+			lmStudioApiKey: "state-lmstudio-key",
+			lmStudioBaseUrl: "http://localhost:1234",
+			lmStudioMaxTokens: "8192",
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("lmstudio"))).toEqual({
+			providerId: parseProviderId("lmstudio"),
+			apiKey: "state-lmstudio-key",
+			baseUrl: "http://localhost:1234",
+			extras: { lmStudioMaxTokens: "8192" },
+		})
+	})
+
 	it("builds LiteLLM config by merging providers.json fields and StateManager overlays", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({

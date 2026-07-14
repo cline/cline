@@ -82,4 +82,22 @@ describe("buildSdkProviderConfig", () => {
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("v0")
 	})
+
+	it("uses the LM Studio API key field for direct handlers", () => {
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "lmstudio",
+				actModeLmStudioModelId: "local-model",
+				apiKey: "anthropic-key-should-not-be-used",
+				lmStudioApiKey: "lmstudio-key",
+			},
+			"act",
+		)
+
+		expect(providerConfig).toMatchObject({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "lmstudio-key",
+		})
+	})
 })

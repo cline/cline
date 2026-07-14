@@ -351,6 +351,15 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
 	})
 
+	it("resolves LM Studio API keys from the provider-specific state field", () => {
+		expect(
+			resolveApiKey("lmstudio", {
+				apiKey: "anthropic-key-should-not-be-used",
+				lmStudioApiKey: "lmstudio-key",
+			} as any),
+		).toBe("lmstudio-key")
+	})
+
 	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
 			provider: "openai-codex",

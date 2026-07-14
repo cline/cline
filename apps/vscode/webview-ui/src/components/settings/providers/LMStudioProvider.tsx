@@ -8,10 +8,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the LMStudioProvider component
@@ -68,6 +70,11 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		fallbackModelInfo: openAiModelInfoSafeDefaults,
 		customModelInfo: (modelId) => toLmStudioModelInfo(undefined, modelId),
 	})
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "LM Studio",
+		write,
+	})
 	const displayedSelectedModelId = pendingSelectedModelId ?? selectedModel.modelId
 	const currentLMStudioModel = useMemo(
 		() => lmStudioModels.find((model) => model.id === displayedSelectedModelId),
@@ -118,7 +125,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			.catch((error) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
-	}, [endpoint])
+	}, [endpoint, config?.apiKeyLength])
 
 	useEffect(() => {
 		requestLmStudioModels()
@@ -156,6 +163,15 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				label="Use custom base URL"
 				onChange={handleBaseUrlChange}
 				placeholder="Default: http://localhost:1234"
+			/>
+
+			<ApiKeyField
+				helpText="Optional API key for authenticated LM Studio servers. Leave empty for local servers without authentication."
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
+				placeholder="Enter API Key (optional)..."
+				providerName="LM Studio"
+				required={false}
 			/>
 
 			<div className="font-semibold">Model</div>
