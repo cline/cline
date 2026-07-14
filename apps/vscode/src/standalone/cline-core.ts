@@ -6,6 +6,7 @@
 import "@/shared/net"
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
+import { ExternalEditPreview } from "@hosts/external/ExternalEditPreview"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { retryOperation } from "@utils/retry"
@@ -119,6 +120,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
+	const createEditPreview = () => new ExternalEditPreview()
 	const createCommentReview = () => new ExternalCommentReviewController()
 	const createTerminalManager = () => new StandaloneTerminalManager()
 	const getCallbackUrl = (path: string, preferredPort?: number): Promise<string> => {
@@ -130,6 +132,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createEditPreview,
 		createCommentReview,
 		createTerminalManager,
 		new ExternalHostBridgeClientManager(),

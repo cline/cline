@@ -97,6 +97,31 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(prepared.config.telemetry).toBe(remoteTelemetry)
 	})
 
+	it("passes custom editor and apply_patch executors into tool executor capabilities", async () => {
+		const editorExecutor = vi.fn()
+		const applyPatchExecutor = vi.fn()
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			editorExecutor,
+			applyPatchExecutor,
+		})
+
+		const capabilities = mockClineCoreCreate.mock.calls[0][0].capabilities
+		expect(capabilities.toolExecutors.editor).toBe(editorExecutor)
+		expect(capabilities.toolExecutors.applyPatch).toBe(applyPatchExecutor)
+	})
+
+	it("leaves the SDK's default edit executors in place when no overrides are provided", async () => {
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+		})
+
+		const capabilities = mockClineCoreCreate.mock.calls[0][0].capabilities
+		expect(capabilities.toolExecutors).toBeUndefined()
+	})
+
 	it("applies remote config before appending VS Code extra tools", async () => {
 		mockCreateVscodeExtraTools.mockResolvedValueOnce([{ name: "vscode-tool" }] as never)
 		const applyToStartSessionInput = vi.fn(async (input: ClineCoreStartInput) => ({
