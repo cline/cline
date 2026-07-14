@@ -308,6 +308,31 @@ type ToolResultEntry = {
 	success?: boolean;
 };
 
+// read_files queries are JSON object strings ({"path":...,"start_line":...});
+// render them as a compact path:start-end label instead of raw JSON.
+function toolResultEntryLabel(entry: ToolResultEntry): string {
+	const query = entry.query ?? "";
+	if (!query.startsWith("{")) {
+		return query;
+	}
+	try {
+		const parsed = JSON.parse(query) as {
+			path?: string;
+			start_line?: number;
+			end_line?: number;
+		};
+		if (typeof parsed.path !== "string") {
+			return query;
+		}
+		if (parsed.start_line == null && parsed.end_line == null) {
+			return parsed.path;
+		}
+		return `${parsed.path}:${parsed.start_line ?? 1}-${parsed.end_line ?? "EOF"}`;
+	} catch {
+		return query;
+	}
+}
+
 function isToolResultArray(value: unknown): value is ToolResultEntry[] {
 	return (
 		Array.isArray(value) &&
@@ -357,7 +382,7 @@ function formatRawOutput(output: unknown, fallback: string): string {
 function expandToolEvent(toolEvent: ToolEvent): ExpandedToolEvent[] {
 	if (isToolResultArray(toolEvent.output)) {
 		return toolEvent.output.map((entry, index) => {
-			const query = entry.query ?? "";
+			const query = toolResultEntryLabel(entry);
 			const title = query ? `${toolEvent.name}: ${query}` : toolEvent.name;
 			const state: ToolEvent["state"] =
 				entry.success === false ? "output-error" : toolEvent.state;

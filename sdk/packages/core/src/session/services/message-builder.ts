@@ -863,7 +863,16 @@ export class MessageBuilder {
 		return typeof value === "number" && Number.isInteger(value) ? value : null;
 	}
 
+	/**
+	 * Read-result queries echo the request as a JSON object string
+	 * (`{"path":...,"start_line":...}`); older transcripts carry the legacy
+	 * fused `path:start-end` format, so both must parse.
+	 */
 	private parseReadQuery(query: string): ReadLocator {
+		const jsonLocator = this.parseJsonReadQuery(query);
+		if (jsonLocator) {
+			return jsonLocator;
+		}
 		const match = /^(.*):(\d+)-(EOF|\d+)$/.exec(query);
 		if (!match) {
 			return { path: query, startLine: null, endLine: null };
@@ -873,6 +882,17 @@ export class MessageBuilder {
 			startLine: Number(match[2]),
 			endLine: match[3] === "EOF" ? null : Number(match[3]),
 		};
+	}
+
+	private parseJsonReadQuery(query: string): ReadLocator | undefined {
+		if (!query.startsWith("{")) {
+			return undefined;
+		}
+		try {
+			return this.extractLocatorFromReadRequest(JSON.parse(query));
+		} catch {
+			return undefined;
+		}
 	}
 
 	private dedupeReadLocators(locators: ReadLocator[]): ReadLocator[] {
