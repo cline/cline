@@ -1,5 +1,6 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
 
@@ -100,6 +101,11 @@ describe("HubRuntimeHost", () => {
 		const started = await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
+			localRuntime: {
+				extensionContext: {
+					client: { name: "cline-cli", version: "3.0.38" },
+				},
+			},
 			prompt: "Hey",
 		});
 
@@ -123,6 +129,18 @@ describe("HubRuntimeHost", () => {
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
+				headers: expect.objectContaining({
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"User-Agent": "Cline/3.0.38",
+					"X-IS-MULTIROOT": "false",
+					"X-CLIENT-TYPE": "cline-cli",
+					"X-CLIENT-VERSION": "3.0.38",
+					"X-PLATFORM": "cli",
+					"X-PLATFORM-VERSION": "3.0.38",
+					"X-CORE-VERSION": corePackageVersion,
+					"X-Task-ID": expect.any(String),
+				}),
 			}),
 			metadata: expect.objectContaining({
 				source: SessionSource.CLI,

@@ -86,7 +86,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		return { ...openRouterModels, ...(clineModels ?? {}) }
 	}, [openRouterModels, clineModels])
 
-	// ClinePass model IDs omit the upstream lab (e.g. "cline-pass/glm-5.1"), so look up
+	// ClinePass model IDs omit the upstream lab (e.g. "cline-pass/glm-5.2"), so look up
 	// capabilities via the model slug against the OpenRouter catalog, falling back to
 	// conservative ClinePass defaults. Mirrors ClinePassProvider's resolution.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])

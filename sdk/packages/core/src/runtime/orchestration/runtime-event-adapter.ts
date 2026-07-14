@@ -66,6 +66,21 @@ import type {
 // Helpers
 // =============================================================================
 
+type StatusNoticeReason = Extract<AgentEvent, { type: "notice" }>["reason"];
+
+function resolveStatusNoticeReason(
+	reason: unknown,
+): StatusNoticeReason | undefined {
+	switch (reason) {
+		case "auto_compaction":
+		case "manual_compaction":
+		case "compaction_budget_emergency":
+			return reason;
+		default:
+			return undefined;
+	}
+}
+
 function extractTextPart(message: AgentMessage): string | undefined {
 	const parts = message.content.filter(
 		(part): part is AgentTextPart => part.type === "text",
@@ -225,10 +240,7 @@ export class RuntimeEventAdapter {
 						noticeType: "status",
 						displayRole: "status",
 						message: event.message,
-						reason:
-							event.metadata?.reason === "auto_compaction"
-								? "auto_compaction"
-								: undefined,
+						reason: resolveStatusNoticeReason(event.metadata?.reason),
 						metadata: event.metadata,
 					},
 				];

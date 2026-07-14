@@ -101,7 +101,11 @@ export type ChatWsChunkEvent = {
 	event: AgentChunkEvent;
 };
 
-export type ChatTransportState = "connecting" | "reconnecting" | "connected";
+export type ChatTransportState =
+	| "connecting"
+	| "reconnecting"
+	| "connected"
+	| "unavailable";
 
 export type CoreLogChunk = {
 	level?: string;

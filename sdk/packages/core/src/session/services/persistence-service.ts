@@ -512,15 +512,21 @@ export class UnifiedSessionPersistenceService {
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
 		await this.reconcileDeadSessions(scanLimit);
 
-		const rows = await this.adapter.listSessions({ limit: scanLimit });
-		return rows.slice(0, requestedLimit).map((row) => {
+		const rows = (await this.adapter.listSessions({ limit: scanLimit })).slice(
+			0,
+			requestedLimit,
+		);
+		// Resolve manifest titles concurrently and off-thread. Each row only needs
+		// the manifest's `metadata.title`, so read just that asynchronously instead
+		// of synchronously reading + Zod-parsing the entire manifest per row.
+		const manifestTitles = await Promise.all(
+			rows.map((row) =>
+				this.manifestStore.readSessionManifestTitle(row.sessionId),
+			),
+		);
+		return rows.map((row, index) => {
 			const meta = sanitizeMetadata(row.metadata ?? undefined);
-			const manifest = this.manifestStore.readSessionManifest(row.sessionId);
-			const manifestTitle = normalizeTitle(
-				typeof manifest?.metadata?.title === "string"
-					? (manifest.metadata.title as string)
-					: undefined,
-			);
+			const manifestTitle = normalizeTitle(manifestTitles[index]);
 			const resolved = manifestTitle
 				? { ...(meta ?? {}), title: manifestTitle }
 				: meta;

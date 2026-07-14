@@ -4,6 +4,9 @@ import type { SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.hoisted(() => vi.fn());
+const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
+const resolveHubOwnerContextMock = vi.hoisted(() => vi.fn());
+const startHubWebSocketServerMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@cline/core", async () => {
@@ -14,7 +17,18 @@ vi.mock("@cline/core", async () => {
 		ClineCore: {
 			create: createCoreMock,
 		},
+		createLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
+			startSession: vi.fn(),
+			sendSession: vi.fn(),
+			abortSession: vi.fn(),
+			stopSession: vi.fn(),
+		})),
+		resolveHubOwnerContext: resolveHubOwnerContextMock,
+		startHubWebSocketServer: startHubWebSocketServerMock,
 		NodeHubClient: class {
+			constructor(options: unknown) {
+				nodeHubClientCtorMock(options);
+			}
 			connect = connectMock;
 			subscribe = subscribeMock;
 			dispose = vi.fn();
@@ -39,8 +53,20 @@ describe("Code sidecar runtime capabilities", () => {
 	beforeEach(() => {
 		createCoreMock.mockReset();
 		connectMock.mockReset();
+		nodeHubClientCtorMock.mockReset();
+		resolveHubOwnerContextMock.mockReset();
+		startHubWebSocketServerMock.mockReset();
 		subscribeMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
+		resolveHubOwnerContextMock.mockReturnValue({
+			ownerId: "code-sidecar-test",
+			discoveryPath: "/tmp/code-sidecar-test.json",
+		});
+		startHubWebSocketServerMock.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+			close: vi.fn(),
+		});
 		subscribeMock.mockReturnValue(() => {});
 		createCoreMock.mockResolvedValue({
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
@@ -57,6 +83,15 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 		await initializeSessionManager(ctx);
 
+		expect(startHubWebSocketServerMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				port: 0,
+				owner: {
+					ownerId: "code-sidecar-test",
+					discoveryPath: "/tmp/code-sidecar-test.json",
+				},
+			}),
+		);
 		expect(createCoreMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				backendMode: "hub",
@@ -67,9 +102,18 @@ describe("Code sidecar runtime capabilities", () => {
 					requestToolApproval: expect.any(Function),
 				}),
 				hub: expect.objectContaining({
+					endpoint: "ws://127.0.0.1:25463/hub",
+					authToken: "test-token",
 					clientType: "code-sidecar",
 					displayName: "Code App sidecar",
 				}),
+			}),
+		);
+		expect(nodeHubClientCtorMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "test-token",
+				clientType: "code-sidecar-approvals",
 			}),
 		);
 	});
@@ -148,6 +192,8 @@ describe("Code sidecar runtime capabilities", () => {
 					requestToolApproval: expect.any(Function),
 				}),
 				hub: expect.objectContaining({
+					endpoint: "ws://127.0.0.1:25463/hub",
+					authToken: "test-token",
 					clientType: "code-sidecar",
 					displayName: "Code App sidecar",
 				}),

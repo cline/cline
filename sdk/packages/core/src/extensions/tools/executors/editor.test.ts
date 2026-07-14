@@ -129,9 +129,7 @@ describe("createEditorExecutor", () => {
 			expect(result).toBe(
 				`Edited ${filePath}\n\`\`\`diff\n-2: b\n-3: c\n-4: d\n+2: B\n\`\`\``,
 			);
-			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
-				"a\nB\ne\nf",
-			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("a\nB\ne\nf");
 		});
 	});
 
@@ -144,9 +142,7 @@ describe("createEditorExecutor", () => {
 				context,
 			);
 
-			expect(result).toBe(
-				`Edited ${filePath}\n\`\`\`diff\n+2: new\n\`\`\``,
-			);
+			expect(result).toBe(`Edited ${filePath}\n\`\`\`diff\n+2: new\n\`\`\``);
 		});
 	});
 

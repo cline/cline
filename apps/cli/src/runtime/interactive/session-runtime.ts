@@ -49,6 +49,9 @@ type RuntimeHooks = ReturnType<typeof createRuntimeHooks>;
 type StartedSession = Awaited<ReturnType<CliCore["start"]>>;
 type CurrentTurnInput = Omit<Parameters<CliCore["send"]>[0], "sessionId">;
 type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
+export type SessionConnectionUpdate = Parameters<
+	CliCore["updateSessionConnection"]
+>[1];
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
@@ -210,12 +213,18 @@ export function createInteractiveSessionRuntime(input: {
 		initial: Message[] = [],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
+		// Restarting an old session associate with this ID,
+		// For continuing the same conversation, e.g. after a config change.
+		sessionId?: string,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
 		const started = await manager.start({
 			source: SessionSource.CLI,
-			config: buildSessionConfig(),
+			config: {
+				...buildSessionConfig(),
+				...(sessionId ? { sessionId } : {}),
+			},
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
 			initialMessages: initial,
@@ -415,7 +424,14 @@ export function createInteractiveSessionRuntime(input: {
 		messages: Message[],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
+		options?: { preserveSessionId?: boolean },
 	): Promise<void> => {
+		// Config-only restarts (model/mode/account changes) continue the same
+		// conversation, so they must keep the session id — otherwise each
+		// restart mints a new session history entry for the same conversation.
+		const reuseSessionId = options?.preserveSessionId
+			? activeSessionId || undefined
+			: undefined;
 		sessionStartGeneration += 1;
 		pendingResumeSessionId = undefined;
 		startupError = undefined;
@@ -431,6 +447,7 @@ export function createInteractiveSessionRuntime(input: {
 				messages,
 				sessionMetadata,
 				initialCompactionState,
+				reuseSessionId,
 			);
 		})().catch((error) => {
 			startupError = error;
@@ -473,7 +490,22 @@ export function createInteractiveSessionRuntime(input: {
 						systemPrompt: compactionState?.system_prompt,
 					})
 				: undefined,
+			{ preserveSessionId: true },
 		);
+	};
+
+	const updateCurrentSessionConnection = async (
+		update: SessionConnectionUpdate,
+	): Promise<void> => {
+		await ensureReady();
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId) {
+			// No live session to update; the next startup builds its config from
+			// the already-mutated CLI config, so nothing else is needed.
+			return;
+		}
+		await manager.updateSessionConnection(sessionId, update);
 	};
 
 	const restartEmpty = async (): Promise<void> => {
@@ -855,6 +887,7 @@ export function createInteractiveSessionRuntime(input: {
 		resetForNewSession,
 		restartWithMessages,
 		restartWithCurrentMessages,
+		updateCurrentSessionConnection,
 		resumeSession,
 		forkCurrentSession,
 		compactCurrentSession,

@@ -68,7 +68,7 @@
 			"command": "bun run build:webview",
 			"group": "build",
 			"problemMatcher": [],
-			"isBackground": true,
+			"isBackground": false,
 			"label": "npm: build:webview",
 			"dependsOn": [
 				"npm: protos"
@@ -89,7 +89,7 @@
 			"command": "bun run build:webview:test",
 			"group": "build",
 			"problemMatcher": [],
-			"isBackground": true,
+			"isBackground": false,
 			"label": "npm: build:webview:test",
 			"dependsOn": [
 				"npm: protos"
@@ -114,16 +114,16 @@
 				{
 					"pattern": [
 						{
-							"regexp": ".",
+							"regexp": "^(?!)((?:.*))$",
+							"kind": "file",
 							"file": 1,
-							"location": 2,
-							"message": 3
+							"message": 1
 						}
 					],
 					"background": {
 						"activeOnStart": true,
-						"beginsPattern": ".",
-						"endsPattern": "."
+						"beginsPattern": "^Building webview for|^\\s*VITE",
+						"endsPattern": "^.*Local:\\s+http://127\\.0\\.0\\.1:[0-9]+/"
 					}
 				}
 			],

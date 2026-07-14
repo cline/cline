@@ -20,6 +20,7 @@ import {
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
+import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
@@ -27,6 +28,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
+import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -39,29 +41,6 @@ import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
-
-// ---------------------------------------------------------------------------
-// Plan mode instructions
-// ---------------------------------------------------------------------------
-
-/**
- * Instructions appended to the system prompt when the session is in plan mode.
- * Mirrors the CLI's plan-mode guardrails in apps/cli/src/runtime/prompt.ts so
- * plan mode in VSCode has the same explicit "explore/analyze/plan, do not
- * implement" guidance.
- */
-const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
-
-You are in Plan mode. Your role is to explore, analyze, and plan -- not to execute.
-
-- Read files, search the codebase, and gather context to understand the problem
-- Ask clarifying questions when requirements are ambiguous
-- Present your plan as a structured outline with clear steps
-- Explain tradeoffs between different approaches when they exist
-- Do NOT edit files, write code, run destructive commands, or make any changes
-- Do NOT implement anything -- focus on understanding and alignment first
-
-Once the user has reviewed your plan and explicitly approved it in a follow-up message, use the switch_to_act_mode tool to switch to act mode and begin implementation. Calling switch_to_act_mode immediately starts execution, so never call it in the same turn you present a plan and never treat the original task request as approval -- end your turn after presenting the plan and wait for the user's response.`
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,6 +93,31 @@ function createSdkLogger() {
 		error: (message: string, metadata?: Record<string, unknown>) => {
 			Logger.error(message, metadata)
 		},
+	}
+}
+
+/**
+ * Host identity for the session's client context, resolved through HostProvider
+ * rather than the `vscode` module directly: this file is also bundled into the
+ * standalone cline-core (JetBrains), where `vscode` is a Proxy-stub module and
+ * direct API reads would yield non-string values. The hostbridge returns the
+ * per-host values (e.g. "Cline for JetBrains" + IDE version on JetBrains).
+ */
+async function resolveHostIdentity() {
+	try {
+		return await HostProvider.env.getHostVersion({})
+	} catch (error) {
+		Logger.debug("Failed to resolve host version for client identity", error)
+		return undefined
+	}
+}
+
+async function resolveIsMultiRootWorkspace(): Promise<boolean> {
+	try {
+		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+		return paths.length > 1
+	} catch {
+		return false
 	}
 }
 
@@ -646,14 +650,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		Logger.warn("[SessionFactory] Failed to inject preferredLanguage instructions:", error)
 	}
 
-	// Append plan-mode instructions when in plan mode, matching the CLI's
-	// behavior (apps/cli/src/runtime/prompt.ts). The shared prompt builder does
-	// not include these guardrails, so without this the model in plan mode may
-	// still attempt to make edits instead of planning.
-	if (mode === "plan") {
-		systemPrompt = systemPrompt ? `${systemPrompt}\n\n${PLAN_MODE_INSTRUCTIONS}` : PLAN_MODE_INSTRUCTIONS
-	}
-
 	const stateManager = StateManager.get()
 	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
 	const compactionStrategy = readCompactionStrategyGlobally()
@@ -664,6 +660,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
+	const hostIdentity = await resolveHostIdentity()
+	const isMultiRoot = await resolveIsMultiRootWorkspace()
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
@@ -714,8 +712,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
 			client: {
-				name: "cline-vscode",
-				version: ExtensionRegistryInfo.version,
+				name: hostIdentity?.clineType || ClineClient.VSCode,
+				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
+				platform: hostIdentity?.platform || undefined,
+				platformVersion: hostIdentity?.version || undefined,
+				isMultiRoot,
 			},
 			workspace: {
 				rootPath: workspaceRoot,

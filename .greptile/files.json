@@ -17,12 +17,8 @@
 			"description": "OpenTelemetry-backed provider that wires logs/metrics/traces exporters. Contains createConfiguredTelemetryService and createConfiguredTelemetryHandle, the canonical factories every host should use."
 		},
 		{
-			"path": "DOC.md",
-			"description": "Public API and event documentation. The Event Catalog and 'Activation funnel' sections must be kept in sync with core-events.ts. Host integration rules (CLI dir ordering, hub daemon metadata forwarding) are documented here."
-		},
-		{
 			"path": "sdk/ARCHITECTURE.md",
-			"description": "Architecture reference. Telemetry design decisions, completion semantics (submit_and_exit anchoring), and hub-daemon telemetry forwarding are documented here. Use as ground truth for design intent."
+			"description": "Architecture reference. Telemetry design decisions and completion semantics (submit_and_exit anchoring) are documented here. Use as ground truth for design intent."
 		},
 		{
 			"path": "sdk/AGENTS.md",

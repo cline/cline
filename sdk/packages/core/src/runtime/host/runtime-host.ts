@@ -17,6 +17,7 @@ import type {
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
+import type { ConnectionUpdate } from "../config/connection-update";
 
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
@@ -170,10 +171,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 						compaction: {
 							enabled: compaction.enabled,
 							strategy: compaction.strategy,
-							thresholdRatio: compaction.thresholdRatio,
-							reserveTokens: compaction.reserveTokens,
 							preserveRecentTokens: compaction.preserveRecentTokens,
-							maxInputTokens: compaction.maxInputTokens,
 							summarizer: compaction.summarizer,
 						},
 					}
@@ -259,8 +257,17 @@ export interface SessionUsageRuntimeService {
 	): Promise<SessionUsageSummary | undefined>;
 }
 
+export type SessionConnectionUpdate = ConnectionUpdate;
+
 export interface SessionModelRuntimeService {
 	updateSessionModel(sessionId: string, modelId: string): Promise<void>;
+}
+
+export interface SessionConnectionRuntimeService {
+	updateSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void>;
 }
 
 export interface RuntimeHostSubscribeOptions {
