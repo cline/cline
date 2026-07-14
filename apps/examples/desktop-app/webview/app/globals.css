@@ -142,6 +142,10 @@
 		@apply my-4 rounded-lg;
 	}
 
+	.cline-markdown [data-streamdown="inline-code"] {
+		font-size: 0.9em;
+	}
+
 	.cline-markdown [data-streamdown="code-block"] pre,
 	.cline-markdown [data-streamdown="code-block"] code {
 		white-space: pre;
