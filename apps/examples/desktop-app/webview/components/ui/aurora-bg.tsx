@@ -18,7 +18,7 @@ const BLOBS = [
 		id: "periwinkle-left",
 		position: "left-[-20%] bottom-[-40%] w-[70%] h-[80%]",
 		gradient:
-			"radial-gradient(ellipse at center, color-mix(in oklab, var(--cline-periwinkle) 64%, transparent), transparent 70%)",
+			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-periwinkle) 64%, transparent), transparent 70%)",
 		duration: "11s",
 		delay: "0s",
 		reverse: false,
@@ -27,7 +27,7 @@ const BLOBS = [
 		id: "violet-right",
 		position: "right-[-15%] bottom-[-40%] w-[65%] h-[85%]",
 		gradient:
-			"radial-gradient(ellipse at center, color-mix(in oklab, var(--cline-violet) 58%, transparent), transparent 70%)",
+			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-violet) 58%, transparent), transparent 70%)",
 		duration: "12.5s",
 		delay: "-12s",
 		reverse: true,
@@ -70,8 +70,8 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 					opacity: 0.35 + seededUnit(index, 6) * 0.6,
 					color:
 						seededUnit(index, 7) > 0.78
-							? "var(--cline-cyan)"
-							: "color-mix(in oklab, white 92%, var(--cline-lilac))",
+							? "var(--brand-cyan)"
+							: "color-mix(in oklab, white 92%, var(--brand-lilac))",
 				};
 			}),
 		[starCount],
@@ -86,7 +86,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 				className="aurora-horizon absolute inset-x-[-8%] bottom-[-3%] h-[40%] opacity-60 blur-[64px]"
 				style={{
 					background:
-						"linear-gradient(90deg, color-mix(in oklab, var(--cline-lilac) 58%, transparent), color-mix(in oklab, var(--cline-magenta) 62%, transparent) 42%, color-mix(in oklab, var(--cline-periwinkle) 72%, transparent) 78%, color-mix(in oklab, var(--cline-cyan) 58%, transparent))",
+						"linear-gradient(90deg, color-mix(in oklab, var(--brand-lilac) 58%, transparent), color-mix(in oklab, var(--brand-magenta) 62%, transparent) 42%, color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 78%, color-mix(in oklab, var(--brand-cyan) 58%, transparent))",
 				}}
 			/>
 			<div
@@ -95,7 +95,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 					animationDelay: "-2s",
 					animationDuration: "9s",
 					background:
-						"linear-gradient(105deg, transparent 12%, color-mix(in oklab, var(--cline-magenta) 66%, transparent) 38%, color-mix(in oklab, var(--cline-periwinkle) 72%, transparent) 58%, transparent 82%)",
+						"linear-gradient(105deg, transparent 12%, color-mix(in oklab, var(--brand-magenta) 66%, transparent) 38%, color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 58%, transparent 82%)",
 				}}
 			/>
 			<div
@@ -104,7 +104,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 					animationDelay: "-6s",
 					animationDuration: "12s",
 					background:
-						"linear-gradient(75deg, transparent 10%, color-mix(in oklab, var(--cline-cyan) 62%, transparent) 42%, color-mix(in oklab, var(--cline-violet) 70%, transparent) 64%, transparent 88%)",
+						"linear-gradient(75deg, transparent 10%, color-mix(in oklab, var(--brand-cyan) 62%, transparent) 42%, color-mix(in oklab, var(--brand-violet) 70%, transparent) 64%, transparent 88%)",
 				}}
 			/>
 			{BLOBS.map((blob) => (
