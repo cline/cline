@@ -41,7 +41,10 @@ describe("auth/cline getValidClineCredentials", () => {
 
 	it("refreshes expired credentials", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
-		const current = createCredentials({ expires: 101_000 });
+		const current = createCredentials({
+			expires: 101_000,
+			metadata: { provider: "google", sessionStartedAt: 12_345 },
+		});
 		const fetchMock = vi.fn(
 			async () =>
 				new Response(
@@ -72,7 +75,51 @@ describe("auth/cline getValidClineCredentials", () => {
 			refresh: "refresh-new",
 			accountId: "acct-2",
 			email: "new@example.com",
+			metadata: {
+				provider: "google",
+				sessionStartedAt: 12_345,
+				tokenType: "Bearer",
+			},
 		});
+		nowSpy.mockRestore();
+	});
+
+	it("does not add sessionStartedAt when refreshing credentials that do not already have it", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const current = createCredentials({
+			expires: 101_000,
+			metadata: { provider: "google" },
+		});
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						success: true,
+						data: {
+							accessToken: "access-new",
+							refreshToken: "refresh-new",
+							tokenType: "Bearer",
+							expiresAt: "2030-01-01T00:00:00.000Z",
+							userInfo: {
+								subject: "sub-1",
+								email: "new@example.com",
+								name: "New User",
+								clineUserId: "acct-2",
+								accounts: [],
+							},
+						},
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+		);
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS);
+		expect(result?.metadata).toMatchObject({
+			provider: "google",
+			tokenType: "Bearer",
+		});
+		expect(result?.metadata).not.toHaveProperty("sessionStartedAt");
 		nowSpy.mockRestore();
 	});
 
@@ -202,6 +249,7 @@ describe("auth/cline loginClineOAuth", () => {
 	});
 
 	it("completes WorkOS device auth and registers tokens", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(200_000);
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValueOnce(
@@ -271,6 +319,10 @@ describe("auth/cline loginClineOAuth", () => {
 			refresh: "cline-refresh",
 			accountId: "acct-1",
 			email: "user@example.com",
+			metadata: {
+				sessionStartedAt: 200_000,
+				tokenType: "Bearer",
+			},
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 		const registerCallBody = JSON.parse(
@@ -283,5 +335,6 @@ describe("auth/cline loginClineOAuth", () => {
 			accessToken: "workos-access",
 			refreshToken: "workos-refresh",
 		});
+		nowSpy.mockRestore();
 	});
 });
