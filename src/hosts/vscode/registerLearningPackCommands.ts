@@ -6,6 +6,7 @@ import * as vscode from "vscode"
 import type { Controller } from "@/core/controller"
 import { previewHtml } from "@/core/controller/htmlPreview/previewHtml"
 import { VscodeHtmlPreviewProvider } from "@/hosts/vscode/VscodeHtmlPreviewProvider"
+import { loadProgress as loadCourseProgress } from "@/services/htmlPreview/courseProgressStore"
 import {
 	createLearningPackApprovalPresentation,
 	requestLearningPackApproval,
@@ -22,7 +23,12 @@ import {
 	removeLearningPack,
 	rollbackLearningPack,
 } from "@/services/learning-pack/learningPackLifecycle"
-import { defaultLearningPackRoot, resolveActiveLearningPackEntry } from "@/services/learning-pack/runtimeIntegration"
+import {
+	defaultLearningPackRoot,
+	learningPackProgressKey,
+	resolveActiveLearningPackEntry,
+	resolveActiveLearningPackLaunch,
+} from "@/services/learning-pack/runtimeIntegration"
 import { loadTrustedPublishers, removeTrustedPublisher } from "@/services/learning-pack/trustStore"
 import { isInTestMode } from "@/services/test/TestMode"
 import { PreviewHtmlRequest } from "@/shared/proto/cline/html_preview"
@@ -85,9 +91,11 @@ async function chooseApproval(root: string, inspection: LearningPackArchiveInspe
 	)
 }
 
-async function openActiveEntry(controller: Controller, root: string, packId: string): Promise<void> {
+async function openActiveModule(controller: Controller, root: string, packId: string): Promise<void> {
 	const entry = await resolveActiveLearningPackEntry(root, packId)
-	await previewHtml(controller, PreviewHtmlRequest.create({ htmlContent: "", title: entry.title, filePath: entry.filePath }))
+	const progress = await loadCourseProgress(learningPackProgressKey(entry.scope))
+	const module = await resolveActiveLearningPackLaunch(root, packId, progress.currentModuleId)
+	await previewHtml(controller, PreviewHtmlRequest.create({ htmlContent: "", title: module.title, filePath: module.filePath }))
 	await VscodeHtmlPreviewProvider.createOrShow()
 }
 
@@ -163,7 +171,7 @@ export function registerLearningPackCommands(
 				})
 				if (result.status === "installed" || result.status === "noop") {
 					if (result.status === "installed") closePackPreviews(controller, manifest.packId)
-					await openActiveEntry(controller, root, manifest.packId)
+					await openActiveModule(controller, root, manifest.packId)
 					void vscode.window.showInformationMessage(
 						`${manifest.title} ${manifest.version} (${manifest.edition}) is ready.`,
 					)
@@ -194,7 +202,7 @@ export function registerLearningPackCommands(
 			const result = await rollbackLearningPack(root, packId)
 			if (result.status === "rolled-back") {
 				closePackPreviews(controller, packId)
-				await openActiveEntry(controller, root, packId)
+				await openActiveModule(controller, root, packId)
 			} else void vscode.window.showWarningMessage(result.message ?? `Learning Pack ${result.status}.`)
 			return result
 		}),
