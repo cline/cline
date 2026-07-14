@@ -91,6 +91,12 @@ export function parseReadFilesInput(input: unknown): ReadFilesInfo | undefined {
 	return undefined;
 }
 
+// A read_files call can list the same path more than once, so the raw path is
+// not a unique React key. Prefix the array index to keep keys unique per row.
+export function buildReadFilesKeys(files: { path: string }[]): string[] {
+	return files.map((f, i) => `${i}:${f.path}`);
+}
+
 export interface RunCommandsInfo {
 	commands: string[];
 }
