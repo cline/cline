@@ -1,6 +1,4 @@
-import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
@@ -15,7 +13,6 @@ import {
 	readSystemHubTheme,
 	setStoredHubTheme,
 } from "@/lib/theme";
-import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
@@ -33,18 +30,22 @@ import { toSettingsPatch } from "./settings-patch";
 // Settings nav categories
 // -----------------------------------------------------------
 
-const navCategories = [
+export const SETTINGS_SECTIONS = [
 	"General",
-	"Providers",
-	"MCP",
-	"Marketplace",
-	"Extensions",
+	"Models",
+	"MCP Servers",
+	"MCP Marketplace",
+	"Customizations",
 	"Channels",
 	"Schedules",
 	"Account",
 ] as const;
 
-export type SettingsSection = (typeof navCategories)[number];
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+type GlobalSettingsResponse = {
+	telemetryOptOut: boolean;
+	autoUpdateEnabled: boolean;
+};
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
@@ -58,17 +59,13 @@ let providerCatalogCache: {
 // -----------------------------------------------------------
 
 export function SettingsView({
-	chrome = "full",
-	initialSection = "General",
-	onClose,
+	section,
 	onNavigateSection,
 }: {
-	chrome?: "full" | "content";
-	initialSection?: SettingsSection;
-	onClose: () => void;
+	section: SettingsSection;
 	onNavigateSection?: (section: SettingsSection) => void;
 }) {
-	const [activeNav, setActiveNav] = useState<SettingsSection>(initialSection);
+	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -91,6 +88,13 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
+
+	useEffect(() => {
+		if (section !== "Models") {
+			setSelectedProviderId(null);
+			setAddingProvider(false);
+		}
+	}, [section]);
 
 	const setProvidersWithCache = useCallback(
 		(next: Provider[] | ((prev: Provider[]) => Provider[])) => {
@@ -138,7 +142,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Providers") {
+		if (activeNav !== "Models") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -146,6 +150,14 @@ export function SettingsView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
+
+	useEffect(() => {
+		if (activeNav === "Models") {
+			return;
+		}
+		setSelectedProviderId(null);
+		setAddingProvider(false);
+	}, [activeNav]);
 
 	const persistProviderSettings = useCallback(
 		async (
@@ -287,8 +299,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		setActiveNav("Providers");
-		onNavigateSection?.("Providers");
+		onNavigateSection?.("Models");
 		setSelectedProviderId(id);
 	};
 
@@ -309,7 +320,7 @@ export function SettingsView({
 	}, [loadProviderModels, providers, selectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection?.("Providers");
+		onNavigateSection?.("Models");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -336,16 +347,9 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection?.("Providers");
+		onNavigateSection?.("Models");
 		setSelectedProviderId(null);
 		setAddingProvider(true);
-	};
-
-	const selectSection = (section: SettingsSection) => {
-		setActiveNav(section);
-		onNavigateSection?.(section);
-		setSelectedProviderId(null);
-		setAddingProvider(false);
 	};
 
 	const providerContent = addingProvider ? (
@@ -402,13 +406,13 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "Providers" ? (
+		activeNav === "Models" ? (
 			providerContent
-		) : activeNav === "MCP" ? (
+		) : activeNav === "MCP Servers" ? (
 			<McpServersContent />
-		) : activeNav === "Marketplace" ? (
+		) : activeNav === "MCP Marketplace" ? (
 			<CustomizationSectionView catalogPrimitive="mcp" section="MCP" />
-		) : activeNav === "Extensions" ? (
+		) : activeNav === "Customizations" ? (
 			<RulesView />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
@@ -426,59 +430,10 @@ export function SettingsView({
 			</div>
 		);
 
-	if (chrome === "content") {
-		return (
-			<div className="h-full overflow-hidden bg-background">{content}</div>
-		);
-	}
-
 	return (
-		<div className="flex h-full flex-col overflow-hidden bg-background">
-			{/* Header bar */}
-			<div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur-sm max-[720px]:px-4">
-				<h1 className="text-lg font-semibold text-foreground">Settings</h1>
-				<Button
-					aria-label="Close settings"
-					className="justify-start"
-					onClick={onClose}
-					variant="ghost"
-				>
-					<X className="size-3" />
-				</Button>
-			</div>
-
-			{/* Body */}
-			<div className="flex flex-1 overflow-hidden max-[720px]:flex-col">
-				{/* Settings sidebar nav */}
-				<nav
-					aria-label="Settings sections"
-					className="w-56 shrink-0 overflow-y-auto border-r border-border bg-sidebar max-[720px]:w-full max-[720px]:overflow-x-auto max-[720px]:overflow-y-hidden max-[720px]:border-b max-[720px]:border-r-0"
-				>
-					<div className="flex flex-col gap-0.5 p-3 max-[720px]:w-max max-[720px]:flex-row max-[720px]:p-2">
-						{navCategories.map((cat) => (
-							<Button
-								aria-current={activeNav === cat ? "page" : undefined}
-								className={cn(
-									"justify-start",
-									activeNav === cat
-										? "bg-accent text-accent-foreground font-medium"
-										: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-								)}
-								key={cat}
-								onClick={() => {
-									selectSection(cat);
-								}}
-								variant="ghost"
-							>
-								{cat}
-							</Button>
-						))}
-					</div>
-				</nav>
-
-				{/* Content area */}
-				<div className="flex-1 overflow-hidden">{content}</div>
-			</div>
+		<div className="grid h-full grid-rows-[3rem_minmax(0,1fr)] overflow-hidden bg-background md:block">
+			<div aria-hidden="true" className="md:hidden" />
+			<div className="min-h-0 overflow-hidden md:h-full">{content}</div>
 		</div>
 	);
 }
@@ -488,6 +443,82 @@ function GeneralSettingsContent() {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
+	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
+	const [telemetryLoading, setTelemetryLoading] = useState(true);
+	const [telemetrySaving, setTelemetrySaving] = useState(false);
+	const [telemetryError, setTelemetryError] = useState<string | null>(null);
+	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
+	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
+	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+
+	const loadGlobalSettings = useCallback(async () => {
+		setTelemetryLoading(true);
+		setTelemetryError(null);
+		setAutoUpdateLoading(true);
+		setAutoUpdateError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"get_global_settings",
+			);
+			setTelemetryOptOut(settings.telemetryOptOut);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setTelemetryError(message);
+			setAutoUpdateError(message);
+		} finally {
+			setTelemetryLoading(false);
+			setAutoUpdateLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		const timeoutId = window.setTimeout(() => {
+			void loadGlobalSettings();
+		}, 0);
+		return () => window.clearTimeout(timeoutId);
+	}, [loadGlobalSettings]);
+
+	const updateTelemetryOptOut = async (nextValue: boolean) => {
+		const previousValue = telemetryOptOut;
+		setTelemetryOptOut(nextValue);
+		setTelemetrySaving(true);
+		setTelemetryError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_telemetry_opt_out",
+				{ telemetry_opt_out: nextValue },
+			);
+			setTelemetryOptOut(settings.telemetryOptOut);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setTelemetryOptOut(previousValue);
+			setTelemetryError(message);
+		} finally {
+			setTelemetrySaving(false);
+		}
+	};
+
+	const updateAutoUpdateEnabled = async (nextValue: boolean) => {
+		const previousValue = autoUpdateEnabled;
+		setAutoUpdateEnabled(nextValue);
+		setAutoUpdateSaving(true);
+		setAutoUpdateError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_auto_update_enabled",
+				{ auto_update_enabled: nextValue },
+			);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setAutoUpdateEnabled(previousValue);
+			setAutoUpdateError(message);
+		} finally {
+			setAutoUpdateSaving(false);
+		}
+	};
 
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
@@ -514,6 +545,48 @@ function GeneralSettingsContent() {
 						aria-label="Dark mode"
 						checked={theme === "dark"}
 						onCheckedChange={updateTheme}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Auto update
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Automatically install Cline CLI updates on startup.
+						</p>
+						{autoUpdateError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update auto update setting: {autoUpdateError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Auto update"
+						checked={autoUpdateEnabled}
+						disabled={autoUpdateLoading || autoUpdateSaving}
+						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Telemetry
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Enable error and usage reports to help improve Cline.
+						</p>
+						{telemetryError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update telemetry setting: {telemetryError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Telemetry"
+						checked={!telemetryOptOut}
+						disabled={telemetryLoading || telemetrySaving}
+						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
 			</section>

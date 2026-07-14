@@ -1,7 +1,11 @@
 "use client";
 
 import {
+	Blocks,
+	Bot,
 	ChevronDown,
+	CircleUserRound,
+	Clock3,
 	Filter,
 	GitFork,
 	Home,
@@ -11,8 +15,12 @@ import {
 	Pencil,
 	Pin,
 	Plus,
+	Radio,
 	Search,
+	Server,
 	Settings,
+	SlidersHorizontal,
+	Store,
 	Trash2,
 } from "lucide-react";
 import {
@@ -57,6 +65,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
+import {
+	SETTINGS_SECTIONS,
+	type SettingsSection,
+} from "@/components/views/settings/settings-view";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -70,12 +82,73 @@ type AppView = "chat" | "sessions" | "settings";
 const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
 const INITIAL_VISIBLE_THREAD_COUNT = 10;
+const SETTINGS_SECTION_ICONS = {
+	General: SlidersHorizontal,
+	Models: Bot,
+	"MCP Servers": Server,
+	"MCP Marketplace": Store,
+	Customizations: Blocks,
+	Channels: Radio,
+	Schedules: Clock3,
+	Account: CircleUserRound,
+} satisfies Record<SettingsSection, typeof Settings>;
+
+function SettingsSectionNavigation({
+	activeSection,
+	collapsed,
+	onSelect,
+}: {
+	activeSection: SettingsSection;
+	collapsed: boolean;
+	onSelect: (section: SettingsSection) => void;
+}) {
+	return (
+		<nav
+			aria-label="Settings sections"
+			className={cn(
+				"flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto",
+				collapsed ? "w-full items-center" : "w-full",
+			)}
+		>
+			{!collapsed ? (
+				<p className="px-2 pb-2 text-sm font-medium text-muted-foreground">
+					Settings
+				</p>
+			) : null}
+			{SETTINGS_SECTIONS.map((section) => {
+				const Icon = SETTINGS_SECTION_ICONS[section];
+				return (
+					<Button
+						aria-current={activeSection === section ? "page" : undefined}
+						aria-label={section}
+						className={cn(
+							"min-w-0 justify-start",
+							activeSection === section &&
+								"bg-sidebar-accent text-sidebar-accent-foreground",
+							collapsed && "mx-auto size-9 justify-center px-0",
+						)}
+						key={section}
+						onClick={() => onSelect(section)}
+						title={section}
+						type="button"
+						variant="sidebarItem"
+					>
+						<Icon className="size-4 shrink-0" />
+						{!collapsed ? <span className="truncate">{section}</span> : null}
+					</Button>
+				);
+			})}
+		</nav>
+	);
+}
 
 export function AgentSidebar({
 	isHomeActive,
 	onHome,
 	onNewThread,
+	onSettingsSectionChange,
 	setView,
+	settingsSection,
 	view,
 	activeSessionId,
 	sessionHistory,
@@ -83,7 +156,9 @@ export function AgentSidebar({
 	isHomeActive: boolean;
 	onHome: () => void;
 	onNewThread?: () => void;
+	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
+	settingsSection: SettingsSection;
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
@@ -177,6 +252,14 @@ export function AgentSidebar({
 		setView("settings");
 		closeMobileSidebar();
 	}, [closeMobileSidebar, setView]);
+	const openSettingsSection = useCallback(
+		(section: SettingsSection) => {
+			onSettingsSectionChange(section);
+			setView("settings");
+			closeMobileSidebar();
+		},
+		[closeMobileSidebar, onSettingsSectionChange, setView],
+	);
 
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
@@ -335,16 +418,24 @@ export function AgentSidebar({
 
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-center gap-1 px-1.5">
-						<Button
-							aria-label="New session"
-							className="mx-auto size-9 justify-center px-0"
-							onClick={openNewThread}
-							title="New session"
-							type="button"
-							variant="sidebarItem"
-						>
-							<MessageSquare className="size-4" />
-						</Button>
+						{view === "settings" ? (
+							<SettingsSectionNavigation
+								activeSection={settingsSection}
+								collapsed
+								onSelect={openSettingsSection}
+							/>
+						) : (
+							<Button
+								aria-label="New session"
+								className="mx-auto size-9 justify-center px-0"
+								onClick={openNewThread}
+								title="New session"
+								type="button"
+								variant="sidebarItem"
+							>
+								<MessageSquare className="size-4" />
+							</Button>
+						)}
 						<Button
 							aria-label="Expand sidebar"
 							className="mx-auto size-9 justify-center px-0"
@@ -355,6 +446,14 @@ export function AgentSidebar({
 						>
 							<PanelLeftOpen className="size-4" />
 						</Button>
+					</div>
+				) : view === "settings" ? (
+					<div className="mt-5 min-h-0 flex-1 px-3">
+						<SettingsSectionNavigation
+							activeSection={settingsSection}
+							collapsed={false}
+							onSelect={openSettingsSection}
+						/>
 					</div>
 				) : (
 					<>
@@ -496,6 +595,7 @@ export function AgentSidebar({
 
 				<div className="shrink-0 border-t border-sidebar-border/70 px-2 py-3">
 					<Button
+						aria-label="Settings"
 						type="button"
 						variant="sidebarItem"
 						className={cn(

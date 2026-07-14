@@ -25,7 +25,10 @@ import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
-import { SettingsView } from "@/components/views/settings/settings-view";
+import {
+	type SettingsSection,
+	SettingsView,
+} from "@/components/views/settings/settings-view";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -78,6 +81,8 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 
 export default function Home() {
 	const [view, setView] = useState<"chat" | "sessions" | "settings">("chat");
+	const [settingsSection, setSettingsSection] =
+		useState<SettingsSection>("General");
 	const [threads, setThreads] = useState<Thread[]>(() => [
 		{ id: makeThreadId() },
 	]);
@@ -231,8 +236,10 @@ export default function Home() {
 						}
 						onHome={handleHome}
 						onNewThread={handleNewThread}
+						onSettingsSectionChange={setSettingsSection}
 						sessionHistory={sessionHistory}
 						setView={setView}
+						settingsSection={settingsSection}
 						view={view}
 					/>
 					<SidebarRail />
@@ -263,8 +270,11 @@ export default function Home() {
 						</div>
 					) : null}
 					{view === "settings" ? (
-						<div className="absolute inset-0 z-50 bg-background text-foreground">
-							<SettingsView onClose={() => setView("chat")} />
+						<div className="absolute inset-0 z-30 bg-background text-foreground">
+							<SettingsView
+								onNavigateSection={setSettingsSection}
+								section={settingsSection}
+							/>
 						</div>
 					) : null}
 				</SidebarInset>
