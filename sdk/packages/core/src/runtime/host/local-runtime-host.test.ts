@@ -565,6 +565,7 @@ describe("LocalRuntimeHost", () => {
 					thinking: true,
 					reasoningEffort: "high",
 					thinkingBudgetTokens: 1024,
+					temperature: 0.3,
 				}),
 				prompt: "hello",
 				interactive: true,
@@ -576,6 +577,7 @@ describe("LocalRuntimeHost", () => {
 				thinking: true,
 				reasoningEffort: "high",
 				thinkingBudgetTokens: 1024,
+				temperature: 0.3,
 			}),
 		);
 

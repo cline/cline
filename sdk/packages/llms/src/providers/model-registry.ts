@@ -92,6 +92,10 @@ export function registerModel(
 	CUSTOM_MODELS.get(providerId)?.set(modelId, { ...info, id: modelId });
 }
 
+export function unregisterModel(providerId: string, modelId: string): boolean {
+	return CUSTOM_MODELS.get(providerId)?.delete(modelId) ?? false;
+}
+
 export function unregisterProvider(providerId: string): boolean {
 	CUSTOM_MODELS.delete(providerId);
 	return CUSTOM_PROVIDERS.delete(providerId);
