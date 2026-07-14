@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
+import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
 interface QuickAction {
 	id: string;
@@ -28,12 +29,6 @@ const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
 		prompt: "Check this project for build errors and help me fix any failures.",
 	},
 ];
-
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) return "";
-	return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
-}
 
 function toWorkspaceName(path: string): string {
 	const trimmed = path.trim().replace(/[\\/]+$/, "");
@@ -169,37 +164,39 @@ export function WelcomeScreen({
 								What would you like to build?
 							</h1>
 
-							<fieldset className="mt-11 flex min-h-8 items-center gap-1.5 overflow-x-auto pb-1 text-sm">
-								<legend className="sr-only">Workspaces</legend>
-								{availableWorkspaces.slice(0, 4).map((path) => {
-									const isActive =
-										normalizeWorkspacePath(path) ===
-										normalizeWorkspacePath(workspaceRoot);
-									const isSwitching = switchingWorkspace === path;
-									return (
-										<button
-											aria-pressed={isActive}
-											className={cn(
-												"shrink-0 rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-												isActive
-													? "bg-foreground text-background"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
-											)}
-											disabled={Boolean(switchingWorkspace)}
-											key={path}
-											onClick={() => void handleSelectWorkspace(path)}
-											title={path}
-											type="button"
-										>
-											{isSwitching
-												? "Switching..."
-												: (labelsByWorkspace.get(path) ??
-													toWorkspaceName(path))}
-										</button>
-									);
-								})}
+							<div className="mt-11 flex min-w-0 items-center gap-1.5 text-sm">
+								<fieldset className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-1">
+									<legend className="sr-only">Workspaces</legend>
+									{availableWorkspaces.map((path) => {
+										const isActive =
+											normalizeWorkspacePath(path) ===
+											normalizeWorkspacePath(workspaceRoot);
+										const isSwitching = switchingWorkspace === path;
+										return (
+											<button
+												aria-pressed={isActive}
+												className={cn(
+													"shrink-0 rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+													isActive
+														? "bg-foreground text-background"
+														: "text-muted-foreground hover:bg-accent hover:text-foreground",
+												)}
+												disabled={Boolean(switchingWorkspace)}
+												key={path}
+												onClick={() => void handleSelectWorkspace(path)}
+												title={path}
+												type="button"
+											>
+												{isSwitching
+													? "Switching..."
+													: (labelsByWorkspace.get(path) ??
+														toWorkspaceName(path))}
+											</button>
+										);
+									})}
+								</fieldset>
 								<button
-									className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-[480px]:px-2"
 									disabled={addingWorkspace}
 									onClick={() => void handleAddWorkspace()}
 									type="button"
@@ -211,7 +208,7 @@ export function WelcomeScreen({
 									)}
 									New project
 								</button>
-							</fieldset>
+							</div>
 						</>
 					) : null}
 

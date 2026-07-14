@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
@@ -24,6 +25,69 @@ import type {
 type SessionConnectionUpdate = Parameters<
 	ClineCore["updateSessionConnection"]
 >[1];
+
+type WorkspaceMetadataLoader = (cwd: string) => Promise<string>;
+type WorkspaceMetadataCacheEntry = {
+	createdAt: number;
+	promise: Promise<string>;
+};
+export const WORKSPACE_METADATA_PREWARM_TTL_MS = 60_000;
+const workspaceMetadataPromises = new Map<
+	string,
+	WorkspaceMetadataCacheEntry
+>();
+
+function getWorkspaceMetadataPromise(
+	cwd: string,
+	load: WorkspaceMetadataLoader,
+	now: () => number,
+): { key: string; promise: Promise<string> } {
+	const key = resolve(cwd);
+	const existing = workspaceMetadataPromises.get(key);
+	const createdAt = now();
+	if (
+		existing &&
+		createdAt - existing.createdAt <= WORKSPACE_METADATA_PREWARM_TTL_MS
+	) {
+		return { key, promise: existing.promise };
+	}
+	const promise = load(key);
+	workspaceMetadataPromises.set(key, { createdAt, promise });
+	void promise.catch(() => {
+		if (workspaceMetadataPromises.get(key)?.promise === promise) {
+			workspaceMetadataPromises.delete(key);
+		}
+	});
+	return { key, promise };
+}
+
+export function prewarmWorkspaceMetadata(
+	cwd: string,
+	load: WorkspaceMetadataLoader = buildWorkspaceMetadata,
+	now: () => number = Date.now,
+): void {
+	void getWorkspaceMetadataPromise(cwd, load, now).promise.catch(() => {});
+}
+
+export async function consumeWorkspaceMetadata(
+	cwd: string,
+	load: WorkspaceMetadataLoader = buildWorkspaceMetadata,
+	now: () => number = Date.now,
+): Promise<string> {
+	const { key, promise } = getWorkspaceMetadataPromise(cwd, load, now);
+	try {
+		return await promise;
+	} finally {
+		if (workspaceMetadataPromises.get(key)?.promise === promise) {
+			workspaceMetadataPromises.delete(key);
+		}
+	}
+}
+
+export function refreshWorkspaceMetadata(cwd: string): void {
+	workspaceMetadataPromises.delete(resolve(cwd));
+	prewarmWorkspaceMetadata(cwd);
+}
 
 // ---------------------------------------------------------------------------
 // Session data helpers
@@ -219,6 +283,16 @@ export function buildSessionConnectionUpdate(
 	});
 }
 
+export function shouldUpdateSessionConnection(
+	currentConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): boolean {
+	return !isDeepStrictEqual(
+		buildSessionConnectionUpdate(currentConfig),
+		buildSessionConnectionUpdate(nextConfig),
+	);
+}
+
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 	const cwd = String(
 		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
@@ -232,7 +306,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		: config.mode === "plan"
 			? "plan"
 			: "act";
-	const metadata = await buildWorkspaceMetadata(cwd);
+	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
 			? config.rules
@@ -447,8 +521,14 @@ async function handleSend(
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
 	if (request.config) {
-		const connectionUpdate = buildSessionConnectionUpdate(request.config);
-		await manager.updateSessionConnection(sessionId, connectionUpdate);
+		if (
+			!session ||
+			session.attachedViaHub ||
+			shouldUpdateSessionConnection(session.config, request.config)
+		) {
+			const connectionUpdate = buildSessionConnectionUpdate(request.config);
+			await manager.updateSessionConnection(sessionId, connectionUpdate);
+		}
 		if (session) {
 			session.config = { ...session.config, ...request.config };
 		}

@@ -937,7 +937,7 @@ function ReasoningBlock({
 			<Button
 				aria-controls={panelId}
 				aria-expanded={expanded}
-				className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-foreground/70 hover:bg-transparent hover:text-foreground dark:hover:bg-transparent dark:hover:text-foreground"
+				className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-foreground/70 hover:bg-transparent hover:text-foreground has-[>svg]:px-0 dark:hover:bg-transparent dark:hover:text-foreground"
 				onClick={() => setExpanded((current) => !current)}
 				type="button"
 				variant="ghost"
@@ -1348,6 +1348,7 @@ function buildToolSummaryFromMeta(
 
 function ToolMessageBlock({ message }: { message: ChatMessage }) {
 	const [expanded, setExpanded] = useState(false);
+	const panelId = useId();
 	const payload = parseToolPayload(message.content);
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
 	const hookEventName = message.meta?.hookEventName;
@@ -1379,33 +1380,38 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 	const resultPreview = payload?.isError ? formatToolValue(payload.result) : "";
 	const hasExpandedSections =
 		details.length > 0 || Boolean(inputPreview || resultPreview);
+	const summaryContent = (
+		<>
+			{payload?.isError ? (
+				<AlertCircle className="size-4 text-destructive/80" />
+			) : (
+				<Icon className="size-4" />
+			)}
+			<span className="min-w-0 wrap-break-word">{summary.label}</span>
+			{summary.diff ? (
+				<span className="shrink-0 font-mono text-xs">
+					<span className="text-chart-2">+{summary.diff.additions}</span>{" "}
+					<span className="text-destructive">-{summary.diff.deletions}</span>
+				</span>
+			) : null}
+		</>
+	);
 
 	return (
 		<div className="my-2 flex w-full min-w-0 justify-start">
 			<div
 				className={cn("min-w-0 max-w-full overflow-hidden rounded-xl text-sm")}
 			>
-				<Button
-					className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80 dark:hover:bg-transparent dark:hover:text-primary/80"
-					onClick={() => setExpanded((current) => !current)}
-					type="button"
-					variant="ghost"
-				>
-					{payload?.isError ? (
-						<AlertCircle className="size-4 text-destructive/80" />
-					) : (
-						<Icon className="size-4" />
-					)}
-					<span className="min-w-0 wrap-break-word">{summary.label}</span>
-					{summary.diff ? (
-						<span className="shrink-0 font-mono text-xs">
-							<span className="text-chart-2">+{summary.diff.additions}</span>{" "}
-							<span className="text-destructive">
-								-{summary.diff.deletions}
-							</span>
-						</span>
-					) : null}
-					{hasExpandedSections ? (
+				{hasExpandedSections ? (
+					<Button
+						aria-controls={panelId}
+						aria-expanded={expanded}
+						className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80 has-[>svg]:px-0 dark:hover:bg-transparent dark:hover:text-primary/80"
+						onClick={() => setExpanded((current) => !current)}
+						type="button"
+						variant="ghost"
+					>
+						{summaryContent}
 						<span className="shrink-0 text-muted-foreground">
 							{expanded ? (
 								<ChevronDown className="size-4" />
@@ -1413,10 +1419,17 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 								<ChevronRight className="size-4" />
 							)}
 						</span>
-					) : null}
-				</Button>
+					</Button>
+				) : (
+					<div className="flex max-w-full items-center justify-start gap-2 py-1 text-left text-sm font-medium text-primary">
+						{summaryContent}
+					</div>
+				)}
 				{expanded ? (
-					<div className="mt-1.5 min-w-0 max-w-full overflow-x-hidden pl-8 text-sm text-muted-foreground">
+					<div
+						className="mt-1.5 min-w-0 max-w-full overflow-x-hidden pl-8 text-sm text-muted-foreground"
+						id={panelId}
+					>
 						{hasExpandedSections ? (
 							<div className="space-y-1">
 								{details.map((detail) => (
