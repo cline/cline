@@ -230,9 +230,7 @@ describe("buildBudgetProjection", () => {
 			{ role: "user", content: "latest typed prompt" },
 			{
 				role: "assistant",
-				content: [
-					{ type: "tool_use", id: "tool_1", name: "read", input: {} },
-				],
+				content: [{ type: "tool_use", id: "tool_1", name: "read", input: {} }],
 			},
 			{
 				role: "user",
@@ -377,7 +375,11 @@ describe("buildBudgetProjection", () => {
 							name: "read",
 							content: [
 								{ type: "text", text: "a".repeat(200) },
-								{ type: "file", path: "/tmp/huge.txt", content: "b".repeat(1_000) },
+								{
+									type: "file",
+									path: "/tmp/huge.txt",
+									content: "b".repeat(1_000),
+								},
 							],
 						},
 					],
@@ -422,7 +424,7 @@ describe("buildBudgetProjection", () => {
 			(message) => message.role === "assistant",
 		);
 		expect(JSON.stringify(assistant)).not.toContain("b".repeat(100));
-		expect(JSON.stringify(assistant)).not.toContain("\"thinking\"");
+		expect(JSON.stringify(assistant)).not.toContain('"thinking"');
 		expect(result.actions).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({

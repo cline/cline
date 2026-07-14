@@ -5,7 +5,7 @@ import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -36,6 +36,12 @@ export interface SdkInteractionCoordinatorOptions {
 	 * Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	/**
+	 * Invoked for manually-approved tools after the auto-approve short-circuit, BEFORE the
+	 * ask message is emitted. Used to open the edit diff preview so the user decides while
+	 * looking at the actual change. Must not throw; failures fall back to a plain ask.
+	 */
+	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<void>
 }
 
 export class SdkInteractionCoordinator {
@@ -81,6 +87,15 @@ export class SdkInteractionCoordinator {
 		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
 			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
 			return { approved: true }
+		}
+
+		// Open the edit diff preview before the Approve/Reject buttons render. This is the only
+		// pre-execution point where the adapter has the full tool input (the SDK emits the
+		// tool's content events only after approval resolves).
+		try {
+			await this.options.onToolApprovalAsk?.(request)
+		} catch (error) {
+			Logger.warn(`[SdkController] onToolApprovalAsk failed; showing plain approval ask: ${error}`)
 		}
 
 		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(request.toolName, request.input, this.nextMessageTs())
@@ -159,7 +174,9 @@ export class SdkInteractionCoordinator {
 		// Approved or rejected by approval controls, the agent resumes its turn and returns to streaming.
 		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
-		const denialReason = prompt || DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+		// The reason must state the operation did NOT happen (for edits: the file is
+		// unchanged) — raw feedback alone reads like iteration on an applied change.
+		const denialReason = buildToolApprovalDenialReason(pendingMessage?.toolName, prompt)
 		if (!approved && (prompt?.trim() || images?.length || files?.length)) {
 			const userMessage: ClineMessage = {
 				ts: this.nextMessageTs(),

@@ -42,13 +42,22 @@ describe("resolveStatusNoticeLabel", () => {
 
 describe("handleEvent text formatting", () => {
 	let output = "";
+	let errorOutput = "";
 
 	beforeEach(() => {
 		output = "";
+		errorOutput = "";
 		setCurrentOutputMode("text");
 		vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
 			output += String(chunk);
 			return true;
+		});
+		vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+			errorOutput += String(chunk);
+			return true;
+		});
+		vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			errorOutput += `${args.map(String).join(" ")}\n`;
 		});
 	});
 
@@ -194,6 +203,23 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toContain("── aborted (2 iterations) ──");
+	});
+
+	it("formats ClinePass limit agent errors before writing to stderr", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error(
+					"Error: You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.",
+				),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("ClinePass limit reached");
+		expect(errorOutput).toContain("Switch to Cline usage-based billing");
+		expect(errorOutput).toContain("--provider cline");
 	});
 
 	it("suppresses heartbeat-only team progress messages", () => {

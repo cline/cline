@@ -1,10 +1,13 @@
 import {
 	type ClineSubscriptionPlan,
+	extractClinePassLimitMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
 } from "@cline/core";
 
 import { getClineEnvironmentConfig } from "@cline/shared";
@@ -22,6 +25,18 @@ export function getCliSubscriptionUrl(): string {
 
 export function getCliNotSubscribedMessage(): string {
 	return `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getCliSubscriptionUrl()}`;
+}
+
+export function getCliClinePassLimitMessage(message: string): string {
+	const detail = getClinePassLimitDetailMessage(message) ?? message.trim();
+	const lines = [
+		"ClinePass limit reached",
+		detail,
+		"Switch to Cline usage-based billing and retry with the Cline provider.",
+		"Interactive CLI: open the model selector with /model, choose Cline, then retry.",
+		"Headless CLI: rerun with --provider cline.",
+	];
+	return lines.filter((line) => line.trim().length > 0).join("\n");
 }
 
 export function getIndividualPlanFeatures(
@@ -78,12 +93,38 @@ export function isClineOrgIndividualInferenceSubscriptionErrorMessage(
 	);
 }
 
+export function getClinePassLimitDetailMessage(
+	error: unknown,
+): string | undefined {
+	return extractClinePassLimitMessage(
+		error instanceof Error ? error.message : String(error),
+	);
+}
+
+export function isClinePassLimitErrorMessage(error: unknown): boolean {
+	if (isClinePassLimitError(error)) {
+		return true;
+	}
+	if (error instanceof Error) {
+		return (
+			error.name === "ClinePassLimitError" ||
+			isClinePassLimitMessage(error.message)
+		);
+	}
+	return typeof error === "string" && isClinePassLimitMessage(error);
+}
+
 export function formatCliErrorMessage(error: unknown): string {
 	if (isClinePassSubscriptionError(error)) {
 		return getCliNotSubscribedMessage();
 	}
 	if (isClineOrgIndividualInferenceSubscriptionErrorMessage(error)) {
 		return getClineOrgIndividualInferenceSubscriptionMessage();
+	}
+	if (isClinePassLimitErrorMessage(error)) {
+		return getCliClinePassLimitMessage(
+			error instanceof Error ? error.message : String(error),
+		);
 	}
 	if (error instanceof Error) {
 		return error.message;

@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.40
+
+- Added a manual API key escape hatch for Cline OAuth providers, so you can enter a key by hand from settings
+- Fixed provider config not reloading when switching models
+- Fixed auto-update failing to detect Bun global installs after symlink resolution
+- Fixed unexpected logouts caused by transient network or server errors during token refresh
+- The ClinePass usage-limit error is now surfaced clearly when you hit the limit
+- Session id is now preserved when continuing within the same session
+- Hardened context compaction budget handling
+
 ## 3.0.39
 
 - You can now select Cline free models on the ClinePass provider in the model picker

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatModeSwitchNotice,
 	formatUserCommandBlock,
@@ -106,5 +107,45 @@ describe("prompt format helpers", () => {
 		const result = stripModeNotices(hostile);
 		expect(performance.now() - started).toBeLessThan(1_000);
 		expect(result).toBe(hostile);
+	});
+});
+
+// Promoted from apps/cli/src/runtime/interactive/mode.ts so the VSCode
+// extension shares the exact semantics; the CLI re-exports it from there.
+describe("createModeSwitchNoticeTracker", () => {
+	it("records a switch and clears it on consume", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("act", "plan");
+
+		expect(tracker.consume()).toEqual({ from: "act", to: "plan" });
+		expect(tracker.consume()).toBeNull();
+	});
+
+	it("cancels a round trip that returns to the mode the model last saw", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("act", "plan");
+		tracker.record("plan", "act");
+
+		expect(tracker.consume()).toBeNull();
+	});
+
+	it("keeps the original starting mode across chained switches", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("act", "plan");
+		tracker.record("plan", "act");
+		tracker.record("act", "plan");
+
+		expect(tracker.consume()).toEqual({ from: "act", to: "plan" });
+	});
+
+	it("ignores a no-op switch", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("plan", "plan");
+
+		expect(tracker.consume()).toBeNull();
 	});
 });

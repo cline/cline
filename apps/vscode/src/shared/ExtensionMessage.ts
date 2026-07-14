@@ -275,7 +275,7 @@ export interface ClineSayTool {
 	operationIsLocatedInWorkspace?: boolean
 	/** Starting line numbers in the original file where each SEARCH block matched */
 	startLineNumbers?: number[]
-	/** Inclusive line range actually returned by read_file (for UI summaries). */
+	/** One-based inclusive line range requested by read_file; readLineEnd omitted = open-ended read (for UI summaries). */
 	readLineStart?: number
 	readLineEnd?: number
 }

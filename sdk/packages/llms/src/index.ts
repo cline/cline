@@ -63,6 +63,7 @@ export {
 	ClinePassLimitError,
 	createHandler,
 	createHandlerAsync,
+	extractClinePassLimitMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
 	getClinePassSubscriptionUrl,
