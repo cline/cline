@@ -5,9 +5,10 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import type { SdkSessionHost } from "./session-host"
-import { getEffectiveTerminalExecutionMode, type VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import type { VscodeSessionHost } from "./vscode-session-host"
+import { getEffectiveTerminalExecutionMode, type VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
@@ -22,15 +23,10 @@ export interface SdkTerminalExecutionModeCoordinatorOptions {
 	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
+	rebuilds: Pick<SdkSessionRebuildScheduler, "request">
 }
 
 export class SdkTerminalExecutionModeCoordinator {
-	private restartPending = false
-	// Serializes concurrent restart calls the same way SdkProviderChangeCoordinator
-	// does — without this, two rapid mode changes could race replaceActiveSession
-	// against itself and leave the session in an inconsistent state.
-	private restartInFlight: Promise<void> | undefined
-
 	constructor(private readonly options: SdkTerminalExecutionModeCoordinatorOptions) {}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
@@ -46,64 +42,11 @@ export class SdkTerminalExecutionModeCoordinator {
 			return
 		}
 
-		if (activeSession.isRunning) {
-			Logger.log("[SdkController] Session is mid-turn - deferring terminal mode tool restart")
-			this.restartPending = true
-			return
-		}
-
-		this.restartSessionForTerminalExecutionMode().catch((error) => {
-			Logger.error("[SdkController] Failed to restart session for terminal execution mode:", error)
-		})
-	}
-
-	checkDeferredRestart(): void {
-		if (!this.restartPending) {
-			return
-		}
-		this.restartPending = false
-
-		const activeSession = this.options.sessions.getActiveSession()
-		if (!activeSession) {
-			Logger.log("[SdkController] Deferred terminal mode restart: no active session, skipping")
-			return
-		}
-
-		// The turn that was running when the mode change was requested may still
-		// be running (or a new turn may have started) by the time this check
-		// runs — re-defer rather than restarting mid-turn.
-		if (activeSession.isRunning) {
-			Logger.log("[SdkController] Deferred terminal mode restart: session is still running")
-			this.restartPending = true
-			return
-		}
-
-		Logger.log("[SdkController] Executing deferred terminal mode tool restart")
-		this.restartSessionForTerminalExecutionMode().catch((error) => {
-			Logger.error("[SdkController] Failed deferred terminal mode restart:", error)
-		})
+		this.options.rebuilds.request("terminalExecutionMode", () => this.restartSessionForTerminalExecutionMode())
 	}
 
 	async restartSessionForTerminalExecutionMode(): Promise<void> {
-		if (this.restartInFlight) {
-			this.restartPending = true
-			return this.restartInFlight
-		}
-
-		const operation = this.performRestartSessionForTerminalExecutionMode()
-		this.restartInFlight = operation.then(
-			() => undefined,
-			// restartInFlight is only a serialization gate. The caller awaits
-			// operation below, where restart failures are reported to the user.
-			() => undefined,
-		)
-
-		try {
-			await operation
-		} finally {
-			this.restartInFlight = undefined
-			this.checkDeferredRestart()
-		}
+		await this.performRestartSessionForTerminalExecutionMode()
 	}
 
 	private async performRestartSessionForTerminalExecutionMode(): Promise<void> {
@@ -133,18 +76,23 @@ export class SdkTerminalExecutionModeCoordinator {
 			const initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)
 			const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
 
-			// Re-check that the active session hasn't been replaced by another path
-			// (e.g. user started a new task or a provider restart completed) during
-			// the async operations above. Bail out if it no longer matches.
+			// Rebuilds may preserve the session ID, so identity is the only reliable
+			// way to detect that another path replaced this session while we awaited.
 			const currentSession = this.options.sessions.getActiveSession()
-			if (!currentSession || currentSession.sessionId !== oldSessionId) {
+			if (!currentSession) {
+				Logger.log(`[SdkController] Active session changed during terminal mode restart (was ${oldSessionId}); aborting`)
+				return
+			}
+			if (currentSession !== activeSession || currentSession.isRunning) {
 				Logger.log(
-					`[SdkController] Active session changed during terminal mode restart (was ${oldSessionId}); aborting`,
+					`[SdkController] Active session changed or started running during terminal mode restart (was ${oldSessionId}); deferring`,
 				)
-			return
+				this.options.rebuilds.request("terminalExecutionMode", () => this.restartSessionForTerminalExecutionMode())
+				return
 			}
 
 			const restartResult = await this.options.sessions.replaceActiveSession({
+				expectedSession: activeSession,
 				startInput,
 				initialMessages: initialMessages as InitialMessages,
 				disposeReason: "terminalExecutionModeChange",

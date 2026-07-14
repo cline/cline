@@ -35,53 +35,56 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
-	it("defers restart while the active session is running", async () => {
+	it("schedules restart while the active session is running", () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		coordinator.handleTerminalExecutionModeChanged("backgroundExec", "vscodeTerminal")
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-
-		activeSession.isRunning = false
-		coordinator.checkDeferredRestart()
-
-		await waitFor(() => options.sessions.replaceActiveSession.mock.calls.length === 1)
-		expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("terminalExecutionMode", expect.any(Function))
 	})
 
-	it("re-defers a deferred restart if the session started running again before the check", async () => {
-		const activeSession = makeActiveSession({ isRunning: true })
+	it("does not replace a newer session that reused the same session ID", async () => {
+		const activeSession = makeActiveSession()
+		const newerSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
+		let resolveBuild: (() => void) | undefined
+		options.sessionConfigBuilder.build.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveBuild = () => resolve({ providerId: "anthropic", modelId: "claude", apiKey: "key" })
+				}),
+		)
 
-		coordinator.handleTerminalExecutionModeChanged("backgroundExec", "vscodeTerminal")
+		const restart = coordinator.restartSessionForTerminalExecutionMode()
+		await waitFor(() => resolveBuild !== undefined)
+		options.sessions.getActiveSession.mockReturnValue(newerSession)
+		resolveBuild?.()
+		await restart
+
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-
-		// A new turn started before the deferred check ran — must not restart
-		// mid-turn; must instead re-defer.
-		coordinator.checkDeferredRestart()
-		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-
-		// Once the session actually stops running, the re-deferred restart fires.
-		activeSession.isRunning = false
-		coordinator.checkDeferredRestart()
-		await waitFor(() => options.sessions.replaceActiveSession.mock.calls.length === 1)
-		expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce()
 	})
 
-	it("serializes concurrent restart calls into a single in-flight restart", async () => {
+	it("re-defers when the active session starts running during restart preparation", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
+		let resolveBuild: (() => void) | undefined
+		options.sessionConfigBuilder.build.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveBuild = () => resolve({ providerId: "anthropic", modelId: "claude", apiKey: "key" })
+				}),
+		)
 
-		const [first, second] = [
-			coordinator.restartSessionForTerminalExecutionMode(),
-			coordinator.restartSessionForTerminalExecutionMode(),
-		]
-		await Promise.all([first, second])
+		const restart = coordinator.restartSessionForTerminalExecutionMode()
+		await waitFor(() => resolveBuild !== undefined)
+		activeSession.isRunning = true
+		resolveBuild?.()
+		await restart
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 
-		// The second call joined the first's in-flight promise rather than
-		// starting a second concurrent restart.
-		expect(options.sessions.replaceActiveSession).toHaveBeenCalledTimes(1)
+		expect(options.rebuilds.request).toHaveBeenCalledWith("terminalExecutionMode", expect.any(Function))
 	})
 
 	it("rebuilds the active session with preserved messages", async () => {
@@ -97,6 +100,7 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 			mode: "plan",
 		})
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
+			expectedSession: activeSession,
 			startInput: { prompt: "start" },
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "terminalExecutionModeChange",
@@ -111,6 +115,7 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const activeSession = input.activeSession
+	let initialRebuildScheduled = false
 	const config = {
 		providerId: "anthropic",
 		modelId: "claude",
@@ -139,6 +144,14 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		rebuilds: {
+			request: vi.fn((_reason: string, rebuild: () => Promise<void>) => {
+				if (!initialRebuildScheduled && !activeSession?.isRunning) {
+					initialRebuildScheduled = true
+					void rebuild()
+				}
+			}),
+		},
 	} as unknown as SdkTerminalExecutionModeCoordinatorOptions & {
 		stateManager: StateManager & {
 			getGlobalSettingsKey: ReturnType<typeof vi.fn>

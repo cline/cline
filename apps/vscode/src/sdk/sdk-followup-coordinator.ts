@@ -34,8 +34,8 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	/** Resolves once no plan/act mode rebuild is in flight. */
-	waitForPendingModeRebuild: () => Promise<void>
+	/** Resolves once no session rebuild is in flight. */
+	waitForPendingRebuilds: () => Promise<void>
 	/**
 	 * Called when resuming a task fails. askResponse moved the turn phase to
 	 * streaming before delegating here, so the failure must move it to a
@@ -70,13 +70,10 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		const isActiveTurnInProgress = () => !!activeSession && (activeSession.isRunning || submittedDuringActiveTurn)
-		if (!isActiveTurnInProgress() && task) {
-			// A mode rebuild clears the active session while the old stop is
-			// awaited and only marks the replacement running after the
-			// continuation send. Resuming in that window would start a parallel
-			// session that the rebuild then kills, losing this message. Wait for
-			// the rebuild and re-evaluate against the rebuilt session.
-			await this.options.waitForPendingModeRebuild()
+		if (!isActiveTurnInProgress()) {
+			// Rebuilds replace the active session. Wait before choosing the host so
+			// this follow-up cannot be sent to the session being replaced.
+			await this.options.waitForPendingRebuilds()
 			activeSession = this.options.sessions.getActiveSession()
 		}
 		if (!isActiveTurnInProgress() && task) {

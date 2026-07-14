@@ -77,12 +77,12 @@ import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
-import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
@@ -95,6 +95,7 @@ import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { VscodeSessionHost } from "./vscode-session-host"
+import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceRootPath } from "./workspace-root"
 
@@ -158,6 +159,7 @@ export class Controller {
 	private turnStateTracker!: TurnStateTracker
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
+	private sessionRebuilds: SdkSessionRebuildScheduler
 	private interactions: SdkInteractionCoordinator
 	private diffEdits: SdkDiffEditCoordinator
 	private sessionConfigBuilder: SdkSessionConfigBuilder
@@ -326,6 +328,7 @@ export class Controller {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
 			},
+			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			getTerminalManager: () => {
 				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
@@ -411,6 +414,7 @@ export class Controller {
 				this.postStateToWebview().catch(() => {})
 			},
 		})
+		this.sessionRebuilds = new SdkSessionRebuildScheduler({ sessions: this.sessions })
 		this.taskHistory = new SdkTaskHistory({
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
@@ -436,6 +440,7 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			rebuilds: this.sessionRebuilds,
 			onAutoContinueStarting: () => {
 				this.turnStateTracker.set("streaming")
 				this.messageTranslatorState.clearTurnOutcome()
@@ -454,6 +459,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			rebuilds: this.sessionRebuilds,
 		})
 		this.terminalExecutionMode = new SdkTerminalExecutionModeCoordinator({
 			stateManager: this.stateManager,
@@ -465,6 +471,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			rebuilds: this.sessionRebuilds,
 		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
 			stateManager: this.stateManager,
@@ -477,6 +484,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			rebuilds: this.sessionRebuilds,
 		})
 		this.followups = new SdkFollowupCoordinator({
 			stateManager: this.stateManager,
@@ -485,7 +493,10 @@ export class Controller {
 			messages: this.messages,
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			waitForPendingModeRebuild: () => this.mode.waitForPendingRebuild(),
+			waitForPendingRebuilds: async () => {
+				await this.mode.waitForPendingRebuild()
+				await this.sessionRebuilds.waitUntilSettled()
+			},
 			getTask: () => this.task,
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
@@ -558,10 +569,6 @@ export class Controller {
 			messageTranslatorState: this.messageTranslatorState,
 			sessions: this.sessions,
 			messages: this.messages,
-			mcpTools: this.mcpTools,
-			terminalExecutionMode: this.terminalExecutionMode,
-			providerChanges: this.providerChanges,
-			mode: this.mode,
 			taskHistory: this.taskHistory,
 			stateManager: this.stateManager,
 			getTask: () => this.task,
@@ -629,6 +636,19 @@ export class Controller {
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
 		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
+	}
+
+	private handleSessionBecameIdle(): void {
+		if (this.mode?.hasPendingModeChange()) {
+			// The mode rebuild reads the latest provider and tool configuration, so
+			// it supersedes any passive rebuild that was queued for the old mode.
+			this.sessionRebuilds.cancel("provider")
+			this.mode.applyPendingModeChange().catch((error) => {
+				Logger.error("[SdkController] Failed to apply deferred mode change:", error)
+			})
+			return
+		}
+		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
