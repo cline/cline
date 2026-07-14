@@ -197,6 +197,9 @@
         "@radix-ui/react-toggle": "1.1.10",
         "@radix-ui/react-toggle-group": "1.1.11",
         "@radix-ui/react-tooltip": "1.2.8",
+        "@shikijs/langs": "^4.2.0",
+        "@shikijs/themes": "^4.2.0",
+        "@streamdown/cjk": "^1.0.3",
         "@tauri-apps/api": "^2.0.0",
         "@vercel/analytics": "1.6.1",
         "autoprefixer": "^10.4.20",
@@ -207,7 +210,6 @@
         "embla-carousel-react": "8.6.0",
         "input-otp": "1.4.2",
         "lucide-react": "^0.564.0",
-        "marked": "^17.0.3",
         "next": "16.2.6",
         "next-themes": "^0.4.6",
         "radix-ui": "^1.4.3",
@@ -215,11 +217,11 @@
         "react-day-picker": "9.13.2",
         "react-dom": "19.2.4",
         "react-hook-form": "^7.54.1",
-        "react-markdown": "^10.1.0",
         "react-resizable-panels": "^2.1.7",
         "recharts": "2.15.0",
-        "remark-gfm": "^4.0.1",
+        "shiki": "^4.0.2",
         "sonner": "^1.7.1",
+        "streamdown": "^2.5.0",
         "tailwind-merge": "^3.3.1",
         "vaul": "^1.1.2",
         "zod": "^3.24.1",
@@ -230,6 +232,7 @@
         "@types/bun": "^1.3.14",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
+        "jsdom": "^26.0.0",
         "postcss": "^8.5",
         "tailwindcss": "^4.2.0",
         "tw-animate-css": "1.3.3",
@@ -5151,8 +5154,6 @@
     "@cline/cline-hub-webview/@types/node": ["@types/node@24.13.2", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA=="],
 
     "@cline/code/lucide-react": ["lucide-react@0.564.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-JJ8GVTQqFwuliifD48U6+h7DXEHdkhJ/E87kksGByII3qHxtPciVb8T8woQONHBQgHVOl7rSMrrip3SeVNy7Fg=="],
-
-    "@cline/code/marked": ["marked@17.0.6", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA=="],
 
     "@cline/code/recharts": ["recharts@2.15.0", "", { "dependencies": { "clsx": "^2.0.0", "eventemitter3": "^4.0.1", "lodash": "^4.17.21", "react-is": "^18.3.1", "react-smooth": "^4.0.0", "recharts-scale": "^0.4.4", "tiny-invariant": "^1.3.1", "victory-vendor": "^36.6.8" }, "peerDependencies": { "react": "^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-cIvMxDfpAmqAmVgc4yb7pgm/O1tmmkl/CjrvXuW+62/+7jj/iF9Ykm+hb/UJt42TREHMyd3gb+pkgoa2MxgDIw=="],
 
