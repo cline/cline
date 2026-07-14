@@ -1,5 +1,14 @@
 # Cline SDK Changelog
 
+## 0.0.60
+
+- Fixed an issue where a transient network or server error during token refresh could log you out — transient failures no longer clear your credentials
+- Added the ClinePass usage-limit error so limit-reached responses are surfaced clearly
+- Session id is now preserved when continuing within the same session
+- Fixed infinite loading when initializing a task with an image
+- Hardened compaction budget handling
+- Added telemetry for auth-refresh outcomes and Cline credential lifecycle debug logging
+
 ## 0.0.59
 
 - You can now select Cline free models on the ClinePass provider

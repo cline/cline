@@ -147,10 +147,7 @@ export async function runAgenticCompaction(options: {
 		options.context.triggerTokens,
 		MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
 	);
-	if (
-		resolvedSummarizerInputLimit === undefined &&
-		!canUseActiveContextLimit
-	) {
+	if (resolvedSummarizerInputLimit === undefined && !canUseActiveContextLimit) {
 		options.logger?.log(
 			"Agentic compaction summarizer has no known input limit; using conservative summary budget",
 			{
@@ -176,12 +173,15 @@ export async function runAgenticCompaction(options: {
 	const availableSummaryInputTokens =
 		summarizerInputLimit - summaryRequestOverheadTokens;
 	if (availableSummaryInputTokens <= 0) {
-		options.logger?.debug("Skipped agentic compaction: summarizer budget exhausted", {
-			summarizerProviderId: summarizerProviderConfig.providerId,
-			summarizerModelId: summarizerProviderConfig.modelId,
-			summarizerInputLimit,
-			summaryRequestOverheadTokens,
-		});
+		options.logger?.debug(
+			"Skipped agentic compaction: summarizer budget exhausted",
+			{
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				summarizerInputLimit,
+				summaryRequestOverheadTokens,
+			},
+		);
 		return undefined;
 	}
 	const summaryInputBudget = buildAgenticSummaryInputBudget({
@@ -270,8 +270,7 @@ export async function runAgenticCompaction(options: {
 	});
 	const budgetActionCount = summaryInputBudget.actions.filter(
 		(action) =>
-			action.reason === "over_budget" ||
-			action.reason === "tool_pair_boundary",
+			action.reason === "over_budget" || action.reason === "tool_pair_boundary",
 	).length;
 	return {
 		messages: resultMessages,
