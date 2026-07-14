@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
+import { stripUtf8Bom } from "@cline/shared";
 import {
 	AGENTS_RULES_FILE_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -193,12 +194,10 @@ async function discoverManagedPluginRoots(
 function parseMarkdownFrontmatter(
 	content: string,
 ): ParseMarkdownFrontmatterResult {
-	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding).
-	// Node's `utf-8` decoding does not strip the BOM character (\uFEFF), so without this the
-	// frontmatter regex below never matches a file that starts with "\uFEFF---", causing the
-	// frontmatter to be silently ignored (see cline/cline#12151).
-	const normalizedContent =
-		content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding),
+	// which Node's `utf-8` decoding does not strip on its own. Without this the frontmatter
+	// regex below never matches a file that starts with "\uFEFF---" (see cline/cline#12151).
+	const normalizedContent = stripUtf8Bom(content);
 
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 	const match = normalizedContent.match(frontmatterRegex);

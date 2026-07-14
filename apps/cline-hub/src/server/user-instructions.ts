@@ -17,6 +17,7 @@ import {
 	readGlobalSettings,
 	resolvePluginConfigSearchPaths,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
+	stripUtf8Bom,
 } from "@cline/core";
 import { readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
@@ -114,9 +115,9 @@ export async function listUserInstructionConfigs(
 					const ext = extname(entry.name).toLowerCase();
 					if (ext !== ".yml" && ext !== ".yaml") continue;
 					const filePath = join(directory, entry.name);
-					// Strip a leading UTF-8 BOM (e.g. Windows Notepad's "UTF-8 with BOM"
-					// encoding) so the frontmatter regex below still matches (see cline/cline#12151).
-					const raw = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+					// stripUtf8Bom keeps the frontmatter regex below matching files saved with
+					// a leading UTF-8 BOM (see cline/cline#12151).
+					const raw = stripUtf8Bom(readFileSync(filePath, "utf8"));
 					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 					const fm = fmMatch?.[1] ?? "";
 					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);

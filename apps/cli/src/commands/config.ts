@@ -13,6 +13,7 @@ import {
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
 	type SkillConfig,
+	stripUtf8Bom,
 	type WorkflowConfig,
 } from "@cline/core";
 import { Command } from "commander";
@@ -209,9 +210,9 @@ async function runAgentsConfigCommand(
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				// Strip a leading UTF-8 BOM (e.g. Windows Notepad's "UTF-8 with BOM"
-				// encoding) so the frontmatter regex below still matches (see cline/cline#12151).
-				const raw = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+				// stripUtf8Bom keeps the frontmatter regex below matching files saved with
+				// a leading UTF-8 BOM (see cline/cline#12151).
+				const raw = stripUtf8Bom(readFileSync(filePath, "utf8"));
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);
