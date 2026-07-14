@@ -77,11 +77,11 @@ type HeaderMap = Record<string, string>;
 type HeaderInput = HeaderMap | (() => Promise<HeaderMap> | HeaderMap);
 
 type AuthTokenTelemetryClaims = {
-	session_id?: string;
+	sessionId?: string;
 };
 
 type AuthCredentialTelemetryProperties = {
-	session_started_at?: number;
+	sessionStartedAtMs?: number;
 };
 
 type AuthTelemetryDetails = AuthTokenTelemetryClaims &
@@ -186,9 +186,7 @@ function toSeconds(value: unknown, fallback: number): number {
 }
 
 function asNonEmptyString(value: unknown): string | undefined {
-	return typeof value === "string" && value.trim().length > 0
-		? value.trim()
-		: undefined;
+	return (typeof value === "string" && value.trim()) || undefined;
 }
 
 function getAuthTokenTelemetryClaims(token: string): AuthTokenTelemetryClaims {
@@ -198,7 +196,7 @@ function getAuthTokenTelemetryClaims(token: string): AuthTokenTelemetryClaims {
 	}
 
 	return {
-		session_id: asNonEmptyString(payload.sid),
+		sessionId: asNonEmptyString(payload.sid),
 	};
 }
 
@@ -214,7 +212,7 @@ function getAuthCredentialTelemetryProperties(
 		Number.isFinite(sessionStartedAt) &&
 		sessionStartedAt > 0
 	) {
-		authProperties.session_started_at = sessionStartedAt;
+		authProperties.sessionStartedAtMs = sessionStartedAt;
 	}
 
 	return authProperties;

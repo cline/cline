@@ -12,7 +12,10 @@ function toBase64Url(value: string): string {
 }
 
 function createJwt(payload: Record<string, unknown>): string {
-	return `${toBase64Url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${toBase64Url(JSON.stringify(payload))}.sig`;
+	const settings = toBase64Url(JSON.stringify({ alg: "none", typ: "JWT" }));
+	const jwtPayload = toBase64Url(JSON.stringify(payload));
+
+	return `${settings}.${jwtPayload}.sig`;
 }
 
 function createCredentials(
