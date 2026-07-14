@@ -44,7 +44,7 @@ import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { isClineProvider } from "@/shared/utils/cline"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
@@ -87,6 +87,7 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
+import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
@@ -172,6 +173,10 @@ export class Controller {
 	private readonly providerConfigStoreSubscription: Disposable
 	private providerConfigStatePostScheduled = false
 
+	// Debounces/coalesces postStateToWebview() calls — see StatePostDebouncer.
+	private static readonly STATE_POST_DEBOUNCE_MS = 50
+	private readonly statePostDebouncer: StatePostDebouncer
+
 	// Bridges SDK events to the webview's gRPC streams.
 	private grpcBridge: WebviewGrpcBridge
 
@@ -226,6 +231,10 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
 		this.sdkTelemetry = createVscodeSdkTelemetryHandle()
+		this.statePostDebouncer = new StatePostDebouncer({
+			debounceMs: Controller.STATE_POST_DEBOUNCE_MS,
+			flush: () => this.flushStateToWebview(),
+		})
 		this.providerConfigStore = createProviderConfigStore()
 		this.providerCatalog = createProviderCatalog(this.providerConfigStore)
 		this.providerConfigStoreSubscription = this.providerConfigStore.subscribe((event) => {
@@ -249,7 +258,7 @@ export class Controller {
 		)
 
 		// Initialize SDK-backed auth and account services.
-		this.authService = AuthService.getInstance(this)
+		this.authService = AuthService.getInstance(this, this.sdkTelemetry.telemetry)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
@@ -326,7 +335,7 @@ export class Controller {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
 				const isClineAuthError =
-					isClineProvider(providerId) &&
+					isClineManagedProvider(providerId) &&
 					(errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
 						errorMessage.toLowerCase().includes("missing api key") ||
 						errorMessage.toLowerCase().includes("unauthorized"))
@@ -340,7 +349,7 @@ export class Controller {
 						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 					})
 					this.emitClineAuthError()
-				} else if (isClineProvider(providerId) && this.isClineBalanceError(errorMessage)) {
+				} else if (isClineManagedProvider(providerId) && this.isClineBalanceError(errorMessage)) {
 					this.captureProviderFailure({
 						sessionId,
 						error,
@@ -443,7 +452,7 @@ export class Controller {
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			isClineProviderActive: () => this.isClineProviderActive(),
+			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthErrorWithTelemetry(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -492,7 +501,7 @@ export class Controller {
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			isClineProviderActive: () => this.isClineProviderActive(),
+			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -502,10 +511,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			buildStartSessionInput,
-			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
@@ -664,6 +670,9 @@ export class Controller {
 		}
 		await this.setRemoteConfigCoreIntegration(undefined)
 		this.isDisposed = true
+		// Tear down the debounced state-post machinery before downstream resources
+		// are disposed below — see StatePostDebouncer.dispose().
+		await this.statePostDebouncer.dispose()
 		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
@@ -885,8 +894,8 @@ export class Controller {
 	/**
 	 * Check if the active API provider uses Cline account auth for the current mode.
 	 */
-	private isClineProviderActive(): boolean {
-		return isClineProvider(this.getActiveProviderId())
+	private isClineManagedProviderActive(): boolean {
+		return isClineManagedProvider(this.getActiveProviderId())
 	}
 
 	private captureProviderFailure(event: ProviderFailureTelemetry): void {
@@ -1127,8 +1136,8 @@ export class Controller {
 	 * Manually compact (condense) the active task's conversation. Triggered by
 	 * the compact button and the `/compact` (alias `/smol`) slash command.
 	 * Mirrors the CLI's `/compact` local command: runs an SDK manual compaction
-	 * and restarts the session with the compacted transcript so the model's
-	 * working context is actually reduced.
+	 * and persists the compaction sidecar so the model's working context is
+	 * reduced on the next turn and later resumes.
 	 */
 	async compactTask(): Promise<void> {
 		await this.compaction.compactTask()
@@ -1742,7 +1751,25 @@ export class Controller {
 
 	// ---- State management ----
 
-	async postStateToWebview(): Promise<void> {
+	/**
+	 * Request a webview state update.
+	 *
+	 * Callers fire this very frequently (notably the session event coordinator,
+	 * once per streamed message/turn boundary), and each rebuild walks the full
+	 * task history. StatePostDebouncer coalesces bursts into a single trailing
+	 * rebuild to avoid hammering the extension host. The returned promise
+	 * resolves once a snapshot reflecting this request has been shipped, or
+	 * rejects if that rebuild failed.
+	 */
+	postStateToWebview(): Promise<void> {
+		if (this.isDisposed) {
+			return Promise.resolve()
+		}
+		return this.statePostDebouncer.post()
+	}
+
+	/** Build the current ExtensionState and push it to the webview immediately. */
+	private async flushStateToWebview(): Promise<void> {
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()

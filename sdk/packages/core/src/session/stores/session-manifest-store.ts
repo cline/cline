@@ -81,6 +81,47 @@ export class SessionManifestStore {
 		return this.readManifestFile(sessionId).manifest;
 	}
 
+	/**
+	 * Asynchronously read only the manifest `metadata.title`.
+	 *
+	 * The session-listing hot path needs nothing from the manifest except the
+	 * title, but the manifest JSON can be large (it embeds metadata and prompt
+	 * text). This reads the file off the event-loop thread and pulls the title
+	 * out of the parsed JSON directly, skipping the full `SessionManifestSchema`
+	 * (Zod) validation that `readSessionManifest` performs. On any error (missing
+	 * file, malformed JSON, non-string title) it resolves to `undefined` so
+	 * callers fall back to the row metadata/prompt title.
+	 */
+	async readSessionManifestTitle(
+		sessionId: string,
+	): Promise<string | undefined> {
+		const manifestPath = this.artifacts.sessionManifestPath(sessionId, false);
+		let raw: string;
+		try {
+			raw = await readFile(manifestPath, "utf8");
+		} catch {
+			return undefined;
+		}
+		try {
+			const parsed = JSON.parse(raw) as unknown;
+			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+				return undefined;
+			}
+			const metadata = (parsed as { metadata?: unknown }).metadata;
+			if (
+				!metadata ||
+				typeof metadata !== "object" ||
+				Array.isArray(metadata)
+			) {
+				return undefined;
+			}
+			const title = (metadata as { title?: unknown }).title;
+			return typeof title === "string" ? title : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	readManifestFile(sessionId: string): {
 		path: string;
 		manifest?: SessionManifest;
@@ -159,7 +200,10 @@ export class SessionManifestStore {
 		);
 	}
 
-	private updateCompactionPath(sessionId: string, path: string | undefined): void {
+	private updateCompactionPath(
+		sessionId: string,
+		path: string | undefined,
+	): void {
 		const manifestFile = this.readManifestFile(sessionId);
 		if (!manifestFile.manifest) {
 			return;

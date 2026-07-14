@@ -3,19 +3,22 @@
 import {
 	AlertCircle,
 	Bot,
+	BrainIcon,
+	Check,
 	ChevronDown,
 	ChevronRight,
 	Clock3,
 	Copy,
 	FileEdit,
+	FileIcon,
 	FileSearch,
-	GitBranch,
 	Loader2,
 	MessagesSquare,
-	RotateCcw,
 	Search,
 	ShieldAlert,
-	Terminal,
+	SplitIcon,
+	SquareTerminalIcon,
+	UndoIcon,
 } from "lucide-react";
 import {
 	memo,
@@ -28,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
+import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
 import { normalizeTitle } from "../../utils";
@@ -36,7 +40,11 @@ import { WelcomeScreen } from "./welcome-chat";
 type ChatMessagesProps = {
 	sessionId: string | null;
 	status: ChatSessionStatus;
-	chatTransportState?: "connecting" | "reconnecting" | "connected";
+	chatTransportState?:
+		| "connecting"
+		| "reconnecting"
+		| "connected"
+		| "unavailable";
 	isSessionSwitching?: boolean;
 	provider: string;
 	model: string;
@@ -365,10 +373,10 @@ function ChatMessagesImpl({
 	return (
 		<div className="relative h-full min-h-0 min-w-0">
 			<div
-				className="h-full min-h-0 min-w-0 overflow-y-auto"
+				className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
 				ref={scrollAreaRef}
 			>
-				<div className="relative mx-auto w-full px-6 py-6">
+				<div className="relative mx-auto w-full h-full min-w-0 max-w-full overflow-x-hidden px-6 py-6">
 					{showIdleDetails ? (
 						<WelcomeScreen
 							provider={provider}
@@ -377,7 +385,7 @@ function ChatMessagesImpl({
 							quickActions={[]}
 						/>
 					) : (
-						<div className="flex flex-col gap-2 w-full h-full">
+						<div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -474,7 +482,9 @@ function ChatMessagesImpl({
 							<Loader2 className="h-3.5 w-3.5 animate-spin" />
 							{chatTransportState === "reconnecting"
 								? "Reconnecting chat..."
-								: "Connecting chat..."}
+								: chatTransportState === "unavailable"
+									? "Chat backend unavailable"
+									: "Connecting chat..."}
 						</div>
 					) : null}
 					{shouldShowErrorBanner ? (
@@ -569,7 +579,7 @@ function ToolApprovalPanel({
 								Request {item.requestId}
 								{item.iteration != null ? ` · Iteration ${item.iteration}` : ""}
 							</div>
-							<pre className="mt-2 max-h-44 overflow-auto rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
+							<pre className="mt-2 max-h-44 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
 								{formatApprovalInput(item.input)}
 							</pre>
 							{error ? (
@@ -722,6 +732,17 @@ function MessageBubble({
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
+	const shouldRenderAssistantActions =
+		message.role === "assistant" &&
+		!isStreaming &&
+		!isError &&
+		Boolean(onCopyRawText || onForkSession);
+	const shouldRenderUserActions =
+		isUser && Boolean(onCopyRawText || checkpoint);
+	const keepUserActionsVisible = restorePending || Boolean(restoreError);
+	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
+	const hiddenActionButtonsClassName =
+		"pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
 	if (message.role === "tool") {
 		return <ToolMessageBlock message={message} />;
@@ -732,71 +753,106 @@ function MessageBubble({
 
 	return (
 		<div
-			className={cn("flex", isUser ? "justify-end" : "justify-start w-full")}
+			className={cn(
+				"flex min-w-0",
+				isUser ? "justify-end" : "w-full justify-start",
+			)}
 		>
 			<div
 				className={cn(
-					"space-y-2 pl-3 text-sm",
-					isUser && "bg-card text-foreground/80 max-w-[50%]",
-					!isUser && !isError && "text-foreground w-full",
+					"group max-w-full min-w-0 wrap-break-word text-sm",
+					isUser && "flex max-w-[50%] flex-col items-end gap-1",
+					!isUser && "flex flex-col items-start gap-2 overflow-hidden",
+					!isUser && !isError && "text-foreground",
 					isError &&
 						"bg-destructive/10 border border-destructive/40 text-destructive",
 				)}
 			>
-				{isStreaming && message.role === "assistant" ? (
-					<>
-						{reasoningContent || message.reasoningRedacted ? (
-							<ReasoningBlock
-								content={reasoningContent}
-								redacted={message.reasoningRedacted === true}
-							/>
-						) : null}
-						<div className="whitespace-pre-wrap">
-							{normalizedContent || " "}
-						</div>
-					</>
-				) : (
-					<>
-						{reasoningContent || message.reasoningRedacted ? (
-							<ReasoningBlock
-								content={reasoningContent}
-								redacted={message.reasoningRedacted === true}
-							/>
-						) : null}
-						<MemoizedMarkdown
-							content={normalizedContent || " "}
-							id={message.id}
-						/>
-					</>
-				)}
-				{isUser && checkpoint ? (
-					<div className="space-y-2 pt-1">
-						<div className="flex items-center justify-end gap-2">
-							<Button
-								className="h-7 px-2 text-xs"
-								onClick={onCopyRawText}
-								size="sm"
-								type="button"
-								variant="outline"
-							>
-								<Copy className="h-3.5 w-3.5" />
-								{wasCopied ? "Copied" : "Copy"}
-							</Button>
-							<Button
-								className="h-7 px-2 text-xs"
-								disabled={restoreDisabled || restorePending}
-								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
-								size="sm"
-								type="button"
-								variant="outline"
-							>
-								{restorePending ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<RotateCcw className="h-3.5 w-3.5" />
+				<div
+					className={cn(
+						"max-w-full min-w-0 space-y-2 overflow-hidden wrap-break-word",
+						isUser && "rounded-sm bg-card p-2 text-foreground/80",
+					)}
+				>
+					{isStreaming && message.role === "assistant" ? (
+						<>
+							{reasoningContent || message.reasoningRedacted ? (
+								<ReasoningBlock
+									content={reasoningContent}
+									redacted={message.reasoningRedacted === true}
+								/>
+							) : null}
+							<div className="whitespace-pre-wrap wrap-break-word leading-relaxed">
+								{normalizedContent || " "}
+							</div>
+						</>
+					) : (
+						<>
+							{reasoningContent || message.reasoningRedacted ? (
+								<ReasoningBlock
+									content={reasoningContent}
+									redacted={message.reasoningRedacted === true}
+								/>
+							) : null}
+
+							<div className="my-1 ml-3 min-w-0 max-w-full overflow-x-hidden wrap-break-word **:max-w-full [&_code]:whitespace-pre-wrap [&_code]:wrap-break-word [&_pre]:overflow-x-hidden [&_pre]:whitespace-pre-wrap [&_pre]:wrap-break-word">
+								<MemoizedMarkdown
+									content={normalizedContent || " "}
+									id={message.id}
+								/>
+							</div>
+						</>
+					)}
+				</div>
+				{shouldRenderUserActions ? (
+					<div className="space-y-1">
+						<div className="flex h-6 items-center justify-end">
+							<div
+								className={cn(
+									"flex items-center justify-end gap-2",
+									keepUserActionsVisible
+										? "pointer-events-auto opacity-100"
+										: hiddenActionButtonsClassName,
 								)}
-								Undo
-							</Button>
+							>
+								{onCopyRawText ? (
+									<Button
+										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+										aria-label={
+											wasCopied ? "Copied user message" : "Copy user message"
+										}
+										onClick={onCopyRawText}
+										size="sm"
+										title={wasCopied ? "Copied" : "Copy message"}
+										type="button"
+										variant="ghost"
+									>
+										{wasCopied ? (
+											<Check className="h-3.5 w-3.5" />
+										) : (
+											<Copy className="h-3.5 w-3.5" />
+										)}
+									</Button>
+								) : null}
+								{checkpoint ? (
+									<Button
+										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+										aria-label="Restore checkpoint"
+										disabled={restoreDisabled || restorePending}
+										onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+										size="sm"
+										title="Restore checkpoint"
+										type="button"
+										variant="ghost"
+									>
+										{restorePending ? (
+											<Loader2 className="h-3.5 w-3.5 animate-spin" />
+										) : (
+											<UndoIcon className="h-3.5 w-3.5" />
+										)}
+									</Button>
+								) : null}
+							</div>
 						</div>
 						{restoreError ? (
 							<div className="text-right text-xs text-destructive">
@@ -805,30 +861,61 @@ function MessageBubble({
 						) : null}
 					</div>
 				) : null}
-				{!isUser &&
-				!isError &&
-				!isStreaming &&
-				message.role === "assistant" &&
-				onForkSession ? (
-					<div className="mt-1 flex items-center gap-1">
-						<Button
-							className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-							disabled={forkPending}
-							onClick={onForkSession}
-							size="sm"
-							title="Fork session — copy full message history into a new session"
-							type="button"
-							variant="ghost"
-						>
-							{forkPending ? (
-								<Loader2 className="h-3 w-3 animate-spin" />
-							) : (
-								<GitBranch className="h-3 w-3" />
+				{shouldRenderAssistantActions ? (
+					<div className="flex h-6 items-center hidden">
+						<div
+							className={cn(
+								"flex items-center gap-0",
+								keepAssistantActionsVisible
+									? "pointer-events-auto opacity-100"
+									: hiddenActionButtonsClassName,
 							)}
-						</Button>
-						{forkError ? (
-							<span className="text-[11px] text-destructive">{forkError}</span>
-						) : null}
+						>
+							{onCopyRawText ? (
+								<Button
+									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+									aria-label={
+										wasCopied
+											? "Copied assistant message"
+											: "Copy assistant message"
+									}
+									onClick={onCopyRawText}
+									size="sm"
+									title={wasCopied ? "Copied" : "Copy raw assistant output"}
+									type="button"
+									variant="ghost"
+								>
+									{wasCopied ? (
+										<Check className="h-3 w-3" />
+									) : (
+										<Copy className="h-3 w-3" />
+									)}
+								</Button>
+							) : null}
+							{onForkSession ? (
+								<Button
+									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+									aria-label="Fork session"
+									disabled={forkPending}
+									onClick={onForkSession}
+									size="sm"
+									title="Fork session - copy full message history into a new session"
+									type="button"
+									variant="ghost"
+								>
+									{forkPending ? (
+										<Loader2 className="h-3 w-3 animate-spin" />
+									) : (
+										<SplitIcon className="h-3 w-3" />
+									)}
+								</Button>
+							) : null}
+							{forkError ? (
+								<span className="text-[11px] text-destructive">
+									{forkError}
+								</span>
+							) : null}
+						</div>
 					</div>
 				) : null}
 			</div>
@@ -850,17 +937,18 @@ function ReasoningBlock({
 	}
 
 	return (
-		<div className="mb-2">
+		<div className="my-2">
 			<Button
-				className="w-full justify-start gap-2 p-0 text-left font-medium text-foreground/70 hover:bg-transparent text-xs"
+				className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-foreground/70 hover:bg-transparent hover:text-foreground dark:hover:bg-transparent dark:hover:text-foreground"
 				onClick={() => setExpanded((current) => !current)}
 				type="button"
 				variant="ghost"
 			>
+				<BrainIcon className="size-4" />
 				Thinking
 			</Button>
 			{expanded ? (
-				<div className="mt-1 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+				<div className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
 					{displayContent}
 				</div>
 			) : null}
@@ -878,6 +966,10 @@ type ToolPayload = {
 type ToolSummary = {
 	label: string;
 	details: string[];
+	diff?: {
+		additions: number;
+		deletions: number;
+	};
 };
 
 function pruneRequestMap<T extends string>(
@@ -966,7 +1058,12 @@ function classifyTool(
 		].includes(normalized)
 	)
 		return "exploration";
-	if (["editor", "edit_file", "edit"].includes(normalized)) return "file-edit";
+	if (
+		["editor", "edit_file", "edit", "apply_patch", "apply-patch"].includes(
+			normalized,
+		)
+	)
+		return "file-edit";
 	if (["bash", "run_commands"].includes(normalized)) return "bash";
 	if (["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized))
 		return "spawn";
@@ -983,6 +1080,62 @@ function asStringArray(value: unknown): string[] {
 	return value.filter(
 		(item): item is string => typeof item === "string" && item.length > 0,
 	);
+}
+
+/**
+ * read_files accepts many input shapes: { files: [{ path }] }, { files: path },
+ * { file_paths: [...] }, { paths: [...] }, a bare request, an array, or a string.
+ */
+function extractReadFilePaths(input: unknown): string[] {
+	const out: string[] = [];
+	const push = (value: unknown) => {
+		if (typeof value === "string" && value.length > 0) {
+			out.push(value);
+			return;
+		}
+		const record = asRecord(value);
+		if (record && typeof record.path === "string" && record.path.length > 0) {
+			out.push(record.path);
+		}
+	};
+	const record = asRecord(input);
+	const candidates =
+		record?.files ?? record?.file_paths ?? record?.paths ?? record ?? input;
+	if (Array.isArray(candidates)) {
+		for (const candidate of candidates) {
+			push(candidate);
+		}
+	} else {
+		push(candidates);
+	}
+	return out;
+}
+
+/**
+ * run_commands entries can be shell strings or structured { command, args }.
+ */
+function extractCommands(input: unknown): string[] {
+	const inputObject = asRecord(input);
+	const raw = Array.isArray(inputObject?.commands)
+		? inputObject.commands
+		: typeof inputObject?.command === "string"
+			? [inputObject.command]
+			: typeof input === "string"
+				? [input]
+				: [];
+	const out: string[] = [];
+	for (const entry of raw) {
+		if (typeof entry === "string" && entry.length > 0) {
+			out.push(entry);
+			continue;
+		}
+		const record = asRecord(entry);
+		if (record && typeof record.command === "string") {
+			const args = asStringArray(record.args);
+			out.push([record.command, ...args].join(" "));
+		}
+	}
+	return out;
 }
 
 function toDisplayPath(path: string): string {
@@ -1025,10 +1178,10 @@ function buildToolSummary(
 	const inputObject = asRecord(input);
 
 	if (["read_files", "file_read", "file-read"].includes(normalized)) {
-		const files = asStringArray(inputObject?.file_paths);
+		const files = extractReadFilePaths(input);
 		if (files.length > 0) {
 			return {
-				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(files.length, "file")}`,
+				label: `${inProgress ? "Reading" : "Read"} ${pluralize(files.length, "file")}`,
 				details: files.map(
 					(file) => `${inProgress ? "Reading" : "Read"} ${toDisplayPath(file)}`,
 				),
@@ -1047,14 +1200,8 @@ function buildToolSummary(
 	}
 
 	if (["run_commands", "bash"].includes(normalized)) {
-		const commands = asStringArray(inputObject?.commands);
-		if (commands.length === 1) {
-			return {
-				label: `${inProgress ? "Running" : "Ran"} ${commands[0]}`,
-				details: [commands[0]],
-			};
-		}
-		if (commands.length > 1) {
+		const commands = extractCommands(input);
+		if (commands.length > 0) {
 			return {
 				label: `${inProgress ? "Running" : "Ran"} ${pluralize(commands.length, "command")}`,
 				details: commands.map((command) => command.trim()),
@@ -1084,9 +1231,44 @@ function buildToolSummary(
 		}
 	}
 
+	if (["apply_patch", "apply-patch"].includes(normalized)) {
+		const patchText =
+			typeof input === "string"
+				? input
+				: typeof inputObject?.input === "string"
+					? inputObject.input
+					: "";
+		const fileDiffs = patchText ? parseApplyPatchInput(patchText) : [];
+		if (fileDiffs.length > 0) {
+			const additions = fileDiffs.reduce((sum, d) => sum + d.additions, 0);
+			const deletions = fileDiffs.reduce((sum, d) => sum + d.deletions, 0);
+			return {
+				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")}`,
+				diff: { additions, deletions },
+				details: fileDiffs.map(
+					(d) =>
+						`${inProgress ? "Editing" : "Edited"} ${toDisplayPath(d.path)} +${d.additions} -${d.deletions}`,
+				),
+			};
+		}
+		return {
+			label: inProgress ? "Applying patch" : "Applied patch",
+			details: [],
+		};
+	}
+
 	if (["editor", "edit_file", "edit"].includes(normalized)) {
+		// Current editor schema has no `command`; derive it from the input shape.
 		const command =
-			typeof inputObject?.command === "string" ? inputObject.command : "edit";
+			typeof inputObject?.command === "string"
+				? inputObject.command
+				: inputObject?.insert_line != null
+					? "insert"
+					: typeof inputObject?.old_text === "string"
+						? "str_replace"
+						: typeof inputObject?.new_text === "string"
+							? "create"
+							: "edit";
 		const path =
 			typeof inputObject?.path === "string"
 				? toDisplayPath(inputObject.path)
@@ -1107,14 +1289,12 @@ function buildToolSummary(
 					: command === "insert"
 						? "Inserted"
 						: "Edited";
+		// The label already carries all the information; no expandable details.
 		const detail = `${action} ${path}`;
 		if (diff) {
-			return {
-				label: `${detail} +${diff.additions} -${diff.deletions}`,
-				details: [detail],
-			};
+			return { label: detail, diff, details: [] };
 		}
-		return { label: detail, details: [detail] };
+		return { label: detail, details: [] };
 	}
 
 	const query =
@@ -1162,13 +1342,17 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
 	const kind = classifyTool(toolName);
-	const Icon =
-		kind === "exploration"
+	const isFileRead = ["read_files", "file_read", "file-read"].includes(
+		toolName.toLowerCase(),
+	);
+	const Icon = isFileRead
+		? FileIcon
+		: kind === "exploration"
 			? Search
 			: kind === "file-edit"
 				? FileEdit
 				: kind === "bash"
-					? Terminal
+					? SquareTerminalIcon
 					: kind === "spawn"
 						? Bot
 						: FileSearch;
@@ -1180,39 +1364,52 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
 	const resultPreview = payload?.isError ? formatToolValue(payload.result) : "";
 	const hasExpandedSections =
-		details.length > 1 || Boolean(inputPreview || resultPreview);
+		details.length > 0 || Boolean(inputPreview || resultPreview);
 
 	return (
-		<div className="flex justify-start w-full">
-			<div className={cn("w-full rounded-xl text-xs")}>
+		<div className="my-2 flex w-full min-w-0 justify-start">
+			<div
+				className={cn("min-w-0 max-w-full overflow-hidden rounded-xl text-sm")}
+			>
 				<Button
-					className="w-full justify-start gap-2 p-0 text-left font-medium text-foreground/70 hover:bg-transparent text-xs"
+					className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80 dark:hover:bg-transparent dark:hover:text-primary/80"
 					onClick={() => setExpanded((current) => !current)}
 					type="button"
 					variant="ghost"
 				>
 					{payload?.isError ? (
-						<AlertCircle className="size-3 text-destructive/80" />
+						<AlertCircle className="size-4 text-destructive/80" />
 					) : (
-						<Icon className="size-3" />
+						<Icon className="size-4" />
 					)}
-					<span>{summary.label}</span>
+					<span className="min-w-0 wrap-break-word">{summary.label}</span>
+					{summary.diff ? (
+						<span className="shrink-0 font-mono text-xs">
+							<span className="text-chart-2">+{summary.diff.additions}</span>{" "}
+							<span className="text-destructive">
+								-{summary.diff.deletions}
+							</span>
+						</span>
+					) : null}
 					{hasExpandedSections ? (
-						<span className="text-muted-foreground">
+						<span className="shrink-0 text-muted-foreground">
 							{expanded ? (
-								<ChevronDown className="size-3" />
+								<ChevronDown className="size-4" />
 							) : (
-								<ChevronRight className="size-3" />
+								<ChevronRight className="size-4" />
 							)}
 						</span>
 					) : null}
 				</Button>
 				{expanded ? (
-					<div className="pl-8 text-muted-foreground">
+					<div className="mt-1.5 min-w-0 max-w-full overflow-x-hidden pl-8 text-sm text-muted-foreground">
 						{hasExpandedSections ? (
 							<div className="space-y-1">
 								{details.map((detail) => (
-									<div className="text-xxs" key={`${message.id}_${detail}`}>
+									<div
+										className="wrap-break-word"
+										key={`${message.id}_${detail}`}
+									>
 										{detail}
 									</div>
 								))}
@@ -1223,7 +1420,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 								<div className="text-xxs uppercase tracking-wide text-muted-foreground/80">
 									Input
 								</div>
-								<pre className="max-h-52 overflow-auto rounded-md border border-border/70 bg-background/60 p-2 text-xxs leading-relaxed text-foreground whitespace-pre-wrap break-all">
+								<pre className="max-h-52 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">
 									{inputPreview}
 								</pre>
 							</div>
@@ -1235,7 +1432,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 								</div>
 							) : (
 								<div className="space-y-1">
-									<pre className="max-h-64 overflow-auto rounded-md border border-border/70 bg-background/60 p-2 text-xxs leading-relaxed text-foreground whitespace-pre-wrap break-all">
+									<pre className="max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">
 										{resultPreview}
 									</pre>
 								</div>

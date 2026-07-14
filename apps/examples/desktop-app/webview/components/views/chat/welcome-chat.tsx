@@ -2,6 +2,7 @@
 
 import { Check, FolderOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AuroraBackground } from "@/components/ui/aurora-bg";
 import {
 	Command,
 	CommandEmpty,
@@ -105,13 +106,14 @@ export function WelcomeScreen({
 
 	return (
 		<div className="flex flex-1 flex-col items-center overflow-hidden bg-background">
+			<AuroraBackground />
 			<div className="relative z-10 flex w-full max-w-3xl flex-1 flex-col items-center px-6 py-12">
 				<div className="mb-8 flex flex-col items-center">
 					<h1 className="text-balance text-center text-3xl font-bold tracking-tight text-foreground">
-						What would you like to build?
+						What can I do for you?
 					</h1>
 					<p className="mt-2 text-balance text-center text-muted-foreground">
-						Start a conversation to explore, edit, and ship code together.
+						Let's explore, edit, and ship code together!
 					</p>
 				</div>
 

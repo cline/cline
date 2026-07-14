@@ -1,4 +1,3 @@
-import net from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClineOAuthCredentials } from "./cline";
 import { getValidClineCredentials, loginClineOAuth } from "./cline";
@@ -7,21 +6,6 @@ const PROVIDER_OPTIONS = {
 	apiBaseUrl: "https://auth.example.com",
 };
 const ORIGINAL_FETCH = globalThis.fetch;
-const socketBindingSupported = await (async () => {
-	try {
-		const srv = net.createServer();
-		await new Promise<void>((resolve, reject) => {
-			srv.listen(0, "127.0.0.1", () => resolve());
-			srv.once("error", reject);
-		});
-		await new Promise<void>((resolve, reject) =>
-			srv.close((err) => (err ? reject(err) : resolve())),
-		);
-		return true;
-	} catch {
-		return false;
-	}
-})();
 
 function createCredentials(
 	overrides: Partial<ClineOAuthCredentials> = {},
@@ -57,7 +41,10 @@ describe("auth/cline getValidClineCredentials", () => {
 
 	it("refreshes expired credentials", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
-		const current = createCredentials({ expires: 101_000 });
+		const current = createCredentials({
+			expires: 101_000,
+			metadata: { provider: "google", sessionStartedAt: 12_345 },
+		});
 		const fetchMock = vi.fn(
 			async () =>
 				new Response(
@@ -88,7 +75,51 @@ describe("auth/cline getValidClineCredentials", () => {
 			refresh: "refresh-new",
 			accountId: "acct-2",
 			email: "new@example.com",
+			metadata: {
+				provider: "google",
+				sessionStartedAt: 12_345,
+				tokenType: "Bearer",
+			},
 		});
+		nowSpy.mockRestore();
+	});
+
+	it("does not add sessionStartedAt when refreshing credentials that do not already have it", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const current = createCredentials({
+			expires: 101_000,
+			metadata: { provider: "google" },
+		});
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						success: true,
+						data: {
+							accessToken: "access-new",
+							refreshToken: "refresh-new",
+							tokenType: "Bearer",
+							expiresAt: "2030-01-01T00:00:00.000Z",
+							userInfo: {
+								subject: "sub-1",
+								email: "new@example.com",
+								name: "New User",
+								clineUserId: "acct-2",
+								accounts: [],
+							},
+						},
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+		);
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS);
+		expect(result?.metadata).toMatchObject({
+			provider: "google",
+			tokenType: "Bearer",
+		});
+		expect(result?.metadata).not.toHaveProperty("sessionStartedAt");
 		nowSpy.mockRestore();
 	});
 
@@ -109,8 +140,22 @@ describe("auth/cline getValidClineCredentials", () => {
 				),
 		) as unknown as typeof fetch;
 
-		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS);
+		const capture = vi.fn();
+		const result = await getValidClineCredentials(current, {
+			...PROVIDER_OPTIONS,
+			telemetry: { capture } as never,
+		});
 		expect(result).toBeNull();
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_logged_out",
+				properties: expect.objectContaining({
+					reason: "invalid_grant",
+					status: 401,
+					errorCode: "invalid_grant",
+				}),
+			}),
+		);
 		nowSpy.mockRestore();
 	});
 
@@ -131,11 +176,68 @@ describe("auth/cline getValidClineCredentials", () => {
 				),
 		) as unknown as typeof fetch;
 
-		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS, {
-			refreshBufferMs: 60_000,
-			retryableTokenGraceMs: 30_000,
-		});
+		const capture = vi.fn();
+		const result = await getValidClineCredentials(
+			current,
+			{ ...PROVIDER_OPTIONS, telemetry: { capture } as never },
+			{
+				refreshBufferMs: 60_000,
+				retryableTokenGraceMs: 30_000,
+			},
+		);
 		expect(result).toBe(current);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					status: 500,
+					tokenExpired: false,
+				}),
+			}),
+		);
+		nowSpy.mockRestore();
+	});
+
+	it("throws on transient refresh error when the token is already expired", async () => {
+		// A network blip landing after expiry is NOT an invalid grant; returning
+		// null here is what made clients wipe stored credentials over an outage.
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const current = createCredentials({ expires: 90_000 });
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						error: "server_error",
+						error_description: "temporary issue",
+					}),
+					{
+						status: 500,
+						headers: { "Content-Type": "application/json" },
+					},
+				),
+		) as unknown as typeof fetch;
+
+		const capture = vi.fn();
+		await expect(
+			getValidClineCredentials(current, {
+				...PROVIDER_OPTIONS,
+				telemetry: { capture } as never,
+			}),
+		).rejects.toThrow("Token refresh failed: 500");
+		// The "prevented logout" counter: this exact situation used to wipe
+		// stored credentials.
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					status: 500,
+					tokenExpired: true,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
 		nowSpy.mockRestore();
 	});
 });
@@ -147,6 +249,7 @@ describe("auth/cline loginClineOAuth", () => {
 	});
 
 	it("completes WorkOS device auth and registers tokens", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(200_000);
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValueOnce(
@@ -216,6 +319,10 @@ describe("auth/cline loginClineOAuth", () => {
 			refresh: "cline-refresh",
 			accountId: "acct-1",
 			email: "user@example.com",
+			metadata: {
+				sessionStartedAt: 200_000,
+				tokenType: "Bearer",
+			},
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 		const registerCallBody = JSON.parse(
@@ -228,5 +335,6 @@ describe("auth/cline loginClineOAuth", () => {
 			accessToken: "workos-access",
 			refreshToken: "workos-refresh",
 		});
+		nowSpy.mockRestore();
 	});
 });

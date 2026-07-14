@@ -783,6 +783,101 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(second.path).toBe("/src/package.json")
 	})
 
+	it("content_end for read_files carries the requested line range into the readFile payload", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: { files: [{ path: "/src/big-file.ts", start_line: 100, end_line: 200 }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("readFile")
+		expect(endTool.path).toBe("/src/big-file.ts")
+		expect(endTool.readLineStart).toBe(100)
+		expect(endTool.readLineEnd).toBe(200)
+	})
+
+	it("content_end for read_files treats a start_line-only read as open-ended and defaults a missing start_line to 1", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: {
+							files: [
+								{ path: "/src/paged.ts", start_line: 500, end_line: null },
+								{ path: "/src/head.ts", end_line: 50 },
+								{ path: "/src/whole.ts" },
+							],
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(3)
+		const [paged, head, whole] = endResult.messages.map((m) => JSON.parse(m.text!))
+		expect(paged.readLineStart).toBe(500)
+		expect(paged.readLineEnd).toBeUndefined()
+		expect(head.readLineStart).toBe(1)
+		expect(head.readLineEnd).toBe(50)
+		expect(whole.readLineStart).toBeUndefined()
+		expect(whole.readLineEnd).toBeUndefined()
+	})
+
 	it("content_end without prior content_start still works (graceful fallback)", () => {
 		const state = new MessageTranslatorState()
 
@@ -1147,6 +1242,25 @@ describe("translateSessionEvent — agent_event error", () => {
 		const parsed = JSON.parse(failedText)
 		expect(parsed.code).toBe("SPEND_LIMIT_EXCEEDED")
 		expect(parsed.providerId).toBe("cline")
+	})
+
+	it("preserves ClinePass period limit errors for specialized webview rendering", () => {
+		const state = new MessageTranslatorState(undefined, () => "cline-pass")
+		const message = "You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].text).toBe(message)
 	})
 
 	it("rewrites Anthropic bare 'model: <id>' 404 into an actionable message", () => {

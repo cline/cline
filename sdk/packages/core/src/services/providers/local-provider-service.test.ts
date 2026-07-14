@@ -16,6 +16,7 @@ import {
 	deleteLocalProvider,
 	getLocalProviderModels,
 	listLocalProviders,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
@@ -1235,6 +1236,53 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const p = providers.find((x) => x.id === "enabled-check-provider");
 		expect(p?.enabled).toBe(true);
+	});
+
+	it("marks alias providers enabled without copying shared OAuth credentials", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const state = manager.read();
+		expect(state.providers["cline-pass"]?.settings).toEqual({
+			provider: "cline-pass",
+		});
+		expect(state.providers["cline-pass"]?.tokenSource).toBe("oauth");
+	});
+
+	it("resolves shared OAuth metadata for ClinePass catalog entries", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			oauthAccessTokenPresent: true,
+		});
 	});
 
 	it("exposes model count", async () => {

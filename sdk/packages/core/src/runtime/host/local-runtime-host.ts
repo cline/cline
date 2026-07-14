@@ -81,6 +81,7 @@ import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
+import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
@@ -115,6 +116,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -224,6 +226,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
+	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly aggregateUsageBySession = new Map<
 		string,
@@ -539,8 +543,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 							});
 						}
 					},
-					})
-				: undefined;
+				})
+			: undefined;
 
 		const agentConfig = {
 			sessionId,
@@ -554,6 +558,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
@@ -1055,21 +1060,43 @@ export class LocalRuntimeHost implements RuntimeHost {
 			: await this.getSession(target);
 		const existing = activeSession ?? sessionRecord;
 		if (!existing) return { updated: false };
+		if (activeSession) {
+			const persistedMessages = await this.readSessionMessages(target);
+			const hasPersistedSource =
+				state.source_message_count > 0 &&
+				persistedMessages.length >= state.source_message_count;
+			const validationMessages = hasPersistedSource
+				? persistedMessages
+				: undefined;
+			if (hasPersistedSource) {
+				if (
+					!(await this.canPersistCompactionState(
+						target,
+						state,
+						activeSession,
+						undefined,
+						persistedMessages,
+					))
+				) {
+					return { updated: false };
+				}
+				activeSession.agent.restore(persistedMessages);
+			}
+			return await this.persistActiveSessionCompactionState(
+				activeSession,
+				state,
+				validationMessages,
+			);
+		}
 		if (
 			!(await this.canPersistCompactionState(
 				target,
 				state,
-				activeSession,
+				undefined,
 				sessionRecord,
 			))
 		) {
 			return { updated: false };
-		}
-		if (activeSession) {
-			return await this.persistActiveSessionCompactionState(
-				activeSession,
-				state,
-			);
 		}
 		const current = await this.invokeOptionalValue<SessionCompactionState>(
 			"readSessionCompactionState",
@@ -1129,6 +1156,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		state: SessionCompactionState,
 		activeSession?: ActiveSession,
 		sessionRecord?: SessionRecord,
+		sourceMessages?: readonly LlmsProviders.Message[],
 	): Promise<boolean> {
 		if (!state.conversation_id?.trim()) {
 			return false;
@@ -1143,18 +1171,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 		) {
 			return false;
 		}
-		const sourceMessages =
+		const messagesForProjection =
+			sourceMessages ??
 			activeSession?.agent.getMessages() ??
 			(await this.readSessionMessages(sessionId));
-		return projectSessionCompactionState(state, sourceMessages) !== undefined;
+		return (
+			projectSessionCompactionState(state, messagesForProjection) !== undefined
+		);
 	}
 
 	private async persistActiveSessionCompactionState(
 		session: ActiveSession,
 		state: SessionCompactionState,
+		sourceMessages?: readonly LlmsProviders.Message[],
 	): Promise<{ updated: boolean }> {
 		if (
-			!(await this.canPersistCompactionState(session.sessionId, state, session))
+			!(await this.canPersistCompactionState(
+				session.sessionId,
+				state,
+				session,
+				undefined,
+				sourceMessages,
+			))
 		) {
 			return { updated: false };
 		}
@@ -1229,12 +1267,126 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
+		await this.updateSessionConnection(sessionId, { modelId });
+	}
+
+	async updateSessionConnection(
+		sessionId: string,
+		rawUpdates: SessionConnectionUpdate,
+	): Promise<void> {
+		const updates = normalizeConnectionUpdate(rawUpdates);
 		const session = this.getSessionOrThrow(sessionId);
-		session.config.modelId = modelId;
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			modelId,
+		if (updates.providerId !== undefined)
+			session.config.providerId = updates.providerId;
+		if (updates.modelId !== undefined) session.config.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) session.config.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			session.config.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			session.config.thinkingBudgetTokens =
+				updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			session.config.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				session.config.reasoningEffort = undefined;
+				session.config.thinkingBudgetTokens = undefined;
+			}
+		}
+		const delegatedUpdates = {
+			...(updates.providerId !== undefined
+				? { providerId: updates.providerId }
+				: {}),
+			...(updates.modelId !== undefined ? { modelId: updates.modelId } : {}),
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
+		};
+		if (updates.thinking === false || updates.thinking === null) {
+			delegatedUpdates.reasoningEffort = undefined;
+			delegatedUpdates.thinkingBudgetTokens = undefined;
+		}
+		const teammateUpdates = {
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+		};
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			delegatedUpdates,
+		);
+		session.agent.updateConnection(updates);
+		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
+		// Keep the persisted manifest in sync so session history reflects the
+		// connection the session is now using, not the one it started with.
+		if (updates.providerId || updates.modelId) {
+			await this.mutateSessionManifest(session, (manifest) => {
+				if (updates.providerId) manifest.provider = updates.providerId;
+				if (updates.modelId) manifest.model = updates.modelId;
+			});
+		}
+	}
+
+	/**
+	 * Serialized read-modify-write for a live session's manifest. Every
+	 * manifest write for an active session MUST go through this helper: it
+	 * re-reads the disk manifest first so disk-only writers (compaction-path
+	 * updates, title/metadata renames) are never reverted by a stale in-memory
+	 * copy, applies the field-level mutation, syncs the in-memory copy, and
+	 * persists — one mutation at a time per session.
+	 */
+	private async mutateSessionManifest(
+		session: ActiveSession,
+		mutate: (manifest: SessionManifest) => void,
+	): Promise<SessionManifest | undefined> {
+		const artifacts = session.artifacts;
+		if (!artifacts) return undefined;
+		const sessionId = session.sessionId;
+		const tail =
+			this.manifestMutationQueues.get(sessionId) ?? Promise.resolve();
+		const next = tail.then(async () => {
+			const latest =
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				)) ?? artifacts.manifest;
+			mutate(latest);
+			artifacts.manifest = latest;
+			await this.invoke<void>(
+				"writeSessionManifest",
+				artifacts.manifestPath,
+				latest,
+			);
+			return latest;
 		});
-		session.agent.updateConnection({ modelId });
+		const queued = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.manifestMutationQueues.set(sessionId, queued);
+		try {
+			return await next;
+		} finally {
+			if (this.manifestMutationQueues.get(sessionId) === queued) {
+				this.manifestMutationQueues.delete(sessionId);
+			}
+		}
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -1265,7 +1417,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
-		if (!prompt) throw new Error("prompt cannot be empty");
+		const images = preparedInput?.userImages?.length;
+		const files = preparedInput?.userFiles?.length;
+		if (!prompt && !images && !files) throw new Error("prompt cannot be empty");
 
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;
@@ -1805,31 +1959,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			exitCode,
 		);
 		if (!result.updated) return;
-		const latestManifest =
-			(await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				session.sessionId,
-			)) ?? session.artifacts.manifest;
-		latestManifest.status = status;
-		if (isNonTerminalSessionStatus(status)) {
-			delete latestManifest.ended_at;
-			latestManifest.exit_code = null;
-		} else {
-			latestManifest.ended_at = result.endedAt ?? nowIso();
-			latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
-		}
-		session.artifacts.manifest = latestManifest;
+		const latestManifest = await this.mutateSessionManifest(
+			session,
+			(manifest) => {
+				manifest.status = status;
+				if (isNonTerminalSessionStatus(status)) {
+					delete manifest.ended_at;
+					manifest.exit_code = null;
+				} else {
+					manifest.ended_at = result.endedAt ?? nowIso();
+					manifest.exit_code = typeof exitCode === "number" ? exitCode : null;
+				}
+			},
+		);
+		if (!latestManifest) return;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
 		session.endedAt = isNonTerminalSessionStatus(status)
 			? null
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
-		await this.invoke<void>(
-			"writeSessionManifest",
-			session.artifacts.manifestPath,
-			latestManifest,
-		);
 		this.emitStatus(session.sessionId, status);
 	}
 

@@ -6,6 +6,7 @@ import {
 	refreshProviderModelsFromSource,
 	resolveProviderConfig,
 } from "@cline/core";
+import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
@@ -21,12 +22,14 @@ import {
 	ClinePassSubscriptionContent,
 	CodexCliStatusContent,
 	type ExistingProviderOption,
+	OAuthApiKeyInputContent,
 	OAuthLoginContent,
+	type OAuthLoginResult,
 	ProviderConfigInputContent,
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
 } from "../components/dialogs/provider-picker";
-import { buildClineModelEntries } from "../components/model-selector/cline-model-picker";
+import { buildFeaturedModelEntries } from "../components/model-selector/cline-model-picker";
 import {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorDialogContent,
@@ -131,6 +134,23 @@ async function runProviderChange(
 	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
 
+	// Manual API key entry is the escape hatch for when OAuth login isn't
+	// working; only the Cline providers accept a dashboard API key.
+	const supportsManualApiKey = isClineProvider(newProviderId);
+	const openManualApiKeyDialog = async (): Promise<boolean | undefined> =>
+		await dialog.choice<boolean>({
+			style: { maxHeight: termHeight - 2 },
+			closeOnEscape: false,
+			content: (ctx: ChoiceContext<boolean>) => (
+				<OAuthApiKeyInputContent
+					{...ctx}
+					providerId={newProviderId}
+					providerName={displayName}
+					providerSettingsManager={manager}
+				/>
+			),
+		});
+
 	let needsAuth = true;
 	if (isProviderConfigured(newProviderId, existingSettings)) {
 		let option: ExistingProviderOption | undefined;
@@ -165,17 +185,22 @@ async function runProviderChange(
 	if (needsAuth) {
 		let saved: boolean | undefined;
 		if (isOAuthProvider(newProviderId)) {
-			saved = await dialog.choice<boolean>({
+			const loginResult = await dialog.choice<OAuthLoginResult>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
-				content: (ctx: ChoiceContext<boolean>) => (
+				content: (ctx: ChoiceContext<OAuthLoginResult>) => (
 					<OAuthLoginContent
 						{...ctx}
 						providerId={newProviderId}
 						providerName={displayName}
+						allowApiKeyFallback={supportsManualApiKey}
 					/>
 				),
 			});
+			saved =
+				loginResult === "use_api_key"
+					? await openManualApiKeyDialog()
+					: loginResult;
 		} else if (isOpenAICodexCliProvider(newProviderId)) {
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
@@ -341,7 +366,13 @@ export function useModelSelector(opts: {
 					continue;
 				}
 
-				if (config.providerId === "cline") {
+				if (
+					config.providerId === "cline" ||
+					config.providerId === "cline-pass"
+				) {
+					// ClinePass gets the same sectioned picker with Subscribed/Free
+					// sections — free models are selectable while staying on ClinePass
+					const featuredProviderId = config.providerId;
 					const clineResult = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
 						content: (ctx: ChoiceContext<string>) => (
@@ -351,7 +382,10 @@ export function useModelSelector(opts: {
 								currentProviderName={providerDisplayName}
 								knownModels={config.knownModels as Record<string, unknown>}
 								loadEntries={async () =>
-									buildClineModelEntries(await fetchClineRecommendedModels())
+									buildFeaturedModelEntries(
+										featuredProviderId,
+										await fetchClineRecommendedModels(),
+									)
 								}
 							/>
 						),

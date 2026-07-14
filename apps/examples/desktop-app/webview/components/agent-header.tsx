@@ -24,6 +24,7 @@ type AgentHeaderProps = {
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
 	onOpenDiff?: () => void;
+	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
 	diff?: {
 		additions: number;
@@ -41,6 +42,7 @@ export function AgentHeader({
 	canDeleteSession,
 	deletingSession,
 	onOpenDiff,
+	showSessionActions = true,
 	status,
 	diff,
 }: AgentHeaderProps) {
@@ -80,7 +82,7 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between border-b border-border bg-card px-4">
+		<header className="flex h-12 items-center justify-between px-4">
 			{/* Left: thread title */}
 			<div className="flex items-center gap-2">
 				<span
@@ -164,34 +166,35 @@ export function AgentHeader({
 				</DropdownMenu>
 			</div>
 
-			{/* Right: actions */}
-			<div className="flex items-center gap-2">
-				{/* DIFF */}
-				<Button
-					className={cn(
-						"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
-						hasChanges ? "hover:bg-secondary/80" : "cursor-default opacity-60",
-					)}
-					disabled={!hasChanges}
-					id="diff-stats"
-					onClick={() => onOpenDiff?.()}
-					size="sm"
-					type="button"
-					variant="secondary"
-				>
-					<span className="text-primary">+{additions}</span>
-					<span className="text-destructive">-{deletions}</span>
-				</Button>
-				{/* New Chat Button */}
-				<Button
-					className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-					onClick={() => onNewThread?.()}
-					size="icon-sm"
-					variant="ghost"
-				>
-					<Plus />
-				</Button>
-			</div>
+			{showSessionActions ? (
+				<div className="flex items-center gap-2">
+					<Button
+						className={cn(
+							"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
+							hasChanges
+								? "hover:bg-secondary/80"
+								: "cursor-default opacity-60",
+						)}
+						disabled={!hasChanges}
+						id="diff-stats"
+						onClick={() => onOpenDiff?.()}
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
+						<span className="text-chart-2">+{additions}</span>
+						<span className="text-destructive">-{deletions}</span>
+					</Button>
+					<Button
+						className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						onClick={() => onNewThread?.()}
+						size="icon-sm"
+						variant="ghost"
+					>
+						<Plus />
+					</Button>
+				</div>
+			) : null}
 		</header>
 	);
 }

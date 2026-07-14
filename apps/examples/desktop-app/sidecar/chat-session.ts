@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import {
+	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type CoreSessionConfig,
@@ -19,6 +20,10 @@ import type {
 	PromptInQueue,
 	SidecarContext,
 } from "./types";
+
+type SessionConnectionUpdate = Parameters<
+	ClineCore["updateSessionConnection"]
+>[1];
 
 // ---------------------------------------------------------------------------
 // Session data helpers
@@ -103,7 +108,40 @@ function isoTimestampToMs(
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function readReasoningEffort(
+	value: unknown,
+): "low" | "medium" | "high" | "xhigh" | undefined {
+	if (
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh"
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.trunc(value);
+	}
+	return undefined;
+}
+
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+	const thinking =
+		typeof config.thinking === "boolean" ? config.thinking : undefined;
+	const reasoningEffort =
+		thinking === false
+			? undefined
+			: readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens =
+		thinking === false
+			? undefined
+			: readPositiveInteger(
+					config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+				);
 	return {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
@@ -125,6 +163,9 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 			config.enableAgentTeams ??
 			config.enable_teams ??
 			false,
+		...(thinking !== undefined ? { thinking } : {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
 		teamName: config.teamName ?? config.team_name,
 		missionLogIntervalSteps:
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
@@ -134,6 +175,48 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+export function buildSessionConnectionUpdate(
+	config: JsonRecord,
+): SessionConnectionUpdate {
+	// Coerce the untrusted webview JSON (snake_case aliases, blank strings)
+	// into typed fields; the thinking/reasoning transition rules live in the
+	// shared @cline/core builder.
+	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	const modelId = String(config.model ?? config.modelId ?? "").trim();
+	const rawApiKey =
+		typeof config.apiKey === "string"
+			? config.apiKey.trim()
+			: typeof config.api_key === "string"
+				? config.api_key.trim()
+				: undefined;
+	const baseUrl =
+		typeof config.baseUrl === "string" ? config.baseUrl.trim() : undefined;
+	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens = readPositiveInteger(
+		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+	);
+	return buildConnectionUpdate({
+		...(providerId ? { providerId } : {}),
+		...(modelId ? { modelId } : {}),
+		...(rawApiKey ? { apiKey: rawApiKey } : {}),
+		...(baseUrl ? { baseUrl } : {}),
+		...(config.headers && typeof config.headers === "object"
+			? { headers: config.headers as Record<string, string> }
+			: {}),
+		...(config.providerConfig && typeof config.providerConfig === "object"
+			? {
+					providerConfig:
+						config.providerConfig as SessionConnectionUpdate["providerConfig"],
+				}
+			: {}),
+		...(typeof config.thinking === "boolean"
+			? { thinking: config.thinking }
+			: {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
+	});
 }
 
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
@@ -363,6 +446,13 @@ async function handleSend(
 	if (!prompt) throw new Error("prompt is required");
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	if (request.config) {
+		const connectionUpdate = buildSessionConnectionUpdate(request.config);
+		await manager.updateSessionConnection(sessionId, connectionUpdate);
+		if (session) {
+			session.config = { ...session.config, ...request.config };
+		}
+	}
 
 	// Determine effective delivery mode.
 	// When the session is busy and no explicit delivery was requested, queue it

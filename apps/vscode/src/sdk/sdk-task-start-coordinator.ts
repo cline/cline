@@ -51,7 +51,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	createTempSessionHost: () => Promise<SdkSessionHost>
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
-	isClineProviderActive: () => boolean
+	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
@@ -140,9 +140,9 @@ export class SdkTaskStartCoordinator {
 			await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
 			await this.options.postStateToWebview()
 
-			if (prompt?.trim()) {
+			if (prompt?.trim() || images?.length || files?.length) {
 				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(prompt)
+				const resolvedTask = await this.options.resolveContextMentions(prompt || "")
 				this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
 			}
 
@@ -255,7 +255,7 @@ export class SdkTaskStartCoordinator {
 
 		const reinitErrorMsg = error instanceof Error ? error.message : String(error)
 		const isClineAuthReinit =
-			this.options.isClineProviderActive() &&
+			this.options.isClineManagedProviderActive() &&
 			(reinitErrorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
 				reinitErrorMsg.toLowerCase().includes("missing api key") ||
 				reinitErrorMsg.toLowerCase().includes("unauthorized"))
