@@ -554,6 +554,35 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: false })
 	})
 
+	it("hides OAuth providers the extension cannot authenticate yet", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.listLocalProviders.mockResolvedValue({
+			providers: [
+				{
+					id: "xai-subscription",
+					name: "xAI Subscription",
+					protocol: "openai-chat",
+					client: "openai-compatible",
+					defaultModelId: "grok-build-0.1",
+					source: "system",
+				},
+				{
+					id: "xai",
+					name: "xAI",
+					protocol: "openai-chat",
+					client: "openai-compatible",
+					defaultModelId: "grok-4.20-0309-non-reasoning",
+					source: "system",
+				},
+			],
+		})
+		const catalog = createProviderCatalog(makeReader({ providerId: parseProviderId("xai") }))
+
+		const listings = await catalog.listProviders()
+
+		expect(listings.map((provider) => provider.id)).toEqual(["xai"])
+	})
+
 	it("caches provider listings per catalog instance without reading provider config", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.listLocalProviders.mockResolvedValue({

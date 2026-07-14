@@ -28,6 +28,11 @@ vi.mock("./codex", () => ({
 	loginOpenAICodex: vi.fn(),
 }));
 
+vi.mock("./xai", () => ({
+	getValidXaiCredentials: vi.fn(),
+	loginXaiOAuth: vi.fn(),
+}));
+
 describe("provider auth registry", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -40,6 +45,9 @@ describe("provider auth registry", () => {
 		expect(getProviderAuthHandler("openai-codex")?.providerId).toBe(
 			"openai-codex",
 		);
+		expect(getProviderAuthHandler("xai-subscription")?.providerId).toBe(
+			"xai-subscription",
+		);
 		expect(getProviderAuthHandler("openai-codex-cli")).toBeUndefined();
 		expect(isOAuthProvider("openai-codex-cli")).toBe(false);
 	});
@@ -49,6 +57,9 @@ describe("provider auth registry", () => {
 		expect(getProviderAuthStorageId("cline-pass")).toBe("cline");
 		expect(getProviderAuthStorageId("oca")).toBe("oca");
 		expect(getProviderAuthStorageId("openai-codex")).toBe("openai-codex");
+		expect(getProviderAuthStorageId("xai-subscription")).toBe(
+			"xai-subscription",
+		);
 		expect(getProviderAuthStorageId("openai-codex-cli")).toBeUndefined();
 	});
 

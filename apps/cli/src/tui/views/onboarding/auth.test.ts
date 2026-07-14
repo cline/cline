@@ -116,6 +116,71 @@ describe("onboarding auth telemetry forwarding", () => {
 		expect(telemetryArg).toBeUndefined();
 	});
 
+	it("shows device-code instructions from generic OAuth providers", () => {
+		hoisted.loginLocalProvider.mockImplementationOnce(
+			async (
+				_providerId: string,
+				_settings: unknown,
+				onAuth: (url: string, instructions?: string) => void,
+			) => {
+				onAuth(
+					"https://example.com/device?user_code=ABCD-EFGH",
+					"Open the URL and enter code: ABCD-EFGH",
+				);
+				return { access: "a", refresh: "r", expires: 0 };
+			},
+		);
+		const setStatus = vi.fn();
+
+		runOAuthAuthFlow({
+			providerId: "xai-subscription",
+			providerSettingsManager: makeManager(),
+			isAborted: () => false,
+			setStatus,
+			setAuthUrl: vi.fn(),
+			setError: vi.fn(),
+			onComplete: vi.fn(),
+		});
+
+		expect(setStatus).toHaveBeenCalledWith(
+			"Open the URL and enter code: ABCD-EFGH",
+		);
+	});
+
+	it("keeps the device code visible when the browser cannot open", async () => {
+		hoisted.openMock.mockRejectedValueOnce(new Error("no browser"));
+		hoisted.loginLocalProvider.mockImplementationOnce(
+			async (
+				_providerId: string,
+				_settings: unknown,
+				onAuth: (url: string, instructions?: string) => void,
+			) => {
+				onAuth(
+					"https://example.com/device",
+					"Open the URL and enter code: ABCD-EFGH",
+				);
+				return { access: "a", refresh: "r", expires: 0 };
+			},
+		);
+		const setStatus = vi.fn();
+
+		runOAuthAuthFlow({
+			providerId: "xai-subscription",
+			providerSettingsManager: makeManager(),
+			isAborted: () => false,
+			setStatus,
+			setAuthUrl: vi.fn(),
+			setError: vi.fn(),
+			onComplete: vi.fn(),
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(setStatus).toHaveBeenLastCalledWith(
+			"Open the URL and enter code: ABCD-EFGH Browser did not open automatically.",
+		);
+	});
+
 	it("forwards telemetry into completeClineDeviceAuth for the device-code flow", async () => {
 		hoisted.startClineDeviceAuth.mockResolvedValueOnce({
 			deviceCode: "dc",

@@ -28,6 +28,7 @@ export enum BUILT_IN_PROVIDER {
 	// OpenAI-compatible
 	DEEPSEEK = "deepseek",
 	XAI = "xai",
+	XAI_SUBSCRIPTION = "xai-subscription",
 	TOGETHER = "together",
 	FIREWORKS = "fireworks",
 	GROQ = "groq",

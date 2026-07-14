@@ -4,7 +4,7 @@ import type { OAuthLoginCallbacks, OAuthPrompt } from "./types";
 export interface OAuthClientCallbacksOptions {
 	onPrompt: (prompt: OAuthPrompt) => Promise<string>;
 	onOutput?: (message: string) => void;
-	openUrl?: (url: string) => void | Promise<void>;
+	openUrl?: (url: string, instructions?: string) => void | Promise<void>;
 	onOpenUrlError?: (context: { url: string; error: unknown }) => void;
 	/**
 	 * Called when the local OAuth redirect server successfully binds to a port
@@ -34,7 +34,10 @@ export function createOAuthClientCallbacks(
 			options.onOutput?.(instructions ?? "Complete sign-in in your browser.");
 			if (options.openUrl) {
 				try {
-					void Promise.resolve(options.openUrl(url)).catch((error) => {
+					const opening = instructions
+						? options.openUrl(url, instructions)
+						: options.openUrl(url);
+					void Promise.resolve(opening).catch((error) => {
 						options.onOpenUrlError?.({ url, error });
 					});
 				} catch (error) {

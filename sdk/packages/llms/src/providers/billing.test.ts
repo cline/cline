@@ -6,7 +6,7 @@ import {
 import { getProviderCollectionSync } from "./model-registry";
 
 describe("provider usage cost display", () => {
-	it("hides usage cost for subscription-backed Codex providers", () => {
+	it("hides usage cost for subscription-backed providers", () => {
 		expect(resolveProviderUsageCostDisplay("openai-codex")).toBe(
 			"subscription",
 		);
@@ -15,6 +15,10 @@ describe("provider usage cost display", () => {
 		);
 		expect(shouldShowProviderUsageCost("openai-codex")).toBe(false);
 		expect(shouldShowProviderUsageCost("openai-codex-cli")).toBe(false);
+		expect(resolveProviderUsageCostDisplay("xai-subscription")).toBe(
+			"subscription",
+		);
+		expect(shouldShowProviderUsageCost("xai-subscription")).toBe(false);
 	});
 
 	it("shows usage cost by default for usage-billed providers", () => {

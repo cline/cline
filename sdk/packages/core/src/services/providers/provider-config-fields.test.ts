@@ -78,6 +78,12 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
+	it("returns oauth auth with no fields for xAI subscriptions", () => {
+		const result = getProviderConfigFields("xai-subscription");
+		expect(result.authMethod).toBe("oauth");
+		expect(result.fields).toEqual({});
+	});
+
 	it("returns local auth with no fields for openai-codex-cli", () => {
 		const result = getProviderConfigFields("openai-codex-cli");
 		expect(result.authMethod).toBe("local");

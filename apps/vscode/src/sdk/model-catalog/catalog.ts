@@ -49,6 +49,11 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 	cacheTtlMs: 0,
 }
 
+// The extension does not yet bridge SDK provider OAuth callbacks into its
+// webview. Keep device-only providers out of the picker until selecting one
+// can start and display the shared Core authentication flow.
+const EXTENSION_UNSUPPORTED_OAUTH_PROVIDERS = new Set(["xai-subscription"])
+
 /**
  * Normalize the SDK's usage-cost-display answer (string union) into the
  * extension's {@link UsageCostDisplay} type. The SDK function takes a
@@ -196,7 +201,7 @@ async function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>
 	const { providers } = await listLocalProviders(manager, {
 		isClinePassEnabled: featureFlags.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
 	})
-	return providers.map(toProviderListing)
+	return providers.filter((provider) => !EXTENSION_UNSUPPORTED_OAUTH_PROVIDERS.has(provider.id)).map(toProviderListing)
 }
 
 async function resolveSdkModels(

@@ -45,6 +45,7 @@ export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 const CLINE_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const XAI_SUBSCRIPTION_DEFAULT_MODEL_ID = "grok-build-0.1";
 const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
 	stickySession: {
 		transport: "json-body",
@@ -344,6 +345,11 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
+function buildXaiSubscriptionModels(): Record<string, ModelInfo> {
+	const model = generatedModels("xai")[XAI_SUBSCRIPTION_DEFAULT_MODEL_ID];
+	return model ? { [XAI_SUBSCRIPTION_DEFAULT_MODEL_ID]: model } : {};
+}
+
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
 	// can return Vercel-style ids. Include those exact ids so runtime metadata
@@ -611,6 +617,19 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "grok-4.20-0309-non-reasoning",
 		apiKeyEnv: ["XAI_API_KEY"],
 		defaults: { baseUrl: "https://api.x.ai/v1" },
+	},
+	{
+		id: "xai-subscription",
+		name: "xAI Subscription",
+		description:
+			"Grok Build access through an eligible SuperGrok or X Premium subscription",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "oauth"],
+		defaultModelId: XAI_SUBSCRIPTION_DEFAULT_MODEL_ID,
+		modelsFactory: buildXaiSubscriptionModels,
+		defaults: { baseUrl: "https://api.x.ai/v1" },
+		configFields: [],
+		metadata: { usageCostDisplay: "subscription" },
 	},
 	{
 		id: "together",
