@@ -32,7 +32,7 @@ import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
-import type { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
+import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -1938,8 +1938,26 @@ export class Controller {
 
 	// ---- Workspace (kept from classic) ----
 
+	private _workspaceManager?: WorkspaceRootManager
+	private _workspaceManagerPathsKey?: string
+
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
-		stubWarn("ensureWorkspaceManager")
-		return undefined
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			const validPaths = (paths ?? []).filter((workspacePath) => workspacePath.trim().length > 0)
+			if (validPaths.length === 0) {
+				return undefined
+			}
+			// Rebuild only when the set of workspace folders changes
+			const pathsKey = JSON.stringify(validPaths)
+			if (!this._workspaceManager || this._workspaceManagerPathsKey !== pathsKey) {
+				this._workspaceManager = await WorkspaceRootManager.fromPaths(validPaths)
+				this._workspaceManagerPathsKey = pathsKey
+			}
+			return this._workspaceManager
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to build workspace manager:", error)
+			return undefined
+		}
 	}
 }
