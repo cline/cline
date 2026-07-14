@@ -2,8 +2,8 @@ import { createHash } from "node:crypto"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
+import { type InstalledLearningPackVersion, loadLearningPackRegistry } from "./learningPackLifecycle"
 import { learningPackStoragePaths } from "./lifecycleStorage"
-import { loadLearningPackRegistry, type InstalledLearningPackVersion } from "./learningPackLifecycle"
 import type { LearningPackCourse, LearningPackEdition } from "./types"
 
 export const LEARNING_PACK_ARTIFACT_KIND = "learning-pack-v1"
@@ -104,7 +104,9 @@ export function learningPackArtifactMetadata(scope: InstalledLearningPackScope):
 }
 
 function scopedKey(kind: "progress" | "controls", values: readonly string[]): string {
-	const digest = createHash("sha256").update(JSON.stringify([kind, ...values]), "utf8").digest("hex")
+	const digest = createHash("sha256")
+		.update(JSON.stringify([kind, ...values]), "utf8")
+		.digest("hex")
 	return `learning-pack-v1-${kind}-${digest}`
 }
 
@@ -120,6 +122,14 @@ export async function resolveActiveLearningPackEntry(
 	root: string,
 	packId: string,
 ): Promise<{ readonly filePath: string; readonly title: string; readonly scope: InstalledLearningPackScope }> {
+	return resolveActiveLearningPackLaunch(root, packId)
+}
+
+export async function resolveActiveLearningPackLaunch(
+	root: string,
+	packId: string,
+	preferredModuleId?: string | null,
+): Promise<{ readonly filePath: string; readonly title: string; readonly scope: InstalledLearningPackScope }> {
 	const record = (await loadLearningPackRegistry(root)).packs[packId]
 	if (!record) throw new Error(`Pack ${packId} is not installed`)
 	const installation = activeRoot(root, record.active)
@@ -127,7 +137,9 @@ export async function resolveActiveLearningPackEntry(
 		entryModuleId: string
 	}
 	const course = JSON.parse(await fs.readFile(path.join(installation, "course.json"), "utf8")) as LearningPackCourse
-	const module = course.modules.find((entry) => entry.id === manifest.entryModuleId)
+	const module =
+		course.modules.find((entry) => entry.id === preferredModuleId) ??
+		course.modules.find((entry) => entry.id === manifest.entryModuleId)
 	if (!module) throw new Error(`Pack ${packId} entry module is missing from course.json`)
 	return Object.freeze({
 		filePath: path.resolve(installation, ...module.path.split("/")),
