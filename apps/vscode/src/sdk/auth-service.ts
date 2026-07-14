@@ -276,7 +276,7 @@ export class AuthService {
 	private async credentialsToAuthInfo(credentials: OAuthCredentials, provider: string): Promise<ClineAuthInfo> {
 		// Fetch full user info from the API using the access token
 		const userInfo = await this.fetchUserInfoFromApi(credentials.access)
-		const startedAt = readSessionStartedAt(credentials.metadata) ?? Date.now()
+		const startedAt = readSessionStartedAt(credentials.metadata)
 
 		return {
 			idToken: credentials.access,
@@ -430,7 +430,7 @@ export class AuthService {
 					expiresAt: newCredentials.expires ? newCredentials.expires / 1000 : undefined,
 					userInfo: userInfo ?? currentInfo.userInfo,
 					provider: currentInfo.provider,
-					startedAt: currentInfo.startedAt ?? Date.now(),
+					startedAt: currentInfo.startedAt,
 				}
 				this._authenticated = true
 

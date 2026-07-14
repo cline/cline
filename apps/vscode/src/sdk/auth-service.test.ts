@@ -452,6 +452,7 @@ describe("AuthService", () => {
 
 			expect(testAccess(authService)._authenticated).toBe(true)
 			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("persisted-access-token")
+			expect(testAccess(authService)._clineAuthInfo?.startedAt).toBeUndefined()
 			expect(
 				(mockProviderSettings.get("cline")?.auth as { metadata?: Record<string, unknown> } | undefined)?.metadata,
 			).toBeUndefined()
