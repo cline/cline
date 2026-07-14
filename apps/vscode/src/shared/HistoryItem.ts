@@ -15,4 +15,5 @@ export type HistoryItem = {
 	isFavorited?: boolean
 
 	modelId?: string
+	isLegacy?: boolean
 }

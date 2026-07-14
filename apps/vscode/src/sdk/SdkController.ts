@@ -142,6 +142,7 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 		tokensOut: item.tokensOut ?? 0,
 		cacheWrites: item.cacheWrites ?? 0,
 		cacheReads: item.cacheReads ?? 0,
+		isLegacy: item.isLegacy ?? false,
 	})
 }
 
@@ -1633,6 +1634,9 @@ export class Controller {
 				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 				modelId: item.model || metadataString(metadata, "modelId") || "",
+				isLegacy:
+					metadataBoolean(metadata, "legacyTask") === true ||
+					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
 			}
 		})
 
@@ -1654,6 +1658,7 @@ export class Controller {
 					cacheWrites: 0,
 					cacheReads: 0,
 					modelId: this.task.api?.getModel?.().id ?? "",
+					isLegacy: false,
 				})
 			}
 		}
@@ -1667,16 +1672,15 @@ export class Controller {
 			throw new Error(`Task not found in history: ${id}`)
 		}
 
-		// SDK-backed tasks are no longer stored under VS Code's globalStorageFsPath/tasks.
-		// The SDK owns session persistence and exposes the persisted messages artifact path
-		// on the session history record; open that artifact's containing session directory.
-		const taskDirPath = historyItem.messagesPath ? path.dirname(historyItem.messagesPath) : undefined
+		const taskDirPath = historyItem.messagesPath
+			? path.dirname(historyItem.messagesPath)
+			: this.taskHistory.getLegacyTaskDirPath(id)
 		if (!taskDirPath) {
-			throw new Error(`Task history item has no SDK artifact path: ${id}`)
+			throw new Error(`Task history item has no artifact path: ${id}`)
 		}
 
 		await fs.access(taskDirPath)
-		Logger.log(`[EXPORT] Opening SDK task directory: ${taskDirPath}`)
+		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
 		const open = (await import("open")).default
 		await open(taskDirPath)
 	}
