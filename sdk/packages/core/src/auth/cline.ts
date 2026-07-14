@@ -138,9 +138,6 @@ function toClineCredentials(
 ): ClineOAuthCredentials {
 	const accountId = responseData.userInfo.clineUserId ?? fallback.accountId;
 	const refreshToken = responseData.refreshToken ?? fallback.refresh;
-	const sessionStartedAt =
-		typeof fallback.metadata?.sessionStartedAt === "number" ? fallback.metadata.sessionStartedAt : undefined;
-
 	if (!refreshToken) {
 		throw new Error("Token response did not include a refresh token");
 	}
@@ -150,9 +147,6 @@ function toClineCredentials(
 		tokenType: responseData.tokenType,
 		userInfo: responseData.userInfo,
 	};
-	if (sessionStartedAt !== undefined) {
-		metadata.sessionStartedAt = sessionStartedAt;
-	}
 	delete metadata.startedAt;
 
 	return {

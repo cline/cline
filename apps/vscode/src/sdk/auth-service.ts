@@ -170,10 +170,10 @@ function writeClineCredentials(credentials: {
 			refreshToken: credentials.refreshToken,
 			accountId: credentials.accountId,
 		} as Record<string, unknown>
-		const metadata = {
-			...(existingMetadata ?? {}),
-			...(credentials.metadata ?? {}),
-		}
+		const incomingMetadata = Object.fromEntries(
+			Object.entries(credentials.metadata ?? {}).filter(([, value]) => value !== undefined),
+		)
+		const metadata = { ...(existingMetadata ?? {}), ...incomingMetadata }
 		delete metadata.startedAt
 		if (sessionStartedAt !== undefined) {
 			metadata.sessionStartedAt = sessionStartedAt

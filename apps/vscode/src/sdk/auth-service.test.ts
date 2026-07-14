@@ -463,6 +463,43 @@ describe("AuthService", () => {
 			)
 		})
 
+		it("does not let undefined incoming metadata erase existing metadata on restore refresh", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:persisted-access-token",
+					refreshToken: "persisted-refresh-token",
+					accountId: "user-123",
+					metadata: {
+						provider: "workos",
+						sessionStartedAt: 1_700_000_000_000,
+						tokenType: "Bearer",
+					},
+				},
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				access: "persisted-access-token",
+				refresh: "persisted-refresh-token",
+				expires: Date.now() + 3600 * 1000,
+				accountId: "user-123",
+				email: "test@example.com",
+				metadata: {
+					provider: undefined,
+					sessionStartedAt: 1_700_000_000_000,
+					tokenType: "Bearer",
+				},
+			})
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			const persisted = mockProviderSettings.get("cline") as { auth?: { metadata?: Record<string, unknown> } }
+			expect(persisted.auth?.metadata).toMatchObject({
+				provider: "workos",
+				sessionStartedAt: 1_700_000_000_000,
+				tokenType: "Bearer",
+			})
+		})
+
 		it("sets unauthenticated state when providers.json has no Cline auth", async () => {
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
