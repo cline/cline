@@ -431,4 +431,40 @@ describe("useChatSession", () => {
 			path: "/workspace/deleted",
 		});
 	});
+
+	it("preserves a workspace selected while process context is loading", async () => {
+		await act(async () => root.unmount());
+		let resolveContext:
+			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| undefined;
+		const contextResponse = new Promise<{
+			cwd: string;
+			workspaceRoot: string;
+		}>((resolve) => {
+			resolveContext = resolve;
+		});
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") return await contextResponse;
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				workspaceRoot: "/workspace/selected",
+				cwd: "/workspace/selected",
+			}));
+		});
+
+		await act(async () => {
+			resolveContext?.({
+				cwd: "/workspace/default",
+				workspaceRoot: "/workspace/default",
+			});
+			await contextResponse;
+		});
+		expect(current.config.workspaceRoot).toBe("/workspace/selected");
+		expect(current.config.cwd).toBe("/workspace/selected");
+	});
 });
