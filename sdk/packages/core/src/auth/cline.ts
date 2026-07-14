@@ -81,7 +81,7 @@ type AuthTokenTelemetryClaims = {
 };
 
 type AuthCredentialTelemetryProperties = {
-	sessionStartedAtMs?: number;
+	sessionDurationMs?: number;
 };
 
 type AuthTelemetryDetails = AuthTokenTelemetryClaims &
@@ -212,7 +212,7 @@ function getAuthCredentialTelemetryProperties(
 		Number.isFinite(sessionStartedAt) &&
 		sessionStartedAt > 0
 	) {
-		authProperties.sessionStartedAtMs = sessionStartedAt;
+		authProperties.sessionDurationMs = Date.now() - sessionStartedAt;
 	}
 
 	return authProperties;
