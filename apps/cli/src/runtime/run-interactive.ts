@@ -82,6 +82,51 @@ export function resolveReasoningForModelChange(
 	return existing.reasoning;
 }
 
+export async function applyInteractiveModelChange(input: {
+	config: Config;
+	providerSettingsManager: Pick<
+		ProviderSettingsManager,
+		"getProviderSettings" | "saveProviderSettings"
+	>;
+	sessionRuntime: Pick<
+		ReturnType<typeof createInteractiveSessionRuntime>,
+		| "ensureReady"
+		| "restartWithCurrentMessages"
+		| "updateCurrentSessionConnection"
+	>;
+}): Promise<void> {
+	const { config, providerSettingsManager, sessionRuntime } = input;
+	await sessionRuntime.ensureReady();
+	await onProviderChange({
+		config,
+		providerId: config.providerId,
+	});
+	const existing = providerSettingsManager.getProviderSettings(
+		config.providerId,
+	) ?? {
+		provider: config.providerId,
+	};
+	const reasoning = resolveReasoningForModelChange(config, existing);
+	providerSettingsManager.saveProviderSettings({
+		...existing,
+		model: config.modelId,
+		...(reasoning === undefined ? {} : { reasoning }),
+	});
+
+	// Provider changes affect more than the model connection: startup resolves
+	// the endpoint, headers, provider-specific options, tools, and plugins. Rebuild
+	// the runtime with the existing transcript so all of that state changes
+	// together. restartWithCurrentMessages preserves the session ID.
+	await sessionRuntime.restartWithCurrentMessages();
+	// A same-ID restart reuses the existing manifest. Sync its connection label
+	// after the fully configured runtime is live so session history reflects the
+	// provider/model that will handle subsequent turns.
+	await sessionRuntime.updateCurrentSessionConnection({
+		providerId: config.providerId,
+		modelId: config.modelId,
+	});
+}
+
 export async function runInteractive(
 	config: Config,
 	userInstructionService?: UserInstructionConfigService,
@@ -687,25 +732,12 @@ export async function runInteractive(
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
 		},
-		onModelChange: async () => {
-			await sessionRuntime.ensureReady();
-			await onProviderChange({
+		onModelChange: () =>
+			applyInteractiveModelChange({
 				config,
-				providerId: config.providerId,
-			});
-			const existing = providerSettingsManager.getProviderSettings(
-				config.providerId,
-			) ?? {
-				provider: config.providerId,
-			};
-			const reasoning = resolveReasoningForModelChange(config, existing);
-			providerSettingsManager.saveProviderSettings({
-				...existing,
-				model: config.modelId,
-				...(reasoning === undefined ? {} : { reasoning }),
-			});
-			await sessionRuntime.restartWithCurrentMessages();
-		},
+				providerSettingsManager,
+				sessionRuntime,
+			}),
 		onSessionRestart: async () => {
 			await sessionRuntime.ensureReady();
 			await sessionRuntime.restartEmpty();

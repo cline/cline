@@ -61,16 +61,17 @@ describe("filterOpenAICodexModels", () => {
 	});
 
 	describe("context window adjustment", () => {
-		it.each(["gpt-5.4", "gpt-5.4-mini", "gpt-6.0"])(
-			"scales %s maxInputTokens down to the effective Codex budget — the backend cap applies to every model, not just gpt-5.5",
-			(id) => {
-				const maxInputTokens = 200_000;
-				const result = filterOne(id, { maxInputTokens });
-				expect(result?.maxInputTokens).toBe(
-					maxInputTokens * CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
-				);
-			},
-		);
+		it.each([
+			"gpt-5.4",
+			"gpt-5.4-mini",
+			"gpt-6.0",
+		])("scales %s maxInputTokens down to the effective Codex budget — the backend cap applies to every model, not just gpt-5.5", (id) => {
+			const maxInputTokens = 200_000;
+			const result = filterOne(id, { maxInputTokens });
+			expect(result?.maxInputTokens).toBe(
+				maxInputTokens * CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+			);
+		});
 
 		it("leaves other limits untouched for non-5.5 models", () => {
 			const result = filterOne("gpt-6.0", {

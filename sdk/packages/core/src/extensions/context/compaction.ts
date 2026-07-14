@@ -1,4 +1,5 @@
 import {
+	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	type TelemetryCompactionStrategy,
@@ -430,6 +431,10 @@ export function createContextCompactionPrepareTurn(
 		);
 
 		const beforeMessageCount = context.messages.length;
+		const compactionInputTokens = context.messages.reduce(
+			(total: number, message) => total + estimateMessageTokens(message),
+			0,
+		);
 		const startedAt = Date.now();
 
 		const result = userCompaction?.compact
@@ -467,10 +472,11 @@ export function createContextCompactionPrepareTurn(
 				severity: "info",
 				strategy: strategy,
 				maxInputTokens,
-				inputTokens,
+				inputTokens: compactionInputTokens,
+				apiInputTokens: inputTokens,
 				afterTokens,
-				tokensSaved: inputTokens - afterTokens,
-				utilizationBefore: `${((inputTokens / maxInputTokens) * 100).toFixed(1)}%`,
+				tokensSaved: compactionInputTokens - afterTokens,
+				utilizationBefore: `${((compactionInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				utilizationAfter: `${((afterTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				thresholdTrigger: `${(targetState.thresholdRatio * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
@@ -484,9 +490,9 @@ export function createContextCompactionPrepareTurn(
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
-				tokensBefore: inputTokens,
+				tokensBefore: compactionInputTokens,
 				tokensAfter: afterTokens,
-				tokensSaved: inputTokens - afterTokens,
+				tokensSaved: compactionInputTokens - afterTokens,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
 				thresholdRatio: targetState.thresholdRatio,
@@ -497,13 +503,38 @@ export function createContextCompactionPrepareTurn(
 				modelId: config.modelId,
 				...telemetryIdentity,
 			});
+			if (
+				result.budget &&
+				(result.budget.actionCount > 0 || result.budget.warningCount > 0)
+			) {
+				captureCompactionBudgetEmergency(config.telemetry, {
+					ulid: telemetryUlid,
+					strategy: telemetryStrategy,
+					mode,
+					policyIntent: result.budget.policyIntent,
+					actionCount: result.budget.actionCount,
+					warningCount: result.budget.warningCount,
+					liveTailHandling: result.budget.liveTailHandling,
+					provider: config.providerId,
+					modelId: config.modelId,
+					...telemetryIdentity,
+				});
+				context.emitStatusNotice?.("compaction-budget-adjusted", {
+					kind: "compaction_budget_emergency",
+					reason: "compaction_budget_emergency",
+					iteration: context.iteration,
+					policyIntent: result.budget.policyIntent,
+					actionCount: result.budget.actionCount,
+					warningCount: result.budget.warningCount,
+				});
+			}
 		} else {
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: telemetryStrategy,
 				mode,
 				reason: "no_result",
-				tokensBefore: inputTokens,
+				tokensBefore: compactionInputTokens,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
 				thresholdRatio: targetState.thresholdRatio,

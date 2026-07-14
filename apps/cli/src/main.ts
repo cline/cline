@@ -928,6 +928,17 @@ export async function runCli(): Promise<void> {
 		runAgent,
 	} = await loadCliRuntimeModules();
 
+	// Register the SDK early logger as early as possible — before any
+	// provider settings reads — so the full startup sequence is captured.
+	// These components operate before/outside ClineCore sessions, so the
+	// session-scoped logger can't reach them.
+	const { createCliLoggerAdapter } = await import("./logging/adapter");
+	const loggerAdapter = createCliLoggerAdapter({
+		runtime: "cli",
+		component: "main",
+	});
+	coreServer.setSdkLogger(loggerAdapter.core);
+
 	const userInstructionService = createUserInstructionConfigService({
 		skills: {
 			workspacePath: workspaceRoot,

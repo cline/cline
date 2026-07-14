@@ -694,7 +694,9 @@ export async function initializeSessionManager(
 	setHomeDirIfUnset(homedir());
 	const hubServer = await startHubWebSocketServer({
 		port: 0,
-		owner: resolveHubOwnerContext(`code-sidecar:${process.pid}:${randomUUID()}`),
+		owner: resolveHubOwnerContext(
+			`code-sidecar:${process.pid}:${randomUUID()}`,
+		),
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 	});
 	const sessionManager = await ClineCore.create({

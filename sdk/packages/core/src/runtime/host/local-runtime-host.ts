@@ -226,6 +226,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
+	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly aggregateUsageBySession = new Map<
 		string,
@@ -1331,6 +1333,60 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		session.agent.updateConnection(updates);
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
+		// Keep the persisted manifest in sync so session history reflects the
+		// connection the session is now using, not the one it started with.
+		if (updates.providerId || updates.modelId) {
+			await this.mutateSessionManifest(session, (manifest) => {
+				if (updates.providerId) manifest.provider = updates.providerId;
+				if (updates.modelId) manifest.model = updates.modelId;
+			});
+		}
+	}
+
+	/**
+	 * Serialized read-modify-write for a live session's manifest. Every
+	 * manifest write for an active session MUST go through this helper: it
+	 * re-reads the disk manifest first so disk-only writers (compaction-path
+	 * updates, title/metadata renames) are never reverted by a stale in-memory
+	 * copy, applies the field-level mutation, syncs the in-memory copy, and
+	 * persists — one mutation at a time per session.
+	 */
+	private async mutateSessionManifest(
+		session: ActiveSession,
+		mutate: (manifest: SessionManifest) => void,
+	): Promise<SessionManifest | undefined> {
+		const artifacts = session.artifacts;
+		if (!artifacts) return undefined;
+		const sessionId = session.sessionId;
+		const tail =
+			this.manifestMutationQueues.get(sessionId) ?? Promise.resolve();
+		const next = tail.then(async () => {
+			const latest =
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				)) ?? artifacts.manifest;
+			mutate(latest);
+			artifacts.manifest = latest;
+			await this.invoke<void>(
+				"writeSessionManifest",
+				artifacts.manifestPath,
+				latest,
+			);
+			return latest;
+		});
+		const queued = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.manifestMutationQueues.set(sessionId, queued);
+		try {
+			return await next;
+		} finally {
+			if (this.manifestMutationQueues.get(sessionId) === queued) {
+				this.manifestMutationQueues.delete(sessionId);
+			}
+		}
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -1361,7 +1417,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
-		if (!prompt) throw new Error("prompt cannot be empty");
+		const images = preparedInput?.userImages?.length;
+		const files = preparedInput?.userFiles?.length;
+		if (!prompt && !images && !files) throw new Error("prompt cannot be empty");
 
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;
@@ -1901,31 +1959,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			exitCode,
 		);
 		if (!result.updated) return;
-		const latestManifest =
-			(await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				session.sessionId,
-			)) ?? session.artifacts.manifest;
-		latestManifest.status = status;
-		if (isNonTerminalSessionStatus(status)) {
-			delete latestManifest.ended_at;
-			latestManifest.exit_code = null;
-		} else {
-			latestManifest.ended_at = result.endedAt ?? nowIso();
-			latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
-		}
-		session.artifacts.manifest = latestManifest;
+		const latestManifest = await this.mutateSessionManifest(
+			session,
+			(manifest) => {
+				manifest.status = status;
+				if (isNonTerminalSessionStatus(status)) {
+					delete manifest.ended_at;
+					manifest.exit_code = null;
+				} else {
+					manifest.ended_at = result.endedAt ?? nowIso();
+					manifest.exit_code = typeof exitCode === "number" ? exitCode : null;
+				}
+			},
+		);
+		if (!latestManifest) return;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
 		session.endedAt = isNonTerminalSessionStatus(status)
 			? null
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
-		await this.invoke<void>(
-			"writeSessionManifest",
-			session.artifacts.manifestPath,
-			latestManifest,
-		);
 		this.emitStatus(session.sessionId, status);
 	}
 

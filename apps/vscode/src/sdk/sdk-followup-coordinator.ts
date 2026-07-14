@@ -156,9 +156,13 @@ export class SdkFollowupCoordinator {
 		const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
 		config.sessionId = taskId
 
+		const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
 		const tempManager = await this.options.createTempSessionHost()
-		const initialMessages = await this.options.loadInitialMessages(tempManager, taskId)
+		const persistedInitialMessages = await this.options.loadInitialMessages(tempManager, taskId)
 		await tempManager.dispose("readMessages")
+		const initialMessages = isLegacyTask
+			? await this.options.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
+			: persistedInitialMessages
 
 		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
 
