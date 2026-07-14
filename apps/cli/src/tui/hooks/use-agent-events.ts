@@ -59,9 +59,21 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		if (pending.length === 0) return;
 		pendingCompactionEntriesRef.current = [];
 		for (const entry of pending) {
-			appendEntry(entry);
+			if (entry.status !== "started" && openCompactionEntryRef.current) {
+				updateEntry((current) =>
+					current.kind === "compaction" && current.status === "started"
+						? { ...current, ...entry }
+						: current,
+				);
+				openCompactionEntryRef.current = false;
+			} else {
+				appendEntry(entry);
+				if (entry.status === "started") {
+					openCompactionEntryRef.current = true;
+				}
+			}
 		}
-	}, [appendEntry]);
+	}, [appendEntry, updateEntry]);
 
 	const finalizeDanglingCompactionEntry = useCallback(
 		(status: "failed" | "cancelled") => {
@@ -226,14 +238,12 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 							if (activeInlineStreamRef.current) {
 								// An assistant message is still streaming; appending now
 								// would split it around the divider. Hold the divider (final
-								// state only — the shimmer would be invisible mid-stream
-								// anyway) until the content block closes.
-								if (compaction.status !== "started") {
-									pendingCompactionEntriesRef.current.push({
-										kind: "compaction",
-										...compaction,
-									});
-								}
+								// state until the content block closes, then reconcile it
+								// with the same open divider atomically.
+								pendingCompactionEntriesRef.current.push({
+									kind: "compaction",
+									...compaction,
+								});
 								break;
 							}
 							if (compaction.status === "started") {

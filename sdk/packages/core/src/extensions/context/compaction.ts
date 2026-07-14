@@ -438,8 +438,8 @@ export function createContextCompactionPrepareTurn(
 					reason: statusReason,
 					phase: "completed",
 					iteration: context.iteration,
-					tokensBefore: inputTokens,
-					tokensAfter: afterTokens,
+					tokensBefore: requestInputTokens,
+					tokensAfter: afterRequestTokens,
 					messagesBefore: beforeMessageCount,
 					messagesAfter: result.messages.length,
 					maxInputTokens,
@@ -491,6 +491,16 @@ export function createContextCompactionPrepareTurn(
 				});
 			}
 		} else {
+			context.emitStatusNotice?.(
+				mode === "manual" ? "compaction-skipped" : "auto-compaction-skipped",
+				{
+					kind: statusReason,
+					reason: statusReason,
+					phase: "skipped",
+					iteration: context.iteration,
+					maxInputTokens,
+				},
+			);
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: telemetryStrategy,

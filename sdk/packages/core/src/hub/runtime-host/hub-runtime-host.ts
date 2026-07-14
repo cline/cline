@@ -1607,12 +1607,33 @@ export class HubRuntimeHost implements RuntimeHost {
 				const noticeType = event.payload?.noticeType;
 				const displayRole = event.payload?.displayRole;
 				const reason = event.payload?.reason;
+				const agent =
+					event.payload?.agent && typeof event.payload.agent === "object"
+						? (event.payload.agent as Record<string, unknown>)
+						: undefined;
+				const teamRole =
+					agent?.teamRole === "lead" || agent?.teamRole === "teammate"
+						? agent.teamRole
+						: undefined;
 				this.events.emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...(teamRole ? { teamRole } : {}),
+						...(typeof agent?.teamAgentId === "string"
+							? { teamAgentId: agent.teamAgentId }
+							: {}),
 						event: {
 							type: "notice",
+							...(typeof agent?.agentId === "string"
+								? { agentId: agent.agentId }
+								: {}),
+							...(typeof agent?.conversationId === "string"
+								? { conversationId: agent.conversationId }
+								: {}),
+							...(typeof agent?.parentAgentId === "string"
+								? { parentAgentId: agent.parentAgentId }
+								: {}),
 							noticeType:
 								noticeType === "recovery" || noticeType === "stop"
 									? noticeType

@@ -23,7 +23,9 @@ export function parseCompactionNoticeMetadata(
 ): Omit<CompactionDividerEntry, "kind"> | undefined {
 	if (
 		!metadata ||
-		(metadata.phase !== "started" && metadata.phase !== "completed")
+		(metadata.phase !== "started" &&
+			metadata.phase !== "completed" &&
+			metadata.phase !== "skipped")
 	) {
 		return undefined;
 	}
@@ -34,6 +36,9 @@ export function parseCompactionNoticeMetadata(
 	const compactionMode = kind === "manual_compaction" ? "manual" : "auto";
 	if (metadata.phase === "started") {
 		return { compactionMode, status: "started" };
+	}
+	if (metadata.phase === "skipped") {
+		return { compactionMode, status: "skipped" };
 	}
 	return {
 		compactionMode,
@@ -68,6 +73,9 @@ export function formatCompactionDividerLabel(
 	}
 	if (entry.status === "cancelled") {
 		return "Compaction cancelled";
+	}
+	if (entry.status === "skipped") {
+		return "Compaction skipped";
 	}
 	const parts: string[] = [
 		entry.compactionMode === "manual"

@@ -263,6 +263,19 @@ async function projectAgentEvent(
 						: {}),
 					...(agentEvent.reason ? { reason: agentEvent.reason } : {}),
 					...(agentEvent.metadata ? { metadata: agentEvent.metadata } : {}),
+					agent: {
+						kind:
+							event.payload.teamRole === "teammate"
+								? "teammate"
+								: agentEvent.parentAgentId
+									? "subagent"
+									: "lead",
+						agentId: agentEvent.agentId,
+						conversationId: agentEvent.conversationId,
+						parentAgentId: agentEvent.parentAgentId,
+						teamAgentId: event.payload.teamAgentId,
+						teamRole: event.payload.teamRole,
+					},
 				},
 				sessionId,
 			),

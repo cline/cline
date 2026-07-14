@@ -45,6 +45,15 @@ describe("parseCompactionNoticeMetadata", () => {
 		).toBe("manual");
 	});
 
+	it("maps a benign no-result terminal notice to skipped", () => {
+		expect(
+			parseCompactionNoticeMetadata({
+				kind: "auto_compaction",
+				phase: "skipped",
+			}),
+		).toEqual({ compactionMode: "auto", status: "skipped" });
+	});
+
 	it("ignores non-compaction metadata", () => {
 		expect(
 			parseCompactionNoticeMetadata({ kind: "recovery", phase: "completed" }),
@@ -123,6 +132,16 @@ describe("formatCompactionDividerLabel", () => {
 				status: "cancelled",
 			}),
 		).toBe("Compaction cancelled");
+	});
+
+	it("labels skipped compaction without calling it cancelled", () => {
+		expect(
+			formatCompactionDividerLabel({
+				kind: "compaction",
+				compactionMode: "auto",
+				status: "skipped",
+			}),
+		).toBe("Compaction skipped");
 	});
 
 	it("labels inherited working context from forks and restarts", () => {

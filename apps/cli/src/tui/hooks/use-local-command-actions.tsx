@@ -9,7 +9,6 @@ import { HelpDialogContent } from "../components/dialogs/help-dialog";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
-import { formatCompactionStatus } from "../utils/compaction-status";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
@@ -116,21 +115,42 @@ export function useLocalCommandActions(input: {
 	}, [dialog, refocusTextarea, termHeight]);
 
 	const runCompact = useCallback(async () => {
+		session.setIsRunning(true);
 		session.appendEntry({
-			kind: "status",
-			text: "Compacting context...",
+			kind: "compaction",
+			compactionMode: "manual",
+			status: "started",
 		});
 		try {
 			const result = await onCompact();
-			session.updateLastEntry(() => ({
-				kind: "status",
-				text: formatCompactionStatus(result),
-			}));
+			session.updateLastEntry((entry) =>
+				entry.kind === "compaction" && entry.status === "started"
+					? {
+							...entry,
+							status: result.compacted ? "completed" : "skipped",
+							messagesBefore: result.messagesBefore,
+							messagesAfter:
+								result.workingContextMessagesAfter ?? result.messagesAfter,
+						}
+					: entry,
+			);
 		} catch (error) {
-			session.appendEntry({
-				kind: "error",
-				text: `Compaction failed: ${error instanceof Error ? error.message : String(error)}`,
-			});
+			const cancelled =
+				error instanceof Error &&
+				(error.name === "AbortError" || /abort/i.test(error.message));
+			session.updateLastEntry((entry) =>
+				entry.kind === "compaction" && entry.status === "started"
+					? { ...entry, status: cancelled ? "cancelled" : "failed" }
+					: entry,
+			);
+			if (!cancelled) {
+				session.appendEntry({
+					kind: "error",
+					text: `Compaction failed: ${error instanceof Error ? error.message : String(error)}`,
+				});
+			}
+		} finally {
+			session.setIsRunning(false);
 		}
 	}, [onCompact, session]);
 

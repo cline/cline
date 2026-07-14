@@ -432,7 +432,7 @@ function CompactionDividerRow(props: {
 		? "cyan"
 		: entry.status === "failed"
 			? "red"
-			: entry.status === "cancelled"
+			: entry.status === "cancelled" || entry.status === "skipped"
 				? "gray"
 				: "cyan";
 	const label = `✻ ${formatCompactionDividerLabel(entry)} ✻`;
