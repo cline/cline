@@ -488,7 +488,6 @@ export function useChatSession() {
 				const currentWorkspace = (prev.workspaceRoot || prev.cwd || "").trim();
 				const selectionChangedWhileLoading = Boolean(
 					currentWorkspace &&
-						rememberedWorkspace &&
 						normalizeWorkspacePath(currentWorkspace) !==
 							normalizeWorkspacePath(rememberedWorkspace),
 				);
