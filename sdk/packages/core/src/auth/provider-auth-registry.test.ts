@@ -174,6 +174,94 @@ describe("provider auth registry", () => {
 		);
 	});
 
+	it("login/save preserves existing auth metadata when incoming metadata is missing", async () => {
+		loginClineOAuth.mockResolvedValueOnce({
+			access: "new-access",
+			refresh: "new-refresh",
+			expires: 4_000_000_000_000,
+			accountId: "acct-new",
+		});
+		const getProviderSettings = vi.fn().mockReturnValue({
+			provider: "cline",
+			auth: {
+				accessToken: "workos:old-access",
+				refreshToken: "old-refresh",
+				accountId: "acct-old",
+				metadata: {
+					provider: "workos",
+					sessionStartedAt: 1_700_000_000_003,
+				},
+			},
+		});
+		const saveProviderSettings = vi.fn();
+		const manager = {
+			getProviderSettings,
+			saveProviderSettings,
+		} as never;
+
+		const saved = await loginAndSaveProviderOAuthCredentials(manager, "cline", {
+			callbacks: {
+				onAuth: vi.fn(),
+				onPrompt: vi.fn(async () => ""),
+			},
+		});
+
+		expect(saved).toMatchObject({
+			auth: {
+				accessToken: "workos:new-access",
+				metadata: {
+					provider: "workos",
+					sessionStartedAt: 1_700_000_000_003,
+				},
+			},
+		});
+	});
+
+	it("login/save does not let undefined incoming metadata erase existing metadata", async () => {
+		loginClineOAuth.mockResolvedValueOnce({
+			access: "new-access",
+			refresh: "new-refresh",
+			expires: 4_000_000_000_000,
+			accountId: "acct-new",
+			metadata: { provider: undefined, tokenType: "Bearer" },
+		});
+		const getProviderSettings = vi.fn().mockReturnValue({
+			provider: "cline",
+			auth: {
+				accessToken: "workos:old-access",
+				refreshToken: "old-refresh",
+				accountId: "acct-old",
+				metadata: {
+					provider: "workos",
+					sessionStartedAt: 1_700_000_000_004,
+				},
+			},
+		});
+		const saveProviderSettings = vi.fn();
+		const manager = {
+			getProviderSettings,
+			saveProviderSettings,
+		} as never;
+
+		const saved = await loginAndSaveProviderOAuthCredentials(manager, "cline", {
+			callbacks: {
+				onAuth: vi.fn(),
+				onPrompt: vi.fn(async () => ""),
+			},
+		});
+
+		expect(saved).toMatchObject({
+			auth: {
+				accessToken: "workos:new-access",
+				metadata: {
+					provider: "workos",
+					sessionStartedAt: 1_700_000_000_004,
+					tokenType: "Bearer",
+				},
+			},
+		});
+	});
+
 	it("reads persisted auth metadata back into OAuth credentials", () => {
 		const handler = getProviderAuthHandler("cline")
 		const credentials = handler && getProviderOAuthCredentialsFromSettings("cline", {

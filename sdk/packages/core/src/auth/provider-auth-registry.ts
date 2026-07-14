@@ -139,8 +139,14 @@ function saveOAuthCredentials(input: {
 		accountId: input.credentials.accountId,
 		expiresAt: input.credentials.expires,
 	};
-	if (input.credentials.metadata) {
-		auth.metadata = input.credentials.metadata;
+	const incomingMetadata = Object.fromEntries(
+		Object.entries(input.credentials.metadata ?? {}).filter(
+			([, value]) => value !== undefined,
+		),
+	);
+	const metadata = { ...(input.settings?.auth?.metadata ?? {}), ...incomingMetadata };
+	if (Object.keys(metadata).length > 0) {
+		auth.metadata = metadata;
 	}
 
 	const merged: ProviderSettings = {
