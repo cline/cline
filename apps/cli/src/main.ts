@@ -926,7 +926,7 @@ export async function runCli(): Promise<void> {
 		coreServer: { createUserInstructionConfigService },
 		resolveSystemPrompt,
 		runAgent,
-		} = await loadCliRuntimeModules();
+	} = await loadCliRuntimeModules();
 
 	// Register the SDK early logger as early as possible — before any
 	// provider settings reads — so the full startup sequence is captured.
@@ -1065,7 +1065,7 @@ export async function runCli(): Promise<void> {
 			interactive: args.interactive === true,
 			hasPrompt: !!args.prompt?.trim(),
 			cwd,
-			});
+		});
 
 		const config: Config = {
 			providerId: provider,

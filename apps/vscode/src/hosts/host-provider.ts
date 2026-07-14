@@ -1,6 +1,7 @@
 import { WebviewProvider } from "@/core/webview"
 import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { EditPreview } from "@/integrations/editor/EditPreview"
 import { ITerminalManager } from "@/integrations/terminal/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
 /**
@@ -21,6 +22,7 @@ export class HostProvider {
 
 	createWebviewProvider: WebviewProviderCreator
 	createDiffViewProvider: DiffViewProviderCreator
+	createEditPreview: EditPreviewCreator
 	createCommentReviewController: CommentReviewControllerCreator
 	createTerminalManager: TerminalManagerCreator
 	hostBridge: HostBridgeClientProvider
@@ -51,6 +53,7 @@ export class HostProvider {
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
 		createDiffViewProvider: DiffViewProviderCreator,
+		createEditPreview: EditPreviewCreator,
 		createCommentReviewController: CommentReviewControllerCreator,
 		createTerminalManager: TerminalManagerCreator,
 		hostBridge: HostBridgeClientProvider,
@@ -62,6 +65,7 @@ export class HostProvider {
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
+		this.createEditPreview = createEditPreview
 		this.createCommentReviewController = createCommentReviewController
 		this.createTerminalManager = createTerminalManager
 		this.hostBridge = hostBridge
@@ -75,6 +79,7 @@ export class HostProvider {
 	public static initialize(
 		webviewProviderCreator: WebviewProviderCreator,
 		diffViewProviderCreator: DiffViewProviderCreator,
+		editPreviewCreator: EditPreviewCreator,
 		commentReviewControllerCreator: CommentReviewControllerCreator,
 		terminalManagerCreator: TerminalManagerCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
@@ -90,6 +95,7 @@ export class HostProvider {
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
 			diffViewProviderCreator,
+			editPreviewCreator,
 			commentReviewControllerCreator,
 			terminalManagerCreator,
 			hostBridgeProvider,
@@ -150,6 +156,11 @@ export type WebviewProviderCreator = () => WebviewProvider
  * A function that creates DiffViewProvider instances
  */
 export type DiffViewProviderCreator = () => DiffViewProvider
+
+/**
+ * A function that creates EditPreview instances (read-only virtual diff previews)
+ */
+export type EditPreviewCreator = () => EditPreview
 
 /**
  * A function that creates CommentReviewController instances
