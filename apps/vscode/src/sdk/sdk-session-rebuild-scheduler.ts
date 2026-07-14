@@ -59,35 +59,35 @@ export class SdkSessionRebuildScheduler {
 			return
 		}
 
-		this.drainInFlight = this.drain().finally(() => {
+		const drain = async (): Promise<void> => {
+			while (this.pending.size > 0) {
+				const activeSession = this.options.sessions.getActiveSession()
+				if (!activeSession) {
+					this.pending.clear()
+					return
+				}
+				if (activeSession.isRunning) {
+					return
+				}
+
+				const next = this.pending.entries().next().value
+				if (!next) {
+					return
+				}
+				const [reason, rebuild] = next
+				this.pending.delete(reason)
+
+				try {
+					await rebuild()
+				} catch (error) {
+					Logger.error(`[SdkController] Failed scheduled ${reason} session rebuild:`, error)
+				}
+			}
+		}
+
+		this.drainInFlight = drain().finally(() => {
 			this.drainInFlight = undefined
 			this.drainIfIdle()
 		})
-	}
-
-	private async drain(): Promise<void> {
-		while (this.pending.size > 0) {
-			const activeSession = this.options.sessions.getActiveSession()
-			if (!activeSession) {
-				this.pending.clear()
-				return
-			}
-			if (activeSession.isRunning) {
-				return
-			}
-
-			const next = this.pending.entries().next().value
-			if (!next) {
-				return
-			}
-			const [reason, rebuild] = next
-			this.pending.delete(reason)
-
-			try {
-				await rebuild()
-			} catch (error) {
-				Logger.error(`[SdkController] Failed scheduled ${reason} session rebuild:`, error)
-			}
-		}
 	}
 }
