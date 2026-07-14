@@ -13,6 +13,7 @@ import { getValidOpenAICodexCredentials, loginOpenAICodex } from "./codex";
 import { getValidOcaCredentials, loginOcaOAuth } from "./oca";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
 import { decodeJwtPayload } from "./utils";
+import { getValidXaiCredentials, loginXaiOAuth } from "./xai";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
 
@@ -266,6 +267,13 @@ const providerAuthHandlers = [
 			}),
 		refresh: ({ credentials, forceRefresh, telemetry }) =>
 			getValidOpenAICodexCredentials(credentials, { forceRefresh, telemetry }),
+	}),
+	createOAuthHandler({
+		providerId: "xai-subscription",
+		login: ({ callbacks, telemetry }) =>
+			loginXaiOAuth({ callbacks, telemetry }),
+		refresh: ({ credentials, forceRefresh, telemetry }) =>
+			getValidXaiCredentials(credentials, { forceRefresh, telemetry }),
 	}),
 ] as const satisfies readonly ProviderAuthHandler[];
 

@@ -148,6 +148,25 @@ describe("built-in provider metadata", () => {
 		);
 	});
 
+	it("limits xAI subscription access to the Grok Build API model", async () => {
+		const provider = await getProvider("xai-subscription");
+		const models = await getModelsForProvider("xai-subscription");
+
+		expect(provider).toMatchObject({
+			id: "xai-subscription",
+			name: "xAI Subscription",
+			baseUrl: "https://api.x.ai/v1",
+			defaultModelId: "grok-build-0.1",
+			client: "openai-compatible",
+			capabilities: expect.arrayContaining(["oauth", "tools", "reasoning"]),
+		});
+		expect(Object.keys(models)).toEqual(["grok-build-0.1"]);
+		expect(models["grok-build-0.1"]).toMatchObject({
+			name: "Grok Build 0.1",
+			capabilities: expect.arrayContaining(["tools", "reasoning"]),
+		});
+	});
+
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {
 		for (const providerId of ["zai", "zai-coding-plan"] as const) {
 			await expect(getProvider(providerId)).resolves.toMatchObject({
