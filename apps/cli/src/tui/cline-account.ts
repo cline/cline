@@ -151,6 +151,41 @@ export async function createClineAccountService(input: {
 	});
 }
 
+/**
+ * Persist the active-organization context into the cached cline provider
+ * settings so cached-credential telemetry identity (headless runs, the hub
+ * daemon) can attach organization attribution without a network call. When
+ * the user is on their personal account, stale org fields are cleared.
+ * Best-effort: persistence failures must never break the account view.
+ */
+function persistClineOrganizationContext(
+	activeOrganization: ClineAccountOrganization | null,
+	userId: string,
+): void {
+	try {
+		const manager = new ProviderSettingsManager();
+		const persisted = manager.getProviderSettings("cline");
+		if (!persisted) {
+			return;
+		}
+		manager.saveProviderSettings(
+			{
+				...persisted,
+				auth: {
+					...persisted.auth,
+					accountId: persisted.auth?.accountId ?? userId,
+					organizationId: activeOrganization?.organizationId,
+					organizationName: activeOrganization?.name,
+					memberId: activeOrganization?.memberId,
+				},
+			},
+			{ setLastUsed: false },
+		);
+	} catch {
+		// Best-effort only.
+	}
+}
+
 export async function loadClineAccountSnapshot(input: {
 	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
@@ -183,6 +218,7 @@ export async function loadClineAccountSnapshot(input: {
 		memberId: activeOrganization?.memberId,
 	};
 	identifyTelemetryAccount(accountContext, input.config.logger);
+	persistClineOrganizationContext(activeOrganization, user.id);
 
 	return {
 		user,
