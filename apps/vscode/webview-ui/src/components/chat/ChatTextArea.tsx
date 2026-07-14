@@ -1639,29 +1639,33 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</TooltipContent>
 						<TooltipTrigger asChild>
 							<SwitchContainer
-								aria-label="Plan/Act mode"
+								aria-checked={mode === "act"}
+								aria-label="Act mode"
 								data-testid="mode-switch"
 								disabled={false}
 								onClick={onModeToggle}
 								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
+									// Binary toggle exposed as a single switch: Space/Enter flips
+									// between Plan (unchecked) and Act (checked). preventDefault stops
+									// Space from also scrolling the page.
+									if (e.key === " " || e.key === "Enter") {
 										e.preventDefault()
 										onModeToggle()
 									}
 								}}
-								role="radiogroup"
+								role="switch"
 								tabIndex={0}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
-										aria-checked={mode === m.toLowerCase()}
+										aria-hidden="true"
 										className={cn(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
 										)}
+										key={m}
 										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="radio">
+										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}>
 										{m}
 									</div>
 								))}
