@@ -889,6 +889,15 @@ function extractGoogleThoughtMetadata(
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
+function getStreamPartText(part: AiSdkStreamPart): string | undefined {
+	return (
+		(part.textDelta as string | undefined) ??
+		(part.text as string | undefined) ??
+		(part.delta as string | undefined) ??
+		(part.reasoning as string | undefined)
+	);
+}
+
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
 	request: GatewayStreamRequest,
@@ -907,10 +916,7 @@ async function* emitAiSdkEvents(
 		if (stream.fullStream) {
 			for await (const part of stream.fullStream) {
 				if (part.type === "text-delta") {
-					const text =
-						(part.textDelta as string | undefined) ??
-						(part.text as string | undefined) ??
-						(part.delta as string | undefined);
+					const text = getStreamPartText(part);
 					if (text) {
 						yield { type: "text-delta", text };
 					}
@@ -918,11 +924,7 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "reasoning-delta" || part.type === "reasoning") {
-					const text =
-						(part.textDelta as string | undefined) ??
-						(part.text as string | undefined) ??
-						(part.delta as string | undefined) ??
-						(part.reasoning as string | undefined);
+					const text = getStreamPartText(part);
 					if (text) {
 						yield {
 							type: "reasoning-delta",
