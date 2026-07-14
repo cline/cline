@@ -903,7 +903,7 @@ export function normalizeOAuthProvider(provider: string): string {
 export async function loginLocalProvider(
 	providerId: string,
 	existing: ProviderSettings | undefined,
-	openUrl: (url: string, instructions?: string) => void,
+	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
 ): Promise<ProviderOAuthCredentials> {
 	const handler = getProviderAuthHandler(providerId);
@@ -939,7 +939,7 @@ export function saveLocalProviderOAuthCredentials(
 export async function loginAndSaveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
 	providerId: string,
-	openUrl: (url: string, instructions?: string) => void,
+	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
 ): Promise<ProviderSettings> {
 	const callbacks = createOAuthClientCallbacks({

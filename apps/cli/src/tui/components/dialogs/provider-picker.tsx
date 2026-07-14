@@ -844,29 +844,19 @@ export function OAuthLoginContent(
 		const manager = new ProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
 
-		loginLocalProvider(
-			providerId,
-			existing,
-			(url: string, instructions?: string) => {
-				setAuthUrl(url);
-				setStatus(instructions ?? "Waiting for authentication in browser...");
-				try {
-					void open(url, { wait: false }).catch(() => {
-						setStatus(
-							instructions
-								? `${instructions} Browser did not open automatically.`
-								: "Could not open browser automatically. Open the URL below.",
-						);
-					});
-				} catch {
+		loginLocalProvider(providerId, existing, (url: string) => {
+			setAuthUrl(url);
+			setStatus("Waiting for authentication in browser...");
+			try {
+				void open(url, { wait: false }).catch(() => {
 					setStatus(
-						instructions
-							? `${instructions} Browser did not open automatically.`
-							: "Could not open browser automatically. Open the URL below.",
+						"Could not open browser automatically. Open the URL below.",
 					);
-				}
-			},
-		)
+				});
+			} catch {
+				setStatus("Could not open browser automatically. Open the URL below.");
+			}
+		})
 			.then((credentials) => {
 				if (!isActiveAuthAttempt(attempt)) return;
 				saveLocalProviderOAuthCredentials(

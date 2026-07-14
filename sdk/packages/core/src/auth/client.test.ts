@@ -38,24 +38,6 @@ describe("auth/client createOAuthClientCallbacks", () => {
 		});
 	});
 
-	it("forwards device-code instructions to the URL opener", () => {
-		const openUrl = vi.fn();
-		const callbacks = createOAuthClientCallbacks({
-			onPrompt: vi.fn().mockResolvedValue(""),
-			openUrl,
-		});
-
-		callbacks.onAuth({
-			url: "https://example.com/device",
-			instructions: "Enter code ABCD-EFGH",
-		});
-
-		expect(openUrl).toHaveBeenCalledWith(
-			"https://example.com/device",
-			"Enter code ABCD-EFGH",
-		);
-	});
-
 	it("reports synchronous opener errors without aborting auth output", () => {
 		const openUrl = vi.fn(() => {
 			throw new Error("missing opener");

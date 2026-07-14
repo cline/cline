@@ -208,7 +208,7 @@ function shouldExposeBaseUrlField(
  * a synthetic SDK failure. UIs may still require fields client-side if they
  * want, but the runtime does not.
  *
- * - OAuth providers (`cline`, `oca`, `openai-codex`, `xai-subscription`) return `authMethod:
+ * - OAuth providers (`cline`, `oca`, `openai-codex`) return `authMethod:
  *   "oauth"` with no fields; the configure UI should route to the OAuth
  *   login flow instead.
  * - Local auth providers return `authMethod: "local"` with no fields. The

@@ -1443,11 +1443,6 @@ describe("normalizeOAuthProvider", () => {
 		expect(normalizeOAuthProvider("OPENAI-CODEX")).toBe("openai-codex");
 	});
 
-	it("normalizes 'xai-subscription' to 'xai-subscription'", () => {
-		expect(normalizeOAuthProvider("xai-subscription")).toBe("xai-subscription");
-		expect(normalizeOAuthProvider("XAI-SUBSCRIPTION")).toBe("xai-subscription");
-	});
-
 	it("throws for unsupported providers", () => {
 		expect(() => normalizeOAuthProvider("anthropic")).toThrow(
 			"does not support OAuth login",

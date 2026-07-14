@@ -40,23 +40,15 @@ export function runOAuthAuthFlow(input: {
 	loginLocalProvider(
 		input.providerId,
 		existing,
-		(url: string, instructions?: string) => {
+		(url: string) => {
 			input.setAuthUrl(url);
-			input.setStatus(instructions ?? "Waiting for sign-in...");
+			input.setStatus("Waiting for sign-in...");
 			try {
 				void open(url, { wait: false }).catch(() => {
-					input.setStatus(
-						instructions
-							? `${instructions} Browser did not open automatically.`
-							: "Could not open browser. Visit the URL below.",
-					);
+					input.setStatus("Could not open browser. Visit the URL below.");
 				});
 			} catch {
-				input.setStatus(
-					instructions
-						? `${instructions} Browser did not open automatically.`
-						: "Could not open browser. Visit the URL below.",
-				);
+				input.setStatus("Could not open browser. Visit the URL below.");
 			}
 		},
 		input.telemetry,

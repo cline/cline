@@ -311,22 +311,14 @@ VS Code Language Model API support lets Cline use models exposed by the VS Code 
 3. In Cline, select **VS Code Language Model API**.
 
 ### xAI (Grok)
-xAI provides Grok models through API keys and eligible SuperGrok or X Premium subscriptions.
+xAI provides Grok models through its API platform.
 
 **Website:** [https://x.ai/](https://x.ai/)
 
-#### Subscription Setup
+SuperGrok and eligible X Premium subscribers can authenticate in Cline CLI with `cline auth xai-subscription`.
 
-Subscription OAuth is currently available through Cline CLI and SDK hosts that use the shared Core authentication APIs.
-
-1. Run `cline auth xai-subscription` or choose **xAI Subscription** during CLI setup.
-2. Open the displayed verification URL and enter the device code.
-3. After sign-in, choose **Grok Build 0.1**.
-
-The OAuth flow uses your subscription entitlement and does not require an xAI API key. Availability and usage limits are determined by xAI and your subscription plan.
-
-#### API Key Setup
+#### Basic Setup
 
 1. Sign in to xAI platform.
 2. Generate an API key.
-3. In Cline, choose **xAI** and paste the key.
+3. In Cline, choose **xAI (Grok)** and paste the key.
