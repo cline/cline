@@ -209,6 +209,28 @@ const BOOK_MODULES: readonly BookModuleRuntimeContract[] = [
 		recoveryCellId: "hmfp.unit-hydrograph-convolution.03.error-recovery",
 		recoveryOutput: ["recovered_after_error=True", "causal_delayed_response=True", "volume_alone_detects_early_shift=False"],
 	},
+	{
+		id: "hmfp.routing-method-comparison.04",
+		title: "Compare Snyder, SCS, Clark, and ModClark Routing",
+		stateCellId: "hmfp.routing-method-comparison.04.state-create",
+		stateOutput: [
+			"routing_methods=Snyder,SCS 484,Clark,ModClark-style",
+			"storage_coefficient=1.00 h",
+			"expected_volume=10000 m^3",
+			"Clark: peak=1.2784 m^3/s; midpoint_centroid=2.000 h; volume=10000.0 m^3",
+			"ModClark-style: peak=1.1711 m^3/s; midpoint_centroid=2.042 h; volume=10000.0 m^3",
+		],
+		plotCellId: "hmfp.routing-method-comparison.04.state-read-plot",
+		errorCellId: "hmfp.routing-method-comparison.04.intentional-error",
+		errorOutput: ["intentional cumulative-area diagnostic", "routes 45000 m^3 instead of 10000 m^3"],
+		recoveryCellId: "hmfp.routing-method-comparison.04.error-recovery",
+		recoveryOutput: [
+			"recovered_after_error=True",
+			"incremental_area_sum=1.000000",
+			"all_methods_volume_conserving=True",
+			"all_methods_nonnegative_on_nonnegative_time_grid=True",
+		],
+	},
 ] as const
 
 const expectedModuleIndex = BOOK_MODULES.findIndex(({ id }) => id === expectedBookModuleId)
