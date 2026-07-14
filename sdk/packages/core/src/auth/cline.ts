@@ -81,6 +81,10 @@ type AuthTokenTelemetryClaims = {
 	user_id?: string;
 };
 
+type AuthMetadataTelemetryProperties = {
+	session_started_at?: number;
+};
+
 export interface ClineOAuthProviderOptions {
 	apiBaseUrl: string;
 	headers?: HeaderInput;
@@ -195,6 +199,24 @@ function getAuthTokenTelemetryClaims(token: string): AuthTokenTelemetryClaims {
 		session_id: asNonEmptyString(payload.sid),
 		user_id: asNonEmptyString(payload.sub),
 	};
+}
+
+function getAuthMetadataTelemetryProperties(
+	metadata: ClineOAuthCredentials["metadata"],
+): AuthMetadataTelemetryProperties {
+	const authMetadata: AuthMetadataTelemetryProperties = {};
+
+	const sessionStartedAt = metadata?.sessionStartedAt;
+
+	if (
+		typeof sessionStartedAt === "number" &&
+		Number.isFinite(sessionStartedAt) &&
+		sessionStartedAt > 0
+	) {
+		authMetadata.session_started_at = sessionStartedAt;
+	}
+
+	return authMetadata;
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -742,12 +764,16 @@ export async function getValidClineCredentials(
 		const authTokenTelemetryClaims = getAuthTokenTelemetryClaims(
 			currentCredentials.access,
 		);
+		const authMetadataTelemetryProperties = getAuthMetadataTelemetryProperties(
+			currentCredentials.metadata,
+		);
 		const failureDetails = {
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
 			errorName: error instanceof Error ? error.name : undefined,
 			...authTokenTelemetryClaims,
+			...authMetadataTelemetryProperties,
 		};
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
 			sdkDebug(
@@ -761,6 +787,7 @@ export async function getValidClineCredentials(
 					status: error.status,
 					errorCode: error.errorCode,
 					...authTokenTelemetryClaims,
+					...authMetadataTelemetryProperties,
 				},
 			);
 			return null;

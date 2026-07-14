@@ -274,6 +274,7 @@ export function captureAuthLoggedOut(
 		errorCode?: string;
 		session_id?: string;
 		user_id?: string;
+		session_started_at?: number;
 	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
@@ -301,6 +302,7 @@ export function captureAuthRefreshSoftFailure(
 		tokenExpired?: boolean;
 		session_id?: string;
 		user_id?: string;
+		session_started_at?: number;
 	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
