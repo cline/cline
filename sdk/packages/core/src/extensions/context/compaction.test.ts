@@ -1021,13 +1021,15 @@ describe("createContextCompactionPrepareTurn", () => {
 	it("budgets agentic summary input against the configured summarizer context window", async () => {
 		let summaryRequest = "";
 		createHandlerMock.mockReturnValue({
-			createMessage: vi.fn((_system: string, messages: LlmsProviders.Message[]) => {
-				summaryRequest = String(messages[0]?.content ?? "");
-				return streamChunks([
-					{ type: "text", id: "summary-small", text: "## Goal\nSummarized" },
-					{ type: "done", id: "summary-small", success: true },
-				]);
-			}),
+			createMessage: vi.fn(
+				(_system: string, messages: LlmsProviders.Message[]) => {
+					summaryRequest = String(messages[0]?.content ?? "");
+					return streamChunks([
+						{ type: "text", id: "summary-small", text: "## Goal\nSummarized" },
+						{ type: "done", id: "summary-small", success: true },
+					]);
+				},
+			),
 		});
 
 		const summarizerLimit = 600;

@@ -43,29 +43,6 @@ import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
-// Plan mode instructions
-// ---------------------------------------------------------------------------
-
-/**
- * Instructions appended to the system prompt when the session is in plan mode.
- * Mirrors the CLI's plan-mode guardrails in apps/cli/src/runtime/prompt.ts so
- * plan mode in VSCode has the same explicit "explore/analyze/plan, do not
- * implement" guidance.
- */
-const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
-
-You are in Plan mode. Your role is to explore, analyze, and plan -- not to execute.
-
-- Read files, search the codebase, and gather context to understand the problem
-- Ask clarifying questions when requirements are ambiguous
-- Present your plan as a structured outline with clear steps
-- Explain tradeoffs between different approaches when they exist
-- Do NOT edit files, write code, run destructive commands, or make any changes
-- Do NOT implement anything -- focus on understanding and alignment first
-
-Once the user has reviewed your plan and explicitly approved it in a follow-up message, use the switch_to_act_mode tool to switch to act mode and begin implementation. Calling switch_to_act_mode immediately starts execution, so never call it in the same turn you present a plan and never treat the original task request as approval -- end your turn after presenting the plan and wait for the user's response.`
-
-// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -671,14 +648,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to inject preferredLanguage instructions:", error)
-	}
-
-	// Append plan-mode instructions when in plan mode, matching the CLI's
-	// behavior (apps/cli/src/runtime/prompt.ts). The shared prompt builder does
-	// not include these guardrails, so without this the model in plan mode may
-	// still attempt to make edits instead of planning.
-	if (mode === "plan") {
-		systemPrompt = systemPrompt ? `${systemPrompt}\n\n${PLAN_MODE_INSTRUCTIONS}` : PLAN_MODE_INSTRUCTIONS
 	}
 
 	const stateManager = StateManager.get()

@@ -4,6 +4,7 @@ import {
 	getPersistedProviderApiKey,
 	getProviderAuthHandler,
 	getProviderAuthStorageId,
+	getProviderOAuthCredentialsFromSettings,
 	isOAuthProvider,
 	loginAndSaveProviderOAuthCredentials,
 	resolveProviderApiKeyFromSettings,
@@ -76,6 +77,7 @@ describe("provider auth registry", () => {
 			refresh: "new-refresh",
 			expires: 4_000_000_000_000,
 			accountId: "acct-new",
+			metadata: { sessionStartedAtMs: 1_700_000_000_000 },
 		});
 		const getProviderSettings = vi.fn().mockReturnValue({
 			provider: "cline",
@@ -107,6 +109,7 @@ describe("provider auth registry", () => {
 				refreshToken: "new-refresh",
 				accountId: "acct-new",
 				expiresAt: 4_000_000_000_000,
+				metadata: { sessionStartedAtMs: 1_700_000_000_000 },
 			},
 		});
 		expect(saveProviderSettings).toHaveBeenCalledWith(
@@ -134,6 +137,7 @@ describe("provider auth registry", () => {
 			refresh: "new-refresh",
 			expires: 4_000_000_000_000,
 			accountId: "acct-new",
+			metadata: { sessionStartedAtMs: 1_700_000_000_001 },
 		});
 		const getProviderSettings = vi.fn().mockReturnValue({
 			provider: "cline",
@@ -161,11 +165,123 @@ describe("provider auth registry", () => {
 				refreshToken: "new-refresh",
 				accountId: "acct-new",
 				expiresAt: 4_000_000_000_000,
+				metadata: { sessionStartedAtMs: 1_700_000_000_001 },
 			},
 		});
 		expect(saveProviderSettings).toHaveBeenCalledWith(
 			expect.objectContaining({ provider: "cline" }),
 			{ tokenSource: "oauth" },
 		);
+	});
+
+	it("login/save preserves existing auth metadata when incoming metadata is missing", async () => {
+		loginClineOAuth.mockResolvedValueOnce({
+			access: "new-access",
+			refresh: "new-refresh",
+			expires: 4_000_000_000_000,
+			accountId: "acct-new",
+		});
+		const getProviderSettings = vi.fn().mockReturnValue({
+			provider: "cline",
+			auth: {
+				accessToken: "workos:old-access",
+				refreshToken: "old-refresh",
+				accountId: "acct-old",
+				metadata: {
+					provider: "workos",
+					sessionStartedAtMs: 1_700_000_000_003,
+				},
+			},
+		});
+		const saveProviderSettings = vi.fn();
+		const manager = {
+			getProviderSettings,
+			saveProviderSettings,
+		} as never;
+
+		const saved = await loginAndSaveProviderOAuthCredentials(manager, "cline", {
+			callbacks: {
+				onAuth: vi.fn(),
+				onPrompt: vi.fn(async () => ""),
+			},
+		});
+
+		expect(saved).toMatchObject({
+			auth: {
+				accessToken: "workos:new-access",
+				metadata: {
+					provider: "workos",
+					sessionStartedAtMs: 1_700_000_000_003,
+				},
+			},
+		});
+	});
+
+	it("login/save does not let undefined incoming metadata erase existing metadata", async () => {
+		loginClineOAuth.mockResolvedValueOnce({
+			access: "new-access",
+			refresh: "new-refresh",
+			expires: 4_000_000_000_000,
+			accountId: "acct-new",
+			metadata: { provider: undefined, tokenType: "Bearer" },
+		});
+		const getProviderSettings = vi.fn().mockReturnValue({
+			provider: "cline",
+			auth: {
+				accessToken: "workos:old-access",
+				refreshToken: "old-refresh",
+				accountId: "acct-old",
+				metadata: {
+					provider: "workos",
+					sessionStartedAtMs: 1_700_000_000_004,
+				},
+			},
+		});
+		const saveProviderSettings = vi.fn();
+		const manager = {
+			getProviderSettings,
+			saveProviderSettings,
+		} as never;
+
+		const saved = await loginAndSaveProviderOAuthCredentials(manager, "cline", {
+			callbacks: {
+				onAuth: vi.fn(),
+				onPrompt: vi.fn(async () => ""),
+			},
+		});
+
+		expect(saved).toMatchObject({
+			auth: {
+				accessToken: "workos:new-access",
+				metadata: {
+					provider: "workos",
+					sessionStartedAtMs: 1_700_000_000_004,
+					tokenType: "Bearer",
+				},
+			},
+		});
+	});
+
+	it("reads persisted auth metadata back into OAuth credentials", () => {
+		const handler = getProviderAuthHandler("cline");
+		const credentials =
+			handler &&
+			getProviderOAuthCredentialsFromSettings("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:stored-access",
+					refreshToken: "stored-refresh",
+					expiresAt: 4_000_000_000_000,
+					accountId: "acct-stored",
+					metadata: { sessionStartedAtMs: 1_700_000_000_002 },
+				},
+			});
+
+		expect(credentials).toMatchObject({
+			access: "stored-access",
+			refresh: "stored-refresh",
+			accountId: "acct-stored",
+			metadata: { sessionStartedAtMs: 1_700_000_000_002 },
+		});
 	});
 });

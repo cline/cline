@@ -11,7 +11,7 @@ import {
 	type ApplyPatchExecutorOptions,
 	createApplyPatchExecutor,
 } from "./apply-patch";
-import { type ShellExecutorOptions, createShellExecutor } from "./bash";
+import { createShellExecutor, type ShellExecutorOptions } from "./bash";
 import { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 import {
 	createFileReadExecutor,
@@ -26,11 +26,14 @@ import {
 // Re-export individual executors and their options types
 export {
 	type ApplyPatchExecutorOptions,
+	computePatchChanges,
 	createApplyPatchExecutor,
+	type PatchFileChange,
 } from "./apply-patch";
+export { PatchActionType } from "./apply-patch-parser";
 export {
-	type ShellExecutorOptions,
 	createShellExecutor,
+	type ShellExecutorOptions,
 } from "./bash";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 export {

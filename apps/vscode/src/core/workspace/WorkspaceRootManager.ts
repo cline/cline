@@ -42,6 +42,28 @@ export class WorkspaceRootManager {
 	}
 
 	/**
+	 * Initialize from host-provided workspace folder paths (multi-root aware)
+	 */
+	static async fromPaths(paths: string[]): Promise<WorkspaceRootManager> {
+		const roots: WorkspaceRoot[] = await Promise.all(
+			paths.map(async (workspacePath) => {
+				const vcs = await WorkspaceRootManager.detectVcs(workspacePath)
+				const gitHash = vcs === VcsType.Git ? await getLatestGitCommitHash(workspacePath) : null
+				const commitHash = gitHash === null ? undefined : gitHash
+
+				return {
+					path: workspacePath,
+					name: path.basename(workspacePath),
+					vcs,
+					commitHash,
+				}
+			}),
+		)
+
+		return new WorkspaceRootManager(roots, 0)
+	}
+
+	/**
 	 * Detect version control system for a directory
 	 */
 	private static async detectVcs(dirPath: string): Promise<VcsType> {
