@@ -200,7 +200,12 @@ function createTestOAuthCredentials(): OAuthCredentials {
 		expires: Date.now() + 3600 * 1000, // 1 hour from now (ms)
 		accountId: "acct-456",
 		email: "oauth@example.com",
-		metadata: { sessionStartedAt: 1_700_000_000_000 },
+		metadata: {
+			provider: "workos",
+			sessionStartedAt: 1_700_000_000_000,
+			tokenType: "Bearer",
+			userInfo: { email: "oauth@example.com" },
+		},
 	}
 }
 
@@ -387,7 +392,13 @@ describe("AuthService", () => {
 			await waitForCondition(() => mockProviderSettings.has("cline"))
 
 			const persisted = mockProviderSettings.get("cline") as { auth?: { metadata?: Record<string, unknown> } }
-			expect(persisted.auth?.metadata?.sessionStartedAt).toBe(1_700_000_000_000)
+			expect(persisted.auth?.metadata).toMatchObject({
+				provider: "workos",
+				sessionStartedAt: 1_700_000_000_000,
+				tokenType: "Bearer",
+				userInfo: { email: "oauth@example.com" },
+			})
+			expect(persisted.auth?.metadata).not.toHaveProperty("startedAt")
 		})
 	})
 
@@ -441,6 +452,9 @@ describe("AuthService", () => {
 
 			expect(testAccess(authService)._authenticated).toBe(true)
 			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("persisted-access-token")
+			expect(
+				(mockProviderSettings.get("cline")?.auth as { metadata?: Record<string, unknown> } | undefined)?.metadata,
+			).toBeUndefined()
 			expect(getValidClineCredentials).toHaveBeenCalledWith(
 				expect.any(Object),
 				expect.objectContaining({ telemetry: mockSdkTelemetry }),

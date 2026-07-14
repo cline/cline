@@ -87,6 +87,8 @@ const WORKOS_TOKEN_PREFIX = "workos:"
 type AuthMetadata = Record<string, unknown>
 
 function getAuthMetadata(auth: ProviderSettings["auth"]): AuthMetadata | undefined {
+	if (!auth) return undefined
+
 	const metadata = (auth as { metadata?: unknown }).metadata
 	return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? (metadata as AuthMetadata) : undefined
 }
@@ -94,7 +96,7 @@ function getAuthMetadata(auth: ProviderSettings["auth"]): AuthMetadata | undefin
 function readSessionStartedAt(metadata: AuthMetadata | undefined): number | undefined {
 	if (!metadata) return undefined
 
-	const value = (metadata as { sessionStartedAt?: unknown }).sessionStartedAt
+	const value = metadata.sessionStartedAt
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
@@ -152,13 +154,15 @@ function writeClineCredentials(credentials: {
 	refreshToken?: string
 	expiresAt?: number // milliseconds since epoch
 	accountId?: string
+	metadata?: AuthMetadata
 	sessionStartedAt?: number // milliseconds since epoch
 }): void {
 	try {
 		const manager = getProviderSettingsManager()
 		const existing = manager.getProviderSettings("cline")
 		const existingMetadata = getAuthMetadata(existing?.auth)
-		const sessionStartedAt = credentials.sessionStartedAt ?? readSessionStartedAt(existingMetadata)
+		const sessionStartedAt =
+			credentials.sessionStartedAt ?? readSessionStartedAt(credentials.metadata) ?? readSessionStartedAt(existingMetadata)
 
 		const auth = {
 			...(existing?.auth ?? {}),
@@ -166,11 +170,16 @@ function writeClineCredentials(credentials: {
 			refreshToken: credentials.refreshToken,
 			accountId: credentials.accountId,
 		} as Record<string, unknown>
+		const metadata = {
+			...(existingMetadata ?? {}),
+			...(credentials.metadata ?? {}),
+		}
+		delete metadata.startedAt
 		if (sessionStartedAt !== undefined) {
-			auth.metadata = {
-				...(existingMetadata ?? {}),
-				sessionStartedAt,
-			}
+			metadata.sessionStartedAt = sessionStartedAt
+		}
+		if (Object.keys(metadata).length > 0) {
+			auth.metadata = metadata
 		}
 		if (credentials.expiresAt !== undefined) {
 			auth.expiresAt = credentials.expiresAt
@@ -434,7 +443,8 @@ export class AuthService {
 						refreshToken: newCredentials.refresh,
 						expiresAt: newCredentials.expires,
 						accountId: this._clineAuthInfo.userInfo.id,
-						sessionStartedAt: this._clineAuthInfo.startedAt,
+						metadata: newCredentials.metadata,
+						sessionStartedAt: readSessionStartedAt(newCredentials.metadata),
 					})
 
 					setImmediate(() => {
@@ -566,6 +576,7 @@ export class AuthService {
 					refreshToken: credentials.refresh,
 					expiresAt: credentials.expires,
 					accountId: authInfo.userInfo.id || credentials.accountId,
+					metadata: credentials.metadata,
 					sessionStartedAt: authInfo.startedAt,
 				})
 
@@ -644,6 +655,7 @@ export class AuthService {
 			refreshToken: tokenData.refreshToken,
 			expiresAt: new Date(tokenData.expiresAt).getTime(),
 			accountId: this._clineAuthInfo.userInfo.id,
+			metadata: { sessionStartedAt },
 			sessionStartedAt,
 		})
 
@@ -680,6 +692,7 @@ export class AuthService {
 				refreshToken: credentials.refresh,
 				expiresAt: credentials.expires,
 				accountId: authInfo.userInfo.id || credentials.accountId,
+				metadata: credentials.metadata,
 				sessionStartedAt: authInfo.startedAt,
 			})
 
@@ -868,6 +881,12 @@ export class AuthService {
 				refreshToken: tokenData.refreshToken,
 				expiresAt: new Date(tokenData.expiresAt).getTime(),
 				accountId: authInfo.userInfo.id,
+				metadata: {
+					provider,
+					sessionStartedAt,
+					tokenType: tokenData.tokenType,
+					userInfo: tokenData.userInfo,
+				},
 				sessionStartedAt,
 			})
 
@@ -933,7 +952,8 @@ export class AuthService {
 				refreshToken: validCredentials.refresh,
 				expiresAt: validCredentials.expires,
 				accountId: validCredentials.accountId ?? restoredAuthInfo.userInfo.id,
-				sessionStartedAt: restoredAuthInfo.startedAt,
+				metadata: validCredentials.metadata,
+				sessionStartedAt: readSessionStartedAt(validCredentials.metadata),
 			})
 
 			this._clineAuthInfo = {

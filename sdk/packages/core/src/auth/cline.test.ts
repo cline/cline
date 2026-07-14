@@ -84,6 +84,45 @@ describe("auth/cline getValidClineCredentials", () => {
 		nowSpy.mockRestore();
 	});
 
+	it("does not add sessionStartedAt when refreshing credentials that do not already have it", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const current = createCredentials({
+			expires: 101_000,
+			metadata: { provider: "google" },
+		});
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						success: true,
+						data: {
+							accessToken: "access-new",
+							refreshToken: "refresh-new",
+							tokenType: "Bearer",
+							expiresAt: "2030-01-01T00:00:00.000Z",
+							userInfo: {
+								subject: "sub-1",
+								email: "new@example.com",
+								name: "New User",
+								clineUserId: "acct-2",
+								accounts: [],
+							},
+						},
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+		);
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const result = await getValidClineCredentials(current, PROVIDER_OPTIONS);
+		expect(result?.metadata).toMatchObject({
+			provider: "google",
+			tokenType: "Bearer",
+		});
+		expect(result?.metadata).not.toHaveProperty("sessionStartedAt");
+		nowSpy.mockRestore();
+	});
+
 	it("returns null when refresh fails with invalid_grant", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
 		const current = createCredentials({ expires: 101_000 });
