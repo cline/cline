@@ -21,6 +21,13 @@ import {
 	ComboboxItem,
 	ComboboxList,
 } from "@/components/ui/combobox";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
@@ -260,6 +267,7 @@ export function ChatInputBar({
 	} = useWorkspace();
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
+	const canAbort = status === "running" || status === "stopping";
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
 
 	const [reasoningCapability, setReasoningCapability] = useState<{
@@ -330,36 +338,33 @@ export function ChatInputBar({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	const hasExplicitReasoningSelection =
+		thinking !== undefined || reasoningEffort !== undefined;
 	const effortLabel =
-		modelSupportsReasoning === true
-			? (EFFORT_LEVELS[effortIndex]?.label ?? "Low")
-			: modelSupportsReasoning === false
+		!hasExplicitReasoningSelection && modelSupportsReasoning === null
+			? "Reasoning"
+			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
 				? "None"
-				: thinking !== false && reasoningEffort
-					? (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning")
-					: "Reasoning";
-	const handleEffortCycle = useCallback(() => {
-		if (modelSupportsReasoning !== true) {
-			return;
-		}
-		const nextOption = EFFORT_LEVELS[(effortIndex + 1) % EFFORT_LEVELS.length];
-		if (!nextOption) {
-			return;
-		}
-		onReasoningChange(buildReasoningConfig(nextOption));
-	}, [effortIndex, modelSupportsReasoning, onReasoningChange]);
+				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
+	const handleEffortChange = useCallback(
+		(value: string) => {
+			if (modelSupportsReasoning !== true) {
+				return;
+			}
+			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
+			if (nextOption) {
+				onReasoningChange(buildReasoningConfig(nextOption));
+			}
+		},
+		[modelSupportsReasoning, onReasoningChange],
+	);
 
 	useEffect(() => {
-		if (modelSupportsReasoning === null) {
-			return;
-		}
-		if (!modelSupportsReasoning) {
-			if (thinking !== false || reasoningEffort !== undefined) {
-				onReasoningChange({ thinking: false, reasoningEffort: undefined });
-			}
-			return;
-		}
-		if (thinking === undefined && reasoningEffort === undefined) {
+		if (
+			modelSupportsReasoning === true &&
+			thinking === undefined &&
+			reasoningEffort === undefined
+		) {
 			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
@@ -1017,34 +1022,30 @@ export function ChatInputBar({
 				)}
 			</div>
 
-			{/* Attachments action */}
-			<div className="flex items-center px-4 pb-2">
-				<button
-					aria-label="Attach files"
-					className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-					onClick={() => fileInputRef.current?.click()}
-					type="button"
-				>
-					<Paperclip className="h-4 w-4" />
-				</button>
-				<input
-					accept="*/*"
-					className="hidden"
-					multiple
-					onChange={(event) => {
-						const files = Array.from(event.target.files ?? []);
-						if (files.length > 0) onAttachFiles(files);
-						event.currentTarget.value = "";
-					}}
-					ref={fileInputRef}
-					type="file"
-				/>
-			</div>
-
 			{/* Composer settings and submit */}
-			<div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground max-[560px]:items-stretch">
-				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-[560px]:w-full max-[560px]:flex-none">
-					<div className="flex shrink-0 items-center rounded-md bg-muted p-0.5">
+			<div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground max-[560px]:grid max-[560px]:grid-cols-[auto_auto_minmax(0,1fr)_auto] max-[560px]:items-center">
+				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-[560px]:contents">
+					<button
+						aria-label="Attach files"
+						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-[560px]:col-start-1 max-[560px]:row-start-1"
+						onClick={() => fileInputRef.current?.click()}
+						type="button"
+					>
+						<Paperclip className="h-4 w-4" />
+					</button>
+					<input
+						accept="*/*"
+						className="hidden"
+						multiple
+						onChange={(event) => {
+							const files = Array.from(event.target.files ?? []);
+							if (files.length > 0) onAttachFiles(files);
+							event.currentTarget.value = "";
+						}}
+						ref={fileInputRef}
+						type="file"
+					/>
+					<div className="flex shrink-0 items-center rounded-md bg-muted p-0.5 max-[560px]:col-start-2 max-[560px]:row-start-1">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -1076,21 +1077,45 @@ export function ChatInputBar({
 							Act
 						</button>
 					</div>
-					<ModelSelector
-						isBusy={isBusy}
-						model={model}
-						onModelChange={onModelChange}
-						onModelSupportsReasoningChange={handleModelSupportsReasoningChange}
-						onProviderChange={onProviderChange}
-						provider={provider}
-						variant={variant}
-					/>
-					<StatusItem
+					<div className="min-w-0 shrink-0 max-[560px]:col-start-3 max-[560px]:col-end-5 max-[560px]:row-start-1">
+						<ModelSelector
+							isBusy={isBusy}
+							model={model}
+							onModelChange={onModelChange}
+							onModelSupportsReasoningChange={
+								handleModelSupportsReasoningChange
+							}
+							onProviderChange={onProviderChange}
+							provider={provider}
+							variant={variant}
+						/>
+					</div>
+					<Select
 						disabled={modelSupportsReasoning !== true}
-						icon={Brain}
-						label={effortLabel}
-						onClick={handleEffortCycle}
-					/>
+						onValueChange={handleEffortChange}
+						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+					>
+						<SelectTrigger
+							aria-label="Thinking level"
+							className="h-7 min-w-[5.75rem] gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-2"
+							size="sm"
+							title={
+								modelSupportsReasoning === false
+									? "The selected model does not report reasoning support"
+									: undefined
+							}
+						>
+							<Brain className="size-3" />
+							<SelectValue>{effortLabel}</SelectValue>
+						</SelectTrigger>
+						<SelectContent align="start">
+							{EFFORT_LEVELS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					{tokensSummary ? (
 						<span className="max-[900px]:hidden">
 							<StatusItem
@@ -1102,8 +1127,8 @@ export function ChatInputBar({
 					) : null}
 				</div>
 
-				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:w-full max-[560px]:justify-between">
-					<div className="max-w-48 truncate max-[720px]:max-w-36">
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:contents">
+					<div className="max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
 						<WorkspaceSelector
 							currentBranch={gitBranch}
 							onListGitBranches={onListGitBranches}
@@ -1115,35 +1140,37 @@ export function ChatInputBar({
 							workspaceRoot={workspaceRoot}
 						/>
 					</div>
-					{isBusy && (
-						<button
-							aria-label="Stop agent"
-							className={cn(
-								"bg-foreground p-1.5 text-background transition-colors hover:bg-foreground/80",
-								variant === "welcome" ? "rounded-md" : "rounded-full",
-							)}
-							onClick={onAbort}
-							type="button"
-						>
-							<CircleStop className="h-4 w-4" />
-						</button>
-					)}
-					{(!isBusy || canSend) && (
-						<button
-							aria-label="Send message"
-							className={cn(
-								"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-								variant === "welcome"
-									? "rounded-md bg-[linear-gradient(145deg,var(--cline-violet-strong),var(--cline-violet))] text-white shadow-sm hover:brightness-110"
-									: "rounded-full bg-foreground text-background hover:bg-foreground/80",
-							)}
-							disabled={!canSend}
-							onClick={onSend}
-							type="button"
-						>
-							<ArrowUp className="h-4 w-4" />
-						</button>
-					)}
+					<div className="flex shrink-0 items-center gap-2 max-[560px]:col-start-4 max-[560px]:row-start-2">
+						{canAbort && (
+							<button
+								aria-label="Stop agent"
+								className={cn(
+									"bg-foreground p-1.5 text-background transition-colors hover:bg-foreground/80",
+									variant === "welcome" ? "rounded-md" : "rounded-full",
+								)}
+								onClick={onAbort}
+								type="button"
+							>
+								<CircleStop className="h-4 w-4" />
+							</button>
+						)}
+						{(!isBusy || canSend) && (
+							<button
+								aria-label="Send message"
+								className={cn(
+									"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+									variant === "welcome"
+										? "rounded-md bg-[linear-gradient(145deg,var(--cline-violet-strong),var(--cline-violet))] text-white shadow-sm hover:brightness-110"
+										: "rounded-full bg-foreground text-background hover:bg-foreground/80",
+								)}
+								disabled={!canSend}
+								onClick={onSend}
+								type="button"
+							>
+								<ArrowUp className="h-4 w-4" />
+							</button>
+						)}
+					</div>
 				</div>
 			</div>
 		</div>
@@ -1486,6 +1513,16 @@ function StatusItem({
 	disabled?: boolean;
 	hasOption?: boolean;
 }) {
+	const content = (
+		<>
+			{Icon ? <Icon className="h-3 w-3" /> : null}
+			<span className="max-[560px]:sr-only">{label}</span>
+			{hasOption ? <ChevronDown className="h-2.5 w-2.5" /> : null}
+		</>
+	);
+	if (!onClick) {
+		return <span className="flex items-center gap-1">{content}</span>;
+	}
 	return (
 		<button
 			className={cn(
@@ -1496,9 +1533,7 @@ function StatusItem({
 			onClick={onClick}
 			type="button"
 		>
-			{Icon ? <Icon className="h-3 w-3" /> : null}
-			<span className="max-[560px]:sr-only">{label}</span>
-			{hasOption ? <ChevronDown className="h-2.5 w-2.5" /> : null}
+			{content}
 		</button>
 	);
 }

@@ -39,6 +39,12 @@ import {
 	type SessionMetadata,
 } from "@/lib/session-history";
 import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	mergeWorkspacePaths,
+	normalizeWorkspacePath,
+	readWorkspaceSelectionFromWindow,
+	writeWorkspaceSelectionToWindow,
+} from "@/lib/workspace-paths";
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -54,17 +60,6 @@ type WorkspaceSessionItem = {
 	cwd?: string;
 	workspaceRoot?: string;
 };
-
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
-}
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
@@ -337,7 +332,9 @@ function ChatThreadPane({
 		Record<string, { apiKey: string }>
 	>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
-	const [workspaces, setWorkspaces] = useState<string[]>([]);
+	const [workspaces, setWorkspaces] = useState<string[]>(
+		() => readWorkspaceSelectionFromWindow().workspaces,
+	);
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
@@ -350,6 +347,14 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+
+	useEffect(() => {
+		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace,
+			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
+		});
+	}, [config.cwd, config.workspaceRoot, workspaces]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -511,12 +516,13 @@ function ChatThreadPane({
 		async (preferredWorkspace?: string) => {
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
-				setWorkspaces((current) =>
-					current.length === results.length &&
-					current.every((workspace, index) => workspace === results[index])
+				setWorkspaces((current) => {
+					const merged = mergeWorkspacePaths(current, results);
+					return current.length === merged.length &&
+						current.every((workspace, index) => workspace === merged[index])
 						? current
-						: results,
-				);
+						: merged;
+				});
 			} finally {
 				setWorkspacesLoaded(true);
 			}
@@ -541,17 +547,21 @@ function ChatThreadPane({
 			if (normalizedNext === normalizedCurrent) {
 				return true;
 			}
+			const validation = await desktopClient
+				.invoke<{ valid?: boolean }>("validate_workspace_directory", {
+					path: nextWorkspace,
+				})
+				.catch(() => ({ valid: false }));
+			if (validation.valid !== true) {
+				return false;
+			}
 
 			setConfig((prev) => ({
 				...prev,
 				workspaceRoot: nextWorkspace,
 				cwd: nextWorkspace,
 			}));
-			setWorkspaces((prev) => {
-				const next = new Set(prev);
-				next.add(nextWorkspace);
-				return [...next].sort((a, b) => a.localeCompare(b));
-			});
+			setWorkspaces((prev) => mergeWorkspacePaths(prev, [nextWorkspace]));
 
 			// Fire git branch + workspace list refresh in the background
 			desktopClient

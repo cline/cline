@@ -1,3 +1,4 @@
+import { prewarmWorkspaceMetadata } from "./chat-session";
 import {
 	createSidecarContext,
 	disposeSidecarContext,
@@ -34,6 +35,7 @@ async function main() {
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
 	const ctx = createSidecarContext(workspaceRoot);
 
+	prewarmWorkspaceMetadata(workspaceRoot);
 	await initializeSessionManager(ctx);
 
 	let shuttingDown = false;

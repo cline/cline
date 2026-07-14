@@ -1,5 +1,11 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+} from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
@@ -1163,10 +1169,13 @@ export async function handleCommand(
 
 	// ── Git operations ─────────────────────────────────────────────────
 	if (command === "get_git_branch") {
-		const branches = listGitBranches(
-			ctx,
-			typeof args?.cwd === "string" ? args.cwd : undefined,
-		);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const branches = listGitBranches(ctx, cwd);
+		const { prewarmWorkspaceMetadata } = await import("./chat-session");
+		prewarmWorkspaceMetadata(cwd);
 		return { branch: branches.current };
 	}
 	if (command === "list_git_branches") {
@@ -1179,11 +1188,14 @@ export async function handleCommand(
 		const cwd = typeof args?.cwd === "string" ? args.cwd : undefined;
 		const branch = String(args?.branch ?? "").trim();
 		if (!branch) throw new Error("branch is required");
+		const targetCwd = cwd?.trim() || ctx.workspaceRoot;
 		execFileSync("git", ["checkout", branch], {
-			cwd: cwd?.trim() || ctx.workspaceRoot,
+			cwd: targetCwd,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "pipe"],
 		});
+		const { refreshWorkspaceMetadata } = await import("./chat-session");
+		refreshWorkspaceMetadata(targetCwd);
 		return { branch };
 	}
 
@@ -1252,6 +1264,15 @@ export async function handleCommand(
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────
+	if (command === "validate_workspace_directory") {
+		const workspacePath = String(args?.path ?? "").trim();
+		if (!workspacePath) return { valid: false };
+		try {
+			return { valid: statSync(workspacePath).isDirectory() };
+		} catch {
+			return { valid: false };
+		}
+	}
 	if (command === "pick_workspace_directory") {
 		return pickWorkspaceDirectory();
 	}
