@@ -170,7 +170,7 @@ describe("auth/cline getValidClineCredentials", () => {
 					status: 401,
 					errorCode: "invalid_grant",
 					sessionId: "sid-1",
-					sessionDurationMs: 12_345,
+					sessionDurationMs: Date.now() - 12_345,
 				}),
 			}),
 		);
@@ -185,7 +185,7 @@ describe("auth/cline getValidClineCredentials", () => {
 			accountId: undefined,
 			metadata: {
 				provider: "google",
-				sessionDurationMs: 67_890,
+				sessionStartedAtMs: 67_890,
 				userInfo: {
 					subject: "subject-2",
 					email: "user@example.com",
