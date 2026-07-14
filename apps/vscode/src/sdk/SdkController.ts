@@ -336,6 +336,9 @@ export class Controller {
 			onSendStart: () => {
 				this.beginProviderFailureTelemetryTurn()
 			},
+			// this.mode is assigned later in this constructor; the closure only
+			// runs at send time, long after construction completes.
+			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
