@@ -27,7 +27,7 @@
 
 import type { CoreSessionEvent } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import type { AgentEvent } from "@cline/shared"
+import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
 	ClineApiReqInfo,
@@ -1630,7 +1630,11 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 		case "pending_prompt_submitted": {
 			const { prompt, userImages, userFiles } = event.payload
-			const hasPrompt = prompt.trim().length > 0
+			// Display boundary: formatDisplayUserInput strips runtime-generated
+			// notice elements (e.g. mode_notice) that normalizeUserInput must
+			// preserve, since the latter also sanitizes model-bound prompts.
+			const displayPrompt = formatDisplayUserInput(prompt)
+			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0
 			if (hasPrompt || hasImages || hasFiles) {
@@ -1638,7 +1642,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 					ts: state.nextTs(),
 					type: "say",
 					say: "user_feedback",
-					text: prompt,
+					text: displayPrompt,
 					images: userImages,
 					files: userFiles,
 					partial: false,

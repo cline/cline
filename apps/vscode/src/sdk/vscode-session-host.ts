@@ -5,10 +5,12 @@
 // still provides its custom McpHub-backed runtime builder.
 
 import {
+	type ApplyPatchExecutor,
 	ClineCore,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
 	type CoreSessionEvent,
+	type EditorExecutor,
 	type HookEventPayload,
 	type ITelemetryService,
 	type PendingPromptMutationResult,
@@ -49,6 +51,16 @@ export interface VscodeSessionHostOptions {
 	}) => Promise<{ approved: boolean; reason?: string }>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
 	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
+	/**
+	 * Custom `editor` tool executor (diff-view edit pipeline). Fully replaces the SDK's
+	 * default disk-writing executor.
+	 */
+	editorExecutor?: EditorExecutor
+	/**
+	 * Custom `apply_patch` tool executor (reverts the approval-time diff preview before
+	 * delegating to the SDK's default patch application).
+	 */
+	applyPatchExecutor?: ApplyPatchExecutor
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
 	/** Shared SDK telemetry service owned by SdkController. */
@@ -83,6 +95,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 		const toolExecutors: Partial<ToolExecutors> = {}
 		if (options.askQuestion) {
 			toolExecutors.askQuestion = options.askQuestion
+		}
+		if (options.editorExecutor) {
+			toolExecutors.editor = options.editorExecutor
+		}
+		if (options.applyPatchExecutor) {
+			toolExecutors.applyPatch = options.applyPatchExecutor
 		}
 		if (options.getTerminalManager) {
 			// Setting bash to undefined suppresses the SDK's createShellTool():
