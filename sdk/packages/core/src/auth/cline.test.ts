@@ -167,7 +167,6 @@ describe("auth/cline getValidClineCredentials", () => {
 					status: 401,
 					errorCode: "invalid_grant",
 					session_id: "sid-1",
-					user_id: "cline-user-1",
 					session_started_at: 12_345,
 				}),
 			}),
@@ -178,7 +177,7 @@ describe("auth/cline getValidClineCredentials", () => {
 	it("keeps current credentials on transient refresh error while token remains valid", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
 		const current = createCredentials({
-			access: createJwt({ sid: "sid-2", sub: "user-2" }),
+			access: createJwt({ sid: "sid-2", sub: "-2" }),
 			expires: 150_000,
 			accountId: undefined,
 			metadata: {
@@ -224,7 +223,6 @@ describe("auth/cline getValidClineCredentials", () => {
 					status: 500,
 					tokenExpired: false,
 					session_id: "sid-2",
-					user_id: "cline-user-2",
 					session_started_at: 67_890,
 				}),
 			}),
