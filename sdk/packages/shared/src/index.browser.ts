@@ -194,7 +194,12 @@ export {
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
 export { serializeAbortReason } from "./llms/requests";
-export { CHARS_PER_TOKEN, estimateTokens } from "./llms/tokens";
+export {
+	CHARS_PER_TOKEN,
+	estimateRequestInputTokens,
+	estimateTokens,
+	type TokenEstimatedRequest,
+} from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -226,8 +231,17 @@ export {
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
-export { buildClineSystemPrompt } from "./prompt/cline";
 export {
+	buildClineSystemPrompt,
+	MODE_TAG_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS,
+} from "./prompt/cline";
+export type {
+	ModeSwitchNotice,
+	ModeSwitchNoticeTracker,
+} from "./prompt/format";
+export {
+	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatFileContentBlock,
 	formatModeSwitchNotice,

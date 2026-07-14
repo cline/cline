@@ -7,8 +7,8 @@ import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
 } from "../../types/config";
+import { buildBudgetProjection } from "./budget-projection";
 import {
-	DEFAULT_TARGET_RATIO,
 	type EstimateMessageTokens,
 	findFirstUserMessageIndex,
 	findLastAssistantIndex,
@@ -372,9 +372,8 @@ export function runBasicCompaction(options: {
 	const totalTargetTokens = Math.max(
 		1,
 		Math.min(
-			options.context.targetTokens ??
-				Math.floor(options.context.triggerTokens * DEFAULT_TARGET_RATIO),
-			options.context.maxInputTokens,
+			options.context.budget.messages.targetTokens,
+			options.context.budget.messages.triggerTokens,
 		),
 	);
 	const { compactable, protectedTail } = splitLatestTurn(
@@ -436,7 +435,7 @@ export function runBasicCompaction(options: {
 		candidates,
 		targetTokens,
 		totalTokens,
-		options.context.triggerTokens,
+		options.context.budget.messages.triggerTokens,
 		options.estimateMessageTokens,
 	);
 
@@ -444,21 +443,58 @@ export function runBasicCompaction(options: {
 		...candidates.map((candidate) => candidate.message),
 		...protectedTail,
 	];
-	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
+	const budgeted = buildBudgetProjection({
+		messages: nextMessages,
+		targetTokens: totalTargetTokens,
+		policyIntent: "basic_compaction_projection",
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+	// This final projection owns the hard output budget. Unlike the earlier
+	// basic candidate passes, it can drop completed tool pairs after the latest
+	// typed prompt while preserving coherent tool closures.
+	if (budgeted.status === "failed") {
+		options.logger?.debug("Basic compaction returned best-effort projection", {
+			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
+			projectedTokens: budgeted.estimatedTokens,
+			targetTokens: totalTargetTokens,
+			maxInputTokens: options.context.budget.request.maxInputTokens,
+		});
+	}
+	const resultMessages = budgeted.messages;
+
+	if (!haveMessagesChanged(options.context.messages, resultMessages)) {
 		return undefined;
 	}
 
 	const beforeTokens = beforeCompactableTokens + protectedTailTokens;
-	const afterTokens = totalTokens + protectedTailTokens;
+	const afterTokens = getTotalTokens(
+		resultMessages,
+		options.estimateMessageTokens,
+	);
+	const budgetActionCount = budgeted.actions.filter(
+		(action) =>
+			action.reason === "over_budget" || action.reason === "tool_pair_boundary",
+	).length;
 	options.logger?.debug("Performed basic compaction", {
 		messagesBefore: options.context.messages.length,
-		messagesAfter: nextMessages.length,
-		messagesRemoved: options.context.messages.length - nextMessages.length,
+		messagesAfter: resultMessages.length,
+		messagesRemoved: options.context.messages.length - resultMessages.length,
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
+		budgetStatus: budgeted.status,
+		budgetActions: budgetActionCount,
+		budgetWarnings: budgeted.warnings.map((warning) => warning.code),
 		targetTokens: totalTargetTokens,
-		maxInputTokens: options.context.maxInputTokens,
+		maxInputTokens: options.context.budget.request.maxInputTokens,
 	});
 
-	return { messages: nextMessages };
+	return {
+		messages: resultMessages,
+		budget: {
+			policyIntent: "basic_compaction_projection",
+			actionCount: budgetActionCount,
+			warningCount: budgeted.warnings.length,
+			liveTailHandling: budgeted.liveTailHandling,
+		},
+	};
 }

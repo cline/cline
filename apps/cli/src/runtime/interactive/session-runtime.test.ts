@@ -157,6 +157,7 @@ function makeManager() {
 		ingestHookEvent: vi.fn(),
 		subscribe: vi.fn(),
 		updateSessionModel: vi.fn(),
+		updateSessionConnection: vi.fn(async () => {}),
 		pendingPrompts: {
 			update: vi.fn(),
 		},
@@ -812,6 +813,83 @@ describe("createInteractiveSessionRuntime", () => {
 			expect.objectContaining({ sessionId: "session-2" }),
 		);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("preserves the session id and applies changed provider config when restarting with the current messages", async () => {
+		const manager = makeManager();
+		const config = {
+			...createConfig(),
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "cline-key",
+		};
+		const messages: Message[] = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+		];
+		manager.readMessages.mockResolvedValue(messages);
+		const runtime = await makeRuntime(manager, { config });
+
+		await runtime.ensureReady();
+		expect(manager.start).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				config: expect.objectContaining({
+					providerId: "cline",
+					modelId: "anthropic/claude-sonnet-4.6",
+					apiKey: "cline-key",
+				}),
+			}),
+		);
+		config.providerId = "openai-compatible";
+		config.modelId = "custom-model";
+		config.apiKey = "new-key";
+		await runtime.restartWithCurrentMessages();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				config: expect.objectContaining({
+					sessionId: "session-1",
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					apiKey: "new-key",
+				}),
+				initialMessages: messages,
+			}),
+		);
+	});
+
+	it("updates the active session connection in place without restarting", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.updateCurrentSessionConnection({
+			providerId: "openai",
+			modelId: "codex-test",
+		});
+
+		expect(manager.updateSessionConnection).toHaveBeenCalledWith("session-1", {
+			providerId: "openai",
+			modelId: "codex-test",
+		});
+		expect(manager.start).toHaveBeenCalledTimes(1);
+		expect(runtime.getActiveSessionId()).toBe("session-1");
+	});
+
+	it("does not reuse the session id when restarting empty", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.restartEmpty();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		const secondStart = manager.start.mock.calls[1]?.[0] as {
+			config?: { sessionId?: string };
+		};
+		expect(secondStart?.config?.sessionId).toBeUndefined();
 	});
 
 	it("recovers empty read-driven restarts when the active interactive session disappeared", async () => {

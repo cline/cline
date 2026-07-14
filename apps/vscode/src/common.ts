@@ -1,6 +1,7 @@
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import { setSdkLogger } from "@cline/core"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
@@ -34,6 +35,17 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	// Configure the shared Logging class to use HostProvider's output channels and debug logger
 	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
 	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
+
+	// Register the SDK early logger so diagnostic events from
+	// ProviderSettingsManager, RuntimeOAuthTokenManager, and Cline auth
+	// flow through Logger.debug → Cline output channel.
+	// These components operate before/outside of ClineCore sessions, so the
+	// session-scoped logger can't reach them.
+	setSdkLogger({
+		debug: (message) => Logger.debug(message),
+		log: (message) => Logger.log(message),
+		error: (message) => Logger.error(message),
+	})
 
 	// Initialize ClineEndpoint configuration (reads bundled and ~/.cline/endpoints.json if present)
 	// This must be done before any other code that calls ClineEnv.config()

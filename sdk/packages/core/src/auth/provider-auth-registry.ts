@@ -116,6 +116,7 @@ function createCredentialsFromSettings(
 		refresh: refreshToken,
 		expires: deriveCredentialExpiry(settings, access),
 		accountId: settings.auth?.accountId,
+		metadata: settings.auth?.metadata,
 	};
 }
 
@@ -131,13 +132,22 @@ function saveOAuthCredentials(input: {
 	const accessToken =
 		input.formatAccessToken?.(input.credentials.access) ??
 		input.credentials.access;
-	const auth = {
+	const auth: NonNullable<ProviderSettings["auth"]> = {
 		...(input.settings?.auth ?? {}),
 		accessToken,
 		refreshToken: input.credentials.refresh,
 		accountId: input.credentials.accountId,
 		expiresAt: input.credentials.expires,
 	};
+	const incomingMetadata = Object.fromEntries(
+		Object.entries(input.credentials.metadata ?? {}).filter(
+			([, value]) => value !== undefined,
+		),
+	);
+	const metadata = { ...(input.settings?.auth?.metadata ?? {}), ...incomingMetadata };
+	if (Object.keys(metadata).length > 0) {
+		auth.metadata = metadata;
+	}
 
 	const merged: ProviderSettings = {
 		...(input.settings ?? {

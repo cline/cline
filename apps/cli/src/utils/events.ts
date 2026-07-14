@@ -1,4 +1,5 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
+import { formatCliErrorMessage } from "./cline-pass-errors";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -27,8 +28,13 @@ export function resolveStatusNoticeLabel(
 	if (event.type !== "notice" || event.displayRole !== "status") {
 		return undefined;
 	}
-	if (event.reason === "auto_compaction") {
-		return "auto-compacting";
+	switch (event.reason) {
+		case "auto_compaction":
+			return "auto-compacting";
+		case "manual_compaction":
+			return "compacting";
+		case "compaction_budget_emergency":
+			return "context budget adjusted";
 	}
 	return event.message.trim() || undefined;
 }
@@ -176,7 +182,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(event.error.message);
+				writeErr(formatCliErrorMessage(event.error));
 			}
 			break;
 		case "notice":

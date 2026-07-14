@@ -11,7 +11,9 @@ const CLINE_PASS_LIMIT_PREFIX = "you have reached your";
 const CLINE_PASS_LIMIT_MARKER = "clinepass limit";
 const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
 
-function findClinePassLimitMessageBounds(text: string): { start: number; end: number } | undefined {
+function findClinePassLimitMessageBounds(
+	text: string,
+): { start: number; end: number } | undefined {
 	const normalized = text.toLowerCase();
 	const start = normalized.indexOf(CLINE_PASS_LIMIT_PREFIX);
 	if (start === -1) {

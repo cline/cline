@@ -108,12 +108,13 @@ export default defineConfig({
 		chunkSizeWarningLimit: 100000,
 	},
 	server: {
+		host: "127.0.0.1",
 		port: 25463,
 		fs: {
-			allow: [resolve(__dirname, "../src/shared")],
+			allow: [resolve(__dirname), resolve(__dirname, "../src/shared")],
 		},
 		hmr: {
-			host: "localhost",
+			host: "127.0.0.1",
 			protocol: "ws",
 		},
 		cors: {

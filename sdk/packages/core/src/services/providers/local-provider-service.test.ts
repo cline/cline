@@ -1275,7 +1275,9 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager, {
 			isClinePassEnabled: true,
 		});
-		const clinePass = providers.find((provider) => provider.id === "cline-pass");
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
 
 		expect(clinePass).toMatchObject({
 			enabled: true,

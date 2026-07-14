@@ -32,7 +32,7 @@ import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
-import type { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
+import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -66,6 +66,7 @@ import {
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
+import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -141,6 +142,7 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 		tokensOut: item.tokensOut ?? 0,
 		cacheWrites: item.cacheWrites ?? 0,
 		cacheReads: item.cacheReads ?? 0,
+		isLegacy: item.isLegacy ?? false,
 	})
 }
 
@@ -155,6 +157,7 @@ export class Controller {
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
 	private interactions: SdkInteractionCoordinator
+	private diffEdits: SdkDiffEditCoordinator
 	private sessionConfigBuilder: SdkSessionConfigBuilder
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
@@ -258,7 +261,7 @@ export class Controller {
 		)
 
 		// Initialize SDK-backed auth and account services.
-		this.authService = AuthService.getInstance(this)
+		this.authService = AuthService.getInstance(this, this.sdkTelemetry.telemetry)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
@@ -281,6 +284,10 @@ export class Controller {
 			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
+		this.diffEdits = new SdkDiffEditCoordinator({
+			getCwd: () => this.getWorkspaceRoot(),
+			isBackgroundEditEnabled: () => !!this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
+		})
 		this.interactions = new SdkInteractionCoordinator({
 			messages: this.messages,
 			getSessionId: () => this.sessions.getActiveSession()?.sessionId ?? "",
@@ -289,10 +296,16 @@ export class Controller {
 			// asks, ask_question, user_feedback) never collide with translator-minted ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			// Open the diff editor preview before the approval buttons render.
+			onToolApprovalAsk: (request) => this.diffEdits.openForApproval(request.toolCallId, request.toolName, request.input),
 			recordApprovedToolMessage: (toolCallId, messageTs) =>
 				this.messageTranslatorState.recordApprovedToolMessageTs(toolCallId, messageTs),
-			recordDeniedToolApproval: (toolCallId, toolName, reason) =>
-				this.messageTranslatorState.recordDeniedToolApproval(toolCallId, toolName, reason),
+			recordDeniedToolApproval: (toolCallId, toolName, reason) => {
+				this.messageTranslatorState.recordDeniedToolApproval(toolCallId, toolName, reason)
+				// A denied edit's executor never runs, so close its diff preview here. Covers
+				// manual Reject and clearPending (task cancel/abort) in one place.
+				void this.diffEdits.discardPreview(toolCallId)
+			},
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
@@ -303,6 +316,8 @@ export class Controller {
 			telemetry: this.sdkTelemetry.telemetry,
 			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
 			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
+			editorExecutor: (input, cwd, context) => this.diffEdits.executeEditorTool(input, cwd, context),
+			applyPatchExecutor: (input, cwd, context) => this.diffEdits.executeApplyPatchTool(input, cwd, context),
 			onSessionEvent: (event) => {
 				this.sessionEvents.handleSessionEvent(event).catch((err) => {
 					Logger.error("[SdkController] Failed to handle session event:", err)
@@ -322,7 +337,12 @@ export class Controller {
 			onSendStart: () => {
 				this.beginProviderFailureTelemetryTurn()
 			},
+			// this.mode is assigned later in this constructor; the closure only
+			// runs at send time, long after construction completes.
+			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
 			onSendComplete: async () => {
+				// Normal flows close their diff sessions inline; anything left here is orphaned.
+				void this.diffEdits.discardAllPreviews("turn complete")
 				await this.providerChanges.handleTurnComplete(this.mode)
 
 				this.postStateToWebview().catch((err) => {
@@ -331,6 +351,7 @@ export class Controller {
 			},
 			onSendError: async (error, sessionId) => {
 				// A turn failed — the UI shows error recovery (Retry / Sign In / Add Credits).
+				void this.diffEdits.discardAllPreviews("turn error")
 				this.turnStateTracker.set("error")
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
@@ -677,6 +698,7 @@ export class Controller {
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
+		await this.diffEdits.discardAllPreviews("controller dispose")
 		await this.clearTask()
 		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()
@@ -1612,6 +1634,9 @@ export class Controller {
 				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 				modelId: item.model || metadataString(metadata, "modelId") || "",
+				isLegacy:
+					metadataBoolean(metadata, "legacyTask") === true ||
+					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
 			}
 		})
 
@@ -1633,6 +1658,7 @@ export class Controller {
 					cacheWrites: 0,
 					cacheReads: 0,
 					modelId: this.task.api?.getModel?.().id ?? "",
+					isLegacy: false,
 				})
 			}
 		}
@@ -1646,16 +1672,15 @@ export class Controller {
 			throw new Error(`Task not found in history: ${id}`)
 		}
 
-		// SDK-backed tasks are no longer stored under VS Code's globalStorageFsPath/tasks.
-		// The SDK owns session persistence and exposes the persisted messages artifact path
-		// on the session history record; open that artifact's containing session directory.
-		const taskDirPath = historyItem.messagesPath ? path.dirname(historyItem.messagesPath) : undefined
+		const taskDirPath = historyItem.messagesPath
+			? path.dirname(historyItem.messagesPath)
+			: this.taskHistory.getLegacyTaskDirPath(id)
 		if (!taskDirPath) {
-			throw new Error(`Task history item has no SDK artifact path: ${id}`)
+			throw new Error(`Task history item has no artifact path: ${id}`)
 		}
 
 		await fs.access(taskDirPath)
-		Logger.log(`[EXPORT] Opening SDK task directory: ${taskDirPath}`)
+		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
 		const open = (await import("open")).default
 		await open(taskDirPath)
 	}
@@ -1917,8 +1942,26 @@ export class Controller {
 
 	// ---- Workspace (kept from classic) ----
 
+	private _workspaceManager?: WorkspaceRootManager
+	private _workspaceManagerPathsKey?: string
+
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
-		stubWarn("ensureWorkspaceManager")
-		return undefined
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			const validPaths = (paths ?? []).filter((workspacePath) => workspacePath.trim().length > 0)
+			if (validPaths.length === 0) {
+				return undefined
+			}
+			// Rebuild only when the set of workspace folders changes
+			const pathsKey = JSON.stringify(validPaths)
+			if (!this._workspaceManager || this._workspaceManagerPathsKey !== pathsKey) {
+				this._workspaceManager = await WorkspaceRootManager.fromPaths(validPaths)
+				this._workspaceManagerPathsKey = pathsKey
+			}
+			return this._workspaceManager
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to build workspace manager:", error)
+			return undefined
+		}
 	}
 }
