@@ -250,8 +250,15 @@ export function captureAuthStarted(
 export function captureAuthSucceeded(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
+	details?: {
+		session_id?: string;
+		session_started_at?: number;
+	},
 ): void {
-	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, { provider });
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, {
+		provider,
+		...details,
+	});
 }
 
 export function captureAuthFailed(

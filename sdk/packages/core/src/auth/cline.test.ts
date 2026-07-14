@@ -284,6 +284,7 @@ describe("auth/cline loginClineOAuth", () => {
 
 	it("completes WorkOS device auth and registers tokens", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(200_000);
+		const loginAccessToken = createJwt({ sid: "sid-login" });
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValueOnce(
@@ -316,7 +317,7 @@ describe("auth/cline loginClineOAuth", () => {
 					JSON.stringify({
 						success: true,
 						data: {
-							accessToken: "cline-access",
+							accessToken: loginAccessToken,
 							refreshToken: "cline-refresh",
 							tokenType: "Bearer",
 							expiresAt: "2030-01-01T00:00:00.000Z",
@@ -335,9 +336,15 @@ describe("auth/cline loginClineOAuth", () => {
 		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
 		const onAuth = vi.fn();
+		const capture = vi.fn();
 		const credentials = await loginClineOAuth({
 			apiBaseUrl: "https://api.cline.bot",
 			useWorkOSDeviceAuth: true,
+			telemetry: {
+				capture,
+				setDistinctId: vi.fn(),
+				updateCommonProperties: vi.fn(),
+			} as never,
 			callbacks: {
 				onAuth,
 				onPrompt: async () => "",
@@ -349,7 +356,7 @@ describe("auth/cline loginClineOAuth", () => {
 			url: "https://example.com/device?user_code=ABCD-EFGH",
 		});
 		expect(credentials).toMatchObject({
-			access: "cline-access",
+			access: loginAccessToken,
 			refresh: "cline-refresh",
 			accountId: "acct-1",
 			email: "user@example.com",
@@ -369,6 +376,16 @@ describe("auth/cline loginClineOAuth", () => {
 			accessToken: "workos-access",
 			refreshToken: "workos-refresh",
 		});
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_succeeded",
+				properties: expect.objectContaining({
+					provider: "cline",
+					session_id: "sid-login",
+					session_started_at: 200_000,
+				}),
+			}),
+		);
 		nowSpy.mockRestore();
 	});
 });
