@@ -5,7 +5,7 @@ import type {
 	ConnectorHookEvent,
 } from "@cline/shared";
 import { z } from "zod";
-import type { CliLoggerAdapter } from "../logging/adapter";
+import type { ConnectorLoggerAdapter } from "./types";
 
 const ConnectorAuthorizationDecisionSchema = z.object({
 	action: z.enum(["allow", "deny"]).default("allow"),
@@ -17,7 +17,7 @@ const ConnectorAuthorizationDecisionSchema = z.object({
 export async function dispatchConnectorHook(
 	command: string | undefined,
 	hookPayload: ConnectorHookEvent,
-	logger: CliLoggerAdapter,
+	logger: ConnectorLoggerAdapter,
 ): Promise<void> {
 	const trimmed = command?.trim();
 	if (!trimmed) {
@@ -70,7 +70,7 @@ export async function authorizeConnectorEvent(
 		botUserName?: string;
 		request: ConnectorAuthorizationRequest;
 	},
-	logger: CliLoggerAdapter,
+	logger: ConnectorLoggerAdapter,
 ): Promise<ConnectorAuthorizationDecision> {
 	const trimmed = command?.trim();
 	if (!trimmed) {

@@ -11,8 +11,8 @@ vi.mock("@cline/core", () => ({
 	sendHubCommand: mockSendHubCommand,
 }));
 
-vi.mock("../utils/hub-runtime", () => ({
-	ensureCliHubServer: mockEnsureCliHubServer,
+vi.mock("@cline/cline-hub/connectors", () => ({
+	ensureHubServer: mockEnsureCliHubServer,
 	parseHubEndpointOverride: (rawAddress: string | undefined) => {
 		const trimmed = rawAddress?.trim();
 		if (!trimmed) {

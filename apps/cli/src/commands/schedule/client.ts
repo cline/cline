@@ -1,13 +1,13 @@
 import {
+	ensureHubServer,
+	parseHubEndpointOverride,
+} from "@cline/cline-hub/connectors";
+import {
 	createLocalHubScheduleRuntimeHandlers,
 	HubScheduleCommandService,
 	HubScheduleService,
 	sendHubCommand,
 } from "@cline/core";
-import {
-	ensureCliHubServer,
-	parseHubEndpointOverride,
-} from "../../utils/hub-runtime";
 import type { CommandIo } from "./types";
 
 export class HubScheduleClient {
@@ -190,7 +190,7 @@ export async function ensureSchedulerHub(
 	}
 	try {
 		const requestedEndpoint = parseHubEndpointOverride(address);
-		const { url: hubUrl } = await ensureCliHubServer(
+		const { url: hubUrl } = await ensureHubServer(
 			workspaceRoot,
 			requestedEndpoint,
 		);

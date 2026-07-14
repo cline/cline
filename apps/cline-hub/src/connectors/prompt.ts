@@ -1,13 +1,10 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, resolve } from "node:path";
-import {
-	buildWorkspaceMetadata,
-	mergeRulesForSystemPrompt,
-	type UserInstructionConfigService,
-} from "@cline/core";
+import type { UserInstructionConfigService } from "@cline/core";
+import { buildWorkspaceMetadata, mergeRulesForSystemPrompt } from "@cline/core";
 import { type AgentMode, buildClineSystemPrompt } from "@cline/shared";
-import { isImagePath, loadImageAsDataUrl } from "../utils/image-attachments";
+import { isImagePath, loadImageAsDataUrl } from "./image-attachments";
 
 const MODE_TAG_INSTRUCTIONS = `# Plan / Act Modes
 

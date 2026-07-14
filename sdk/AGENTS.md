@@ -21,7 +21,11 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 - `@cline/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
 - `@cline/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
-- `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
+- `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, and telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
+
+### Hub App Package
+
+- `@cline/cline-hub`: Hub dashboard/server behavior and chat connector runtimes exposed through `@cline/cline-hub/connectors`
 
 ### Dependency Direction
 
@@ -47,6 +51,7 @@ Route changes to the package that owns the concern:
 - session lifecycle, storage, config watching, default tools, plugin loading, telemetry, hub runtime services, hub discovery, hub daemon spawn, and session-oriented client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@cline/core` (hub pieces live under `src/hub/`)
 - remote-config schemas, managed instruction materialization, blob upload metadata, and OpenTelemetry config normalization: `@cline/shared/src/remote-config`
 - host-specific UX or shell behavior: app package
+- chat connector runtimes, adapters, command handling, and process state: `@cline/cline-hub/connectors`
 
 ## Verifying Changes
 

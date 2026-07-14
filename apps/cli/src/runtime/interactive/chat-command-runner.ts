@@ -1,9 +1,9 @@
-import type { InteractiveTurnResult } from "../../tui/types";
-import type { ChatCommandHost } from "../../utils/chat-commands";
+import type { ChatCommandHost } from "@cline/cline-hub/connectors";
 import {
 	type ChatCommandState,
 	maybeHandleChatCommand,
-} from "../../utils/chat-commands";
+} from "@cline/cline-hub/connectors";
+import type { InteractiveTurnResult } from "../../tui/types";
 import {
 	enableTeamsForPrompt,
 	rewriteTeamPrompt,

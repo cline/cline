@@ -1,3 +1,4 @@
+import { resolveWorkspaceRoot } from "@cline/cline-hub/connectors";
 import type {
 	AgentConfig,
 	BasicLogger,
@@ -16,7 +17,6 @@ import {
 	prepareCliEnterpriseIntegration,
 } from "../utils/enterprise";
 import { getCliFeatureFlagsService } from "../utils/feature-flags";
-import { resolveWorkspaceRoot } from "../utils/helpers";
 import { getCliTelemetryService } from "../utils/telemetry";
 import type { ConversationHistory } from "./export";
 

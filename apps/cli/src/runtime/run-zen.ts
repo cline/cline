@@ -1,11 +1,13 @@
+import {
+	buildUserInputMessage,
+	ensureHubServer,
+} from "@cline/cline-hub/connectors";
 import type { UserInstructionConfigService } from "@cline/core";
 import { HubSessionClient } from "@cline/core";
 import type { ChatStartSessionRequest } from "@cline/shared";
 import { resolveCliSessionMetadata } from "../utils/enterprise";
-import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, emitJsonLine, writeErr, writeln } from "../utils/output";
 import type { Config } from "../utils/types";
-import { buildUserInputMessage } from "./prompt";
 
 const ZEN_DISPATCH_ACK_TIMEOUT_MS = 5_000;
 
@@ -51,7 +53,7 @@ export async function runZen(
 	let hubUrl: string;
 	let hubAuthToken: string;
 	try {
-		const hub = await ensureCliHubServer(workspaceRoot);
+		const hub = await ensureHubServer(workspaceRoot);
 		hubUrl = hub.url;
 		hubAuthToken = hub.authToken;
 	} catch (error) {

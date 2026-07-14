@@ -1,17 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockGetLastUsedProviderSettings,
 	mockGetProviderSettings,
 	mockResolveSystemPrompt,
 	mockGetProviderCollection,
-	mockGetBooleanFlagEnabled,
 } = vi.hoisted(() => ({
 	mockGetLastUsedProviderSettings: vi.fn(),
 	mockGetProviderSettings: vi.fn(),
 	mockResolveSystemPrompt: vi.fn(),
 	mockGetProviderCollection: vi.fn(),
-	mockGetBooleanFlagEnabled: vi.fn(),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -28,47 +26,29 @@ vi.mock("@cline/core", async () => {
 				return mockGetProviderSettings(providerId);
 			}
 		},
-		CoreSessionService: class {},
-		SqliteSessionStore: class {},
-		Llms: {
-			...actual.Llms,
-			getProviderCollection: mockGetProviderCollection,
-		},
 	};
 });
 
-vi.mock("../runtime/prompt", () => ({
+vi.mock("@cline/llms", async () => {
+	const actual =
+		await vi.importActual<typeof import("@cline/llms")>("@cline/llms");
+	return {
+		...actual,
+		getProviderCollection: mockGetProviderCollection,
+	};
+});
+
+vi.mock("./prompt", () => ({
 	resolveSystemPrompt: mockResolveSystemPrompt,
 }));
 
-vi.mock("../utils/helpers", () => ({
+vi.mock("./workspace", () => ({
 	resolveWorkspaceRoot: vi.fn((cwd: string) => cwd),
 }));
-
-vi.mock("../utils/feature-flags", () => ({
-	getCliFeatureFlagsService: () => ({
-		getBooleanFlagEnabled: mockGetBooleanFlagEnabled,
-	}),
-}));
-
-vi.mock("../commands/auth", async () => {
-	const actual =
-		await vi.importActual<typeof import("../commands/auth")>(
-			"../commands/auth",
-		);
-	return {
-		...actual,
-		ensureOAuthProviderApiKey: vi.fn(),
-	};
-});
 
 import { buildConnectorStartRequest } from "./session-runtime";
 
 describe("buildConnectorStartRequest", () => {
-	beforeEach(() => {
-		mockGetBooleanFlagEnabled.mockReturnValue(false);
-	});
-
 	afterEach(() => {
 		vi.clearAllMocks();
 		delete process.env.OPENROUTER_API_KEY;

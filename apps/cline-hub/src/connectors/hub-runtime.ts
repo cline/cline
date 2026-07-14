@@ -4,14 +4,14 @@ import {
 	type HubEndpointOverrides,
 	resolveDefaultHubHost,
 	resolveDefaultHubPort,
-} from "@cline/core";
+} from "@cline/core/hub";
 
 /**
  * Build a `host:port` rpc address string that respects the current build
  * environment. In development, this picks the dev hub port to avoid
  * colliding with a production Cline hub on the standard port.
  */
-export function resolveDefaultCliRpcAddress(): string {
+export function resolveDefaultHubRpcAddress(): string {
 	return `${resolveDefaultHubHost()}:${resolveDefaultHubPort()}`;
 }
 
@@ -39,7 +39,7 @@ export function parseHubEndpointOverride(
 	}
 }
 
-export async function ensureCliHubServer(
+export async function ensureHubServer(
 	workspaceRoot: string,
 	endpoint: HubEndpointOverrides = {},
 ): Promise<DetachedHubResolution> {

@@ -1,13 +1,13 @@
-import type { HubSessionClient } from "@cline/core";
+import type { HubSessionClient } from "@cline/core/hub";
 import type { TeamProgressProjectionEvent } from "@cline/shared";
 import type { Chat, Thread } from "chat";
-import type { CliLoggerAdapter } from "../logging/adapter";
 import { truncateConnectorText } from "./runtime-turn";
 import {
 	type ConnectorThreadBinding,
 	type ConnectorThreadState,
 	readBindings,
 } from "./thread-bindings";
+import type { ConnectorLoggerAdapter } from "./types";
 
 function formatCountLabel(input: {
 	count: number;
@@ -139,7 +139,7 @@ export function startConnectorTaskUpdateRelay<
 	client: HubSessionClient;
 	clientId: string;
 	bot: Chat;
-	logger: CliLoggerAdapter;
+	logger: ConnectorLoggerAdapter;
 	bindingsPath: string;
 	transport: string;
 	postToThread?: (input: {

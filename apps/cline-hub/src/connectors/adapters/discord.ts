@@ -2,24 +2,15 @@ import {
 	createDiscordAdapter,
 	type DiscordAdapter,
 } from "@chat-adapter/discord";
-import type { ChatStartSessionRequest } from "@cline/core";
-import {
-	createUserInstructionConfigService,
-	HubSessionClient,
-} from "@cline/core";
+import { createUserInstructionConfigService } from "@cline/core";
+import { HubSessionClient } from "@cline/core/hub";
 import type {
+	ChatStartSessionRequest,
 	ConnectDiscordOptions,
 	DiscordConnectorState,
 } from "@cline/shared";
 import { Chat, ConsoleLogger, type Thread, ThreadImpl } from "chat";
 import type { Command } from "commander";
-import { createCliLoggerAdapter } from "../../logging/adapter";
-import {
-	ensureCliHubServer,
-	parseHubEndpointOverride,
-	resolveDefaultCliRpcAddress,
-} from "../../utils/hub-runtime";
-import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import {
 	createChatSdkLogger,
@@ -33,6 +24,13 @@ import {
 	maybeHandleConnectorApprovalReply,
 } from "../connector-host";
 import { dispatchConnectorHook } from "../hooks";
+import {
+	ensureHubServer,
+	parseHubEndpointOverride,
+	resolveDefaultHubRpcAddress,
+} from "../hub-runtime";
+import { createConnectorLogger } from "../logger";
+import { createWorkspaceChatCommandHost } from "../plugin-chat-commands";
 import {
 	type PendingConnectorApproval,
 	truncateConnectorText,
@@ -686,7 +684,7 @@ function isRestorableThread(
 async function restoreDiscordThreadSubscriptions(input: {
 	bot: Pick<Chat, "reviver">;
 	bindingsPath: string;
-	logger: ReturnType<typeof createCliLoggerAdapter>;
+	logger: ReturnType<typeof createConnectorLogger>;
 }): Promise<number> {
 	const bindings = readBindings<DiscordThreadState>(input.bindingsPath);
 	const restoredThreadIds = new Set<string>();
@@ -761,7 +759,7 @@ class DiscordConnector extends ConnectorBase<
 			.option(
 				"--rpc-address <host:port>",
 				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
+				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultHubRpcAddress(),
 			)
 			.option("--host <host>", "Webhook listen host")
 			.option("--port <port>", "Webhook listen port")
@@ -859,7 +857,7 @@ class DiscordConnector extends ConnectorBase<
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
-				resolveDefaultCliRpcAddress(),
+				resolveDefaultHubRpcAddress(),
 			hookCommand:
 				opts.hookCommand?.trim() ||
 				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
@@ -993,7 +991,7 @@ class DiscordConnector extends ConnectorBase<
 			return 0;
 		}
 
-		const loggerAdapter = createCliLoggerAdapter({
+		const loggerAdapter = createConnectorLogger(io, {
 			runtime: "cli",
 			component: "discord-connect",
 		});
@@ -1039,11 +1037,10 @@ class DiscordConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const { url: rpcAddress, authToken: rpcAuthToken } =
-			await ensureCliHubServer(
-				startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
-				parseHubEndpointOverride(options.rpcAddress),
-			);
+		const { url: rpcAddress, authToken: rpcAuthToken } = await ensureHubServer(
+			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+			parseHubEndpointOverride(options.rpcAddress),
+		);
 
 		const clientId = `discord-${process.pid}-${Date.now()}`;
 		const client = new HubSessionClient({
@@ -1139,6 +1136,7 @@ class DiscordConnector extends ConnectorBase<
 						resolveMuteTarget: ({ target }) => resolveDiscordMuteTarget(target),
 						createEmptyRuntimeReplyResolver:
 							createDiscordEmptyRuntimeReplyResolver,
+						resolveSessionMetadata: io.resolveSessionMetadata,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
 							applicationId: options.applicationId,

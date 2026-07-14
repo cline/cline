@@ -8,7 +8,7 @@ import {
 	isImagePath,
 	loadImageAsDataUrl,
 	resolveExistingImagePath,
-} from "../../utils/image-attachments";
+} from "@cline/cline-hub/connectors";
 
 const COMMAND_TIMEOUT_MS = 1500;
 const MAX_CLIPBOARD_BYTES = 20 * 1024 * 1024;

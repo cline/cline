@@ -1,23 +1,13 @@
 import { createTelegramAdapter } from "@chat-adapter/telegram";
-import type { ChatStartSessionRequest } from "@cline/core";
-import {
-	createUserInstructionConfigService,
-	HubSessionClient,
-} from "@cline/core";
+import { createUserInstructionConfigService } from "@cline/core";
+import { HubSessionClient } from "@cline/core/hub";
 import type {
+	ChatStartSessionRequest,
 	ConnectTelegramOptions,
 	TelegramConnectorState,
 } from "@cline/shared";
 import { Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
-import type { CliLoggerAdapter } from "../../logging/adapter";
-import { createCliLoggerAdapter } from "../../logging/adapter";
-import {
-	ensureCliHubServer,
-	parseHubEndpointOverride,
-	resolveDefaultCliRpcAddress,
-} from "../../utils/hub-runtime";
-import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
 import { isProcessRunning } from "../common";
@@ -27,6 +17,13 @@ import {
 	maybeHandleConnectorApprovalReply,
 } from "../connector-host";
 import { dispatchConnectorHook } from "../hooks";
+import {
+	ensureHubServer,
+	parseHubEndpointOverride,
+	resolveDefaultHubRpcAddress,
+} from "../hub-runtime";
+import { createConnectorLogger } from "../logger";
+import { createWorkspaceChatCommandHost } from "../plugin-chat-commands";
 import {
 	type PendingConnectorApproval,
 	truncateConnectorText,
@@ -51,6 +48,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectorLoggerAdapter,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -268,7 +266,7 @@ async function persistTelegramThreadContext(input: {
 async function deliverScheduledResult(input: {
 	bot: Chat;
 	client: HubSessionClient;
-	logger: CliLoggerAdapter;
+	logger: ConnectorLoggerAdapter;
 	bindingsPath: string;
 	botUsername: string;
 	scheduleId: string;
@@ -443,7 +441,7 @@ class TelegramConnector extends ConnectorBase<
 			.option(
 				"--rpc-address <host:port>",
 				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
+				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultHubRpcAddress(),
 			)
 			.addHelpText(
 				"after",
@@ -508,7 +506,7 @@ class TelegramConnector extends ConnectorBase<
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
-				resolveDefaultCliRpcAddress(),
+				resolveDefaultHubRpcAddress(),
 			hookCommand: allowedUserId
 				? buildTelegramAllowedUserHookCommand(
 						normalizeAllowedTelegramUserId(allowedUserId),
@@ -670,7 +668,7 @@ class TelegramConnector extends ConnectorBase<
 			return 0;
 		}
 
-		const loggerAdapter = createCliLoggerAdapter({
+		const loggerAdapter = createConnectorLogger(io, {
 			runtime: "cli",
 			component: "telegram-connect",
 		});
@@ -713,11 +711,10 @@ class TelegramConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const { url: rpcAddress, authToken: rpcAuthToken } =
-			await ensureCliHubServer(
-				startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
-				parseHubEndpointOverride(options.rpcAddress),
-			);
+		const { url: rpcAddress, authToken: rpcAuthToken } = await ensureHubServer(
+			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+			parseHubEndpointOverride(options.rpcAddress),
+		);
 
 		const clientId = `telegram-${process.pid}-${Date.now()}`;
 		const client = new HubSessionClient({
@@ -826,6 +823,7 @@ class TelegramConnector extends ConnectorBase<
 								logger: loggerAdapter,
 							});
 						},
+						resolveSessionMetadata: io.resolveSessionMetadata,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							botUserName: options.botUsername,
 							telegramThreadId: currentThread.id,

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { resolveClineDataDir } from "@cline/core";
+import { resolveClineDataDir } from "@cline/shared/storage";
 import { Command, CommanderError } from "commander";
 import {
 	isProcessRunning,
@@ -158,6 +158,7 @@ export abstract class ConnectorBase<Options, State>
 			["connect", this.name],
 			input.rawArgs,
 			input.childEnvVar,
+			input.io,
 		);
 		if (!pid) {
 			input.io.writeErr(input.launchFailureMessage);

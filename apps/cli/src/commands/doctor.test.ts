@@ -71,8 +71,9 @@ vi.mock("@cline/core", () => ({
 	ensureFileExists: mockEnsureFileExists,
 }));
 
-vi.mock("../connectors/common", () => ({
+vi.mock("@cline/cline-hub/connectors", () => ({
 	isProcessRunning: vi.fn(() => false),
+	listActiveConnectors: vi.fn(() => []),
 }));
 
 vi.mock("./connect", () => ({

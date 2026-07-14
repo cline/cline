@@ -1,4 +1,10 @@
 import {
+	buildUserInputMessage,
+	type ChatCommandState,
+	chatCommandHost,
+	createWorkspaceChatCommandHost,
+} from "@cline/cline-hub/connectors";
+import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
@@ -24,7 +30,6 @@ import {
 } from "../tui/interactive-welcome";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import type { QueuedPromptItem } from "../tui/types";
-import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
 import { applyCliCompactionMode } from "../utils/compaction-mode";
 import {
 	shouldZeroClineFreeModelCost,
@@ -36,7 +41,6 @@ import {
 	writeErr,
 	writeln,
 } from "../utils/output";
-import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import {
@@ -62,7 +66,6 @@ import {
 } from "./interactive/mode";
 import { assertInteractivePreflight } from "./interactive/preflight";
 import { createInteractiveSessionRuntime } from "./interactive/session-runtime";
-import { buildUserInputMessage } from "./prompt";
 import { getUIEventEmitter } from "./session-events";
 
 type ModelChangeReasoningConfig = {

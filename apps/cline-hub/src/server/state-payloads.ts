@@ -1,4 +1,4 @@
-import { listActiveConnectors } from "../../../cli/src/connectors/status";
+import { listActiveConnectors } from "@cline/cline-hub/connectors";
 import type { WebviewHubState } from "../webview-protocol";
 import {
 	clientSummariesPayload,

@@ -1,14 +1,12 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
+import type { UserInstructionConfigService } from "@cline/core";
+import type { HubSessionClient } from "@cline/core/hub";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
-	HubSessionClient,
-	UserInstructionConfigService,
-} from "@cline/core";
+} from "@cline/shared";
 import type { SentMessage, Thread } from "chat";
-import type { CliLoggerAdapter } from "../logging/adapter";
-import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
 import {
 	type ChatCommandHost,
 	type ChatCommandState,
@@ -16,8 +14,9 @@ import {
 	type MuteCommandInput,
 	maybeHandleChatCommand,
 	normalizeCommandName,
-} from "../utils/chat-commands";
+} from "./chat-commands";
 import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
+import { buildUserInputMessage, resolveSystemPrompt } from "./prompt";
 import {
 	createConnectorRuntimeTurnStream,
 	formatConnectorApprovalPrompt,
@@ -44,6 +43,7 @@ import {
 	setParticipantMuted,
 	setThreadMuted,
 } from "./thread-bindings";
+import type { ConnectIo, ConnectorLoggerAdapter } from "./types";
 
 export type ActiveConnectorTurn = {
 	sessionId: string;
@@ -211,7 +211,7 @@ export async function handleConnectorUserTurn<
 	baseStartRequest: ChatStartSessionRequest;
 	explicitSystemPrompt: string | undefined;
 	clientId: string;
-	logger: CliLoggerAdapter;
+	logger: ConnectorLoggerAdapter;
 	transport: string;
 	botUserName?: string;
 	ownerParticipantKeys?: string[];
@@ -225,6 +225,7 @@ export async function handleConnectorUserTurn<
 		clientId: string,
 		currentState: TState,
 	) => Record<string, unknown>;
+	resolveSessionMetadata?: ConnectIo["resolveSessionMetadata"];
 	getScheduleDeliveryMetadata?: (
 		thread: Thread<TState>,
 	) => Record<string, unknown>;
@@ -939,6 +940,7 @@ export async function handleConnectorUserTurn<
 			input.clientId,
 			currentState,
 		),
+		resolveSessionMetadata: input.resolveSessionMetadata,
 		reusedLogMessage: input.reusedLogMessage,
 		startedLogMessage: input.startedLogMessage,
 	});

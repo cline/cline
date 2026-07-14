@@ -1,3 +1,4 @@
+import type { ChatCommandState } from "@cline/cline-hub/connectors";
 import {
 	createSessionCompactionState,
 	type ProviderSettingsManager,
@@ -9,7 +10,6 @@ import {
 } from "@cline/core";
 import type { AgentTool, Message } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
 
 const createCliCoreMock = vi.hoisted(() => vi.fn());

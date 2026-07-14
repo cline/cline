@@ -1,6 +1,6 @@
+import { resolveSystemPrompt } from "@cline/cline-hub/connectors";
 import { createTool } from "@cline/shared";
 import type { Config } from "../../utils/types";
-import { resolveSystemPrompt } from "../prompt";
 
 export type InteractiveUiMode = "plan" | "act";
 

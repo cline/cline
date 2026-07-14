@@ -1,5 +1,22 @@
-import { getConnector, listConnectors } from "../connectors/registry";
-import type { ConnectIo, ConnectStopResult } from "../connectors/types";
+import {
+	type ConnectIo,
+	type ConnectStopResult,
+	getConnector,
+	listConnectors,
+} from "@cline/cline-hub/connectors";
+import { createCliLoggerAdapter } from "../logging/adapter";
+import { resolveCliSessionMetadata } from "../utils/enterprise";
+import { ensureOAuthProviderApiKey } from "./auth";
+
+function withConnectorHost(io: ConnectIo): ConnectIo {
+	return {
+		...io,
+		createLogger: createCliLoggerAdapter,
+		resolveSessionMetadata: resolveCliSessionMetadata,
+		ensureProviderApiKey: (input) =>
+			ensureOAuthProviderApiKey({ ...input, io }),
+	};
+}
 
 export async function stopAllConnectors(
 	io: ConnectIo,
@@ -16,7 +33,7 @@ export async function stopAllConnectors(
 			continue;
 		}
 		executed += 1;
-		const result = await connector.stopAll(io);
+		const result = await connector.stopAll(withConnectorHost(io));
 		stoppedProcesses += result.stoppedProcesses;
 		stoppedSessions += result.stoppedSessions;
 	}
@@ -49,7 +66,9 @@ export async function runStopConnector(
 		io.writeErr(`connect adapter "${adapterName}" does not support stop`);
 		return 1;
 	}
-	const result: ConnectStopResult = await connector.stopAll(io);
+	const result: ConnectStopResult = await connector.stopAll(
+		withConnectorHost(io),
+	);
 	io.writeln(
 		`[connect] ${connector.name} stopped processes=${result.stoppedProcesses} sessions=${result.stoppedSessions}`,
 	);
@@ -66,7 +85,7 @@ export async function runConnectAdapter(
 		io.writeErr(`unknown connect adapter "${adapterName}"`);
 		return 1;
 	}
-	return connector.run(passthroughArgs, io);
+	return connector.run(passthroughArgs, withConnectorHost(io));
 }
 
 export function formatAdapterList(): string {

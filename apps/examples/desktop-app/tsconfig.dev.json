@@ -5,6 +5,9 @@
 			"@/*": ["./*"],
 			"@cline/agents": ["../../../sdk/packages/agents/src/index.ts"],
 			"@cline/core": ["../../../sdk/packages/core/src/index.ts"],
+			"@cline/cline-hub/connectors": [
+				"../../../apps/cline-hub/src/connectors/index.ts"
+			],
 			"@cline/core/hub": ["../../../sdk/packages/core/src/hub/index.ts"],
 			"@cline/llms": ["../../../sdk/packages/llms/src/index.ts"],
 			"@cline/shared": ["../../../sdk/packages/shared/src/index.ts"],

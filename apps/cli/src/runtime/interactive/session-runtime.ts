@@ -1,3 +1,7 @@
+import type {
+	ChatCommandState,
+	ForkSessionResult,
+} from "@cline/cline-hub/connectors";
 import {
 	type AgentEvent,
 	type AgentHooks,
@@ -18,10 +22,6 @@ import {
 import type { Message } from "@cline/shared";
 import { createCliCore } from "../../session/session";
 import { submitAndExitInTerminal } from "../../utils/approval";
-import type {
-	ChatCommandState,
-	ForkSessionResult,
-} from "../../utils/chat-commands";
 import { createRuntimeHooks } from "../../utils/hooks";
 import { setActiveCliSession } from "../../utils/output";
 import { loadInteractiveResumeMessages } from "../../utils/resume";

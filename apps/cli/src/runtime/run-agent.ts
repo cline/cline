@@ -1,3 +1,4 @@
+import { buildUserInputMessage } from "@cline/cline-hub/connectors";
 import {
 	type AgentEvent,
 	type AgentResult,
@@ -41,7 +42,6 @@ import {
 	CLI_DEFAULT_LOOP_DETECTION,
 } from "./defaults";
 import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
-import { buildUserInputMessage } from "./prompt";
 import { subscribeToAgentEvents } from "./session-events";
 
 function printModelProviderInfo(config: Config): void {

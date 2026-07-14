@@ -1,5 +1,6 @@
-import type { ChatRunTurnRequest, HubSessionClient } from "@cline/core";
-import type { CliLoggerAdapter } from "../logging/adapter";
+import type { HubSessionClient } from "@cline/core/hub";
+import type { ChatRunTurnRequest } from "@cline/shared";
+import type { ConnectorLoggerAdapter } from "./types";
 
 export type PendingConnectorApproval = {
 	approvalId: string;
@@ -136,7 +137,7 @@ export function createConnectorRuntimeTurnStream(input: {
 	sessionId: string;
 	request: ChatRunTurnRequest;
 	clientId: string;
-	logger: CliLoggerAdapter;
+	logger: ConnectorLoggerAdapter;
 	transport: string;
 	conversationId: string;
 	onToolStatus?: (message: string) => Promise<void>;

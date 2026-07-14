@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolveClineDataDir } from "@cline/core";
+import { resolveClineDataDir } from "@cline/shared/storage";
 
 function isProcessRunning(pid: number): boolean {
 	if (!Number.isInteger(pid) || pid <= 0) {

@@ -114,6 +114,19 @@ Design rules:
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
 
+### `@cline/cline-hub`
+
+Owns Hub application behavior:
+
+- chat connector runtimes and transport adapters
+- connector command handling, thread bindings, and process state
+- connector discovery and management surfaces for Hub hosts
+- the `@cline/cline-hub/connectors` entrypoint
+
+Design rule:
+
+- connector behavior belongs in the Hub package; CLI and other hosts provide only host-owned services such as logging, interactive provider authentication, and app-specific session metadata through `ConnectIo`.
+
 ## Runtime Flows
 
 ### Local In-Process Runtime

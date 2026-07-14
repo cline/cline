@@ -1,22 +1,18 @@
-import type { ChatStartSessionRequest, RuntimeLoggerConfig } from "@cline/core";
 import {
 	CoreSessionService,
-	HubSessionClient,
-	Llms,
-	ProviderSettingsManager,
-	SqliteSessionStore,
-} from "@cline/core";
-import type { Thread } from "chat";
-import {
-	ensureOAuthProviderApiKey,
 	getPersistedProviderApiKey,
 	isOAuthProvider,
 	normalizeProviderId,
-} from "../commands/auth";
-import type { CliLoggerAdapter } from "../logging/adapter";
-import { resolveSystemPrompt } from "../runtime/prompt";
-import { resolveCliSessionMetadata } from "../utils/enterprise";
-import { resolveWorkspaceRoot } from "../utils/helpers";
+	ProviderSettingsManager,
+	SqliteSessionStore,
+} from "@cline/core";
+import { HubSessionClient } from "@cline/core/hub";
+import * as Llms from "@cline/llms";
+import type {
+	ChatStartSessionRequest,
+	RuntimeLoggerConfig,
+} from "@cline/shared";
+import type { Thread } from "chat";
 import {
 	parseLocalRowMetadata,
 	parseRowMetadata,
@@ -24,12 +20,14 @@ import {
 	readSessionReplyText,
 } from "./common";
 import { dispatchConnectorHook } from "./hooks";
+import { resolveSystemPrompt } from "./prompt";
 import {
 	type ConnectorThreadState,
 	loadThreadState,
 	persistMergedThreadState,
 } from "./thread-bindings";
-import type { ConnectIo } from "./types";
+import type { ConnectIo, ConnectorLoggerAdapter } from "./types";
+import { resolveWorkspaceRoot } from "./workspace";
 
 async function resolveProviderApiKeyFromEnv(
 	provider: string,
@@ -83,12 +81,16 @@ export async function buildConnectorStartRequest(input: {
 		"";
 
 	if (!apiKey && isOAuthProvider(provider)) {
-		const oauthResult = await ensureOAuthProviderApiKey({
+		if (!input.io.ensureProviderApiKey) {
+			throw new Error(
+				`Connector host cannot authenticate OAuth provider "${provider}"`,
+			);
+		}
+		const oauthResult = await input.io.ensureProviderApiKey({
 			providerId: provider,
 			currentApiKey: apiKey,
 			existingSettings: selectedProviderSettings,
 			providerSettingsManager,
-			io: input.io,
 		});
 		selectedProviderSettings = oauthResult.selectedProviderSettings;
 		apiKey = oauthResult.apiKey ?? "";
@@ -143,7 +145,7 @@ export async function getOrCreateSessionId<
 	thread: Thread<TState>;
 	client: HubSessionClient;
 	startRequest: ChatStartSessionRequest;
-	logger: CliLoggerAdapter;
+	logger: ConnectorLoggerAdapter;
 	clientId: string;
 	transport: string;
 	bindingsPath: string;
@@ -151,6 +153,7 @@ export async function getOrCreateSessionId<
 	hookCommand?: string;
 	hookBotUserName?: string;
 	sessionMetadata: Record<string, unknown>;
+	resolveSessionMetadata?: ConnectIo["resolveSessionMetadata"];
 	reusedLogMessage: string;
 	startedLogMessage?: string;
 }): Promise<string> {
@@ -219,9 +222,9 @@ export async function getOrCreateSessionId<
 	if (!sessionId) {
 		throw new Error("runtime start returned an empty session id");
 	}
-	const remoteConfigMetadata = await resolveCliSessionMetadata(sessionId).catch(
-		() => undefined,
-	);
+	const remoteConfigMetadata = await input
+		.resolveSessionMetadata?.(sessionId)
+		.catch(() => undefined);
 
 	await input.client
 		.updateSession({

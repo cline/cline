@@ -20,6 +20,7 @@
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
+		"@cline/cline-hub": "workspace:*",
 		"@base-ui/react": "^1.2.0",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",

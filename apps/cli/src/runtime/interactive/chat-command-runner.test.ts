@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
 import {
 	type ChatCommandState,
 	chatCommandHost,
 	createChatCommandHost,
-} from "../../utils/chat-commands";
+} from "@cline/cline-hub/connectors";
+import { describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
 import {
 	type InteractiveChatCommandRuntime,

@@ -6,7 +6,7 @@ const {
 	startRuntimeSession,
 	sendRuntimeSession,
 	buildUserInputMessage,
-	ensureCliHubServer,
+	ensureHubServer,
 	emitJsonLine,
 	writeErr,
 	writeln,
@@ -16,7 +16,7 @@ const {
 	startRuntimeSession: vi.fn(),
 	sendRuntimeSession: vi.fn(),
 	buildUserInputMessage: vi.fn(),
-	ensureCliHubServer: vi.fn(),
+	ensureHubServer: vi.fn(),
 	emitJsonLine: vi.fn(),
 	writeErr: vi.fn(),
 	writeln: vi.fn(),
@@ -31,12 +31,9 @@ vi.mock("@cline/core", () => ({
 	},
 }));
 
-vi.mock("./prompt", () => ({
+vi.mock("@cline/cline-hub/connectors", () => ({
 	buildUserInputMessage,
-}));
-
-vi.mock("../utils/hub-runtime", () => ({
-	ensureCliHubServer,
+	ensureHubServer,
 }));
 
 vi.mock("../utils/output", () => ({
@@ -69,7 +66,7 @@ describe("runZen", () => {
 			userImages: [],
 			userFiles: [],
 		});
-		ensureCliHubServer.mockResolvedValue({
+		ensureHubServer.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "test-token",
 		});

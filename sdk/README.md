@@ -238,7 +238,7 @@ cline connect telegram -k "$TELEGRAM_BOT_TOKEN"
 # Then send /help or /start to the bot in Telegram
 ```
 
-For Telegram-specific connector behavior, see [`apps/cli/src/connectors/adapters/telegram.md`](./apps/cli/src/connectors/adapters/telegram.md).
+For Telegram-specific connector behavior, see [`apps/cline-hub/src/connectors/adapters/telegram.md`](../apps/cline-hub/src/connectors/adapters/telegram.md).
 
 ## Providers
 

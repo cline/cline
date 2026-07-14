@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
+import { ensureHubServer } from "@cline/cline-hub/connectors";
 import {
 	clearHubDiscovery,
 	isAutoUpdateEnabledGlobally,
@@ -11,7 +12,6 @@ import {
 } from "@cline/core";
 import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
-import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
 import {
 	getInstalledKanbanVersion,
@@ -337,7 +337,7 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	// Re-ensure a fresh hub instance is spawned.
 	try {
-		await ensureCliHubServer(process.cwd()); // return value intentionally unused here
+		await ensureHubServer(process.cwd()); // return value intentionally unused here
 		writeln(`${c.green}✓${c.reset} ${c.dim}[hub] server restarted${c.reset}`);
 	} catch (err) {
 		writeErr(

@@ -1,6 +1,6 @@
-import type { CliLoggerAdapter } from "../logging/adapter";
+import type { ConnectorLoggerAdapter } from "./types";
 
-export function createChatSdkLogger(adapter: CliLoggerAdapter) {
+export function createChatSdkLogger(adapter: ConnectorLoggerAdapter) {
 	return {
 		child(prefix: string) {
 			return createChatSdkLogger(adapter.child({ chatLogger: prefix }));
@@ -80,18 +80,20 @@ export async function startConnectorWebhookServer(input: {
 			const hostHeader = req.headers.host || `${input.host}:${input.port}`;
 			const requestUrl = new URL(req.url || "/", `http://${hostHeader}`);
 			const body = await readRequestBody(req);
+			const headers = new Headers();
+			for (const [key, value] of Object.entries(req.headers)) {
+				if (Array.isArray(value)) {
+					for (const entry of value) {
+						headers.append(key, entry);
+					}
+				} else if (typeof value === "string") {
+					headers.append(key, value);
+				}
+			}
 			const request = new Request(requestUrl.toString(), {
 				method: req.method,
-				headers: new Headers(
-					Object.entries(req.headers).flatMap(([key, value]) => {
-						if (Array.isArray(value)) {
-							return value.map((entry) => [key, entry] as [string, string]);
-						}
-						return typeof value === "string" ? [[key, value]] : [];
-					}),
-				),
+				headers,
 				body,
-				duplex: body ? "half" : undefined,
 			});
 			const handler =
 				input.routes[requestUrl.pathname] ??

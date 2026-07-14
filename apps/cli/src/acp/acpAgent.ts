@@ -22,6 +22,10 @@ import type {
 } from "@agentclientprotocol/sdk";
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk";
 import {
+	resolveSystemPrompt,
+	resolveWorkspaceRoot,
+} from "@cline/cline-hub/connectors";
+import {
 	type AgentEvent,
 	type ClineCore,
 	Llms,
@@ -30,11 +34,10 @@ import {
 } from "@cline/core";
 import type { Message } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
-import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
 import { getCliBuildInfo } from "../utils/common";
-import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
+import { randomSessionId } from "../utils/helpers";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,

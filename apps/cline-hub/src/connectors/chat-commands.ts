@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { resolveWorkspaceRoot } from "./helpers";
+import { resolveWorkspaceRoot } from "./workspace";
 
 export type ChatCommandState = {
 	enableTools: boolean;

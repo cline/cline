@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CliLoggerAdapter } from "../logging/adapter";
 import { createConnectorRuntimeTurnStream } from "./runtime-turn";
+import type { ConnectorLoggerAdapter } from "./types";
 
 type StreamHandlers = {
 	onEvent: (event: {
@@ -50,7 +50,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 			sessionId: "session-1",
 			request,
 			clientId: "client-1",
-			logger: { core: {} } as unknown as CliLoggerAdapter,
+			logger: { core: {} } as unknown as ConnectorLoggerAdapter,
 			transport: "telegram",
 			conversationId: "thread-1",
 			onToolStatus: async (message) => {
@@ -82,7 +82,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 			sessionId: "session-1",
 			request: { config: {} as never, prompt: "hi" },
 			clientId: "client-1",
-			logger: { core: { log } } as unknown as CliLoggerAdapter,
+			logger: { core: { log } } as unknown as ConnectorLoggerAdapter,
 			transport: "discord",
 			conversationId: "thread-1",
 		})) {
@@ -132,7 +132,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 				sessionId: "session-1",
 				request: { config: {} as never, prompt: "hi" },
 				clientId: "client-1",
-				logger: { core: {} } as unknown as CliLoggerAdapter,
+				logger: { core: {} } as unknown as ConnectorLoggerAdapter,
 				transport: "telegram",
 				conversationId: "thread-1",
 				onFailed: async (error) => {
@@ -179,7 +179,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 				sessionId: "session-1",
 				request: { config: {} as never, prompt: "hi" },
 				clientId: "client-1",
-				logger: { core: {} } as unknown as CliLoggerAdapter,
+				logger: { core: {} } as unknown as ConnectorLoggerAdapter,
 				transport: "telegram",
 				conversationId: "thread-1",
 				onFailed: async (error) => {

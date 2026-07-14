@@ -108,7 +108,7 @@ const loggingMocks = vi.hoisted(() => ({
 	flushCliLoggerAdapters: vi.fn(),
 }));
 const hubRuntimeMocks = vi.hoisted(() => ({
-	ensureCliHubServer: vi.fn(async () => ({
+	ensureHubServer: vi.fn(async () => ({
 		url: "ws://127.0.0.1:25463",
 		authToken: "test-token",
 	})),
@@ -192,8 +192,10 @@ vi.mock("./utils/feature-flags", () => ({
 	setCliFeatureFlagsAccountContext:
 		featureFlagMocks.setCliFeatureFlagsAccountContext,
 }));
-vi.mock("./runtime/prompt", () => ({
+vi.mock("@cline/cline-hub/connectors", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
+	resolveWorkspaceRoot: (cwd: string) => cwd,
+	...hubRuntimeMocks,
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
@@ -202,7 +204,6 @@ vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
 vi.mock("./utils/history-resume", () => historyResumeMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
-vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
 
@@ -239,8 +240,8 @@ describe("runCli lightweight command dispatch", () => {
 			taskId: "task-1",
 			repoRoot: "/tmp/source",
 		});
-		hubRuntimeMocks.ensureCliHubServer.mockReset();
-		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue({
+		hubRuntimeMocks.ensureHubServer.mockReset();
+		hubRuntimeMocks.ensureHubServer.mockResolvedValue({
 			url: "ws://127.0.0.1:25463",
 			authToken: "test-token",
 		});
@@ -1161,7 +1162,7 @@ describe("runCli lightweight command dispatch", () => {
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
-		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
+		expect(hubRuntimeMocks.ensureHubServer).not.toHaveBeenCalled();
 	});
 
 	it("rejects yolo runs with a single bare prompt token", async () => {
@@ -1179,7 +1180,7 @@ describe("runCli lightweight command dispatch", () => {
 			expect.stringContaining("Unknown command or unquoted prompt: hello"),
 		);
 		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
-		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
+		expect(hubRuntimeMocks.ensureHubServer).not.toHaveBeenCalled();
 	});
 
 	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {

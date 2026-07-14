@@ -5,7 +5,8 @@
 	"description": "Browser dashboard for the Cline hub: live clients, sessions, streaming chat, and hub restart.",
 	"type": "module",
 	"exports": {
-		".": "./src/server.ts"
+		".": "./src/server.ts",
+		"./connectors": "./src/connectors/index.ts"
 	},
 	"scripts": {
 		"build:webview": "bun run --cwd src/webview build",
@@ -16,8 +17,18 @@
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
+		"@chat-adapter/discord": "^4.23.0",
+		"@chat-adapter/gchat": "^4.23.0",
+		"@chat-adapter/linear": "^4.23.0",
+		"@chat-adapter/slack": "^4.23.0",
+		"@chat-adapter/telegram": "^4.23.0",
+		"@chat-adapter/whatsapp": "^4.23.0",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
-		"@cline/shared": "workspace:*"
+		"@cline/shared": "workspace:*",
+		"@gramio/format": "^0.7.0",
+		"chat": "^4.23.0",
+		"commander": "^14.0.3",
+		"zod": "^4.3.6"
 	}
 }

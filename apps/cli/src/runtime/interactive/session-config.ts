@@ -1,5 +1,5 @@
+import type { ChatCommandState } from "@cline/cline-hub/connectors";
 import type { TeamEvent } from "@cline/core";
-import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
 import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,

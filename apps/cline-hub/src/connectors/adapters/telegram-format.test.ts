@@ -1,7 +1,7 @@
 import type { SentMessage, Thread } from "chat";
 import { describe, expect, it, vi } from "vitest";
-import type { CliLoggerAdapter } from "../../logging/adapter";
 import type { ConnectorThreadState } from "../thread-bindings";
+import type { ConnectorLoggerAdapter } from "../types";
 import {
 	buildTelegramFormattedPayload,
 	buildTelegramFormattedPayloads,
@@ -16,7 +16,7 @@ function createLogger() {
 			log: vi.fn(),
 			error: vi.fn(),
 		},
-	} as unknown as CliLoggerAdapter;
+	} as unknown as ConnectorLoggerAdapter;
 }
 
 function createThread(id = "telegram:123") {

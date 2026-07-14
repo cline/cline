@@ -1,4 +1,4 @@
-import { resolveCliLaunchSpec } from "./internal-launch";
+import { resolveCliLaunchSpec } from "@cline/cline-hub/connectors";
 
 export interface HistoryResumeCommand {
 	launcher: string;

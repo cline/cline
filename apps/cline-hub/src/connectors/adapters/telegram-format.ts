@@ -1,7 +1,7 @@
 import { markdownToFormattable } from "@gramio/format/markdown";
 import type { Thread } from "chat";
-import type { CliLoggerAdapter } from "../../logging/adapter";
 import type { ConnectorThreadState } from "../thread-bindings";
+import type { ConnectorLoggerAdapter } from "../types";
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
 const TELEGRAM_MESSAGE_LIMIT = 4096;
@@ -211,7 +211,7 @@ export async function postTelegramFormattedReply<
 	thread: Thread<TState>;
 	text: string;
 	botToken: string;
-	logger: CliLoggerAdapter;
+	logger: ConnectorLoggerAdapter;
 	apiBaseUrl?: string;
 	fetchImpl?: FetchLike;
 }): Promise<void> {

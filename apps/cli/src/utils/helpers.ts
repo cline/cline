@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -38,19 +37,6 @@ export function nowIso(): string {
 
 export function randomSessionId(): string {
 	return `${Date.now()}_${nanoid(5)}_cli`;
-}
-
-export function resolveWorkspaceRoot(cwd: string): string {
-	const result = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
-		encoding: "utf8",
-	});
-	if (result.status === 0) {
-		const value = result.stdout.trim();
-		if (value) {
-			return value;
-		}
-	}
-	return cwd;
 }
 
 export function truncate(str: string, maxLen: number): string {

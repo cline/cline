@@ -8,12 +8,12 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { HubSessionClient, HubSessionRow } from "@cline/core";
-import { ensureParentDir, resolveClineDataDir } from "@cline/core";
+import type { HubSessionClient, HubSessionRow } from "@cline/core/hub";
 import { withResolvedClineBuildEnv } from "@cline/shared";
-import { createCliLoggerAdapter } from "../logging/adapter";
-import { logSpawnedProcess } from "../logging/process";
-import { resolveCliLaunchSpec } from "../utils/internal-launch";
+import { ensureParentDir, resolveClineDataDir } from "@cline/shared/storage";
+import { resolveCliLaunchSpec } from "./internal-launch";
+import { createConnectorLogger } from "./logger";
+import type { ConnectIo } from "./types";
 
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
@@ -154,6 +154,7 @@ export function spawnDetachedConnector(
 	commandPrefixArgs: string[],
 	rawArgs: string[],
 	childEnvKey: string,
+	io: ConnectIo,
 	options?: {
 		logPath?: string;
 		component?: string;
@@ -163,7 +164,7 @@ export function spawnDetachedConnector(
 	const command = buildDetachedConnectorCommand(commandPrefixArgs, rawArgs);
 	if (!command) {
 		try {
-			const logger = createCliLoggerAdapter({
+			const logger = createConnectorLogger(io, {
 				runtime: "cli",
 				component: options?.component ?? "connectors",
 			});
@@ -198,24 +199,26 @@ export function spawnDetachedConnector(
 			// processes otherwise allocate a new visible console.
 			windowsHide: true,
 		});
-		logSpawnedProcess({
+		createConnectorLogger(io, {
+			runtime: "cli",
 			component: options?.component ?? "connectors",
-			command: [command.launcher, ...command.childArgs],
+		}).core.log("Process spawned", {
+			command: [command.launcher, ...command.childArgs].join(" "),
+			commandArgs: command.childArgs,
+			executable: command.launcher,
 			childPid: child.pid ?? undefined,
 			cwd: process.cwd(),
 			detached: true,
-			metadata: {
-				childEnvKey,
-				purpose: "connector.detached",
-				logPath: options?.logPath,
-				...options?.metadata,
-			},
+			childEnvKey,
+			purpose: "connector.detached",
+			logPath: options?.logPath,
+			...options?.metadata,
 		});
 		child.unref();
 		return child.pid ?? 0;
 	} catch (error) {
 		try {
-			const logger = createCliLoggerAdapter({
+			const logger = createConnectorLogger(io, {
 				runtime: "cli",
 				component: options?.component ?? "connectors",
 			});

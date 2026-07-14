@@ -1,11 +1,12 @@
+import { resolveAndLoadAgentPlugins } from "@cline/core";
 import {
 	type AgentExtensionCommand,
 	type AgentExtensionCommandResult,
+	type AgentTool,
 	type BasicLogger,
 	createContributionRegistry,
-	resolveAndLoadAgentPlugins,
-} from "@cline/core";
-import type { AgentTool, Message } from "@cline/shared";
+	type Message,
+} from "@cline/shared";
 import {
 	type ChatCommandDefinition,
 	type ChatCommandHost,

@@ -2,6 +2,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
+	type ActiveConnectorRecord,
+	isProcessRunning,
+	listActiveConnectors,
+} from "@cline/cline-hub/connectors";
+import {
 	clearHubDiscovery,
 	ensureFileExists,
 	probeHubServer,
@@ -14,11 +19,6 @@ import {
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
-import { isProcessRunning } from "../connectors/common";
-import {
-	type ActiveConnectorRecord,
-	listActiveConnectors,
-} from "../connectors/status";
 import { getCliBuildInfo } from "../utils/common";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";

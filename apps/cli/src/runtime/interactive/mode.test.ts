@@ -1,7 +1,7 @@
+import { resolveSystemPrompt } from "@cline/cline-hub/connectors";
 import { createTool } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
-import { resolveSystemPrompt } from "../prompt";
 import {
 	ACT_MODE_CONTINUATION_PROMPT,
 	type AppliedModeChange,
@@ -12,7 +12,7 @@ import {
 	sendTurnWithActModeContinuation,
 } from "./mode";
 
-vi.mock("../prompt", () => ({
+vi.mock("@cline/cline-hub/connectors", () => ({
 	resolveSystemPrompt: vi.fn(async (input: { mode?: string }) => {
 		return `system prompt for ${input.mode ?? "unknown"}`;
 	}),

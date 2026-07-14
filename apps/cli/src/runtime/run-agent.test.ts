@@ -105,7 +105,7 @@ vi.mock("./interactive-welcome", () => ({
 	resolveClineWelcomeLine: vi.fn(async () => undefined),
 }));
 
-vi.mock("./prompt", () => ({
+vi.mock("@cline/cline-hub/connectors", () => ({
 	buildUserInputMessage: vi.fn(async () => ({
 		prompt: "prompt",
 		userImages: [],

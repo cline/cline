@@ -1,6 +1,7 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
+import { resolveWorkspaceRoot } from "@cline/cline-hub/connectors";
 import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
@@ -27,7 +28,6 @@ import {
 import {
 	configureSandboxEnvironment,
 	normalizeAutoApproveArgs,
-	resolveWorkspaceRoot,
 } from "./utils/helpers";
 import {
 	c,
@@ -72,7 +72,7 @@ async function createProviderSettingsManager() {
 async function loadCliRuntimeModules() {
 	const [coreServer, prompt, runAgentModule] = await Promise.all([
 		import("@cline/core"),
-		import("./runtime/prompt"),
+		import("@cline/cline-hub/connectors"),
 		import("./runtime/run-agent"),
 	]);
 	return {
