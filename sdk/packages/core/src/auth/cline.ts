@@ -78,10 +78,9 @@ type HeaderInput = HeaderMap | (() => Promise<HeaderMap> | HeaderMap);
 
 type AuthTokenTelemetryClaims = {
 	session_id?: string;
-	user_id?: string;
 };
 
-type AuthMetadataTelemetryProperties = {
+type AuthCredentialTelemetryProperties = {
 	session_started_at?: number;
 };
 
@@ -197,26 +196,24 @@ function getAuthTokenTelemetryClaims(token: string): AuthTokenTelemetryClaims {
 
 	return {
 		session_id: asNonEmptyString(payload.sid),
-		user_id: asNonEmptyString(payload.sub),
 	};
 }
 
-function getAuthMetadataTelemetryProperties(
-	metadata: ClineOAuthCredentials["metadata"],
-): AuthMetadataTelemetryProperties {
-	const authMetadata: AuthMetadataTelemetryProperties = {};
-
-	const sessionStartedAt = metadata?.sessionStartedAt;
+function getAuthCredentialTelemetryProperties(
+	credentials: ClineOAuthCredentials,
+): AuthCredentialTelemetryProperties {
+	const authProperties: AuthCredentialTelemetryProperties = {};
+	const sessionStartedAt = credentials.metadata?.sessionStartedAt;
 
 	if (
 		typeof sessionStartedAt === "number" &&
 		Number.isFinite(sessionStartedAt) &&
 		sessionStartedAt > 0
 	) {
-		authMetadata.session_started_at = sessionStartedAt;
+		authProperties.session_started_at = sessionStartedAt;
 	}
 
-	return authMetadata;
+	return authProperties;
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -764,16 +761,15 @@ export async function getValidClineCredentials(
 		const authTokenTelemetryClaims = getAuthTokenTelemetryClaims(
 			currentCredentials.access,
 		);
-		const authMetadataTelemetryProperties = getAuthMetadataTelemetryProperties(
-			currentCredentials.metadata,
-		);
+		const authCredentialTelemetryProperties =
+			getAuthCredentialTelemetryProperties(currentCredentials);
 		const failureDetails = {
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
 			errorName: error instanceof Error ? error.name : undefined,
 			...authTokenTelemetryClaims,
-			...authMetadataTelemetryProperties,
+			...authCredentialTelemetryProperties,
 		};
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
 			sdkDebug(
@@ -787,7 +783,7 @@ export async function getValidClineCredentials(
 					status: error.status,
 					errorCode: error.errorCode,
 					...authTokenTelemetryClaims,
-					...authMetadataTelemetryProperties,
+					...authCredentialTelemetryProperties,
 				},
 			);
 			return null;
@@ -800,7 +796,7 @@ export async function getValidClineCredentials(
 			captureAuthRefreshSoftFailure(
 				providerOptions.telemetry,
 				providerOptions.provider ?? "cline",
-				{ ...failureDetails, tokenExpired: false, ...authTokenTelemetryClaims },
+				{ ...failureDetails, tokenExpired: false },
 			);
 			return currentCredentials;
 		}
@@ -817,7 +813,7 @@ export async function getValidClineCredentials(
 		captureAuthRefreshSoftFailure(
 			providerOptions.telemetry,
 			providerOptions.provider ?? "cline",
-			{ ...failureDetails, tokenExpired: true, ...authTokenTelemetryClaims },
+			{ ...failureDetails, tokenExpired: true },
 		);
 		throw error;
 	}

@@ -136,6 +136,7 @@ describe("auth/cline getValidClineCredentials", () => {
 		const current = createCredentials({
 			access: createJwt({ sid: "sid-1", sub: "user-1" }),
 			expires: 101_000,
+			accountId: "cline-user-1",
 			metadata: { provider: "google", sessionStartedAt: 12_345 },
 		});
 		globalThis.fetch = vi.fn(
@@ -166,7 +167,7 @@ describe("auth/cline getValidClineCredentials", () => {
 					status: 401,
 					errorCode: "invalid_grant",
 					session_id: "sid-1",
-					user_id: "user-1",
+					user_id: "cline-user-1",
 					session_started_at: 12_345,
 				}),
 			}),
@@ -179,7 +180,18 @@ describe("auth/cline getValidClineCredentials", () => {
 		const current = createCredentials({
 			access: createJwt({ sid: "sid-2", sub: "user-2" }),
 			expires: 150_000,
-			metadata: { provider: "google", sessionStartedAt: 67_890 },
+			accountId: undefined,
+			metadata: {
+				provider: "google",
+				sessionStartedAt: 67_890,
+				userInfo: {
+					subject: "subject-2",
+					email: "user@example.com",
+					name: "User",
+					clineUserId: "cline-user-2",
+					accounts: [],
+				},
+			},
 		});
 		globalThis.fetch = vi.fn(
 			async () =>
@@ -212,7 +224,7 @@ describe("auth/cline getValidClineCredentials", () => {
 					status: 500,
 					tokenExpired: false,
 					session_id: "sid-2",
-					user_id: "user-2",
+					user_id: "cline-user-2",
 					session_started_at: 67_890,
 				}),
 			}),
