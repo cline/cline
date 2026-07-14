@@ -87,6 +87,99 @@ async function expectPng(cell: Locator): Promise<void> {
 	expect(source?.length ?? 0).toBeGreaterThan(1_000)
 }
 
+interface BookModuleRuntimeContract {
+	id: string
+	title: string
+	stateCellId: string
+	stateOutput: (string | RegExp)[]
+	plotCellId: string
+	errorCellId: string
+	errorOutput: (string | RegExp)[]
+	recoveryCellId: string
+	recoveryOutput: (string | RegExp)[]
+}
+
+const BOOK_MODULES: readonly BookModuleRuntimeContract[] = [
+	{
+		id: "hmfp.water-balance.01",
+		title: "Close a Watershed Water Balance",
+		stateCellId: "hmfp.water-balance.01.state-create",
+		stateOutput: ["ending_storage=109.0 mm", "109"],
+		plotCellId: "hmfp.water-balance.01.state-read-plot",
+		errorCellId: "hmfp.water-balance.01.intentional-error",
+		errorOutput: ["intentional unit-mismatch diagnostic"],
+		recoveryCellId: "hmfp.water-balance.01.error-recovery",
+		recoveryOutput: ["recovered_after_error=True"],
+	},
+	{
+		id: "hmfp.depth-volume-discharge.02",
+		title: "Convert Depth, Volume, and Discharge",
+		stateCellId: "hmfp.depth-volume-discharge.02.state-create",
+		stateOutput: ["volume=36000 m^3", "interval_mean_discharge=2.000 m^3/s", "recovered_depth=3.600 mm"],
+		plotCellId: "hmfp.depth-volume-discharge.02.state-read-plot",
+		errorCellId: "hmfp.depth-volume-discharge.02.intentional-error",
+		errorOutput: ["intentional duration-unit diagnostic"],
+		recoveryCellId: "hmfp.depth-volume-discharge.02.error-recovery",
+		recoveryOutput: ["recovered_after_error=True", "interval_mean_discharge=2.000 m^3/s"],
+	},
+	{
+		id: "hmfp.unit-hydrograph-convolution.03",
+		title: "Build and Convolve a Unit Hydrograph",
+		stateCellId: "hmfp.unit-hydrograph-convolution.03.state-create",
+		stateOutput: [
+			"unit_hydrograph=0.6944, 1.3889, 0.6944",
+			"direct_runoff=1.3889, 3.4722, 2.7778, 0.6944",
+			"expected_volume=30000 m^3",
+			"routed_volume=30000 m^3",
+		],
+		plotCellId: "hmfp.unit-hydrograph-convolution.03.state-read-plot",
+		errorCellId: "hmfp.unit-hydrograph-convolution.03.intentional-error",
+		errorOutput: ["intentional convolution-tail diagnostic", "loses 2500 m^3"],
+		recoveryCellId: "hmfp.unit-hydrograph-convolution.03.error-recovery",
+		recoveryOutput: ["recovered_after_error=True", "causal_delayed_response=True", "volume_alone_detects_early_shift=False"],
+	},
+] as const
+
+const expectedModuleIndex = BOOK_MODULES.findIndex(({ id }) => id === expectedBookModuleId)
+if (expectedModuleIndex < 0) {
+	throw new Error(`No real-panel contract is registered for ${expectedBookModuleId}`)
+}
+
+async function completeCurrentAndOpenNext(page: Page, nextTitle: string): Promise<void> {
+	const shell = await waitForCourseShell(page)
+	const complete = shell.getByTitle("Mark complete & continue to next module")
+	await expect(complete).toBeVisible({ timeout: 30_000 })
+	await complete.evaluate((element: HTMLElement) => element.click())
+	const next = shell.getByTitle(`Next: ${nextTitle}`)
+	await expect(next).toBeEnabled({ timeout: 30_000 })
+	await next.evaluate((element: HTMLElement) => element.click())
+}
+
+async function executeBookModule(
+	page: Page,
+	contract: BookModuleRuntimeContract,
+): Promise<{ artifact: Frame; plotCell: Locator }> {
+	const artifact = await waitForCellFrame(page, contract.stateCellId)
+	const stateOutput = await runCell(artifact, contract.stateCellId)
+	for (const expected of contract.stateOutput) {
+		await expect(stateOutput).toContainText(expected, { timeout: 60_000 })
+	}
+
+	await runCell(artifact, contract.plotCellId)
+	const plotCell = artifact.locator(`[data-aihydro-cell-id="${contract.plotCellId}"]`)
+	await expectPng(plotCell)
+
+	const errorOutput = await runCell(artifact, contract.errorCellId)
+	for (const expected of contract.errorOutput) {
+		await expect(errorOutput).toContainText(expected, { timeout: 30_000 })
+	}
+	const recoveryOutput = await runCell(artifact, contract.recoveryCellId)
+	for (const expected of contract.recoveryOutput) {
+		await expect(recoveryOutput).toContainText(expected, { timeout: 30_000 })
+	}
+	return { artifact, plotCell }
+}
+
 artifactIntegrationE2E(
 	"installs a pinned book artifact and executes its authored runtime contract @phase1-cross-repo",
 	async ({ page, workspaceDir }) => {
@@ -125,66 +218,25 @@ artifactIntegrationE2E(
 		const commandResult = (await response!.json()) as { result?: { status?: string } }
 		expect(commandResult.result?.status).toBe("installed")
 
-		let shell = await waitForCourseShell(page)
-		await expect(shell.getByTitle("Course options")).toBeVisible({ timeout: 30_000 })
-		const completeOrientation = shell.getByTitle("Mark complete & continue to next module")
-		await expect(completeOrientation).toBeVisible({ timeout: 30_000 })
-		await completeOrientation.evaluate((element: HTMLElement) => element.click())
-		const nextModule = shell.getByTitle("Next: Close a Watershed Water Balance")
-		await expect(nextModule).toBeEnabled({ timeout: 30_000 })
-		await nextModule.evaluate((element: HTMLElement) => element.click())
+		for (const [index, contract] of BOOK_MODULES.slice(0, expectedModuleIndex + 1).entries()) {
+			await completeCurrentAndOpenNext(page, contract.title)
+			const { artifact, plotCell } = await executeBookModule(page, contract)
+			if (index === 0) {
+				const shell = await waitForCourseShell(page)
+				await shell.getByTitle("More actions").evaluate((element: HTMLElement) => element.click())
+				const restart = shell.locator('[role="menu"] button').filter({ hasText: "Restart kernel" })
+				await expect(restart).toBeVisible()
+				await restart.evaluate((element: HTMLElement) => element.click())
+				const clearedOutput = await runCell(artifact, contract.plotCellId)
+				await expect(clearedOutput).toContainText(/residual|not defined/, { timeout: 30_000 })
 
-		const artifact = await waitForCellFrame(page, "hmfp.water-balance.01.state-create")
-		const stateOutput = await runCell(artifact, "hmfp.water-balance.01.state-create")
-		await expect(stateOutput).toContainText("ending_storage=109.0 mm", { timeout: 60_000 })
-		await expect(stateOutput).toContainText("109")
-
-		await runCell(artifact, "hmfp.water-balance.01.state-read-plot")
-		const plotCell = artifact.locator('[data-aihydro-cell-id="hmfp.water-balance.01.state-read-plot"]')
-		await expectPng(plotCell)
-
-		const errorOutput = await runCell(artifact, "hmfp.water-balance.01.intentional-error")
-		await expect(errorOutput).toContainText("intentional unit-mismatch diagnostic", { timeout: 30_000 })
-		const recoveryOutput = await runCell(artifact, "hmfp.water-balance.01.error-recovery")
-		await expect(recoveryOutput).toContainText("recovered_after_error=True", { timeout: 30_000 })
-
-		shell = await waitForCourseShell(page)
-		await shell.getByTitle("More actions").evaluate((element: HTMLElement) => element.click())
-		const restart = shell.locator('[role="menu"] button').filter({ hasText: "Restart kernel" })
-		await expect(restart).toBeVisible()
-		await restart.evaluate((element: HTMLElement) => element.click())
-		const clearedOutput = await runCell(artifact, "hmfp.water-balance.01.state-read-plot")
-		await expect(clearedOutput).toContainText(/residual|not defined/, { timeout: 30_000 })
-
-		await runCell(artifact, "hmfp.water-balance.01.state-create")
-		await runCell(artifact, "hmfp.water-balance.01.state-read-plot")
-		await expectPng(plotCell)
-
-		if (expectedBookModuleId === "hmfp.water-balance.01") return
-		expect(expectedBookModuleId).toBe("hmfp.depth-volume-discharge.02")
-
-		shell = await waitForCourseShell(page)
-		const completeWaterBalance = shell.getByTitle("Mark complete & continue to next module")
-		await expect(completeWaterBalance).toBeVisible({ timeout: 30_000 })
-		await completeWaterBalance.evaluate((element: HTMLElement) => element.click())
-		const nextConversion = shell.getByTitle("Next: Convert Depth, Volume, and Discharge")
-		await expect(nextConversion).toBeEnabled({ timeout: 30_000 })
-		await nextConversion.evaluate((element: HTMLElement) => element.click())
-
-		const conversion = await waitForCellFrame(page, "hmfp.depth-volume-discharge.02.state-create")
-		const conversionOutput = await runCell(conversion, "hmfp.depth-volume-discharge.02.state-create")
-		await expect(conversionOutput).toContainText("volume=36000 m^3", { timeout: 60_000 })
-		await expect(conversionOutput).toContainText("interval_mean_discharge=2.000 m^3/s")
-		await expect(conversionOutput).toContainText("recovered_depth=3.600 mm")
-
-		await runCell(conversion, "hmfp.depth-volume-discharge.02.state-read-plot")
-		const conversionPlot = conversion.locator('[data-aihydro-cell-id="hmfp.depth-volume-discharge.02.state-read-plot"]')
-		await expectPng(conversionPlot)
-
-		const conversionError = await runCell(conversion, "hmfp.depth-volume-discharge.02.intentional-error")
-		await expect(conversionError).toContainText("intentional duration-unit diagnostic", { timeout: 30_000 })
-		const conversionRecovery = await runCell(conversion, "hmfp.depth-volume-discharge.02.error-recovery")
-		await expect(conversionRecovery).toContainText("recovered_after_error=True", { timeout: 30_000 })
-		await expect(conversionRecovery).toContainText("interval_mean_discharge=2.000 m^3/s")
+				const recreatedOutput = await runCell(artifact, contract.stateCellId)
+				for (const expected of contract.stateOutput) {
+					await expect(recreatedOutput).toContainText(expected, { timeout: 60_000 })
+				}
+				await runCell(artifact, contract.plotCellId)
+				await expectPng(plotCell)
+			}
+		}
 	},
 )
