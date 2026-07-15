@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../../fixtures/usage.json";
-import { normalizeUsage } from "./ai-sdk";
+import { normalizeUsage, toAiSdkMessages } from "./ai-sdk";
 
 /**
  * These tests validate usage normalization across different AI SDK stream result shapes.
@@ -126,6 +126,49 @@ const testCases = [
 		},
 	},
 ];
+
+describe("toAiSdkMessages", () => {
+	it("preserves OpenAI Responses reasoning metadata alongside tool calls", () => {
+		const messages = toAiSdkMessages([
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "plan",
+						metadata: {
+							openai: {
+								itemId: "rs_reasoning",
+								reasoningEncryptedContent: "encrypted",
+							},
+						},
+					},
+					{
+						type: "tool-call",
+						toolCallId: "fc_call",
+						toolName: "read_files",
+						input: { path: "/tmp/file" },
+					},
+				],
+			},
+		]);
+
+		expect(messages[0]).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "reasoning",
+					providerOptions: {
+						openai: {
+							itemId: "rs_reasoning",
+							reasoningEncryptedContent: "encrypted",
+						},
+					},
+				},
+			],
+		});
+	});
+});
 
 describe("ai-sdk usage normalization", () => {
 	describe.each(testCases)("$provider", ({
