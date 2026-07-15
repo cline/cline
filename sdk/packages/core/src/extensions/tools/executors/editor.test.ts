@@ -241,6 +241,25 @@ describe("createEditorExecutor", () => {
 		});
 	});
 
+	it("inserts $-sequences in new_text literally", async () => {
+		await withTempFile("a\nb\nc", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			await editor(
+				{
+					path: filePath,
+					old_text: "b",
+					new_text: "cost=$100 pid=$$ match=$& rest=$'",
+				},
+				dir,
+				context,
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"a\ncost=$100 pid=$$ match=$& rest=$'\nc",
+			);
+		});
+	});
+
 	it("rejects insert_line 0 with the valid one-based boundary range", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
 		const filePath = path.join(dir, "example.txt");

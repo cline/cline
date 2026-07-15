@@ -65,10 +65,12 @@ function countOccurrences(content: string, needle: string): number {
 }
 
 /**
- * Dominant end-of-line sequence of the file. Reads produced via readline strip
- * "\r", so models emit LF-only text even for CRLF files; edits must be
- * normalized to the file's own EOL or they create mixed line endings and
- * break subsequent exact-match replacements.
+ * Returns "\r\n" if the content contains any CRLF sequence, otherwise "\n".
+ * A presence check rather than a majority vote: in practice files are
+ * uniformly CRLF or uniformly LF, and the first occurrence is sufficient.
+ * Reads produced via readline strip "\r", so models emit LF-only text even
+ * for CRLF files; edits must be normalized to the file's own EOL or they
+ * create mixed line endings and break subsequent exact-match replacements.
  */
 function detectLineEnding(content: string): "\r\n" | "\n" {
 	return content.includes("\r\n") ? "\r\n" : "\n";
@@ -184,7 +186,9 @@ async function replaceInFile(
 		);
 	}
 
-	const updated = content.replace(normalizedOldStr, normalizedNewStr);
+	// Replacer function so "$"-sequences in new_text ($&, $', $`, $$, $n)
+	// are inserted literally instead of being expanded by String.replace.
+	const updated = content.replace(normalizedOldStr, () => normalizedNewStr);
 	await fs.writeFile(filePath, updated, { encoding });
 
 	const diff = createLineDiff(content, updated, maxDiffLines);
