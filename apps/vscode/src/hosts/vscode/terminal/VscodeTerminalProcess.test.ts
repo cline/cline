@@ -694,4 +694,22 @@ describe("TerminalProcess (Integration Tests)", () => {
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 3 continued").should.be.true()
 		processAny.buffer.should.equal("")
 	})
+
+	it("detach emits continue but keeps line listeners attached and listening", () => {
+		const processAny = process as any
+		const continueEvents: number[] = []
+		const lines: string[] = []
+		process.on("continue", () => continueEvents.push(1))
+		process.on("line", (line) => lines.push(line))
+
+		process.detach()
+		continueEvents.length.should.equal(1)
+
+		// Unlike continue(), detach must not stop listening or drop 'line'
+		// listeners: output after detach still reaches subscribers (this is
+		// what streams the rest of a detached command to the log file).
+		processAny.isListening.should.be.true()
+		processAny.emitIfEol("after detach\n")
+		lines.should.containEql("after detach")
+	})
 })

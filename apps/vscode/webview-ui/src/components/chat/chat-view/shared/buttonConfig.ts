@@ -8,6 +8,7 @@ export type ButtonActionType =
 	| "approve" // Send yesButtonClicked
 	| "reject" // Send noButtonClicked
 	| "proceed" // Send messageResponse or yesButtonClicked
+	| "proceed_while_running" // Detach the running foreground terminal command
 	| "new_task" // Start a new task
 	| "cancel" // Cancel streaming
 	| "utility" // Execute utility function (condense, report_bug)
@@ -188,6 +189,17 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		secondaryAction: "cancel",
 	},
 
+	// A foreground terminal command is running (SDK path): the user can detach
+	// it and let the agent proceed with the partial output, or cancel the task.
+	foreground_command_running: {
+		sendingDisabled: true,
+		enableButtons: true,
+		primaryText: "Proceed While Running",
+		secondaryText: "Cancel",
+		primaryAction: "proceed_while_running",
+		secondaryAction: "cancel",
+	},
+
 	// Default states
 	default: {
 		sendingDisabled: false,
@@ -360,12 +372,19 @@ export function getButtonConfigForMessages(messages: ClineMessage[], mode: Mode 
  * The button SET is chosen by phase; the LABEL/variant for approvals (Save vs Approve, command
  * vs tool vs MCP vs subagents) comes from the anchored message (turnState.anchorTs).
  */
-export function buttonsForPhase(turnState: TurnState, anchoredMessage: ClineMessage | undefined): ButtonConfig {
+export function buttonsForPhase(
+	turnState: TurnState,
+	anchoredMessage: ClineMessage | undefined,
+	foregroundCommandRunning = false,
+): ButtonConfig {
 	switch (turnState.phase) {
 		case "idle":
 			return BUTTON_CONFIGS.default
 		case "streaming":
-			return BUTTON_CONFIGS.partial
+			// A running foreground terminal command offers "Proceed While Running":
+			// detach the command (output continues to a log file) and let the
+			// agent continue with the partial output.
+			return foregroundCommandRunning ? BUTTON_CONFIGS.foreground_command_running : BUTTON_CONFIGS.partial
 		case "completed":
 			return BUTTON_CONFIGS.completion_result
 		case "resumable":
@@ -398,10 +417,11 @@ export function getButtonConfigFromState(
 	messages: ClineMessage[],
 	turnState: TurnState | undefined,
 	mode: Mode = "act",
+	foregroundCommandRunning = false,
 ): ButtonConfig {
 	if (turnState) {
 		const anchored = turnState.anchorTs !== undefined ? messages.find((m) => m.ts === turnState.anchorTs) : undefined
-		return buttonsForPhase(turnState, anchored)
+		return buttonsForPhase(turnState, anchored, foregroundCommandRunning)
 	}
 	return getButtonConfigForMessages(messages, mode)
 }

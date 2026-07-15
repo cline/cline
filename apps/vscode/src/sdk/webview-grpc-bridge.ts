@@ -124,6 +124,7 @@ export class WebviewGrpcBridge {
 					stateManager,
 					mcpHub: undefined,
 					backgroundCommandRunning: false,
+					foregroundCommandRunning: false,
 					backgroundCommandTaskId: undefined,
 				})
 				await sendStateUpdate(state)

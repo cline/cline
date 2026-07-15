@@ -1,9 +1,21 @@
 import { CommandExitError } from "@cline/core"
 import { EventEmitter } from "events"
-import { describe, expect, it } from "vitest"
-import type { TerminalCompletionDetails } from "@/integrations/terminal/types"
+import * as fs from "fs"
+import { describe, expect, it, vi } from "vitest"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import type { TerminalCompletionDetails } from "@/integrations/terminal/types"
+import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { executeForeground, formatCommandForTerminal } from "./vscode-run-commands-tool"
+
+// The real telemetry proxy lazily initializes TelemetryService, which requires
+// a HostProvider that unit tests don't set up.
+vi.mock("@services/telemetry", () => ({
+	TerminalUserInterventionAction: { PROCESS_WHILE_RUNNING: "process_while_running" },
+	telemetryService: {
+		captureTerminalUserIntervention: () => {},
+		captureTerminalExecution: () => {},
+	},
+}))
 
 /**
  * Minimal fake of the process object returned by VscodeTerminalManager.runCommand():
@@ -40,6 +52,50 @@ function createFakeTerminalManager(process: ReturnType<VscodeTerminalManager["ru
 		getOrCreateTerminal: async () => ({ terminal: { show: () => {} } }) as never,
 		runCommand: () => process,
 	} as unknown as VscodeTerminalManager
+}
+
+/**
+ * A controllable fake terminal process for detach tests: the caller decides
+ * when lines are emitted and when the command completes. Mirrors the real
+ * VscodeTerminalProcess contract: detach() resolves the awaited promise while
+ * 'line'/'completed' events keep flowing.
+ */
+function createControllableTerminalProcess() {
+	const emitter = new EventEmitter()
+	let resolvePromise!: () => void
+	const promise = new Promise<void>((resolve) => {
+		resolvePromise = resolve
+	})
+	const fakeProcess = Object.assign(emitter, {
+		then: promise.then.bind(promise),
+		catch: promise.catch.bind(promise),
+		finally: promise.finally.bind(promise),
+		getCompletionDetails: () => ({}),
+		detach: () => {
+			emitter.emit("continue")
+			resolvePromise()
+		},
+	})
+	return {
+		process: fakeProcess as unknown as ReturnType<VscodeTerminalManager["runCommand"]>,
+		emitLine: (line: string) => emitter.emit("line", line),
+		complete: (details?: TerminalCompletionDetails) => {
+			emitter.emit("completed", details)
+			emitter.emit("continue")
+			resolvePromise()
+		},
+	}
+}
+
+/** Poll until the predicate holds, for asserting on async log-file writes. */
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+	const start = Date.now()
+	while (!predicate()) {
+		if (Date.now() - start > timeoutMs) {
+			throw new Error("waitFor timed out")
+		}
+		await new Promise((resolve) => setTimeout(resolve, 10))
+	}
 }
 
 describe("formatCommandForTerminal", () => {
@@ -171,5 +227,109 @@ describe("executeForeground", () => {
 			expect(error).toBeInstanceOf(CommandExitError)
 			expect((error as InstanceType<typeof CommandExitError>).output).toContain("Terminal closed")
 		}
+	})
+
+	it("unregisters its foreground handle when the command completes normally", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const terminalManager = createFakeTerminalManager(createFakeTerminalProcess({ lines: ["hello"] }))
+
+		const result = await executeForeground("echo hello", "/workspace", terminalManager, 1000, undefined, coordinator)
+
+		expect(result).toBe("hello")
+		expect(coordinator.isRunning).toBe(false)
+	})
+})
+
+describe("executeForeground — Proceed While Running", () => {
+	it("detach returns the partial output with the log file path, and later output lands in the log", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		const terminalManager = createFakeTerminalManager(process)
+
+		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
+
+		await waitFor(() => coordinator.isRunning)
+		emitLine("listening on :3000")
+
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		const result = await resultPromise
+
+		expect(result).toContain("still running")
+		expect(result).toContain("listening on :3000")
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+
+		// The handle is unregistered once the tool call returns.
+		expect(coordinator.isRunning).toBe(false)
+
+		// Output emitted after detach is appended to the log file, and
+		// completion closes it out with a completion marker.
+		emitLine("compiled successfully")
+		complete({ exitCode: 0 })
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed with exit code 0]")
+			} catch {
+				return false
+			}
+		})
+		const log = fs.readFileSync(logFilePath!, "utf8")
+		expect(log).toContain("listening on :3000") // buffered lines flushed at detach
+		expect(log).toContain("compiled successfully") // streamed after detach
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
+	it("detaches each parallel command into its own log file", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const first = createControllableTerminalProcess()
+		const second = createControllableTerminalProcess()
+
+		const firstPromise = executeForeground(
+			"first-cmd",
+			"/workspace",
+			createFakeTerminalManager(first.process),
+			100_000,
+			undefined,
+			coordinator,
+		)
+		const secondPromise = executeForeground(
+			"second-cmd",
+			"/workspace",
+			createFakeTerminalManager(second.process),
+			100_000,
+			undefined,
+			coordinator,
+		)
+
+		await waitFor(() => coordinator.isRunning)
+		first.emitLine("first output")
+		second.emitLine("second output")
+
+		expect(coordinator.proceedWhileRunning()).toBe(2)
+		const [firstResult, secondResult] = await Promise.all([firstPromise, secondPromise])
+
+		const firstLog = /redirected to this file[^:]*: (.+)$/m.exec(firstResult)?.[1]?.trim()
+		const secondLog = /redirected to this file[^:]*: (.+)$/m.exec(secondResult)?.[1]?.trim()
+		expect(firstLog).toBeTruthy()
+		expect(secondLog).toBeTruthy()
+		expect(firstLog).not.toBe(secondLog)
+		expect(coordinator.isRunning).toBe(false)
+
+		first.complete()
+		second.complete()
+		await waitFor(() => {
+			try {
+				return (
+					fs.readFileSync(firstLog!, "utf8").includes("[Command completed]") &&
+					fs.readFileSync(secondLog!, "utf8").includes("[Command completed]")
+				)
+			} catch {
+				return false
+			}
+		})
+		expect(fs.readFileSync(firstLog!, "utf8")).toContain("first output")
+		expect(fs.readFileSync(secondLog!, "utf8")).toContain("second output")
+		fs.rmSync(firstLog!, { force: true })
+		fs.rmSync(secondLog!, { force: true })
 	})
 })

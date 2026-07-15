@@ -63,9 +63,16 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	/**
 	 * Continue execution without waiting for completion.
 	 * Stops event emission and resolves the promise.
-	 * This is called when user clicks "Proceed While Running".
 	 */
 	continue(): void
+
+	/**
+	 * Resolve the awaited promise while the command keeps running ("Proceed
+	 * While Running"). Unlike continue(), output listeners stay attached and
+	 * 'line'/'completed' events keep flowing, so callers can stream the rest
+	 * of the output (e.g. to a log file) until the command completes.
+	 */
+	detach(): void
 
 	/**
 	 * Get output that hasn't been retrieved yet.
