@@ -41,6 +41,7 @@ function makeCallbacks(connection?: ReturnType<typeof makeConnection>): Reconnec
 const TEST_CONFIG: ReconnectConfig = {
 	maxAttempts: 3,
 	getDelayMs: (attempt) => 100 * 2 ** attempt, // 100, 200, 400
+	stabilityWindowMs: 30_000,
 }
 
 describe("StreamableHttpReconnectHandler", () => {
@@ -58,6 +59,7 @@ describe("StreamableHttpReconnectHandler", () => {
 
 	it("should export sensible defaults", () => {
 		DEFAULT_RECONNECT_CONFIG.maxAttempts.should.equal(6)
+		DEFAULT_RECONNECT_CONFIG.stabilityWindowMs.should.equal(30_000)
 		DEFAULT_RECONNECT_CONFIG.getDelayMs(0).should.equal(2000)
 		DEFAULT_RECONNECT_CONFIG.getDelayMs(1).should.equal(4000)
 		DEFAULT_RECONNECT_CONFIG.getDelayMs(2).should.equal(8000)
@@ -115,6 +117,24 @@ describe("StreamableHttpReconnectHandler", () => {
 		handler.attemptCount.should.equal(0)
 		// Status was set to "connecting" during the attempt
 		cbs.stubs.notifyWebviewOfServerChanges.called.should.be.true()
+	})
+
+	it("should preserve the retry budget across transport replacement", async () => {
+		const state = { attempts: 0 }
+		const firstCallbacks = makeCallbacks()
+		const firstHandler = new StreamableHttpReconnectHandler("test-server", firstCallbacks, TEST_CONFIG, state)
+
+		await firstHandler.handleError(new Error("first connection lost"))
+
+		state.attempts.should.equal(1)
+		const secondCallbacks = makeCallbacks()
+		const secondHandler = new StreamableHttpReconnectHandler("test-server", secondCallbacks, TEST_CONFIG, state)
+
+		await secondHandler.handleError(new Error("fast flap"))
+
+		state.attempts.should.equal(2)
+		secondCallbacks.stubs.connectToServer.calledOnce.should.be.true()
+		secondHandler.resetAttempts()
 	})
 
 	it("should use the configured delay for each attempt", async () => {
@@ -201,7 +221,7 @@ describe("StreamableHttpReconnectHandler", () => {
 	it("should exhaust retries when called with attempts already at max", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
-		const config: ReconnectConfig = { maxAttempts: 0, getDelayMs: () => 0 }
+		const config: ReconnectConfig = { maxAttempts: 0, getDelayMs: () => 0, stabilityWindowMs: 30_000 }
 		const handler = new StreamableHttpReconnectHandler("test-server", cbs, config)
 
 		await handler.handleError(new Error("final error"))
@@ -290,7 +310,7 @@ describe("StreamableHttpReconnectHandler", () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
 		cbs.stubs.connectToServer.rejects(new Error("fail"))
-		const config: ReconnectConfig = { maxAttempts: 0, getDelayMs: () => 0 }
+		const config: ReconnectConfig = { maxAttempts: 0, getDelayMs: () => 0, stabilityWindowMs: 30_000 }
 		const handler = new StreamableHttpReconnectHandler("test-server", cbs, config)
 
 		// Pass a plain string as the error

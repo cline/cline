@@ -44,9 +44,9 @@ import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
-import { updateMcpSettingsFile } from "./settingsLock"
-import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
+import { type ReconnectState, StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { updateMcpSettingsFile } from "./settingsLock"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -54,6 +54,7 @@ export class McpHub {
 	private clientVersion: string
 	private telemetryService: TelemetryService
 	private mcpOAuthManager: McpOAuthManager
+	private streamableHttpReconnectStates = new Map<string, ReconnectState>()
 
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
@@ -604,15 +605,22 @@ export class McpHub {
 						fetch: streamableHttpFetch,
 					})
 
-					const reconnectHandler = new StreamableHttpReconnectHandler(name, {
-						findConnection: () => this.findConnection(name, source),
-						deleteConnection: () => this.deleteConnection(name),
-						connectToServer: () => this.connectToServer(name, config, source),
-						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
-						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
-						deleteServerKey: (uid) => McpHub.mcpServerKeys.delete(uid),
-						delay: (ms) => setTimeoutPromise(ms),
-					})
+					const reconnectState = this.streamableHttpReconnectStates.get(name) ?? { attempts: 0 }
+					this.streamableHttpReconnectStates.set(name, reconnectState)
+					const reconnectHandler = new StreamableHttpReconnectHandler(
+						name,
+						{
+							findConnection: () => this.findConnection(name, source),
+							deleteConnection: () => this.deleteConnection(name),
+							connectToServer: () => this.connectToServer(name, config, source),
+							notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
+							appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
+							deleteServerKey: (uid) => McpHub.mcpServerKeys.delete(uid),
+							delay: (ms) => setTimeoutPromise(ms),
+						},
+						undefined,
+						reconnectState,
+					)
 
 					transport.onerror = (error) => reconnectHandler.handleError(error)
 					break
