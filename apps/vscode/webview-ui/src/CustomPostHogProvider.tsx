@@ -4,6 +4,9 @@ import { PostHogProvider } from "posthog-js/react"
 import { type ReactNode, useEffect, useState } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
+const extensionVariant = process.env.CLINE_ROLLOUT_VARIANT
+const rolloutVersion = process.env.CLINE_ROLLOUT_VERSION
+
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	const { distinctId, version, userInfo, environment, telemetrySetting } = useExtensionState()
 
@@ -31,7 +34,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			autocapture: false,
 		})
 		setIsActive(true)
-	}, [isSelfHostedOrUnknown])
+	}, [isSelfHostedOrUnknown, isActive])
 
 	useEffect(() => {
 		if (!isActive || !distinctId || !version) {
@@ -48,6 +51,12 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 				if (payload?.properties) {
 					payload.properties.extension_version = version
 					payload.properties.distinct_id = distinctId
+					if (extensionVariant === "legacy" || extensionVariant === "next") {
+						payload.properties.extension_variant = extensionVariant
+						if (rolloutVersion) {
+							payload.properties.rollout_version = rolloutVersion
+						}
+					}
 				}
 				return payload
 			},
@@ -68,7 +77,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			// Then opt out of capturing other events
 			posthog.opt_out_capturing()
 		}
-	}, [isActive, isTelemetryEnabled, distinctId, version])
+	}, [isActive, isTelemetryEnabled, distinctId, version, userInfo?.email, userInfo?.displayName])
 
 	return <PostHogProvider client={posthog}>{children}</PostHogProvider>
 }

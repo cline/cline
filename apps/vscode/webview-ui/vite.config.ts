@@ -143,6 +143,12 @@ export default defineConfig(({ mode }) => {
 			"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(
 				env.ENABLE_ERROR_AUTOCAPTURE,
 			),
+			"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(
+				env.CLINE_ROLLOUT_VARIANT ?? "",
+			),
+			"process.env.CLINE_ROLLOUT_VERSION": JSON.stringify(
+				env.CLINE_ROLLOUT_VERSION ?? "",
+			),
 			// OpenTelemetry environment variables
 			"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(
 				env.OTEL_TELEMETRY_ENABLED,

@@ -3,6 +3,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
+import { attachRolloutTelemetryMetadata } from "@/services/telemetry/rollout-metadata"
 import { fetch } from "@/shared/net"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
@@ -33,7 +34,13 @@ export class PostHogErrorProvider implements IErrorProvider {
 			host: clientConfig.host,
 			fetch: (url, options) => fetch(url, options),
 			enableExceptionAutocapture: clientConfig.enableExceptionAutocapture,
-			before_send: (event) => PostHogClientProvider.eventFilter(event),
+			before_send: (event) => {
+				const filtered = PostHogClientProvider.eventFilter(event)
+				if (filtered) {
+					attachRolloutTelemetryMetadata(filtered)
+				}
+				return filtered
+			},
 		})
 		// Initialize error settings
 		this.errorSettings = {

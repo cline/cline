@@ -129,6 +129,7 @@ const buildEnvVars = {
 	// Always inline these values so ordinary builds cannot be mislabeled by a
 	// user's runtime environment. Only the combined rollout workflow sets them.
 	"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(process.env.CLINE_ROLLOUT_VARIANT || ""),
+	"process.env.CLINE_ROLLOUT_VERSION": JSON.stringify(process.env.CLINE_ROLLOUT_VERSION || ""),
 }
 
 if (production) {
