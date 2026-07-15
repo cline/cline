@@ -1,8 +1,8 @@
 import { CommandExitError } from "@cline/core"
 import { EventEmitter } from "events"
 import { describe, expect, it } from "vitest"
-import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { TerminalCompletionDetails } from "@/integrations/terminal/types"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { executeForeground, formatCommandForTerminal } from "./vscode-run-commands-tool"
 
 /**
