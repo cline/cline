@@ -4,6 +4,8 @@
 @import "tw-animate-css";
 @import "../styles/design-tokens.css";
 
+@source "../../node_modules/streamdown/dist";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -126,48 +128,46 @@
 }
 
 @layer components {
-	.markdown {
-		@apply leading-relaxed;
+	.cline-markdown {
+		@apply min-w-0 max-w-full text-sm leading-relaxed;
+		overflow-wrap: anywhere;
 	}
-	.markdown * {
-		@apply text-sm leading-relaxed;
+
+	.cline-markdown [data-streamdown="code-block"],
+	.cline-markdown [data-streamdown="table-wrapper"] {
+		@apply max-w-full;
 	}
-	.markdown + .markdown {
-		@apply mt-2;
+
+	.cline-markdown [data-streamdown="code-block"] {
+		@apply my-4 rounded-lg;
 	}
-	.markdown p {
-		@apply my-2 first:mt-0 last:mb-0;
+
+	.cline-markdown [data-streamdown="inline-code"] {
+		font-size: 0.9em;
 	}
-	.markdown a {
-		@apply underline;
+
+	.cline-markdown [data-streamdown="code-block"] pre,
+	.cline-markdown [data-streamdown="code-block"] code {
+		white-space: pre;
+		overflow-wrap: normal;
+		word-break: normal;
 	}
-	.markdown blockquote {
-		@apply border-l-2 border-border pl-3;
+
+	.cline-markdown [data-streamdown="table-wrapper"] {
+		@apply my-4 overflow-x-auto rounded-lg border border-border;
 	}
-	.markdown code {
-		@apply space-y-1 rounded bg-muted px-1 py-0.5;
+
+	.cline-markdown [data-streamdown="table"] {
+		@apply min-w-full;
 	}
-	.markdown h1 {
-		@apply text-lg font-bold;
+
+	.cline-markdown [data-streamdown="image"] {
+		background-color: white;
+		padding: 0.25rem;
 	}
-	.markdown h2,
-	.markdown h3 {
-		@apply text-lg font-semibold;
-	}
-	.markdown ul {
-		@apply list-disc space-y-1;
-	}
-	.markdown ol {
-		@apply list-decimal space-y-1;
-	}
-	.markdown li {
-		@apply ml-5;
-	}
-	.markdown pre {
-		@apply space-y-1 overflow-x-auto rounded bg-muted p-3;
-	}
-	.markdown div {
-		@apply space-y-1;
+
+	.cline-markdown [data-streamdown="blocked-image"] {
+		@apply my-2 inline-flex rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground;
 	}
 }
 

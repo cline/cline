@@ -35,7 +35,7 @@ import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
-import { normalizeTitle } from "../../utils";
+import { formatChatMessageContent } from "./message-content";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -106,6 +106,7 @@ function ChatMessagesImpl({
 	onForkSession,
 }: ChatMessagesProps) {
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+	const scrollContentRef = useRef<HTMLDivElement | null>(null);
 	const shouldStickToBottomRef = useRef(true);
 	const hasMessages = messages.length > 0;
 	const lastErrorMessage = [...messages]
@@ -200,6 +201,17 @@ function ChatMessagesImpl({
 			return;
 		}
 		scrollToBottom("auto");
+	}, [scrollToBottom]);
+
+	useEffect(() => {
+		const content = scrollContentRef.current;
+		if (!content || typeof ResizeObserver === "undefined") return;
+
+		const resizeObserver = new ResizeObserver(() => {
+			if (shouldStickToBottomRef.current) scrollToBottom("auto");
+		});
+		resizeObserver.observe(content);
+		return () => resizeObserver.disconnect();
 	}, [scrollToBottom]);
 
 	useEffect(() => {
@@ -372,12 +384,13 @@ function ChatMessagesImpl({
 			>
 				<div
 					className={cn(
-						"relative mx-auto h-full w-full min-w-0 max-w-full overflow-x-hidden",
+						"relative mx-auto min-h-full w-full min-w-0 max-w-full overflow-x-hidden",
 						showIdleDetails ? "p-0" : "px-6 py-6",
 					)}
+					ref={scrollContentRef}
 				>
 					{showIdleDetails ? null : (
-						<div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
+						<div className="flex min-h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -740,7 +753,10 @@ function MessageBubble({
 		return <ToolMessageBlock message={message} />;
 	}
 
-	const normalizedContent = normalizeTitle(message.content);
+	const displayContent = formatChatMessageContent(
+		message.role,
+		message.content,
+	);
 	const reasoningContent = message.reasoning?.trim() || "";
 
 	return (
@@ -753,7 +769,7 @@ function MessageBubble({
 			<div
 				className={cn(
 					"group max-w-full min-w-0 wrap-break-word text-sm",
-					isUser && "flex max-w-[50%] flex-col items-end gap-1",
+					isUser && "flex max-w-[85%] flex-col items-end gap-1 md:max-w-[50%]",
 					!isUser && "flex flex-col items-start gap-2 overflow-hidden",
 					!isUser && !isError && "text-foreground",
 					isError &&
@@ -766,35 +782,20 @@ function MessageBubble({
 						isUser && "rounded-sm bg-card p-2 text-foreground/80",
 					)}
 				>
-					{isStreaming && message.role === "assistant" ? (
-						<>
-							{reasoningContent || message.reasoningRedacted ? (
-								<ReasoningBlock
-									content={reasoningContent}
-									redacted={message.reasoningRedacted === true}
-								/>
-							) : null}
-							<div className="whitespace-pre-wrap wrap-break-word leading-relaxed">
-								{normalizedContent || " "}
-							</div>
-						</>
-					) : (
-						<>
-							{reasoningContent || message.reasoningRedacted ? (
-								<ReasoningBlock
-									content={reasoningContent}
-									redacted={message.reasoningRedacted === true}
-								/>
-							) : null}
+					{reasoningContent || message.reasoningRedacted ? (
+						<ReasoningBlock
+							content={reasoningContent}
+							redacted={message.reasoningRedacted === true}
+							streaming={isStreaming}
+						/>
+					) : null}
 
-							<div className="my-1 ml-3 min-w-0 max-w-full overflow-x-hidden wrap-break-word **:max-w-full [&_code]:whitespace-pre-wrap [&_code]:wrap-break-word [&_pre]:overflow-x-hidden [&_pre]:whitespace-pre-wrap [&_pre]:wrap-break-word">
-								<MemoizedMarkdown
-									content={normalizedContent || " "}
-									id={message.id}
-								/>
-							</div>
-						</>
-					)}
+					<div className="my-1 min-w-0 max-w-full wrap-break-word">
+						<MemoizedMarkdown
+							content={displayContent || " "}
+							streaming={isStreaming && message.role === "assistant"}
+						/>
+					</div>
 				</div>
 				{shouldRenderUserActions ? (
 					<div className="space-y-1">
@@ -918,9 +919,11 @@ function MessageBubble({
 function ReasoningBlock({
 	content,
 	redacted,
+	streaming = false,
 }: {
 	content: string;
 	redacted: boolean;
+	streaming?: boolean;
 }) {
 	const [expanded, setExpanded] = useState(false);
 	const panelId = useId();
@@ -939,15 +942,28 @@ function ReasoningBlock({
 				type="button"
 				variant="ghost"
 			>
-				<BrainIcon className="size-4" />
-				Thinking
+				<BrainIcon aria-hidden="true" className="size-4" />
+				<span>{streaming ? "Thinking" : "Thought process"}</span>
+				<span
+					aria-live="polite"
+					className="text-xs font-normal text-muted-foreground"
+				>
+					{streaming ? "In progress" : "Complete"}
+				</span>
+				<span aria-hidden="true" className="shrink-0 text-muted-foreground">
+					{expanded ? (
+						<ChevronDown className="size-4" />
+					) : (
+						<ChevronRight className="size-4" />
+					)}
+				</span>
 			</Button>
 			{expanded ? (
 				<div
-					className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground"
+					className="mt-1.5 min-w-0 max-w-full rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground"
 					id={panelId}
 				>
-					{displayContent}
+					<MemoizedMarkdown content={displayContent} streaming={streaming} />
 				</div>
 			) : null}
 		</div>
