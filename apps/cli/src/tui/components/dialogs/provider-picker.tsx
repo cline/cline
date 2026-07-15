@@ -891,6 +891,7 @@ export function OAuthLoginContent(
 	const escapeHint = allowApiKeyFallback
 		? "K to enter an API key instead, Esc to cancel"
 		: "Esc to cancel";
+	const escapeHintColor = allowApiKeyFallback ? "white" : "gray";
 
 	if (mode === "device") {
 		return (
@@ -918,7 +919,7 @@ export function OAuthLoginContent(
 
 				{deviceError && <text fg="red">{deviceError}</text>}
 
-				<text fg="gray">
+				<text fg={escapeHintColor}>
 					<em>{escapeHint}</em>
 				</text>
 			</box>
@@ -941,7 +942,7 @@ export function OAuthLoginContent(
 
 			{error && <text fg="red">{error}</text>}
 
-			<text fg="gray">
+			<text fg={escapeHintColor}>
 				<em>{escapeHint}</em>
 			</text>
 		</box>
