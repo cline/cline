@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { MemoizedMarkdown } from "./markdown";
+import { MarkdownLinkSafetyModal, MemoizedMarkdown } from "./markdown";
 
 const originalClipboard = Object.getOwnPropertyDescriptor(
 	navigator,
@@ -77,6 +77,27 @@ function getButton(label: string): HTMLButtonElement {
 }
 
 describe("MemoizedMarkdown interactions", () => {
+	test("confirms and closes an external link dialog exactly once", async () => {
+		const onClose = vi.fn();
+		const onConfirm = vi.fn();
+		await act(async () => {
+			root.render(
+				<MarkdownLinkSafetyModal
+					isOpen
+					onClose={onClose}
+					onConfirm={onConfirm}
+					url="https://example.com/review"
+				/>,
+			);
+		});
+
+		await click(getButton("Open link"));
+		await vi.waitFor(() => {
+			expect(onConfirm).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+	});
+
 	test("requires confirmation before opening an external link", async () => {
 		const url = "https://example.com/review?source=cline";
 		await renderMarkdown({ content: `[Review docs](${url})` });

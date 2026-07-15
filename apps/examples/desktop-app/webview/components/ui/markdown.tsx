@@ -27,7 +27,7 @@ const streamdownControls = {
 	table: false,
 } satisfies ControlsConfig;
 
-function MarkdownLinkSafetyModal({
+export function MarkdownLinkSafetyModal({
 	isOpen,
 	onClose,
 	onConfirm,
@@ -52,14 +52,7 @@ function MarkdownLinkSafetyModal({
 				</div>
 				<AlertDialogFooter>
 					<AlertDialogCancel>Cancel</AlertDialogCancel>
-					<AlertDialogAction
-						onClick={() => {
-							onConfirm();
-							onClose();
-						}}
-					>
-						Open link
-					</AlertDialogAction>
+					<AlertDialogAction onClick={onConfirm}>Open link</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
