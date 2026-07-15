@@ -255,6 +255,7 @@ export function handleAgentEvent(
 				cacheWriteTokens: event.cacheWriteTokens,
 				cacheReadTokens: event.cacheReadTokens,
 				totalCost: event.cost,
+				provider: config.providerId,
 				model: config.modelId,
 				...agentIdentity,
 			});

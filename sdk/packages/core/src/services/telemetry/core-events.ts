@@ -417,6 +417,7 @@ export function captureTokenUsage(
 		cacheWriteTokens?: number;
 		cacheReadTokens?: number;
 		totalCost?: number;
+		provider?: string;
 		model: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {

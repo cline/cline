@@ -12,6 +12,7 @@ import {
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
 	captureTelemetryOptOut,
+	captureTokenUsage,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -78,6 +79,30 @@ describe("captureTelemetryOptOut", () => {
 			"user.opt_out",
 			undefined,
 		);
+	});
+});
+
+describe("captureTokenUsage", () => {
+	test("includes provider so rollout cohorts can be compared with the same dimension", () => {
+		const stub = createTelemetryStub();
+		captureTokenUsage(stub.telemetry, {
+			ulid: "task-1",
+			tokensIn: 120,
+			tokensOut: 80,
+			provider: "anthropic",
+			model: "claude-sonnet",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: "task.tokens",
+			properties: {
+				ulid: "task-1",
+				tokensIn: 120,
+				tokensOut: 80,
+				provider: "anthropic",
+				model: "claude-sonnet",
+			},
+		});
 	});
 });
 
