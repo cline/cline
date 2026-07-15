@@ -110,6 +110,7 @@
 								"pages": [
 									"usage/cli-overview",
 									"cli/cli-reference",
+									"cli/acp-editor-integrations",
 									{
 										"group": "Examples",
 										"pages": [
@@ -766,7 +767,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/cli/cli-reference"
+			"destination": "/cli/acp-editor-integrations"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",
