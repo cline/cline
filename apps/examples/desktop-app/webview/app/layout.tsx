@@ -3,9 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-	title: "Agent Desktop",
-	description: "AI coding agent interface",
-	generator: "v0.app",
+	title: "Cline",
+	description: "Build software with Cline.",
 	icons: {
 		icon: [
 			{
