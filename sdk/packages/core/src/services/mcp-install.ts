@@ -196,12 +196,13 @@ export function buildMcpInstallTransport(options: {
 }
 
 export function parseMcpInstallArgs(args: string[]): McpInstallOptions {
-	const [name, ...targetArgs] = args;
+	const [name, ...rawTargetArgs] = args;
 	if (!name) {
 		throw new Error(
 			"Marketplace MCP install args must start with a server name.",
 		);
 	}
+	const targetArgs = rawTargetArgs[0] === "--" ? rawTargetArgs.slice(1) : rawTargetArgs;
 	return {
 		name,
 		...splitTargetArgsAndHeaders({
