@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.41
+
+- Compaction now shows progress status in the TUI
+- Model IDs are now suggested from OpenAI-compatible endpoints when configuring a provider
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Compaction no longer runs during an active turn
+- Fixed a crash when the terminal title was updated during TUI teardown
+- The API key fallback hint is now highlighted for better visibility
+- Benign git states are no longer reported as workspace initialization errors
+
 ## 3.0.40
 
 - Added a manual API key escape hatch for Cline OAuth providers, so you can enter a key by hand from settings
