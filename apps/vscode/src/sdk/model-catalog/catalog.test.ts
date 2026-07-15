@@ -3,10 +3,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
 	EffectiveProviderConfig,
 	Fingerprint,
-	ModelSelection,
 	ProviderConfigChange,
 	ProviderConfigReader,
 	ProviderModelsResult,
+	ResolvedModelSelection,
 } from "./contracts"
 import { computeConfigFingerprint } from "./fingerprint"
 import { parseProviderId } from "./provider-id"
@@ -95,7 +95,7 @@ function record(
 	}
 }
 
-function makeReader(initialConfig: EffectiveProviderConfig, selection?: ModelSelection): TestReader {
+function makeReader(initialConfig: EffectiveProviderConfig, selection?: ResolvedModelSelection): TestReader {
 	let config = initialConfig
 	const listeners = new Set<(event: ProviderConfigChange) => void>()
 	return {
@@ -241,7 +241,7 @@ describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
 		})
 		const providerId = parseProviderId("openrouter")
 		const config: EffectiveProviderConfig = { providerId, apiKey: "secret", baseUrl: "https://provider.example.com" }
-		const selection: ModelSelection = { providerId, modelId: "selected", modelInfo }
+		const selection: ResolvedModelSelection = { providerId, modelId: "selected", modelInfo }
 		const reader = makeReader(config, selection)
 		const catalog = createProviderCatalog(reader)
 
@@ -507,7 +507,7 @@ describe("ProviderCatalog Phase 3.4 store-driven invalidation", () => {
 		const providerId = parseProviderId("openrouter")
 		const reader = makeReader({ providerId, apiKey: "same" })
 		const catalog = createProviderCatalog(reader)
-		const selection: ModelSelection = { providerId, modelId: "different", modelInfo }
+		const selection: ResolvedModelSelection = { providerId, modelId: "different", modelInfo }
 
 		const first = await catalog.resolveModels(providerId)
 		reader.emit({ kind: "selection", providerId, mode: "act", selection })
@@ -692,7 +692,7 @@ describe("ProviderCatalog Phase 3.6 subscribe", () => {
 		const reader = makeReader({ providerId, baseUrl: "http://localhost:11434/v1" })
 		const catalog = createProviderCatalog(reader)
 		const listener = vi.fn()
-		const selection: ModelSelection = { providerId, modelId: "custom:latest", modelInfo }
+		const selection: ResolvedModelSelection = { providerId, modelId: "custom:latest", modelInfo }
 		catalog.subscribe(providerId, listener)
 
 		reader.emit({ kind: "selection", providerId, mode: "act", selection })

@@ -471,12 +471,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						commitSelection("plan", {
 							providerId: "cline",
 							modelId: selectedModelId,
-							modelInfo: selectedModelInfo,
 						}),
 						commitSelection("act", {
 							providerId: "cline",
 							modelId: selectedModelId,
-							modelInfo: selectedModelInfo,
 						}),
 					])
 

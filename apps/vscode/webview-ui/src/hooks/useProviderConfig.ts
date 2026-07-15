@@ -7,11 +7,13 @@ import {
 	WriteProviderConfigPatch,
 	WriteProviderConfigRequest,
 } from "@shared/proto/cline/models"
-import { toProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
+import {
+	type ProviderModelOverrides,
+	toProtobufModelOverrides as toProtobufProviderModelOverrides,
+} from "@shared/proto-conversions/models/modelOverrides"
 import { useCallback, useEffect, useState } from "react"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import type { ModelInfo } from "../../../src/shared/api"
 
 export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "headers" | "aws" | "gcp">> & {
 	headers?: Record<string, string>
@@ -19,10 +21,23 @@ export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "h
 	gcp?: Partial<GcpProviderConfig>
 }
 
+// The overrides domain type and its proto conversions are shared with the
+// host; see the tri-state and normalization semantics documented there.
+export {
+	fromProtobufModelOverrides as fromProtobufProviderModelOverrides,
+	toProtobufModelOverrides as toProtobufProviderModelOverrides,
+} from "@shared/proto-conversions/models/modelOverrides"
+export type { ProviderModelOverrides }
+
 export interface ProviderModelSelection {
 	providerId: ProviderId
 	modelId: string
-	modelInfo: ModelInfo
+	/**
+	 * Tri-state: `undefined` preserves the model's stored overrides, an
+	 * explicitly empty object clears them, and a non-empty object replaces
+	 * them wholesale.
+	 */
+	overrides?: ProviderModelOverrides
 }
 
 function toWriteProviderConfigPatch(patch: ProviderConfigWritePatch): WriteProviderConfigPatch {
@@ -74,7 +89,8 @@ export function useProviderConfig(providerId: ProviderId) {
 					providerId,
 					mode,
 					modelId: selection.modelId,
-					modelInfo: toProtobufModelInfo(selection.modelInfo),
+					overrides:
+						selection.overrides !== undefined ? toProtobufProviderModelOverrides(selection.overrides) : undefined,
 				}),
 			)
 			await read()

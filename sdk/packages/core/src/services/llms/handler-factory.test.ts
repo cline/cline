@@ -200,7 +200,7 @@ describe("createAgentModelFromConfig", () => {
 		});
 	});
 
-	it("uses explicit per-turn max tokens for gateway request limits", async () => {
+	it("uses explicit per-turn max tokens and temperature for gateway request limits", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
 		createAgentModelFromConfig(
@@ -211,6 +211,7 @@ describe("createAgentModelFromConfig", () => {
 				systemPrompt: "",
 				tools: [],
 				maxTokensPerTurn: 4_096,
+				temperature: 0,
 				providerConfig: {
 					providerId: "openai-compatible",
 					modelId: "custom-model",
@@ -221,7 +222,7 @@ describe("createAgentModelFromConfig", () => {
 
 		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
 			{ providerId: "openai-compatible", modelId: "custom-model" },
-			{ maxTokens: 4_096 },
+			{ maxTokens: 4_096, temperature: 0 },
 		);
 	});
 

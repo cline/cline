@@ -68,8 +68,8 @@ export type Fingerprint = string & { readonly [FingerprintBrand]: void }
  *  - Two reads with no intervening write return structurally equal values.
  *  - Consumers must not mutate. The shape is `Readonly`.
  *
- * Mode-dependent selection (modelId, modelInfo) is *not* part of this
- * type. Use `ProviderConfigStore.readSelection(providerId, mode)`.
+ * Mode-dependent selection is *not* part of this type. Use
+ * `ProviderConfigStore.readSelection(providerId, mode)`.
  */
 export interface AwsProviderConfig {
 	readonly accessKey?: string
@@ -119,9 +119,9 @@ export interface EffectiveProviderConfig {
  * A patch describing a field-level write to `ProviderConfigStore`.
  *
  * Invariant: `ProviderConfigPatch` cannot describe a model selection. The
- * type does not contain `modelId` or `modelInfo`. To write a selection,
- * use `commitSelection`, which is a structurally distinct method on the
- * store.
+ * type does not contain `modelId` or per-model overrides. To write a
+ * selection, use `commitSelection`, which is a structurally distinct method
+ * on the store.
  *
  * Empty patches are allowed and are no-ops. A field present with value
  * `null` means "clear this field"; an absent field means "leave unchanged."
@@ -153,22 +153,65 @@ export interface ProviderConfigPatch {
 // Model selection
 // ---------------------------------------------------------------------------
 
+/** Per-model metadata overrides authored by the user for custom models. */
+export interface ModelSelectionOverrides {
+	readonly name?: string
+	readonly maxTokens?: number
+	readonly contextWindow?: number
+	readonly maxInputTokens?: number
+	readonly capabilities?: readonly string[]
+	readonly supportsVision?: boolean
+	readonly supportsAttachments?: boolean
+	readonly supportsReasoning?: boolean
+	readonly inputPrice?: number
+	readonly outputPrice?: number
+	readonly cacheReadsPrice?: number
+	readonly cacheWritesPrice?: number
+	readonly temperature?: number
+	readonly apiFormat?: ModelInfo["apiFormat"]
+	readonly isR1FormatRequired?: boolean
+}
+
 /**
- * A user's committed model selection. The triple is atomic by type: every
- * write of `modelId` carries its `modelInfo` envelope, and vice versa.
+ * A user's committed model selection. The committed write stores only the
+ * selected model id plus optional user-authored overrides. `ModelInfo` is
+ * derived by the host from the SDK catalog, then layered with `models.json`
+ * overrides, then per-provider safe fallback metadata.
  *
  * Invariants:
- *  - `modelInfo` was either taken from a `ProviderCatalog.resolveModels`
- *    result, or constructed from per-provider safe defaults when the user
- *    entered a custom id manually. Either way it represents the picker's
- *    best knowledge at the moment of commit. The runtime uses it verbatim.
- *  - The stored selection wins over later SDK catalog changes. Refresh
- *    does not retroactively change committed selections.
+ *  - The webview does not commit a `ModelInfo` snapshot.
+ *  - Catalog metadata updates may affect the resolved `ModelInfo` for an
+ *    existing selection unless the user has explicitly overridden the field.
  */
 export interface ModelSelection {
 	readonly providerId: ProviderId
 	readonly modelId: string
+	readonly overrides?: ModelSelectionOverrides
+}
+
+/** A committed selection as read back by consumers that need display/runtime metadata. */
+export interface ResolvedModelSelection extends ModelSelection {
 	readonly modelInfo: ModelInfo
+	/**
+	 * Where the base `modelInfo` came from, before overrides were applied:
+	 *
+	 *  - "catalog"  — SDK catalog metadata (generated snapshot or registry).
+	 *  - "state"    — the mode-specific `*ModeModelInfo` snapshot persisted by
+	 *    the picker at selection time. Authoritative for dynamic-list providers
+	 *    (openrouter, litellm, requesty, …) whose models are not in the static
+	 *    catalog.
+	 *  - "fallback" — provider-safe defaults fabricated because nothing better
+	 *    was available. Consumers should treat a "fallback" resolution without
+	 *    overrides as weak data and prefer live catalog lookups over it.
+	 */
+	readonly modelInfoSource?: "catalog" | "state" | "fallback"
+	/**
+	 * The base metadata `modelInfo` was resolved from, before overrides were
+	 * applied. Persisted (rather than the resolved value) into the legacy
+	 * state snapshot so that deleting an override cannot resurrect it from a
+	 * snapshot it was previously baked into.
+	 */
+	readonly baseModelInfo?: ModelInfo
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +233,7 @@ export type ProviderConfigChange =
 			readonly kind: "selection"
 			readonly providerId: ProviderId
 			readonly mode: Mode
-			readonly selection: ModelSelection
+			readonly selection: ResolvedModelSelection
 	  }
 
 export type ProviderConfigChangeListener = (event: ProviderConfigChange) => void
@@ -317,7 +360,7 @@ export interface ProviderModelsEvent {
  */
 export interface ProviderConfigReader {
 	read(providerId: ProviderId): EffectiveProviderConfig
-	readSelection(providerId: ProviderId, mode: Mode): ModelSelection | undefined
+	readSelection(providerId: ProviderId, mode: Mode): ResolvedModelSelection | undefined
 	subscribe(listener: ProviderConfigChangeListener): Disposable
 }
 
@@ -351,8 +394,9 @@ export interface ProviderConfigStore extends ProviderConfigReader {
 	write(providerId: ProviderId, patch: ProviderConfigPatch): EffectiveProviderConfig
 
 	/**
-	 * Commit a model selection atomically with its info envelope. The only
-	 * entry point that writes `{providerId, modelId, modelInfo}` triples.
+	 * Commit a model ID atomically with optional user-authored overrides.
+	 * Supplying overrides replaces that model's stored override entry; omitting
+	 * them leaves the existing entry unchanged.
 	 *
 	 * I2: refresh handlers do not have access to this method by type, since
 	 * `ProviderCatalog` holds only a `ProviderConfigReader`.
