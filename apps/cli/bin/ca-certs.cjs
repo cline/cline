@@ -11,6 +11,27 @@
 // ships verbatim in the published wrapper package.
 
 const PEM_MARKER = "-----BEGIN CERTIFICATE-----";
+const CERT_BLOCK =
+	/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+
+/**
+ * Returns only the complete certificate blocks from PEM text, or null when
+ * there are none. User files may also hold private keys (combined cert+key
+ * PEMs) or other sections, which must never be copied into the managed
+ * bundle. Files that contain nothing but certificates pass through verbatim
+ * so unchanged bundles keep hash-skipping the rewrite.
+ */
+function sanitizePem(text) {
+	const blocks = text.match(CERT_BLOCK) ?? [];
+	if (blocks.length === 0) {
+		return null;
+	}
+	const rest = text.replace(CERT_BLOCK, "");
+	if (/^\s*$/.test(rest)) {
+		return text;
+	}
+	return `${blocks.join("\n")}\n`;
+}
 
 /**
  * Returns OS-trusted certificates as PEM strings, or [] when unavailable.
@@ -34,7 +55,10 @@ function harvestSystemCerts(tlsModule) {
 	}
 }
 
-/** Returns the file's PEM text, or null when missing, unreadable, or not PEM. */
+/**
+ * Returns the file's certificate blocks as PEM text, or null when missing,
+ * unreadable, or holding no complete certificate block.
+ */
 function readUserBundle(fsModule, userPath) {
 	if (!userPath) {
 		return null;
@@ -45,9 +69,8 @@ function readUserBundle(fsModule, userPath) {
 		if (!stat || !stat.isFile()) {
 			return null;
 		}
-		const text = fs.readFileSync(userPath, "utf8");
 		// Binary DER would not have loaded in the runtime either; require PEM.
-		return text.includes(PEM_MARKER) ? text : null;
+		return sanitizePem(fs.readFileSync(userPath, "utf8"));
 	} catch {
 		return null;
 	}
@@ -218,6 +241,7 @@ function configureNodeExtraCaCerts(env, deps = {}) {
 
 module.exports = {
 	harvestSystemCerts,
+	sanitizePem,
 	readUserBundle,
 	readUserCerts,
 	buildBundle,

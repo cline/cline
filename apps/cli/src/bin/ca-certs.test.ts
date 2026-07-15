@@ -91,6 +91,33 @@ describe("ca-certs", () => {
 			expect(caCerts.readUserBundle(fs, join(dir, "nope.pem"))).toBeNull();
 			expect(caCerts.readUserBundle(fs, null)).toBeNull();
 		});
+
+		it("strips non-certificate sections such as private keys", () => {
+			// Combined cert+key files (nginx/haproxy style) are common; the key
+			// must never reach the managed bundle.
+			const p = join(dir, "combined.pem");
+			writeFileSync(
+				p,
+				`${certUser}\n-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----\n`,
+			);
+			const out = caCerts.readUserBundle(fs, p);
+			expect(out).toContain("USER");
+			expect(out).not.toContain("PRIVATE KEY");
+			expect(out).not.toContain("SECRET");
+		});
+
+		it("keeps certificates-only files verbatim", () => {
+			// Byte-identical passthrough keeps the unchanged-skip hash stable.
+			const p = join(dir, "clean.pem");
+			writeFileSync(p, `${certUser}\n${certSystem}`);
+			expect(caCerts.readUserBundle(fs, p)).toBe(`${certUser}\n${certSystem}`);
+		});
+
+		it("returns null for a BEGIN marker without a complete block", () => {
+			const p = join(dir, "truncated.pem");
+			writeFileSync(p, "-----BEGIN CERTIFICATE-----\ntruncated");
+			expect(caCerts.readUserBundle(fs, p)).toBeNull();
+		});
 	});
 
 	describe("readUserCerts", () => {
