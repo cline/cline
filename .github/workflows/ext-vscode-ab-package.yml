@@ -71,6 +71,10 @@ jobs:
                   CLINE_ENVIRONMENT: production
                   TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
                   ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  # Inlined by esbuild: attributes every telemetry event with
+                  # extension_variant and unlocks the bundle's authoritative
+                  # extension.rollout.bundle_activated capture. Rollout builds only.
+                  CLINE_ROLLOUT_VARIANT: next
               run: |
                   bun install
                   cd apps/vscode
@@ -88,6 +92,7 @@ jobs:
                   CLINE_ENVIRONMENT: production
                   TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
                   ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  CLINE_ROLLOUT_VARIANT: legacy
               run: npm run package
 
             - name: Build loader and run rollout tests
@@ -112,6 +117,19 @@ jobs:
             - name: Smoke-test loader against staging
               working-directory: next-src/apps/vscode-rollout
               run: node scripts/smoke-loader.mjs "$GITHUB_WORKSPACE/staging"
+
+            # This workflow publishes the STABLE identity. If nightlify ever leaks
+            # into this path the union manifest would ship under the wrong name.
+            - name: Assert stable manifest identity
+              working-directory: staging
+              run: |
+                  node -e '
+                    const pkg = require("./package.json");
+                    const assert = require("node:assert");
+                    assert.equal(pkg.name, "claude-dev", `unexpected name ${pkg.name}`);
+                    assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
+                    console.log(`stable identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
+                  '
 
             - name: Package VSIX
               working-directory: staging

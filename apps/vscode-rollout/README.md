@@ -127,14 +127,54 @@ entirely and everyone stays on legacy unless `CLINE_BUNDLE_OVERRIDE` is set.
 CI: the `ext-vscode-ab-package` workflow (manual dispatch) builds both refs,
 stitches, smoke-tests, uploads the `.vsix` artifact, and optionally publishes.
 
+## Nightly channel
+
+The daily `ext-vscode-publish-nightly` workflow (cron + manual dispatch)
+publishes this same combined package as **`saoudrizwan.cline-nightly`**. Before
+each bundle builds, `scripts/nightlify.mjs` rewrites its manifest to the
+nightly identity — the same mutation the standalone nightly always applied
+(`apps/vscode/scripts/publish-nightly.mjs` on both branches is the source of
+truth), so nightly can be installed alongside stable:
+
+| | stable | nightly |
+|---|---|---|
+| manifest `name` | `claude-dev` | `cline-nightly` |
+| contribution IDs / context key / settings | `cline.*` | `cline-nightly.*` |
+| version | operator-supplied (4.1.0+) | `<major>.<minor>.<unix-seconds>` |
+
+The loader derives the namespace from its own `packageJSON.name` at runtime
+(`idPrefix` in `src/cohort.ts`), and gen-manifest derives it from the next
+manifest's name — no build flags involved. Nightly builds also show a
+status-bar indicator (`Cline: Next` / `Cline: Legacy`); stable builds never do.
+
+Dispatching the nightly workflow with `dry-run` builds and uploads the
+installable `.vsix` without publishing or tagging — use that (from any branch)
+to verify changes before they reach the cron.
+
+### Telemetry events
+
+- **`extension.rollout.bundle_activated`** (authoritative, captured by the
+  activated bundle's own telemetry via its `reportRolloutActivation` export;
+  requires the bundle to be built with `CLINE_ROLLOUT_VARIANT`): attempted vs
+  actual bundle, fallback flag, error details on fallback. Every other event
+  from a rollout build carries `extension_variant` as a common property.
+- **`extension.rollout.loader_decision`** (loader-owned, direct capture): the
+  loader-side metadata the bundle event can't know — override source, launch
+  cadence, loader version, `extension_name` (nightly vs stable) — and the only
+  signal when BOTH bundles fail (`double_failure: true`).
+
 ## Rollout runbook
+
+Until the stable combined VSIX ships, both flags govern **nightly installs
+only** — dialing them is safe for production users and is the lever for moving
+nightly dogfooders onto next.
 
 1. Create both flags in PostHog **before** the first publish:
    `ext-sdk-bundle-rollout` at **0%**, `ext-sdk-bundle-killswitch` **off**.
 2. Publish the combined VSIX (version above every previously published one).
    With the rollout at 0% this release is behaviorally identical to legacy for
    everyone — it only validates the loader plumbing in the wild. Watch
-   `extension.rollout.bundle_activated`.
+   `extension.rollout.bundle_activated` and `extension.rollout.loader_decision`.
 3. Dial `ext-sdk-bundle-rollout` up: 1% → 5% → 25% → 100%. Promotions apply on
    each machine's next window reload after its flag refresh, so propagation
    speed is bounded by how often people reload windows — watch the
