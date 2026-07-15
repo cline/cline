@@ -10,11 +10,24 @@
 // 1. CLINE_BIN_PATH env var override
 // 2. Cached binary at bin/.cline (created by postinstall)
 // 3. Walk up node_modules to find the platform-specific package
+//
+// AVX2 / no-AVX2 (Sandy Bridge and older Intel x64) handling (issue #10514):
+// The standard Bun-compiled x64 binary requires AVX2. On Linux we detect
+// whether the CPU supports AVX2 by reading /proc/cpuinfo. When AVX2 is absent
+// we prefer the "@cline/cli-linux-x64-baseline" package (compiled with
+// --target=bun-linux-x64-baseline) which targets the x86-64-v2 baseline.
+// AVX2 detection is Linux-only; other platforms always use the standard binary.
+// A SIGILL safety net on Linux catches edge cases (e.g. a cached binary from
+// before this fix was installed).
 
 const childProcess = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+
+// Pure helpers live in a separate file so they can be unit-tested without
+// this script's top-level process.exit() calls running.
+const { cpuHasAvx2, buildNames } = require("./resolver-helpers.cjs");
 
 const scriptPath = fs.realpathSync(__filename);
 const scriptDir = path.dirname(scriptPath);
@@ -23,11 +36,54 @@ const childEnv = {
 	CLINE_WRAPPER_PATH: scriptPath,
 };
 
-function run(target) {
+// Reads /proc/cpuinfo on Linux to detect AVX2 support. Returns true on non-Linux platforms (detection is Linux-only).
+function hostCpuHasAvx2() {
+	if (os.platform() !== "linux") {
+		return true; // AVX2 detection is Linux-only; always use the standard binary on other platforms.
+	}
+	try {
+		const cpuinfo = fs.readFileSync("/proc/cpuinfo", "utf8");
+		return cpuHasAvx2(cpuinfo);
+	} catch (_) {
+		return true; // If we can't read cpuinfo, assume capable.
+	}
+}
+
+// Walks parent directories from startDir looking for node_modules/<name>/bin/<binary>. Returns first match or undefined.
+function findBinaryFromNames(startDir, nameList) {
+	let current = startDir;
+	for (;;) {
+		const modules = path.join(current, "node_modules");
+		if (fs.existsSync(modules)) {
+			for (const name of nameList) {
+				// Scoped package: @cline/cli-darwin-arm64 lives at
+				// node_modules/@cline/cli-darwin-arm64
+				const candidate = path.join(modules, name, "bin", binary);
+				if (fs.existsSync(candidate)) return candidate;
+			}
+		}
+		const parent = path.dirname(current);
+		if (parent === current) {
+			return undefined;
+		}
+		current = parent;
+	}
+}
+
+// Convenience wrapper: calls findBinaryFromNames with the module-level `names` preference list.
+function findBinary(startDir) {
+	return findBinaryFromNames(startDir, names);
+}
+
+// Runs target with inherited stdio. If returnResult is true, returns the raw spawnSync result instead of exiting.
+function run(target, returnResult) {
 	const result = childProcess.spawnSync(target, process.argv.slice(2), {
 		stdio: "inherit",
 		env: childEnv,
 	});
+	if (returnResult) {
+		return result;
+	}
 	if (result.error) {
 		console.error(result.error.message);
 		process.exit(1);
@@ -43,15 +99,63 @@ function run(target) {
 }
 
 // 1. Check env var override
+// If the binary pointed to by CLINE_BIN_PATH crashes with SIGILL, it means
+// the user has pointed at an AVX2 binary on a no-AVX2 CPU. Print a clear
+// message before exiting (see issue #10514).
 const envPath = process.env.CLINE_BIN_PATH;
 if (envPath) {
-	run(envPath);
+	const envResult = run(envPath, /* returnResult= */ true);
+	if (envResult.signal === "SIGILL") {
+		process.stderr.write(
+			"cline: CLINE_BIN_PATH binary requires AVX2 but this CPU lacks it. " +
+				"See https://github.com/cline/cline/issues/10514\n",
+		);
+		process.exit(132);
+	}
+	// Propagate normal exit.
+	if (envResult.error) {
+		console.error(envResult.error.message);
+		process.exit(1);
+	}
+	if (typeof envResult.status === "number") {
+		process.exit(envResult.status);
+	}
+	if (envResult.signal) {
+		process.kill(process.pid, envResult.signal);
+		process.exit(128);
+	}
+	process.exit(1);
 }
 
 // 2. Check cached binary
+// postinstall now writes the correct variant (baseline when AVX2 is absent) so
+// the cached binary should always be runnable. As defense-in-depth, however, if
+// the cached binary exits with SIGILL (e.g. a leftover cache from a pre-fix
+// install, or a manual binary replacement), we fall through to the step-3
+// node_modules walk rather than propagating the crash. The node_modules walk
+// already prefers the baseline package on no-AVX2 hosts, so a single fallthrough
+// is sufficient and safe — the binary SIGILLs at startup before doing any work.
 const cached = path.join(scriptDir, ".cline");
 if (fs.existsSync(cached)) {
-	run(cached);
+	const cachedResult = run(cached, /* returnResult= */ true);
+	if (cachedResult.signal === "SIGILL") {
+		// Cached binary is wrong variant; fall through to node_modules walk below.
+		// (no-op: execution continues past this block)
+	} else {
+		// Propagate normal exit or non-SIGILL signal.
+		if (cachedResult.error) {
+			console.error(cachedResult.error.message);
+			process.exit(1);
+		}
+		if (typeof cachedResult.status === "number") {
+			process.exit(cachedResult.status);
+		}
+		if (cachedResult.signal) {
+			process.kill(process.pid, cachedResult.signal);
+			process.exit(128);
+		}
+		process.exit(1);
+	}
 }
 
 // 3. Detect platform and architecture
@@ -77,28 +181,12 @@ if (!arch) {
 const base = "@cline/cli-" + platform + "-" + arch;
 const binary = platform === "windows" ? "cline.exe" : "cline";
 
-// Build fallback chain of package names to try
-const names = [base];
-
-function findBinary(startDir) {
-	let current = startDir;
-	for (;;) {
-		const modules = path.join(current, "node_modules");
-		if (fs.existsSync(modules)) {
-			for (const name of names) {
-				// Scoped package: @cline/cli-darwin-arm64 lives at
-				// node_modules/@cline/cli-darwin-arm64
-				const candidate = path.join(modules, name, "bin", binary);
-				if (fs.existsSync(candidate)) return candidate;
-			}
-		}
-		const parent = path.dirname(current);
-		if (parent === current) {
-			return undefined;
-		}
-		current = parent;
-	}
-}
+// Build preference-ordered chain of package names to try.
+// On x64 Linux without AVX2 (e.g. Intel Sandy Bridge), prefer the baseline
+// package first so the binary works out of the box without needing a SIGILL
+// fallback. The standard package is kept at the end as a last resort for
+// cases where the baseline package was not installed (e.g. an older install).
+const names = buildNames(base, arch, hostCpuHasAvx2());
 
 const resolved = findBinary(scriptDir);
 if (!resolved) {
@@ -119,4 +207,78 @@ if (!resolved) {
 	process.exit(1);
 }
 
-run(resolved);
+// SIGILL safety net (issue #10514):
+// If the resolved binary crashes with SIGILL (Illegal Instruction, typically
+// because the standard x64 Bun runtime requires AVX2 but this CPU lacks it),
+// attempt a one-shot retry with the baseline variant IF:
+//   (a) the resolved path is NOT already the baseline binary, AND
+//   (b) a baseline binary actually exists on disk.
+//
+// This correctly handles the partial-upgrade scenario: no-AVX2 CPU where
+// the baseline package is NOT installed yet → standard package resolves →
+// SIGILLs → we attempt to find and run baseline. Checking `resolvedIsBaseline`
+// instead of whether baseline was in the `names` candidate list fixes the
+// prior bug where a no-AVX2 CPU with baseline as a CANDIDATE (but standard
+// resolving first because baseline dir was absent) would skip the fallback.
+//
+// Guarantee: the fallback runs the baseline binary at most once and never
+// re-runs the standard binary.
+const result = run(resolved, /* returnResult= */ true);
+
+if (result.signal === "SIGILL" && arch === "x64" && platform === "linux") {
+	// Check whether what we ran was already the baseline binary.
+	const resolvedIsBaseline = resolved.includes("-baseline");
+
+	if (!resolvedIsBaseline) {
+		// The standard binary crashed; look for the baseline variant now.
+		const baselinePackage = base + "-baseline";
+		const baselineBin = findBinaryFromNames(scriptDir, [baselinePackage]);
+		if (baselineBin) {
+			// Run the baseline binary and inspect the result so that if the
+			// baseline itself SIGILLs (CPU below x86-64-v2) we can print the
+			// helpful #10514 message rather than silently propagating the signal.
+			const baselineResult = run(baselineBin, /* returnResult= */ true);
+			if (baselineResult.signal === "SIGILL") {
+				// Fall through to the helpful message below.
+			} else {
+				// Propagate baseline's normal exit or non-SIGILL signal.
+				if (baselineResult.error) {
+					console.error(baselineResult.error.message);
+					process.exit(1);
+				}
+				if (typeof baselineResult.status === "number") {
+					process.exit(baselineResult.status);
+				}
+				if (baselineResult.signal) {
+					process.kill(process.pid, baselineResult.signal);
+					process.exit(128);
+				}
+				process.exit(1);
+			}
+		}
+	}
+
+	// No baseline binary found, or both standard and baseline SIGILLed
+	// (CPU below x86-64-v2), or we already ran baseline and it still SIGILLed.
+	process.stderr.write(
+		"cline: binary crashed with SIGILL (Illegal Instruction). " +
+			"This CPU may lack AVX2. " +
+			"See https://github.com/cline/cline/issues/10514\n",
+	);
+	process.kill(process.pid, "SIGILL");
+	process.exit(128);
+}
+
+// Handle all other outcomes from the result (normal exit or non-SIGILL signal).
+if (result.error) {
+	console.error(result.error.message);
+	process.exit(1);
+}
+if (typeof result.status === "number") {
+	process.exit(result.status);
+}
+if (result.signal) {
+	process.kill(process.pid, result.signal);
+	process.exit(128);
+}
+process.exit(1);
