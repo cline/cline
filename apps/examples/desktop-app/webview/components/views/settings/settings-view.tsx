@@ -63,7 +63,7 @@ export function SettingsView({
 	onNavigateSection,
 }: {
 	section: SettingsSection;
-	onNavigateSection?: (section: SettingsSection) => void;
+	onNavigateSection: (section: SettingsSection) => void;
 }) {
 	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
@@ -150,14 +150,6 @@ export function SettingsView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
-
-	useEffect(() => {
-		if (activeNav === "Models") {
-			return;
-		}
-		setSelectedProviderId(null);
-		setAddingProvider(false);
-	}, [activeNav]);
 
 	const persistProviderSettings = useCallback(
 		async (
@@ -299,7 +291,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		onNavigateSection?.("Models");
+		onNavigateSection("Models");
 		setSelectedProviderId(id);
 	};
 
@@ -320,7 +312,7 @@ export function SettingsView({
 	}, [loadProviderModels, providers, selectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection?.("Models");
+		onNavigateSection("Models");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -347,7 +339,7 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection?.("Models");
+		onNavigateSection("Models");
 		setSelectedProviderId(null);
 		setAddingProvider(true);
 	};
