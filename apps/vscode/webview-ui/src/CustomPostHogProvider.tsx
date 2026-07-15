@@ -34,7 +34,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			autocapture: false,
 		})
 		setIsActive(true)
-	}, [isSelfHostedOrUnknown])
+	}, [isSelfHostedOrUnknown, isActive])
 
 	useEffect(() => {
 		if (!isActive || !distinctId || !version) {
@@ -76,7 +76,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			// Then opt out of capturing other events
 			posthog.opt_out_capturing()
 		}
-	}, [isActive, isTelemetryEnabled, distinctId, version])
+	}, [isActive, isTelemetryEnabled, distinctId, version, userInfo?.email, userInfo?.displayName])
 
 	return <PostHogProvider client={posthog}>{children}</PostHogProvider>
 }
