@@ -432,21 +432,20 @@ describe("useChatSession", () => {
 		});
 	});
 
-	it("restores a valid remembered workspace instead of process context", async () => {
+	it("applies a remembered workspace that becomes available while process context is loading", async () => {
 		await act(async () => root.unmount());
-		window.localStorage.setItem(
-			"cline.code.workspace-selection.v1",
-			JSON.stringify({
-				lastWorkspace: "/workspace/remembered",
-				workspaces: ["/workspace/remembered"],
-			}),
-		);
+		let resolveContext:
+			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| undefined;
+		const contextResponse = new Promise<{
+			cwd: string;
+			workspaceRoot: string;
+		}>((resolve) => {
+			resolveContext = resolve;
+		});
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
-				return {
-					cwd: "/workspace/default",
-					workspaceRoot: "/workspace/default",
-				};
+				return await contextResponse;
 			}
 			if (command === "validate_workspace_directory") {
 				return { valid: true };
@@ -455,6 +454,24 @@ describe("useChatSession", () => {
 		});
 		root = createRoot(container);
 		await act(async () => root.render(<HookHarness />));
+		await vi.waitFor(() => {
+			expect(invokeMock).toHaveBeenCalledWith("get_process_context");
+		});
+		window.localStorage.setItem(
+			"cline.code.workspace-selection.v1",
+			JSON.stringify({
+				lastWorkspace: "/workspace/remembered",
+				workspaces: ["/workspace/remembered"],
+			}),
+		);
+
+		await act(async () => {
+			resolveContext?.({
+				cwd: "/workspace/default",
+				workspaceRoot: "/workspace/default",
+			});
+			await contextResponse;
+		});
 
 		await vi.waitFor(() => {
 			expect(current.config.workspaceRoot).toBe("/workspace/remembered");
