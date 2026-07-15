@@ -5,11 +5,10 @@
  * the loader's end-to-end behavior in a real require() environment:
  *   1. default (no cached cohort)      -> activates legacy
  *   2. cached cohort "next"            -> activates next, scoped context paths
- *   3. versioned kill-switch           -> demotes in-scope versions only
- *      (including the pre-versioning boolean cache format), and a refresh
- *      caches the payload's maxKilledVersion for the next window
+ *   3. the flag refresh caches a TWO-WAY assignment for the next window
+ *      (rollout on promotes, rollout off demotes a cached "next")
  *   4. CLINE_BUNDLE_OVERRIDE / the cline.rollout.bundleOverride setting
- *      force a bundle in either direction, past the kill-switch
+ *      force a bundle in either direction
  *   5. next activation throws          -> disposes partial registrations, falls
  *                                         back to legacy, pins version, and
  *                                         skips the cohort refresh
@@ -113,22 +112,13 @@ function decideCalls(fetchCalls) {
 	return fetchCalls.filter(([url]) => String(url).includes("/decide"));
 }
 
-function flagResponse(flags = { rollout: false, killswitch: false }) {
+function flagResponse(flags = { rollout: false }) {
 	return {
 		ok: true,
 		json: async () => ({
 			featureFlags: {
 				"ext-sdk-bundle-rollout": flags.rollout,
-				"ext-sdk-bundle-killswitch": flags.killswitch,
 			},
-			// PostHog /decide delivers payloads as JSON-encoded strings.
-			featureFlagPayloads: flags.killswitchPayload
-				? {
-						"ext-sdk-bundle-killswitch": JSON.stringify(
-							flags.killswitchPayload,
-						),
-					}
-				: {},
 		}),
 	};
 }
@@ -396,57 +386,29 @@ await runScenario(
 );
 
 await runScenario(
-	"kill-switch scoped to this version beats cached next",
+	"rollout flag on promotes for the NEXT window only",
 	{
-		seed: {
-			"cline.rollout.bundle": "next",
-			"cline.rollout.killswitch": "4.1.0",
-		},
-	},
-	async ({ api }) => {
-		assert.deepEqual(api, { bundle: "legacy" });
-	},
-);
-
-await runScenario(
-	"kill-switch scoped below this version does not apply",
-	{
-		seed: {
-			"cline.rollout.bundle": "next",
-			"cline.rollout.killswitch": "4.0.9",
-		},
-	},
-	async ({ api }) => {
-		assert.deepEqual(api, { bundle: "next" });
-	},
-);
-
-await runScenario(
-	"legacy boolean kill-switch cache still demotes",
-	{
-		seed: { "cline.rollout.bundle": "next", "cline.rollout.killswitch": true },
-	},
-	async ({ api }) => {
-		assert.deepEqual(api, { bundle: "legacy" });
-	},
-);
-
-await runScenario(
-	"kill-switch payload from the flag refresh is cached for the next window",
-	{
-		seed: { "cline.rollout.bundle": "next" },
-		fetchController: makeFlagFetch({
-			rollout: true,
-			killswitch: true,
-			killswitchPayload: { maxKilledVersion: "4.1.2" },
-		}),
+		fetchController: makeFlagFetch({ rollout: true }),
 	},
 	async ({ context, api }) => {
-		// This window already ran next; the refresh demotes the NEXT window.
+		// This window already decided legacy from the (empty) cache; the refresh
+		// promotes the NEXT window.
+		assert.deepEqual(api, { bundle: "legacy" });
+		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "next");
+	},
+);
+
+await runScenario(
+	"rollout flag off demotes a cached next for the NEXT window (two-way)",
+	{
+		seed: { "cline.rollout.bundle": "next" },
+		fetchController: makeFlagFetch({ rollout: false }),
+	},
+	async ({ context, api }) => {
+		// This window already ran next; dialing the flag down moves the machine
+		// back to legacy on its next reload.
 		assert.deepEqual(api, { bundle: "next" });
-		const state = context.globalState._dump();
-		assert.equal(state["cline.rollout.killswitch"], "4.1.2");
-		assert.equal(state["cline.rollout.bundle"], "legacy");
+		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "legacy");
 	},
 );
 
@@ -470,9 +432,9 @@ await runScenario(
 );
 
 await runScenario(
-	"user setting overrides to next past an armed kill-switch",
+	"user setting overrides to next despite a cached legacy assignment",
 	{
-		seed: { "cline.rollout.killswitch": "*" },
+		seed: { "cline.rollout.bundle": "legacy" },
 		settings: { "cline.rollout.bundleOverride": "next" },
 	},
 	async ({ api }) => {
@@ -480,10 +442,7 @@ await runScenario(
 	},
 );
 
-const failedNextRefresh = makeDeferredFlagFetch({
-	rollout: true,
-	killswitch: false,
-});
+const failedNextRefresh = makeDeferredFlagFetch({ rollout: true });
 await runScenario(
 	"next activation failure falls back to legacy",
 	{

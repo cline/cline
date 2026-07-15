@@ -34,12 +34,6 @@ export function bundleContextKey(prefix: IdPrefix): string {
  * the extension ID, so a stable and a nightly install can never collide.
  */
 export const COHORT_STATE_KEY = "cline.rollout.bundle";
-/**
- * Highest VSIX version the kill-switch applies to: a version string means
- * "demote every combined VSIX <= this version", "*" means all versions.
- * (The very first builds cached a boolean here; see normalizeKilledUpTo.)
- */
-export const KILLSWITCH_STATE_KEY = "cline.rollout.killswitch";
 /** Version of the combined VSIX whose `next` bundle failed to activate, if any. */
 export const FAILED_VERSION_STATE_KEY =
 	"cline.rollout.nextActivationFailedVersion";
@@ -47,19 +41,18 @@ export const FAILED_VERSION_STATE_KEY =
 export const LAST_ACTIVATION_STATE_KEY = "cline.rollout.lastActivationAt";
 
 /**
- * PostHog flags (created in the Cline PostHog project).
+ * PostHog rollout flag (created in the Cline PostHog project). Must be a
+ * plain BOOLEAN release flag with a percentage rollout.
  *
- * - ROLLOUT_FLAG must be a plain BOOLEAN release flag with a percentage
- *   rollout. /decide returns `true` for enrolled machines; anything else
- *   (false, undefined, a multivariate variant string) deliberately does NOT
- *   promote — see parseRolloutFlags.
- * - KILLSWITCH_FLAG is a boolean flag whose PAYLOAD carries the demotion
- *   scope: {"maxKilledVersion": "4.1.2"} demotes combined VSIXes <= 4.1.2
- *   only, so a fixed 4.1.3 can roll out while broken older installs stay
- *   pinned to legacy. Enabling it with no payload demotes ALL versions.
+ * The assignment is TWO-WAY: each background refresh caches exactly what the
+ * flag says (true => next, anything else => legacy) for the next window, so
+ * dialing the percentage down moves machines back to legacy on their next
+ * reload — the single emergency lever is "set the rollout to 0%". Demoted
+ * machines keep their settings/creds (the state files round-trip), but tasks
+ * created on the SDK bundle aren't visible in legacy's history until
+ * re-promoted, and tokens rotated on next may require re-auth on legacy.
  */
 export const ROLLOUT_FLAG = "ext-sdk-bundle-rollout";
-export const KILLSWITCH_FLAG = "ext-sdk-bundle-killswitch";
 
 /** Env var for local dev / e2e to force a bundle. Beats everything. */
 export const BUNDLE_OVERRIDE_ENV = "CLINE_BUNDLE_OVERRIDE";
@@ -68,7 +61,7 @@ export const BUNDLE_OVERRIDE_ENV = "CLINE_BUNDLE_OVERRIDE";
  * User-visible escape hatch: `<prefix>.rollout.bundleOverride` in VS Code
  * settings ("auto" | "next" | "legacy") — see settingSection() for the
  * identity-dependent section name. Editable from settings.json without
- * touching mementos, beats flags/kill-switch in either direction, applies on
+ * touching mementos, beats the remote flag in either direction, applies on
  * window reload. Injected into the union manifest by gen-manifest.mjs — keep
  * the schema there in sync with these constants.
  */
@@ -78,71 +71,22 @@ function asBundle(value: unknown): Bundle | undefined {
 	return value === "next" || value === "legacy" ? value : undefined;
 }
 
-/**
- * Compare dotted numeric versions (pre-release suffixes ignored: "4.1.0-rc1"
- * compares as 4.1.0). Returns <0, 0, >0 like a comparator.
- */
-export function compareVersions(a: string, b: string): number {
-	const parse = (v: string) =>
-		v
-			.split("-")[0]
-			.split(".")
-			.map((part) => Number.parseInt(part, 10) || 0);
-	const pa = parse(a);
-	const pb = parse(b);
-	for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-		const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
-		if (diff !== 0) {
-			return diff;
-		}
-	}
-	return 0;
-}
-
-export function isVersionKilled(
-	version: string,
-	killedUpToVersion: string | undefined,
-): boolean {
-	if (!killedUpToVersion) {
-		return false;
-	}
-	if (killedUpToVersion === "*") {
-		return true;
-	}
-	return compareVersions(version, killedUpToVersion) <= 0;
-}
-
-/**
- * Read a cached kill-switch memento defensively: current builds store a
- * version string (or "*"); the very first builds stored a boolean.
- */
-export function normalizeKilledUpTo(value: unknown): string | undefined {
-	if (value === true) {
-		return "*";
-	}
-	return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
 export interface CohortInputs {
 	/** CLINE_BUNDLE_OVERRIDE, if set. */
 	envOverride: string | undefined;
-	/** The cline.rollout.bundleOverride user setting ("auto" = no override). */
+	/** The <prefix>.rollout.bundleOverride user setting ("auto" = no override). */
 	settingOverride: string | undefined;
 	/** Cached assignment from the previous window's background flag refresh. */
 	cached: string | undefined;
-	/** Cached kill-switch scope from the previous refresh (see KILLSWITCH_STATE_KEY). */
-	killedUpToVersion: string | undefined;
 	/** The next bundle failed to activate on this VSIX version before. */
 	previousFailure: boolean;
-	/** This combined VSIX's version, compared against the kill-switch scope. */
-	version: string;
 }
 
 /**
  * Decide which bundle to activate for this window. Must be synchronous and
  * never block on the network: it only consumes state cached by the previous
- * window's background refresh, so a percentage change or kill-switch applies
- * on the next window reload, mirroring how VS Code's own experiments behave.
+ * window's background refresh, so a percentage change applies on the next
+ * window reload, mirroring how VS Code's own experiments behave.
  */
 export function decideBundle(inputs: CohortInputs): Bundle {
 	const forced =
@@ -150,10 +94,7 @@ export function decideBundle(inputs: CohortInputs): Bundle {
 	if (forced) {
 		return forced;
 	}
-	if (
-		isVersionKilled(inputs.version, inputs.killedUpToVersion) ||
-		inputs.previousFailure
-	) {
+	if (inputs.previousFailure) {
 		return "legacy";
 	}
 	return inputs.cached === "next" ? "next" : "legacy";
@@ -172,82 +113,22 @@ export function decisionOverrideSource(
 	return undefined;
 }
 
-export interface RolloutFlags {
-	rollout: boolean;
-	/** Kill-switch scope: version string, "*" for all, undefined when off. */
-	killedUpToVersion: string | undefined;
-}
-
 /**
- * Parse a PostHog /decide (v3) response into rollout flags.
+ * Parse a PostHog /decide (v3) response into the assignment to cache for the
+ * next window, or undefined when the response is malformed (leave the cached
+ * assignment untouched — sticky on transient failures).
  *
- * Deliberately strict about types so a mis-configured flag fails SAFE
- * (nobody promoted; demotion only when the kill-switch is explicitly armed):
- * - rollout: only boolean `true` promotes. A multivariate variant string, a
- *   number, or a payload does not — the flag must stay a plain boolean
- *   release flag with a percentage rollout.
- * - kill-switch: any truthy value arms it; the scope comes from the payload's
- *   maxKilledVersion (JSON payloads arrive as strings from /decide). An armed
- *   kill-switch with no/invalid payload means "all versions".
+ * Deliberately strict so a mis-configured flag fails SAFE toward legacy: only
+ * boolean `true` promotes. A multivariate variant string, a number, a payload,
+ * or a missing/deleted flag all resolve to legacy — the flag must stay a plain
+ * boolean release flag with a percentage rollout.
  */
-export function parseRolloutFlags(response: unknown): RolloutFlags | undefined {
-	const payload = response as
-		| {
-				featureFlags?: Record<string, unknown>;
-				featureFlagPayloads?: Record<string, unknown>;
-		  }
-		| undefined;
-	const flags = payload?.featureFlags;
+export function parseRolloutAssignment(response: unknown): Bundle | undefined {
+	const flags = (
+		response as { featureFlags?: Record<string, unknown> } | undefined
+	)?.featureFlags;
 	if (!flags || typeof flags !== "object") {
 		return undefined;
 	}
-
-	let killedUpToVersion: string | undefined;
-	if (flags[KILLSWITCH_FLAG]) {
-		killedUpToVersion = "*";
-		const rawKillPayload = payload?.featureFlagPayloads?.[KILLSWITCH_FLAG];
-		const killPayload =
-			typeof rawKillPayload === "string"
-				? safeJsonParse(rawKillPayload)
-				: rawKillPayload;
-		const max = (killPayload as { maxKilledVersion?: unknown } | undefined)
-			?.maxKilledVersion;
-		if (typeof max === "string" && max.length > 0) {
-			killedUpToVersion = max;
-		}
-	}
-
-	return { rollout: flags[ROLLOUT_FLAG] === true, killedUpToVersion };
-}
-
-function safeJsonParse(raw: string): unknown {
-	try {
-		return JSON.parse(raw);
-	} catch {
-		return undefined;
-	}
-}
-
-/**
- * Compute the assignment to cache for the next window.
- *
- * One-way by design: once a machine is on `next`, dialing the rollout
- * percentage down does NOT move it back (tasks created on the SDK bundle are
- * invisible to the legacy bundle, and credentials rotated there don't flow
- * back). Only the explicit kill-switch demotes existing cohort members, and
- * only for VSIX versions inside its scope — a fixed release above
- * maxKilledVersion re-promotes via the rollout flag as usual.
- */
-export function nextCachedBundle(
-	current: string | undefined,
-	flags: RolloutFlags,
-	version: string,
-): Bundle {
-	if (isVersionKilled(version, flags.killedUpToVersion)) {
-		return "legacy";
-	}
-	if (current === "next") {
-		return "next";
-	}
-	return flags.rollout ? "next" : "legacy";
+	return flags[ROLLOUT_FLAG] === true ? "next" : "legacy";
 }

@@ -44,37 +44,37 @@ marketplace re-publish. A new version gets to try next again.
 
 ## Cohort rules
 
-- **Sticky and one-way.** `ext-sdk-bundle-rollout` (percentage flag) only ever
-  promotes `legacy → next`. Dialing the percentage down stops *new*
-  promotions but demotes nobody: tasks created on the SDK bundle are stored as
-  SDK sessions the legacy bundle can't list, and credentials rotated there
-  live in `providers.json` only — a silent demotion would look like data loss.
-- **Kill-switch demotes, scoped by version.** `ext-sdk-bundle-killswitch` is a
-  boolean flag whose **payload** carries the scope:
-  `{"maxKilledVersion": "4.1.2"}` demotes combined VSIXes **<= 4.1.2** on their
-  next window, while a fixed 4.1.3 rolls out normally — so killing a broken
-  release never blocks the release that fixes it, and stragglers who haven't
-  auto-updated stay safely pinned to legacy. Arming it with no payload demotes
-  ALL versions. Emergency use only (demotion accepts the switch-back cost
-  above).
-- **Both flags must stay boolean flags.** The loader only promotes on a
+- **Two-way, one knob.** `ext-sdk-bundle-rollout` (percentage flag) is the
+  entire remote control surface: each background refresh caches exactly what
+  the flag says for the machine's next window. Dialing the percentage up
+  promotes; dialing it down demotes on the next reload — the emergency lever
+  is simply "set the rollout to 0%". Known demotion costs (accepted): tasks
+  created on the SDK bundle are stored as SDK sessions the legacy bundle
+  doesn't list (they reappear on re-promotion — nothing is deleted), and
+  credentials rotated on next may require a re-login on legacy.
+- **The flag must stay a boolean flag.** The loader only promotes on a
   literal `true` from `/decide` — a multivariate variant, number, or anything
-  else fails safe as "not enrolled" (see `parseRolloutFlags` + tests). Don't
-  convert either flag to multivariate.
-- Flags are evaluated against the same PostHog distinct id the extension's
+  else fails safe to legacy (see `parseRolloutAssignment` + tests). Don't
+  convert it to multivariate.
+- The flag is evaluated against the same PostHog distinct id the extension's
   telemetry uses (machine id, mirroring `src/services/logging/distinctId.ts`),
   so cohort membership is correlatable with telemetry. Flag evaluation is
   always on (matching `FeatureFlagsService`); the loader's own
-  `extension.rollout.bundle_activated` event respects the user's telemetry
+  `extension.rollout.loader_decision` event respects the user's telemetry
   opt-out and VS Code's global telemetry switch.
 - **Manual overrides, in either direction.** The `cline.rollout.bundleOverride`
   user setting (`"auto" | "next" | "legacy"`, editable straight from
   settings.json) forces a bundle for anyone — users in a pinch, or us
-  debugging — beating the flags and the kill-switch. Applies on window
+  debugging — beating the remote assignment both ways. Applies on window
   reload. `CLINE_BUNDLE_OVERRIDE=next|legacy` (env var) does the same for
   local dev and e2e and beats even the setting. Both are reported as
-  `override` on the activation event so overridden machines don't pollute
+  `override` on the loader event so overridden machines don't pollute
   cohort comparisons.
+- **Crash pinning is local, not remote.** If the next bundle throws during
+  activation, the loader falls back to legacy in the same window and pins
+  that VSIX version on this machine (`cline.rollout.nextActivationFailedVersion`);
+  a new release gets to try next again. This safety net is independent of the
+  flag.
 
 ## The union manifest
 
@@ -89,10 +89,11 @@ regenerates it at stitch time from both branches' real manifests:
   twice).
 - Commands exclusive to one bundle are hidden from the other cohort's command
   palette.
-- `views` / `viewsContainers` / `configuration` / `walkthroughs` / `engines`
+- `views` / `viewsContainers` / `configuration` / `walkthroughs`
   **must be identical** in both manifests — they can't be safely gated at
   runtime, so divergence fails the build. Keep these static contributions in
-  sync between the branches.
+  sync between the branches. `engines` may diverge: the union takes the newer
+  requirement (which necessarily satisfies the older one).
 
 Because the manifest is regenerated from both branches on every build,
 contribution drift between the branches can't ship silently — it either merges
@@ -165,28 +166,29 @@ to verify changes before they reach the cron.
 
 ## Rollout runbook
 
-Until the stable combined VSIX ships, both flags govern **nightly installs
-only** — dialing them is safe for production users and is the lever for moving
+Until the stable combined VSIX ships, the flag governs **nightly installs
+only** — dialing it is safe for production users and is the lever for moving
 nightly dogfooders onto next.
 
-1. Create both flags in PostHog **before** the first publish:
-   `ext-sdk-bundle-rollout` at **0%**, `ext-sdk-bundle-killswitch` **off**.
+1. Create `ext-sdk-bundle-rollout` in PostHog **before** the first publish: a
+   plain boolean release flag with a percentage rollout, starting at **0%**.
+   (There is deliberately no kill-switch flag — the assignment is two-way, so
+   0% *is* the kill switch.)
 2. Publish the combined VSIX (version above every previously published one).
    With the rollout at 0% this release is behaviorally identical to legacy for
    everyone — it only validates the loader plumbing in the wild. Watch
    `extension.rollout.bundle_activated` and `extension.rollout.loader_decision`.
-3. Dial `ext-sdk-bundle-rollout` up: 1% → 5% → 25% → 100%. Promotions apply on
+3. Dial `ext-sdk-bundle-rollout` up: 1% → 5% → 25% → 100%. Assignments apply on
    each machine's next window reload after its flag refresh, so propagation
    speed is bounded by how often people reload windows — watch the
-   `ms_since_last_activation` distribution on activation events to see real
+   `ms_since_last_activation` distribution on loader events to see real
    uptake lag before deciding the next step, and compare cohorts by the
    `bundle` property.
-4. Never dial the percentage *down* expecting users to move back — they won't
-   (by design). Emergencies: arm `ext-sdk-bundle-killswitch` with payload
-   `{"maxKilledVersion": "<broken version>"}`, ship the fix as a higher
-   version, and let the rollout flag re-promote updated machines while dead
-   versions stay pinned. Disarm the kill-switch once the broken version's
-   install base has drained.
+4. Emergencies: dial the percentage **down** (0% pulls everyone back to legacy
+   on their next reload). Demoted machines keep settings and creds; tasks
+   created on the SDK bundle reappear when re-promoted. Ship the fix as a
+   higher version, then dial back up. Machines whose next bundle *crashed*
+   are additionally version-pinned to legacy locally, independent of the flag.
 5. When next reaches 100% and soaks, retire the loader: publish a plain SDK
    extension build and delete this package.
 

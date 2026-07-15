@@ -11,9 +11,7 @@ import {
 	FAILED_VERSION_STATE_KEY,
 	type IdPrefix,
 	idPrefix,
-	KILLSWITCH_STATE_KEY,
 	LAST_ACTIVATION_STATE_KEY,
-	normalizeKilledUpTo,
 	SETTING_BUNDLE_OVERRIDE,
 	settingSection,
 } from "./cohort";
@@ -92,13 +90,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const bundle = decideBundle({
 		...overrides,
 		cached: context.globalState.get<string>(COHORT_STATE_KEY),
-		killedUpToVersion: normalizeKilledUpTo(
-			context.globalState.get(KILLSWITCH_STATE_KEY),
-		),
 		previousFailure:
 			context.globalState.get<string>(FAILED_VERSION_STATE_KEY) ===
 			loaderVersion,
-		version: loaderVersion,
 	});
 	const meta: ActivationMeta = {
 		msSinceLastActivation:
@@ -138,7 +132,7 @@ async function activateBundle(
 		// bundle activates. A crash fallback must not start a refresh that could
 		// promote the cohort back to next after the handler pins it to legacy.
 		if (refreshAssignmentOnSuccess) {
-			void refreshCohort(context, loaderVersion).catch(() => {});
+			void refreshCohort(context).catch(() => {});
 		}
 		// Authoritative activation event, captured by the bundle's own telemetry
 		// (built with CLINE_ROLLOUT_VARIANT). On fallback this runs in the legacy

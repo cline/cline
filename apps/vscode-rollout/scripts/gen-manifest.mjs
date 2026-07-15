@@ -135,7 +135,7 @@ function loaderSettings(prefix) {
 			default: "auto",
 			scope: "application",
 			markdownDescription:
-				"Manual override for Cline's staged extension rollout. `next` forces the new (SDK-based) extension, `legacy` forces the previous one, `auto` follows the remote rollout. Beats the remote kill-switch in both directions. Takes effect on window reload.",
+				"Manual override for Cline's staged extension rollout. `next` forces the new (SDK-based) extension, `legacy` forces the previous one, `auto` follows the remote rollout assignment. Takes effect on window reload.",
 		},
 	};
 }
@@ -226,7 +226,7 @@ function unionEngines(nextEngines = {}, legacyEngines = {}) {
 	return union;
 }
 
-/** Compare dotted numeric versions; mirrors compareVersions in src/cohort.ts. */
+/** Compare dotted numeric versions. */
 function compareDotted(a, b) {
 	const pa = a.split(".").map((part) => Number.parseInt(part, 10) || 0);
 	const pb = b.split(".").map((part) => Number.parseInt(part, 10) || 0);

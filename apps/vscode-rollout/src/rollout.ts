@@ -6,10 +6,7 @@ import * as vscode from "vscode";
 import {
 	type Bundle,
 	COHORT_STATE_KEY,
-	KILLSWITCH_STATE_KEY,
-	nextCachedBundle,
-	parseRolloutFlags,
-	type RolloutFlags,
+	parseRolloutAssignment,
 } from "./cohort";
 
 /**
@@ -81,9 +78,9 @@ async function postJson(
 	}
 }
 
-async function fetchFlags(
+async function fetchAssignment(
 	distinctId: string,
-): Promise<RolloutFlags | undefined> {
+): Promise<Bundle | undefined> {
 	if (!POSTHOG_API_KEY) {
 		return undefined;
 	}
@@ -95,35 +92,28 @@ async function fetchFlags(
 		return undefined;
 	}
 	try {
-		return parseRolloutFlags(await response.json());
+		return parseRolloutAssignment(await response.json());
 	} catch {
 		return undefined;
 	}
 }
 
 /**
- * Background refresh: evaluate the rollout flags and cache the assignment for
- * the NEXT window. Never affects the bundle already activated in this window,
- * and failures leave the cached assignment untouched (sticky by default).
+ * Background refresh: evaluate the rollout flag and cache exactly what it
+ * says for the NEXT window (two-way: dialing the percentage down demotes on
+ * the next reload). Never affects the bundle already activated in this
+ * window, and failures leave the cached assignment untouched (sticky on
+ * transient errors only).
  */
 export async function refreshCohort(
 	context: vscode.ExtensionContext,
-	loaderVersion: string,
 ): Promise<void> {
 	const distinctId = await getDistinctId();
-	const flags = await fetchFlags(distinctId);
-	if (!flags) {
+	const assignment = await fetchAssignment(distinctId);
+	if (!assignment) {
 		return;
 	}
-	const cached = context.globalState.get<string>(COHORT_STATE_KEY);
-	await context.globalState.update(
-		COHORT_STATE_KEY,
-		nextCachedBundle(cached, flags, loaderVersion),
-	);
-	await context.globalState.update(
-		KILLSWITCH_STATE_KEY,
-		flags.killedUpToVersion,
-	);
+	await context.globalState.update(COHORT_STATE_KEY, assignment);
 }
 
 /**
