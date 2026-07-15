@@ -54,7 +54,13 @@ jobs:
     permissions:
       contents: write
     name: Publish Cline (Nightly) Combined Extension
-    if: github.repository == 'cline/cline'
+    # Branch allowlist: main (the cron + real publishes) plus any branch being
+    # rehearsed with dry-run. NOTE this `if` is advisory only — a dispatched
+    # branch runs its own copy of this file. The enforced gate is the
+    # PublishNightly environment's deployment-branch policy (repo settings),
+    # which must list the same branches. Publish/tag steps are additionally
+    # gated to main below.
+    if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/saoudrizwan/extension-ab-loader')
     runs-on: ubuntu-latest
     environment: PublishNightly
 
@@ -78,9 +84,14 @@ jobs:
           persist-credentials: false
 
       - name: Show build sources
+        env:
+          # Routed through env rather than interpolated into the script body so
+          # a crafted dispatch input can't inject shell (hygiene: dispatchers
+          # need write access anyway, but keep the pattern clean).
+          LEGACY_REF: ${{ inputs.legacy-ref || 'legacy-extension' }}
         run: |
           echo "next:   $(git -C next-src rev-parse HEAD)"
-          echo "legacy: $(git -C legacy-src rev-parse HEAD) (${{ inputs.legacy-ref || 'legacy-extension' }})"
+          echo "legacy: $(git -C legacy-src rev-parse HEAD) ($LEGACY_REF)"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
