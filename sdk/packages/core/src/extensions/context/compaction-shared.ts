@@ -528,7 +528,12 @@ export function buildSummaryMessage(options: {
 }): MessageWithMetadata {
 	return {
 		role: "user",
-		content: `Context summary:\n\n${options.summary}`,
+		content: [
+			{
+				type: "text",
+				text: `Context summary:\n\n${options.summary}`,
+			},
+		],
 		metadata: {
 			kind: "compaction_summary",
 			summary: options.summary,

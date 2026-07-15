@@ -18,9 +18,9 @@ export type GlobalCompactionStrategy = "basic" | "agentic"
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
 	try {
 		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
-		return settings.compactionStrategy === "agentic" ? "agentic" : "basic"
+		return settings.compactionStrategy === "basic" ? "basic" : "agentic"
 	} catch {
-		return "basic"
+		return "agentic"
 	}
 }
 

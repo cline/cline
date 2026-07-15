@@ -255,7 +255,7 @@ export function createContextCompactionPrepareTurn(
 			modelId: config.modelId,
 		} as ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
-	const strategy = userCompaction?.strategy ?? "basic";
+	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 	const mode = options.mode ?? "auto";
 	const telemetryStrategy: TelemetryCompactionStrategy = userCompaction?.compact

@@ -771,8 +771,14 @@ describe("createContextCompactionPrepareTurn", () => {
 				},
 			}),
 		});
-		expect(typeof result?.messages[0]?.content).toBe("string");
-		const summaryContent = result?.messages[0]?.content as string;
+		expect(result?.messages[0]?.content).toEqual([
+			expect.objectContaining({ type: "text" }),
+		]);
+		const summaryContent = Array.isArray(result?.messages[0]?.content)
+			? result.messages[0].content[0]?.type === "text"
+				? result.messages[0].content[0].text
+				: ""
+			: "";
 		expect(summaryContent).toContain("Context summary:");
 		expect(summaryContent).toContain("## Files");
 		expect(result?.messages[1]).toEqual({
