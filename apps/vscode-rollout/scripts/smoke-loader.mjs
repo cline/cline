@@ -5,8 +5,11 @@
  * the loader's end-to-end behavior in a real require() environment:
  *   1. default (no cached cohort)      -> activates legacy
  *   2. cached cohort "next"            -> activates next, scoped context paths
- *   3. kill-switch cached              -> activates legacy despite cached next
- *   4. CLINE_BUNDLE_OVERRIDE=next      -> activates next
+ *   3. versioned kill-switch           -> demotes in-scope versions only
+ *      (including the pre-versioning boolean cache format), and a refresh
+ *      caches the payload's maxKilledVersion for the next window
+ *   4. CLINE_BUNDLE_OVERRIDE / the cline.rollout.bundleOverride setting
+ *      force a bundle in either direction, past the kill-switch
  *   5. next activation throws          -> disposes partial registrations, falls
  *                                         back to legacy, pins version, and
  *                                         skips the cohort refresh
@@ -28,7 +31,7 @@ if (!staging) {
 
 // ---- vscode API stub (only what the loader touches) -------------------------
 const executedCommands = [];
-function makeVscodeStub(sandbox) {
+function makeVscodeStub(sandbox, settings = {}) {
 	return {
 		Uri: {
 			file: (fsPath) => ({ fsPath, path: fsPath, scheme: "file" }),
@@ -41,6 +44,11 @@ function makeVscodeStub(sandbox) {
 			executeCommand: async (command, ...args) => {
 				executedCommands.push([command, ...args]);
 			},
+		},
+		workspace: {
+			getConfiguration: (section) => ({
+				get: (key) => settings[`${section}.${key}`],
+			}),
 		},
 		env: { machineId: "smoke-machine", isTelemetryEnabled: false },
 		version: "0.0.0-smoke",
@@ -72,6 +80,14 @@ function flagResponse(flags = { rollout: false, killswitch: false }) {
 				"ext-sdk-bundle-rollout": flags.rollout,
 				"ext-sdk-bundle-killswitch": flags.killswitch,
 			},
+			// PostHog /decide delivers payloads as JSON-encoded strings.
+			featureFlagPayloads: flags.killswitchPayload
+				? {
+						"ext-sdk-bundle-killswitch": JSON.stringify(
+							flags.killswitchPayload,
+						),
+					}
+				: {},
 		}),
 	};
 }
@@ -158,6 +174,7 @@ async function runScenario(
 	{
 		seed = {},
 		env = {},
+		settings = {},
 		nextThrows = false,
 		fetchController = makeFlagFetch(),
 		beforeNextFailure,
@@ -200,7 +217,7 @@ async function runScenario(
 		id: "vscode",
 		filename: "vscode",
 		loaded: true,
-		exports: makeVscodeStub(sandbox),
+		exports: makeVscodeStub(sandbox, settings),
 	};
 
 	try {
@@ -285,7 +302,33 @@ await runScenario(
 );
 
 await runScenario(
-	"kill-switch beats cached next",
+	"kill-switch scoped to this version beats cached next",
+	{
+		seed: {
+			"cline.rollout.bundle": "next",
+			"cline.rollout.killswitch": "4.1.0",
+		},
+	},
+	async ({ api }) => {
+		assert.deepEqual(api, { bundle: "legacy" });
+	},
+);
+
+await runScenario(
+	"kill-switch scoped below this version does not apply",
+	{
+		seed: {
+			"cline.rollout.bundle": "next",
+			"cline.rollout.killswitch": "4.0.9",
+		},
+	},
+	async ({ api }) => {
+		assert.deepEqual(api, { bundle: "next" });
+	},
+);
+
+await runScenario(
+	"legacy boolean kill-switch cache still demotes",
 	{
 		seed: { "cline.rollout.bundle": "next", "cline.rollout.killswitch": true },
 	},
@@ -295,8 +338,49 @@ await runScenario(
 );
 
 await runScenario(
+	"kill-switch payload from the flag refresh is cached for the next window",
+	{
+		seed: { "cline.rollout.bundle": "next" },
+		fetchController: makeFlagFetch({
+			rollout: true,
+			killswitch: true,
+			killswitchPayload: { maxKilledVersion: "4.1.2" },
+		}),
+	},
+	async ({ context, api }) => {
+		// This window already ran next; the refresh demotes the NEXT window.
+		assert.deepEqual(api, { bundle: "next" });
+		const state = context.globalState._dump();
+		assert.equal(state["cline.rollout.killswitch"], "4.1.2");
+		assert.equal(state["cline.rollout.bundle"], "legacy");
+	},
+);
+
+await runScenario(
 	"env override forces next",
 	{ env: { CLINE_BUNDLE_OVERRIDE: "next" } },
+	async ({ api }) => {
+		assert.deepEqual(api, { bundle: "next" });
+	},
+);
+
+await runScenario(
+	"user setting overrides to legacy despite cached next",
+	{
+		seed: { "cline.rollout.bundle": "next" },
+		settings: { "cline.rollout.bundleOverride": "legacy" },
+	},
+	async ({ api }) => {
+		assert.deepEqual(api, { bundle: "legacy" });
+	},
+);
+
+await runScenario(
+	"user setting overrides to next past an armed kill-switch",
+	{
+		seed: { "cline.rollout.killswitch": "*" },
+		settings: { "cline.rollout.bundleOverride": "next" },
+	},
 	async ({ api }) => {
 		assert.deepEqual(api, { bundle: "next" });
 	},

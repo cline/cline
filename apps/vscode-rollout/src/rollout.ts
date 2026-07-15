@@ -6,10 +6,9 @@ import * as vscode from "vscode";
 import {
 	type Bundle,
 	COHORT_STATE_KEY,
-	KILLSWITCH_FLAG,
 	KILLSWITCH_STATE_KEY,
 	nextCachedBundle,
-	ROLLOUT_FLAG,
+	parseRolloutFlags,
 	type RolloutFlags,
 } from "./cohort";
 
@@ -96,17 +95,7 @@ async function fetchFlags(
 		return undefined;
 	}
 	try {
-		const payload = (await response.json()) as {
-			featureFlags?: Record<string, unknown>;
-		};
-		const flags = payload.featureFlags;
-		if (!flags) {
-			return undefined;
-		}
-		return {
-			rollout: flags[ROLLOUT_FLAG] === true,
-			killswitch: flags[KILLSWITCH_FLAG] === true,
-		};
+		return parseRolloutFlags(await response.json());
 	} catch {
 		return undefined;
 	}
@@ -119,6 +108,7 @@ async function fetchFlags(
  */
 export async function refreshCohort(
 	context: vscode.ExtensionContext,
+	loaderVersion: string,
 ): Promise<void> {
 	const distinctId = await getDistinctId();
 	const flags = await fetchFlags(distinctId);
@@ -128,9 +118,12 @@ export async function refreshCohort(
 	const cached = context.globalState.get<string>(COHORT_STATE_KEY);
 	await context.globalState.update(
 		COHORT_STATE_KEY,
-		nextCachedBundle(cached, flags),
+		nextCachedBundle(cached, flags, loaderVersion),
 	);
-	await context.globalState.update(KILLSWITCH_STATE_KEY, flags.killswitch);
+	await context.globalState.update(
+		KILLSWITCH_STATE_KEY,
+		flags.killedUpToVersion,
+	);
 }
 
 /**
@@ -142,7 +135,14 @@ export async function refreshCohort(
 export async function reportActivation(
 	context: vscode.ExtensionContext,
 	bundle: Bundle,
-	options: { fallback: boolean; errorMessage?: string },
+	options: {
+		fallback: boolean;
+		errorMessage?: string;
+		/** Time since the previous loader activation on this machine, if known. */
+		msSinceLastActivation?: number;
+		/** Whether an env var or user setting forced this bundle. */
+		override?: "env" | "setting";
+	},
 ): Promise<void> {
 	if (!POSTHOG_API_KEY) {
 		return;
@@ -160,6 +160,10 @@ export async function reportActivation(
 			bundle,
 			fallback: options.fallback,
 			error_message: options.errorMessage,
+			// Launch-cadence distribution: how long promotions take to reach real
+			// windows tells us how fast the rollout percentage can safely be dialed.
+			ms_since_last_activation: options.msSinceLastActivation,
+			override: options.override,
 			loader_version: context.extension.packageJSON?.version,
 			vscode_version: vscode.version,
 		},

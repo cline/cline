@@ -13,7 +13,7 @@
  *   its bundle doesn't register — and shared buttons that moved position
  *   don't show up twice. Commands exclusive to one bundle are likewise hidden
  *   from the other cohort's command palette.
- * - views / viewsContainers / configuration / walkthroughs / engines MUST be
+ * - views / viewsContainers / configuration / engines MUST be
  *   identical in both manifests — they can't be safely gated at runtime, so
  *   divergence is a hard error.
  *
@@ -31,12 +31,7 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 			);
 		}
 	}
-	for (const field of [
-		"views",
-		"viewsContainers",
-		"configuration",
-		"walkthroughs",
-	]) {
+	for (const field of ["views", "viewsContainers", "configuration"]) {
 		try {
 			deepStrictEqual(
 				nextPkg.contributes?.[field],
@@ -55,6 +50,11 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 			`engines diverged: ${JSON.stringify(nextPkg.engines)} vs ${JSON.stringify(legacyPkg.engines)}`,
 		);
 	}
+
+	assertWalkthroughsCompatible(
+		nextPkg.contributes?.walkthroughs,
+		legacyPkg.contributes?.walkthroughs,
+	);
 
 	const nc = nextPkg.contributes ?? {};
 	const lc = legacyPkg.contributes ?? {};
@@ -90,7 +90,7 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 			keybindings: unionGated(nc.keybindings, lc.keybindings),
 			menus,
 			icons: unionIcons(nc.icons, lc.icons),
-			configuration: nc.configuration,
+			configuration: injectLoaderConfiguration(nc.configuration),
 			walkthroughs: nc.walkthroughs,
 		},
 		scripts: {},
@@ -108,6 +108,76 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 const COHORT_CONTEXT_KEY = "cline.sdkBundle";
 const NEXT_GATE = COHORT_CONTEXT_KEY;
 const LEGACY_GATE = `!${COHORT_CONTEXT_KEY}`;
+
+/**
+ * The loader's own user-visible escape hatch. Neither bundle knows about it;
+ * only the loader reads it (src/cohort.ts SETTING_SECTION/SETTING_BUNDLE_OVERRIDE —
+ * keep the key and values in sync). Injected after the configuration-equality
+ * invariant so it can't mask real drift between the bundles.
+ */
+const LOADER_SETTINGS = {
+	"cline.rollout.bundleOverride": {
+		type: "string",
+		enum: ["auto", "next", "legacy"],
+		enumDescriptions: [
+			"Follow the remote rollout assignment.",
+			"Force the new (SDK-based) extension.",
+			"Force the previous (legacy) extension.",
+		],
+		default: "auto",
+		scope: "application",
+		markdownDescription:
+			"Manual override for Cline's staged extension rollout. `next` forces the new (SDK-based) extension, `legacy` forces the previous one, `auto` follows the remote rollout. Beats the remote kill-switch in both directions. Takes effect on window reload.",
+	},
+};
+
+function injectLoaderConfiguration(configuration) {
+	const properties = { ...(configuration?.properties ?? {}) };
+	for (const [key, schema] of Object.entries(LOADER_SETTINGS)) {
+		if (properties[key]) {
+			throw new Error(
+				`bundle manifests must not declare loader-owned setting ${key}`,
+			);
+		}
+		properties[key] = schema;
+	}
+	return { title: "Cline", ...(configuration ?? {}), properties };
+}
+
+/**
+ * Walkthroughs can't be gated per cohort, and their markdown at the VSIX root
+ * always comes from the next checkout — so requiring byte-identical manifests
+ * here would brick releases over copy tweaks while protecting nothing. Only
+ * STRUCTURE must match (walkthrough/step ids, media paths, completion events —
+ * the parts code and the manifest reference); when titles/descriptions
+ * diverge, next's copy ships for everyone and the build says so.
+ */
+function assertWalkthroughsCompatible(next = [], legacy = []) {
+	const structure = (walkthroughs) =>
+		walkthroughs.map((walkthrough) => ({
+			id: walkthrough.id,
+			steps: (walkthrough.steps ?? []).map((step) => ({
+				id: step.id,
+				media: step.media,
+				completionEvents: step.completionEvents,
+				when: step.when,
+			})),
+		}));
+	try {
+		deepStrictEqual(structure(next), structure(legacy));
+	} catch {
+		throw new Error(
+			"contributes.walkthroughs diverged structurally (ids/media/completionEvents) — reconcile the branches",
+		);
+	}
+	try {
+		deepStrictEqual(next, legacy);
+	} catch {
+		console.warn(
+			"warning: walkthrough titles/descriptions differ between bundles; shipping next's copy for both cohorts",
+		);
+	}
+}
 
 function unionPrimitive(a = [], b = []) {
 	return [...new Set([...a, ...b])];

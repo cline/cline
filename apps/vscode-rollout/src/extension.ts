@@ -6,8 +6,13 @@ import {
 	type Bundle,
 	COHORT_STATE_KEY,
 	decideBundle,
+	decisionOverrideSource,
 	FAILED_VERSION_STATE_KEY,
 	KILLSWITCH_STATE_KEY,
+	LAST_ACTIVATION_STATE_KEY,
+	normalizeKilledUpTo,
+	SETTING_BUNDLE_OVERRIDE,
+	SETTING_SECTION,
 } from "./cohort";
 import { refreshCohort, reportActivation } from "./rollout";
 import { scopedContext } from "./scoped-context";
@@ -38,25 +43,56 @@ interface BundleModule {
 
 let activeBundle: { module: BundleModule; name: Bundle } | undefined;
 
+interface ActivationMeta {
+	msSinceLastActivation?: number;
+	override?: "env" | "setting";
+}
+
 export async function activate(context: vscode.ExtensionContext) {
 	const loaderVersion: string =
 		context.extension.packageJSON?.version ?? "unknown";
+
+	// Launch-cadence telemetry: how stale the previous activation is bounds how
+	// fast a percentage change can actually reach users' windows.
+	const lastActivationAt = context.globalState.get<number>(
+		LAST_ACTIVATION_STATE_KEY,
+	);
+	const now = Date.now();
+	void context.globalState.update(LAST_ACTIVATION_STATE_KEY, now);
+
+	const overrides = {
+		envOverride: process.env[BUNDLE_OVERRIDE_ENV],
+		settingOverride: vscode.workspace
+			.getConfiguration(SETTING_SECTION)
+			.get<string>(SETTING_BUNDLE_OVERRIDE),
+	};
 	const bundle = decideBundle({
-		override: process.env[BUNDLE_OVERRIDE_ENV],
+		...overrides,
 		cached: context.globalState.get<string>(COHORT_STATE_KEY),
-		killswitch: context.globalState.get<boolean>(KILLSWITCH_STATE_KEY) === true,
+		killedUpToVersion: normalizeKilledUpTo(
+			context.globalState.get(KILLSWITCH_STATE_KEY),
+		),
 		previousFailure:
 			context.globalState.get<string>(FAILED_VERSION_STATE_KEY) ===
 			loaderVersion,
+		version: loaderVersion,
 	});
+	const meta: ActivationMeta = {
+		msSinceLastActivation:
+			typeof lastActivationAt === "number" && lastActivationAt <= now
+				? now - lastActivationAt
+				: undefined,
+		override: decisionOverrideSource(overrides),
+	};
 
-	return activateBundle(context, bundle, loaderVersion, true);
+	return activateBundle(context, bundle, loaderVersion, meta, true);
 }
 
 async function activateBundle(
 	context: vscode.ExtensionContext,
 	bundle: Bundle,
 	loaderVersion: string,
+	meta: ActivationMeta,
 	refreshAssignmentOnSuccess: boolean,
 ): Promise<unknown> {
 	// Menus/keybindings gated per cohort in package.json key off this.
@@ -77,9 +113,11 @@ async function activateBundle(
 		// bundle activates. A crash fallback must not start a refresh that could
 		// promote the cohort back to next after the handler pins it to legacy.
 		if (refreshAssignmentOnSuccess) {
-			void refreshCohort(context).catch(() => {});
+			void refreshCohort(context, loaderVersion).catch(() => {});
 		}
-		void reportActivation(context, bundle, { fallback: false }).catch(() => {});
+		void reportActivation(context, bundle, { ...meta, fallback: false }).catch(
+			() => {},
+		);
 		return api;
 	} catch (error) {
 		if (bundle === "legacy") {
@@ -96,13 +134,14 @@ async function activateBundle(
 		await context.globalState.update(FAILED_VERSION_STATE_KEY, loaderVersion);
 		await context.globalState.update(COHORT_STATE_KEY, "legacy");
 		void reportActivation(context, "legacy", {
+			...meta,
 			fallback: true,
 			errorMessage:
 				error instanceof Error
 					? `${error.message}\n${error.stack ?? ""}`.slice(0, 2000)
 					: String(error),
 		}).catch(() => {});
-		return activateBundle(context, "legacy", loaderVersion, false);
+		return activateBundle(context, "legacy", loaderVersion, meta, false);
 	}
 }
 

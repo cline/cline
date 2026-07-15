@@ -192,31 +192,60 @@ describe("generateManifest", () => {
 		expect(() => generateManifest(next, legacy, "1.0.0")).toThrow(/views/);
 	});
 
-	it("rejects diverged walkthroughs", () => {
-		const next = pkg({
+	it("rejects structurally diverged walkthroughs", () => {
+		const walkthrough = (stepId, media) => ({
 			contributes: {
 				walkthroughs: [
 					{
 						id: "ClineWalkthrough",
 						title: "Meet Cline",
-						steps: [{ id: "welcome", title: "Start here" }],
+						steps: [{ id: stepId, title: "Start here", media }],
 					},
 				],
 			},
 		});
-		const legacy = pkg({
+		expect(() =>
+			generateManifest(
+				pkg(walkthrough("welcome", { markdown: "walkthrough/step1.md" })),
+				pkg(walkthrough("hello", { markdown: "walkthrough/step1.md" })),
+				"1.0.0",
+			),
+		).toThrow(/walkthroughs diverged structurally/);
+		expect(() =>
+			generateManifest(
+				pkg(walkthrough("welcome", { markdown: "walkthrough/step1.md" })),
+				pkg(walkthrough("welcome", { markdown: "walkthrough/other.md" })),
+				"1.0.0",
+			),
+		).toThrow(/walkthroughs diverged structurally/);
+	});
+
+	it("tolerates copy-only walkthrough divergence, shipping next's text", () => {
+		const walkthrough = (description) => ({
 			contributes: {
 				walkthroughs: [
 					{
 						id: "ClineWalkthrough",
 						title: "Meet Cline",
-						steps: [{ id: "welcome", title: "Start somewhere else" }],
+						steps: [
+							{
+								id: "welcome",
+								title: "Start here",
+								description,
+								media: { markdown: "walkthrough/step1.md" },
+							},
+						],
 					},
 				],
 			},
 		});
-		expect(() => generateManifest(next, legacy, "1.0.0")).toThrow(
-			/contributes\.walkthroughs diverged/,
+		const manifest = generateManifest(
+			pkg(walkthrough("Connect via MCP.")),
+			pkg(walkthrough("Discover the MCP Marketplace.")),
+			"1.0.0",
+		);
+		expect(manifest.contributes.walkthroughs[0].steps[0].description).toBe(
+			"Connect via MCP.",
 		);
 	});
 
@@ -244,6 +273,32 @@ describe("generateManifest", () => {
 		expect(() => generateManifest(next, legacy, "1.0.0")).toThrow(
 			/contributes\.configuration diverged/,
 		);
+	});
+
+	it("injects the loader-owned bundleOverride setting into the union", () => {
+		const manifest = generateManifest(pkg({}), pkg({}), "4.1.0");
+		const prop =
+			manifest.contributes.configuration.properties[
+				"cline.rollout.bundleOverride"
+			];
+		expect(prop).toBeDefined();
+		expect(prop.enum).toEqual(["auto", "next", "legacy"]);
+		expect(prop.default).toBe("auto");
+		expect(prop.scope).toBe("application");
+	});
+
+	it("rejects bundles that declare the loader-owned setting themselves", () => {
+		const withClash = {
+			contributes: {
+				configuration: {
+					title: "Cline",
+					properties: { "cline.rollout.bundleOverride": { type: "string" } },
+				},
+			},
+		};
+		expect(() =>
+			generateManifest(pkg(withClash), pkg(withClash), "4.1.0"),
+		).toThrow(/loader-owned setting/);
 	});
 
 	it("rejects diverged engines", () => {

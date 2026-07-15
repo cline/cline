@@ -49,17 +49,32 @@ marketplace re-publish. A new version gets to try next again.
   promotions but demotes nobody: tasks created on the SDK bundle are stored as
   SDK sessions the legacy bundle can't list, and credentials rotated there
   live in `providers.json` only — a silent demotion would look like data loss.
-- **Kill-switch demotes.** `ext-sdk-bundle-killswitch` (boolean flag) moves
-  everyone back to legacy on their next window, accepting the switch-back
-  cost above. Emergency use only.
+- **Kill-switch demotes, scoped by version.** `ext-sdk-bundle-killswitch` is a
+  boolean flag whose **payload** carries the scope:
+  `{"maxKilledVersion": "4.1.2"}` demotes combined VSIXes **<= 4.1.2** on their
+  next window, while a fixed 4.1.3 rolls out normally — so killing a broken
+  release never blocks the release that fixes it, and stragglers who haven't
+  auto-updated stay safely pinned to legacy. Arming it with no payload demotes
+  ALL versions. Emergency use only (demotion accepts the switch-back cost
+  above).
+- **Both flags must stay boolean flags.** The loader only promotes on a
+  literal `true` from `/decide` — a multivariate variant, number, or anything
+  else fails safe as "not enrolled" (see `parseRolloutFlags` + tests). Don't
+  convert either flag to multivariate.
 - Flags are evaluated against the same PostHog distinct id the extension's
   telemetry uses (machine id, mirroring `src/services/logging/distinctId.ts`),
   so cohort membership is correlatable with telemetry. Flag evaluation is
   always on (matching `FeatureFlagsService`); the loader's own
   `extension.rollout.bundle_activated` event respects the user's telemetry
   opt-out and VS Code's global telemetry switch.
-- `CLINE_BUNDLE_OVERRIDE=next|legacy` (env var) forces a bundle for local dev
-  and e2e, beating all flags.
+- **Manual overrides, in either direction.** The `cline.rollout.bundleOverride`
+  user setting (`"auto" | "next" | "legacy"`, editable straight from
+  settings.json) forces a bundle for anyone — users in a pinch, or us
+  debugging — beating the flags and the kill-switch. Applies on window
+  reload. `CLINE_BUNDLE_OVERRIDE=next|legacy` (env var) does the same for
+  local dev and e2e and beats even the setting. Both are reported as
+  `override` on the activation event so overridden machines don't pollute
+  cohort comparisons.
 
 ## The union manifest
 
@@ -121,10 +136,17 @@ stitches, smoke-tests, uploads the `.vsix` artifact, and optionally publishes.
    everyone — it only validates the loader plumbing in the wild. Watch
    `extension.rollout.bundle_activated`.
 3. Dial `ext-sdk-bundle-rollout` up: 1% → 5% → 25% → 100%. Promotions apply on
-   each machine's next window reload after its (hourly-ish) flag refresh.
-   Compare cohorts by the `bundle` property on activation events.
+   each machine's next window reload after its flag refresh, so propagation
+   speed is bounded by how often people reload windows — watch the
+   `ms_since_last_activation` distribution on activation events to see real
+   uptake lag before deciding the next step, and compare cohorts by the
+   `bundle` property.
 4. Never dial the percentage *down* expecting users to move back — they won't
-   (by design). Emergencies: flip `ext-sdk-bundle-killswitch` on.
+   (by design). Emergencies: arm `ext-sdk-bundle-killswitch` with payload
+   `{"maxKilledVersion": "<broken version>"}`, ship the fix as a higher
+   version, and let the rollout flag re-promote updated machines while dead
+   versions stay pinned. Disarm the kill-switch once the broken version's
+   install base has drained.
 5. When next reaches 100% and soaks, retire the loader: publish a plain SDK
    extension build and delete this package.
 
