@@ -227,6 +227,27 @@ describe("createProviderConfigStore", () => {
 		})
 	})
 
+	it("persists OpenAI Compatible model configuration fields", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, {
+			contextWindow: 65_536,
+			maxTokens: 4_096,
+			temperature: 0.6,
+			pricing: { input: 1, output: 2, cacheRead: 0.5, cacheWrite: 0.25 },
+		})
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			contextWindow: 65_536,
+			maxTokens: 4_096,
+			temperature: 0.6,
+			pricing: { input: 1, output: 2, cacheRead: 0.5, cacheWrite: 0.25 },
+		})
+	})
+
 	it("preserves migrated OpenAI Compatible settings when committing model selections", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setProviderSettings({

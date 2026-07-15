@@ -118,8 +118,27 @@ export const OpenAICompatibleProvider = ({
 				handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
 			}
 			commitOpenAiSelection(selectedModelId || "", modelInfo)
+			void write({
+				...(modelInfo.contextWindow !== undefined ? { contextWindow: modelInfo.contextWindow } : {}),
+				...(modelInfo.maxTokens !== undefined ? { maxTokens: modelInfo.maxTokens } : {}),
+				...(modelInfo.temperature !== undefined ? { temperature: modelInfo.temperature } : {}),
+				pricing: {
+					input: modelInfo.inputPrice ?? 0,
+					output: modelInfo.outputPrice ?? 0,
+					cacheRead: modelInfo.cacheReadsPrice ?? 0,
+					cacheWrite: modelInfo.cacheWritesPrice ?? 0,
+				},
+			}).catch((error) => handleProviderConfigWriteError("model configuration", error))
 		},
-		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider, selectedModelId],
+		[
+			commitOpenAiSelection,
+			currentMode,
+			handleModeFieldChange,
+			handleProviderConfigWriteError,
+			isOpenAiProvider,
+			selectedModelId,
+			write,
+		],
 	)
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)

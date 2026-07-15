@@ -21,7 +21,20 @@ import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo } from "./shape-adapter"
 
 type ProviderSettingsRecord = Record<string, unknown>
-type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras" | "aws" | "gcp"
+type ProviderSettingsPatchKey =
+	| "apiKey"
+	| "baseUrl"
+	| "apiLine"
+	| "headers"
+	| "region"
+	| "auth"
+	| "extras"
+	| "aws"
+	| "gcp"
+	| "maxTokens"
+	| "contextWindow"
+	| "temperature"
+	| "pricing"
 
 type ModelInfoKeys = {
 	readonly plan: keyof ApiConfiguration & SettingsKey
@@ -89,6 +102,10 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 	extras: {},
 	aws: {},
 	gcp: {},
+	maxTokens: {},
+	contextWindow: {},
+	temperature: {},
+	pricing: {},
 }
 
 const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
@@ -297,7 +314,9 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 	const existing = getProviderSettings(providerId)
 	const next: ProviderSettingsRecord = { ...existing }
 
-	for (const key of ["apiKey", "baseUrl", "apiLine", "headers", "region", "auth", "extras"] as const) {
+	const canWriteCustomModelSettings = providerKey(providerId) === "openai"
+	const keys = ["apiKey", "baseUrl", "apiLine", "headers", "region", "auth", "extras"] as const
+	for (const key of keys) {
 		if (key in patch) {
 			const value = typeof patch[key] === "string" ? patchStringValue(patch[key]) : patchValue(patch[key])
 			if (value === undefined) {
@@ -306,6 +325,26 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 				next[key] = value
 			}
 		}
+	}
+
+	if (canWriteCustomModelSettings) {
+		for (const key of ["maxTokens", "contextWindow", "temperature"] as const) {
+			if (key in patch) {
+				const value = patchValue(patch[key])
+				if (value === undefined) delete next[key]
+				else next[key] = value
+			}
+		}
+		if ("pricing" in patch) {
+			const pricing = patch.pricing
+			if (pricing === null || pricing === undefined) delete next.pricing
+			else next.pricing = pricing
+		}
+	} else {
+		delete next.maxTokens
+		delete next.contextWindow
+		delete next.temperature
+		delete next.pricing
 	}
 
 	if ("gcp" in patch) {
