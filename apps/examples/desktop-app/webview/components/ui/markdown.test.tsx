@@ -77,6 +77,17 @@ const ready = true;
 		expect(html).not.toContain('aria-haspopup="dialog"');
 	});
 
+	test("blocks scheme-less hostnames before they reach link rendering", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[Review](example.com/path)" />,
+		);
+
+		expect(html).toContain("Review");
+		expect(html).toContain("blocked");
+		expect(html).not.toContain("<a");
+		expect(html).not.toContain('data-streamdown="link"');
+	});
+
 	test("does not expose unsafe script URLs or raw scripts", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
