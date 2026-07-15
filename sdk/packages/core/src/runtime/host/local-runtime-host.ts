@@ -1771,10 +1771,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				(await readGitWorkspaceState(resolveWorkspacePath(session.config)));
 			if (!state || !session.artifacts) return;
 			if (
-				hasCurrentSessionGitMetadata(
-					session.artifacts.manifest.metadata,
-					state,
-				)
+				hasCurrentSessionGitMetadata(session.artifacts.manifest.metadata, state)
 			) {
 				return;
 			}

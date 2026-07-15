@@ -205,7 +205,10 @@ describe("LocalRuntimeHost", () => {
 		const agent = {
 			run: vi.fn(async () => {
 				initialManifest = JSON.parse(
-					readFileSync(join(sessionsDir, sessionId, `${sessionId}.json`), "utf8"),
+					readFileSync(
+						join(sessionsDir, sessionId, `${sessionId}.json`),
+						"utf8",
+					),
 				) as SessionManifest;
 				await git.checkoutLocalBranch("feature/session-git");
 				await git.removeRemote("origin");
