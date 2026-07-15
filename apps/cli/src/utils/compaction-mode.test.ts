@@ -26,20 +26,20 @@ describe("CLI compaction mode helpers", () => {
 	});
 
 	it("maps basic and off modes to core compaction config", () => {
-		const config = createConfig({ enabled: true, maxInputTokens: 123 });
+		const config = createConfig({ enabled: true, preserveRecentTokens: 123 });
 
 		applyCliCompactionMode(config, "basic");
 		expect(config.compaction).toEqual({
 			enabled: true,
 			strategy: "basic",
-			maxInputTokens: 123,
+			preserveRecentTokens: 123,
 		});
 		expect(getCliCompactionMode(config)).toBe("basic");
 
 		applyCliCompactionMode(config, "off");
 		expect(config.compaction).toEqual({
 			enabled: false,
-			maxInputTokens: 123,
+			preserveRecentTokens: 123,
 		});
 		expect(getCliCompactionMode(config)).toBe("off");
 	});

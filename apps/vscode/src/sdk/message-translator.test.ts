@@ -198,6 +198,32 @@ describe("translateSessionEvent — pending prompts", () => {
 			}),
 		])
 	})
+
+	it("strips runtime-generated mode notices from the queued prompt echo", () => {
+		// The webview shows what the user typed; the <mode_notice> element the
+		// mode coordinator stamps onto outbound prompts is model-facing context
+		// and must never render as user text.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>\nplease just finish",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "please just finish",
+			}),
+		])
+	})
 })
 
 // ---------------------------------------------------------------------------

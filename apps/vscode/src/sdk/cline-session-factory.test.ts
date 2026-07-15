@@ -731,6 +731,27 @@ describe("buildSessionConfig", () => {
 			strategy: "basic",
 		})
 	})
+
+	it("emits the shared mode-tag instructions in both act and plan system prompts", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+
+		const actConfig = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "act" })
+		const planConfig = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "plan" })
+
+		// The shared prompt builder now owns the mode semantics: the
+		// <user_input mode> / <mode_notice> explanation goes to both modes, the
+		// plan-mode contract (read-only run_commands included) only to plan.
+		expect(actConfig.systemPrompt).toContain("# Plan / Act Modes")
+		expect(actConfig.systemPrompt).toContain("<mode_notice>")
+		expect(actConfig.systemPrompt).not.toContain("# Plan Mode\n")
+
+		expect(planConfig.systemPrompt).toContain("# Plan / Act Modes")
+		expect(planConfig.systemPrompt).toContain("# Plan Mode\n")
+		expect(planConfig.systemPrompt).toContain(
+			"run_commands tool remains available in plan mode strictly for read-only inspection",
+		)
+		expect(planConfig.systemPrompt).toContain("switch_to_act_mode")
+	})
 })
 
 // ---------------------------------------------------------------------------

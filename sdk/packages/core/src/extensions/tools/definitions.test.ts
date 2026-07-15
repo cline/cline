@@ -1676,7 +1676,7 @@ describe("zod schema conversion", () => {
 					path: {
 						type: "string",
 						description:
-							"The absolute file path of a text file to read content from",
+							"The absolute path of a text file to read content from",
 					},
 					start_line: {
 						anyOf: [{ type: "integer" }, { type: "null" }],

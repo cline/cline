@@ -9,7 +9,6 @@ import type {
 } from "../../types/config";
 import { buildBudgetProjection } from "./budget-projection";
 import {
-	DEFAULT_TARGET_RATIO,
 	type EstimateMessageTokens,
 	findFirstUserMessageIndex,
 	findLastAssistantIndex,
@@ -373,9 +372,8 @@ export function runBasicCompaction(options: {
 	const totalTargetTokens = Math.max(
 		1,
 		Math.min(
-			options.context.targetTokens ??
-				Math.floor(options.context.triggerTokens * DEFAULT_TARGET_RATIO),
-			options.context.maxInputTokens,
+			options.context.budget.messages.targetTokens,
+			options.context.budget.messages.triggerTokens,
 		),
 	);
 	const { compactable, protectedTail } = splitLatestTurn(
@@ -437,7 +435,7 @@ export function runBasicCompaction(options: {
 		candidates,
 		targetTokens,
 		totalTokens,
-		options.context.triggerTokens,
+		options.context.budget.messages.triggerTokens,
 		options.estimateMessageTokens,
 	);
 
@@ -459,7 +457,7 @@ export function runBasicCompaction(options: {
 			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
 			projectedTokens: budgeted.estimatedTokens,
 			targetTokens: totalTargetTokens,
-			maxInputTokens: options.context.maxInputTokens,
+			maxInputTokens: options.context.budget.request.maxInputTokens,
 		});
 	}
 	const resultMessages = budgeted.messages;
@@ -487,7 +485,7 @@ export function runBasicCompaction(options: {
 		budgetActions: budgetActionCount,
 		budgetWarnings: budgeted.warnings.map((warning) => warning.code),
 		targetTokens: totalTargetTokens,
-		maxInputTokens: options.context.maxInputTokens,
+		maxInputTokens: options.context.budget.request.maxInputTokens,
 	});
 
 	return {

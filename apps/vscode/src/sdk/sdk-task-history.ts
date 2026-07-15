@@ -1,16 +1,19 @@
 import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import { type ContentBlock, formatDisplayUserInput, type MessageWithMetadata } from "@cline/shared"
+import { formatDisplayUserInput } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
-import { buildSessionConfig } from "./cline-session-factory"
-import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
+import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages, taskDirPath } from "./legacy-state-reader"
+import {
+	appendLegacyResumeWarning,
+	legacyApiHistoryToSdkMessages,
+	mergeLegacyUiMessagesWithResumedSdkMessages,
+} from "./legacy-task-handling"
 import type { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -82,10 +85,6 @@ function compareSessionHistoryRecordsByRecencyDesc(a: SessionHistoryRecord, b: S
 	)
 }
 
-function historyItemHasTokenUsage(item: HistoryItem): boolean {
-	return (item.tokensIn ?? 0) > 0 || (item.tokensOut ?? 0) > 0 || (item.cacheReads ?? 0) > 0 || (item.cacheWrites ?? 0) > 0
-}
-
 export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?: string): Record<string, unknown> {
 	return {
 		title: item.task,
@@ -97,6 +96,7 @@ export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?
 		cacheWrites: item.cacheWrites ?? 0,
 		cacheReads: item.cacheReads ?? 0,
 		modelId: item.modelId ?? fallbackModelId ?? "",
+		legacyTask: item.isLegacy ?? false,
 	}
 }
 
@@ -129,49 +129,6 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 	}
 }
 
-function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefined {
-	if (!block || typeof block !== "object") {
-		return undefined
-	}
-	const record = block as Record<string, unknown>
-	switch (record.type) {
-		case "text":
-			return typeof record.text === "string" ? { type: "text", text: record.text } : undefined
-		case "tool_use":
-			return typeof record.id === "string" && typeof record.name === "string"
-				? {
-						type: "tool_use",
-						id: record.id,
-						name: record.name,
-						input: (record.input as Record<string, unknown>) ?? {},
-					}
-				: undefined
-		case "tool_result":
-			return typeof record.tool_use_id === "string"
-				? {
-						type: "tool_result",
-						tool_use_id: record.tool_use_id,
-						// SDK tool_result blocks carry the tool name, but Anthropic-format
-						// transcripts identify the tool only by tool_use_id. Use the name
-						// when present and otherwise leave it empty.
-						name: typeof record.name === "string" ? record.name : "",
-						content: typeof record.content === "string" ? record.content : JSON.stringify(record.content ?? ""),
-						is_error: typeof record.is_error === "boolean" ? record.is_error : undefined,
-					}
-				: undefined
-		case "thinking":
-			return typeof record.thinking === "string" ? { type: "thinking", thinking: record.thinking } : undefined
-		case "image": {
-			const source = record.source as Record<string, unknown> | undefined
-			return source?.type === "base64" && typeof source.data === "string" && typeof source.media_type === "string"
-				? { type: "image", data: source.data, mediaType: source.media_type }
-				: undefined
-		}
-		default:
-			return undefined
-	}
-}
-
 function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkMessage[] {
 	return messages.map((message) => {
 		if (message.role !== "user") {
@@ -194,55 +151,6 @@ function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkMessage[]
 	})
 }
 
-function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: HistoryItem): MessageWithMetadata[] {
-	const messages = apiHistory.flatMap((raw): MessageWithMetadata[] => {
-		if (!raw || typeof raw !== "object") {
-			return []
-		}
-		const record = raw as Record<string, unknown>
-		const role = record.role === "assistant" ? "assistant" : record.role === "user" ? "user" : undefined
-		if (!role) {
-			return []
-		}
-
-		if (typeof record.content === "string") {
-			return [
-				{
-					role,
-					content: role === "user" ? formatDisplayUserInput(record.content) : record.content,
-				},
-			]
-		}
-
-		if (Array.isArray(record.content)) {
-			const content = record.content.flatMap((block) => {
-				const converted = anthropicContentBlockToSdkBlock(block)
-				if (role === "user" && converted?.type === "text") {
-					return [{ ...converted, text: formatDisplayUserInput(converted.text) }]
-				}
-				return converted ? [converted] : []
-			})
-			return content.length > 0 ? [{ role, content }] : []
-		}
-
-		return []
-	})
-
-	const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant")
-	if (lastAssistant && !lastAssistant.metrics) {
-		lastAssistant.metrics = {
-			inputTokens: (historyItem.tokensIn ?? 0) + (historyItem.cacheReads ?? 0) + (historyItem.cacheWrites ?? 0),
-			outputTokens: historyItem.tokensOut ?? 0,
-			cacheReadTokens: historyItem.cacheReads ?? 0,
-			cacheWriteTokens: historyItem.cacheWrites ?? 0,
-			cost: historyItem.totalCost ?? 0,
-		}
-		lastAssistant.modelInfo = historyItem.modelId ? { id: historyItem.modelId, provider: "unknown" } : lastAssistant.modelInfo
-	}
-
-	return sanitizeInitialMessagesForSessionStart(messages) as MessageWithMetadata[]
-}
-
 export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): HistoryItem {
 	const metadata = item.metadata
 	return {
@@ -258,6 +166,8 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 		modelId: item.model || metadataString(metadata, "modelId") || "",
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
+		isLegacy:
+			metadataBoolean(metadata, "legacyTask") === true || metadataBoolean(metadata, "migratedFromLegacyTask") === true,
 	}
 }
 
@@ -506,121 +416,59 @@ export class SdkTaskHistory {
 		return result
 	}
 
+	private async getSdkRecord(taskId: string): Promise<SessionHistoryRecord | undefined> {
+		return this.withHistoryHost((host) => host.get(taskId) as Promise<SessionHistoryRecord | undefined>)
+	}
+
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
-		await this.migrateLegacyTaskIfNeeded(taskId)
+		const sdkRecord = await this.getSdkRecord(taskId)
+		const legacyTask = this.findLegacyTask(taskId)
+		if (!sdkRecord && legacyTask) {
+			return readUiMessages(taskId, legacyTask.dataDir)
+		}
+
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
 		const clineMessages = sdkMessagesToClineMessages(
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),
 		)
+		if (sdkRecord && legacyTask) {
+			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)
+		}
 		return clineMessages
 	}
 
-	private async migrateLegacyTaskIfNeeded(taskId: string): Promise<boolean> {
-		const startedAt = Date.now()
-		let sdkLookupFailed = false
-		let historyItem: HistoryItem | undefined
-		let legacyApiHistoryLength: number | undefined
-		let convertedMessageCount: number | undefined
-
-		const emitMigrationTelemetry = (args: { outcome: "success" | "skipped" | "error"; reason: string }) => {
-			const payload = {
-				taskId,
-				outcome: args.outcome,
-				reason: args.reason,
-				durationMs: Date.now() - startedAt,
-				legacyApiHistoryLength,
-				convertedMessageCount,
-				sdkLookupFailed,
-				hasFavorite: historyItem?.isFavorited === true,
-				hasCost: (historyItem?.totalCost ?? 0) > 0,
-				hasTokenUsage: historyItem ? historyItemHasTokenUsage(historyItem) : undefined,
-				hasCwd: !!historyItem?.cwdOnTaskInitialization,
-			}
-			Logger.log("[SdkTaskHistory] Legacy task migration", payload)
-			this.options.telemetry?.safeCapture(
-				() => this.options.telemetry?.captureLegacyTaskMigration(payload),
-				"SdkTaskHistory.migrateLegacyTaskIfNeeded",
+	async isLegacyTask(taskId: string): Promise<boolean> {
+		const sdkRecord = await this.getSdkRecord(taskId)
+		if (sdkRecord) {
+			return (
+				metadataBoolean(sdkRecord.metadata, "legacyTask") === true ||
+				metadataBoolean(sdkRecord.metadata, "migratedFromLegacyTask") === true
 			)
 		}
 
-		return this.withHistoryHost(async (host) => {
-			try {
-				const existing = await host.get(taskId)
-				if (existing) {
-					emitMigrationTelemetry({ outcome: "skipped", reason: "sdk_exists" })
-					return false
-				}
-			} catch (error) {
-				sdkLookupFailed = true
-				Logger.warn(`[SdkTaskHistory] Failed to check SDK session before legacy migration: ${taskId}`, error)
-			}
+		return this.findLegacyTask(taskId) !== undefined
+	}
 
-			const legacyTask = this.findLegacyTask(taskId)
-			historyItem = legacyTask?.item
-			if (!historyItem) {
-				emitMigrationTelemetry({
-					outcome: "skipped",
-					reason: "legacy_history_missing",
-				})
-				return false
+	async getLegacyResumeInitialMessages(taskId: string, fallbackMessages?: unknown[]): Promise<unknown[] | undefined> {
+		const sdkRecord = await this.getSdkRecord(taskId)
+		const legacyTask = sdkRecord ? undefined : this.findLegacyTask(taskId)
+		if (legacyTask) {
+			const legacyApiHistory = readApiConversationHistory(taskId, legacyTask.dataDir)
+			if (legacyApiHistory.length > 0) {
+				return legacyApiHistoryToSdkMessages(legacyApiHistory, legacyTask.item)
 			}
+		}
 
-			const legacyApiHistory = readApiConversationHistory(taskId, legacyTask?.dataDir)
-			legacyApiHistoryLength = legacyApiHistory.length
-			if (legacyApiHistory.length === 0) {
-				emitMigrationTelemetry({
-					outcome: "skipped",
-					reason: "legacy_api_history_empty",
-				})
-				return false
-			}
+		if (!fallbackMessages) {
+			return undefined
+		}
+		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
+	}
 
-			const initialMessages = legacyApiHistoryToSdkMessages(legacyApiHistory, historyItem)
-			convertedMessageCount = initialMessages.length
-			if (initialMessages.length === 0) {
-				emitMigrationTelemetry({
-					outcome: "skipped",
-					reason: "converted_messages_empty",
-				})
-				return false
-			}
-
-			const cwd = historyItem.cwdOnTaskInitialization || process.cwd()
-			let config: Awaited<ReturnType<typeof buildSessionConfig>>
-			try {
-				config = await buildSessionConfig({
-					cwd,
-					workspaceRoot: cwd,
-					mode: "act",
-				})
-				config.sessionId = taskId
-			} catch (error) {
-				emitMigrationTelemetry({ outcome: "error", reason: "config_failed" })
-				throw error
-			}
-
-			try {
-				await host.start({
-					config,
-					prompt: undefined,
-					interactive: true,
-					initialMessages,
-					sessionMetadata: {
-						...historyItemToSessionMetadata(historyItem),
-						migratedFromLegacyTask: true,
-					},
-				})
-			} catch (error) {
-				emitMigrationTelemetry({ outcome: "error", reason: "write_failed" })
-				throw error
-			}
-
-			this.invalidateMetadataHistoryCache()
-			Logger.log(`[SdkTaskHistory] Migrated legacy task to SDK session: ${taskId}`)
-			emitMigrationTelemetry({ outcome: "success", reason: "migrated" })
-			return true
-		})
+	getLegacyTaskDirPath(taskId: string): string | undefined {
+		const legacyTask = this.findLegacyTask(taskId)
+		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
@@ -671,9 +519,16 @@ export class SdkTaskHistory {
 
 	private async deleteSession(sessionId: string): Promise<void> {
 		const legacyTask = this.findLegacyTask(sessionId)
-		await this.withHistoryHost(async (host) => {
-			await host.delete(sessionId)
-		})
+		try {
+			await this.withHistoryHost(async (host) => {
+				await host.delete(sessionId)
+			})
+		} catch (error) {
+			if (!legacyTask) {
+				throw error
+			}
+			Logger.warn(`[SdkTaskHistory] SDK session missing while deleting legacy task: ${sessionId}`, error)
+		}
 		if (legacyTask) {
 			deleteLegacyTask(sessionId, legacyTask.dataDir)
 		}
@@ -696,7 +551,7 @@ export class SdkTaskHistory {
 		}
 
 		const legacyItem = this.findLegacyTask(taskId)?.item
-		return legacyItem
+		return legacyItem ? { ...legacyItem, isLegacy: true } : undefined
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
@@ -718,16 +573,14 @@ export class SdkTaskHistory {
 			: history
 
 		let deletedCount = 0
-		await this.withHistoryHost(async (host) => {
-			for (const item of tasksToDelete) {
-				try {
-					await host.delete(item.sessionId)
-					deletedCount += 1
-				} catch (error) {
-					Logger.error(`[SdkTaskHistory] Failed to delete task history item: ${item.sessionId}`, error)
-				}
+		for (const item of tasksToDelete) {
+			try {
+				await this.deleteSession(item.sessionId)
+				deletedCount += 1
+			} catch (error) {
+				Logger.error(`[SdkTaskHistory] Failed to delete task history item: ${item.sessionId}`, error)
 			}
-		})
+		}
 
 		return deletedCount
 	}
