@@ -145,6 +145,36 @@ function readFileIfExists(fs, filePath) {
 	}
 }
 
+function resolveClineDir(env, os, path) {
+	return env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline");
+}
+
+/**
+ * True when the api-unavailable warning should print. Stamped per Node version
+ * in the cline dir so the nudge shows once rather than on every command; a
+ * version change (upgrade that still falls short, or downgrade) re-arms it.
+ * When the stamp cannot be read or written, warn — bookkeeping failures must
+ * never suppress a real diagnostic.
+ */
+function shouldWarnApiUnavailable(env, deps = {}) {
+	const fs = deps.fs || require("node:fs");
+	const os = deps.os || require("node:os");
+	const path = deps.path || require("node:path");
+	const version = deps.nodeVersion || process.versions.node;
+	const dir = resolveClineDir(env, os, path);
+	const stamp = path.join(dir, `.ca-api-warned-${version}`);
+	try {
+		if (fs.existsSync(stamp)) {
+			return false;
+		}
+		fs.mkdirSync(dir, { recursive: true });
+		fs.writeFileSync(stamp, "", { mode: 0o600 });
+		return true;
+	} catch {
+		return true;
+	}
+}
+
 /** Atomically writes [content] to [target]; returns true on success. */
 function writeBundle(fs, dir, target, content) {
 	const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
@@ -208,7 +238,7 @@ function configureNodeExtraCaCerts(env, deps = {}) {
 		};
 	}
 
-	const managedDir = env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline");
+	const managedDir = resolveClineDir(env, os, path);
 	const managedPath = path.join(managedDir, "cli-node-extra-ca-certs.pem");
 	const userValue = (env.NODE_EXTRA_CA_CERTS || "").trim() || null;
 	const userPems = readUserCerts(fs, path, userValue, managedPath);
@@ -247,4 +277,5 @@ module.exports = {
 	buildBundle,
 	countCerts,
 	configureNodeExtraCaCerts,
+	shouldWarnApiUnavailable,
 };

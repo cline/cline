@@ -28,6 +28,10 @@ const caCerts = require("../../bin/ca-certs.cjs") as {
 		systemCertCount: number;
 		userCertCount: number;
 	};
+	shouldWarnApiUnavailable: (
+		env: Record<string, string>,
+		deps?: { fs?: unknown; nodeVersion?: string },
+	) => boolean;
 };
 
 const fs = require("node:fs");
@@ -318,6 +322,46 @@ describe("ca-certs", () => {
 			expect(caCerts.countCerts([twoInOne])).toBe(2);
 			expect(caCerts.countCerts([certUser, certSystem])).toBe(2);
 			expect(caCerts.countCerts([])).toBe(0);
+		});
+	});
+
+	describe("shouldWarnApiUnavailable", () => {
+		it("warns once per Node version, then stays quiet", () => {
+			const env = { CLINE_DIR: dir };
+			const deps = { nodeVersion: "22.1.0" };
+			expect(caCerts.shouldWarnApiUnavailable(env, deps)).toBe(true);
+			expect(caCerts.shouldWarnApiUnavailable(env, deps)).toBe(false);
+		});
+
+		it("re-arms when the Node version changes", () => {
+			const env = { CLINE_DIR: dir };
+			expect(
+				caCerts.shouldWarnApiUnavailable(env, { nodeVersion: "22.1.0" }),
+			).toBe(true);
+			expect(
+				caCerts.shouldWarnApiUnavailable(env, { nodeVersion: "22.14.0" }),
+			).toBe(true);
+			expect(
+				caCerts.shouldWarnApiUnavailable(env, { nodeVersion: "22.1.0" }),
+			).toBe(false);
+		});
+
+		it("still warns when the stamp cannot be written", () => {
+			const realFs = require("node:fs");
+			const failingFs = {
+				...realFs,
+				mkdirSync: () => {
+					throw new Error("EACCES");
+				},
+				writeFileSync: () => {
+					throw new Error("EACCES");
+				},
+			};
+			const env = { CLINE_DIR: dir };
+			const deps = { fs: failingFs, nodeVersion: "22.1.0" };
+			// Bookkeeping failure must never suppress the diagnostic.
+			expect(caCerts.shouldWarnApiUnavailable(env, deps)).toBe(true);
+			expect(caCerts.shouldWarnApiUnavailable(env, deps)).toBe(true);
 		});
 	});
 });

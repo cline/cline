@@ -28,15 +28,18 @@ const childEnv = {
 // so corporate/self-signed CAs would otherwise fail. This wrapper runs on
 // Node, which can read the full store here.
 try {
-	const outcome = require("./ca-certs.cjs").configureNodeExtraCaCerts(childEnv);
+	const caCerts = require("./ca-certs.cjs");
+	const outcome = caCerts.configureNodeExtraCaCerts(childEnv);
 	const debug =
 		process.env.CLINE_DEBUG === "1" || process.env.CLINE_DEBUG === "true";
 	// Not debug-gated: on old Nodes the harvest silently doing nothing is
-	// indistinguishable from a broken corporate proxy, so tell the user once.
+	// indistinguishable from a broken corporate proxy. Stamped per Node
+	// version so the nudge shows once, not on every command.
 	if (
 		outcome &&
 		outcome.action === "api-unavailable" &&
-		!childEnv.NODE_EXTRA_CA_CERTS
+		!childEnv.NODE_EXTRA_CA_CERTS &&
+		caCerts.shouldWarnApiUnavailable(childEnv)
 	) {
 		console.warn(
 			`[cline] Node ${process.versions.node} cannot read the OS trust store (needs >= 22.15); ` +
