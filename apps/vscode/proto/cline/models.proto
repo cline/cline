@@ -252,6 +252,9 @@ message ProviderConfigResponse {
   optional CommittedModelSelection act_selection = 11;
   optional AwsProviderConfig aws = 12;
   optional GcpProviderConfig gcp = 13;
+  // Provider-level context window (providers.json `contextWindow`). Used by
+  // bring-your-own-model providers (e.g. Ollama, where it maps to num_ctx).
+  optional int32 context_window = 14;
 }
 
 message CommittedModelSelection {
@@ -280,6 +283,8 @@ message WriteProviderConfigPatch {
   optional bool clear_headers = 10;
   optional AwsProviderConfig aws = 11;
   optional GcpProviderConfig gcp = 12;
+  // Provider-level context window; 0 clears the setting.
+  optional int32 context_window = 13;
 }
 
 message WriteProviderConfigRequest {

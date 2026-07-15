@@ -149,6 +149,11 @@ describe("getDefaultModelIdForProvider", () => {
 		expect(getDefaultModelIdForProvider("unknown-provider")).toBeUndefined()
 	})
 
+	it("returns no default for local-model-source providers so a cloud-catalog model is never silently selected", () => {
+		expect(getDefaultModelIdForProvider("ollama")).toBeUndefined()
+		expect(getDefaultModelIdForProvider("lmstudio")).toBeUndefined()
+	})
+
 	it("resolves the OpenAI Compatible default through the extension's openai alias", () => {
 		// The extension stores the OpenAI Compatible provider as "openai" while
 		// the SDK catalog keys it as "openai-compatible". toSdkProviderId bridges
@@ -244,9 +249,11 @@ describe("normalizeSdkBaseUrl", () => {
 		expect(normalizeSdkBaseUrl("openai-compatible", "   ")).toBeUndefined()
 	})
 
-	it("uses provider catalog defaults to add the SDK endpoint path when the user supplies only an origin", () => {
-		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434")).toBe("http://localhost:11434/v1")
-		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/")).toBe("http://localhost:11434/v1")
+	it("passes Ollama origins through unchanged (the native-API vendor appends /api itself)", () => {
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434")).toBe("http://localhost:11434")
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/")).toBe("http://localhost:11434/")
+		// Legacy 4.0.x configs may carry the OpenAI-compat /v1 suffix; it is
+		// preserved here and rewritten to /api by the vendor.
 		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/v1")).toBe("http://localhost:11434/v1")
 	})
 
