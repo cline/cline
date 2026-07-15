@@ -75,6 +75,13 @@ jobs:
                   # extension_variant and unlocks the bundle's authoritative
                   # extension.rollout.bundle_activated capture. Rollout builds only.
                   CLINE_ROLLOUT_VARIANT: next
+                  # Match the stable publish workflow's OpenTelemetry production defaults.
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
               run: |
                   bun install
                   cd apps/vscode
@@ -93,6 +100,13 @@ jobs:
                   TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
                   ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
                   CLINE_ROLLOUT_VARIANT: legacy
+                  # Match the stable publish workflow's OpenTelemetry production defaults.
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
               run: npm run package
 
             - name: Build loader and run rollout tests
