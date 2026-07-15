@@ -4,7 +4,6 @@ import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import {
 	TerminalInfo as ITerminalInfo,
-	ITerminalManager,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
@@ -71,41 +70,12 @@ Resources:
 - https://github.com/microsoft/vscode-extension-samples/blob/main/shell-integration-sample/src/extension.ts
 */
 
-/*
-The new shellIntegration API gives us access to terminal command execution output handling.
-However, we don't update our VSCode type definitions or engine requirements to maintain compatibility
-with older VSCode versions. Users on older versions will automatically fall back to using sendText
-for terminal command execution.
-Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
-This approach allows us to leverage advanced features when available while ensuring broad compatibility.
-*/
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
-	interface Window {
-		onDidStartTerminalShellExecution?: (
-			listener: (e: any) => any,
-			thisArgs?: any,
-			disposables?: vscode.Disposable[],
-		) => vscode.Disposable
-	}
-}
-
-export class VscodeTerminalManager implements ITerminalManager {
+export class VscodeTerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout = 4000
 	private terminalReuseEnabled = true
-	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"
 
 	/**
@@ -120,18 +90,13 @@ export class VscodeTerminalManager implements ITerminalManager {
 	}
 
 	constructor() {
-		let disposable: vscode.Disposable | undefined
-		try {
-			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
-				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
-				e?.execution?.read()
-			})
-		} catch (_error) {
-			// Logger.error("Error setting up onDidEndTerminalShellExecution", error)
-		}
-		if (disposable) {
-			this.disposables.push(disposable)
-		}
+		// onDidStartTerminalShellExecution has been stable API since VS Code 1.93,
+		// below our minimum supported version (see package.json engines.vscode).
+		const startDisposable = vscode.window.onDidStartTerminalShellExecution((e) => {
+			// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
+			e.execution.read()
+		})
+		this.disposables.push(startDisposable)
 
 		// Add a listener for terminal state changes to detect CWD updates
 		try {
@@ -346,6 +311,9 @@ export class VscodeTerminalManager implements ITerminalManager {
 					availableTerminal.pendingCwdChange = cwd
 					availableTerminal.cwdResolved = { resolve, reject }
 				})
+				// Showing the reused terminal gives VS Code a chance to initialize shell integration.
+				// runCommand() below waits up to shellIntegrationTimeout for executeCommand before falling back.
+				availableTerminal.terminal.show()
 
 				try {
 					const didCwdCommandTimeOut = await this.runCwdChangeCommand(availableTerminal, cwd)
@@ -419,17 +387,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.terminalReuseEnabled = enabled
 	}
 
-	public processOutput(outputLines: string[], overrideLimit?: number): string {
-		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
-		if (outputLines.length > limit) {
-			const halfLimit = Math.floor(limit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
-		}
-		return outputLines.join("\n").trim()
-	}
-
 	setDefaultTerminalProfile(profileId: string): void {
 		// Just update the profile setting. We don't close existing terminals —
 		// they stay open and are reusable if the user switches back. New
@@ -437,57 +394,5 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// and existing terminals with a different effective shell are simply
 		// skipped during reuse matching.
 		this.defaultTerminalProfile = profileId
-	}
-
-	/**
-	 * Filters terminals based on a provided criteria function
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean
-	 * @returns Array of terminals that match the criteria
-	 */
-	filterTerminals(filterFn: (terminal: TerminalInfo) => boolean): TerminalInfo[] {
-		const terminals = TerminalRegistry.getAllTerminals()
-		return terminals.filter(filterFn)
-	}
-
-	/**
-	 * Closes terminals that match the provided criteria
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean for terminals to close
-	 * @param force If true, closes even busy terminals (with warning)
-	 * @returns Number of terminals closed
-	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
-		const terminalsToClose = this.filterTerminals(filterFn)
-		let closedCount = 0
-
-		for (const terminalInfo of terminalsToClose) {
-			// Skip busy terminals unless force is true
-			if (terminalInfo.busy && !force) {
-				continue
-			}
-
-			// Remove from our tracking
-			if (this.terminalIds.has(terminalInfo.id)) {
-				this.terminalIds.delete(terminalInfo.id)
-			}
-			this.processes.delete(terminalInfo.id)
-
-			// Dispose the actual terminal
-			terminalInfo.terminal.dispose()
-
-			// Remove from registry
-			TerminalRegistry.removeTerminal(terminalInfo.id)
-
-			closedCount++
-		}
-
-		return closedCount
-	}
-
-	/**
-	 * Forces closure of all terminals (including busy ones)
-	 * @returns Number of terminals closed
-	 */
-	closeAllTerminals(): number {
-		return this.closeTerminals(() => true, true)
 	}
 }

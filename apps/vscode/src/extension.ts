@@ -45,7 +45,6 @@ import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
-import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
@@ -53,9 +52,14 @@ import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService, LogoutReason } from "./sdk/auth-service"
 import { telemetryService } from "./services/telemetry"
+import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
+export async function reportRolloutActivation(input: RolloutBundleActivation): Promise<void> {
+	await telemetryService.captureRolloutBundleActivated(input)
+}
 
 // This method is called when the VS Code extension is activated.
 // NOTE: This is VS Code specific - services that should be registered
@@ -613,7 +617,6 @@ function setupHostProvider(context: ExtensionContext) {
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createEditPreview = () => new VscodeEditPreview()
 	const createCommentReview = () => getVscodeCommentReviewController()
-	const createTerminalManager = () => new VscodeTerminalManager()
 
 	const getCallbackUrl = async (path: string, _preferredPort?: number) => {
 		const scheme = vscode.env.uriScheme || "vscode"
@@ -635,7 +638,6 @@ function setupHostProvider(context: ExtensionContext) {
 		createDiffView,
 		createEditPreview,
 		createCommentReview,
-		createTerminalManager,
 		vscodeHostBridgeClient,
 		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,

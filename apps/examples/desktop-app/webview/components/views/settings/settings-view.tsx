@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
@@ -436,7 +435,7 @@ export function SettingsView({
 	return (
 		<div className="flex h-full flex-col overflow-hidden bg-background">
 			{/* Header bar */}
-			<div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
+			<div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur-sm max-[720px]:px-4">
 				<h1 className="text-lg font-semibold text-foreground">Settings</h1>
 				<Button
 					aria-label="Close settings"
@@ -449,30 +448,32 @@ export function SettingsView({
 			</div>
 
 			{/* Body */}
-			<div className="flex flex-1 overflow-hidden">
+			<div className="flex flex-1 overflow-hidden max-[720px]:flex-col">
 				{/* Settings sidebar nav */}
-				<nav className="w-56 shrink-0 border-r border-border">
-					<ScrollArea className="h-full">
-						<div className="flex flex-col gap-0.5 p-3">
-							{navCategories.map((cat) => (
-								<Button
-									className={cn(
-										"justify-start",
-										activeNav === cat
-											? "bg-accent text-accent-foreground font-medium"
-											: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-									)}
-									key={cat}
-									onClick={() => {
-										selectSection(cat);
-									}}
-									variant="ghost"
-								>
-									{cat}
-								</Button>
-							))}
-						</div>
-					</ScrollArea>
+				<nav
+					aria-label="Settings sections"
+					className="w-56 shrink-0 overflow-y-auto border-r border-border bg-sidebar max-[720px]:w-full max-[720px]:overflow-x-auto max-[720px]:overflow-y-hidden max-[720px]:border-b max-[720px]:border-r-0"
+				>
+					<div className="flex flex-col gap-0.5 p-3 max-[720px]:w-max max-[720px]:flex-row max-[720px]:p-2">
+						{navCategories.map((cat) => (
+							<Button
+								aria-current={activeNav === cat ? "page" : undefined}
+								className={cn(
+									"justify-start",
+									activeNav === cat
+										? "bg-accent text-accent-foreground font-medium"
+										: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+								)}
+								key={cat}
+								onClick={() => {
+									selectSection(cat);
+								}}
+								variant="ghost"
+							>
+								{cat}
+							</Button>
+						))}
+					</div>
 				</nav>
 
 				{/* Content area */}

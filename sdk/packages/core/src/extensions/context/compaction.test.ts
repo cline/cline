@@ -2612,6 +2612,7 @@ describe("createContextCompactionPrepareTurn", () => {
 	});
 
 	it("emits task.compaction_skipped when the strategy returns undefined", async () => {
+		const emitStatusNotice = vi.fn();
 		const captureCalls: Array<{
 			event: string;
 			properties?: Record<string, unknown>;
@@ -2677,6 +2678,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 3,
+			emitStatusNotice,
 			abortSignal: new AbortController().signal,
 			systemPrompt: "",
 			tools: [],
@@ -2698,6 +2700,13 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(props.strategy).toBe("custom");
 		expect(props.mode).toBe("auto");
 		expect(props.reason).toBe("no_result");
+		expect(emitStatusNotice).toHaveBeenLastCalledWith(
+			"auto-compaction-skipped",
+			expect.objectContaining({
+				kind: "auto_compaction",
+				phase: "skipped",
+			}),
+		);
 		expect(props.ulid).toBe("ulid-test-skip");
 		expect(props.tokensBefore).toBe(requestInputTokens);
 		expect(typeof props.durationMs).toBe("number");

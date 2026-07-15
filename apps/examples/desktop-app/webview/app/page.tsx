@@ -18,10 +18,12 @@ import {
 	SidebarInset,
 	SidebarProvider,
 	SidebarRail,
+	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
+import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
 import { SettingsView } from "@/components/views/settings/settings-view";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
@@ -37,6 +39,13 @@ import {
 	type SessionMetadata,
 } from "@/lib/session-history";
 import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	mergeWorkspacePaths,
+	normalizeWorkspacePath,
+	readWorkspaceSelectionFromWindow,
+	workspacePathsFromSessions,
+	writeWorkspaceSelectionToWindow,
+} from "@/lib/workspace-paths";
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -45,23 +54,8 @@ function makeThreadId(): string {
 type Thread = {
 	id: string;
 	historySession?: SessionHistoryItem;
+	hasStarted?: boolean;
 };
-
-type WorkspaceSessionItem = {
-	cwd?: string;
-	workspaceRoot?: string;
-};
-
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
-}
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
@@ -102,11 +96,15 @@ export default function Home() {
 				const next = [...prev];
 				next[existingIdx] = {
 					...next[existingIdx],
+					hasStarted: true,
 					historySession: session,
 				};
 				return next;
 			}
-			return [...prev, { id: threadId, historySession: session }];
+			return [
+				...prev,
+				{ id: threadId, hasStarted: true, historySession: session },
+			];
 		});
 		setActiveThreadId(threadId);
 		setView("chat");
@@ -188,70 +186,102 @@ export default function Home() {
 			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	const handleHome = useCallback(() => {
+		if (activeThread?.historySession || activeThread?.hasStarted) {
+			handleNewThread();
+			return;
+		}
+		setView("chat");
+	}, [activeThread, handleNewThread]);
+	const handleThreadStarted = useCallback((threadId: string) => {
+		setThreads((current) =>
+			current.map((thread) =>
+				thread.id === threadId && !thread.hasStarted
+					? { ...thread, hasStarted: true }
+					: thread,
+			),
+		);
+	}, []);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
 		onDeleteSession: handleDeleteSession,
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const historyWorkspacePaths = useMemo(
+		() => workspacePathsFromSessions(sessionHistory.sessions),
+		[sessionHistory.sessions],
+	);
 
 	return (
-		<>
-			<SidebarProvider>
-				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
-					>
-						<AgentSidebar
+		<SidebarProvider>
+			<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+				<Sidebar className="border-r border-sidebar-border" collapsible="icon">
+					<AgentSidebar
+						activeSessionId={activeHistorySessionId}
+						isHomeActive={
+							view === "chat" &&
+							!activeThread?.historySession &&
+							!activeThread?.hasStarted
+						}
+						onHome={handleHome}
+						onNewThread={handleNewThread}
+						sessionHistory={sessionHistory}
+						setView={setView}
+						view={view}
+					/>
+					<SidebarRail />
+				</Sidebar>
+				<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+					<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
+					{view === "sessions" ? (
+						<SessionsView
 							activeSessionId={activeHistorySessionId}
-							onNewThread={handleNewThread}
-							sessionHistory={sessionHistory}
-							setView={setView}
+							history={sessionHistory}
 						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						{view === "sessions" ? (
-							<SessionsView
-								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+					) : activeThread ? (
+						<div
+							aria-hidden={view === "settings" ? true : undefined}
+							className="flex min-h-0 flex-1 flex-col"
+							inert={view === "settings" ? true : undefined}
+						>
+							<ChatThreadPane
+								key={activeThread.id}
+								historySession={activeThread.historySession}
+								knownWorkspacePaths={historyWorkspacePaths}
+								onUpdateSessionMetadata={handleUpdateSessionMetadata}
+								threadId={activeThread.id}
+								onDeleteSession={handleDeleteSession}
+								onNewThread={handleNewThread}
+								onOpenSession={handleOpenSession}
+								onThreadStarted={handleThreadStarted}
 							/>
-						) : activeThread ? (
-							<div className="flex min-h-0 flex-1 flex-col">
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
-			</SidebarProvider>
-			{view === "settings" ? (
-				<div className="fixed inset-0 z-50 bg-background text-foreground">
-					<SettingsView onClose={() => setView("chat")} />
-				</div>
-			) : null}
-		</>
+						</div>
+					) : null}
+					{view === "settings" ? (
+						<div className="absolute inset-0 z-50 bg-background text-foreground">
+							<SettingsView onClose={() => setView("chat")} />
+						</div>
+					) : null}
+				</SidebarInset>
+			</div>
+		</SidebarProvider>
 	);
 }
 
 function ChatThreadPane({
 	threadId,
 	historySession,
+	knownWorkspacePaths,
 	onUpdateSessionMetadata,
 	onDeleteSession,
 	onNewThread,
 	onOpenSession,
+	onThreadStarted,
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
+	knownWorkspacePaths: string[];
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
@@ -259,6 +289,7 @@ function ChatThreadPane({
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (session: SessionHistoryItem) => void;
+	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
 		sessionId,
@@ -304,7 +335,12 @@ function ChatThreadPane({
 		Record<string, { apiKey: string }>
 	>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
-	const [workspaces, setWorkspaces] = useState<string[]>([]);
+	const [workspaces, setWorkspaces] = useState<string[]>(() =>
+		mergeWorkspacePaths(
+			readWorkspaceSelectionFromWindow().workspaces,
+			knownWorkspacePaths,
+		),
+	);
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
@@ -317,6 +353,24 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+
+	useEffect(() => {
+		setWorkspaces((current) => {
+			const merged = mergeWorkspacePaths(current, knownWorkspacePaths);
+			return current.length === merged.length &&
+				current.every((workspace, index) => workspace === merged[index])
+				? current
+				: merged;
+		});
+	}, [knownWorkspacePaths]);
+
+	useEffect(() => {
+		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace,
+			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
+		});
+	}, [config.cwd, config.workspaceRoot, workspaces]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -438,52 +492,28 @@ function ChatThreadPane({
 
 	const listWorkspaces = useCallback(
 		async (preferredWorkspace?: string): Promise<string[]> => {
-			const roots = new Set<string>();
 			const preferred = (preferredWorkspace || "").trim();
-			if (preferred) {
-				roots.add(preferred);
-			}
 			const current = (
 				workspaceRef.current.workspaceRoot ||
 				workspaceRef.current.cwd ||
 				""
 			).trim();
-			if (current) {
-				roots.add(current);
-			}
-
-			try {
-				const discovered = await desktopClient
-					.invoke<WorkspaceSessionItem[]>("list_discovered_sessions", {
-						limit: 20,
-					})
-					.catch(() => []);
-
-				for (const session of discovered) {
-					const candidate = (session.workspaceRoot || session.cwd || "").trim();
-					if (candidate) {
-						roots.add(candidate);
-					}
-				}
-			} catch {
-				// Keep fallback to current workspace when history is unavailable.
-			}
-
-			return [...roots].sort((a, b) => a.localeCompare(b));
+			return mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]);
 		},
-		[],
+		[knownWorkspacePaths],
 	);
 
 	const refreshWorkspaces = useCallback(
 		async (preferredWorkspace?: string) => {
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
-				setWorkspaces((current) =>
-					current.length === results.length &&
-					current.every((workspace, index) => workspace === results[index])
+				setWorkspaces((current) => {
+					const merged = mergeWorkspacePaths(current, results);
+					return current.length === merged.length &&
+						current.every((workspace, index) => workspace === merged[index])
 						? current
-						: results,
-				);
+						: merged;
+				});
 			} finally {
 				setWorkspacesLoaded(true);
 			}
@@ -508,17 +538,21 @@ function ChatThreadPane({
 			if (normalizedNext === normalizedCurrent) {
 				return true;
 			}
+			const validation = await desktopClient
+				.invoke<{ valid?: boolean }>("validate_workspace_directory", {
+					path: nextWorkspace,
+				})
+				.catch(() => ({ valid: false }));
+			if (validation.valid !== true) {
+				return false;
+			}
 
 			setConfig((prev) => ({
 				...prev,
 				workspaceRoot: nextWorkspace,
 				cwd: nextWorkspace,
 			}));
-			setWorkspaces((prev) => {
-				const next = new Set(prev);
-				next.add(nextWorkspace);
-				return [...next].sort((a, b) => a.localeCompare(b));
-			});
+			setWorkspaces((prev) => mergeWorkspacePaths(prev, [nextWorkspace]));
 
 			// Fire git branch + workspace list refresh in the background
 			desktopClient
@@ -533,7 +567,7 @@ function ChatThreadPane({
 					setGitBranch("no-git");
 				});
 
-			// Re-fetch workspace list so the new root appears
+			// Refresh the merged history, stored, and current workspace catalog.
 			void refreshWorkspaces(nextWorkspace);
 
 			return true;
@@ -618,11 +652,12 @@ function ChatThreadPane({
 		if (!trimmed && pendingAttachments.length === 0) {
 			return;
 		}
+		onThreadStarted?.(threadId);
 		setPromptInput("");
 		const toSend = [...pendingAttachments];
 		setPendingAttachments([]);
 		await sendPrompt(trimmed, toSend);
-	}, [pendingAttachments, promptInput, sendPrompt]);
+	}, [onThreadStarted, pendingAttachments, promptInput, sendPrompt, threadId]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -827,7 +862,7 @@ function ChatThreadPane({
 		? false
 		: isHydratingSession;
 	const isWelcomeState =
-		displayedMessages.length === 0 && !displayedIsSwitching;
+		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -915,153 +950,153 @@ function ChatThreadPane({
 		);
 	}
 
+	const composer = (
+		<ChatInputBar
+			attachments={attachmentList}
+			onAbort={() => void abort()}
+			onAttachFiles={(files) => {
+				setPendingAttachments((prev) => {
+					const existing = new Set(
+						prev.map(
+							(file) => `${file.name}:${file.size}:${file.lastModified}`,
+						),
+					);
+					const next = [...prev];
+					for (const file of files) {
+						const key = `${file.name}:${file.size}:${file.lastModified}`;
+						if (!existing.has(key)) {
+							existing.add(key);
+							next.push(file);
+						}
+					}
+					return next;
+				});
+			}}
+			onListGitBranches={listGitBranches}
+			onRemoveAttachment={(id) => {
+				setPendingAttachments((prev) =>
+					prev.filter((file, index) => {
+						const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
+						return fileId !== id;
+					}),
+				);
+			}}
+			onSwitchGitBranch={switchGitBranch}
+			onModelChange={(nextModel) =>
+				setConfig((prev) =>
+					prev.model === nextModel ? prev : { ...prev, model: nextModel },
+				)
+			}
+			onModeToggle={() =>
+				setConfig((prev) => ({
+					...prev,
+					mode: prev.mode === "plan" ? "act" : "plan",
+				}))
+			}
+			onPromptInputChange={setPromptInput}
+			onReasoningChange={handleReasoningChange}
+			onSteerPromptInQueue={(promptId) => {
+				void steerPromptInQueue(promptId);
+			}}
+			onEditPromptInQueue={(promptId, prompt) => {
+				void updatePromptInQueue(promptId, prompt);
+			}}
+			onUndoPromptInQueue={(item) => {
+				void handleUndoQueuedPrompt(item);
+			}}
+			onProviderChange={(nextProvider) =>
+				setConfig((prev) => {
+					const selected = providerCredentials[nextProvider];
+					const nextApiKey = selected?.apiKey ?? "";
+					if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
+						return prev;
+					}
+					return {
+						...prev,
+						provider: nextProvider,
+						apiKey: nextApiKey,
+					};
+				})
+			}
+			onSend={() => void handleSend()}
+			gitBranch={gitBranch}
+			model={config.model}
+			mode={config.mode}
+			promptsInQueue={promptsInQueue}
+			promptInput={promptInput}
+			provider={config.provider}
+			reasoningEffort={config.reasoningEffort}
+			status={status}
+			summary={summary}
+			thinking={config.thinking}
+			variant={isWelcomeState ? "welcome" : "conversation"}
+		/>
+	);
+
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			<div className="grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
-				<div className="z-20">
-					<AgentHeader
-						canEditTitle={Boolean(activeSessionForTitle)}
-						canDeleteSession={Boolean(activeSessionToDelete)}
-						deletingSession={deletingSession}
-						diff={{
-							additions: summary.additions,
-							deletions: summary.deletions,
-						}}
-						onDeleteSession={requestDeleteSession}
-						onNewThread={onNewThread}
-						onOpenDiff={() => {
-							if (hasDiffChanges) {
-								setShowDiffView(true);
-							}
-						}}
-						onRenameTitle={handleRenameTitle}
-						renamingTitle={renamingSession}
-						showSessionActions={!isWelcomeState}
-						status={status}
-						title={threadTitle}
-					/>
-				</div>
-				<div className="h-full min-h-0 overflow-hidden">
-					{showDiffView ? (
-						<DiffView
-							fileDiffs={fileDiffs}
-							onClose={() => setShowDiffView(false)}
-						/>
-					) : (
-						<ChatMessages
-							onAnswerAskQuestion={handleAnswerAskQuestion}
-							onApproveToolApproval={handleApproveToolApproval}
-							onRejectToolApproval={handleRejectToolApproval}
-							onStartChat={(prompt) => {
-								setPromptInput(prompt);
+			<div
+				className={
+					isWelcomeState
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+				}
+			>
+				{!isWelcomeState ? (
+					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+						<AgentHeader
+							canEditTitle={Boolean(activeSessionForTitle)}
+							canDeleteSession={Boolean(activeSessionToDelete)}
+							deletingSession={deletingSession}
+							diff={{
+								additions: summary.additions,
+								deletions: summary.deletions,
 							}}
-							chatTransportState={chatTransportState}
-							error={displayedError}
-							messages={displayedMessages}
-							model={config.model}
-							onRestoreCheckpoint={(runCount) =>
-								void restoreCheckpoint(runCount)
-							}
-							onForkSession={handleForkSession}
-							pendingToolApprovals={pendingToolApprovals}
-							pendingAskQuestions={pendingAskQuestions}
-							provider={config.provider}
-							sessionId={displayedSessionId}
-							streamingMessageId={activeAssistantMessageId}
-							isSessionSwitching={displayedIsSwitching}
-							status={displayedStatus}
+							onDeleteSession={requestDeleteSession}
+							onNewThread={onNewThread}
+							onOpenDiff={() => {
+								if (hasDiffChanges) setShowDiffView(true);
+							}}
+							onRenameTitle={handleRenameTitle}
+							renamingTitle={renamingSession}
+							status={status}
+							title={threadTitle}
 						/>
-					)}
-				</div>
-				<div className="z-20 shrink-0">
-					<ChatInputBar
-						attachments={attachmentList}
-						onAbort={() => void abort()}
-						onAttachFiles={(files) => {
-							setPendingAttachments((prev) => {
-								const existing = new Set(
-									prev.map(
-										(file) => `${file.name}:${file.size}:${file.lastModified}`,
-									),
-								);
-								const next = [...prev];
-								for (const file of files) {
-									const key = `${file.name}:${file.size}:${file.lastModified}`;
-									if (!existing.has(key)) {
-										existing.add(key);
-										next.push(file);
-									}
+					</div>
+				) : null}
+				<WelcomeScreen
+					active={isWelcomeState}
+					body={
+						showDiffView ? (
+							<DiffView
+								fileDiffs={fileDiffs}
+								onClose={() => setShowDiffView(false)}
+							/>
+						) : (
+							<ChatMessages
+								onAnswerAskQuestion={handleAnswerAskQuestion}
+								onApproveToolApproval={handleApproveToolApproval}
+								onRejectToolApproval={handleRejectToolApproval}
+								chatTransportState={chatTransportState}
+								error={displayedError}
+								messages={displayedMessages}
+								onRestoreCheckpoint={(runCount) =>
+									void restoreCheckpoint(runCount)
 								}
-								return next;
-							});
-						}}
-						onListGitBranches={listGitBranches}
-						onRemoveAttachment={(id) => {
-							setPendingAttachments((prev) =>
-								prev.filter((file, index) => {
-									const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
-									return fileId !== id;
-								}),
-							);
-						}}
-						onSwitchGitBranch={switchGitBranch}
-						onRefreshGitBranch={() => void refreshGitBranch()}
-						onModelChange={(nextModel) =>
-							setConfig((prev) =>
-								prev.model === nextModel ? prev : { ...prev, model: nextModel },
-							)
-						}
-						onModeToggle={() =>
-							setConfig((prev) => ({
-								...prev,
-								mode: prev.mode === "plan" ? "act" : "plan",
-							}))
-						}
-						onPromptInputChange={setPromptInput}
-						onReasoningChange={handleReasoningChange}
-						onSteerPromptInQueue={(promptId) => {
-							void steerPromptInQueue(promptId);
-						}}
-						onEditPromptInQueue={(promptId, prompt) => {
-							void updatePromptInQueue(promptId, prompt);
-						}}
-						onUndoPromptInQueue={(item) => {
-							void handleUndoQueuedPrompt(item);
-						}}
-						onProviderChange={(nextProvider) =>
-							setConfig((prev) => {
-								const selected = providerCredentials[nextProvider];
-								const nextApiKey = selected?.apiKey ?? "";
-								if (
-									prev.provider === nextProvider &&
-									prev.apiKey === nextApiKey
-								) {
-									return prev;
-								}
-								return {
-									...prev,
-									provider: nextProvider,
-									apiKey: nextApiKey,
-								};
-							})
-						}
-						onReset={() => {
-							setPendingAttachments([]);
-							void reset();
-						}}
-						onSend={() => void handleSend()}
-						gitBranch={gitBranch}
-						model={config.model}
-						mode={config.mode}
-						promptsInQueue={promptsInQueue}
-						promptInput={promptInput}
-						provider={config.provider}
-						reasoningEffort={config.reasoningEffort}
-						status={status}
-						summary={summary}
-						thinking={config.thinking}
-					/>
-				</div>
+								onForkSession={handleForkSession}
+								pendingToolApprovals={pendingToolApprovals}
+								pendingAskQuestions={pendingAskQuestions}
+								sessionId={displayedSessionId}
+								streamingMessageId={activeAssistantMessageId}
+								isSessionSwitching={displayedIsSwitching}
+								status={displayedStatus}
+							/>
+						)
+					}
+					composer={composer}
+					onStartChat={setPromptInput}
+					quickActions={[]}
+				/>
 			</div>
 			<AlertDialog
 				open={deleteConfirmOpen}

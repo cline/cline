@@ -39,6 +39,16 @@ export function truncateCommandOutput(output: string): string {
 	return output
 }
 
+export class CommandExitError extends Error {
+	constructor(
+		readonly exitCode: number,
+		readonly output: string,
+	) {
+		super(`Command exited with code ${exitCode}`)
+		this.name = "CommandExitError"
+	}
+}
+
 export function createShellExecutor() {
 	return async () => ""
 }

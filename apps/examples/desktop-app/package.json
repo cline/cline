@@ -86,6 +86,7 @@
 		"@tailwindcss/postcss": "^4.2.0",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
+		"jsdom": "^26.0.0",
 		"postcss": "^8.5",
 		"tailwindcss": "^4.2.0",
 		"tw-animate-css": "1.3.3",
