@@ -4,17 +4,20 @@ import * as vscode from "vscode";
 import {
 	BUNDLE_OVERRIDE_ENV,
 	type Bundle,
+	bundleContextKey,
 	COHORT_STATE_KEY,
 	decideBundle,
 	decisionOverrideSource,
 	FAILED_VERSION_STATE_KEY,
+	type IdPrefix,
+	idPrefix,
 	KILLSWITCH_STATE_KEY,
 	LAST_ACTIVATION_STATE_KEY,
 	normalizeKilledUpTo,
 	SETTING_BUNDLE_OVERRIDE,
-	SETTING_SECTION,
+	settingSection,
 } from "./cohort";
-import { refreshCohort, reportActivation } from "./rollout";
+import { refreshCohort, reportLoaderDecision } from "./rollout";
 import { scopedContext } from "./scoped-context";
 
 /**
@@ -39,6 +42,19 @@ const requireFromVsixRoot = createRequire(__filename);
 interface BundleModule {
 	activate(context: vscode.ExtensionContext): Promise<unknown> | unknown;
 	deactivate?(): Promise<void> | void;
+	/**
+	 * Exported by both bundles' entrypoints (see rollout-metadata.ts on each
+	 * branch): captures the AUTHORITATIVE `extension.rollout.bundle_activated`
+	 * event through the bundle's own variant-attributed telemetry pipeline.
+	 * Optional so the loader keeps working against a bundle built before the
+	 * export existed.
+	 */
+	reportRolloutActivation?(input: {
+		attemptedBundle: Bundle;
+		actualBundle: Bundle;
+		fallback: boolean;
+		error?: unknown;
+	}): Promise<void>;
 }
 
 let activeBundle: { module: BundleModule; name: Bundle } | undefined;
@@ -48,9 +64,16 @@ interface ActivationMeta {
 	override?: "env" | "setting";
 }
 
+/** Set when the original decision crashed and this activation is the fallback. */
+interface FallbackFrom {
+	attempted: Bundle;
+	error: unknown;
+}
+
 export async function activate(context: vscode.ExtensionContext) {
 	const loaderVersion: string =
 		context.extension.packageJSON?.version ?? "unknown";
+	const prefix = idPrefix(context.extension.packageJSON?.name);
 
 	// Launch-cadence telemetry: how stale the previous activation is bounds how
 	// fast a percentage change can actually reach users' windows.
@@ -63,7 +86,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const overrides = {
 		envOverride: process.env[BUNDLE_OVERRIDE_ENV],
 		settingOverride: vscode.workspace
-			.getConfiguration(SETTING_SECTION)
+			.getConfiguration(settingSection(prefix))
 			.get<string>(SETTING_BUNDLE_OVERRIDE),
 	};
 	const bundle = decideBundle({
@@ -85,20 +108,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		override: decisionOverrideSource(overrides),
 	};
 
-	return activateBundle(context, bundle, loaderVersion, meta, true);
+	return activateBundle(context, prefix, bundle, loaderVersion, meta, true);
 }
 
 async function activateBundle(
 	context: vscode.ExtensionContext,
+	prefix: IdPrefix,
 	bundle: Bundle,
 	loaderVersion: string,
 	meta: ActivationMeta,
 	refreshAssignmentOnSuccess: boolean,
+	fallbackFrom?: FallbackFrom,
 ): Promise<unknown> {
 	// Menus/keybindings gated per cohort in package.json key off this.
 	await vscode.commands.executeCommand(
 		"setContext",
-		"cline.sdkBundle",
+		bundleContextKey(prefix),
 		bundle === "next",
 	);
 
@@ -115,13 +140,41 @@ async function activateBundle(
 		if (refreshAssignmentOnSuccess) {
 			void refreshCohort(context, loaderVersion).catch(() => {});
 		}
-		void reportActivation(context, bundle, { ...meta, fallback: false }).catch(
-			() => {},
-		);
+		// Authoritative activation event, captured by the bundle's own telemetry
+		// (built with CLINE_ROLLOUT_VARIANT). On fallback this runs in the legacy
+		// bundle — next's pipeline is the thing that just crashed.
+		if (typeof module.reportRolloutActivation === "function") {
+			void module
+				.reportRolloutActivation({
+					attemptedBundle: fallbackFrom?.attempted ?? bundle,
+					actualBundle: bundle,
+					fallback: fallbackFrom !== undefined,
+					error: fallbackFrom?.error,
+				})
+				.catch(() => {});
+		}
+		// The loader's own decision event fires once per window: the fallback
+		// path already reported (fallback: true) from the catch block below.
+		if (!fallbackFrom) {
+			void reportLoaderDecision(context, bundle, {
+				...meta,
+				fallback: false,
+			}).catch(() => {});
+		}
+		showNightlyBundleIndicator(context, prefix, bundle, meta, fallbackFrom);
 		return api;
 	} catch (error) {
 		if (bundle === "legacy") {
-			// Nothing left to fall back to; let VS Code surface the failure.
+			// Nothing left to fall back to; let VS Code surface the failure. When
+			// this was already the crash fallback, no bundle telemetry pipeline is
+			// alive — the loader's direct event is the only record.
+			void reportLoaderDecision(context, "legacy", {
+				...meta,
+				attemptedBundle: fallbackFrom?.attempted ?? "legacy",
+				fallback: fallbackFrom !== undefined,
+				doubleFailure: fallbackFrom !== undefined,
+				errorMessage: formatActivationError(error),
+			}).catch(() => {});
 			throw error;
 		}
 		console.error(
@@ -133,15 +186,62 @@ async function activateBundle(
 		// A new release (new version string) gets to try next again.
 		await context.globalState.update(FAILED_VERSION_STATE_KEY, loaderVersion);
 		await context.globalState.update(COHORT_STATE_KEY, "legacy");
-		void reportActivation(context, "legacy", {
+		void reportLoaderDecision(context, "legacy", {
 			...meta,
+			attemptedBundle: "next",
 			fallback: true,
-			errorMessage:
-				error instanceof Error
-					? `${error.message}\n${error.stack ?? ""}`.slice(0, 2000)
-					: String(error),
+			errorMessage: formatActivationError(error),
 		}).catch(() => {});
-		return activateBundle(context, "legacy", loaderVersion, meta, false);
+		return activateBundle(
+			context,
+			prefix,
+			"legacy",
+			loaderVersion,
+			meta,
+			false,
+			{ attempted: "next", error },
+		);
+	}
+}
+
+function formatActivationError(error: unknown): string {
+	return error instanceof Error
+		? `${error.message}\n${error.stack ?? ""}`.slice(0, 2000)
+		: String(error);
+}
+
+/**
+ * Nightly-only visible indicator of which bundle this window is running.
+ * The stable combined VSIX (and any ordinary build) never shows it: the
+ * prefix is derived from the packaged manifest name. Best-effort — the
+ * indicator must never take down an otherwise successful activation.
+ */
+function showNightlyBundleIndicator(
+	context: vscode.ExtensionContext,
+	prefix: IdPrefix,
+	bundle: Bundle,
+	meta: ActivationMeta,
+	fallbackFrom: FallbackFrom | undefined,
+) {
+	if (prefix !== "cline-nightly") {
+		return;
+	}
+	try {
+		const item = vscode.window.createStatusBarItem(
+			vscode.StatusBarAlignment.Right,
+			-1000,
+		);
+		item.text = bundle === "next" ? "Cline: Next" : "Cline: Legacy";
+		const detail = fallbackFrom
+			? "crash fallback from the next bundle"
+			: meta.override
+				? `forced by ${meta.override === "env" ? `the ${BUNDLE_OVERRIDE_ENV} env var` : "the bundleOverride setting"}`
+				: "rollout assignment";
+		item.tooltip = `Cline nightly A/B rollout: running the ${bundle === "next" ? "next (SDK)" : "legacy"} bundle (${detail}).`;
+		item.show();
+		context.subscriptions.push(item);
+	} catch (error) {
+		console.warn("[cline-rollout] could not show bundle indicator:", error);
 	}
 }
 

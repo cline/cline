@@ -1,6 +1,38 @@
 export type Bundle = "next" | "legacy";
 
-/** Loader-owned VS Code memento keys. Never touched by either bundle. */
+/**
+ * The combined VSIX ships under two identities: the stable extension
+ * (manifest name "claude-dev", contribution IDs under "cline.*") and the
+ * nightly (name "cline-nightly", IDs under "cline-nightly.*" — the nightly
+ * packaging rewrites every `"cline.` prefix in the manifest, see
+ * scripts/nightlify.mjs and apps/vscode/scripts/publish-nightly.mjs). Anything
+ * the loader reads from or feeds back into the manifest namespace — the
+ * bundleOverride setting and the sdkBundle context key — must use the prefix
+ * matching the installed identity. scripts/gen-manifest.mjs derives the same
+ * prefix when generating the union manifest; keep them in sync.
+ */
+export const NIGHTLY_EXTENSION_NAME = "cline-nightly";
+export type IdPrefix = "cline" | "cline-nightly";
+
+export function idPrefix(extensionName: string | undefined): IdPrefix {
+	return extensionName === NIGHTLY_EXTENSION_NAME ? "cline-nightly" : "cline";
+}
+
+/** Settings section holding the bundleOverride escape hatch. */
+export function settingSection(prefix: IdPrefix): string {
+	return `${prefix}.rollout`;
+}
+
+/** Context key gating per-cohort menus/keybindings in the union manifest. */
+export function bundleContextKey(prefix: IdPrefix): string {
+	return `${prefix}.sdkBundle`;
+}
+
+/**
+ * Loader-owned VS Code memento keys. Never touched by either bundle. These
+ * deliberately stay un-prefixed by identity: globalState is already scoped to
+ * the extension ID, so a stable and a nightly install can never collide.
+ */
 export const COHORT_STATE_KEY = "cline.rollout.bundle";
 /**
  * Highest VSIX version the kill-switch applies to: a version string means
@@ -33,13 +65,13 @@ export const KILLSWITCH_FLAG = "ext-sdk-bundle-killswitch";
 export const BUNDLE_OVERRIDE_ENV = "CLINE_BUNDLE_OVERRIDE";
 
 /**
- * User-visible escape hatch: `cline.rollout.bundleOverride` in VS Code
- * settings ("auto" | "next" | "legacy"). Editable from settings.json without
+ * User-visible escape hatch: `<prefix>.rollout.bundleOverride` in VS Code
+ * settings ("auto" | "next" | "legacy") — see settingSection() for the
+ * identity-dependent section name. Editable from settings.json without
  * touching mementos, beats flags/kill-switch in either direction, applies on
  * window reload. Injected into the union manifest by gen-manifest.mjs — keep
  * the schema there in sync with these constants.
  */
-export const SETTING_SECTION = "cline.rollout";
 export const SETTING_BUNDLE_OVERRIDE = "bundleOverride";
 
 function asBundle(value: unknown): Bundle | undefined {

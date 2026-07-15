@@ -1,14 +1,17 @@
 import { describe, expect, it } from "bun:test";
 import {
+	bundleContextKey,
 	compareVersions,
 	decideBundle,
 	decisionOverrideSource,
+	idPrefix,
 	isVersionKilled,
 	KILLSWITCH_FLAG,
 	nextCachedBundle,
 	normalizeKilledUpTo,
 	parseRolloutFlags,
 	ROLLOUT_FLAG,
+	settingSection,
 } from "./cohort";
 
 const base = {
@@ -239,5 +242,24 @@ describe("nextCachedBundle", () => {
 		const killed = { rollout: true, killedUpToVersion: "4.1.0" };
 		expect(nextCachedBundle("legacy", killed, "4.1.1")).toBe("next");
 		expect(nextCachedBundle("next", killed, "4.1.1")).toBe("next");
+	});
+});
+
+describe("identity prefix", () => {
+	it("maps the nightly manifest name to the cline-nightly namespace", () => {
+		expect(idPrefix("cline-nightly")).toBe("cline-nightly");
+	});
+
+	it("maps everything else (stable claude-dev, unknown, missing) to cline", () => {
+		expect(idPrefix("claude-dev")).toBe("cline");
+		expect(idPrefix("some-fork")).toBe("cline");
+		expect(idPrefix(undefined)).toBe("cline");
+	});
+
+	it("derives the setting section and context key from the prefix", () => {
+		expect(settingSection("cline")).toBe("cline.rollout");
+		expect(settingSection("cline-nightly")).toBe("cline-nightly.rollout");
+		expect(bundleContextKey("cline")).toBe("cline.sdkBundle");
+		expect(bundleContextKey("cline-nightly")).toBe("cline-nightly.sdkBundle");
 	});
 });

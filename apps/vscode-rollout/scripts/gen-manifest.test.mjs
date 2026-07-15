@@ -301,9 +301,59 @@ describe("generateManifest", () => {
 		).toThrow(/loader-owned setting/);
 	});
 
-	it("rejects diverged engines", () => {
-		const legacy = { ...pkg({}), engines: { vscode: "^1.90.0" } };
-		expect(() => generateManifest(pkg({}), legacy, "1.0.0")).toThrow(/engines/);
+	it("derives gates and the injected setting from the nightly identity", () => {
+		const nightly = (overrides) => ({
+			...pkg(overrides),
+			name: "cline-nightly",
+			displayName: "Cline (Nightly)",
+		});
+		const next = nightly({
+			contributes: {
+				commands: [{ command: "cline-nightly.nextOnly", title: "N" }],
+				menus: {
+					"view/title": [{ command: "cline-nightly.nextOnly", when: "x" }],
+				},
+			},
+		});
+		const legacy = nightly({
+			contributes: {
+				commands: [{ command: "cline-nightly.legacyOnly", title: "L" }],
+				keybindings: [{ command: "cline-nightly.legacyOnly", key: "ctrl+k" }],
+			},
+		});
+		const manifest = generateManifest(next, legacy, "4.0.1752600000");
+		expect(manifest.name).toBe("cline-nightly");
+		expect(manifest.contributes.menus["view/title"][0].when).toBe(
+			"(x) && cline-nightly.sdkBundle",
+		);
+		expect(manifest.contributes.keybindings[0].when).toBe(
+			"!cline-nightly.sdkBundle",
+		);
+		expect(manifest.contributes.menus.commandPalette).toContainEqual({
+			command: "cline-nightly.legacyOnly",
+			when: "!cline-nightly.sdkBundle",
+		});
+		const properties = manifest.contributes.configuration.properties;
+		expect(properties["cline-nightly.rollout.bundleOverride"]).toBeDefined();
+		expect(properties["cline.rollout.bundleOverride"]).toBeUndefined();
+	});
+
+	it("unions diverged engines to the newer requirement (either direction)", () => {
+		const olderLegacy = { ...pkg({}), engines: { vscode: "^1.74.0" } };
+		expect(generateManifest(pkg({}), olderLegacy, "1.0.0").engines).toEqual({
+			vscode: "^1.84.0",
+		});
+		const newerLegacy = { ...pkg({}), engines: { vscode: "^1.101.0" } };
+		expect(generateManifest(pkg({}), newerLegacy, "1.0.0").engines).toEqual({
+			vscode: "^1.101.0",
+		});
+	});
+
+	it("rejects diverged engines it cannot compare", () => {
+		const legacy = { ...pkg({}), engines: { vscode: ">=1.84.0 <2.0.0" } };
+		expect(() => generateManifest(pkg({}), legacy, "1.0.0")).toThrow(
+			/uncomparable/,
+		);
 	});
 
 	it("rejects conflicting icon definitions", () => {

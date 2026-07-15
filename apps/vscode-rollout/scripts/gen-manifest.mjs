@@ -8,8 +8,9 @@
  * - `main` points at the loader; `version` comes from the release input.
  * - commands / menus / keybindings / activationEvents / icons are unioned.
  *   Menu entries and keybindings present in only ONE manifest get their
- *   `when` clause AND-ed with the `cline.sdkBundle` context key (set by the
- *   loader before activation), so a cohort never sees a button whose handler
+ *   `when` clause AND-ed with the `<prefix>.sdkBundle` context key (set by the
+ *   loader before activation; prefix follows the manifest identity — see
+ *   src/cohort.ts idPrefix), so a cohort never sees a button whose handler
  *   its bundle doesn't register — and shared buttons that moved position
  *   don't show up twice. Commands exclusive to one bundle are likewise hidden
  *   from the other cohort's command palette.
@@ -43,23 +44,31 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 			);
 		}
 	}
-	try {
-		deepStrictEqual(nextPkg.engines, legacyPkg.engines);
-	} catch {
-		throw new Error(
-			`engines diverged: ${JSON.stringify(nextPkg.engines)} vs ${JSON.stringify(legacyPkg.engines)}`,
-		);
-	}
+	const engines = unionEngines(nextPkg.engines, legacyPkg.engines);
 
 	assertWalkthroughsCompatible(
 		nextPkg.contributes?.walkthroughs,
 		legacyPkg.contributes?.walkthroughs,
 	);
 
+	// The nightly packaging rewrites the whole `cline.*` ID namespace to
+	// `cline-nightly.*` (scripts/nightlify.mjs), so the context key and the
+	// injected setting must follow the manifest's identity. Keep in sync with
+	// idPrefix/bundleContextKey/settingSection in src/cohort.ts.
+	const prefix = nextPkg.name === "cline-nightly" ? "cline-nightly" : "cline";
+	const nextGate = `${prefix}.sdkBundle`;
+	const legacyGate = `!${nextGate}`;
+
 	const nc = nextPkg.contributes ?? {};
 	const lc = legacyPkg.contributes ?? {};
-	const menus = unionMenus(nc.menus, lc.menus);
-	hideExclusiveCommandsFromPalette(menus, nc.commands, lc.commands);
+	const menus = unionMenus(nc.menus, lc.menus, nextGate, legacyGate);
+	hideExclusiveCommandsFromPalette(
+		menus,
+		nc.commands,
+		lc.commands,
+		nextGate,
+		legacyGate,
+	);
 
 	const manifest = {
 		name: nextPkg.name,
@@ -67,7 +76,7 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 		description: nextPkg.description,
 		version,
 		icon: nextPkg.icon,
-		engines: nextPkg.engines,
+		engines,
 		author: nextPkg.author,
 		license: nextPkg.license,
 		publisher: nextPkg.publisher,
@@ -87,53 +96,53 @@ export function generateManifest(nextPkg, legacyPkg, version) {
 				[...(nc.commands ?? []), ...(lc.commands ?? [])],
 				(c) => c.command,
 			),
-			keybindings: unionGated(nc.keybindings, lc.keybindings),
+			keybindings: unionGated(
+				nc.keybindings,
+				lc.keybindings,
+				nextGate,
+				legacyGate,
+			),
 			menus,
 			icons: unionIcons(nc.icons, lc.icons),
-			configuration: injectLoaderConfiguration(nc.configuration),
+			configuration: injectLoaderConfiguration(nc.configuration, prefix),
 			walkthroughs: nc.walkthroughs,
 		},
 		scripts: {},
 	};
 
-	assertSuperset(manifest, nextPkg, "next", NEXT_GATE);
-	assertSuperset(manifest, legacyPkg, "legacy", LEGACY_GATE);
+	assertSuperset(manifest, nextPkg, "next", nextGate);
+	assertSuperset(manifest, legacyPkg, "legacy", legacyGate);
 	return manifest;
 }
 
 /**
- * Context key the loader sets (via setContext) before activating a bundle.
- * true => next bundle. Keep in sync with src/extension.ts.
+ * The loader's own user-visible escape hatch, keyed by the manifest identity.
+ * Neither bundle knows about it; only the loader reads it (src/cohort.ts
+ * settingSection/SETTING_BUNDLE_OVERRIDE — keep the key and values in sync).
+ * Injected after the configuration-equality invariant so it can't mask real
+ * drift between the bundles.
  */
-const COHORT_CONTEXT_KEY = "cline.sdkBundle";
-const NEXT_GATE = COHORT_CONTEXT_KEY;
-const LEGACY_GATE = `!${COHORT_CONTEXT_KEY}`;
+function loaderSettings(prefix) {
+	return {
+		[`${prefix}.rollout.bundleOverride`]: {
+			type: "string",
+			enum: ["auto", "next", "legacy"],
+			enumDescriptions: [
+				"Follow the remote rollout assignment.",
+				"Force the new (SDK-based) extension.",
+				"Force the previous (legacy) extension.",
+			],
+			default: "auto",
+			scope: "application",
+			markdownDescription:
+				"Manual override for Cline's staged extension rollout. `next` forces the new (SDK-based) extension, `legacy` forces the previous one, `auto` follows the remote rollout. Beats the remote kill-switch in both directions. Takes effect on window reload.",
+		},
+	};
+}
 
-/**
- * The loader's own user-visible escape hatch. Neither bundle knows about it;
- * only the loader reads it (src/cohort.ts SETTING_SECTION/SETTING_BUNDLE_OVERRIDE —
- * keep the key and values in sync). Injected after the configuration-equality
- * invariant so it can't mask real drift between the bundles.
- */
-const LOADER_SETTINGS = {
-	"cline.rollout.bundleOverride": {
-		type: "string",
-		enum: ["auto", "next", "legacy"],
-		enumDescriptions: [
-			"Follow the remote rollout assignment.",
-			"Force the new (SDK-based) extension.",
-			"Force the previous (legacy) extension.",
-		],
-		default: "auto",
-		scope: "application",
-		markdownDescription:
-			"Manual override for Cline's staged extension rollout. `next` forces the new (SDK-based) extension, `legacy` forces the previous one, `auto` follows the remote rollout. Beats the remote kill-switch in both directions. Takes effect on window reload.",
-	},
-};
-
-function injectLoaderConfiguration(configuration) {
+function injectLoaderConfiguration(configuration, prefix) {
 	const properties = { ...(configuration?.properties ?? {}) };
-	for (const [key, schema] of Object.entries(LOADER_SETTINGS)) {
+	for (const [key, schema] of Object.entries(loaderSettings(prefix))) {
 		if (properties[key]) {
 			throw new Error(
 				`bundle manifests must not declare loader-owned setting ${key}`,
@@ -179,6 +188,57 @@ function assertWalkthroughsCompatible(next = [], legacy = []) {
 	}
 }
 
+/**
+ * Engines can safely diverge in ONE direction: the union requires whichever
+ * bundle needs the NEWER host, which necessarily satisfies the other bundle's
+ * older requirement too. (main routinely bumps the VS Code engine ahead of the
+ * legacy branch — an equality assertion here would brick every combined build
+ * over that.) Non-caret/complex ranges we can't compare fail hard rather than
+ * guessing.
+ */
+function unionEngines(nextEngines = {}, legacyEngines = {}) {
+	const union = {};
+	for (const key of new Set([
+		...Object.keys(nextEngines),
+		...Object.keys(legacyEngines),
+	])) {
+		const a = nextEngines[key];
+		const b = legacyEngines[key];
+		if (a === undefined || b === undefined || a === b) {
+			union[key] = a ?? b;
+			continue;
+		}
+		const minimum = (range) => {
+			const match = /^\^(\d+(?:\.\d+)*)$/.exec(range);
+			return match?.[1];
+		};
+		const [minA, minB] = [minimum(a), minimum(b)];
+		if (!minA || !minB) {
+			throw new Error(
+				`engines.${key} diverged with uncomparable ranges: ${a} vs ${b}`,
+			);
+		}
+		union[key] = compareDotted(minA, minB) >= 0 ? a : b;
+		console.warn(
+			`warning: engines.${key} differs between bundles (next ${a}, legacy ${b}); union requires ${union[key]}`,
+		);
+	}
+	return union;
+}
+
+/** Compare dotted numeric versions; mirrors compareVersions in src/cohort.ts. */
+function compareDotted(a, b) {
+	const pa = a.split(".").map((part) => Number.parseInt(part, 10) || 0);
+	const pb = b.split(".").map((part) => Number.parseInt(part, 10) || 0);
+	for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+		const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+		if (diff !== 0) {
+			return diff;
+		}
+	}
+	return 0;
+}
+
 function unionPrimitive(a = [], b = []) {
 	return [...new Set([...a, ...b])];
 }
@@ -222,27 +282,37 @@ function gateWhen(entry, gate) {
  * both bundles pass through untouched; entries declared by only one get their
  * `when` AND-ed with that bundle's cohort gate.
  */
-function unionGated(nextEntries = [], legacyEntries = []) {
+function unionGated(
+	nextEntries = [],
+	legacyEntries = [],
+	nextGate,
+	legacyGate,
+) {
 	const nextSet = new Set(nextEntries.map(stableJson));
 	const legacySet = new Set(legacyEntries.map(stableJson));
 	const entries = [];
 	for (const entry of nextEntries) {
 		entries.push(
-			legacySet.has(stableJson(entry)) ? entry : gateWhen(entry, NEXT_GATE),
+			legacySet.has(stableJson(entry)) ? entry : gateWhen(entry, nextGate),
 		);
 	}
 	for (const entry of legacyEntries) {
 		if (!nextSet.has(stableJson(entry))) {
-			entries.push(gateWhen(entry, LEGACY_GATE));
+			entries.push(gateWhen(entry, legacyGate));
 		}
 	}
 	return entries;
 }
 
-function unionMenus(a = {}, b = {}) {
+function unionMenus(a = {}, b = {}, nextGate, legacyGate) {
 	const menus = {};
 	for (const location of new Set([...Object.keys(a), ...Object.keys(b)])) {
-		menus[location] = unionGated(a[location], b[location]);
+		menus[location] = unionGated(
+			a[location],
+			b[location],
+			nextGate,
+			legacyGate,
+		);
 	}
 	return menus;
 }
@@ -256,6 +326,8 @@ function hideExclusiveCommandsFromPalette(
 	menus,
 	nextCommands = [],
 	legacyCommands = [],
+	nextGate,
+	legacyGate,
 ) {
 	const nextIds = new Set(nextCommands.map((c) => c.command));
 	const legacyIds = new Set(legacyCommands.map((c) => c.command));
@@ -263,12 +335,12 @@ function hideExclusiveCommandsFromPalette(
 	const alreadyListed = new Set(palette.map((e) => e.command));
 	for (const id of nextIds) {
 		if (!legacyIds.has(id) && !alreadyListed.has(id)) {
-			palette.push({ command: id, when: NEXT_GATE });
+			palette.push({ command: id, when: nextGate });
 		}
 	}
 	for (const id of legacyIds) {
 		if (!nextIds.has(id) && !alreadyListed.has(id)) {
-			palette.push({ command: id, when: LEGACY_GATE });
+			palette.push({ command: id, when: legacyGate });
 		}
 	}
 }

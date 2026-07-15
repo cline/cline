@@ -127,16 +127,31 @@ export async function refreshCohort(
 }
 
 /**
- * Report which bundle actually activated (and whether it was a crash
- * fallback). Feature-flag evaluation is always allowed (matching the
- * extension's FeatureFlagsService), but event capture respects the user's
- * telemetry opt-out and VS Code's global telemetry setting.
+ * The loader's own decision event. Distinct from the AUTHORITATIVE
+ * `extension.rollout.bundle_activated` event, which the activated bundle
+ * itself captures through its variant-attributed telemetry pipeline (the
+ * loader triggers it via the bundle's reportRolloutActivation export — see
+ * src/extension.ts). This event carries the loader-side metadata that event
+ * can't (override source, launch cadence, loader version) and is the only
+ * signal left when BOTH bundles fail to activate.
  */
-export async function reportActivation(
+export const LOADER_DECISION_EVENT = "extension.rollout.loader_decision";
+
+/**
+ * Report the loader's bundle decision (and whether it was a crash fallback).
+ * Feature-flag evaluation is always allowed (matching the extension's
+ * FeatureFlagsService), but event capture respects the user's telemetry
+ * opt-out and VS Code's global telemetry setting.
+ */
+export async function reportLoaderDecision(
 	context: vscode.ExtensionContext,
 	bundle: Bundle,
 	options: {
 		fallback: boolean;
+		/** Bundle the loader originally decided on; differs from `bundle` on fallback. */
+		attemptedBundle?: Bundle;
+		/** Both bundles threw — nothing activated, and no bundle telemetry exists. */
+		doubleFailure?: boolean;
 		errorMessage?: string;
 		/** Time since the previous loader activation on this machine, if known. */
 		msSinceLastActivation?: number;
@@ -154,17 +169,21 @@ export async function reportActivation(
 	const distinctId = await getDistinctId();
 	await postJson(`${POSTHOG_HOST}/capture/`, {
 		api_key: POSTHOG_API_KEY,
-		event: "extension.rollout.bundle_activated",
+		event: LOADER_DECISION_EVENT,
 		distinct_id: distinctId,
 		properties: {
 			bundle,
+			attempted_bundle: options.attemptedBundle ?? bundle,
 			fallback: options.fallback,
+			double_failure: options.doubleFailure,
 			error_message: options.errorMessage,
 			// Launch-cadence distribution: how long promotions take to reach real
 			// windows tells us how fast the rollout percentage can safely be dialed.
 			ms_since_last_activation: options.msSinceLastActivation,
 			override: options.override,
 			loader_version: context.extension.packageJSON?.version,
+			// Separates nightly traffic from the (future) stable combined VSIX.
+			extension_name: context.extension.packageJSON?.name,
 			vscode_version: vscode.version,
 		},
 	});
