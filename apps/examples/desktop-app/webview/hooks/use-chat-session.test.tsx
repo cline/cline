@@ -432,6 +432,39 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("restores a valid remembered workspace instead of process context", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			"cline.code.workspace-selection.v1",
+			JSON.stringify({
+				lastWorkspace: "/workspace/remembered",
+				workspaces: ["/workspace/remembered"],
+			}),
+		);
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return {
+					cwd: "/workspace/default",
+					workspaceRoot: "/workspace/default",
+				};
+			}
+			if (command === "validate_workspace_directory") {
+				return { valid: true };
+			}
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+
+		await vi.waitFor(() => {
+			expect(current.config.workspaceRoot).toBe("/workspace/remembered");
+			expect(current.config.cwd).toBe("/workspace/remembered");
+		});
+		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			path: "/workspace/remembered",
+		});
+	});
+
 	it("preserves a workspace selected while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:

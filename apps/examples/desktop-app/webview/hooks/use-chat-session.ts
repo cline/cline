@@ -491,10 +491,10 @@ export function useChatSession() {
 						normalizeWorkspacePath(currentWorkspace) !==
 							normalizeWorkspacePath(rememberedWorkspace),
 				);
-				const workspace =
-					currentWorkspace &&
-					(selectionChangedWhileLoading || validation.valid === true)
-						? currentWorkspace
+				const workspace = selectionChangedWhileLoading
+					? currentWorkspace
+					: validation.valid === true
+						? rememberedWorkspace
 						: ctx.workspaceRoot || ctx.cwd;
 				return {
 					...prev,
