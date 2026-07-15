@@ -1,0 +1,123 @@
+/*
+ * Cline product theme
+ *
+ * This file is deliberately framework-agnostic: other web surfaces can import
+ * it before their component styles and map the semantic variables into their
+ * own styling system. Keep product color decisions here rather than in JSX.
+ */
+
+:root {
+	color-scheme: light;
+
+	/* Brand primitives */
+	--cline-ink: oklch(0.21 0.012 285);
+	--cline-violet: oklch(0.55 0.22 293);
+	--cline-violet-strong: oklch(0.45 0.23 293);
+	--cline-lilac: oklch(0.88 0.09 315);
+	--cline-magenta: oklch(0.75 0.15 330);
+	--cline-periwinkle: oklch(0.69 0.14 275);
+	--cline-cyan: oklch(0.87 0.07 210);
+
+	/* Typography */
+	--cline-font-sans: "Schibsted Grotesk Variable";
+	--cline-font-mono: "Azeret Mono";
+	--cline-font-weight-normal: 480;
+	--cline-font-weight-medium: 560;
+	--cline-font-weight-semibold: 640;
+	--cline-font-weight-bold: 640;
+	--cline-text-xs: 12px;
+	--cline-text-sm: 14px;
+	--cline-text-base: 16px;
+	--cline-text-lg: 18px;
+	--cline-text-xl: 20px;
+	--cline-text-2xl: 24px;
+	--cline-text-3xl: 28px;
+	--cline-text-4xl: 35px;
+	--cline-text-hero: 60px;
+	--cline-scrollbar: oklch(0.72 0.01 285);
+	--cline-scrollbar-hover: oklch(0.58 0.014 285);
+	--cline-selection: oklch(0.7 0.16 293 / 22%);
+
+	/* Semantic surfaces */
+	--background: oklch(0.992 0.003 285);
+	--foreground: var(--cline-ink);
+	--card: oklch(1 0 0);
+	--card-foreground: var(--cline-ink);
+	--popover: oklch(1 0 0);
+	--popover-foreground: var(--cline-ink);
+	--primary: var(--cline-violet);
+	--primary-foreground: oklch(0.99 0 0);
+	--secondary: oklch(0.965 0.006 285);
+	--secondary-foreground: oklch(0.28 0.012 285);
+	--muted: oklch(0.968 0.005 285);
+	--muted-foreground: oklch(0.52 0.018 285);
+	--accent: oklch(0.952 0.009 285);
+	--accent-foreground: oklch(0.25 0.014 285);
+	--destructive: oklch(0.58 0.23 27);
+	--destructive-foreground: oklch(0.985 0 0);
+	--border: oklch(0.91 0.008 285);
+	--input: oklch(0.91 0.008 285);
+	--ring: oklch(0.61 0.18 293);
+	--chart-1: var(--cline-violet);
+	--chart-2: oklch(0.66 0.14 185);
+	--chart-3: oklch(0.49 0.11 245);
+	--chart-4: oklch(0.78 0.17 80);
+	--chart-5: oklch(0.69 0.18 35);
+	--radius: 0.5rem;
+
+	/* Navigation */
+	--sidebar: oklch(0.975 0.005 285);
+	--sidebar-foreground: var(--cline-ink);
+	--sidebar-primary: var(--cline-violet);
+	--sidebar-primary-foreground: oklch(0.99 0 0);
+	--sidebar-accent: oklch(0.94 0.009 285);
+	--sidebar-accent-foreground: oklch(0.24 0.014 285);
+	--sidebar-border: oklch(0.9 0.008 285);
+	--sidebar-ring: oklch(0.61 0.18 293);
+}
+
+.dark {
+	color-scheme: dark;
+	--cline-ink: oklch(0.96 0.008 285);
+	--cline-violet: oklch(0.7 0.17 293);
+	--cline-violet-strong: oklch(0.77 0.15 293);
+	--cline-lilac: oklch(0.68 0.13 315);
+	--cline-magenta: oklch(0.64 0.17 330);
+	--cline-periwinkle: oklch(0.63 0.16 275);
+	--cline-cyan: oklch(0.72 0.09 210);
+	--cline-scrollbar: oklch(0.36 0.012 285);
+	--cline-scrollbar-hover: oklch(0.46 0.016 285);
+	--cline-selection: oklch(0.7 0.17 293 / 28%);
+	--background: oklch(0.17 0.012 285);
+	--foreground: var(--cline-ink);
+	--card: oklch(0.205 0.014 285);
+	--card-foreground: var(--cline-ink);
+	--popover: oklch(0.215 0.014 285);
+	--popover-foreground: var(--cline-ink);
+	--primary: var(--cline-violet);
+	--primary-foreground: oklch(0.16 0.015 285);
+	--secondary: oklch(0.255 0.014 285);
+	--secondary-foreground: oklch(0.95 0.008 285);
+	--muted: oklch(0.255 0.012 285);
+	--muted-foreground: oklch(0.7 0.015 285);
+	--accent: oklch(0.275 0.018 285);
+	--accent-foreground: oklch(0.97 0.006 285);
+	--destructive: oklch(0.69 0.19 25);
+	--destructive-foreground: oklch(0.985 0 0);
+	--border: oklch(1 0 0 / 12%);
+	--input: oklch(1 0 0 / 16%);
+	--ring: oklch(0.7 0.15 293);
+	--chart-1: var(--cline-violet);
+	--chart-2: oklch(0.67 0.12 185);
+	--chart-3: oklch(0.61 0.11 245);
+	--chart-4: oklch(0.72 0.14 80);
+	--chart-5: oklch(0.65 0.15 35);
+	--sidebar: oklch(0.19 0.012 285);
+	--sidebar-foreground: var(--cline-ink);
+	--sidebar-primary: var(--cline-violet);
+	--sidebar-primary-foreground: oklch(0.16 0.015 285);
+	--sidebar-accent: oklch(0.265 0.016 285);
+	--sidebar-accent-foreground: oklch(0.97 0.006 285);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.7 0.15 293);
+}

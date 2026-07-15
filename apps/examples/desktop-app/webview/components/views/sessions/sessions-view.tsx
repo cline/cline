@@ -195,10 +195,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
-			<header className="flex shrink-0 items-center justify-between gap-4 border-b px-6 py-4">
+			<header className="flex shrink-0 items-end justify-between gap-6 px-18 pb-7 pt-10 max-[1200px]:px-8 max-md:pl-12 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:pr-4 max-[720px]:pt-5">
 				<div className="min-w-0">
-					<h1 className="text-lg font-semibold leading-tight">Sessions</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
+					<h1 className="text-[32px] font-semibold leading-[1.15] tracking-normal">
+						Sessions
+					</h1>
+					<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
 						Recent sessions across clients and workspaces.
 					</p>
 				</div>
@@ -228,10 +230,10 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" sideOffset={6}>
 							<DropdownMenuItem onClick={() => setSortDirection("newest")}>
-								{sortDirection === "newest" ? "Newest first" : "Newest first"}
+								Newest first
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => setSortDirection("oldest")}>
-								{sortDirection === "oldest" ? "Oldest first" : "Oldest first"}
+								Oldest first
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -284,7 +286,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 				</div>
 			</header>
 
-			<section className="min-h-0 flex-1 overflow-auto px-6 py-5">
+			<section className="min-h-0 flex-1 overflow-auto px-18 pb-10 max-[1200px]:px-8 max-[720px]:px-4">
 				<div className="min-w-240 overflow-hidden rounded-lg border bg-card">
 					<div className="grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_2.5rem] gap-x-4 bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground">
 						<span>Session</span>
@@ -293,7 +295,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						<span>Tokens</span>
 						<span>Cost</span>
 						<span>Updated</span>
-						<span />
+						<span className="sr-only">Actions</span>
 					</div>
 					<div>
 						{history.isLoadingHistory && history.threads.length === 0 ? (
@@ -412,12 +414,15 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											type="button"
 										>
 											<span className="flex min-w-0 items-center gap-3 font-semibold">
+												<span className="sr-only">Open session: </span>
 												<span
 													className={cn(
 														"size-1.5 shrink-0 rounded-full",
 														statusTone(thread.status),
 													)}
+													aria-hidden="true"
 												/>
+												<span className="sr-only">{thread.status}: </span>
 												<span className="truncate">{thread.title}</span>
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
@@ -440,42 +445,44 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											</span>
 										</button>
 									)}
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<button
-												aria-label={`Session actions for ${thread.title}`}
-												className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-												disabled={Boolean(pendingKind)}
-												type="button"
-											>
-												{pendingKind ? (
-													<Loader2 className="size-4 animate-spin" />
-												) : (
-													<MoreHorizontal className="size-4" />
-												)}
-											</button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end" sideOffset={6}>
-											<DropdownMenuItem onClick={() => startRename(thread)}>
-												<Pencil className="size-4" />
-												Rename
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onClick={() => void history.forkThread(thread.id)}
-											>
-												<GitFork className="size-4" />
-												Fork
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												onClick={() => setDeleteCandidate(thread)}
-												variant="destructive"
-											>
-												<Trash2 className="size-4" />
-												Delete
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
+									<div>
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<button
+													aria-label={`Session actions for ${thread.title}`}
+													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													disabled={Boolean(pendingKind)}
+													type="button"
+												>
+													{pendingKind ? (
+														<Loader2 className="size-4 animate-spin" />
+													) : (
+														<MoreHorizontal className="size-4" />
+													)}
+												</button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end" sideOffset={6}>
+												<DropdownMenuItem onClick={() => startRename(thread)}>
+													<Pencil className="size-4" />
+													Rename
+												</DropdownMenuItem>
+												<DropdownMenuItem
+													onClick={() => void history.forkThread(thread.id)}
+												>
+													<GitFork className="size-4" />
+													Fork
+												</DropdownMenuItem>
+												<DropdownMenuSeparator />
+												<DropdownMenuItem
+													onClick={() => setDeleteCandidate(thread)}
+													variant="destructive"
+												>
+													<Trash2 className="size-4" />
+													Delete
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</div>
 								</div>
 							);
 						})}
