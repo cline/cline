@@ -610,7 +610,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Korea-region OpenAI-compatible multi-provider LLM gateway",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
-		defaultModelId: "claude-sonnet-4-6",
+		defaultModelId: "deepseek-v4-pro",
 		apiKeyEnv: ["PLEUMROUTER_API_KEY"],
 		defaults: { baseUrl: "https://router.pleum.ai/v1" },
 		docsUrl: "https://router.pleum.ai/docs",
