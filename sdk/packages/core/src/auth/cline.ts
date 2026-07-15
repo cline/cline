@@ -138,10 +138,16 @@ function toClineCredentials(
 ): ClineOAuthCredentials {
 	const accountId = responseData.userInfo.clineUserId ?? fallback.accountId;
 	const refreshToken = responseData.refreshToken ?? fallback.refresh;
-
 	if (!refreshToken) {
 		throw new Error("Token response did not include a refresh token");
 	}
+	const metadata: Record<string, unknown> = {
+		...(fallback.metadata ?? {}),
+		provider,
+		tokenType: responseData.tokenType,
+		userInfo: responseData.userInfo,
+	};
+	delete metadata.startedAt;
 
 	return {
 		access: responseData.accessToken,
@@ -149,11 +155,7 @@ function toClineCredentials(
 		expires: toEpochMs(responseData.expiresAt),
 		accountId: accountId ?? undefined,
 		email: responseData.userInfo.email || fallback.email,
-		metadata: {
-			provider,
-			tokenType: responseData.tokenType,
-			userInfo: responseData.userInfo,
-		},
+		metadata,
 	};
 }
 
@@ -389,6 +391,7 @@ async function registerWorkOSTokens(
 	return toClineCredentials(
 		requireClineTokenResponse(json, "Invalid token exchange response"),
 		provider ?? options.provider,
+		{ metadata: { sessionStartedAtMs: Date.now() } },
 	);
 }
 
@@ -434,6 +437,7 @@ async function exchangeAuthorizationCode(
 	return toClineCredentials(
 		requireClineTokenResponse(json, "Invalid token exchange response"),
 		provider ?? options.provider,
+		{ metadata: { sessionStartedAtMs: Date.now() } },
 	);
 }
 

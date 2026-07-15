@@ -24,6 +24,8 @@ export {
 // Built-in Executors
 export {
 	type ApplyPatchExecutorOptions,
+	CommandExitError,
+	computePatchChanges,
 	createApplyPatchExecutor,
 	createDefaultExecutors,
 	createDefaultShellExecutor,
@@ -35,6 +37,8 @@ export {
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,
+	PatchActionType,
+	type PatchFileChange,
 	type SearchExecutorOptions,
 	type ShellExecutorOptions,
 	type WebFetchExecutorOptions,

@@ -55,6 +55,33 @@ export interface CoreRuntimeFeatures {
 	yolo?: boolean;
 }
 
+export type CoreCompactionMode = "auto" | "manual";
+
+export interface CoreCompactionBudget {
+	request: {
+		/** Estimated tokens for the full provider request. */
+		inputTokens: number;
+		/** Effective provider input limit. */
+		maxInputTokens: number;
+		/** Full-request token count that triggers automatic compaction. */
+		triggerTokens: number;
+		/** Full-request token count the strategy output should fit within. */
+		targetTokens: number;
+		/** Fixed system-prompt, tool-definition, and request framing cost. */
+		overheadTokens: number;
+		thresholdRatio: number;
+		utilizationRatio: number;
+	};
+	messages: {
+		/** Estimated tokens in the compactable message transcript. */
+		inputTokens: number;
+		/** Message budget corresponding to the full-request trigger. */
+		triggerTokens: number;
+		/** Message budget the strategy should compact toward. */
+		targetTokens: number;
+	};
+}
+
 export interface CoreCompactionContext {
 	agentId: string;
 	conversationId: string;
@@ -66,11 +93,8 @@ export interface CoreCompactionContext {
 		provider: string;
 		info?: ModelInfo;
 	};
-	maxInputTokens: number;
-	triggerTokens: number;
-	targetTokens?: number;
-	thresholdRatio: number;
-	utilizationRatio: number;
+	mode: CoreCompactionMode;
+	budget: CoreCompactionBudget;
 }
 
 // Mirrors BudgetPolicyIntent in extensions/context/budget-projection/types.ts.
@@ -124,10 +148,7 @@ export type CoreCompactionStrategy = "basic" | "agentic";
 export interface CoreCompactionConfig {
 	enabled?: boolean;
 	strategy?: CoreCompactionStrategy;
-	thresholdRatio?: number;
-	reserveTokens?: number;
 	preserveRecentTokens?: number;
-	maxInputTokens?: number;
 	summarizer?: CoreCompactionSummarizerConfig;
 	compact?: (
 		context: CoreCompactionContext,

@@ -96,7 +96,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
 
-		expect(options.waitForPendingModeRebuild).not.toHaveBeenCalled()
+		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -130,7 +130,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 		)
-		expect(options.waitForPendingModeRebuild).not.toHaveBeenCalled()
+		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
@@ -174,19 +174,19 @@ describe("SdkFollowupCoordinator", () => {
 		const task = makeTask("task-1")
 		const rebuiltSession = makeActiveSession({ isRunning: true })
 		let resolveRebuild: () => void = () => {}
-		const waitForPendingModeRebuild = vi.fn(
+		const waitForPendingRebuilds = vi.fn(
 			() =>
 				new Promise<void>((resolve) => {
 					resolveRebuild = resolve
 				}),
 		)
-		const { coordinator, options } = makeCoordinator({ task, waitForPendingModeRebuild })
+		const { coordinator, options } = makeCoordinator({ task, waitForPendingRebuilds })
 		options.sessions.getActiveSession.mockReturnValueOnce(undefined).mockReturnValue(rebuiltSession)
 
 		const sendPromise = coordinator.askResponse("sent during rebuild")
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
-		expect(waitForPendingModeRebuild).toHaveBeenCalledOnce()
+		expect(waitForPendingRebuilds).toHaveBeenCalledOnce()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 
@@ -201,6 +201,36 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+		)
+	})
+
+	it("waits for a passive rebuild before choosing the session for an idle follow-up", async () => {
+		const oldSession = makeActiveSession()
+		const rebuiltSession = makeActiveSession()
+		let resolveRebuild: () => void = () => {}
+		const waitForPendingRebuilds = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveRebuild = resolve
+				}),
+		)
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, waitForPendingRebuilds })
+		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(rebuiltSession)
+
+		const sendPromise = coordinator.askResponse("after rebuild")
+		await Promise.resolve()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+
+		resolveRebuild()
+		await sendPromise
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			rebuiltSession.sdkHost,
+			"session-123",
+			"resolved: after rebuild",
+			undefined,
+			undefined,
+			undefined,
 		)
 	})
 
@@ -270,6 +300,37 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("adds a legacy warning to initial messages when resuming a legacy task", async () => {
+		const task = makeTask("legacy-task")
+		const historyItem = {
+			id: "legacy-task",
+			ts: 1,
+			task: "Legacy task",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem, isLegacyTask: true })
+		options.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce([
+			{ role: "user", content: "hello" },
+			{ role: "user", content: "warning" },
+		])
+
+		await coordinator.askResponse("continue")
+
+		expect(options.taskHistory.getLegacyResumeInitialMessages).toHaveBeenCalledWith("legacy-task", [
+			{ role: "user", content: "hello" },
+		])
+		expect(options.sessions.startNewSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: [
+					{ role: "user", content: "hello" },
+					{ role: "user", content: "warning" },
+				],
+			}),
+		)
 	})
 
 	it("echoes attachments on an attachment-only resume", async () => {
@@ -373,6 +434,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			findHistoryItem: vi.fn(() => input.historyItem),
 			updateTaskHistory: vi.fn().mockResolvedValue([]),
 			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
+			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
+			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallbackMessages?: unknown[]) => fallbackMessages),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -387,7 +450,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
-		waitForPendingModeRebuild: input.waitForPendingModeRebuild ?? vi.fn().mockResolvedValue(undefined),
+		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
 		onResumeFailed: vi.fn(),
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
@@ -409,6 +472,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			findHistoryItem: ReturnType<typeof vi.fn>
 			updateTaskHistory: ReturnType<typeof vi.fn>
 			updateTaskHistoryItem: ReturnType<typeof vi.fn>
+			isLegacyTask: ReturnType<typeof vi.fn>
+			getLegacyResumeInitialMessages: ReturnType<typeof vi.fn>
 		}
 		sessionConfigBuilder: SdkFollowupCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		getTask: ReturnType<typeof vi.fn>
@@ -443,7 +508,8 @@ interface MakeCoordinatorInput {
 		cwdOnTaskInitialization?: string
 	}
 	mode: "act" | "plan"
-	waitForPendingModeRebuild: () => Promise<void>
+	isLegacyTask: boolean
+	waitForPendingRebuilds: () => Promise<void>
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {

@@ -23,18 +23,14 @@ describe("SdkMcpCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
-	it("defers MCP restart while the active session is running", async () => {
+	it("schedules MCP restart while the active session is running", () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		coordinator.handleToolListChanged()
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-
-		activeSession.isRunning = false
-		coordinator.checkDeferredRestart()
-
-		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+		expect(options.rebuilds.request).toHaveBeenCalledWith("mcpTools", expect.any(Function))
 	})
 
 	it("restarts immediately when MCP tools change while the active session is idle", async () => {
@@ -65,6 +61,7 @@ describe("SdkMcpCoordinator", () => {
 			mode: "plan",
 		})
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
+			expectedSession: activeSession,
 			startInput: { prompt: "start" },
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "mcpToolRestart",
@@ -129,6 +126,13 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		rebuilds: {
+			request: vi.fn((_reason: string, rebuild: () => Promise<void>) => {
+				if (!activeSession?.isRunning) {
+					void rebuild()
+				}
+			}),
+		},
 	} as unknown as SdkMcpCoordinatorOptions & {
 		stateManager: StateManager & { getGlobalSettingsKey: ReturnType<typeof vi.fn> }
 		sessions: SdkMcpCoordinatorOptions["sessions"] & {
