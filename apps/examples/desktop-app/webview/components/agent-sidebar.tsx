@@ -525,6 +525,7 @@ function ThreadItem({
 	const infoItems: Array<[string, string | null | undefined]> = [
 		["ID", thread.id],
 		["Workspace", thread.codebase],
+		["Branch", thread.gitBranch],
 		["Status", thread.status],
 		["Updated", thread.time],
 		["Provider", thread.provider],
