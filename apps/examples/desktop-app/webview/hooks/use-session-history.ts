@@ -1226,6 +1226,10 @@ export function useSessionHistory({
 		},
 		[refreshSessions],
 	);
+	const loadOlderSessions = useCallback(
+		() => loadMoreSessions(fetchLimitRef.current + INITIAL_HISTORY_FETCH_LIMIT),
+		[loadMoreSessions],
+	);
 
 	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
 	const sessionById = useMemo(
@@ -1237,6 +1241,7 @@ export function useSessionHistory({
 		getSessionByThreadId,
 		isLoadingHistory,
 		isLoadingMore,
+		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
 		openThread,

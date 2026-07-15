@@ -1,8 +1,11 @@
 "use client";
 
 import {
+	ArrowDownUp,
 	ChevronDown,
+	Clock3,
 	Filter,
+	FolderTree,
 	GitFork,
 	Home,
 	Loader2,
@@ -62,6 +65,11 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import {
+	groupThreadsByProject,
+	INITIAL_VISIBLE_THREAD_COUNT,
+	workspaceDisplayName,
+} from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
 
 type Thread = SessionThread;
@@ -69,7 +77,7 @@ type AppView = "chat" | "sessions" | "settings";
 
 const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
-const INITIAL_VISIBLE_THREAD_COUNT = 10;
+type SidebarSortMode = "time" | "project";
 
 export function AgentSidebar({
 	isHomeActive,
@@ -95,6 +103,7 @@ export function AgentSidebar({
 		forkThread: forkHistoryThread,
 		isLoadingHistory,
 		isLoadingMore,
+		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
 		openThread: openHistoryThread,
@@ -105,6 +114,7 @@ export function AgentSidebar({
 	} = sessionHistory;
 	const activeThread = activeSessionId ?? "";
 	const [filter, setFilter] = useState<FilterOption>("All");
+	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showMoreCount, setShowMoreCount] = useState(
@@ -118,6 +128,9 @@ export function AgentSidebar({
 	const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
 		() => new Set(),
 	);
+	const [projectVisibleCounts, setProjectVisibleCounts] = useState<
+		Record<string, number>
+	>({});
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -232,29 +245,13 @@ export function AgentSidebar({
 				: [...pinnedThreads, ...sessionThreads].slice(0, showMoreCount),
 		[filter, pinnedThreads, sessionThreads, showMoreCount],
 	);
-	const showShowMore =
-		sessionThreads.length > showMoreCount || mayHaveMoreSessions;
-	const projectGroups = useMemo(() => {
-		const groups = new Map<
-			string,
-			{ workspacePath: string; threads: Thread[] }
-		>();
-		for (const thread of displayedThreads) {
-			const workspacePath = thread.workspacePath.trim();
-			const projectId = normalizeWorkspacePath(workspacePath) || "__other__";
-			const current = groups.get(projectId);
-			if (current) current.threads.push(thread);
-			else groups.set(projectId, { workspacePath, threads: [thread] });
-		}
-		const workspacePaths = [...groups.values()].map(
-			(group) => group.workspacePath,
-		);
-		return [...groups.entries()].map(([id, group]) => ({
-			id,
-			label: uniqueWorkspaceLabel(group.workspacePath, workspacePaths),
-			threads: group.threads,
-		}));
-	}, [displayedThreads]);
+	const showTimeShowMore =
+		sessionThreads.length > showMoreCount ||
+		(filter === "All" && !searchQuery && mayHaveMoreSessions);
+	const projectGroups = useMemo(
+		() => groupThreadsByProject([...pinnedThreads, ...sessionThreads]),
+		[pinnedThreads, sessionThreads],
+	);
 
 	const toggleProject = useCallback((project: string) => {
 		setCollapsedProjects((current) => {
@@ -263,6 +260,14 @@ export function AgentSidebar({
 			else next.add(project);
 			return next;
 		});
+	}, []);
+	const showMoreForProject = useCallback((project: string) => {
+		setProjectVisibleCounts((current) => ({
+			...current,
+			[project]:
+				(current[project] ?? INITIAL_VISIBLE_THREAD_COUNT) +
+				INITIAL_VISIBLE_THREAD_COUNT,
+		}));
 	}, []);
 
 	const filterMenu = (
@@ -282,6 +287,7 @@ export function AgentSidebar({
 					onValueChange={(value) => {
 						setFilter(value as FilterOption);
 						setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+						setProjectVisibleCounts({});
 					}}
 					value={filter}
 				>
@@ -293,6 +299,60 @@ export function AgentSidebar({
 				</DropdownMenuRadioGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+	const sortMenu = (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
+					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+					size="icon"
+					title={sortMode === "time" ? "Sort by time" : "Sort by project"}
+					variant="ghost"
+				>
+					<ArrowDownUp className="size-3.5" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-44">
+				<DropdownMenuRadioGroup
+					onValueChange={(value) => {
+						if (value === "time" || value === "project") {
+							setSortMode(value);
+						}
+					}}
+					value={sortMode}
+				>
+					<DropdownMenuRadioItem value="time">
+						<Clock3 className="size-4" />
+						Sort by time
+					</DropdownMenuRadioItem>
+					<DropdownMenuRadioItem value="project">
+						<FolderTree className="size-4" />
+						Sort by project
+					</DropdownMenuRadioItem>
+				</DropdownMenuRadioGroup>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+	const threadItem = (thread: Thread) => (
+		<ThreadItem
+			editTitle={editingTitle}
+			editing={editingSessionId === thread.id}
+			isActive={activeThread === thread.id}
+			key={thread.id}
+			onCancelRename={cancelRenameThread}
+			onClick={() => openThread(thread.id)}
+			onCommitRename={() => void commitRenameThread(thread)}
+			onDelete={() => requestDeleteThread(thread)}
+			onEditTitleChange={setEditingTitle}
+			onFork={() => void forkThread(thread)}
+			onRename={() => startRenameThread(thread)}
+			pendingAction={
+				pendingAction?.sessionId === thread.id ? pendingAction.action : null
+			}
+			thread={thread}
+			unread={unreadSessionIds.has(thread.id)}
+		/>
 	);
 
 	return (
@@ -368,7 +428,7 @@ export function AgentSidebar({
 									onClick={openSessions}
 									type="button"
 								>
-									Projects
+									{sortMode === "time" ? "Sessions" : "Projects"}
 								</button>
 								<div className="flex shrink-0 items-center gap-0.5">
 									<Button
@@ -382,6 +442,7 @@ export function AgentSidebar({
 									>
 										<Search className="size-3.5" />
 									</Button>
+									{sortMenu}
 									{filterMenu}
 									<Button
 										aria-label="New session"
@@ -419,41 +480,42 @@ export function AgentSidebar({
 										</div>
 									) : (
 										<>
-											{projectGroups.map((project) => (
-												<ProjectSection
-													collapsed={collapsedProjects.has(project.id)}
-													key={project.id}
-													label={project.label}
-													onToggle={() => toggleProject(project.id)}
-												>
-													{project.threads.map((thread) => (
-														<ThreadItem
-															editTitle={editingTitle}
-															editing={editingSessionId === thread.id}
-															isActive={activeThread === thread.id}
-															key={thread.id}
-															onCancelRename={cancelRenameThread}
-															onClick={() => openThread(thread.id)}
-															onCommitRename={() =>
-																void commitRenameThread(thread)
-															}
-															onDelete={() => requestDeleteThread(thread)}
-															onEditTitleChange={setEditingTitle}
-															onFork={() => void forkThread(thread)}
-															onRename={() => startRenameThread(thread)}
-															pendingAction={
-																pendingAction?.sessionId === thread.id
-																	? pendingAction.action
-																	: null
-															}
-															thread={thread}
-															unread={unreadSessionIds.has(thread.id)}
-														/>
-													))}
-												</ProjectSection>
-											))}
+											{sortMode === "time"
+												? displayedThreads.map(threadItem)
+												: projectGroups.map((project) => {
+														const visibleCount =
+															projectVisibleCounts[project.id] ??
+															INITIAL_VISIBLE_THREAD_COUNT;
+														return (
+															<ProjectSection
+																collapsed={collapsedProjects.has(project.id)}
+																key={project.id}
+																label={project.label}
+																onToggle={() => toggleProject(project.id)}
+															>
+																{project.threads
+																	.slice(0, visibleCount)
+																	.map(threadItem)}
+																{project.threads.length > visibleCount ? (
+																	<Button
+																		className="pl-2"
+																		onClick={() =>
+																			showMoreForProject(project.id)
+																		}
+																		type="button"
+																		variant="sidebarText"
+																	>
+																		Show more in {project.label}
+																		<ChevronDown className="size-3" />
+																	</Button>
+																) : null}
+															</ProjectSection>
+														);
+													})}
 
-											{displayedThreads.length === 0 && (
+											{(sortMode === "time"
+												? displayedThreads.length === 0
+												: projectGroups.length === 0) && (
 												<div className="px-2 py-4 text-xs text-muted-foreground">
 													{searchQuery
 														? "No sessions match your search."
@@ -462,7 +524,7 @@ export function AgentSidebar({
 											)}
 										</>
 									)}
-									{showShowMore && (
+									{sortMode === "time" && showTimeShowMore && (
 										<Button
 											className="pl-0"
 											disabled={isLoadingMore}
@@ -488,6 +550,30 @@ export function AgentSidebar({
 											)}
 										</Button>
 									)}
+									{sortMode === "project" &&
+										filter === "All" &&
+										!searchQuery &&
+										mayHaveMoreSessions && (
+											<Button
+												className="pl-0"
+												disabled={isLoadingMore}
+												onClick={() => void loadOlderSessions()}
+												type="button"
+												variant="sidebarText"
+											>
+												{isLoadingMore ? (
+													<>
+														<Loader2 className="size-3 animate-spin" />
+														Loading older projects...
+													</>
+												) : (
+													<>
+														Load older projects
+														<ChevronDown className="size-3" />
+													</>
+												)}
+											</Button>
+										)}
 								</div>
 							</ScrollArea>
 						</div>
@@ -576,33 +662,6 @@ export function AgentSidebar({
 	);
 }
 
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
-}
-
-function uniqueWorkspaceLabel(path: string, workspacePaths: string[]): string {
-	if (!path) return "Other";
-	const segments = path
-		.replace(/[\\/]+$/, "")
-		.split(/[\\/]/)
-		.filter(Boolean);
-	const allSegments = workspacePaths.map((workspacePath) =>
-		workspacePath
-			.replace(/[\\/]+$/, "")
-			.split(/[\\/]/)
-			.filter(Boolean),
-	);
-	for (let depth = 1; depth <= segments.length; depth += 1) {
-		const candidate = segments.slice(-depth).join("/");
-		const matches = allSegments.filter(
-			(other) => other.slice(-depth).join("/") === candidate,
-		).length;
-		if (matches === 1) return candidate;
-	}
-	return path;
-}
-
 function ProjectSection({
 	label,
 	collapsed,
@@ -669,6 +728,7 @@ function ThreadItem({
 	const costLabel = formatCostUsd(thread.totalCostUsd);
 	const title = normalizeTitle(thread.title);
 	const pending = pendingAction !== null;
+	const workspacePath = thread.workspacePath || thread.codebase;
 	const statusDotClass = pending
 		? "bg-yellow-400"
 		: thread.status === "running"
@@ -676,16 +736,20 @@ function ThreadItem({
 			: unread
 				? "bg-blue-500"
 				: "";
-	const infoItems: Array<[string, string | null | undefined]> = [
+	const infoItems: Array<[string, string | null | undefined, string?]> = [
 		["ID", thread.id],
-		["Workspace", thread.workspacePath || thread.codebase],
+		[
+			"Workspace",
+			workspaceDisplayName(workspacePath),
+			workspacePath || undefined,
+		],
 		["Status", thread.status],
 		["Updated", thread.time],
 		["Provider", thread.provider],
 		["Model", thread.model],
 		["Tokens", tokenLabel],
 		["Cost", costLabel],
-	].filter((item): item is [string, string] => Boolean(item[1]));
+	].filter((item): item is [string, string, string?] => Boolean(item[1]));
 
 	if (editing) {
 		return (
@@ -754,10 +818,15 @@ function ThreadItem({
 					<div className="min-w-0 space-y-2">
 						<div className="truncate text-sm font-medium">{title}</div>
 						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
-							{infoItems.map(([label, value]) => (
+							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
-									<span className="min-w-0 truncate font-mono">{value}</span>
+									<span
+										className="min-w-0 truncate font-mono"
+										title={fullValue}
+									>
+										{value}
+									</span>
 								</div>
 							))}
 						</div>

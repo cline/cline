@@ -6,6 +6,11 @@ export type WorkspaceSelectionStorage = {
 	workspaces: string[];
 };
 
+export type WorkspacePathSource = {
+	cwd?: string;
+	workspaceRoot?: string;
+};
+
 export function normalizeWorkspacePath(path: string): string {
 	const trimmed = path.trim();
 	if (!trimmed) {
@@ -30,6 +35,14 @@ export function mergeWorkspacePaths(
 		}
 	}
 	return [...byNormalizedPath.values()].sort((a, b) => a.localeCompare(b));
+}
+
+export function workspacePathsFromSessions(
+	sessions: readonly WorkspacePathSource[],
+): string[] {
+	return mergeWorkspacePaths(
+		sessions.map((session) => session.workspaceRoot || session.cwd || ""),
+	);
 }
 
 export function parseWorkspaceSelectionStorage(
