@@ -149,6 +149,10 @@ async function mergeKnownModels(
 	publicModels: Record<string, ModelInfo> = {},
 	userKnownModels: Record<string, ModelInfo> = {},
 ): Promise<Record<string, ModelInfo>> {
+	if (providerId === "litellm") {
+		return Llms.sortModelsByReleaseDate(privateModels);
+	}
+
 	const generatedProviderModels = await loadGeneratedProviderModels();
 	const generatedKeys = Llms.resolveProviderModelCatalogKeys(providerId);
 	const generated = Object.assign(
@@ -179,12 +183,38 @@ async function mergeKnownModels(
 			...userKnownModels,
 		});
 	}
-	return Llms.sortModelsByReleaseDate({
+	if (providerId === "cline-pass" && Object.keys(liveModels).length > 0) {
+		// Keep the catalog's intentional order (pass models first, free models
+		// after) instead of re-sorting by release date: the first live model is
+		// the fallback default when the bundled default id rotates out of the
+		// live list, and it must stay a subscription model, not a free one.
+		return {
+			...liveModels,
+			...userKnownModels,
+		};
+	}
+	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate({
 		...generated,
 		...defaultKnownModels,
 		...liveModels,
 		...privateModels,
 		...publicModels,
+	});
+
+	if (providerId === "cline") {
+		// Cline recommendations can use Vercel-style ids while the broader
+		// catalog includes OpenRouter aliases for the same models.
+		return Llms.sortModelsByReleaseDate({
+			...Llms.preferCanonicalModelIds(
+				knownModelsWithoutUserOverrides,
+				Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+			),
+			...userKnownModels,
+		});
+	}
+
+	return Llms.sortModelsByReleaseDate({
+		...knownModelsWithoutUserOverrides,
 		...userKnownModels,
 	});
 }
@@ -512,11 +542,26 @@ interface LiteLlmModelInfoResponse {
 }
 
 function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
-	const normalized = normalizeBaseUrl(baseUrl);
+	const normalized = normalizeBaseUrl(baseUrl).replace(/\/+$/, "");
 	if (!normalized) {
 		return "http://localhost:4000";
 	}
 	return normalized.endsWith("/v1") ? normalized.slice(0, -3) : normalized;
+}
+
+function buildLiteLlmModelInfoUrls(baseUrl: string): string[] {
+	return [`${baseUrl}/v1/model/info`, `${baseUrl}/model/info`];
+}
+
+async function describeLiteLlmHttpFailure(response: Response): Promise<string> {
+	const body = (await response.text().catch(() => ""))
+		.replace(/\s+/g, " ")
+		.trim();
+	const bodyLimit = 500;
+	const bodyText = body
+		? `: ${body.slice(0, bodyLimit)}${body.length > bodyLimit ? "..." : ""}`
+		: "";
+	return `HTTP ${response.status}${bodyText}`;
 }
 
 async function fetchLiteLlmPrivateModels(
@@ -524,58 +569,72 @@ async function fetchLiteLlmPrivateModels(
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
 	const baseUrl = normalizeLiteLlmBaseUrl(config.baseUrl);
-	const endpoint = `${baseUrl}/v1/model/info`;
+	const failures: string[] = [];
+	const authHeaders = [
+		["x-litellm-api-key", { "x-litellm-api-key": token }],
+		["Authorization", { Authorization: `Bearer ${token}` }],
+	] as const;
 
-	const fetchWithHeaders = async (
-		headers: Record<string, string>,
-	): Promise<Response> =>
-		fetchWithTimeout(endpoint, {
-			method: "GET",
-			headers: {
-				accept: "application/json",
-				...headers,
-			},
-		});
+	for (const endpoint of buildLiteLlmModelInfoUrls(baseUrl)) {
+		for (const [authLabel, authHeader] of authHeaders) {
+			try {
+				const response = await fetchWithTimeout(endpoint, {
+					method: "GET",
+					headers: {
+						accept: "application/json",
+						...authHeader,
+					},
+				});
 
-	let response = await fetchWithHeaders({ "x-litellm-api-key": token });
-	if (!response.ok) {
-		response = await fetchWithHeaders({ Authorization: `Bearer ${token}` });
-	}
-	if (!response.ok) {
-		throw new Error(`LiteLLM model refresh failed: HTTP ${response.status}`);
-	}
+				if (response.ok) {
+					const payload = (await response.json()) as {
+						data?: LiteLlmModelInfoResponse[];
+					};
+					const entries = payload?.data ?? [];
+					const models: Record<string, ModelInfo> = {};
+					for (const model of entries) {
+						const displayName = model.model_name?.trim();
+						const actualModelId = model.litellm_params?.model?.trim();
+						const modelId = actualModelId || displayName;
+						if (!modelId) {
+							continue;
+						}
+						const info = model.model_info;
+						const converted = buildModelFromPrivateSource(modelId, {
+							name: displayName ?? modelId,
+							maxTokens: info?.max_output_tokens ?? info?.max_tokens,
+							maxInputTokens: info?.max_input_tokens ?? info?.max_tokens,
+							supportsImages: info?.supports_vision,
+							supportsPromptCache: info?.supports_prompt_caching,
+							supportsReasoning: info?.supports_reasoning,
+						});
+						models[modelId] = converted;
+						if (displayName) {
+							models[displayName] = {
+								...converted,
+								id: displayName,
+								name: displayName,
+							};
+						}
+					}
+					return models;
+				}
 
-	const payload = (await response.json()) as {
-		data?: LiteLlmModelInfoResponse[];
-	};
-	const entries = payload?.data ?? [];
-	const models: Record<string, ModelInfo> = {};
-	for (const model of entries) {
-		const displayName = model.model_name?.trim();
-		const actualModelId = model.litellm_params?.model?.trim();
-		const modelId = actualModelId || displayName;
-		if (!modelId) {
-			continue;
+				failures.push(
+					`${new URL(endpoint).pathname} (${authLabel}): ${await describeLiteLlmHttpFailure(response)}`,
+				);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				failures.push(
+					`${new URL(endpoint).pathname} (${authLabel}): ${message}`,
+				);
+			}
 		}
-		const info = model.model_info;
-		const converted = buildModelFromPrivateSource(modelId, {
-			name: displayName ?? modelId,
-			maxTokens: info?.max_output_tokens ?? info?.max_tokens,
-			maxInputTokens: info?.max_input_tokens ?? info?.max_tokens,
-			supportsImages: info?.supports_vision,
-			supportsPromptCache: info?.supports_prompt_caching,
-			supportsReasoning: info?.supports_reasoning,
-		});
-		models[modelId] = converted;
-		if (displayName) {
-			models[displayName] = {
-				...converted,
-				id: displayName,
-				name: displayName,
-			};
-		}
 	}
-	return models;
+
+	throw new Error(
+		`LiteLLM model refresh failed. Attempts: ${failures.join("; ")}`,
+	);
 }
 
 type PrivateProviderModelFetcher = (
@@ -737,7 +796,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchModelsDevProviderModels(url, globalThis.fetch);
+	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
 }
 
 export async function getLiveModelsCatalog(
@@ -881,6 +940,12 @@ export async function resolveProviderConfig(
 	} catch (error) {
 		if (modelCatalog?.failOnError) {
 			throw error;
+		}
+		if (providerId === "litellm") {
+			return {
+				...defaults,
+				knownModels: {},
+			};
 		}
 		return defaults;
 	}

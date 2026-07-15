@@ -4,6 +4,7 @@ import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
 } from "../../auth/oca";
+import { getPersistedProviderApiKey } from "../../auth/provider-auth-registry";
 import {
 	OPENAI_COMPATIBLE_PROVIDERS,
 	type ProviderDefaults,
@@ -58,6 +59,11 @@ export const AuthSettingsSchema = z.object({
 	refreshToken: z.string().optional(),
 	expiresAt: z.number().int().positive().optional(),
 	accountId: z.string().optional(),
+	// Active organization at last account load, for telemetry attribution.
+	organizationId: z.string().optional(),
+	organizationName: z.string().optional(),
+	memberId: z.string().optional(),
+	metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
@@ -215,8 +221,7 @@ export function toProviderConfig(
 	);
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
-	const apiKey =
-		settings.auth?.accessToken ?? settings.apiKey ?? settings.auth?.apiKey;
+	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
 	const resolvedBaseUrl =
 		settings.baseUrl ??
 		(normalizedProviderId === "oca"

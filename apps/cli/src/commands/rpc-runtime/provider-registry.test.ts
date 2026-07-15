@@ -78,6 +78,74 @@ describe("saveLocalProviderSettings", () => {
 		);
 	});
 
+	it("merges and clears Azure provider settings", () => {
+		const save = vi.fn();
+		const manager = {
+			read: vi.fn().mockReturnValue({
+				providers: {},
+			}),
+			write: vi.fn(),
+			getFilePath: vi.fn().mockReturnValue("/tmp/providers.json"),
+			getProviderSettings: vi.fn().mockReturnValue({
+				provider: "openai-compatible",
+				azure: {
+					apiVersion: "2024-10-21",
+					useIdentity: true,
+				},
+			}),
+			saveProviderSettings: save,
+		};
+
+		saveLocalProviderSettings(
+			manager as unknown as ProviderSettingsManager,
+			{
+				action: "saveProviderSettings",
+				providerId: "openai-compatible",
+				azure: {
+					apiVersion: "2025-01-01-preview",
+				},
+			} as SaveProviderSettingsActionRequest,
+		);
+
+		expect(save).toHaveBeenCalledTimes(1);
+		expect(save).toHaveBeenCalledWith(
+			{
+				provider: "openai-compatible",
+				azure: {
+					apiVersion: "2025-01-01-preview",
+					useIdentity: true,
+				},
+			},
+			{ setLastUsed: false },
+		);
+
+		save.mockClear();
+		manager.getProviderSettings.mockReturnValue({
+			provider: "openai-compatible",
+			azure: {
+				apiVersion: "2025-01-01-preview",
+			},
+		});
+
+		saveLocalProviderSettings(
+			manager as unknown as ProviderSettingsManager,
+			{
+				action: "saveProviderSettings",
+				providerId: "openai-compatible",
+				azure: {
+					apiVersion: "",
+				},
+			} as SaveProviderSettingsActionRequest,
+		);
+
+		expect(save).toHaveBeenCalledWith(
+			{
+				provider: "openai-compatible",
+			},
+			{ setLastUsed: false },
+		);
+	});
+
 	it("keeps OAuth auth fields when updating manual apiKey", () => {
 		const save = vi.fn();
 		const manager = {

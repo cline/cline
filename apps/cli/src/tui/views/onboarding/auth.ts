@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	type ITelemetryService,
+	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
@@ -8,17 +9,18 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import open from "open";
+import { identifyFeatureFlagsAccount } from "../../../utils/feature-flags";
 
-export type OnboardingOAuthProviderId = "cline" | "oca" | "openai-codex";
+export type OnboardingOAuthProviderId = string;
 
 export function isOnboardingOAuthProviderId(
 	providerId: string,
 ): providerId is OnboardingOAuthProviderId {
-	return (
-		providerId === "cline" ||
-		providerId === "oca" ||
-		providerId === "openai-codex"
-	);
+	return isOAuthProvider(providerId);
+}
+
+function isClineAccountOAuthProvider(providerId: string): boolean {
+	return providerId === "cline" || providerId === "cline-pass";
 }
 
 export function runOAuthAuthFlow(input: {
@@ -59,6 +61,12 @@ export function runOAuthAuthFlow(input: {
 				existing,
 				credentials,
 			);
+			if (isClineAccountOAuthProvider(input.providerId)) {
+				void identifyFeatureFlagsAccount({
+					id: credentials.accountId,
+					email: credentials.email,
+				}).catch(() => {});
+			}
 			input.onComplete(input.providerId);
 		})
 		.catch((err: unknown) => {
@@ -92,11 +100,18 @@ export function runDeviceCodeAuthFlow(input: {
 	startClineDeviceAuth()
 		.then((result) => {
 			if (input.isAborted()) return;
+			const verifyUrl =
+				result.verificationUriComplete || result.verificationUri;
 			input.setUserCode(result.userCode);
-			input.setVerifyUrl(
-				result.verificationUriComplete || result.verificationUri,
-			);
+			input.setVerifyUrl(verifyUrl);
 			input.setStatus("Enter the code at the URL below");
+			try {
+				void open(verifyUrl, { wait: false }).catch(() => {
+					input.setStatus("Could not open browser. Visit the URL below.");
+				});
+			} catch {
+				input.setStatus("Could not open browser. Visit the URL below.");
+			}
 
 			completeClineDeviceAuth({
 				deviceCode: result.deviceCode,
@@ -114,6 +129,12 @@ export function runDeviceCodeAuthFlow(input: {
 						existing,
 						credentials,
 					);
+					if (isClineAccountOAuthProvider(input.providerId)) {
+						void identifyFeatureFlagsAccount({
+							id: credentials.accountId,
+							email: credentials.email,
+						}).catch(() => {});
+					}
 					input.onComplete(input.providerId);
 				})
 				.catch((err: unknown) => {

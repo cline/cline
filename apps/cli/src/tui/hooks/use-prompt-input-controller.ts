@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import {
@@ -327,6 +328,14 @@ export function usePromptInputController(input: {
 			}
 
 			const startedAt = performance.now();
+			let commandOutputAppended = false;
+			const appendCommandOutput = (text: string) => {
+				commandOutputAppended = true;
+				session.appendEntry({
+					kind: "status",
+					text,
+				});
+			};
 			try {
 				const result = await onSubmit(
 					promptForSubmit,
@@ -335,8 +344,9 @@ export function usePromptInputController(input: {
 					activeUserImages.length > 0
 						? { userImages: activeUserImages }
 						: undefined,
+					appendCommandOutput,
 				);
-				if (result.commandOutput) {
+				if (result.commandOutput && !commandOutputAppended) {
 					session.appendEntry({
 						kind: "status",
 						text: result.commandOutput,
@@ -367,7 +377,7 @@ export function usePromptInputController(input: {
 				if (!turnErrorReportedRef.current) {
 					session.appendEntry({
 						kind: "error",
-						text: error instanceof Error ? error.message : String(error),
+						text: formatCliErrorMessage(error),
 					});
 				}
 			} finally {

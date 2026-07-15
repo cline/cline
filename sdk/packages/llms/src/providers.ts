@@ -29,6 +29,21 @@ import {
 } from "./providers/types";
 
 export {
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
+	extractClinePassLimitMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
+} from "./providers/errors";
+export {
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,

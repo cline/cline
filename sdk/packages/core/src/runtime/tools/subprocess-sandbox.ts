@@ -170,6 +170,8 @@ export class SubprocessSandbox {
 			{
 				stdio: ["ignore", "ignore", "pipe", "ipc"],
 				env: withResolvedClineBuildEnv(process.env),
+				// Prevent a console window from flashing on Windows.
+				windowsHide: true,
 			},
 		);
 		this.process = child;

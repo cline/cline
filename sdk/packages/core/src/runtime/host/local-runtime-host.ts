@@ -13,7 +13,11 @@ import {
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
-import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
+import {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
@@ -47,6 +51,16 @@ import {
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
 import {
+	type GitWorkspaceState,
+	hasCurrentSessionGitMetadata,
+	readGitWorkspaceState,
+	withSessionGitMetadata,
+} from "../../services/workspace/workspace-manifest";
+import {
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
+import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
@@ -73,6 +87,7 @@ import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
+import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
@@ -95,6 +110,7 @@ import {
 } from "./local/session-service-invoker";
 import {
 	createSessionSpawnTool,
+	createSessionSubAgentLifecycleCallbacks,
 	type SubAgentStartTracker,
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
@@ -106,6 +122,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -169,6 +186,19 @@ function maxAccumulatedUsage(
 	};
 }
 
+function isIncomingCompactionStateStale(
+	incoming: SessionCompactionState,
+	current: SessionCompactionState | undefined,
+): boolean {
+	if (!current) {
+		return false;
+	}
+	if (incoming.source_message_count !== current.source_message_count) {
+		return incoming.source_message_count < current.source_message_count;
+	}
+	return Date.parse(incoming.updated_at) < Date.parse(current.updated_at);
+}
+
 export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
@@ -202,6 +232,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
+	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly aggregateUsageBySession = new Map<
 		string,
@@ -268,6 +300,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	private async applyInitialOAuthCredentials(
+		input: StartSessionInput,
+	): Promise<StartSessionInput> {
+		if (input.config.apiKey?.trim()) {
+			return input;
+		}
+
+		const resolved = await this.oauthTokenManager.resolveProviderApiKey({
+			providerId: input.config.providerId,
+		});
+		if (!resolved?.apiKey) {
+			return input;
+		}
+
+		return {
+			...input,
+			config: {
+				...input.config,
+				apiKey: resolved.apiKey,
+			},
+		};
+	}
+
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
@@ -275,7 +330,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput = input;
+		const startInput: StartSessionInput =
+			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
 			initialMessages.length > 0
@@ -317,6 +373,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			messages_path: messagesPath,
 		});
 		let resumedArtifacts: RootSessionArtifacts | undefined;
+		let resumedCompactionState: SessionCompactionState | undefined;
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			initialMessages.length > 0 &&
@@ -331,8 +388,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 				resumedArtifacts = {
 					manifestPath,
 					messagesPath: existingManifest.messages_path || messagesPath,
+					compactionPath: existingManifest.compaction_path,
 					manifest: existingManifest,
 				};
+				resumedCompactionState =
+					await this.invokeOptionalValue<SessionCompactionState>(
+						"readSessionCompactionState",
+						sessionId,
+					);
 			}
 		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
@@ -358,6 +421,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const pluginEventFallbackAutomation =
 			inputLocalConfig?.extensionContext?.automation;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		const subAgentDeps = {
+			getSession: (sid: string) => this.sessions.get(sid),
+			subAgentStarts: this.subAgentStarts,
+			onAgentEvent: (
+				rootSessionId: string,
+				config: CoreSessionConfig,
+				event: AgentEvent,
+			) => this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
+			invokeBackendOptional: (method: string, ...args: unknown[]) =>
+				this.invokeOptional(method, ...args),
+		};
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
@@ -388,17 +462,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			createSpawnTool: () =>
 				createSessionSpawnTool(
-					{
-						getSession: (sid) => this.sessions.get(sid),
-						subAgentStarts: this.subAgentStarts,
-						onAgentEvent: (rootSessionId, config, event) =>
-							this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
-						invokeBackendOptional: (method, ...args) =>
-							this.invokeOptional(method, ...args),
-					},
+					subAgentDeps,
 					bootstrap.config,
 					sessionId,
 					sessionToolExecutors,
+				),
+			createSubAgentLifecycleCallbacks: (config) =>
+				createSessionSubAgentLifecycleCallbacks(
+					subAgentDeps,
+					config,
+					sessionId,
 				),
 			readSessionMetadata: async () =>
 				(await this.getSession(sessionId))?.metadata as
@@ -408,6 +481,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
+		const initialSessionMetadata = withSessionGitMetadata(
+			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
+			bootstrap.gitState,
+		);
+		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build(
 			bootstrap.runtimeBuilderInput,
 		);
@@ -419,6 +497,65 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
 		const extensions = runtime.extensions ?? bootstrap.extensions;
+		const explicitInitialCompactionState = startInput.initialCompactionState;
+		let activeSessionRef: ActiveSession | undefined;
+		const compact = createContextCompactionPrepareTurn(configWithProvider);
+		const rawInitialCompactionState =
+			explicitInitialCompactionState ?? resumedCompactionState;
+		const initialCompactionState =
+			compact && rawInitialCompactionState
+				? {
+						...rawInitialCompactionState,
+						conversation_id:
+							rawInitialCompactionState.conversation_id?.trim() || sessionId,
+					}
+				: undefined;
+		const prepareTurn = compact
+			? createCompactionStateAwarePrepareTurn({
+					compact,
+					getState: () => activeSessionRef?.compactionState,
+					saveState: async (state) => {
+						const activeSession = activeSessionRef;
+						if (!activeSession) return;
+						const stateForSession = {
+							...state,
+							conversation_id: activeSession.sessionId,
+						};
+						try {
+							const result = await this.persistActiveSessionCompactionState(
+								activeSession,
+								stateForSession,
+							);
+							if (!result.updated) {
+								configWithProvider.logger?.debug?.(
+									"Skipped stale session compaction state",
+									{
+										sessionId: activeSession.sessionId,
+										sourceMessageCount: stateForSession.source_message_count,
+									},
+								);
+							}
+						} catch (error) {
+							configWithProvider.logger?.error?.(
+								"Failed to persist session compaction state",
+								{ sessionId: activeSession.sessionId, error },
+							);
+							captureSdkError(configWithProvider.telemetry, {
+								component: "core",
+								operation: "session.persist_compaction_state",
+								severity: "warn",
+								handled: true,
+								error,
+								context: {
+									sessionId: activeSession.sessionId,
+									providerId: configWithProvider.providerId,
+									modelId: configWithProvider.modelId,
+								},
+							});
+						}
+					},
+				})
+			: undefined;
 
 		const agentConfig = {
 			sessionId,
@@ -432,10 +569,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
+			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
-			prepareTurn: createContextCompactionPrepareTurn(configWithProvider),
+			prepareTurn,
 			tools,
 			hooks: bootstrap.hooks,
 			extensions,
@@ -563,7 +702,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const active: ActiveSession = {
 			sessionId,
 			config: configWithProvider,
-			sessionMetadata: startInput.sessionMetadata,
+			sessionMetadata: initialSessionMetadata,
 			...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
 			source,
 			startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
@@ -579,6 +718,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			aborting: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
+			compactionState: initialCompactionState,
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
@@ -588,7 +728,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 			submitAndExitObserved: false,
 			lastInteractiveTurnFinishReason: undefined,
 		};
+		activeSessionRef = active;
+		if (
+			active.compactionState &&
+			!this.isCompactionStateForSession(
+				active.sessionId,
+				active.compactionState,
+				active,
+			)
+		) {
+			active.config.logger?.log?.(
+				"Ignoring session compaction state for a different conversation",
+				{
+					severity: "warn",
+					sessionId: active.sessionId,
+					conversationId: active.compactionState.conversation_id,
+				},
+			);
+			active.compactionState = undefined;
+		}
 		this.sessions.set(sessionId, active);
+		if (resumedArtifacts) {
+			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
+		}
 		this.emitStatus(sessionId, "running");
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			await this.ensureSessionPersisted(active);
@@ -598,6 +760,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 				initialMessages,
 				active.config.systemPrompt,
 			);
+			if (active.compactionState) {
+				const result = await this.persistActiveSessionCompactionState(
+					active,
+					active.compactionState,
+				);
+				if (!result.updated) {
+					active.compactionState = undefined;
+				}
+			}
 			if (!startInput.prompt?.trim()) {
 				await this.updateStatus(active, "completed", 0);
 			}
@@ -633,7 +804,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 						modelId: active.config.modelId,
 					},
 				});
-				await this.failSession(active);
+				try {
+					await this.failSession(active);
+				} catch (cleanupError) {
+					// Never let cleanup failures mask the error that actually
+					// killed the turn; that one is what callers must see.
+					active.config.logger?.error?.("Session failure cleanup threw", {
+						sessionId: active.sessionId,
+						error: cleanupError,
+					});
+				}
 				throw error;
 			}
 		}
@@ -882,6 +1062,188 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return { updated: result?.updated === true };
 	}
 
+	async updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }> {
+		const target = sessionId.trim();
+		if (!target) return { updated: false };
+		const activeSession = this.sessions.get(target);
+		const sessionRecord = activeSession
+			? undefined
+			: await this.getSession(target);
+		const existing = activeSession ?? sessionRecord;
+		if (!existing) return { updated: false };
+		if (activeSession) {
+			const persistedMessages = await this.readSessionMessages(target);
+			const hasPersistedSource =
+				state.source_message_count > 0 &&
+				persistedMessages.length >= state.source_message_count;
+			const validationMessages = hasPersistedSource
+				? persistedMessages
+				: undefined;
+			if (hasPersistedSource) {
+				if (
+					!(await this.canPersistCompactionState(
+						target,
+						state,
+						activeSession,
+						undefined,
+						persistedMessages,
+					))
+				) {
+					return { updated: false };
+				}
+				activeSession.agent.restore(persistedMessages);
+			}
+			return await this.persistActiveSessionCompactionState(
+				activeSession,
+				state,
+				validationMessages,
+			);
+		}
+		if (
+			!(await this.canPersistCompactionState(
+				target,
+				state,
+				undefined,
+				sessionRecord,
+			))
+		) {
+			return { updated: false };
+		}
+		const current = await this.invokeOptionalValue<SessionCompactionState>(
+			"readSessionCompactionState",
+			target,
+		);
+		if (isIncomingCompactionStateStale(state, current)) {
+			return { updated: false };
+		}
+		await this.invoke<void>("persistSessionCompactionState", target, state);
+		return { updated: true };
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const activeSession = this.sessions.get(target);
+		if (activeSession) {
+			for (;;) {
+				const pendingWrite = activeSession.compactionStateWriteQueue;
+				if (!pendingWrite) {
+					return activeSession.compactionState;
+				}
+				await pendingWrite.catch(() => undefined);
+			}
+		}
+		return await this.invokeOptionalValue<SessionCompactionState>(
+			"readSessionCompactionState",
+			target,
+		);
+	}
+
+	private isCompactionStateForSession(
+		sessionId: string,
+		state: SessionCompactionState,
+		activeSession?: ActiveSession,
+		sessionRecord?: SessionRecord,
+	): boolean {
+		const conversationId = state.conversation_id?.trim();
+		if (!conversationId) {
+			return true;
+		}
+		if (conversationId === sessionId) {
+			return true;
+		}
+		const expectedConversationId =
+			activeSession?.agent.getConversationId()?.trim() ||
+			sessionRecord?.conversationId?.trim();
+		return expectedConversationId
+			? conversationId === expectedConversationId
+			: false;
+	}
+
+	private async canPersistCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+		activeSession?: ActiveSession,
+		sessionRecord?: SessionRecord,
+		sourceMessages?: readonly LlmsProviders.Message[],
+	): Promise<boolean> {
+		if (!state.conversation_id?.trim()) {
+			return false;
+		}
+		if (
+			!this.isCompactionStateForSession(
+				sessionId,
+				state,
+				activeSession,
+				sessionRecord,
+			)
+		) {
+			return false;
+		}
+		const messagesForProjection =
+			sourceMessages ??
+			activeSession?.agent.getMessages() ??
+			(await this.readSessionMessages(sessionId));
+		return (
+			projectSessionCompactionState(state, messagesForProjection) !== undefined
+		);
+	}
+
+	private async persistActiveSessionCompactionState(
+		session: ActiveSession,
+		state: SessionCompactionState,
+		sourceMessages?: readonly LlmsProviders.Message[],
+	): Promise<{ updated: boolean }> {
+		if (
+			!(await this.canPersistCompactionState(
+				session.sessionId,
+				state,
+				session,
+				undefined,
+				sourceMessages,
+			))
+		) {
+			return { updated: false };
+		}
+		return await this.enqueueCompactionStateWrite(session, async () => {
+			if (isIncomingCompactionStateStale(state, session.compactionState)) {
+				return { updated: false };
+			}
+			await this.invoke<void>(
+				"persistSessionCompactionState",
+				session.sessionId,
+				state,
+			);
+			session.compactionState = state;
+			return { updated: true };
+		});
+	}
+
+	private async enqueueCompactionStateWrite<T>(
+		session: ActiveSession,
+		action: () => Promise<T>,
+	): Promise<T> {
+		const previous = session.compactionStateWriteQueue ?? Promise.resolve();
+		const run = previous.catch(() => undefined).then(action);
+		const tracked = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		session.compactionStateWriteQueue = tracked;
+		try {
+			return await run;
+		} finally {
+			if (session.compactionStateWriteQueue === tracked) {
+				session.compactionStateWriteQueue = undefined;
+			}
+		}
+	}
+
 	async readSessionMessages(
 		sessionId: string,
 	): Promise<LlmsProviders.Message[]> {
@@ -919,12 +1281,126 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
+		await this.updateSessionConnection(sessionId, { modelId });
+	}
+
+	async updateSessionConnection(
+		sessionId: string,
+		rawUpdates: SessionConnectionUpdate,
+	): Promise<void> {
+		const updates = normalizeConnectionUpdate(rawUpdates);
 		const session = this.getSessionOrThrow(sessionId);
-		session.config.modelId = modelId;
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			modelId,
+		if (updates.providerId !== undefined)
+			session.config.providerId = updates.providerId;
+		if (updates.modelId !== undefined) session.config.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) session.config.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			session.config.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			session.config.thinkingBudgetTokens =
+				updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			session.config.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				session.config.reasoningEffort = undefined;
+				session.config.thinkingBudgetTokens = undefined;
+			}
+		}
+		const delegatedUpdates = {
+			...(updates.providerId !== undefined
+				? { providerId: updates.providerId }
+				: {}),
+			...(updates.modelId !== undefined ? { modelId: updates.modelId } : {}),
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
+		};
+		if (updates.thinking === false || updates.thinking === null) {
+			delegatedUpdates.reasoningEffort = undefined;
+			delegatedUpdates.thinkingBudgetTokens = undefined;
+		}
+		const teammateUpdates = {
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+		};
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			delegatedUpdates,
+		);
+		session.agent.updateConnection(updates);
+		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
+		// Keep the persisted manifest in sync so session history reflects the
+		// connection the session is now using, not the one it started with.
+		if (updates.providerId || updates.modelId) {
+			await this.mutateSessionManifest(session, (manifest) => {
+				if (updates.providerId) manifest.provider = updates.providerId;
+				if (updates.modelId) manifest.model = updates.modelId;
+			});
+		}
+	}
+
+	/**
+	 * Serialized read-modify-write for a live session's manifest. Every
+	 * manifest write for an active session MUST go through this helper: it
+	 * re-reads the disk manifest first so disk-only writers (compaction-path
+	 * updates, title/metadata renames) are never reverted by a stale in-memory
+	 * copy, applies the field-level mutation, syncs the in-memory copy, and
+	 * persists — one mutation at a time per session.
+	 */
+	private async mutateSessionManifest(
+		session: ActiveSession,
+		mutate: (manifest: SessionManifest) => void,
+	): Promise<SessionManifest | undefined> {
+		const artifacts = session.artifacts;
+		if (!artifacts) return undefined;
+		const sessionId = session.sessionId;
+		const tail =
+			this.manifestMutationQueues.get(sessionId) ?? Promise.resolve();
+		const next = tail.then(async () => {
+			const latest =
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				)) ?? artifacts.manifest;
+			mutate(latest);
+			artifacts.manifest = latest;
+			await this.invoke<void>(
+				"writeSessionManifest",
+				artifacts.manifestPath,
+				latest,
+			);
+			return latest;
 		});
-		session.agent.updateConnection({ modelId });
+		const queued = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.manifestMutationQueues.set(sessionId, queued);
+		try {
+			return await next;
+		} finally {
+			if (this.manifestMutationQueues.get(sessionId) === queued) {
+				this.manifestMutationQueues.delete(sessionId);
+			}
+		}
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -955,33 +1431,40 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
-		if (!prompt) throw new Error("prompt cannot be empty");
+		const images = preparedInput?.userImages?.length;
+		const files = preparedInput?.userFiles?.length;
+		if (!prompt && !images && !files) throw new Error("prompt cannot be empty");
 
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;
 		}
 		await this.ensureSessionPersisted(session);
+		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
 
-		let result = await this.executeAgentTurn(
-			session,
-			prompt,
-			preparedInput.userImages,
-			preparedInput.userFiles,
-		);
-
-		while (shouldAutoContinueTeamRuns(session, result.finishReason)) {
-			const updates = await waitForTeamRunUpdates(session);
-			if (updates.length === 0) break;
-			const continuationPrompt = buildTeamRunContinuationPrompt(
+		try {
+			let result = await this.executeAgentTurn(
 				session,
-				updates,
+				prompt,
+				preparedInput.userImages,
+				preparedInput.userFiles,
 			);
-			result = await this.executeAgentTurn(session, continuationPrompt);
-		}
 
-		return result;
+			while (shouldAutoContinueTeamRuns(session, result.finishReason)) {
+				const updates = await waitForTeamRunUpdates(session);
+				if (updates.length === 0) break;
+				const continuationPrompt = buildTeamRunContinuationPrompt(
+					session,
+					updates,
+				);
+				result = await this.executeAgentTurn(session, continuationPrompt);
+			}
+
+			return result;
+		} finally {
+			await this.refreshActiveSessionGitMetadata(session);
+		}
 	}
 
 	private async completeInteractiveTurn(
@@ -1278,6 +1761,40 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.updateStatus(session, "running", null);
 	}
 
+	private async refreshActiveSessionGitMetadata(
+		session: ActiveSession,
+		knownState?: GitWorkspaceState,
+	): Promise<void> {
+		try {
+			const state =
+				knownState ??
+				(await readGitWorkspaceState(resolveWorkspacePath(session.config)));
+			if (!state || !session.artifacts) return;
+			if (
+				hasCurrentSessionGitMetadata(
+					session.artifacts.manifest.metadata,
+					state,
+				)
+			) {
+				return;
+			}
+			await this.persistSessionMetadata(session.sessionId, (current) =>
+				withSessionGitMetadata(
+					{
+						...(current ?? {}),
+						...(session.sessionMetadata ?? {}),
+					},
+					state,
+				),
+			);
+		} catch (error) {
+			session.config.logger?.debug?.("Failed to refresh session git metadata", {
+				sessionId: session.sessionId,
+				error,
+			});
+		}
+	}
+
 	private async markTurnPending(session: ActiveSession): Promise<void> {
 		if (session.status === "pending") return;
 		await this.updateStatus(session, "pending", null);
@@ -1397,6 +1914,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 
 		if (session.artifacts) {
+			await this.refreshActiveSessionGitMetadata(session);
 			try {
 				await this.updateStatus(session, input.status, input.exitCode);
 			} catch (error) {
@@ -1495,31 +2013,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			exitCode,
 		);
 		if (!result.updated) return;
-		const latestManifest =
-			(await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				session.sessionId,
-			)) ?? session.artifacts.manifest;
-		latestManifest.status = status;
-		if (isNonTerminalSessionStatus(status)) {
-			delete latestManifest.ended_at;
-			latestManifest.exit_code = null;
-		} else {
-			latestManifest.ended_at = result.endedAt ?? nowIso();
-			latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
-		}
-		session.artifacts.manifest = latestManifest;
+		const latestManifest = await this.mutateSessionManifest(
+			session,
+			(manifest) => {
+				manifest.status = status;
+				if (isNonTerminalSessionStatus(status)) {
+					delete manifest.ended_at;
+					manifest.exit_code = null;
+				} else {
+					manifest.ended_at = result.endedAt ?? nowIso();
+					manifest.exit_code = typeof exitCode === "number" ? exitCode : null;
+				}
+			},
+		);
+		if (!latestManifest) return;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
 		session.endedAt = isNonTerminalSessionStatus(status)
 			? null
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
-		await this.invoke<void>(
-			"writeSessionManifest",
-			session.artifacts.manifestPath,
-			latestManifest,
-		);
 		this.emitStatus(session.sessionId, status);
 	}
 
@@ -1533,7 +2046,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		try {
 			return await run();
 		} catch (error) {
-			if (!isLikelyAuthError(error, session.config.providerId)) {
+			if (
+				!isOAuthProvider(session.config.providerId) ||
+				!isLikelyAuthError(error)
+			) {
 				throw error;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });

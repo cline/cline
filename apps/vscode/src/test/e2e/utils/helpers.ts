@@ -378,6 +378,7 @@ export const e2e = test
 			await use(async (workspacePath: string) => {
 				// Create isolated Cline data directory for this test
 				const clineTestDir = mkdtempSync(path.join(os.tmpdir(), "cline-e2e-"))
+				const clineDataDir = path.join(clineTestDir, "data")
 
 				const app = await _electron.launch({
 					executablePath,
@@ -387,6 +388,7 @@ export const e2e = test
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
 						CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
+						CLINE_DATA_DIR: clineDataDir, // Keep SDK/shared storage off the user's real Cline data dir
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
 						// GRPC_RECORDER_ENABLED: "true",
 						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"

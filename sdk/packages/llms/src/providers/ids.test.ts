@@ -26,8 +26,7 @@ describe("provider-ids", () => {
 			id: "v0",
 			baseUrl: "https://api.v0.dev/v1",
 			defaultModelId: "v0-1.5-md",
-			protocol: "openai-responses",
-			client: "openai",
+			client: "openai-compatible",
 		});
 
 		const models = await getModelsForProvider("v0");
@@ -36,6 +35,13 @@ describe("provider-ids", () => {
 			"v0-1.5-lg",
 			"v0-1.5-md",
 		]);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "v0",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
 	});
 
 	it("uses openai-compatible as the OpenAI Compatible built-in provider", async () => {
@@ -85,6 +91,26 @@ describe("provider-ids", () => {
 		);
 	});
 
+	it("registers ClinePass as a distinct Cline-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("cline-pass");
+		const models = await getModelsForProvider("cline-pass");
+		const provider = await getProvider("cline-pass");
+
+		expect(provider).toMatchObject({
+			id: "cline-pass",
+			name: "ClinePass",
+			client: "openai-compatible",
+		});
+		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "cline-pass",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
 		expect(BUILT_IN_PROVIDER_IDS).toContain("poolside");
 
@@ -95,9 +121,8 @@ describe("provider-ids", () => {
 			defaultModelId: "poolside/laguna-m.1",
 			client: "openai-compatible",
 		});
-		await expect(getModelsForProvider("poolside")).resolves.toHaveProperty(
-			"poolside/laguna-m.1",
-		);
+		const models = await getModelsForProvider("poolside");
+		expect(Object.hasOwn(models, "poolside/laguna-m.1")).toBe(true);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "poolside",
@@ -108,21 +133,72 @@ describe("provider-ids", () => {
 	});
 
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
-		for (const providerId of ["litellm", "v0"]) {
-			const provider = await getProvider(providerId);
-			expect(provider).toMatchObject({
-				id: providerId,
-				protocol: "openai-responses",
-				client: "openai",
-			});
+		const provider = await getProvider("litellm");
+		expect(provider).toMatchObject({
+			id: "litellm",
+			protocol: "openai-responses",
+			client: "openai",
+		});
 
-			const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
-				(item) => item.manifest.id === providerId,
-			);
-			await expect(registration?.loadProvider?.()).resolves.toMatchObject({
-				createProvider: createOpenAIProvider,
-			});
-		}
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "litellm",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAIProvider,
+		});
+	});
+
+	it("registers Xiaomi as an OpenAI-compatible built-in provider", async () => {
+		await expect(getProvider("xiaomi")).resolves.toMatchObject({
+			id: "xiaomi",
+			baseUrl: "https://api.xiaomimimo.com/v1",
+			defaultModelId: "mimo-v2.5",
+			client: "openai-compatible",
+		});
+
+		await expect(getModelsForProvider("xiaomi")).resolves.toHaveProperty(
+			"mimo-v2.5",
+		);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "xiaomi",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
+	it("registers Tencent TokenHub as an OpenAI-compatible built-in provider", async () => {
+		await expect(getProvider("tencent-tokenhub")).resolves.toMatchObject({
+			id: "tencent-tokenhub",
+			baseUrl: "https://tokenhub.tencentmaas.com/v1",
+			defaultModelId: "hy3-preview",
+			client: "openai-compatible",
+		});
+
+		await expect(
+			getModelsForProvider("tencent-tokenhub"),
+		).resolves.toHaveProperty("hy3-preview");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "tencent-tokenhub",
+		);
+		expect(registration).toBeDefined();
+		await expect(registration?.loadProvider()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
+	it("registers Z.AI Coding Plan with an accessible coding-plan default", async () => {
+		await expect(getProvider("zai-coding-plan")).resolves.toMatchObject({
+			id: "zai-coding-plan",
+			baseUrl: "https://api.z.ai/api/coding/paas/v4",
+			defaultModelId: "glm-5.2",
+			client: "openai-compatible",
+		});
+
+		const models = await getModelsForProvider("zai-coding-plan");
+		expect(Object.hasOwn(models, "glm-5.2")).toBe(true);
 	});
 
 	it("routes SAP AI Core through the SAP AI SDK provider factory", async () => {

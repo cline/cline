@@ -12,6 +12,8 @@ const createCore = vi.fn();
 const getCliTelemetryService = vi.fn(() => undefined);
 const resolveSessionBackend = vi.fn();
 const listSessionHistoryFromBackend = vi.fn();
+const featureFlagsPoll = vi.fn(async () => {});
+const featureFlagsDispose = vi.fn(async () => {});
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -49,6 +51,10 @@ describe("createCliCore", () => {
 		listSessionHistoryFromBackend.mockReset();
 		createCore.mockResolvedValue({
 			runtimeAddress: "127.0.0.1:25463",
+			featureFlags: {
+				poll: featureFlagsPoll,
+				dispose: featureFlagsDispose,
+			},
 			start: vi.fn(),
 			send: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
@@ -68,6 +74,8 @@ describe("createCliCore", () => {
 		delete process.env.CLINE_RPC_ADDRESS;
 		delete process.env.CLINE_SESSION_BACKEND_MODE;
 		delete process.env.CLINE_VCR;
+		featureFlagsPoll.mockClear();
+		featureFlagsDispose.mockClear();
 	});
 
 	afterEach(() => {
@@ -108,6 +116,7 @@ describe("createCliCore", () => {
 				backendMode: expect.anything(),
 			}),
 		);
+		expect(featureFlagsPoll).toHaveBeenCalledTimes(1);
 	});
 
 	it("forces the local backend when requested by the caller", async () => {

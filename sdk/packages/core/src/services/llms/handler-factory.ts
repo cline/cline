@@ -25,6 +25,13 @@ function compactOptions(
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
+function usesOpenAICompatibleClient(config: ProviderConfig): boolean {
+	return (
+		config.providerId === "openai-compatible" ||
+		config.clientType === "openai-compatible"
+	);
+}
+
 function buildGatewayProviderOptions(
 	config: ProviderConfig,
 ): Record<string, unknown> | undefined {
@@ -34,6 +41,13 @@ function buildGatewayProviderOptions(
 		openRouterProviderSorting: config.openRouterProviderSorting,
 		modelCatalog: config.modelCatalog,
 	};
+
+	if (usesOpenAICompatibleClient(config)) {
+		Object.assign(options, {
+			apiVersion: config.azure?.apiVersion,
+			useIdentity: config.azure?.useIdentity,
+		});
+	}
 
 	if (config.providerId === "bedrock") {
 		Object.assign(options, {
@@ -58,6 +72,10 @@ function buildGatewayProviderOptions(
 			location: gcpRegion,
 			region: gcpRegion,
 		});
+	}
+
+	if (config.providerId === "sapaicore") {
+		Object.assign(options, config.sap);
 	}
 
 	return compactOptions(options);
@@ -170,12 +188,18 @@ export function createAgentModelFromConfig(
 	}
 
 	return createGateway({
+		// Forward the host-provided fetch so inference honors proxy/CA config on
+		// JetBrains and CLI, where the global fetch is not proxy-aware. Without
+		// this the agent loop falls back to bare global fetch and corporate
+		// proxy/self-signed CA setups fail.
+		fetch: normalizedProviderConfig.fetch,
 		providerConfigs: [
 			{
 				providerId: normalizedProviderConfig.providerId,
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
+				fetch: normalizedProviderConfig.fetch,
 				options: buildGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(

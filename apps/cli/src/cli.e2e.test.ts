@@ -746,6 +746,27 @@ Break work into clear steps.`,
 		).toBe(true);
 	});
 
+	it("routes mcp install and requires a TTY for the prefilled wizard", () => {
+		const result = runCli(
+			[
+				"mcp",
+				"install",
+				"fs",
+				"--",
+				"npx",
+				"-y",
+				"@modelcontextprotocol/server-filesystem",
+				"/tmp",
+			],
+			{ env: createIsolatedEnv() },
+		);
+
+		expect(result.status).toBe(1);
+		expect(asText(result.stderr)).toContain(
+			"cline mcp install opens the MCP wizard and requires a TTY.",
+		);
+	});
+
 	it("lists available tools", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));

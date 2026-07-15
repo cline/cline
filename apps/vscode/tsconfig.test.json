@@ -8,8 +8,52 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
+		// Classic "node" moduleResolution (required for the CommonJS mocha test
+		// runner) does not read the `exports` subpath maps in @cline/* package
+		// manifests, so bare subpath imports like `@cline/shared/storage` fail to
+		// resolve (TS2307) even though the built declarations exist. The base
+		// tsconfig uses `Bundler` resolution and is unaffected. We re-declare the
+		// inherited `paths` (TS replaces, not merges, `paths`) and add explicit
+		// mappings to the built dist so the test compile can resolve these subpaths.
+		"baseUrl": ".",
+		"paths": {
+			"@/*": [
+				"./src/*"
+			],
+			"@api/*": [
+				"./src/core/api/*"
+			],
+			"@core/*": [
+				"./src/core/*"
+			],
+			"@generated/*": [
+				"./src/generated/*"
+			],
+			"@hosts/*": [
+				"./src/hosts/*"
+			],
+			"@integrations/*": [
+				"./src/integrations/*"
+			],
+			"@packages/*": [
+				"./src/packages/*"
+			],
+			"@services/*": [
+				"./src/services/*"
+			],
+			"@shared/*": [
+				"./src/shared/*"
+			],
+			"@utils/*": [
+				"./src/utils/*"
+			],
+			"@cline/shared/*": [
+				"./node_modules/@cline/shared/dist/*"
+			]
+		},
 		"types": [
 			"node",
+			"bun",
 			"mocha",
 			"should",
 			"vscode",
@@ -17,6 +61,7 @@
 		],
 		"typeRoots": [
 			"./node_modules/@types",
+			"../../node_modules/@types",
 			"./src/types",
 			"./src/test/types"
 		],
@@ -24,11 +69,29 @@
 		"rootDir": "."
 	},
 	"include": [
-		"src/**/*.test.ts"
+		"src/**/*.test.ts",
+		"src/test/fixtures/**/*.ts",
+		"src/types/**/*.d.ts"
 	],
 	"exclude": [
 		"src/test/**/*.js",
 		"src/**/__tests__/*",
-		"src/test/e2e/**/*.test.ts"
+		// The bun unit suite (.mocharc spec set) runs under `bun test` and imports
+		// `bun:test`, which the Node-based @vscode/test-cli integration runner
+		// cannot load. Keep these out of the integration compile (run-bun-unit-tests.ts
+		// owns them).
+		"src/test/services/**/*.test.ts",
+		// NOTE: files importing "bun:test" are additionally excluded dynamically by
+		// scripts/build-tests.js (it generates tsconfig.test.generated.json). That is
+		// the single source of truth for the bun-vs-integration split; this static
+		// list only covers structural/vitest excludes.
+		"src/test/e2e/**/*.test.ts",
+		// The src/sdk suites are vitest-native (run via `bun run test:vitest`),
+		// not the VS Code/mocha integration runner (see .vscode-test.mjs, which
+		// only globs core/test/utils/shared/integrations/hosts/services). Some of
+		// them use top-level `await import(...)` after `vi.mock(...)`, which is
+		// invalid under this config's CommonJS `module` setting (TS1378). Exclude
+		// them so the integration test compile doesn't choke on vitest-only files.
+		"src/sdk/**/*.test.ts"
 	]
 }

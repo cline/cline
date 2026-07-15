@@ -44,14 +44,19 @@ import {
 	type Message,
 	type MessageWithMetadata,
 	type ModelInfo,
+	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
+import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
-import { MessageBuilder } from "../../session/services/message-builder";
+import {
+	getMessageBuilderOptionsFromEnv,
+	MessageBuilder,
+} from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -59,6 +64,10 @@ import {
 	messagesToAgentMessages,
 } from "../config/agent-message-codec";
 import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
+import {
+	type ConnectionUpdate,
+	normalizeConnectionUpdate,
+} from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
@@ -101,6 +110,36 @@ function mergeSystemPromptRules(
 	return base || additional;
 }
 
+function isToolEnabledByPolicies(
+	toolName: string,
+	toolPolicies: AgentConfig["toolPolicies"],
+): boolean {
+	const globalPolicy = toolPolicies?.["*"] ?? {};
+	const toolPolicy = toolPolicies?.[toolName] ?? {};
+	return (
+		{
+			...globalPolicy,
+			...toolPolicy,
+		}.enabled !== false
+	);
+}
+
+function filterToolsByPolicies(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return tools.filter((tool) =>
+		isToolEnabledByPolicies(tool.name, toolPolicies),
+	);
+}
+
+function filterAvailableExtensionTools(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+}
+
 function mergeRuntimeHooks(
 	layers: Array<Partial<AgentRuntimeHooks> | undefined>,
 ): Partial<AgentRuntimeHooks> {
@@ -136,17 +175,14 @@ function mergeRuntimeHooks(
 				aggregate = {
 					...aggregate,
 					...result,
-					options: {
-						...(aggregate?.options ?? {}),
-						...(result.options ?? {}),
-					},
+					options: mergeModelOptions(aggregate?.options, result.options),
 				};
 				request = {
 					...request,
 					...(result.messages ? { messages: result.messages } : {}),
 					...(result.tools ? { tools: result.tools } : {}),
 					...(result.options
-						? { options: { ...(request.options ?? {}), ...result.options } }
+						? { options: mergeModelOptions(request.options, result.options) }
 						: {}),
 				};
 			}
@@ -224,17 +260,7 @@ export interface SessionRuntimeOrchestratorDeps {
 }
 
 /** Connection overrides applied via `updateConnection`. */
-export interface ConnectionOverrides {
-	providerId?: string;
-	modelId?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
-	providerConfig?: unknown;
-	reasoningEffort?: AgentConfig["reasoningEffort"];
-	thinking?: boolean;
-	thinkingBudgetTokens?: number;
-}
+export type ConnectionOverrides = ConnectionUpdate;
 
 // =============================================================================
 // SessionRuntime orchestrator
@@ -345,7 +371,7 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder();
+		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,
@@ -453,20 +479,28 @@ export class SessionRuntime {
 
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
+		const updates = normalizeConnectionUpdate(overrides);
 		const next: AgentConfig = { ...this.config };
-		if (overrides.providerId !== undefined)
-			next.providerId = overrides.providerId;
-		if (overrides.modelId !== undefined) next.modelId = overrides.modelId;
-		if (overrides.apiKey !== undefined) next.apiKey = overrides.apiKey;
-		if (overrides.baseUrl !== undefined) next.baseUrl = overrides.baseUrl;
-		if (overrides.headers !== undefined) next.headers = overrides.headers;
-		if (overrides.providerConfig !== undefined)
-			next.providerConfig = overrides.providerConfig;
-		if (overrides.reasoningEffort !== undefined)
-			next.reasoningEffort = overrides.reasoningEffort;
-		if (overrides.thinking !== undefined) next.thinking = overrides.thinking;
-		if (overrides.thinkingBudgetTokens !== undefined)
-			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens;
+		if (updates.providerId !== undefined) next.providerId = updates.providerId;
+		if (updates.modelId !== undefined) next.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) next.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			next.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			next.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			next.thinkingBudgetTokens = updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			next.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				next.reasoningEffort = undefined;
+				next.thinkingBudgetTokens = undefined;
+			}
+		}
 		this.config = next;
 	}
 
@@ -481,6 +515,7 @@ export class SessionRuntime {
 	}
 
 	private resetConversationBoundaryTrackers(): void {
+		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
 		this.loopTracker.reset();
 	}
@@ -720,7 +755,14 @@ export class SessionRuntime {
 		// wins over a same-named extension tool (legacy behaviour:
 		// `validateTools` rejects duplicates; here we prefer the
 		// explicitly-declared config tool).
-		const extensionTools = this.contributionRegistry.getRegisteredTools();
+		const extensionToolsByName = new Map<string, AgentTool>();
+		for (const tool of this.contributionRegistry.getRegisteredTools()) {
+			extensionToolsByName.set(tool.name, tool);
+		}
+		const extensionTools = filterAvailableExtensionTools(
+			[...extensionToolsByName.values()],
+			this.config.toolPolicies,
+		);
 		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {
 			mergedToolsByName.set(tool.name, tool);
@@ -850,7 +892,9 @@ export class SessionRuntime {
 			return;
 		}
 		try {
-			await this.contributionRegistry.initialize();
+			await this.contributionRegistry.initialize({
+				tolerateSetupErrors: this.config.hookErrorMode !== "throw",
+			});
 		} catch (error) {
 			if (this.config.hookErrorMode === "throw") {
 				throw error;
@@ -1225,8 +1269,8 @@ export class SessionRuntime {
 			? "error"
 			: deriveFinishReason(runResult);
 		const text =
-			runResult?.outputText ||
 			(runResult?.status === "failed" ? runResult.error?.message : undefined) ||
+			runResult?.outputText ||
 			"";
 		const usage: LegacyAgentUsage = runResult
 			? {

@@ -21,8 +21,6 @@ service ModelsService {
   rpc refreshOpenRouterModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns recommended and free Cline models
   rpc refreshClineRecommendedModelsRpc(EmptyRequest) returns (ClineRecommendedModelsResponse);
-  // Refreshes and returns Cline provider models
-  rpc refreshClineModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
@@ -55,6 +53,18 @@ service ModelsService {
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Vercel AI Gateway models
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Lists providers available from the unified SDK-backed catalog
+  rpc listProviders(Empty) returns (ProviderListingsResponse);
+  // Resolves model metadata for a provider through the unified SDK-backed catalog
+  rpc resolveProviderModels(ResolveProviderModelsRequest) returns (ProviderModelsResponse);
+  // Resolves model metadata for a provider/model without refreshing model lists
+  rpc resolveModelInfo(ResolveModelInfoRequest) returns (ResolveModelInfoResponse);
+  // Reads redacted effective provider configuration
+  rpc readProviderConfig(StringRequest) returns (ProviderConfigResponse);
+  // Writes provider configuration fields and returns redacted effective configuration
+  rpc writeProviderConfig(WriteProviderConfigRequest) returns (ProviderConfigResponse);
+  // Commits a mode-specific model selection atomically with its model metadata
+  rpc commitModelSelection(CommitModelSelectionRequest) returns (Empty);
 }
 
 // List of VS Code LM models
@@ -117,6 +127,142 @@ message OpenRouterCompatibleModelInfo {
   map<string, OpenRouterModelInfo> models = 1;
 }
 
+// Lightweight provider entry for the top-level model/provider picker.
+// Does not include the full model list; use resolveProviderModels for models.
+message ProviderListing {
+  string id = 1;
+  string name = 2;
+  optional string default_model_id = 3;
+  optional string family = 4;
+  optional string protocol = 5;
+  optional string auth_description = 6;
+  optional string base_url_description = 7;
+  bool allows_custom_model_ids = 8;
+
+  // SDK-driven hint for cost display. Values: "show" (default) or "hide".
+  // Sourced from `resolveProviderUsageCostDisplay(provider.metadata)` in
+  // `@cline/llms`. When "hide", consumers must suppress per-token pricing
+  // and total cost displays (matches the CLI's `shouldShowCliUsageCost`).
+  string usage_cost_display = 11;
+}
+
+message ProviderListingsResponse {
+  repeated ProviderListing providers = 1;
+}
+
+message ResolveProviderModelsRequest {
+  string provider_id = 1;
+  bool force_refresh = 2;
+  optional string request_id = 3;
+}
+
+message CatalogErrorInfo {
+  string kind = 1;
+  string message = 2;
+  optional string code = 3;
+  optional bool retryable = 4;
+}
+
+message ProviderModelsResponse {
+  string provider_id = 1;
+  string request_id = 2;
+  string config_fingerprint = 3;
+  int64 fetched_at = 4;
+  bool ok = 5;
+  map<string, OpenRouterModelInfo> models = 6;
+  optional string default_model_id = 7;
+  optional string source = 8;
+  optional CatalogErrorInfo error = 9;
+}
+
+message ResolveModelInfoRequest {
+  string provider_id = 1;
+  optional string model_id = 2;
+}
+
+message ResolveModelInfoResponse {
+  string provider_id = 1;
+  string model_id = 2;
+  optional OpenRouterModelInfo model_info = 3;
+  string source = 4;
+}
+
+message AwsProviderConfig {
+  optional string authentication = 1;
+  optional string profile = 2;
+  optional string access_key = 3;
+  int64 access_key_length = 4;
+  optional string secret_key = 5;
+  int64 secret_key_length = 6;
+  optional string session_token = 7;
+  int64 session_token_length = 8;
+  optional string endpoint = 9;
+  optional bool use_prompt_cache = 10;
+  optional string custom_model_base_id = 11;
+  optional bool use_cross_region_inference = 12;
+  optional bool use_global_inference = 13;
+}
+
+message GcpProviderConfig {
+  optional string project_id = 1;
+  optional string region = 2;
+}
+
+message ProviderConfigResponse {
+  string provider_id = 1;
+  optional string base_url = 2;
+  optional string api_line = 3;
+  map<string, string> headers = 4;
+  optional string region = 5;
+  int64 api_key_length = 6;
+  bool has_access_token = 7;
+  bool has_refresh_token = 8;
+  optional string account_id = 9;
+  optional CommittedModelSelection plan_selection = 10;
+  optional CommittedModelSelection act_selection = 11;
+  optional AwsProviderConfig aws = 12;
+  optional GcpProviderConfig gcp = 13;
+}
+
+message CommittedModelSelection {
+  string provider_id = 1;
+  string model_id = 2;
+  OpenRouterModelInfo model_info = 3;
+}
+
+message ProviderReasoningPatch {
+  optional bool enabled = 1;
+  optional string effort = 2; // "none" | "low" | "medium" | "high" | "xhigh"
+  optional int32 budget_tokens = 3;
+}
+
+message WriteProviderConfigPatch {
+  optional string api_key = 1;
+  optional string base_url = 2;
+  map<string, string> headers = 3;
+  optional string region = 4;
+  optional string api_line = 5;
+  optional string access_token = 6;
+  optional string refresh_token = 7;
+  optional string account_id = 8;
+  optional ProviderReasoningPatch reasoning = 9;
+  optional bool clear_headers = 10;
+  optional AwsProviderConfig aws = 11;
+  optional GcpProviderConfig gcp = 12;
+}
+
+message WriteProviderConfigRequest {
+  string provider_id = 1;
+  WriteProviderConfigPatch patch = 2;
+}
+
+message CommitModelSelectionRequest {
+  string provider_id = 1;
+  string mode = 2;
+  string model_id = 3;
+  OpenRouterModelInfo model_info = 4;
+}
+
 message ClineRecommendedModel {
   string id = 1;
   string name = 2;
@@ -127,6 +273,7 @@ message ClineRecommendedModel {
 message ClineRecommendedModelsResponse {
   repeated ClineRecommendedModel recommended = 1;
   repeated ClineRecommendedModel free = 2;
+  repeated ClineRecommendedModel cline_pass = 3;
 }
 
 // Request for fetching OpenAI models
@@ -134,6 +281,9 @@ message OpenAiModelsRequest {
   Metadata metadata = 1;
   string base_url = 2;
   string api_key = 3;
+  // Provider whose stored settings (API key, headers) back the request when
+  // the webview only has a masked key. Defaults to "openai".
+  string provider_id = 4;
 }
 
 // Request for fetching SAP AI Core models
@@ -250,7 +400,7 @@ message ModelsApiOptions {
   optional bool azure_identity = 44;
 
   // Plan mode configurations
-  optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
@@ -287,9 +437,11 @@ message ModelsApiOptions {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
   optional string plan_mode_cline_model_id = 135;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 136;
+  optional string plan_mode_cline_pass_model_id = 137;
+  optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 138;
 
   // Act mode configurations
-  optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
@@ -326,6 +478,8 @@ message ModelsApiOptions {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
   optional string act_mode_cline_model_id = 235;
   optional OpenRouterModelInfo act_mode_cline_model_info = 236;
+  optional string act_mode_cline_pass_model_id = 237;
+  optional OpenRouterModelInfo act_mode_cline_pass_model_info = 238;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -415,52 +569,6 @@ message OcaCompatibleModelInfo {
   // value: OcaModelInfo describing that model
   map<string, OcaModelInfo> models = 1;
   optional string error = 2;
-}
-
-// API Provider enumeration
-enum ApiProvider {
-  ANTHROPIC = 0;
-  OPENROUTER = 1;
-  BEDROCK = 2;
-  VERTEX = 3;
-  OPENAI = 4;
-  OLLAMA = 5;
-  LMSTUDIO = 6;
-  GEMINI = 7;
-  OPENAI_NATIVE = 8;
-  REQUESTY = 9;
-  TOGETHER = 10;
-  DEEPSEEK = 11;
-  QWEN = 12;
-  DOUBAO = 13;
-  MISTRAL = 14;
-  VSCODE_LM = 15;
-  CLINE = 16;
-  LITELLM = 17;
-  NEBIUS = 18;
-  FIREWORKS = 19;
-  ASKSAGE = 20;
-  XAI = 21;
-  SAMBANOVA = 22;
-  CEREBRAS = 23;
-  GROQ = 24;
-  SAPAICORE = 25;
-  CLAUDE_CODE = 26;
-  MOONSHOT = 27;
-  HUGGINGFACE = 28;
-  HUAWEI_CLOUD_MAAS = 29;
-  BASETEN = 30;
-  ZAI = 31;
-  VERCEL_AI_GATEWAY = 32;
-  QWEN_CODE = 33;
-  DIFY = 34;
-  OCA = 35;
-  MINIMAX = 36;
-  HICAP = 37;
-  AIHUBMIX = 38;
-  NOUSRESEARCH = 39;
-  OPENAI_CODEX = 40;
-  WANDB = 41;
 }
 
 enum ApiFormat {
@@ -602,7 +710,7 @@ message ModelsApiConfiguration {
   optional string wandb_api_key = 87;
 
   // Plan mode configurations
-  optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
@@ -644,9 +752,11 @@ message ModelsApiConfiguration {
   optional string gemini_plan_mode_thinking_level = 139;
   optional string plan_mode_cline_model_id = 140;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 141;
+  optional string plan_mode_cline_pass_model_id = 142;
+  optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 143;
 
   // Act mode configurations
-  optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
@@ -688,4 +798,6 @@ message ModelsApiConfiguration {
   optional string gemini_act_mode_thinking_level = 239;
   optional string act_mode_cline_model_id = 240;
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
+  optional string act_mode_cline_pass_model_id = 242;
+  optional OpenRouterModelInfo act_mode_cline_pass_model_info = 243;
 }

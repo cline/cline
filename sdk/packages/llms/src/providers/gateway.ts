@@ -1,5 +1,4 @@
 import type {
-	AgentMessage,
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
@@ -12,7 +11,7 @@ import type {
 	GatewayStreamRequest,
 	ITelemetryService,
 } from "@cline/shared";
-import { estimateTokens } from "@cline/shared";
+import { estimateRequestInputTokens } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { GatewayRegistry } from "./registry";
@@ -20,6 +19,19 @@ import { GatewayRegistry } from "./registry";
 export type * from "@cline/shared";
 
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
+
+function mergeRequestMetadata(
+	defaults: Record<string, unknown> | undefined,
+	request: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	if (!defaults && !request) {
+		return undefined;
+	}
+	return {
+		...(defaults ?? {}),
+		...(request ?? {}),
+	};
+}
 
 export interface Gateway {
 	registerProvider(registration: GatewayProviderRegistration): this;
@@ -92,9 +104,10 @@ class GatewayModelAdapter implements AgentModel {
 			maxTokens:
 				(request.options?.maxTokens as number | undefined) ??
 				this.defaults?.maxTokens,
-			metadata:
-				(request.options?.metadata as Record<string, unknown> | undefined) ??
+			metadata: mergeRequestMetadata(
 				this.defaults?.metadata,
+				request.options?.metadata as Record<string, unknown> | undefined,
+			),
 			reasoning:
 				requestedReasoning ?? legacyReasoning ?? this.defaults?.reasoning,
 			signal: request.signal ?? this.defaults?.signal,
@@ -104,51 +117,6 @@ class GatewayModelAdapter implements AgentModel {
 
 function isPositiveFiniteNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-function safeStringify(value: unknown): string {
-	const seen = new WeakSet<object>();
-	try {
-		return (
-			JSON.stringify(value, (_key, nestedValue: unknown) => {
-				if (typeof nestedValue === "bigint") {
-					return nestedValue.toString();
-				}
-				if (typeof nestedValue !== "object" || nestedValue === null) {
-					return nestedValue;
-				}
-				if (seen.has(nestedValue)) {
-					return "[Circular]";
-				}
-				seen.add(nestedValue);
-				return nestedValue;
-			}) ?? ""
-		);
-	} catch {
-		return String(value ?? "");
-	}
-}
-
-export function estimateRequestInputTokens(
-	request: Pick<GatewayStreamRequest, "systemPrompt" | "messages" | "tools">,
-): number {
-	let serialized: string;
-	try {
-		serialized = JSON.stringify({
-			systemPrompt: request.systemPrompt,
-			messages: request.messages,
-			tools: request.tools,
-		});
-	} catch {
-		serialized = [
-			safeStringify(request.systemPrompt),
-			safeStringify(request.messages as readonly AgentMessage[]),
-			safeStringify(request.tools),
-		].join("\n");
-	}
-	// This deliberately over-estimates a little so the context cap leaves room
-	// for provider formatting, tool schema overhead, and tokenizer drift.
-	return estimateTokens(serialized.length);
 }
 
 export function resolveGatewayRequestMaxTokens(input: {

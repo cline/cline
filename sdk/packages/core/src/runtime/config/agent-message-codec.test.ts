@@ -1,7 +1,69 @@
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { messageToAgentMessages } from "./agent-message-codec";
+import {
+	agentMessageToMessageWithMetadata,
+	messageToAgentMessages,
+	messagesToAgentMessages,
+} from "./agent-message-codec";
 
 describe("agent message codec", () => {
+	it("replaces empty persisted messages with an explicit error text part", () => {
+		expect(
+			messageToAgentMessages({
+				id: "empty",
+				role: "assistant",
+				ts: 1,
+				content: [],
+			}),
+		).toEqual([
+			{
+				id: "empty",
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+				createdAt: 1,
+				metadata: undefined,
+				modelInfo: undefined,
+				metrics: undefined,
+			},
+		]);
+		expect(
+			messageToAgentMessages({
+				id: "blank",
+				role: "user",
+				ts: 1,
+				content: "",
+			}),
+		).toEqual([
+			{
+				id: "blank",
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+				createdAt: 1,
+				metadata: undefined,
+				modelInfo: undefined,
+				metrics: undefined,
+			},
+		]);
+		expect(
+			messageToAgentMessages({
+				id: "whitespace",
+				role: "assistant",
+				ts: 1,
+				content: "   \n\t  ",
+			}),
+		).toEqual([
+			{
+				id: "whitespace",
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+				createdAt: 1,
+				metadata: undefined,
+				modelInfo: undefined,
+				metrics: undefined,
+			},
+		]);
+	});
+
 	it("preserves mixed tool result and user text order", () => {
 		const messages = messageToAgentMessages({
 			id: "msg_mixed",
@@ -67,5 +129,43 @@ describe("agent message codec", () => {
 				toolName: "read_files",
 			}),
 		]);
+	});
+
+	it("round-trips Gemini tool call thought signatures", () => {
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_tool_call",
+			role: "assistant",
+			createdAt: 1,
+			content: [
+				{
+					type: "tool-call",
+					toolCallId: "toolu_4",
+					toolName: "editor",
+					input: { path: "/tmp/out.txt" },
+					metadata: {
+						thoughtSignature: "sig_4",
+					},
+				},
+			],
+		});
+
+		expect(persisted.content).toEqual([
+			expect.objectContaining({
+				type: "tool_use",
+				id: "toolu_4",
+				name: "editor",
+				signature: "sig_4",
+			}),
+		]);
+
+		const [restored] = messagesToAgentMessages([persisted]);
+		expect(restored?.content[0]).toMatchObject({
+			type: "tool-call",
+			toolCallId: "toolu_4",
+			toolName: "editor",
+			metadata: {
+				signature: "sig_4",
+			},
+		});
 	});
 });

@@ -1,6 +1,9 @@
 import type { AgentMode } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
+import {
+	shouldShowCliUsageCost,
+	shouldShowCliUsageCoveredBySubscription,
+} from "../../utils/usage-cost-display";
 import {
 	useTerminalBackground,
 	useTerminalTheme,
@@ -15,7 +18,7 @@ import { HOME_VIEW_MAX_WIDTH } from "../types";
 export function createContextBar(
 	used: number,
 	total?: number,
-	width = 8,
+	width = 6,
 ): { filled: string; empty: string } {
 	const normalizedWidth = Math.max(0, Math.floor(width));
 	const ratio = total && total > 0 ? Math.min(used / total, 1) : 0;
@@ -42,18 +45,35 @@ export function resolveContextBarFilledForeground(
 }
 
 function formatCost(cost: number): string {
-	if (cost < 0.01) return `$${cost.toFixed(4)}`;
 	return `$${cost.toFixed(2)}`;
+}
+
+function formatCostText(providerId: string, totalCost: number): string {
+	// Subscription providers (ClinePass) have no per-use cost worth surfacing.
+	if (shouldShowCliUsageCoveredBySubscription(providerId)) {
+		return "";
+	}
+
+	if (!shouldShowCliUsageCost(providerId)) {
+		return "";
+	}
+
+	return formatCost(totalCost);
 }
 
 export function formatStatusBarUsageText(input: {
 	totalTokens: number;
 	totalCost: number;
-	showCost: boolean;
+	providerId: string;
 }): string {
 	const tokens = `(${input.totalTokens.toLocaleString()})`;
-	if (!input.showCost) return tokens;
-	return `${tokens} ${formatCost(input.totalCost)}`;
+	const costText = formatCostText(input.providerId, input.totalCost);
+
+	if (!costText) {
+		return tokens;
+	}
+
+	return `${tokens} ${costText}`;
 }
 
 // knownModels keys are bare IDs ("claude-sonnet-4-6") but config.modelId
@@ -74,17 +94,22 @@ function lookupModelInfo(
 }
 
 export function resolveModelDisplayName(config: {
+	providerId?: string;
 	modelId: string;
 	knownModels?: Record<string, unknown>;
 	thinking?: boolean;
 	reasoningEffort?: string;
 }): string {
 	const info = lookupModelInfo(config.modelId, config.knownModels);
-	const name = info?.name ?? config.modelId.split("/").pop() ?? config.modelId;
+	const modelIdTail = config.modelId.split("/").pop() ?? config.modelId;
+	let displayName = info?.name ?? modelIdTail;
 	if (config.thinking && config.reasoningEffort) {
-		return `${name} (${config.reasoningEffort})`;
+		displayName = `${displayName} (${config.reasoningEffort})`;
 	}
-	return name;
+	if (config.providerId === "cline-pass") {
+		displayName = `ClinePass: ${displayName}`;
+	}
+	return displayName;
 }
 
 export function resolveModelMaxInputTokens(config: {
@@ -152,7 +177,6 @@ export function StatusBar(props: StatusBarProps) {
 	const bar = hasMaxInputTokens
 		? createContextBar(totalTokens, maxInputTokens)
 		: undefined;
-	const showUsageCost = shouldShowCliUsageCost(props.providerId);
 
 	// Available content width after accounting for padding.
 	// Home view: parent box is capped at 60 wide, status bar adds paddingX=1 (-2).
@@ -169,7 +193,7 @@ export function StatusBar(props: StatusBarProps) {
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
-		showCost: showUsageCost,
+		providerId: props.providerId,
 	});
 	const contextText = bar
 		? ` ${bar.filled}${bar.empty} ${usageText}`

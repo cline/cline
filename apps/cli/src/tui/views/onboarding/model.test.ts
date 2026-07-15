@@ -1,12 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
+	getMainMenuOptions,
 	getOAuthProviderLabel,
+	shouldUseFeaturedClineModelPicker,
 	toModelEntriesFromKnownModels,
 	toModelEntry,
 	toProviderEntry,
 } from "./model";
 
 describe("onboarding model helpers", () => {
+	it("hides ClinePass from the main menu unless its feature flag is enabled", () => {
+		expect(
+			getMainMenuOptions().some((option) => option.value === "cline-pass"),
+		).toBe(false);
+		expect(
+			getMainMenuOptions({ isClinePassEnabled: false }).some(
+				(option) => option.value === "cline-pass",
+			),
+		).toBe(false);
+		expect(
+			getMainMenuOptions({ isClinePassEnabled: true }).some(
+				(option) => option.value === "cline-pass",
+			),
+		).toBe(true);
+	});
+
 	it("maps provider catalog entries into onboarding provider entries", () => {
 		expect(
 			toProviderEntry({
@@ -112,7 +130,14 @@ describe("onboarding model helpers", () => {
 
 	it("formats OAuth provider labels for onboarding status views", () => {
 		expect(getOAuthProviderLabel("cline")).toBe("Cline");
+		expect(getOAuthProviderLabel("cline-pass")).toBe("ClinePass");
 		expect(getOAuthProviderLabel("openai-codex")).toBe("ChatGPT");
 		expect(getOAuthProviderLabel("oca")).toBe("oca");
+	});
+
+	it("uses the featured Cline model picker for the Cline and ClinePass providers", () => {
+		expect(shouldUseFeaturedClineModelPicker("cline")).toBe(true);
+		expect(shouldUseFeaturedClineModelPicker("cline-pass")).toBe(true);
+		expect(shouldUseFeaturedClineModelPicker("anthropic")).toBe(false);
 	});
 });

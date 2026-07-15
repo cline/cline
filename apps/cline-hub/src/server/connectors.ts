@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { basename } from "node:path";
 import process from "node:process";
+import { withResolvedClineBuildEnv } from "@cline/shared";
 import { listConnectorCatalog } from "../../../cli/src/connectors/catalog";
 import { listActiveConnectors } from "../../../cli/src/connectors/status";
 import {
@@ -12,6 +15,68 @@ import type {
 } from "../webview-protocol";
 import { cliIndexPath, workspaceRoot } from "./deps";
 import { asRecord, asString } from "./utils";
+
+type CliConnectCommand = {
+	launcher: string;
+	childArgs: string[];
+};
+
+const ANSI_ESCAPE_PATTERN = new RegExp(
+	[
+		"[\\u001B\\u009B][[\\]()#;?]*",
+		"(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\\u0007)",
+		"|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))",
+	].join(""),
+	"g",
+);
+
+function stripAnsi(value: string): string {
+	return value.replace(ANSI_ESCAPE_PATTERN, "");
+}
+
+function normalizeConnectorError(rawMessage: string, fallback: string): string {
+	const message =
+		stripAnsi(rawMessage)
+			.replace(/\r\n/g, "\n")
+			.trim()
+			.replace(/^(?:error:\s*)+/i, "")
+			.trim() || fallback;
+
+	if (
+		/^Telegram getMe failed \(401 Unauthorized\): Unauthorized$/i.test(message)
+	) {
+		return "Telegram rejected this bot token. Copy the token from @BotFather and try again.";
+	}
+
+	return message.slice(0, 2_000);
+}
+
+function buildCliConnectCommand(
+	args: string[],
+	options: {
+		execPath?: string;
+		cliPath?: string;
+		exists?: (path: string) => boolean;
+	} = {},
+): CliConnectCommand {
+	const execPath = options.execPath ?? process.execPath;
+	const cliPath = options.cliPath ?? cliIndexPath;
+	const exists = options.exists ?? existsSync;
+	const runtimeName = basename(execPath).toLowerCase();
+	const isBunRuntime = runtimeName.includes("bun");
+	const isNodeRuntime = runtimeName === "node" || runtimeName === "node.exe";
+	const useBunSourceEntrypoint =
+		(isBunRuntime || isNodeRuntime) && exists(cliPath);
+	const launcher = isBunRuntime
+		? execPath
+		: useBunSourceEntrypoint
+			? "bun"
+			: execPath;
+	const childArgs = useBunSourceEntrypoint
+		? ["--conditions=development", cliPath, "connect", ...args]
+		: ["connect", ...args];
+	return { launcher, childArgs };
+}
 
 export function connectorChannelsPayload(): WebviewConnectorChannelsResponse {
 	const supported = new Set(
@@ -55,21 +120,14 @@ async function runCliConnectCommand(args: string[]): Promise<{
 	stdout: string;
 	stderr: string;
 }> {
-	const launcher = (process.versions as Record<string, string | undefined>).bun
-		? process.execPath
-		: "bun";
-	const child = spawn(
-		launcher,
-		["--conditions=development", cliIndexPath, "connect", ...args],
-		{
-			cwd: workspaceRoot,
-			env: {
-				...process.env,
-				CLINE_BUILD_ENV: process.env.CLINE_BUILD_ENV ?? "development",
-			},
-			stdio: ["ignore", "pipe", "pipe"],
-		},
-	);
+	const { launcher, childArgs } = buildCliConnectCommand(args);
+	const child = spawn(launcher, childArgs, {
+		cwd: workspaceRoot,
+		env: withResolvedClineBuildEnv(process.env),
+		stdio: ["ignore", "pipe", "pipe"],
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
+	});
 	let stdout = "";
 	let stderr = "";
 	child.stdout?.setEncoding("utf8");
@@ -155,9 +213,10 @@ export async function startConnectorChannel(
 	const result = await runCliConnectCommand(cliArgs);
 	if (result.code !== 0) {
 		throw new Error(
-			(result.stderr.trim() || result.stdout.trim() || "connector start failed")
-				.trim()
-				.slice(0, 2_000),
+			normalizeConnectorError(
+				result.stderr || result.stdout,
+				"connector start failed",
+			),
 		);
 	}
 	await waitForConnectorState(() =>
@@ -165,6 +224,11 @@ export async function startConnectorChannel(
 	);
 	return connectorChannelsPayload();
 }
+
+export const __test__ = {
+	buildCliConnectCommand,
+	normalizeConnectorError,
+};
 
 export async function stopConnectorChannel(
 	args?: Record<string, unknown>,
@@ -180,9 +244,10 @@ export async function stopConnectorChannel(
 	const result = await runCliConnectCommand([channel, "--stop"]);
 	if (result.code !== 0) {
 		throw new Error(
-			(result.stderr.trim() || result.stdout.trim() || "connector stop failed")
-				.trim()
-				.slice(0, 2_000),
+			normalizeConnectorError(
+				result.stderr || result.stdout,
+				"connector stop failed",
+			),
 		);
 	}
 	await waitForConnectorState(

@@ -1,8 +1,13 @@
-import type { BasicLogger, MessageWithMetadata } from "@cline/shared";
+import {
+	type BasicLogger,
+	CHARS_PER_TOKEN,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
 } from "../../types/config";
+import { buildBudgetProjection } from "./budget-projection";
 import {
 	type EstimateMessageTokens,
 	findFirstUserMessageIndex,
@@ -11,7 +16,6 @@ import {
 	isCompactionSummaryMessage,
 	isTurnStartMessage,
 	MIN_TRUNCATED_MESSAGE_TOKENS,
-	truncateText,
 	truncateToolResultContentForCompaction,
 } from "./compaction-shared";
 
@@ -19,9 +23,15 @@ interface BasicCompactionCandidate {
 	index: number;
 	message: MessageWithMetadata;
 	estimatedTokens: number;
+	toolPairIds: string[];
 	isFirstUser: boolean;
 	isLastUser: boolean;
 	isLastAssistant: boolean;
+}
+
+interface BasicCompactionCandidateSet {
+	candidates: BasicCompactionCandidate[];
+	totalTokens: number;
 }
 
 function sanitizeMessageForBasic(
@@ -67,15 +77,24 @@ function getTotalTokens(
 	);
 }
 
+function truncateMessageText(text: string, limit: number): string {
+	if (text.length <= limit) {
+		return text;
+	}
+	const suffix = "\n...";
+	const sliceLength = Math.max(1, limit - suffix.length);
+	return `${text.slice(0, sliceLength)}${suffix}`;
+}
+
 function truncateMessageToTokens(
 	message: MessageWithMetadata,
 	maxTokens: number,
 ): MessageWithMetadata {
-	const safeMaxTokens = Math.max(1, maxTokens);
-	const targetChars = Math.max(16, safeMaxTokens * 4);
+	const safeMaxTokens = Number.isFinite(maxTokens) ? Math.max(1, maxTokens) : 1;
+	const targetChars = Math.max(16, safeMaxTokens * CHARS_PER_TOKEN);
 
 	if (typeof message.content === "string") {
-		const truncated = truncateText(message.content, targetChars).trim();
+		const truncated = truncateMessageText(message.content, targetChars).trim();
 		return { ...message, content: truncated || "..." };
 	}
 
@@ -85,7 +104,7 @@ function truncateMessageToTokens(
 		if (block.type !== "text" || remaining <= 0) {
 			return block;
 		}
-		const truncated = truncateText(block.text, remaining).trim();
+		const truncated = truncateMessageText(block.text, remaining).trim();
 		remaining -= truncated.length;
 		return { ...block, text: truncated || "..." };
 	});
@@ -95,26 +114,30 @@ function truncateMessageToTokens(
 function buildBasicCandidates(
 	messages: MessageWithMetadata[],
 	estimateMessageTokens: EstimateMessageTokens,
-): BasicCompactionCandidate[] {
+): BasicCompactionCandidateSet {
 	const firstUserIndex = findFirstUserMessageIndex(messages);
 	const lastUserIndex = findLastTurnStartIndex(messages);
 	const lastAssistantIndex = findLastAssistantIndex(messages);
 	const candidates: BasicCompactionCandidate[] = [];
+	let totalTokens = 0;
 	for (let index = 0; index < messages.length; index += 1) {
 		const sanitized = sanitizeMessageForBasic(messages[index]);
 		if (!sanitized) {
 			continue;
 		}
+		const estimatedTokens = estimateMessageTokens(sanitized);
+		totalTokens += estimatedTokens;
 		candidates.push({
 			index,
 			message: sanitized,
-			estimatedTokens: estimateMessageTokens(sanitized),
+			estimatedTokens,
+			toolPairIds: collectToolPairIds(sanitized),
 			isFirstUser: index === firstUserIndex,
 			isLastUser: index === lastUserIndex,
 			isLastAssistant: index === lastAssistantIndex,
 		});
 	}
-	return candidates;
+	return { candidates, totalTokens };
 }
 
 function updateCandidate(
@@ -122,98 +145,102 @@ function updateCandidate(
 	index: number,
 	message: MessageWithMetadata,
 	estimateMessageTokens: EstimateMessageTokens,
-): void {
+): number {
 	const candidate = candidates[index];
+	const previousTokens = candidate.estimatedTokens;
 	candidate.message = message;
 	candidate.estimatedTokens = estimateMessageTokens(message);
+	candidate.toolPairIds = collectToolPairIds(message);
+	return candidate.estimatedTokens - previousTokens;
 }
 
-function collectToolUseIds(message: MessageWithMetadata): Set<string> {
-	const ids = new Set<string>();
+function collectToolPairIds(message: MessageWithMetadata): string[] {
 	if (!Array.isArray(message.content)) {
-		return ids;
+		return [];
 	}
+	const ids: string[] = [];
 	for (const block of message.content) {
 		if (block.type === "tool_use") {
-			ids.add(block.id);
+			ids.push(block.id);
+		} else if (block.type === "tool_result") {
+			ids.push(block.tool_use_id);
 		}
 	}
 	return ids;
-}
-
-function collectToolResultIds(message: MessageWithMetadata): Set<string> {
-	const ids = new Set<string>();
-	if (!Array.isArray(message.content)) {
-		return ids;
-	}
-	for (const block of message.content) {
-		if (block.type === "tool_result") {
-			ids.add(block.tool_use_id);
-		}
-	}
-	return ids;
-}
-
-function collectToolPairIds(candidate: BasicCompactionCandidate): Set<string> {
-	return new Set([
-		...collectToolUseIds(candidate.message),
-		...collectToolResultIds(candidate.message),
-	]);
 }
 
 function buildToolPairCandidateIndex(
 	candidates: BasicCompactionCandidate[],
-): Map<string, Set<number>> {
-	const indexByToolUseId = new Map<string, Set<number>>();
-	for (let index = 0; index < candidates.length; index += 1) {
-		for (const id of collectToolPairIds(candidates[index])) {
+): Map<string, Set<BasicCompactionCandidate>> {
+	const indexByToolUseId = new Map<string, Set<BasicCompactionCandidate>>();
+	for (const candidate of candidates) {
+		for (const id of candidate.toolPairIds) {
 			const existing = indexByToolUseId.get(id);
 			if (existing) {
-				existing.add(index);
+				existing.add(candidate);
 			} else {
-				indexByToolUseId.set(id, new Set([index]));
+				indexByToolUseId.set(id, new Set([candidate]));
 			}
 		}
 	}
 	return indexByToolUseId;
 }
 
-function collectAtomicRemovalIndexes(
-	candidates: BasicCompactionCandidate[],
-	startIndex: number,
-): Set<number> {
-	const pairIndex = buildToolPairCandidateIndex(candidates);
-	const removalIndexes = new Set<number>();
-	const queue = [startIndex];
+function collectAtomicRemovalCandidates(
+	activeCandidates: Set<BasicCompactionCandidate>,
+	pairIndex: Map<string, Set<BasicCompactionCandidate>>,
+	startCandidate: BasicCompactionCandidate,
+): Set<BasicCompactionCandidate> {
+	const removalCandidates = new Set<BasicCompactionCandidate>();
+	const queue = [startCandidate];
+	let queueIndex = 0;
 
-	while (queue.length > 0) {
-		const index = queue.shift();
-		if (index === undefined || removalIndexes.has(index)) {
+	while (queueIndex < queue.length) {
+		const candidate = queue[queueIndex];
+		queueIndex += 1;
+		if (
+			candidate === undefined ||
+			!activeCandidates.has(candidate) ||
+			removalCandidates.has(candidate)
+		) {
 			continue;
 		}
-		removalIndexes.add(index);
-		for (const id of collectToolPairIds(candidates[index])) {
-			for (const linkedIndex of pairIndex.get(id) ?? []) {
-				if (!removalIndexes.has(linkedIndex)) {
-					queue.push(linkedIndex);
+		removalCandidates.add(candidate);
+		for (const id of candidate.toolPairIds) {
+			for (const linkedCandidate of pairIndex.get(id) ?? []) {
+				if (!removalCandidates.has(linkedCandidate)) {
+					queue.push(linkedCandidate);
 				}
 			}
 		}
 	}
 
-	return removalIndexes;
+	return removalCandidates;
+}
+
+function removeCandidateSetInPlace(
+	candidates: BasicCompactionCandidate[],
+	removalCandidates: Set<BasicCompactionCandidate>,
+): void {
+	let writeIndex = 0;
+	for (const candidate of candidates) {
+		if (removalCandidates.has(candidate)) {
+			continue;
+		}
+		candidates[writeIndex] = candidate;
+		writeIndex += 1;
+	}
+	candidates.length = writeIndex;
 }
 
 function removeCandidatesByPredicate(
 	candidates: BasicCompactionCandidate[],
 	predicate: (candidate: BasicCompactionCandidate) => boolean,
 	targetTokens: number,
-	estimateMessageTokens: EstimateMessageTokens,
-): void {
-	let totalTokens = getTotalTokens(
-		candidates.map((candidate) => candidate.message),
-		estimateMessageTokens,
-	);
+	totalTokens: number,
+): number {
+	const activeCandidates = new Set(candidates);
+	const pairIndex = buildToolPairCandidateIndex(candidates);
 	for (
 		let index = 0;
 		index < candidates.length && totalTokens > targetTokens;
@@ -222,30 +249,35 @@ function removeCandidatesByPredicate(
 			index += 1;
 			continue;
 		}
-		const removalIndexes = collectAtomicRemovalIndexes(candidates, index);
-		totalTokens -= Array.from(removalIndexes).reduce(
-			(total, removalIndex) => total + candidates[removalIndex].estimatedTokens,
-			0,
+		const removalCandidates = collectAtomicRemovalCandidates(
+			activeCandidates,
+			pairIndex,
+			candidates[index],
 		);
-		for (const removalIndex of Array.from(removalIndexes).sort(
-			(left, right) => right - left,
-		)) {
-			candidates.splice(removalIndex, 1);
+		if (removalCandidates.size === 0) {
+			index += 1;
+			continue;
 		}
+		let removedTokens = 0;
+		for (const candidate of removalCandidates) {
+			removedTokens += candidate.estimatedTokens;
+			activeCandidates.delete(candidate);
+		}
+		totalTokens -= removedTokens;
+		removeCandidateSetInPlace(candidates, removalCandidates);
 	}
+	return totalTokens;
 }
 
 function trimCandidatesToBudget(
 	candidates: BasicCompactionCandidate[],
 	targetTokens: number,
+	totalTokens: number,
+	triggerTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
-): void {
-	let totalTokens = getTotalTokens(
-		candidates.map((candidate) => candidate.message),
-		estimateMessageTokens,
-	);
+): number {
 	if (totalTokens <= targetTokens) {
-		return;
+		return totalTokens;
 	}
 
 	for (
@@ -264,40 +296,48 @@ function trimCandidatesToBudget(
 		if (desiredTokens >= candidate.estimatedTokens) {
 			continue;
 		}
-		updateCandidate(
+		totalTokens += updateCandidate(
 			candidates,
 			index,
 			truncateMessageToTokens(candidate.message, desiredTokens),
 			estimateMessageTokens,
 		);
-		totalTokens = getTotalTokens(
-			candidates.map((item) => item.message),
-			estimateMessageTokens,
-		);
 	}
 
 	if (totalTokens <= targetTokens) {
-		return;
+		return totalTokens;
 	}
 
 	const firstUserIndex = candidates.findIndex(
 		(candidate) => candidate.isFirstUser,
 	);
 	if (firstUserIndex >= 0) {
-		const desiredTokens = Math.max(
-			1,
-			candidates[firstUserIndex].estimatedTokens - (totalTokens - targetTokens),
-		);
-		updateCandidate(
-			candidates,
-			firstUserIndex,
-			truncateMessageToTokens(
-				candidates[firstUserIndex].message,
-				desiredTokens,
-			),
-			estimateMessageTokens,
-		);
+		const firstUser = candidates[firstUserIndex];
+		if (firstUser.estimatedTokens <= triggerTokens) {
+			return totalTokens;
+		}
+		while (totalTokens > targetTokens) {
+			const candidate = candidates[firstUserIndex];
+			const desiredTokens = Math.max(
+				1,
+				candidate.estimatedTokens - (totalTokens - targetTokens),
+			);
+			if (desiredTokens >= candidate.estimatedTokens) {
+				break;
+			}
+			const previousTokens = candidate.estimatedTokens;
+			totalTokens += updateCandidate(
+				candidates,
+				firstUserIndex,
+				truncateMessageToTokens(candidate.message, desiredTokens),
+				estimateMessageTokens,
+			);
+			if (candidate.estimatedTokens >= previousTokens) {
+				break;
+			}
+		}
 	}
+	return totalTokens;
 }
 
 function haveMessagesChanged(
@@ -329,9 +369,12 @@ export function runBasicCompaction(options: {
 	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
 }): CoreCompactionResult | undefined {
-	const targetTokens = Math.max(
+	const totalTargetTokens = Math.max(
 		1,
-		Math.min(options.context.triggerTokens, options.context.maxInputTokens),
+		Math.min(
+			options.context.budget.messages.targetTokens,
+			options.context.budget.messages.triggerTokens,
+		),
 	);
 	const { compactable, protectedTail } = splitLatestTurn(
 		options.context.messages,
@@ -339,50 +382,60 @@ export function runBasicCompaction(options: {
 	if (compactable.length === 0) {
 		return undefined;
 	}
-	const candidates = buildBasicCandidates(
+	const protectedTailTokens = getTotalTokens(
+		protectedTail,
+		options.estimateMessageTokens,
+	);
+	const targetTokens = Math.max(1, totalTargetTokens - protectedTailTokens);
+	const candidateSet = buildBasicCandidates(
 		compactable,
 		options.estimateMessageTokens,
 	);
+	const { candidates } = candidateSet;
 	if (candidates.length === 0) {
 		return undefined;
 	}
+	const beforeCompactableTokens = candidateSet.totalTokens;
+	let totalTokens = beforeCompactableTokens;
 
-	removeCandidatesByPredicate(
+	totalTokens = removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
 			candidate.message.role === "assistant" && !candidate.isLastAssistant,
 		targetTokens,
-		options.estimateMessageTokens,
+		totalTokens,
 	);
-	removeCandidatesByPredicate(
+	totalTokens = removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
 			candidate.message.role === "user" &&
 			!candidate.isFirstUser &&
 			!candidate.isLastUser,
 		targetTokens,
-		options.estimateMessageTokens,
+		totalTokens,
 	);
-	removeCandidatesByPredicate(
+	totalTokens = removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
 			candidate.message.role === "assistant" && candidate.isLastAssistant,
 		targetTokens,
-		options.estimateMessageTokens,
+		totalTokens,
 	);
-	removeCandidatesByPredicate(
+	totalTokens = removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
 			candidate.message.role === "user" &&
 			candidate.isLastUser &&
 			!candidate.isFirstUser,
 		targetTokens,
-		options.estimateMessageTokens,
+		totalTokens,
 	);
 
-	trimCandidatesToBudget(
+	totalTokens = trimCandidatesToBudget(
 		candidates,
 		targetTokens,
+		totalTokens,
+		options.context.budget.messages.triggerTokens,
 		options.estimateMessageTokens,
 	);
 
@@ -390,30 +443,58 @@ export function runBasicCompaction(options: {
 		...candidates.map((candidate) => candidate.message),
 		...protectedTail,
 	];
-	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
+	const budgeted = buildBudgetProjection({
+		messages: nextMessages,
+		targetTokens: totalTargetTokens,
+		policyIntent: "basic_compaction_projection",
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+	// This final projection owns the hard output budget. Unlike the earlier
+	// basic candidate passes, it can drop completed tool pairs after the latest
+	// typed prompt while preserving coherent tool closures.
+	if (budgeted.status === "failed") {
+		options.logger?.debug("Basic compaction returned best-effort projection", {
+			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
+			projectedTokens: budgeted.estimatedTokens,
+			targetTokens: totalTargetTokens,
+			maxInputTokens: options.context.budget.request.maxInputTokens,
+		});
+	}
+	const resultMessages = budgeted.messages;
+
+	if (!haveMessagesChanged(options.context.messages, resultMessages)) {
 		return undefined;
 	}
 
-	const beforeTokens = getTotalTokens(
-		[
-			...compactable.map((m) => sanitizeMessageForBasic(m) ?? m),
-			...protectedTail,
-		],
-		options.estimateMessageTokens,
-	);
+	const beforeTokens = beforeCompactableTokens + protectedTailTokens;
 	const afterTokens = getTotalTokens(
-		nextMessages,
+		resultMessages,
 		options.estimateMessageTokens,
 	);
+	const budgetActionCount = budgeted.actions.filter(
+		(action) =>
+			action.reason === "over_budget" || action.reason === "tool_pair_boundary",
+	).length;
 	options.logger?.debug("Performed basic compaction", {
 		messagesBefore: options.context.messages.length,
-		messagesAfter: nextMessages.length,
-		messagesRemoved: options.context.messages.length - nextMessages.length,
+		messagesAfter: resultMessages.length,
+		messagesRemoved: options.context.messages.length - resultMessages.length,
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
-		targetTokens,
-		maxInputTokens: options.context.maxInputTokens,
+		budgetStatus: budgeted.status,
+		budgetActions: budgetActionCount,
+		budgetWarnings: budgeted.warnings.map((warning) => warning.code),
+		targetTokens: totalTargetTokens,
+		maxInputTokens: options.context.budget.request.maxInputTokens,
 	});
 
-	return { messages: nextMessages };
+	return {
+		messages: resultMessages,
+		budget: {
+			policyIntent: "basic_compaction_projection",
+			actionCount: budgetActionCount,
+			warningCount: budgeted.warnings.length,
+			liveTailHandling: budgeted.liveTailHandling,
+		},
+	};
 }

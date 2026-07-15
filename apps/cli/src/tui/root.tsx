@@ -10,6 +10,7 @@ import {
 	useDialogState,
 } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
@@ -52,6 +53,7 @@ import { useRootKeyboard } from "./hooks/use-root-keyboard";
 import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
 import { TerminalColorsContext } from "./hooks/use-terminal-background";
+import { useTerminalTitle } from "./hooks/use-terminal-title";
 import type { AppView, TuiProps } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
@@ -400,9 +402,10 @@ function App(props: TuiProps) {
 			if (lastEntry && lastEntry.kind === "user_submitted") {
 				entries.pop();
 			}
-			for (const entry of entries) {
-				session.appendEntry(entry);
-			}
+			// replaceEntries rather than appendEntry: appendEntry stamps
+			// unstamped entries with the CURRENT mode, which would lock
+			// hydrated history to the restore-time accent.
+			session.replaceEntries(entries);
 			session.setHasSubmitted(entries.length > 0);
 			setAppView(entries.length > 0 ? "chat" : "home");
 			populateInputRef.current(picked.fullText);
@@ -470,15 +473,7 @@ function App(props: TuiProps) {
 		};
 	}, [renderer, showToast]);
 
-	useEffect(() => {
-		renderer.setTerminalTitle(terminalTitle);
-	}, [renderer, terminalTitle]);
-
-	useEffect(() => {
-		return () => {
-			renderer.setTerminalTitle("");
-		};
-	}, [renderer]);
+	useTerminalTitle(renderer, terminalTitle);
 
 	useEffect(() => {
 		return () => {
@@ -541,10 +536,17 @@ function App(props: TuiProps) {
 
 	const notice = props.initialNotice;
 	const onInitialNoticeShown = props.onInitialNoticeShown;
+	const currentProviderId = props.config.providerId;
 	useEffect(() => {
 		if (!notice) return;
 		if (initialNoticeShownRef.current) return;
 		if (appView !== "home") return;
+		if (
+			shouldSuppressClineCliMigrationNoticeForActiveProvider(currentProviderId)
+		) {
+			initialNoticeShownRef.current = true;
+			return;
+		}
 
 		initialNoticeShownRef.current = true;
 		const timeout = setTimeout(() => {
@@ -560,7 +562,7 @@ function App(props: TuiProps) {
 				});
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, dialog, notice, onInitialNoticeShown]);
+	}, [appView, currentProviderId, dialog, notice, onInitialNoticeShown]);
 
 	const {
 		appendEntry: appendSessionEntry,
@@ -879,6 +881,7 @@ function App(props: TuiProps) {
 		repoStatus,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
+		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,
 		queuedPrompts,
 		selectedQueuedPromptId,
 		editingQueuedPrompt,
@@ -921,6 +924,7 @@ function App(props: TuiProps) {
 					if (result.reasoningEffort !== undefined) {
 						props.config.reasoningEffort = result.reasoningEffort;
 					}
+
 					handleModelChange().then(() => setAppView("home"));
 				}}
 				onExit={() => {

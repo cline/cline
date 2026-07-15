@@ -6,6 +6,7 @@ import { useOnboardingController } from "./controller";
 import { getOAuthProviderLabel, type OnboardingResult } from "./model";
 import {
 	OnboardingClineModelScreen,
+	OnboardingClinePassSubscriptionScreen,
 	OnboardingCodexCliScreen,
 	OnboardingCustomModelIdScreen,
 	OnboardingDeviceCodeScreen,
@@ -121,6 +122,24 @@ export function OnboardingView(props: OnboardingViewProps) {
 		);
 	}
 
+	if (state.step === "cline_pass_subscription") {
+		return (
+			<OnboardingClinePassSubscriptionScreen
+				compact={compact}
+				contentWidth={contentWidth}
+				currentPlanName={state.clinePassCurrentPlanName}
+				error={state.clinePassSubscriptionError}
+				mouse={mouse}
+				openStatus={state.clinePassSubscriptionOpenStatus}
+				options={state.clinePassSubscriptionOptions}
+				planFeatures={state.clinePassPlanFeatures}
+				selected={state.clinePassSubscriptionSelected}
+				status={state.clinePassSubscriptionStatus}
+				subscriptionUrl={state.clinePassSubscriptionUrl}
+			/>
+		);
+	}
+
 	if (state.step === "model_picker") {
 		return (
 			<OnboardingModelPickerScreen
@@ -166,6 +185,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	return (
 		<OnboardingMainMenuScreen
 			contentWidth={contentWidth}
+			menuOptions={state.menuOptions}
 			menuSelected={state.menuSelected}
 			mouse={mouse}
 		/>

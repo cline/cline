@@ -1,14 +1,13 @@
-import { Llms, type ProviderSettings } from "@cline/core";
-import { isOAuthProviderId } from "@cline/shared";
+import {
+	formatProviderOAuthApiKey,
+	getPersistedProviderApiKey as getCorePersistedProviderApiKey,
+	isOAuthProvider,
+	Llms,
+	type ProviderOAuthCredentials,
+	type ProviderSettings,
+} from "@cline/core";
 
-export type OAuthCredentials = {
-	access: string;
-	refresh: string;
-	expires: number;
-	accountId?: string;
-	email?: string;
-	metadata?: Record<string, unknown>;
-};
+export type OAuthCredentials = ProviderOAuthCredentials;
 
 export function normalizeProviderId(providerId: string): string {
 	return Llms.normalizeProviderId(providerId.trim());
@@ -22,42 +21,20 @@ export function normalizeAuthProviderId(providerId: string): string {
 	return normalizeProviderId(normalized);
 }
 
-/**
- * Re-exports `isOAuthProviderId` from `@cline/shared` so the CLI has a
- * single source of truth for the OAuth provider list. Existing call sites
- * keep their `isOAuthProvider` import name.
- */
-export const isOAuthProvider = isOAuthProviderId;
+export { isOAuthProvider };
 
 export function toProviderApiKey(
 	providerId: string,
 	credentials: Pick<OAuthCredentials, "access">,
 ): string {
-	if (providerId === "cline") {
-		return credentials.access.startsWith("workos:")
-			? credentials.access
-			: `workos:${credentials.access}`;
-	}
-	return credentials.access;
+	return formatProviderOAuthApiKey(providerId, credentials);
 }
 
 export function getPersistedProviderApiKey(
 	providerId: string,
 	settings?: ProviderSettings,
 ): string | undefined {
-	const accessToken = settings?.auth?.accessToken?.trim();
-	if (accessToken) {
-		return toProviderApiKey(providerId, { access: accessToken });
-	}
-	const shorthandKey = settings?.apiKey?.trim();
-	if (shorthandKey) {
-		return shorthandKey;
-	}
-	const authKey = settings?.auth?.apiKey?.trim();
-	if (authKey) {
-		return authKey;
-	}
-	return undefined;
+	return getCorePersistedProviderApiKey(providerId, settings);
 }
 
 /**
@@ -65,19 +42,21 @@ export function getPersistedProviderApiKey(
  * or endpoint config for the provider. Used by the picker to decide whether
  * to offer "Use existing configuration?" before opening the configure dialog.
  *
- * Treats OAuth providers as configured when an access token is present; for
- * everything else, any persisted API key, base URL, or model id counts. We
- * don't enforce required fields here — the runtime no longer pre-flights
- * credentials, so a missing key only matters when the API call actually
- * runs and the provider's own auth error is surfaced.
+ * Treats OAuth providers as configured when an access token or a manually
+ * saved API key is present (the /settings escape hatch for when OAuth isn't
+ * working); for everything else, any persisted API key, base URL, or model id
+ * counts. We don't enforce required fields here — the runtime no longer
+ * pre-flights credentials, so a missing key only matters when the API call
+ * actually runs and the provider's own auth error is surfaced.
  */
 export function isProviderConfigured(
 	providerId: string,
 	settings: ProviderSettings | undefined,
 ): boolean {
 	if (!settings) return false;
-	if (isOAuthProviderId(providerId)) {
-		return Boolean(settings.auth?.accessToken?.trim());
+	if (isOAuthProvider(providerId)) {
+		// getPersistedProviderApiKey covers both auth.accessToken and apiKey.
+		return Boolean(getPersistedProviderApiKey(providerId, settings));
 	}
 	if (getPersistedProviderApiKey(providerId, settings)) return true;
 	if (settings.baseUrl?.trim()) return true;

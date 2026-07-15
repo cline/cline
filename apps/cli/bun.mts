@@ -85,6 +85,20 @@ const result = await Bun.build({
 	],
 	define: {
 		"process.env.NODE_ENV": '"production"',
+		...(process.env.TELEMETRY_SERVICE_API_KEY
+			? {
+					"process.env.TELEMETRY_SERVICE_API_KEY": defineProcessEnv(
+						"TELEMETRY_SERVICE_API_KEY",
+					),
+				}
+			: {}),
+		...(process.env.ERROR_SERVICE_API_KEY
+			? {
+					"process.env.ERROR_SERVICE_API_KEY": defineProcessEnv(
+						"ERROR_SERVICE_API_KEY",
+					),
+				}
+			: {}),
 		"process.env.OTEL_TELEMETRY_ENABLED": defineProcessEnv(
 			"OTEL_TELEMETRY_ENABLED",
 		),
@@ -107,7 +121,7 @@ const result = await Bun.build({
 	},
 	env: "OTEL_*",
 	banner:
-		'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+		'import { createRequire as __clineCreateRequire } from "node:module"; const require = __clineCreateRequire(import.meta.url);',
 });
 
 if (result.logs.length > 0) {

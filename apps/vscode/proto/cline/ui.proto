@@ -67,7 +67,6 @@ enum ClineSay {
   INFO = 26;
   TASK_PROGRESS = 27;
   ERROR_RETRY = 28;
-  GENERATE_EXPLANATION = 29;
   HOOK_STATUS = 30;
   HOOK_OUTPUT_STREAM = 31;
   COMMAND_PERMISSION_DENIED = 32;
@@ -226,10 +225,26 @@ message ClineMessage {
   ClineAskNewTask ask_new_task = 21;
   ClineApiReqInfo api_req_info = 22;
   ClineModelInfo model_info = 23;
+
+  // Convergent-replica fields (see webview-message-state-design.md):
+  // seq = monotonic freshness (higher seq wins for the same ts/identity)
+  // epoch = conversation/replica fence (older epoch is dropped by the webview)
+  int64 seq = 24;
+  int64 epoch = 25;
 }
 
 message ShowWebviewEvent {
   bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
+}
+
+message IntentEvent {
+  string action = 1;
+  string source = 2;
+  bool has_text = 3;
+  bool has_images = 4;
+  bool has_files = 5;
+  bool has_active_task = 6;
+  int32 text_length = 7;
 }
 
 // UiService provides methods for managing UI interactions
@@ -248,6 +263,9 @@ service UiService {
 
   // Subscribe to MCP button clicked events
   rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to customize button clicked events
+  rpc subscribeToMarketplaceButtonClicked(EmptyRequest) returns (stream Empty);
 
   // Subscribe to history button click events
   rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
@@ -284,4 +302,7 @@ service UiService {
 
   // Opens the Cline walkthrough
   rpc openWalkthrough(EmptyRequest) returns (Empty);
+
+  // Tracks intent signals before task creation or first model activity
+  rpc trackIntent(IntentEvent) returns (Empty);
 }

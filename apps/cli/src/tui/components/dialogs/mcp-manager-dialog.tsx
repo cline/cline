@@ -13,6 +13,7 @@ export interface McpEntry {
 	enabled?: boolean;
 	description?: string;
 	lastError?: string;
+	pluginName?: string;
 }
 
 export type McpServerToggleResult =
@@ -36,6 +37,12 @@ export function getMcpManagerEntryStatus(
 }
 
 export function toggleMcpServer(server: McpEntry): McpServerToggleResult {
+	if (server.pluginName) {
+		return {
+			ok: false,
+			message: `MCP server "${server.name}" is managed by plugin "${server.pluginName}". Disable the plugin to disable this server.`,
+		};
+	}
 	try {
 		const currentlyEnabled = server.enabled !== false;
 		setMcpServerDisabled({
@@ -71,6 +78,7 @@ export function McpManagerContent(
 	const settingsPath = servers[0]?.path ?? resolveDefaultMcpSettingsPath();
 	const itemCount = servers.length;
 	const selectedServer = servers[selected];
+	const hasPluginOwnedServers = servers.some((server) => server.pluginName);
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -113,7 +121,7 @@ export function McpManagerContent(
 
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<text fg="cyan">MCP Servers</text>
+			<text fg={palette.act}>MCP Servers</text>
 
 			<text fg="gray" marginTop={1}>
 				Settings file:
@@ -133,7 +141,7 @@ export function McpManagerContent(
 						const enabledIcon =
 							typeof srv.enabled === "boolean" ? (enabled ? "● " : "○ ") : "";
 						const status = getMcpManagerEntryStatus(srv);
-						let rowColor = isSel ? "cyan" : "gray";
+						let rowColor = isSel ? palette.act : "gray";
 						if (enabled && typeof srv.enabled === "boolean") {
 							rowColor = palette.success;
 						}
@@ -150,6 +158,7 @@ export function McpManagerContent(
 									{isSel ? "\u25b8 " : "  "}
 									{enabledIcon}
 									{srv.name}
+									{srv.pluginName ? " *" : ""}
 								</text>
 								{status && (
 									<text fg={srv.lastError ? palette.error : "gray"}>
@@ -182,6 +191,12 @@ export function McpManagerContent(
 						Run cline mcp and choose Authorize OAuth to retry.
 					</text>
 				</box>
+			)}
+
+			{hasPluginOwnedServers && (
+				<text fg="gray" marginTop={1}>
+					* managed by plugin; disable the plugin to disable the server.
+				</text>
 			)}
 
 			<text fg="gray" marginTop={1}>

@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
+	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type CoreSessionConfig,
@@ -19,6 +21,73 @@ import type {
 	PromptInQueue,
 	SidecarContext,
 } from "./types";
+
+type SessionConnectionUpdate = Parameters<
+	ClineCore["updateSessionConnection"]
+>[1];
+
+type WorkspaceMetadataLoader = (cwd: string) => Promise<string>;
+type WorkspaceMetadataCacheEntry = {
+	createdAt: number;
+	promise: Promise<string>;
+};
+export const WORKSPACE_METADATA_PREWARM_TTL_MS = 60_000;
+const workspaceMetadataPromises = new Map<
+	string,
+	WorkspaceMetadataCacheEntry
+>();
+
+function getWorkspaceMetadataPromise(
+	cwd: string,
+	load: WorkspaceMetadataLoader,
+	now: () => number,
+): { key: string; promise: Promise<string> } {
+	const key = resolve(cwd);
+	const existing = workspaceMetadataPromises.get(key);
+	const createdAt = now();
+	if (
+		existing &&
+		createdAt - existing.createdAt <= WORKSPACE_METADATA_PREWARM_TTL_MS
+	) {
+		return { key, promise: existing.promise };
+	}
+	const promise = load(key);
+	workspaceMetadataPromises.set(key, { createdAt, promise });
+	void promise.catch(() => {
+		if (workspaceMetadataPromises.get(key)?.promise === promise) {
+			workspaceMetadataPromises.delete(key);
+		}
+	});
+	return { key, promise };
+}
+
+export function prewarmWorkspaceMetadata(
+	cwd: string,
+	load: WorkspaceMetadataLoader = buildWorkspaceMetadata,
+	now: () => number = Date.now,
+): void {
+	void getWorkspaceMetadataPromise(cwd, load, now).promise.catch(() => {});
+}
+
+export async function consumeWorkspaceMetadata(
+	cwd: string,
+	load: WorkspaceMetadataLoader = buildWorkspaceMetadata,
+	now: () => number = Date.now,
+): Promise<string> {
+	const { key, promise } = getWorkspaceMetadataPromise(cwd, load, now);
+	try {
+		return await promise;
+	} finally {
+		if (workspaceMetadataPromises.get(key)?.promise === promise) {
+			workspaceMetadataPromises.delete(key);
+		}
+	}
+}
+
+export function refreshWorkspaceMetadata(cwd: string): void {
+	workspaceMetadataPromises.delete(resolve(cwd));
+	prewarmWorkspaceMetadata(cwd);
+}
 
 // ---------------------------------------------------------------------------
 // Session data helpers
@@ -103,7 +172,40 @@ function isoTimestampToMs(
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function readReasoningEffort(
+	value: unknown,
+): "low" | "medium" | "high" | "xhigh" | undefined {
+	if (
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh"
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.trunc(value);
+	}
+	return undefined;
+}
+
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+	const thinking =
+		typeof config.thinking === "boolean" ? config.thinking : undefined;
+	const reasoningEffort =
+		thinking === false
+			? undefined
+			: readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens =
+		thinking === false
+			? undefined
+			: readPositiveInteger(
+					config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+				);
 	return {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
@@ -125,6 +227,9 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 			config.enableAgentTeams ??
 			config.enable_teams ??
 			false,
+		...(thinking !== undefined ? { thinking } : {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
 		teamName: config.teamName ?? config.team_name,
 		missionLogIntervalSteps:
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
@@ -134,6 +239,58 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+export function buildSessionConnectionUpdate(
+	config: JsonRecord,
+): SessionConnectionUpdate {
+	// Coerce the untrusted webview JSON (snake_case aliases, blank strings)
+	// into typed fields; the thinking/reasoning transition rules live in the
+	// shared @cline/core builder.
+	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	const modelId = String(config.model ?? config.modelId ?? "").trim();
+	const rawApiKey =
+		typeof config.apiKey === "string"
+			? config.apiKey.trim()
+			: typeof config.api_key === "string"
+				? config.api_key.trim()
+				: undefined;
+	const baseUrl =
+		typeof config.baseUrl === "string" ? config.baseUrl.trim() : undefined;
+	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens = readPositiveInteger(
+		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+	);
+	return buildConnectionUpdate({
+		...(providerId ? { providerId } : {}),
+		...(modelId ? { modelId } : {}),
+		...(rawApiKey ? { apiKey: rawApiKey } : {}),
+		...(baseUrl ? { baseUrl } : {}),
+		...(config.headers && typeof config.headers === "object"
+			? { headers: config.headers as Record<string, string> }
+			: {}),
+		...(config.providerConfig && typeof config.providerConfig === "object"
+			? {
+					providerConfig:
+						config.providerConfig as SessionConnectionUpdate["providerConfig"],
+				}
+			: {}),
+		...(typeof config.thinking === "boolean"
+			? { thinking: config.thinking }
+			: {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
+	});
+}
+
+export function shouldUpdateSessionConnection(
+	currentConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): boolean {
+	return !isDeepStrictEqual(
+		buildSessionConnectionUpdate(currentConfig),
+		buildSessionConnectionUpdate(nextConfig),
+	);
 }
 
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
@@ -149,7 +306,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		: config.mode === "plan"
 			? "plan"
 			: "act";
-	const metadata = await buildWorkspaceMetadata(cwd);
+	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
 			? config.rules
@@ -363,6 +520,19 @@ async function handleSend(
 	if (!prompt) throw new Error("prompt is required");
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	if (request.config) {
+		if (
+			!session ||
+			session.attachedViaHub ||
+			shouldUpdateSessionConnection(session.config, request.config)
+		) {
+			const connectionUpdate = buildSessionConnectionUpdate(request.config);
+			await manager.updateSessionConnection(sessionId, connectionUpdate);
+		}
+		if (session) {
+			session.config = { ...session.config, ...request.config };
+		}
+	}
 
 	// Determine effective delivery mode.
 	// When the session is busy and no explicit delivery was requested, queue it

@@ -1,0 +1,27 @@
+---
+title: "Atomic Chat"
+description: "Use local models through Atomic Chat's OpenAI-compatible API."
+---
+
+[Atomic Chat](https://atomic.chat) is a local AI provider.
+
+## Setup in Cline
+
+1. Install and launch Atomic Chat.
+2. Download or load a model in the app.
+3. In Cline Settings, choose **Atomic Chat** as the provider.
+4. Keep the default base URL `http://127.0.0.1:1337/v1` unless you changed Atomic Chat's server port.
+5. Pick a model from the dropdown (models are fetched from `GET /v1/models`).
+
+## API key
+
+Atomic Chat typically does not require an API key for local use. Leave the field empty unless your setup requires one.
+
+## Tool calling
+
+Atomic Chat supports tool calls for agent workflows when the loaded model supports them. Enable **Use Compact Prompt** for smaller local context windows.
+
+## Related links
+
+- [Atomic Chat website](https://atomic.chat)
+- [Atomic Chat GitHub](https://github.com/AtomicBot-ai/Atomic-Chat)

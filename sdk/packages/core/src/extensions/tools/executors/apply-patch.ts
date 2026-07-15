@@ -18,9 +18,10 @@ import {
 	PatchActionType,
 	type PatchChunk,
 	PatchParser,
+	type PatchWarning,
 } from "./apply-patch-parser";
 
-interface FileChange {
+export interface PatchFileChange {
 	type: PatchActionType;
 	oldContent?: string;
 	newContent?: string;
@@ -214,8 +215,8 @@ async function loadFiles(
 function patchToChanges(
 	patch: ReturnType<PatchParser["parse"]>["patch"],
 	originalFiles: Record<string, string>,
-): Record<string, FileChange> {
-	const changes: Record<string, FileChange> = {};
+): Record<string, PatchFileChange> {
+	const changes: Record<string, PatchFileChange> = {};
 
 	for (const [filePath, action] of Object.entries(patch.actions)) {
 		switch (action.type) {
@@ -252,8 +253,27 @@ function patchToChanges(
 	return changes;
 }
 
+function formatSkippedHunkFailure(warnings: readonly PatchWarning[]): string {
+	const lines = [
+		`Patch could not be applied because ${warnings.length} hunk${warnings.length === 1 ? "" : "s"} did not match the current file content.`,
+	];
+
+	for (const warning of warnings) {
+		const hunkNumber =
+			warning.chunkIndex === undefined
+				? "unknown"
+				: String(warning.chunkIndex + 1);
+		lines.push(`${warning.path}: hunk ${hunkNumber}: ${warning.message}`);
+		if (warning.context) {
+			lines.push(`Context:\n${warning.context}`);
+		}
+	}
+
+	return lines.join("\n");
+}
+
 async function applyChanges(
-	changes: Record<string, FileChange>,
+	changes: Record<string, PatchFileChange>,
 	cwd: string,
 	encoding: BufferEncoding,
 	restrictToCwd: boolean,
@@ -305,6 +325,34 @@ async function applyChanges(
 }
 
 /**
+ * Parse a patch and compute the per-file changes it would apply, without
+ * writing anything to disk. Reads the current contents of the files the patch
+ * references. Exposed so hosts can preview a patch (e.g. in a diff editor)
+ * before the executor applies it.
+ */
+export async function computePatchChanges(
+	patchText: string,
+	cwd: string,
+	options: ApplyPatchExecutorOptions = {},
+): Promise<{ changes: Record<string, PatchFileChange>; fuzz: number }> {
+	const { encoding = "utf-8", restrictToCwd = true } = options;
+	const normalizedInput = normalizePatchInput(patchText);
+	const currentFiles = await loadFiles(
+		normalizedInput.lines,
+		cwd,
+		encoding,
+		restrictToCwd,
+	);
+	const parser = new PatchParser(normalizedInput.lines, currentFiles);
+	const { patch, fuzz } = parser.parse();
+	if (patch.warnings && patch.warnings.length > 0) {
+		throw new DiffError(formatSkippedHunkFailure(patch.warnings));
+	}
+
+	return { changes: patchToChanges(patch, currentFiles), fuzz };
+}
+
+/**
  * Create an apply_patch executor using Node.js fs module.
  */
 export function createApplyPatchExecutor(
@@ -317,16 +365,10 @@ export function createApplyPatchExecutor(
 		cwd: string,
 		_context: AgentToolContext,
 	): Promise<string> => {
-		const normalizedInput = normalizePatchInput(input.input);
-		const currentFiles = await loadFiles(
-			normalizedInput.lines,
-			cwd,
+		const { changes, fuzz } = await computePatchChanges(input.input, cwd, {
 			encoding,
 			restrictToCwd,
-		);
-		const parser = new PatchParser(normalizedInput.lines, currentFiles);
-		const { patch, fuzz } = parser.parse();
-		const changes = patchToChanges(patch, currentFiles);
+		});
 		const touched = await applyChanges(changes, cwd, encoding, restrictToCwd);
 
 		const responseLines = [
@@ -337,11 +379,6 @@ export function createApplyPatchExecutor(
 		}
 		if (fuzz > 0) {
 			responseLines.push(`Note: Patch applied with fuzz factor ${fuzz}`);
-		}
-		if (patch.warnings && patch.warnings.length > 0) {
-			for (const warning of patch.warnings) {
-				responseLines.push(`Warning (${warning.path}): ${warning.message}`);
-			}
 		}
 		return responseLines.join("\n");
 	};

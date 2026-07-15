@@ -1,7 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
-	listLocalProviders,
+	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFieldRequirement,
@@ -21,12 +21,14 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { isOAuthProvider } from "../../../utils/provider-auth";
+import { listLocalProviders } from "../../../utils/provider-catalog";
 import { palette } from "../../palette";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAzure,
+	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -35,6 +37,10 @@ import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
 } from "../searchable-list";
+import {
+	buildClinePassSubscriptionPageUrl,
+	saveManualProviderApiKey,
+} from "./provider-picker-helpers";
 
 interface ProviderItem {
 	id: string;
@@ -246,18 +252,33 @@ export function ProviderPickerContent(
 	);
 }
 
-export type ExistingProviderAction = "use_existing" | "reconfigure";
+export type ExistingProviderAction =
+	| "use_existing"
+	| "reconfigure"
+	| "open_subscription_page"
+	| "open_usage_billing";
+
+export interface ExistingProviderOption {
+	value: ExistingProviderAction;
+	label: string;
+	onSelect?: () => Promise<void> | void;
+}
 
 export function UseExistingOrReconfigureContent(
-	props: ChoiceContext<ExistingProviderAction> & {
+	props: ChoiceContext<ExistingProviderOption> & {
 		providerName: string;
+		extraOptions?: ExistingProviderOption[];
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
-	const options: { value: ExistingProviderAction; label: string }[] = [
-		{ value: "use_existing", label: "Use existing configuration" },
-		{ value: "reconfigure", label: "Configure again" },
-	];
+	const { resolve, dismiss, dialogId, providerName, extraOptions } = props;
+	const options: ExistingProviderOption[] = useMemo(
+		() => [
+			{ value: "use_existing", label: "Use existing configuration" },
+			{ value: "reconfigure", label: "Configure again" },
+			...(extraOptions ?? []),
+		],
+		[extraOptions],
+	);
 	const [selected, setSelected] = useState(0);
 
 	useDialogKeyboard((key) => {
@@ -267,7 +288,7 @@ export function UseExistingOrReconfigureContent(
 		}
 		if (key.name === "return" || key.name === "enter") {
 			const opt = options[selected];
-			if (opt) resolve(opt.value);
+			if (opt) resolve(opt);
 			return;
 		}
 		if (key.name === "up" || (key.ctrl && key.name === "p")) {
@@ -312,11 +333,94 @@ export function UseExistingOrReconfigureContent(
 	);
 }
 
+function ClinePassBrowserPageContent(
+	props: ChoiceContext<boolean> & {
+		providerName: string;
+		pageLabel: string;
+		url: string;
+		openedStatus: string;
+	},
+) {
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerName,
+		pageLabel,
+		url,
+		openedStatus,
+	} = props;
+	const [status, setStatus] = useState("Opening browser...");
+
+	useEffect(() => {
+		void open(url, { wait: false })
+			.then(() => {
+				setStatus(openedStatus);
+			})
+			.catch(() => {
+				setStatus("Could not open browser automatically. Open the URL below.");
+			});
+	}, [url, openedStatus]);
+
+	useDialogKeyboard((key) => {
+		if (key.name === "escape") {
+			dismiss();
+			return;
+		}
+		if (key.name === "return" || key.name === "enter") {
+			resolve(true);
+		}
+	}, dialogId);
+
+	return (
+		<box flexDirection="column" paddingX={1} gap={1}>
+			<text fg={palette.act}>
+				<strong>{providerName}</strong>
+			</text>
+
+			<text>{status}</text>
+
+			<text fg="gray">{pageLabel}:</text>
+			<text fg={palette.act} selectable>
+				<a href={url}>{url}</a>
+			</text>
+
+			<text fg="gray">
+				<em>Enter or Esc to go back</em>
+			</text>
+		</box>
+	);
+}
+
+export function ClinePassSubscriptionContent(
+	props: ChoiceContext<boolean> & {
+		providerName: string;
+	},
+) {
+	const subscriptionUrl = useMemo(
+		() =>
+			buildClinePassSubscriptionPageUrl(getClineEnvironmentConfig().appBaseUrl),
+		[],
+	);
+
+	return (
+		<ClinePassBrowserPageContent
+			{...props}
+			pageLabel="Subscription page"
+			url={subscriptionUrl}
+			openedStatus="Opened subscription page in your browser."
+		/>
+	);
+}
+
 const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
+	azureApiVersion: "Azure API Version",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
+	gcpProjectId: "Google Cloud Project ID",
+	gcpRegion: "Google Cloud Region",
 	sapClientId: "Client ID",
 	sapClientSecret: "Client Secret",
 	sapTokenUrl: "Token URL",
@@ -329,8 +433,11 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 > = {
 	apiKey: "sk-...",
 	baseUrl: "",
+	azureApiVersion: "2025-01-01-preview",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
+	gcpProjectId: "my-gcp-project",
+	gcpRegion: "us-central1",
 	sapClientId: "sb-...|xsuaa_std!b...",
 	sapClientSecret: "SAP AI Core client secret",
 	sapTokenUrl: "https://<subdomain>.authentication.sap.hana.ondemand.com",
@@ -341,7 +448,10 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 /** Render order for cycling focus with Tab. */
 const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"awsRegion",
+	"gcpProjectId",
+	"gcpRegion",
 	"baseUrl",
+	"azureApiVersion",
 	"apiKey",
 	"awsProfile",
 	"sapClientId",
@@ -398,11 +508,22 @@ export function ProviderConfigInputContent(
 				config.fields.baseUrl?.defaultValue ??
 				"";
 		}
+		if (config.fields.azureApiVersion) {
+			initial.azureApiVersion =
+				existingSettings?.azure?.apiVersion?.trim() ?? "";
+		}
 		if (config.fields.awsRegion) {
 			const ep = existingSettings?.aws?.profile?.trim() ?? "";
 			initial.awsRegion =
 				existingSettings?.aws?.region?.trim() || getDefaultAwsRegion(ep);
 		}
+		if (config.fields.gcpProjectId)
+			initial.gcpProjectId = existingSettings?.gcp?.projectId?.trim() ?? "";
+		if (config.fields.gcpRegion)
+			initial.gcpRegion =
+				existingSettings?.gcp?.region?.trim() ??
+				config.fields.gcpRegion.defaultValue ??
+				"us-central1";
 		if (config.fields.apiKey)
 			initial.apiKey = existingSettings?.apiKey?.trim() ?? "";
 		if (config.fields.awsProfile)
@@ -430,7 +551,9 @@ export function ProviderConfigInputContent(
 	const submit = () => {
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
+		const hasAzureFields = config.fields.azureApiVersion;
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
+		const hasGcpFields = config.fields.gcpProjectId || config.fields.gcpRegion;
 		const hasSapFields =
 			config.fields.sapClientId ||
 			config.fields.sapClientSecret ||
@@ -441,6 +564,7 @@ export function ProviderConfigInputContent(
 			providerId,
 			apiKey: config.fields.apiKey ? apiKey : undefined,
 			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
+			azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
 			aws: hasAwsFields
 				? {
 						region: resolveProviderConfigAwsRegion(values),
@@ -448,6 +572,7 @@ export function ProviderConfigInputContent(
 						profile: apiKey ? undefined : awsProfile || undefined,
 					}
 				: undefined,
+			gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
 			sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
 		});
 		resolve(true);
@@ -474,7 +599,7 @@ export function ProviderConfigInputContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 
@@ -567,7 +692,7 @@ export function CodexCliStatusContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 
@@ -585,7 +710,7 @@ export function CodexCliStatusContent(
 					<text fg="yellow">Codex CLI was not found</text>
 					<text fg="gray">{status.reason}</text>
 					<text fg="gray">Install Codex CLI from:</text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						{CODEX_CLI_INSTALL_URL}
 					</text>
 				</box>
@@ -602,13 +727,27 @@ export function CodexCliStatusContent(
 	);
 }
 
+/**
+ * Resolves `true` on successful login, `"use_api_key"` when the user opts
+ * into manual API key entry (only offered with `allowApiKeyFallback`).
+ */
+export type OAuthLoginResult = boolean | "use_api_key";
+
 export function OAuthLoginContent(
-	props: ChoiceContext<boolean> & {
+	props: ChoiceContext<OAuthLoginResult> & {
 		providerId: string;
 		providerName: string;
+		allowApiKeyFallback?: boolean;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerId, providerName } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerId,
+		providerName,
+		allowApiKeyFallback,
+	} = props;
 	const [mode, setMode] = useState<"browser" | "device">(
 		providerId === "cline" ? "device" : "browser",
 	);
@@ -671,7 +810,7 @@ export function OAuthLoginContent(
 						if (!isActiveAuthAttempt(attempt)) return;
 						saveLocalProviderOAuthCredentials(
 							manager,
-							providerId as "cline" | "oca" | "openai-codex",
+							providerId,
 							existing,
 							credentials,
 						);
@@ -705,30 +844,24 @@ export function OAuthLoginContent(
 		const manager = new ProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
 
-		loginLocalProvider(
-			providerId as "cline" | "oca" | "openai-codex",
-			existing,
-			(url: string) => {
-				setAuthUrl(url);
-				setStatus("Waiting for authentication in browser...");
-				try {
-					void open(url, { wait: false }).catch(() => {
-						setStatus(
-							"Could not open browser automatically. Open the URL below.",
-						);
-					});
-				} catch {
+		loginLocalProvider(providerId, existing, (url: string) => {
+			setAuthUrl(url);
+			setStatus("Waiting for authentication in browser...");
+			try {
+				void open(url, { wait: false }).catch(() => {
 					setStatus(
 						"Could not open browser automatically. Open the URL below.",
 					);
-				}
-			},
-		)
+				});
+			} catch {
+				setStatus("Could not open browser automatically. Open the URL below.");
+			}
+		})
 			.then((credentials) => {
 				if (!isActiveAuthAttempt(attempt)) return;
 				saveLocalProviderOAuthCredentials(
 					manager,
-					providerId as "cline" | "oca" | "openai-codex",
+					providerId,
 					existing,
 					credentials,
 				);
@@ -747,13 +880,23 @@ export function OAuthLoginContent(
 		if (key.name === "escape") {
 			cancelAuthAttempt();
 			dismiss();
+			return;
+		}
+		if (key.name === "k" && allowApiKeyFallback) {
+			cancelAuthAttempt();
+			resolve("use_api_key");
 		}
 	}, dialogId);
+
+	const escapeHint = allowApiKeyFallback
+		? "K to enter an API key instead, Esc to cancel"
+		: "Esc to cancel";
+	const escapeHintColor = allowApiKeyFallback ? "white" : "gray";
 
 	if (mode === "device") {
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
-				<text fg="cyan">
+				<text fg={palette.act}>
 					<strong>{providerName}</strong>
 				</text>
 
@@ -768,7 +911,7 @@ export function OAuthLoginContent(
 							<strong>{deviceUserCode}</strong>
 						</text>
 						<text fg="gray">Visit this URL and enter the code above:</text>
-						<text fg="cyan" selectable>
+						<text fg={palette.act} selectable>
 							<a href={deviceVerifyUrl}>{deviceVerifyUrl}</a>
 						</text>
 					</box>
@@ -776,8 +919,8 @@ export function OAuthLoginContent(
 
 				{deviceError && <text fg="red">{deviceError}</text>}
 
-				<text fg="gray">
-					<em>Esc to cancel</em>
+				<text fg={escapeHintColor}>
+					<em>{escapeHint}</em>
 				</text>
 			</box>
 		);
@@ -785,7 +928,7 @@ export function OAuthLoginContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
 
@@ -799,8 +942,83 @@ export function OAuthLoginContent(
 
 			{error && <text fg="red">{error}</text>}
 
+			<text fg={escapeHintColor}>
+				<em>{escapeHint}</em>
+			</text>
+		</box>
+	);
+}
+
+/**
+ * Manual API key entry for OAuth-capable providers — the escape hatch for
+ * when OAuth login isn't working. Saving clears any stored OAuth tokens so
+ * the manual key takes effect (see saveManualProviderApiKey).
+ */
+export function OAuthApiKeyInputContent(
+	props: ChoiceContext<boolean> & {
+		providerId: string;
+		providerName: string;
+		providerSettingsManager: ProviderSettingsManager;
+	},
+) {
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerId,
+		providerName,
+		providerSettingsManager,
+	} = props;
+	const [value, setValue] = useState("");
+
+	const submit = () => {
+		const apiKey = value.trim();
+		if (!apiKey) return;
+		saveManualProviderApiKey(providerSettingsManager, providerId, apiKey);
+		resolve(true);
+	};
+
+	useDialogKeyboard((key) => {
+		if (key.name === "escape") {
+			dismiss();
+			return;
+		}
+		if (key.name === "return") {
+			submit();
+		}
+	}, dialogId);
+
+	return (
+		<box flexDirection="column" paddingX={1} gap={1}>
+			<text fg={palette.act}>
+				<strong>{providerName}</strong>
+			</text>
+
 			<text fg="gray">
-				<em>Esc to cancel</em>
+				Use an API key from your Cline dashboard instead of OAuth login. This
+				replaces any saved login tokens.
+			</text>
+
+			<box flexDirection="column">
+				<text fg="gray">API key</text>
+				<box
+					border
+					borderStyle="rounded"
+					borderColor={palette.act}
+					paddingX={1}
+				>
+					<input
+						value={value}
+						onInput={setValue}
+						placeholder="Paste your API key"
+						flexGrow={1}
+						focused
+					/>
+				</box>
+			</box>
+
+			<text fg="gray">
+				<em>Enter to save, Esc to go back</em>
 			</text>
 		</box>
 	);

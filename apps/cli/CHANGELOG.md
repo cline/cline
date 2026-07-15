@@ -1,5 +1,181 @@
 # Cline CLI Changelog
 
+## 3.0.40
+
+- Added a manual API key escape hatch for Cline OAuth providers, so you can enter a key by hand from settings
+- Fixed provider config not reloading when switching models
+- Fixed auto-update failing to detect Bun global installs after symlink resolution
+- Fixed unexpected logouts caused by transient network or server errors during token refresh
+- The ClinePass usage-limit error is now surfaced clearly when you hit the limit
+- Session id is now preserved when continuing within the same session
+- Hardened context compaction budget handling
+
+## 3.0.39
+
+- You can now select Cline free models on the ClinePass provider in the model picker
+- Removed the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- `str_replace` edits now report accurate diffs
+- Fixed context compaction so canonical session history is preserved
+- The detached hub daemon now emits telemetry, and telemetry identity now includes `user_id`
+- Cline provider requests now send versioned client-identity headers
+
+## 3.0.38
+
+- New plan/act accent palette: act mode is now blue (`#79b8ff`) and plan mode amber, replacing the old cyan/yellow — applied across dialogs, the model selector, config, onboarding, markdown, and syntax highlighting, with light-theme variants tuned for contrast
+- Restyled chat input: a minimal frame with full-width horizontal rules and a bold accent prompt glyph instead of the tinted background, plus slimmer user-message bubbles
+- Assistant markdown accents are now tinted by the mode (plan/act) they were produced in
+- Polished the status bar usage display and ClinePass model name
+- Harmonized the success/diff green and dark syntax-highlighting colors with the new brand palette
+- The thinking-level picker now defaults its cursor to Medium instead of Off
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected (from SDK v0.0.58)
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit, so under-specified models get a usable context budget (from SDK v0.0.57)
+
+## 3.0.37
+
+- Weaker models (e.g. DeepSeek) that emit malformed tool calls — wrong argument types or truncated JSON — are now handled gracefully and run instead of erroring out
+- Plan/act mode switches are now visible to the model, so it knows when you change modes mid-session
+- Fixed plan/act mode notices being dropped from prompts sent to the model
+- Fixed a race where switching modes in an empty session could trigger an unexpected restart
+
+## 3.0.36
+
+- Fixed plan mode's `switch_to_act_mode` tool not taking effect until the end of the turn: the model would keep running with plan-mode tools (no file editor) and fall back to editing files through shell commands. Switching to act mode now ends the plan-mode run and automatically continues with the approved plan using the full act-mode toolset. A Tab mode toggle racing a completing turn can no longer auto-start plan execution you didn't approve.
+
+## 3.0.35
+
+- ClinePass is now enabled for all CLI users
+- Recover missing interactive sessions when reading messages
+- Format structured commands in history export
+- Add the subscription promo code when linking to the dashboard subscription page
+- Add Tencent TokenHub as a provider (from SDK v0.0.55)
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3) that could immediately auto-compact and cut the initial task down to just the input wrapper (from SDK v0.0.55)
+- Use a curated default when migrating legacy provider settings (from SDK v0.0.55)
+- Advertise run commands as shell strings (from SDK v0.0.55)
+- Refresh the bundled model catalog with the latest provider models (from SDK v0.0.55)
+
+## 3.0.34
+
+- Fixed the ClinePass upgrade notice appearing immediately after completing onboarding.
+- Improved the wording of the ClinePass onboarding step.
+- Streamlined the Cline provider picker by merging the subscription and usage/billing options into one and removing the credits link.
+
+## 3.0.33
+
+- Show a ClinePass subscription URL as a fallback during onboarding so you can still subscribe if the subscription screen can't open automatically
+- Hide the ClinePass promo for users who already have a ClinePass subscription
+- Use an adaptive plan accent color for ClinePass prompts so they fit the active theme
+
+## 3.0.32
+
+- Improved the ClinePass onboarding experience
+- Added an intermediate step before going to ClinePass model selection
+- Made the ClinePass subscription screen selectable
+- Promoted ClinePass in the startup notice
+- Used "ClinePass" as one word consistently and refined the provider UI copy
+- More accurate context compaction and clearer error messages (from SDK v0.0.54)
+
+## 3.0.31
+
+- Show when request cost is covered by your Cline subscription
+- Prompt to switch to ClinePass when you run out of credits, and list ClinePass features in the not-subscribed message
+- Added an option to open the subscription page from the ClinePass options
+- Added marketplace uninstall support and surfaced plugin-bundled skills
+- Require quoted prompts for one-shot mode
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 3.0.30
+
+- Added a token count to the status bar, shown alongside cost
+- Added organization-specific error messages
+- Added SAP AI Core provider support
+- Refreshed the model catalog with the latest provider models
+- Preserved OpenRouter reasoning-disable behavior and improved OpenRouter prompt caching
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from appearing in the LiteLLM model list
+- Updated ClinePass models live, restored ClinePass models in onboarding, and improved ClinePass error messages
+- Threaded proxy/CA-aware networking into the inference path
+- Persisted Bedrock settings to providers.json
+- Normalized JSON-like tool inputs by schema for more reliable tool calls
+- Fixed an "ERROR: EMPTY CONTENT" message that could appear when an error occurred
+- Fixed a packaging issue (createRequire) that could break the CLI at runtime
+
+## 3.0.29
+
+- Costs are now hidden for Cline free models
+- Fixed Z.ai model metadata resolution for Z.ai models accessed through the Cline provider
+- Reverted the model-name-only display change from v3.0.28; the model picker, selector, and status bar return to their previous display behavior
+
+## 3.0.28
+
+- Added a ClinePass onboarding flow with selectable ClinePass models, plus improved ClinePass error handling
+- Added hub primitive catalogs and refreshed the hub dashboard design with a dedicated customizations breakout
+- Auto-approve toggles now apply immediately when changed
+- Feature flags now resolve using your user ID on startup
+- Fixed Cline model display names so they resolve by model name
+- Truncate large tool results by default (including MCP and custom tool output) to keep requests within context budget
+- Hardened parallel tool-call guidance for faster, more reliable multi-tool execution
+
+## 3.0.27
+
+- Added a `cline skill` command to install and manage skills, matching `cline plugin install` and `cline mcp` (installs default to the Cline agent directory)
+- Added a prefilled MCP install wizard command for quicker MCP server setup
+- Improved error handling and messaging when plugin MCP OAuth authorization fails
+- The CLI now rejects unknown commands and unquoted multi-word input with a clear error instead of silently treating bad arguments as a prompt
+
+## 3.0.26
+
+- Reverted the expandable model picker sections and ClinePass models, restoring the previous model-selection UI
+
+## 3.0.25
+
+- Added ClinePass support, with selectable ClinePass models in the model picker
+- Made model picker sections expandable
+- Added MCP server support to plugins, including authorizing plugin MCP OAuth during install
+- Encouraged parallel tool calls for faster task execution
+- Capped tool output for bash commands and file reads to keep large output within context limits
+- Allowed ranged reads on large files
+- Fixed apply_patch to fail when a hunk is skipped
+- Fixed run_commands to return captured stdout on failure and handle split heredocs
+- Fixed search tools to treat zero results as success
+- Fixed disabled-reasoning handling for StepFun flash
+- Fixed history resume rendering isolation
+- Fixed the Hugging Face URL
+- Fixed Cline OAuth token formatting in provider config
+
+## 3.0.24
+
+- Plugin commands can now submit prompts to the agent
+- Added support for overriding the API base URL
+- Open the verification URL automatically when starting device authentication
+- Enforced a single shared Cline Hub, so a stale hub is respawned after an upgrade
+- Suppressed flickering console windows on Windows
+- Fixed truncation of structured tool operation result strings so oversized tool output stays within limits
+- Stopped echoing the full command text in run_commands tool results
+
+## 3.0.23
+
+- Fixed Vertex AI GCP settings configuration
+- Fixed the Azure Foundry API version
+- Added support for configured agents as subagent tools
+- Centralized OAuth management into the SDK
+- Fixed an error caused by disabled reasoning on Fable 5
+
+## 3.0.22
+
+- Added support for the Claude Fable 5 model
+- Fixed MiniMax M3 thinking controls so they route correctly across gateways
+
+## 3.0.21
+
+- Added a global auto-update setting that controls automatic updates on CLI startup
+- Added a Cline credits refill link
+- Fixed scrolling for inline ask-question responses
+- Fixed connector thread session routing and stale hub session handling
+- Added support for Vertex AI Application Default Credentials (ADC) with tool use
+- Fixed empty message content replay for Bedrock
+- Cleaned up the OpenAI Codex model list
+
 ## 3.0.20
 
 - Installed plugin wrappers are now named from their source (npm package name, git repo, remote filename, official slug, or local directory) instead of an opaque hash, making installed plugins easier to identify.

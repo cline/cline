@@ -1,6 +1,7 @@
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
+import { readWorkspaceSelectionFromWindow } from "@/lib/workspace-paths";
 
 export const CHAT_TRANSPORT_UNAVAILABLE_MESSAGE =
 	"Chat connection is unavailable. Reopen the app window to restore realtime chat.";
@@ -28,6 +29,8 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	mode: "act",
 	systemPrompt: undefined,
 	maxIterations: undefined,
+	thinking: undefined,
+	reasoningEffort: undefined,
 	enableTools: true,
 	enableSpawn: undefined,
 	enableTeams: undefined,
@@ -38,6 +41,7 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 
 export function getInitialChatConfig(): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
+	const workspaceSelection = readWorkspaceSelectionFromWindow();
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
 	const rememberedModelForProvider = rememberedProvider
 		? (selection.lastModelByProvider[rememberedProvider] ??
@@ -57,5 +61,7 @@ export function getInitialChatConfig(): ChatSessionConfig {
 		...DEFAULT_CHAT_CONFIG,
 		provider,
 		model,
+		workspaceRoot: workspaceSelection.lastWorkspace,
+		cwd: workspaceSelection.lastWorkspace,
 	};
 }

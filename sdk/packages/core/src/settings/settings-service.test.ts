@@ -13,9 +13,17 @@ describe("CoreSettingsService", () => {
 	};
 
 	afterEach(async () => {
-		process.env.CLINE_GLOBAL_SETTINGS_PATH =
-			envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
-		process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		if (envSnapshot.CLINE_GLOBAL_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH =
+				envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
+		}
+		if (envSnapshot.CLINE_MCP_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		}
 		await Promise.all(
 			tempRoots.map((dir) => rm(dir, { recursive: true, force: true })),
 		);
@@ -100,6 +108,112 @@ Use this skill.`,
 					name: "skill-one",
 					source: "workspace",
 					enabled: true,
+				}),
+			]),
+		);
+	});
+
+	it("lists bundled plugin skills with plugin ownership metadata", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-plugin-skills-"),
+		);
+		tempRoots.push(tempRoot);
+		const installRoot = join(
+			tempRoot,
+			".cline",
+			"plugins",
+			"_installed",
+			"local",
+			"test-plugin-skill-owner",
+		);
+		const packageRoot = join(installRoot, "package");
+		const pluginPath = join(packageRoot, "index.ts");
+		const skillDir = join(packageRoot, "skills", "test-plugin-skill-owner");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(installRoot, "package.json"),
+			JSON.stringify({
+				name: "test-plugin-skill-owner",
+				cline: {
+					plugins: [{ paths: ["./package/index.ts"] }],
+				},
+			}),
+		);
+		await writeFile(pluginPath, "export default {};");
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: test-plugin-skill-owner
+description: Browser agent
+---
+Use the browser.`,
+		);
+
+		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+
+		expect(snapshot.skills).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "test-plugin-skill-owner",
+					name: "test-plugin-skill-owner",
+					source: "workspace-plugin",
+					pluginName: "test-plugin-skill-owner",
+					pluginPath,
+					enabled: true,
+				}),
+			]),
+		);
+	});
+
+	it("does not list skills from disabled plugins", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-plugin-skills-"),
+		);
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		const installRoot = join(
+			tempRoot,
+			".cline",
+			"plugins",
+			"_installed",
+			"local",
+			"test-plugin-skill-disabled",
+		);
+		const packageRoot = join(installRoot, "package");
+		const pluginPath = join(packageRoot, "index.ts");
+		const skillDir = join(packageRoot, "skills", "test-plugin-skill-disabled");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(installRoot, "package.json"),
+			JSON.stringify({
+				name: "test-plugin-skill-disabled",
+				cline: {
+					plugins: [{ paths: ["./package/index.ts"] }],
+				},
+			}),
+		);
+		await writeFile(pluginPath, "export default {};");
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: test-plugin-skill-disabled
+description: Browser agent
+---
+Use the browser.`,
+		);
+		await writeFile(
+			settingsPath,
+			JSON.stringify({ disabledPlugins: [pluginPath] }),
+		);
+
+		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+
+		expect(snapshot.skills).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "test-plugin-skill-disabled",
+					pluginPath,
 				}),
 			]),
 		);
@@ -287,6 +401,7 @@ Use this skill.`,
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
 		).toEqual({
+			autoUpdateEnabled: true,
 			disabledTools: ["plugin-tool"],
 			telemetryOptOut: false,
 		});
@@ -297,6 +412,6 @@ Use this skill.`,
 			JSON.parse(
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
-		).toEqual({ telemetryOptOut: false });
+		).toEqual({ autoUpdateEnabled: true, telemetryOptOut: false });
 	});
 });

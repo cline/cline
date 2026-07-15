@@ -1,8 +1,15 @@
 import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	type CaptureAgentUnexpectedReasoningTokensInput,
+	captureAgentUnexpectedReasoningTokens,
 	type ITelemetryService,
 	SDK_ERROR_TELEMETRY_EVENT,
 	type TelemetryProperties,
 } from "@cline/shared";
+import type {
+	CoreCompactionBudgetPolicyIntent,
+	CoreCompactionLiveTailHandling,
+} from "../../types/config";
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
@@ -33,11 +40,15 @@ export const CORE_TELEMETRY_EVENTS = {
 		STARTED: "session.started",
 		ENDED: "session.ended",
 	},
+	AGENT: {
+		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	},
 	USER: {
 		AUTH_STARTED: "user.auth_started",
 		AUTH_SUCCEEDED: "user.auth_succeeded",
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
+		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
 		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
@@ -61,6 +72,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		SUBAGENT_COMPLETED: "task.subagent_completed",
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
+		COMPACTION_BUDGET_EMERGENCY: "task.compaction_budget_emergency",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -73,6 +85,9 @@ export const CORE_TELEMETRY_EVENTS = {
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
+	},
+	FEATURE_FLAGS: {
+		FLAG_CALLED: "$feature_flag_called",
 	},
 } as const;
 
@@ -92,6 +107,11 @@ export interface RunCommandsTimeoutTelemetryProperties {
 	iteration?: number;
 	tool_call_id?: string;
 }
+
+export {
+	captureAgentUnexpectedReasoningTokens,
+	type CaptureAgentUnexpectedReasoningTokensInput,
+};
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
@@ -233,10 +253,40 @@ export function captureAuthLoggedOut(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	reason?: string,
+	details?: { status?: number; errorCode?: string },
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
 		provider,
 		reason,
+		status: details?.status,
+		errorCode: details?.errorCode,
+	});
+}
+
+/**
+ * Fires when a token refresh fails for a reason that does NOT invalidate the
+ * session (network error, timeout, 5xx) and stored credentials were kept.
+ * Before the transient-vs-invalid_grant fix, `tokenExpired: true` instances
+ * were misclassified as invalid grants and wiped stored credentials — this
+ * event is the "prevented logout" counter for tracking that fix in
+ * production.
+ */
+export function captureAuthRefreshSoftFailure(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: {
+		status?: number;
+		errorCode?: string;
+		errorName?: string;
+		tokenExpired?: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
+		provider,
+		status: details?.status,
+		errorCode: details?.errorCode,
+		errorName: details?.errorName,
+		tokenExpired: details?.tokenExpired,
 	});
 }
 
@@ -283,6 +333,7 @@ export function identifyAccount(
 		telemetry?.setDistinctId(distinctId);
 	}
 	telemetry?.updateCommonProperties({
+		user_id: distinctId || account.id,
 		account_id: account.id,
 		account_email: account.email,
 		provider: account.provider,
@@ -608,7 +659,7 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * Trigger mode for a compaction attempt.
  *
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
- *   when input tokens exceed the configured threshold.
+ *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
  */
 export type TelemetryCompactionMode = "auto" | "manual";
@@ -620,6 +671,7 @@ export interface CaptureCompactionExecutedProperties {
 	messagesBefore: number;
 	messagesAfter: number;
 	messagesRemoved: number;
+	/** Full-request token estimates, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	tokensAfter: number;
 	tokensSaved: number;
@@ -659,6 +711,7 @@ export interface CaptureCompactionSkippedProperties {
 	 * be introduced without changing the schema.
 	 */
 	reason: string;
+	/** Full-request token estimate, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	triggerTokens: number;
 	maxInputTokens: number;
@@ -674,6 +727,29 @@ export function captureCompactionSkipped(
 		Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureCompactionBudgetEmergencyProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	policyIntent: CoreCompactionBudgetPolicyIntent;
+	actionCount: number;
+	warningCount: number;
+	liveTailHandling: CoreCompactionLiveTailHandling;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionBudgetEmergency(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionBudgetEmergencyProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_BUDGET_EMERGENCY, {
 		...properties,
 		timestamp: new Date().toISOString(),
 	});

@@ -28,5 +28,13 @@ export function getShellArgs(shell: string, command: string): string[] {
 		return ["/d", "/s", "/c", command];
 	}
 
+	// wsl.exe is the Windows launcher for the default WSL distro, not a shell
+	// itself. Run the command through the guest's bash so operators like `|`
+	// and `;` are handled by bash rather than treated as wsl.exe arguments.
+	// wsl.exe translates the Windows cwd to its /mnt mount automatically.
+	if (shellName === "wsl" || shellName === "wsl.exe") {
+		return ["bash", "-c", command];
+	}
+
 	return ["-c", command];
 }

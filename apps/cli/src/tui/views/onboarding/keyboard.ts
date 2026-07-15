@@ -3,10 +3,15 @@ import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ClineModelPickerEntry } from "../../components/model-selector/cline-model-picker";
 import type { SearchableListState } from "../../components/searchable-list";
-import type { OnboardingOAuthProviderId } from "./auth";
+import {
+	isOnboardingOAuthProviderId,
+	type OnboardingOAuthProviderId,
+} from "./auth";
 import { FIELD_ORDER } from "./fields";
 import {
-	MAIN_MENU,
+	type ClinePassSubscriptionOption,
+	type ClinePassSubscriptionStatus,
+	type MenuOption,
 	type OnboardingStep,
 	THINKING_LEVELS,
 	type ThinkingLevel,
@@ -17,11 +22,15 @@ export function useOnboardingKeyboard(input: {
 	onExit: () => void;
 	oauthProvider: string;
 	activeProviderId: string;
+	menuOptions: MenuOption[];
 	menuSelected: number;
 	providerList: SearchableListState;
 	modelList: SearchableListState;
 	clineEntries: ClineModelPickerEntry[];
 	clineModelSelected: number;
+	clinePassSubscriptionStatus: ClinePassSubscriptionStatus;
+	clinePassSubscriptionOptions: ClinePassSubscriptionOption[];
+	clinePassSubscriptionSelected: number;
 	thinkingSelected: number;
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
@@ -34,7 +43,11 @@ export function useOnboardingKeyboard(input: {
 	setDeviceError: (value: string) => void;
 	setDeviceStatus: (value: string) => void;
 	setClineModelSelected: Dispatch<SetStateAction<number>>;
+	setClinePassSubscriptionSelected: Dispatch<SetStateAction<number>>;
 	setThinkingSelected: Dispatch<SetStateAction<number>>;
+	continueFromClinePassSubscription: () => void;
+	refreshClinePassSubscriptionStatus: () => void;
+	openClinePassSubscriptionPage: () => void;
 	abortOAuth: () => void;
 	abortDeviceCode: () => void;
 	resetAuth: () => void;
@@ -89,6 +102,11 @@ export function useOnboardingKeyboard(input: {
 				input.setStep("byo_provider");
 				return;
 			}
+			if (input.step === "cline_pass_subscription") {
+				input.setStep("menu");
+				input.setMenuSelected(0);
+				return;
+			}
 			if (input.step === "cline_model") {
 				input.setStep("menu");
 				input.setMenuSelected(0);
@@ -131,19 +149,60 @@ export function useOnboardingKeyboard(input: {
 
 		if (input.step === "device_code") return;
 
+		if (input.step === "cline_pass_subscription") {
+			const total = input.clinePassSubscriptionOptions.length;
+			if (total === 0) return;
+			if (key.name === "up" || (key.ctrl && key.name === "p")) {
+				input.setClinePassSubscriptionSelected((s) =>
+					s <= 0 ? total - 1 : s - 1,
+				);
+				return;
+			}
+			if (key.name === "down" || (key.ctrl && key.name === "n")) {
+				input.setClinePassSubscriptionSelected((s) =>
+					s >= total - 1 ? 0 : s + 1,
+				);
+				return;
+			}
+			if (key.name === "return" || key.name === "enter") {
+				const option =
+					input.clinePassSubscriptionOptions[
+						Math.min(input.clinePassSubscriptionSelected, total - 1)
+					];
+				if (!option) return;
+				if (option.value === "subscribe") {
+					input.openClinePassSubscriptionPage();
+				} else if (option.value === "refresh") {
+					if (input.clinePassSubscriptionStatus !== "loading") {
+						input.refreshClinePassSubscriptionStatus();
+					}
+				} else if (option.value === "skip") {
+					input.continueFromClinePassSubscription();
+				} else if (option.value === "back") {
+					input.setStep("menu");
+					input.setMenuSelected(0);
+				}
+			}
+			return;
+		}
+
 		if (input.step === "menu") {
 			if (key.name === "up") {
-				input.setMenuSelected((s) => (s <= 0 ? MAIN_MENU.length - 1 : s - 1));
+				input.setMenuSelected((s) =>
+					s <= 0 ? input.menuOptions.length - 1 : s - 1,
+				);
 				return;
 			}
 			if (key.name === "down") {
-				input.setMenuSelected((s) => (s >= MAIN_MENU.length - 1 ? 0 : s + 1));
+				input.setMenuSelected((s) =>
+					s >= input.menuOptions.length - 1 ? 0 : s + 1,
+				);
 				return;
 			}
 			if (key.name === "return") {
-				const option = MAIN_MENU[input.menuSelected];
+				const option = input.menuOptions[input.menuSelected];
 				if (!option) return;
-				if (option.value === "cline" || option.value === "openai-codex") {
+				if (isOnboardingOAuthProviderId(option.value)) {
 					input.startOAuthFlow(option.value);
 				} else {
 					input.setStep("byo_provider");

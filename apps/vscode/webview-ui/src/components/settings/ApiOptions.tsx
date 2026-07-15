@@ -1,15 +1,17 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import PROVIDERS from "@shared/providers/providers.json"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { useProviderListings } from "@/hooks/useProviderListings"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
@@ -17,41 +19,36 @@ import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
-import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
+import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
-import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { DifyProvider } from "./providers/DifyProvider"
-import { DoubaoProvider } from "./providers/DoubaoProvider"
-import { FireworksProvider } from "./providers/FireworksProvider"
-import { GeminiProvider } from "./providers/GeminiProvider"
+import { GenericProviderSettings } from "./providers/GenericProviderSettings"
 import { GroqProvider } from "./providers/GroqProvider"
 import { HicapProvider } from "./providers/HicapProvider"
-import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
 import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
-import { MinimaxProvider } from "./providers/MiniMaxProvider"
-import { MistralProvider } from "./providers/MistralProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
-import { NebiusProvider } from "./providers/NebiusProvider"
-import { NousResearchProvider } from "./providers/NousresearchProvider"
 import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
+import {
+	getFallbackGenericProviderSettings,
+	getGenericProviderSettings,
+	hasCustomProviderSettings,
+	isKnownGenericProvider,
+} from "./providers/providerSettingsRegistry"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
-import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { TogetherProvider } from "./providers/TogetherProvider"
 import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
-import { WandbProvider } from "./providers/WandbProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
@@ -99,8 +96,27 @@ const ApiOptions = ({
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
+	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const selectedProviderRaw =
+		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
+	// Fall back from cline-pass to cline when the feature flag is off.
+	const selectedProvider = selectedProviderRaw === "cline-pass" && !isClinePassEnabled ? "cline" : selectedProviderRaw
+	const { providers: catalogProviderListings } = useProviderListings()
+	const catalogProviderListing = useMemo(
+		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
+		[catalogProviderListings, selectedProvider],
+	)
+	// A provider is custom/unknown when we ship neither a dedicated settings
+	// component nor a curated generic form for it. These are edited through the
+	// OpenAI-compatible form so they always get Base URL, Custom Headers, Model
+	// Configuration and Reasoning Effort sections — regardless of whether the id
+	// happens to appear in providers.json.
+	const isCustomProvider = !hasCustomProviderSettings(selectedProvider) && !isKnownGenericProvider(selectedProvider)
+	const genericProviderSettings = isCustomProvider
+		? undefined
+		: (getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
+			getFallbackGenericProviderSettings(selectedProvider))
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -140,7 +156,16 @@ const ApiOptions = ({
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const providerOptions = useMemo(() => {
-		let providers = PROVIDERS.list
+		// Source the list from the live SDK provider catalog (same data the
+		// hub client uses) so user-configured/custom providers appear too,
+		// instead of a static hand-maintained list.
+		let providers = catalogProviderListings.map((provider) => ({
+			value: provider.id,
+			label: provider.name,
+		}))
+		if (!isClinePassEnabled) {
+			providers = providers.filter((option) => option.value !== "cline-pass")
+		}
 		// Filter by platform
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
@@ -154,7 +179,7 @@ const ApiOptions = ({
 		}
 
 		return providers
-	}, [remoteConfigSettings])
+	}, [catalogProviderListings, isClinePassEnabled, remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -267,7 +292,13 @@ const ApiOptions = ({
 	*/
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: 5,
+				marginBottom: isPopup ? -10 : 0,
+			}}>
 			<style>
 				{`
 				.provider-item-highlight {
@@ -368,6 +399,10 @@ const ApiOptions = ({
 				/>
 			)}
 
+			{apiConfiguration && isClinePassEnabled && selectedProvider === "cline-pass" && (
+				<ClinePassProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
 			{apiConfiguration && selectedProvider === "asksage" && (
 				<AskSageProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
@@ -396,36 +431,21 @@ const ApiOptions = ({
 				<QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "doubao" && (
-				<DoubaoProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "mistral" && (
-				<MistralProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "openrouter" && (
 				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "deepseek" && (
-				<DeepSeekProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			{apiConfiguration && genericProviderSettings && (
+				<GenericProviderSettings
+					{...genericProviderSettings}
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "together" && (
-				<TogetherProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
+			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && !genericProviderSettings && (
 				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "bedrock" && (
@@ -436,24 +456,16 @@ const ApiOptions = ({
 				<VertexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "gemini" && (
-				<GeminiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "requesty" && (
 				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "fireworks" && (
-				<FireworksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
 
-			{apiConfiguration && selectedProvider === "groq" && (
+			{apiConfiguration && selectedProvider === "groq" && !genericProviderSettings && (
 				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
-			{apiConfiguration && selectedProvider === "baseten" && (
+			{apiConfiguration && selectedProvider === "baseten" && !genericProviderSettings && (
 				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
@@ -472,32 +484,16 @@ const ApiOptions = ({
 				<MoonshotProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "huggingface" && (
+			{apiConfiguration && selectedProvider === "huggingface" && !genericProviderSettings && (
 				<HuggingFaceProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "nebius" && (
-				<NebiusProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "wandb" && (
-				<WandbProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "xai" && (
 				<XaiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "cerebras" && (
-				<CerebrasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "sapaicore" && (
 				<SapAiCoreProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
-				<HuaweiCloudMaasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "dify" && (
@@ -508,18 +504,19 @@ const ApiOptions = ({
 				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "minimax" && (
-				<MinimaxProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "nousResearch" && (
-				<NousResearchProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
 
 			{apiConfiguration && selectedProvider === "aihubmix" && (
 				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && (selectedProvider.includes("openai") || isCustomProvider) && (
+				<OpenAICompatibleProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					providerId={selectedProvider}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiErrorMessage && (

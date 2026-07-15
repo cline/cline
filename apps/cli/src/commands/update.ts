@@ -2,11 +2,14 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import {
 	clearHubDiscovery,
+	isAutoUpdateEnabledGlobally,
 	probeHubServer,
 	readHubDiscovery,
+	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
+import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
@@ -115,7 +118,12 @@ export function getInstallationInfo(currentVersion: string): InstallationInfo {
 				updateCommand: `yarn global add ${DEFAULT_PACKAGE_NAME}@${tag}`,
 			};
 		}
-		if (scriptPath.includes("/.bun/bin")) {
+		// `bun add -g` symlinks bins into ~/.bun/bin, but realpathSync resolves
+		// them to ~/.bun/install/global/node_modules/..., so match both.
+		if (
+			scriptPath.includes("/.bun/bin") ||
+			scriptPath.includes("/.bun/install/global/")
+		) {
 			return {
 				packageManager: PackageManager.BUN,
 				packageName: DEFAULT_PACKAGE_NAME,
@@ -268,13 +276,22 @@ export function getPreferredKanbanInstaller(
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+export function resolveCliHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
 async function waitForHubToStop(
 	url: string,
+	authToken: string | undefined,
 	timeoutMs: number,
 ): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const check = await probeHubServer(url).catch(() => undefined);
+		const check = await probeHubServer(url, { authToken }).catch(
+			() => undefined,
+		);
 		if (!check?.url) return true;
 		await sleep(100);
 	}
@@ -287,20 +304,22 @@ async function waitForHubToStop(
  * clears stale discovery, then re-ensures a fresh instance is spawned.
  */
 async function restartHubServerIfRunning(): Promise<void> {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath).catch(
 		() => undefined,
 	);
 
 	const health = discovery?.url
-		? await probeHubServer(discovery.url).catch(() => undefined)
+		? await probeHubServer(discovery.url, {
+				authToken: discovery.authToken,
+			}).catch(() => undefined)
 		: undefined;
-	if (!health?.url) return;
+	if (!discovery || !health?.url) return;
 
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
 
-	let stopped = await stopLocalHubServerGracefully().catch(() => false);
+	let stopped = await stopLocalHubServerGracefully(owner).catch(() => false);
 	if (!stopped && pid) {
 		try {
 			process.kill(pid, "SIGTERM");
@@ -309,14 +328,14 @@ async function restartHubServerIfRunning(): Promise<void> {
 		}
 	}
 
-	stopped = await waitForHubToStop(health.url, 3_000);
+	stopped = await waitForHubToStop(health.url, discovery.authToken, 3_000);
 	if (!stopped && pid) {
 		try {
 			process.kill(pid, "SIGKILL");
 		} catch {
 			// best-effort
 		}
-		stopped = await waitForHubToStop(health.url, 2_000);
+		stopped = await waitForHubToStop(health.url, discovery.authToken, 2_000);
 	}
 
 	await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
@@ -340,6 +359,7 @@ async function restartHubServerIfRunning(): Promise<void> {
 export function autoUpdateOnStartup(): void {
 	if (process.env.IS_DEV === "true") return;
 	if (process.env.CLINE_NO_AUTO_UPDATE === "1") return;
+	if (!isAutoUpdateEnabledGlobally()) return;
 
 	const { packageName, packageManager, updateCommand } =
 		getInstallationInfo(version);
@@ -360,6 +380,9 @@ export function autoUpdateOnStartup(): void {
 				env: autoUpdateCommand.env
 					? { ...process.env, ...autoUpdateCommand.env }
 					: process.env,
+				// Prevent a console window from flashing on Windows; detached
+				// processes otherwise allocate a new visible console.
+				windowsHide: true,
 			});
 			const exitCode = await waitForProcessExit(child);
 			if (exitCode === 0) {

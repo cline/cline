@@ -2,7 +2,6 @@ import {
 	captureProviderConfigured,
 	getLocalProviderModels,
 	getProviderConfigFields,
-	listLocalProviders,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFields,
 	ProviderSettingsManager,
@@ -10,16 +9,27 @@ import {
 	resolveProviderConfig,
 	saveLocalProviderSettings,
 } from "@cline/core";
+import { isClineProvider } from "@cline/shared";
+import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	getCliSubscriptionUrl,
+	getIndividualPlanFeatures,
+} from "../../../utils/cline-pass-errors";
 import {
 	type CodexCliStatus,
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
+import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
-	buildClineModelEntries,
+	loadCurrentUserPlanFromProviderSettings,
+	loadIndividualSubscriptionPlansFromProviderSettings,
+} from "../../cline-account";
+import {
+	buildFeaturedModelEntries,
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
@@ -32,6 +42,7 @@ import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAzure,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -45,11 +56,16 @@ import {
 import { FIELD_ORDER } from "./fields";
 import { useOnboardingKeyboard } from "./keyboard";
 import {
+	CLINE_PASS_SUBSCRIPTION_OPTIONS,
+	type ClinePassSubscriptionStatus,
+	DEFAULT_THINKING_LEVEL_INDEX,
+	getMainMenuOptions,
 	type ModelEntry,
 	type OnboardingResult,
 	type OnboardingStep,
 	type ProviderEntry,
 	type ReasoningEffort,
+	shouldUseFeaturedClineModelPicker,
 	type ThinkingLevel,
 	toModelEntriesFromKnownModels,
 	toModelEntry,
@@ -69,6 +85,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const providerSettingsManager = useMemo(
 		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
 		[props.providerSettingsManager],
+	);
+	const menuOptions = useMemo(
+		() =>
+			getMainMenuOptions({
+				isClinePassEnabled: true,
+			}),
+		[],
 	);
 	const [step, setStep] = useState<OnboardingStep>("menu");
 	const [menuSelected, setMenuSelected] = useState(0);
@@ -137,6 +160,19 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [modelsDefaultId, setModelsDefaultId] = useState("");
 	const [customModelId, setCustomModelId] = useState("");
 	const [customModelError, setCustomModelError] = useState("");
+	const [clinePassSubscriptionStatus, setClinePassSubscriptionStatus] =
+		useState<ClinePassSubscriptionStatus>("loading");
+	const [clinePassSubscriptionError, setClinePassSubscriptionError] =
+		useState("");
+	const [clinePassCurrentPlanName, setClinePassCurrentPlanName] = useState("");
+	const [clinePassPlanFeatures, setClinePassPlanFeatures] = useState<string[]>(
+		[],
+	);
+	const [clinePassSubscriptionSelected, setClinePassSubscriptionSelected] =
+		useState(0);
+	const [clinePassSubscriptionOpenStatus, setClinePassSubscriptionOpenStatus] =
+		useState("");
+	const clinePassSubscriptionUrl = useMemo(() => getCliSubscriptionUrl(), []);
 
 	const modelItems: SearchableItem[] = useMemo(
 		() =>
@@ -152,6 +188,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const createCustomModelItem = useCallback(
 		(_search: string, filteredItems: SearchableItem[]) => {
+			if (activeProviderId === "cline-pass") {
+				return undefined;
+			}
 			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
 				return undefined;
 			}
@@ -162,16 +201,19 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				searchText: "create custom model id manual entry",
 			} satisfies SearchableItem;
 		},
-		[],
+		[activeProviderId],
 	);
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
 
-	// Cline featured model picker
+	// Cline featured model picker (ClinePass gets Subscribed/Free sections)
 	const recommended = useClineRecommendedModels();
 	const clineEntries: ClineModelPickerEntry[] = useMemo(
-		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
-		[recommended.data],
+		() =>
+			recommended.data
+				? buildFeaturedModelEntries(activeProviderId, recommended.data)
+				: [],
+		[recommended.data, activeProviderId],
 	);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
@@ -182,24 +224,43 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	>(undefined);
 
 	useEffect(() => {
-		getLocalProviderModels("cline")
-			.then(({ models }) => {
-				const ids = new Set<string>();
-				for (const m of models) {
+		// The featured picker serves both cline and cline-pass, so pool reasoning
+		// support and display names from both catalogs
+		void Promise.allSettled(
+			["cline", "cline-pass"].map((providerId) =>
+				getLocalProviderModels(providerId),
+			),
+		).then((results) => {
+			const ids = new Set<string>();
+			for (const result of results) {
+				if (result.status !== "fulfilled") continue;
+				for (const m of result.value.models) {
 					if (m.supportsReasoning) ids.add(m.id);
 				}
-				setClineModelReasoningIds(ids);
-			})
-			.catch(() => {});
-		resolveProviderConfig("cline")
-			.then((resolved) => {
-				if (resolved?.knownModels) setClineKnownModels(resolved.knownModels);
-			})
-			.catch(() => {});
+			}
+			setClineModelReasoningIds(ids);
+		});
+		void Promise.allSettled(
+			["cline", "cline-pass"].map((providerId) =>
+				resolveProviderConfig(providerId),
+			),
+		).then((results) => {
+			const merged: Record<string, unknown> = {};
+			for (const result of results) {
+				if (result.status === "fulfilled" && result.value?.knownModels) {
+					Object.assign(merged, result.value.knownModels);
+				}
+			}
+			if (Object.keys(merged).length > 0) {
+				setClineKnownModels(merged);
+			}
+		});
 	}, []);
 
 	// Thinking level
-	const [thinkingSelected, setThinkingSelected] = useState(0);
+	const [thinkingSelected, setThinkingSelected] = useState(
+		DEFAULT_THINKING_LEVEL_INDEX,
+	);
 	const [selectedModelName, setSelectedModelName] = useState("");
 	const [selectedModelId, setSelectedModelId] = useState("");
 	const [selectedThinking, setSelectedThinking] = useState(false);
@@ -249,13 +310,69 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		[providerSettingsManager],
 	);
 
+	const refreshClinePassSubscriptionStatus = useCallback(() => {
+		setClinePassSubscriptionStatus("loading");
+		setClinePassSubscriptionError("");
+		setClinePassCurrentPlanName("");
+		setClinePassSubscriptionOpenStatus("");
+
+		loadCurrentUserPlanFromProviderSettings({ providerSettingsManager })
+			.then(
+				(value) => ({ status: "fulfilled" as const, value }),
+				(reason) => ({ status: "rejected" as const, reason }),
+			)
+			.then((currentPlanResult) =>
+				loadIndividualSubscriptionPlansFromProviderSettings({
+					providerSettingsManager,
+				})
+					.then(
+						(value) => ({ status: "fulfilled" as const, value }),
+						(reason) => ({ status: "rejected" as const, reason }),
+					)
+					.then((availablePlansResult) => ({
+						availablePlansResult,
+						currentPlanResult,
+					})),
+			)
+			.then(({ currentPlanResult, availablePlansResult }) => {
+				if (availablePlansResult.status === "fulfilled") {
+					setClinePassPlanFeatures(
+						getIndividualPlanFeatures(availablePlansResult.value),
+					);
+				}
+
+				if (currentPlanResult.status === "rejected") {
+					const error = currentPlanResult.reason;
+					const message =
+						error instanceof Error ? error.message : String(error);
+					if (message.trim().toLowerCase() === "no plan found for user") {
+						setClinePassSubscriptionStatus("unsubscribed");
+						return;
+					}
+					setClinePassSubscriptionError(message);
+					setClinePassSubscriptionStatus("error");
+					return;
+				}
+
+				const plan = currentPlanResult.value?.plan;
+				if (plan) {
+					setClinePassCurrentPlanName(
+						plan.displayName || plan.name || plan.id || "ClinePass",
+					);
+					setClinePassSubscriptionStatus("subscribed");
+				} else {
+					setClinePassSubscriptionStatus("unsubscribed");
+				}
+			});
+	}, [providerSettingsManager]);
+
 	const transitionToModelPicker = useCallback(
 		(providerId: string) => {
 			setActiveProviderId(providerId);
 			const provider = providers.find((p) => p.id === providerId);
 			setActiveProviderName(provider?.name ?? providerId);
 			setModelsDefaultId(provider?.defaultModelId ?? "");
-			if (providerId === "cline") {
+			if (shouldUseFeaturedClineModelPicker(providerId)) {
 				setClineModelSelected(0);
 				setStep("cline_model");
 			} else if (providerId === "openai-compatible") {
@@ -270,6 +387,27 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			}
 		},
 		[providers, loadModelsForProvider, providerSettingsManager],
+	);
+
+	const transitionToClinePassSubscription = useCallback(() => {
+		setActiveProviderId("cline-pass");
+		const provider = providers.find((p) => p.id === "cline-pass");
+		setActiveProviderName(provider?.name ?? "ClinePass");
+		setModelsDefaultId(provider?.defaultModelId ?? "");
+		setClinePassSubscriptionSelected(0);
+		setStep("cline_pass_subscription");
+		refreshClinePassSubscriptionStatus();
+	}, [providers, refreshClinePassSubscriptionStatus]);
+
+	const handleAuthComplete = useCallback(
+		(providerId: OnboardingOAuthProviderId) => {
+			if (providerId === "cline-pass") {
+				transitionToClinePassSubscription();
+				return;
+			}
+			transitionToModelPicker(providerId);
+		},
+		[transitionToClinePassSubscription, transitionToModelPicker],
 	);
 
 	const resetAuth = useCallback(() => {
@@ -297,16 +435,16 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setVerifyUrl: setDeviceVerifyUrl,
 				setStatus: setDeviceStatus,
 				setError: setDeviceError,
-				onComplete: transitionToModelPicker,
+				onComplete: handleAuthComplete,
 				telemetry: getCliTelemetryService(),
 			});
 		},
-		[providerSettingsManager, transitionToModelPicker],
+		[providerSettingsManager, handleAuthComplete],
 	);
 
 	const startOAuthFlow = useCallback(
 		(providerId: OnboardingOAuthProviderId) => {
-			if (providerId === "cline") {
+			if (isClineProvider(providerId)) {
 				startDeviceCodeFlow(providerId);
 				return;
 			}
@@ -323,17 +461,45 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setStatus: setAuthStatus,
 				setAuthUrl,
 				setError: setAuthError,
-				onComplete: transitionToModelPicker,
+				onComplete: handleAuthComplete,
 				telemetry: getCliTelemetryService(),
 			});
 		},
 		[
 			providerSettingsManager,
 			resetAuth,
-			transitionToModelPicker,
+			handleAuthComplete,
 			startDeviceCodeFlow,
 		],
 	);
+
+	const continueFromClinePassSubscription = useCallback(() => {
+		transitionToModelPicker("cline-pass");
+	}, [transitionToModelPicker]);
+
+	const openClinePassSubscriptionPage = useCallback(() => {
+		setClinePassSubscriptionOpenStatus("Opening subscription page...");
+		void open(clinePassSubscriptionUrl, { wait: false })
+			.then(() => {
+				setClinePassSubscriptionOpenStatus(
+					"Opened subscription page in your browser.",
+				);
+			})
+			.catch(() => {
+				setClinePassSubscriptionOpenStatus(
+					`Could not open browser automatically. Open ${clinePassSubscriptionUrl}`,
+				);
+			});
+	}, [clinePassSubscriptionUrl]);
+
+	useEffect(() => {
+		if (
+			step === "cline_pass_subscription" &&
+			clinePassSubscriptionStatus === "subscribed"
+		) {
+			transitionToModelPicker("cline-pass");
+		}
+	}, [step, clinePassSubscriptionStatus, transitionToModelPicker]);
 
 	const refreshCodexCliStatus = useCallback(() => {
 		setCodexCliStatus(undefined);
@@ -381,6 +547,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 					existing?.baseUrl?.trim() ??
 					config.fields.baseUrl?.defaultValue ??
 					"";
+			}
+			if (config.fields.azureApiVersion) {
+				initialValues.azureApiVersion =
+					existing?.azure?.apiVersion?.trim() ?? "";
 			}
 			if (config.fields.awsRegion) {
 				const existingProfile = existing?.aws?.profile?.trim() ?? "";
@@ -444,6 +614,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		// surfaced when the model picker / first turn runs.
 		const apiKey = byoValues.apiKey?.trim();
 		const awsProfile = byoValues.awsProfile?.trim();
+		const hasAzureFields = byoFields.azureApiVersion;
 		const hasAwsFields = byoFields.awsRegion || byoFields.awsProfile;
 		const hasSapFields =
 			byoFields.sapClientId ||
@@ -456,6 +627,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			providerId: activeProviderId,
 			apiKey: byoFields.apiKey ? apiKey : undefined,
 			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
+			azure: hasAzureFields ? resolveProviderConfigAzure(byoValues) : undefined,
 			aws: hasAwsFields
 				? {
 						region: resolveProviderConfigAwsRegion(byoValues),
@@ -492,7 +664,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			const entry = modelEntries.find((m) => m.id === modelId);
 			if (entry?.supportsReasoning) {
 				setSelectedModelName(entry.name);
-				setThinkingSelected(0);
+				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
 				setStep("thinking_level");
 			} else {
 				setStep("done");
@@ -542,7 +714,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
-				setThinkingSelected(0);
+				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
 				setStep("thinking_level");
 			} else {
 				setStep("done");
@@ -604,11 +776,15 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		onExit: props.onExit,
 		oauthProvider,
 		activeProviderId,
+		menuOptions,
 		menuSelected,
 		providerList,
 		modelList,
 		clineEntries,
 		clineModelSelected,
+		clinePassSubscriptionStatus,
+		clinePassSubscriptionOptions: CLINE_PASS_SUBSCRIPTION_OPTIONS,
+		clinePassSubscriptionSelected,
 		thinkingSelected,
 		setStep,
 		setMenuSelected,
@@ -625,7 +801,11 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		setDeviceError,
 		setDeviceStatus,
 		setClineModelSelected,
+		setClinePassSubscriptionSelected,
 		setThinkingSelected,
+		continueFromClinePassSubscription,
+		refreshClinePassSubscriptionStatus,
+		openClinePassSubscriptionPage,
 		abortOAuth: () => {
 			authAbortRef.current = true;
 		},
@@ -647,6 +827,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	return {
 		activeProviderName,
+		activeProviderId,
 		authError,
 		authStatus,
 		authUrl,
@@ -659,6 +840,14 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		clineEntries,
 		clineKnownModels,
 		clineModelSelected,
+		clinePassCurrentPlanName,
+		clinePassPlanFeatures,
+		clinePassSubscriptionError,
+		clinePassSubscriptionOpenStatus,
+		clinePassSubscriptionOptions: CLINE_PASS_SUBSCRIPTION_OPTIONS,
+		clinePassSubscriptionSelected,
+		clinePassSubscriptionStatus,
+		clinePassSubscriptionUrl,
 		deviceError,
 		deviceStatus,
 		deviceUserCode,
@@ -678,6 +867,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		},
 		handleModelItemSelect: selectModelItem,
 		menuSelected,
+		menuOptions,
 		modelItems,
 		modelList,
 		modelsLoading,

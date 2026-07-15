@@ -4,9 +4,9 @@ import {
 	getLocalProviderModels,
 	Llms,
 	listLocalProviders,
-	loginLocalProvider,
+	loginAndSaveLocalProviderOAuthCredentials,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
-	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 } from "@cline/core";
 import type {
@@ -100,7 +100,9 @@ export async function sendProviderCatalog(
 	peer: BrowserPeer,
 ): Promise<void> {
 	await ensureCustomProvidersLoaded(providerSettingsManager);
-	const payload = await listLocalProviders(providerSettingsManager);
+	const payload = await listLocalProviders(providerSettingsManager, {
+		isClinePassEnabled: true,
+	});
 	ctx.send(peer, {
 		type: "provider_catalog",
 		providers: payload.providers,
@@ -134,18 +136,16 @@ export async function runProviderOAuthLogin(
 	providerId: string,
 ): Promise<void> {
 	const normalized = normalizeOAuthProvider(providerId);
-	const existing = providerSettingsManager.getProviderSettings(normalized);
-	const credentials = await loginLocalProvider(
-		normalized,
-		existing,
-		openExternalUrl,
-	);
-	const saved = saveLocalProviderOAuthCredentials(
+	const saved = await loginAndSaveLocalProviderOAuthCredentials(
 		providerSettingsManager,
 		normalized,
-		existing,
-		credentials,
+		openExternalUrl,
 	);
+	if (saved.provider !== normalized) {
+		markLocalProviderEnabled(providerSettingsManager, normalized, {
+			tokenSource: "oauth",
+		});
+	}
 	ctx.send(peer, {
 		type: "provider_oauth_login_done",
 		providerId: normalized,

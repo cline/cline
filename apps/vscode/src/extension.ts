@@ -8,12 +8,12 @@ import { Logger } from "@/shared/services/Logger"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendMarketplaceButtonClickedEvent } from "./core/controller/ui/subscribeToMarketplaceButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
-import { initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
@@ -45,17 +45,21 @@ import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
-import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
+import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
-import { AuthService } from "./services/auth/AuthService"
-import { LogoutReason } from "./services/auth/types"
+import { AuthService, LogoutReason } from "./sdk/auth-service"
 import { telemetryService } from "./services/telemetry"
+import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
+export async function reportRolloutActivation(input: RolloutBundleActivation): Promise<void> {
+	await telemetryService.captureRolloutBundleActivated(input)
+}
 
 // This method is called when the VS Code extension is activated.
 // NOTE: This is VS Code specific - services that should be registered
@@ -83,13 +87,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
 
 	// 5. Register services and commands specific to VS Code
-	// Initialize test mode and add disposables to context
-	const testModeWatchers = await initializeTestMode(webview)
-	context.subscriptions.push(...testModeWatchers)
-
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
-		context as any, // Adapt VSCode ExtensionContext to generic interface
+		// biome-ignore lint/suspicious/noExplicitAny: Adapt VSCode ExtensionContext to generic interface
+		context as any,
 		(dir: string) => {
 			try {
 				const pattern = new vscode.RelativePattern(dir, "*")
@@ -127,12 +128,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
 			const sidebarInstance = WebviewProvider.getInstance()
+			telemetryService.captureNewTaskClicked("activity_bar_plus", !!sidebarInstance.controller.task)
 			await sidebarInstance.controller.clearTask()
 			await sidebarInstance.controller.postStateToWebview()
 			await sendChatButtonClickedEvent()
 		}),
 	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.MarketplaceButton, () => sendMarketplaceButtonClickedEvent()),
+	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.SettingsButton, () => sendSettingsButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.HistoryButton, () => sendHistoryButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
@@ -158,6 +163,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
+	// Edit previews use a separate, mutable provider (content set programmatically and
+	// re-rendered via onDidChange) so the diff's right side can play the simulated
+	// streaming animation. See VscodeEditPreview.
+	context.subscriptions.push(
+		vscode.workspace.registerTextDocumentContentProvider(EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider),
+	)
+
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
 		const uriPath = getUriPath(url)
@@ -181,6 +193,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
+	// Debug-harness affordance: VSCode only delivers real vscode:// URIs to the
+	// registered handler above, which the harness can't synthesize. When running
+	// under browser-capture (debug harness) mode, expose the same handler on
+	// globalThis so the harness can deliver simulated OAuth callbacks via
+	// `ext.evaluate`. Gated on CLINE_CAPTURE_BROWSER so it never ships in prod.
+	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
+		;(globalThis as Record<string, unknown>).__clineHandleUri = (url: string) => SharedUriHandler.handleUri(url)
+	}
+
 	// Register size testing commands in development mode
 	if (IS_DEV) {
 		vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV)
@@ -192,7 +213,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.log("[Cline Dev] Dev mode activated & dev commands registered")
 			})
 			.catch((error) => {
-				Logger.log("[Cline Dev] Failed to register dev commands: " + error)
+				Logger.log(`[Cline Dev] Failed to register dev commands: ${error}`)
 			})
 	}
 
@@ -505,15 +526,6 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	// Register the reconstructTaskHistory command handler
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.ReconstructTaskHistory, async () => {
-			const { reconstructTaskHistory } = await import("./core/commands/reconstructTaskHistory")
-			await reconstructTaskHistory()
-			telemetryService.captureButtonClick("command_reconstructTaskHistory")
-		}),
-	)
-
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
@@ -524,7 +536,10 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	// Listen for secrets changes (cross-window login/logout sync).
+	// NOTE: Credentials now live in providers.json (single source of truth).
+	// This listener catches legacy secrets.json writes from older windows and
+	// triggers a re-read from providers.json via restoreRefreshTokenAndRetrieveAuthInfo().
 	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
 		if (event.key === "cline:clineAccountId") {
 			const secretValue = storageContext.secrets.get<string>(event.key)
@@ -600,8 +615,8 @@ function setupHostProvider(context: ExtensionContext) {
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
+	const createEditPreview = () => new VscodeEditPreview()
 	const createCommentReview = () => getVscodeCommentReviewController()
-	const createTerminalManager = () => new VscodeTerminalManager()
 
 	const getCallbackUrl = async (path: string, _preferredPort?: number) => {
 		const scheme = vscode.env.uriScheme || "vscode"
@@ -621,8 +636,8 @@ function setupHostProvider(context: ExtensionContext) {
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createEditPreview,
 		createCommentReview,
-		createTerminalManager,
 		vscodeHostBridgeClient,
 		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
@@ -693,10 +708,12 @@ async function getBinaryLocation(name: string): Promise<string> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose Non-VSCode-specific services
-	tearDown()
-
-	// VSCode-specific services
-	disposeVscodeCommentReviewController()
+	try {
+		await tearDown()
+	} finally {
+		// VSCode-specific services
+		disposeVscodeCommentReviewController()
+	}
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.
@@ -752,6 +769,6 @@ async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<vo
 
 		Logger.info("[VS Code Storage Migrations] Completed")
 	} catch (error) {
-		Logger.warn("[VS Code Storage Migrations] Failed" + (error instanceof Error ? `: ${error.message}` : ""))
+		Logger.warn(`[VS Code Storage Migrations] Failed${error instanceof Error ? `: ${error.message}` : ""}`)
 	}
 }

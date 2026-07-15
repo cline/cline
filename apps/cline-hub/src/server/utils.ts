@@ -134,6 +134,12 @@ export function openExternalUrl(url: string): void {
 	const command =
 		platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
 	const args = platform === "win32" ? ["/c", "start", "", url] : [url];
-	const child = spawn(command, args, { stdio: "ignore", detached: true });
+	const child = spawn(command, args, {
+		stdio: "ignore",
+		detached: true,
+		// Prevent a console window from flashing on Windows; the launched
+		// browser/app still opens normally.
+		windowsHide: true,
+	});
 	child.unref();
 }

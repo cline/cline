@@ -27,6 +27,39 @@ function normalizedModelId(
 	return normalizeRoutingValue(request.modelId) ?? "";
 }
 
+function geminiModelDescriptor(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): string {
+	return [
+		input.request.modelId,
+		input.context.model.id,
+		input.context.model.name,
+		input.context.model.metadata?.family,
+	]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+}
+
+function isProviderBaseOrigin(
+	context: GatewayProviderContext,
+	origin: string,
+): boolean {
+	const baseUrl = normalizeRoutingValue(
+		context.config.baseUrl ?? context.provider.api,
+	)?.replace(/\/+$/, "");
+	if (!baseUrl) {
+		return false;
+	}
+
+	try {
+		return new URL(baseUrl).origin.toLowerCase() === origin;
+	} catch {
+		return baseUrl === origin || baseUrl.startsWith(`${origin}/`);
+	}
+}
+
 function isAnthropicLineageValue(value: string | undefined): boolean {
 	const normalized = normalizeRoutingValue(value);
 	return normalized
@@ -85,6 +118,44 @@ export function isQwenModel(options: {
 	}
 
 	return isQwenLineageValue(options.modelId);
+}
+
+export function isGemini3Model(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	return /(^|[/\s])gemini-3([.-]|$)/.test(geminiModelDescriptor(input));
+}
+
+export function isGeminiProModel(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(geminiModelDescriptor(input));
+}
+
+export function isGeminiFlashModel(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	const descriptor = geminiModelDescriptor(input);
+	return (
+		/(^|[/\s])gemini-(?:\d(?:\.\d)?-)?flash(?:-lite|-image)?([-\s]|$)/.test(
+			descriptor,
+		) || descriptor.includes("gemini-flash")
+	);
+}
+
+export function supportsGeminiThinking(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	const descriptor = geminiModelDescriptor(input);
+	return (
+		isGemini3Model(input) ||
+		/(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
+		descriptor.includes("gemini-flash-latest")
+	);
 }
 
 function modelFamilyMatches(
@@ -162,6 +233,15 @@ export function isGlmModel(
 	return family.includes("glm") || normalizedModelId(request).includes("glm");
 }
 
+export function isMiniMaxM3Model(
+	request: Pick<GatewayStreamRequest, "modelId">,
+	_context: GatewayProviderContext,
+): boolean {
+	const modelId = normalizedModelId(request);
+
+	return modelId === "minimax-m3" || modelId === "minimax/minimax-m3";
+}
+
 export function isKimiK26Family(context: GatewayProviderContext): boolean {
 	return normalizedFamily(context) === "kimi-k2.6";
 }
@@ -194,6 +274,22 @@ export function isOllamaQwen3ModelIdFallback(
 	return (
 		request.providerId === "ollama" &&
 		normalizedModelId(request).includes("qwen3")
+	);
+}
+
+export function isCerebrasProvider(
+	request: Pick<GatewayStreamRequest, "providerId">,
+	context: GatewayProviderContext,
+): boolean {
+	const providerIds = [
+		request.providerId,
+		context.config.providerId,
+		context.provider.id,
+	].map((id) => id.toLowerCase());
+
+	return (
+		providerIds.includes("cerebras") ||
+		isProviderBaseOrigin(context, "https://api.cerebras.ai")
 	);
 }
 

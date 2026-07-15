@@ -40,7 +40,7 @@ export type LanguageDisplay =
 
 export const DEFAULT_LANGUAGE_SETTINGS: LanguageKey = "en"
 
-export const languageOptions: { key: LanguageKey; display: LanguageDisplay }[] = [
+const languageOptions: { key: LanguageKey; display: LanguageDisplay }[] = [
 	{ key: "en", display: "English" },
 	{ key: "ar", display: "Arabic - العربية" },
 	{ key: "pt-BR", display: "Portuguese - Português (Brasil)" },

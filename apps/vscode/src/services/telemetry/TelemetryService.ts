@@ -11,6 +11,13 @@ import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
+import {
+	getRolloutErrorProperties,
+	getRolloutTelemetryMetadata,
+	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
+	type RolloutBundleActivation,
+	type RolloutTelemetryMetadata,
+} from "./rollout-metadata"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
@@ -26,9 +33,28 @@ type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents"
 export type TerminalType = "vscode" | "standalone"
 
 /**
- * VSCode-specific output capture methods
+ * VSCode-specific output capture methods.
+ *
+ * "shell_integration" means the OSC 633 C/D markers were seen and trusted —
+ * output and exit code are as reliable as VS Code's shell integration gets.
+ * "markerless_heuristic" means completion was inferred from an idle timeout
+ * and/or prompt-pattern guess because markers never arrived (e.g. commands
+ * run inside an ssh session); this must not be folded into
+ * "shell_integration" successes, since it's the exact metric evaluating
+ * whether shell integration is working.
  */
-export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none"
+export type VscodeOutputMethod = "shell_integration" | "markerless_heuristic" | "clipboard" | "none" | "child_process"
+
+/**
+ * Why a markerless command (OSC 633 CommandExecuted marker never arrived) was
+ * considered complete:
+ * - "prompt_quiet": output went idle on a line that strongly resembles a shell
+ *   prompt (bash dollar, root hash, PowerShell/CMD path, Python REPL, starship).
+ * - "max_quiet_time": output arrived but then went quiet for the full
+ *   MARKERLESS_MAX_QUIET_TIME without a confident prompt match.
+ * - "no_data": no output ever arrived and the full quiet time elapsed.
+ */
+export type MarkerlessCompletionCause = "prompt_quiet" | "max_quiet_time" | "no_data"
 
 /**
  * Standalone-specific output capture methods
@@ -46,7 +72,8 @@ export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
 export enum TerminalOutputFailureReason {
 	TIMEOUT = "timeout",
 	NO_SHELL_INTEGRATION = "no_shell_integration",
-	CLIPBOARD_FAILED = "clipboard_failed",
+	/** The terminal was closed while the command was still running. */
+	TERMINAL_CLOSED = "terminal_closed",
 }
 
 /**
@@ -54,7 +81,6 @@ export enum TerminalOutputFailureReason {
  */
 export enum TerminalUserInterventionAction {
 	PROCESS_WHILE_RUNNING = "process_while_running",
-	MANUAL_PASTE = "manual_paste",
 	CANCELLED = "cancelled",
 }
 
@@ -64,7 +90,6 @@ export enum TerminalUserInterventionAction {
 export enum TerminalHangStage {
 	WAITING_FOR_COMPLETION = "waiting_for_completion",
 	BUFFER_STUCK = "buffer_stuck",
-	STREAM_TIMEOUT = "stream_timeout",
 }
 
 export type TelemetryMetadata = {
@@ -93,6 +118,8 @@ export type TelemetryMetadata = {
 	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
+	/** Present only in bundles built by the combined legacy/next rollout workflow. */
+	extension_variant?: RolloutTelemetryMetadata["extension_variant"]
 }
 
 /**
@@ -193,6 +220,26 @@ export class TelemetryService {
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
+		MIGRATION: {
+			// Fires whenever Cline checks an old pre-SDK task and decides whether/how to migrate it.
+			LEGACY_TASK_ATTEMPTS_TOTAL: "cline.migration.legacy_task.attempts.total",
+			// Fires when the user opens an old task and Cline successfully copies it into SDK session storage.
+			LEGACY_TASK_SUCCESS_TOTAL: "cline.migration.legacy_task.success.total",
+			// Fires when Cline tried to migrate an old task but failed while building or writing the SDK session.
+			LEGACY_TASK_FAILURES_TOTAL: "cline.migration.legacy_task.failures.total",
+			// Fires when no migration happens because it is unnecessary or impossible, e.g. already migrated or missing old messages.
+			LEGACY_TASK_SKIPPED_TOTAL: "cline.migration.legacy_task.skipped.total",
+			// Fires for every migration decision; measures how long the check/migration took.
+			LEGACY_TASK_DURATION_SECONDS: "cline.migration.legacy_task.duration.seconds",
+			// Fires when Cline finds old conversation messages; records how many old messages were found.
+			LEGACY_TASK_LEGACY_MESSAGES_COUNT: "cline.migration.legacy_task.legacy_messages.count",
+			// Fires after conversion; records how many messages made it into SDK-compatible form.
+			LEGACY_TASK_CONVERTED_MESSAGES_COUNT: "cline.migration.legacy_task.converted_messages.count",
+			// Fires when history is listed; counts old pre-SDK tasks still waiting to be migrated.
+			LEGACY_TASK_PENDING_COUNT: "cline.migration.legacy_task.pending.count",
+			// Fires when history is listed; counts old tasks that already made it safely into SDK session storage.
+			LEGACY_TASK_MIGRATED_COUNT: "cline.migration.legacy_task.migrated.count",
+		},
 	}
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
@@ -242,7 +289,7 @@ export class TelemetryService {
 			OPTION_SELECTED: "task.option_selected",
 			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
 			OPTIONS_IGNORED: "task.options_ignored",
-			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
+			// Tracks checkpoint lifecycle actions.
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
@@ -250,6 +297,8 @@ export class TelemetryService {
 			MCP_TOOL_CALLED: "task.mcp_tool_called",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
+			// Tracks legacy VS Code task history migration into SDK sessions
+			LEGACY_TASK_MIGRATION: "task.legacy_task_migration",
 			// Tracks when the retry button is clicked for failed operations
 			RETRY_CLICKED: "task.retry_clicked",
 			// Tracks when a diff edit (replace_in_file) operation fails
@@ -290,8 +339,6 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
-			// Tracks when Cline web tools setting is toggled on/off
-			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -321,6 +368,12 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
+			// Tracks when the Cline panel becomes visible
+			PANEL_OPENED: "ui.panel_opened",
+			// Tracks when the user explicitly starts a new task flow
+			NEW_TASK_CLICKED: "ui.new_task_clicked",
+			// Tracks when the user submits chat composer content
+			PROMPT_SUBMITTED: "ui.prompt_submitted",
 			// Tracks when the rules menu button is clicked
 			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
@@ -365,6 +418,7 @@ export class TelemetryService {
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
+			...getRolloutTelemetryMetadata(),
 		}
 		return new TelemetryService(providers, metadata)
 	}
@@ -563,6 +617,22 @@ export class TelemetryService {
 	public captureExtensionActivated() {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+		})
+	}
+
+	public captureRolloutBundleActivated(input: RolloutBundleActivation): void {
+		if (!this.telemetryMetadata.extension_variant) {
+			return
+		}
+
+		this.capture({
+			event: ROLLOUT_BUNDLE_ACTIVATED_EVENT,
+			properties: {
+				attempted_bundle: input.attemptedBundle,
+				actual_bundle: input.actualBundle,
+				fallback: input.fallback,
+				...(input.fallback ? getRolloutErrorProperties(input.error) : {}),
+			},
 		})
 	}
 
@@ -1090,16 +1160,12 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records interactions with the git-based checkpoint system
+	 * Records checkpoint interactions.
 	 * @param ulid Unique identifier for the task
 	 * @param action The type of checkpoint action
 	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(
-		ulid: string,
-		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
-		durationMs?: number,
-	) {
+	public captureCheckpointUsage(ulid: string, action: "created" | "restored", durationMs?: number) {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
@@ -1357,6 +1423,34 @@ export class TelemetryService {
 		})
 	}
 
+	public capturePanelOpened(source?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.PANEL_OPENED,
+			properties: { source },
+		})
+	}
+
+	public captureNewTaskClicked(source?: string, hasActiveTask?: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.NEW_TASK_CLICKED,
+			properties: { source, hasActiveTask },
+		})
+	}
+
+	public capturePromptSubmitted(args: {
+		source?: string
+		hasText?: boolean
+		hasImages?: boolean
+		hasFiles?: boolean
+		hasActiveTask?: boolean
+		textLength?: number
+	}) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.PROMPT_SUBMITTED,
+			properties: args,
+		})
+	}
+
 	/**
 	 * Records telemetry when an API provider returns an error
 	 * @param ulid Unique identifier for the task
@@ -1373,6 +1467,8 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		errorType?: string | undefined
+		failurePhase?: string | undefined
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
@@ -1389,12 +1485,16 @@ export class TelemetryService {
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		})
 		const errorAttributes = {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
@@ -1618,21 +1718,6 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records when Cline web tools are enabled/disabled by the user
-	 * @param ulid Unique identifier for the task
-	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
-	 */
-	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
-			properties: {
-				ulid,
-				enabled,
-			},
-		})
-	}
-
-	/**
 	 * Records task initialization timing and metadata
 	 * @param ulid Unique identifier for the task
 	 * @param taskId Task ID (timestamp in milliseconds when task was created)
@@ -1668,20 +1753,39 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("vscode")
 	 * @param method The VSCode-specific method used to capture output
+	 * @param details Optional dimensions:
+	 *   exitCode — the process exit code, when captured (via
+	 *   onDidEndTerminalShellExecution, the OSC 633;D marker, or child_process);
+	 *   terminalExecutionMode — foreground ("vscodeTerminal") or background
+	 *   ("backgroundExec");
+	 *   markerlessCause — for method "markerless_heuristic", why the command was
+	 *   considered complete;
+	 *   terminalClosed — the terminal was closed while the command was running
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "vscode", method: VscodeOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "vscode",
+		method: VscodeOutputMethod,
+		details?: {
+			exitCode?: number | null
+			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+			markerlessCause?: MarkerlessCompletionCause
+			terminalClosed?: boolean
+		},
+	): void
 	/**
 	 * Records terminal command execution outcomes for standalone terminal
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("standalone")
 	 * @param method The standalone-specific method used to capture output
-	 * @param exitCode The process exit code (useful for diagnosing failure types: 1=error, 127=not found, 126=permission denied)
+	 * @param details Optional dimensions: exitCode — the process exit code (useful for
+	 * diagnosing failure types: 1=error, 127=not found, 126=permission denied)
 	 */
 	public captureTerminalExecution(
 		success: boolean,
 		terminalType: "standalone",
 		method: StandaloneOutputMethod,
-		exitCode?: number | null,
+		details?: { exitCode?: number | null },
 	): void
 	/**
 	 * Implementation of captureTerminalExecution
@@ -1690,16 +1794,25 @@ export class TelemetryService {
 		success: boolean,
 		terminalType: TerminalType,
 		method: TerminalOutputMethod,
-		exitCode?: number | null,
+		details?: {
+			exitCode?: number | null
+			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+			markerlessCause?: MarkerlessCompletionCause
+			terminalClosed?: boolean
+		},
 	): void {
+		const { exitCode, terminalExecutionMode, markerlessCause, terminalClosed } = details ?? {}
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
 				terminalType,
 				method,
-				// Only include exitCode for standalone terminals when it's a meaningful value
-				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
+				// Only include exitCode when it's a meaningful value.
+				...(exitCode !== undefined && exitCode !== null && { exitCode }),
+				...(terminalExecutionMode !== undefined && { terminalExecutionMode }),
+				...(markerlessCause !== undefined && { markerlessCause }),
+				...(terminalClosed !== undefined && { terminalClosed }),
 			},
 		})
 	}
@@ -2117,7 +2230,17 @@ export class TelemetryService {
 		})
 	}
 
-	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+	public captureOnboardingProgress(args: {
+		step: number
+		action?: string
+		page?: string
+		pageVariant?: string
+		userType?: string
+		selectedModelId?: string
+		destinationStep?: number
+		destinationPage?: string
+		completed?: boolean
+	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
 			properties: {
@@ -2376,6 +2499,129 @@ export class TelemetryService {
 	 * @param method The gRPC method name
 	 * @param requestId Optional request ID for correlation
 	 */
+	public captureLegacyTaskMigration(args: {
+		taskId: string
+		outcome: "success" | "skipped" | "error"
+		reason: string
+		durationMs: number
+		legacyApiHistoryLength?: number
+		convertedMessageCount?: number
+		sdkLookupFailed?: boolean
+		hasFavorite?: boolean
+		hasCost?: boolean
+		hasTokenUsage?: boolean
+		hasCwd?: boolean
+	}): void {
+		const migrationType = "legacy_task_to_sdk_session"
+		const metricAttributes = {
+			migration_type: migrationType,
+			outcome: args.outcome,
+			reason: args.reason,
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LEGACY_TASK_MIGRATION,
+			properties: {
+				ulid: args.taskId,
+				migration_type: migrationType,
+				outcome: args.outcome,
+				reason: args.reason,
+				durationMs: args.durationMs,
+				legacyApiHistoryLength: args.legacyApiHistoryLength,
+				convertedMessageCount: args.convertedMessageCount,
+				sdkLookupFailed: args.sdkLookupFailed,
+				hasFavorite: args.hasFavorite,
+				hasCost: args.hasCost,
+				hasTokenUsage: args.hasTokenUsage,
+				hasCwd: args.hasCwd,
+			},
+		})
+
+		this.recordCounter(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_ATTEMPTS_TOTAL,
+			1,
+			metricAttributes,
+			"Legacy VS Code task migration decisions",
+		)
+		if (args.outcome === "success") {
+			this.recordCounter(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SUCCESS_TOTAL,
+				1,
+				metricAttributes,
+				"Legacy VS Code tasks successfully copied into SDK session storage",
+			)
+		} else if (args.outcome === "error") {
+			this.recordCounter(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_FAILURES_TOTAL,
+				1,
+				metricAttributes,
+				"Legacy VS Code task migrations that failed while building or writing the SDK session",
+			)
+		} else {
+			this.recordCounter(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SKIPPED_TOTAL,
+				1,
+				metricAttributes,
+				"Legacy VS Code task migration checks that did not need or could not perform a migration",
+			)
+		}
+
+		this.recordHistogram(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_DURATION_SECONDS,
+			args.durationMs / 1000,
+			metricAttributes,
+			"Time spent checking or migrating a legacy VS Code task into SDK session storage",
+		)
+		if (args.legacyApiHistoryLength !== undefined) {
+			this.recordHistogram(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_LEGACY_MESSAGES_COUNT,
+				args.legacyApiHistoryLength,
+				metricAttributes,
+				"Number of raw legacy API history messages found while migrating a legacy VS Code task",
+			)
+		}
+		if (args.convertedMessageCount !== undefined) {
+			this.recordHistogram(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_CONVERTED_MESSAGES_COUNT,
+				args.convertedMessageCount,
+				metricAttributes,
+				"Number of SDK-compatible messages produced from a legacy VS Code task migration",
+			)
+		}
+	}
+
+	public captureLegacyTaskMigrationBacklog(args: {
+		pendingLegacyTaskCount: number
+		migratedSdkTaskCount: number
+		visibleSdkTaskCount: number
+		visibleTaskCount: number
+	}): void {
+		const attributes = { migration_type: "legacy_task_to_sdk_session" }
+		this.recordGauge(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT,
+			args.pendingLegacyTaskCount,
+			attributes,
+			"Legacy VS Code tasks visible in history but not yet migrated to SDK sessions",
+		)
+		this.recordGauge(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_MIGRATED_COUNT,
+			args.migratedSdkTaskCount,
+			attributes,
+			"SDK sessions marked as migrated from legacy VS Code task history",
+		)
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LEGACY_TASK_MIGRATION,
+			properties: {
+				migration_type: "legacy_task_to_sdk_session",
+				outcome: "backlog",
+				pendingLegacyTaskCount: args.pendingLegacyTaskCount,
+				migratedSdkTaskCount: args.migratedSdkTaskCount,
+				visibleSdkTaskCount: args.visibleSdkTaskCount,
+				visibleTaskCount: args.visibleTaskCount,
+			},
+		})
+	}
+
 	public captureGrpcResponseSize(sizeUtf8Bytes: number, service: string, method: string, requestId?: string): void {
 		this.recordHistogram(
 			TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES,

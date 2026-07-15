@@ -2,6 +2,13 @@ import { timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import { URL } from "node:url";
+import {
+	CURRENT_HUB_PROTOCOL_VERSION,
+	HUB_CAPABILITIES,
+	isHubProtocolCompatible,
+	MAX_CLIENT_HUB_PROTOCOL_VERSION,
+	MIN_CLIENT_HUB_PROTOCOL_VERSION,
+} from "@cline/shared";
 import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
 import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
@@ -204,10 +211,32 @@ function parseHeaderValue(value: string | string[] | undefined): string {
 	return Array.isArray(value) ? value.join(",") : (value ?? "");
 }
 
-function readBearerToken(value: string | string[] | undefined): string | null {
+function isAuthHeaderWhitespace(code: number): boolean {
+	return code === 0x20 || code === 0x09;
+}
+
+export function readBearerToken(
+	value: string | string[] | undefined,
+): string | null {
 	const header = parseHeaderValue(value).trim();
-	const match = /^Bearer\s+(.+)$/i.exec(header);
-	return match?.[1]?.trim() || null;
+	const bearerScheme = "bearer";
+	if (
+		header.length <= bearerScheme.length ||
+		header.slice(0, bearerScheme.length).toLowerCase() !== bearerScheme ||
+		!isAuthHeaderWhitespace(header.charCodeAt(bearerScheme.length))
+	) {
+		return null;
+	}
+
+	let tokenStart = bearerScheme.length + 1;
+	while (
+		tokenStart < header.length &&
+		isAuthHeaderWhitespace(header.charCodeAt(tokenStart))
+	) {
+		tokenStart += 1;
+	}
+
+	return header.slice(tokenStart).trim() || null;
 }
 
 function readWebSocketAuthToken(
@@ -220,6 +249,32 @@ function readWebSocketAuthToken(
 		}
 	}
 	return null;
+}
+
+/** @internal Exported for websocket auth tests. */
+export function isLocalHubHostName(value: string): boolean {
+	const normalized = value.trim().toLowerCase();
+	return (
+		normalized === "localhost" ||
+		normalized === "127.0.0.1" ||
+		normalized === "::1" ||
+		normalized === "[::1]"
+	);
+}
+
+/** @internal Exported for websocket auth tests. */
+export function isLocalHubOrigin(
+	value: string | string[] | undefined,
+): boolean {
+	const raw = parseHeaderValue(value).trim();
+	if (!raw) {
+		return false;
+	}
+	try {
+		return isLocalHubHostName(new URL(raw).hostname);
+	} catch {
+		return false;
+	}
 }
 
 export async function startHubWebSocketServer(
@@ -244,7 +299,10 @@ export async function startHubWebSocketServer(
 	const cleanup = new Set<() => void>();
 	const startedAt = new Date().toISOString();
 	const versionPayload = {
-		protocolVersion: "v1",
+		protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
+		minClientProtocolVersion: MIN_CLIENT_HUB_PROTOCOL_VERSION,
+		maxClientProtocolVersion: MAX_CLIENT_HUB_PROTOCOL_VERSION,
+		capabilities: HUB_CAPABILITIES,
 		coreVersion: corePackage.version,
 		buildId,
 		pid: process.pid,
@@ -301,9 +359,35 @@ export async function startHubWebSocketServer(
 	const server = http.createServer((req, res) => {
 		if ((req.url ?? "/") === "/health") {
 			const body = JSON.stringify({
+				ok: true,
+				protocolVersion: versionPayload.protocolVersion,
+				minClientProtocolVersion: versionPayload.minClientProtocolVersion,
+				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,
+				coreVersion: versionPayload.coreVersion,
+				host,
+				port,
+				url,
+			});
+			res.statusCode = 200;
+			res.setHeader("content-type", "application/json");
+			res.end(body);
+			return;
+		}
+		if ((req.url ?? "/") === "/status") {
+			if (
+				!isValidHubAuthToken(
+					readBearerToken(req.headers.authorization),
+					authToken,
+				)
+			) {
+				res.statusCode = 401;
+				res.end("Unauthorized");
+				return;
+			}
+			const body = JSON.stringify({
 				hubId: transport.getHubId(),
 				...versionPayload,
-				authToken: "",
+				authToken,
 				host,
 				port,
 				url,
@@ -375,12 +459,13 @@ export async function startHubWebSocketServer(
 			socket.destroy();
 			return;
 		}
-		if (
-			!isValidHubAuthToken(
+		const isAuthorized =
+			isValidHubAuthToken(
 				readWebSocketAuthToken(request.headers["sec-websocket-protocol"]),
 				authToken,
-			)
-		) {
+			) ||
+			(isLocalHubHostName(host) && isLocalHubOrigin(request.headers.origin));
+		if (!isAuthorized) {
 			rejectUnauthorizedUpgradeSocket(socket);
 			return;
 		}
@@ -449,7 +534,10 @@ export async function startHubWebSocketServer(
 
 	await writeHubDiscovery(owner.discoveryPath, {
 		hubId: transport.getHubId(),
-		protocolVersion: "v1",
+		protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
+		minClientProtocolVersion: MIN_CLIENT_HUB_PROTOCOL_VERSION,
+		maxClientProtocolVersion: MAX_CLIENT_HUB_PROTOCOL_VERSION,
+		capabilities: [...versionPayload.capabilities],
 		coreVersion: corePackage.version,
 		buildId,
 		authToken,
@@ -511,9 +599,12 @@ export async function ensureHubWebSocketServer(
 			discovered?.url &&
 			(discovered.url === expectedUrl || options.allowPortFallback === true);
 		if (canReuseDiscovered) {
-			const healthy = await probeHubServer(discovered.url);
+			const healthy = await probeHubServer(discovered.url, {
+				authToken: discovered.authToken,
+			});
 			if (
 				healthy?.url &&
+				isHubProtocolCompatible(healthy).compatible &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discovered.authToken,
 				}))
@@ -526,8 +617,9 @@ export async function ensureHubWebSocketServer(
 			}
 		}
 
-		const expected = await probeHubServer(expectedUrl);
-		if (expected?.url || discovered?.url) {
+		// The discovered hub was not reusable (missing, mismatched, or failed
+		// verification), so its record is stale either way.
+		if (discovered?.url) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 

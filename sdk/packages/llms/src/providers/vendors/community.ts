@@ -1,14 +1,22 @@
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
-import type { SAPAIProviderSettings } from "@jerome-benoit/sap-ai-provider";
+// Keep this import static so the VS Code extension bundle includes the SAP
+// provider. Hiding it behind a computed dynamic import leaves the published
+// extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
+// runtime, but VSIX packaging uses the bundled extension output.
+import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider";
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import { createCodexExec } from "ai-sdk-provider-codex-cli";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
-type SapAiProviderModule = typeof import("@jerome-benoit/sap-ai-provider");
-type SapDestination = NonNullable<SAPAIProviderSettings["destination"]>;
-const SAP_AI_PROVIDER_PACKAGE = "@jerome-benoit/sap-ai-provider";
+type SapModel = Record<PropertyKey, unknown>;
+const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
+	"doGenerate",
+	"doStream",
+	"doEmbed",
+]);
+let sapServiceKeyQueue: Promise<void> = Promise.resolve();
 
 function readOptions(
 	config: GatewayResolvedProviderConfig,
@@ -111,9 +119,9 @@ function readStringOption(
 		: undefined;
 }
 
-function normalizeSapTokenServiceUrl(tokenUrl: string): string {
+function normalizeSapTokenBaseUrl(tokenUrl: string): string {
 	const trimmed = tokenUrl.replace(/\/+$/, "");
-	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
+	return trimmed.replace(/\/oauth\/token$/i, "");
 }
 
 function hasExplicitSapConnectionConfig(
@@ -129,10 +137,10 @@ function hasExplicitSapConnectionConfig(
 	);
 }
 
-function buildSapDestination(
+function buildSapServiceKey(
 	config: GatewayResolvedProviderConfig,
 	options: Record<string, unknown>,
-): SapDestination | undefined {
+): string | undefined {
 	const clientId = readStringOption(options, "clientId");
 	const clientSecret =
 		readStringOption(options, "clientSecret") ?? config.apiKey?.trim();
@@ -154,14 +162,14 @@ function buildSapDestination(
 			)}.`,
 		);
 	}
-	return {
-		authentication: "OAuth2ClientCredentials" as const,
-		clientId,
-		clientSecret,
-		name: config.providerId,
-		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
-		url: baseUrl.replace(/\/+$/, ""),
-	} satisfies SapDestination;
+	return JSON.stringify({
+		clientid: clientId,
+		clientsecret: clientSecret,
+		serviceurls: {
+			AI_API_URL: baseUrl.replace(/\/+$/, ""),
+		},
+		url: normalizeSapTokenBaseUrl(tokenUrl),
+	});
 }
 
 function resolveSapApi(options: Record<string, unknown>) {
@@ -175,18 +183,73 @@ function resolveSapApi(options: Record<string, unknown>) {
 	return "orchestration";
 }
 
-async function importSapAiProvider(): Promise<SapAiProviderModule> {
-	const specifier: string = SAP_AI_PROVIDER_PACKAGE;
-	return import(specifier) as Promise<SapAiProviderModule>;
+async function withSapServiceKey<T>(
+	serviceKey: string | undefined,
+	fn: () => T,
+): Promise<Awaited<T>> {
+	if (!serviceKey) {
+		return await fn();
+	}
+
+	const previousQueue = sapServiceKeyQueue.catch(() => {});
+	let releaseQueue!: () => void;
+	sapServiceKeyQueue = new Promise<void>((resolve) => {
+		releaseQueue = resolve;
+	});
+
+	await previousQueue;
+	const previous = process.env.AICORE_SERVICE_KEY;
+	process.env.AICORE_SERVICE_KEY = serviceKey;
+	try {
+		return await fn();
+	} catch (error) {
+		throw error;
+	} finally {
+		restoreSapServiceKey(previous);
+		releaseQueue();
+	}
+}
+
+function shouldWrapSapServiceKeyMethod(property: PropertyKey): boolean {
+	return SAP_SERVICE_KEY_METHODS.has(property);
+}
+
+function restoreSapServiceKey(previous: string | undefined): void {
+	if (previous === undefined) {
+		delete process.env.AICORE_SERVICE_KEY;
+		return;
+	}
+	process.env.AICORE_SERVICE_KEY = previous;
+}
+
+function wrapSapModelWithServiceKey(
+	model: unknown,
+	serviceKey: string | undefined,
+): unknown {
+	if (!serviceKey || !model || typeof model !== "object") {
+		return model;
+	}
+	return new Proxy(model as SapModel, {
+		get(target, property, receiver) {
+			const value = Reflect.get(target, property, receiver);
+			if (
+				typeof value !== "function" ||
+				!shouldWrapSapServiceKeyMethod(property)
+			) {
+				return value;
+			}
+			return (...args: unknown[]) =>
+				withSapServiceKey(serviceKey, () => value.apply(target, args));
+		},
+	});
 }
 
 export async function createSapAiCoreProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
 	const options = readOptions(config);
-	const destination = buildSapDestination(config, options);
+	const serviceKey = buildSapServiceKey(config, options);
 
-	const { createSAPAIProvider } = await importSapAiProvider();
 	const deploymentId = readStringOption(options, "deploymentId");
 	const provider = createSAPAIProvider({
 		name: config.providerId,
@@ -194,7 +257,6 @@ export async function createSapAiCoreProviderModule(
 			? { deploymentId }
 			: { resourceGroup: readStringOption(options, "resourceGroup") }),
 		api: resolveSapApi(options),
-		...(destination ? { destination } : {}),
 		...(typeof options.defaultSettings === "object" &&
 		options.defaultSettings !== null &&
 		!Array.isArray(options.defaultSettings)
@@ -202,6 +264,7 @@ export async function createSapAiCoreProviderModule(
 			: {}),
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		model: (modelId) =>
+			wrapSapModelWithServiceKey(provider(modelId), serviceKey),
 	};
 }

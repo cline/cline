@@ -11,23 +11,40 @@
 
 import {
 	type ContentBlock,
+	createMediaBudgetState,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type ImageContent,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
 	type Message,
 	normalizeUserInput,
+	type ResolvedMediaBudget,
+	resolveMediaBudget,
 	type TextContent,
 	type ToolResultContent,
+	validateAndReserveImageMedia,
 } from "@cline/shared";
 
-const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
-const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
-const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
-const TARGET_TOOL_NAMES = new Set([
-	"read",
-	"read_files",
-	"search",
-	"search_codebase",
-	"bash",
-	"run_commands",
-]);
+export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
+export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
+// The aggregate budget intentionally stays far above what the per-result cap
+// usually produces: budget truncation rewrites bytes mid-transcript, which
+// invalidates provider prefix caches from the first rewritten block onward,
+// so it must remain a rare overflow valve rather than the steady state.
+export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
+export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
+export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
+// Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
+// 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
+export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
+const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
+const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
+const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
+export const MESSAGE_BUILDER_LIMIT_ENV = {
+	maxToolResultChars: "CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS",
+	maxTotalTextBytes: "CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES",
+	minOutdatedRewriteBytes: "CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES",
+} as const;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
 const MISSING_TOOL_RESULT_TEXT =
@@ -36,6 +53,12 @@ const TRUNCATE_MARKER_DEFAULT = (n: number) =>
 	`\n\n...[truncated ${n} chars]...\n\n`;
 const TRUNCATE_MARKER_BUDGET = (n: number) =>
 	`\n\n...[truncated ${n} chars to fit provider request budget]...\n\n`;
+const TRUNCATE_ASSISTANT_TEXT_MARKER = (n: number) =>
+	`\n\n...[assistant text truncated: omitted ${n} chars]...\n\n`;
+const TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER = (n: number) =>
+	`\n\n...[assistant text truncated: omitted ${n} chars to fit provider request budget]...\n\n`;
+const TRUNCATE_ASSISTANT_TOOL_MARKUP_MARKER = (n: number) =>
+	`\n\n...[assistant text truncated: omitted ${n} chars due to repeated tool-call markup]...\n\n`;
 
 interface ReadLocator {
 	path: string;
@@ -45,8 +68,38 @@ interface ReadLocator {
 
 interface TruncationCandidate {
 	byteLength: number;
+	minBytes: number;
+	makeMarker: (removed: number) => string;
 	get(): string;
 	set(value: string): void;
+}
+
+export interface MessageBuilderOptions {
+	maxToolResultChars?: number;
+	maxFileContentChars?: number;
+	maxTotalTextBytes?: number;
+	mediaBudget?: MediaBudgetOptions;
+	maxAssistantTextChars?: number;
+	maxAssistantToolMarkupChars?: number;
+	minOutdatedRewriteBytes?: number;
+}
+
+export function getMessageBuilderOptionsFromEnv(
+	env: Record<string, string | undefined> = process.env,
+): MessageBuilderOptions {
+	// Size caps reject zero/negative overrides; stale-read batching accepts 0
+	// for eager mode and "disable"/"Infinity" for rollback.
+	return {
+		maxToolResultChars: parsePositiveIntegerEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars],
+		),
+		maxTotalTextBytes: parsePositiveIntegerEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.maxTotalTextBytes],
+		),
+		minOutdatedRewriteBytes: parseNonNegativeLimitEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes],
+		),
+	};
 }
 
 /**
@@ -66,15 +119,53 @@ export class MessageBuilder {
 		string
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
+	private readonly maxToolResultChars: number;
+	private readonly maxFileContentChars: number;
+	private readonly maxTotalTextBytes: number;
+	private readonly mediaBudget: MediaBudgetOptions;
+	private readonly maxAssistantTextChars: number;
+	private readonly maxAssistantToolMarkupChars: number;
+	private readonly minOutdatedRewriteBytes: number;
+	// Sticky rewrite decisions. Kept across resetIndexes because production
+	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
+	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
-	constructor(
-		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
-		private readonly targetToolNames = TARGET_TOOL_NAMES,
-		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
-	) {}
+	constructor(options: MessageBuilderOptions = {}) {
+		this.maxToolResultChars = normalizePositiveLimit(
+			options.maxToolResultChars,
+			DEFAULT_MAX_TOOL_RESULT_CHARS,
+		);
+		this.maxFileContentChars = normalizePositiveLimit(
+			options.maxFileContentChars,
+			DEFAULT_MAX_FILE_CONTENT_CHARS,
+		);
+		this.maxTotalTextBytes = normalizePositiveLimit(
+			options.maxTotalTextBytes,
+			DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		);
+		this.mediaBudget = options.mediaBudget ?? {};
+		this.maxAssistantTextChars = normalizePositiveLimit(
+			options.maxAssistantTextChars,
+			DEFAULT_MAX_ASSISTANT_TEXT_CHARS,
+		);
+		this.maxAssistantToolMarkupChars = normalizePositiveLimit(
+			options.maxAssistantToolMarkupChars,
+			DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS,
+		);
+		this.minOutdatedRewriteBytes = normalizeNonNegativeLimit(
+			options.minOutdatedRewriteBytes,
+			DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
+		);
+	}
+
+	resetConversationState(): void {
+		this.resetIndexes();
+		this.committedOutdatedRewrites.clear();
+	}
 
 	buildForApi(messages: Message[]): Message[] {
 		this.reindex(messages);
+		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
 
 		const prepared = repairedMessages.map((message) => {
@@ -83,6 +174,15 @@ export class MessageBuilder {
 					const normalized = normalizeUserInput(message.content);
 					if (normalized !== message.content) {
 						return { ...message, content: normalized };
+					}
+				}
+				if (
+					message.role === "assistant" &&
+					typeof message.content === "string"
+				) {
+					const truncated = this.truncateAssistantText(message.content);
+					if (truncated !== message.content) {
+						return { ...message, content: truncated };
 					}
 				}
 				return message;
@@ -100,7 +200,8 @@ export class MessageBuilder {
 			return changed ? { ...message, content } : message;
 		});
 
-		return this.truncateToTotalTextBudget(prepared);
+		const mediaLimited = this.applyMediaBudget(prepared);
+		return this.truncateToTotalTextBudget(mediaLimited);
 	}
 
 	private transformBlock(
@@ -119,8 +220,24 @@ export class MessageBuilder {
 			return block;
 		}
 
+		if (
+			role === "assistant" &&
+			block.type === "text" &&
+			typeof block.text === "string"
+		) {
+			const truncated = this.truncateAssistantText(block.text);
+			return truncated === block.text ? block : { ...block, text: truncated };
+		}
+
 		if (block.type === "file") {
-			const truncated = this.truncateMiddle(block.content);
+			// Top-level file blocks are user attachments, not tool output; they
+			// get their own (looser) cap so the aggressive tool-result limit
+			// does not mutilate content the user explicitly supplied.
+			const truncated = truncateMiddleByChars(
+				block.content,
+				this.maxFileContentChars,
+				TRUNCATE_MARKER_DEFAULT,
+			);
 			return truncated === block.content
 				? block
 				: { ...block, content: truncated };
@@ -130,14 +247,17 @@ export class MessageBuilder {
 			return block;
 		}
 
-		const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+		const toolName = this.resolveToolName(block);
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {
-			const locators = this.getReadLocators(block);
-			if (locators.length > 0) {
-				const outdated = locators.filter((locator) =>
-					this.isOutdatedReadLocator(locator, block.tool_use_id),
+			const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+			if (committed && committed.size > 0) {
+				const locators = this.getReadLocators(block);
+				const outdated = locators.filter(
+					(locator) =>
+						committed.has(this.toReadLocatorKey(locator)) &&
+						this.isOutdatedReadLocator(locator, block.tool_use_id),
 				);
 				if (outdated.length > 0) {
 					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
@@ -145,9 +265,10 @@ export class MessageBuilder {
 			}
 		}
 
-		if (this.shouldTruncateTool(toolName)) {
-			nextContent = this.truncateToolResultContent(nextContent);
-		}
+		// Truncation is default-on for every tool result: MCP and custom SDK
+		// tools produce payloads just as large as the built-in ones, and any
+		// allowlist gate silently exempts them.
+		nextContent = this.truncateToolResultContent(nextContent);
 
 		return nextContent === block.content
 			? block
@@ -186,7 +307,7 @@ export class MessageBuilder {
 						}
 					}
 				} else if (block.type === "tool_result") {
-					const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+					const toolName = this.resolveToolName(block);
 					if (!this.isReadTool(toolName) || block.is_error === true) {
 						continue;
 					}
@@ -209,6 +330,173 @@ export class MessageBuilder {
 		this.indexedMessageCount = messages.length;
 		this.indexedTailRef =
 			messages.length > 0 ? messages[messages.length - 1] : undefined;
+	}
+
+	/** Commits pending stale-read rewrites once reclaimable bytes cross the threshold. */
+	private commitOutdatedRewrites(messages: Message[]): void {
+		const pending = new Map<string, Set<string>>();
+		const seenToolUseIds = new Set<string>();
+		let pendingBytes = 0;
+
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type !== "tool_result" || block.is_error === true) {
+					continue;
+				}
+				const toolName = this.resolveToolName(block);
+				if (!this.isReadTool(toolName)) {
+					continue;
+				}
+				seenToolUseIds.add(block.tool_use_id);
+				const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+				const newKeys = new Set<string>();
+				const validKeys = new Set<string>();
+				for (const locator of this.getReadLocators(block)) {
+					const key = this.toReadLocatorKey(locator);
+					if (!this.isOutdatedReadLocator(locator, block.tool_use_id)) {
+						continue;
+					}
+					validKeys.add(key);
+					if (!committed?.has(key)) {
+						newKeys.add(key);
+					}
+				}
+				// Rollback can make a committed locator current again.
+				if (committed) {
+					for (const key of committed) {
+						if (!validKeys.has(key)) {
+							committed.delete(key);
+						}
+					}
+					if (committed.size === 0) {
+						this.committedOutdatedRewrites.delete(block.tool_use_id);
+					}
+				}
+				if (newKeys.size === 0) {
+					continue;
+				}
+				let keys = pending.get(block.tool_use_id);
+				if (!keys) {
+					keys = new Set<string>();
+					pending.set(block.tool_use_id, keys);
+				}
+				for (const key of newKeys) {
+					keys.add(key);
+				}
+				// Attribute provider-bound bytes to the newly-stale locators, not
+				// raw history bytes or the whole block.
+				pendingBytes += this.estimateOutdatedReclaimBytes(
+					block.content,
+					newKeys,
+				);
+			}
+		}
+
+		for (const toolUseId of this.committedOutdatedRewrites.keys()) {
+			if (!seenToolUseIds.has(toolUseId)) {
+				this.committedOutdatedRewrites.delete(toolUseId);
+			}
+		}
+
+		if (pending.size === 0 || pendingBytes < this.minOutdatedRewriteBytes) {
+			return;
+		}
+
+		for (const [toolUseId, keys] of pending) {
+			let committed = this.committedOutdatedRewrites.get(toolUseId);
+			if (!committed) {
+				committed = new Set<string>();
+				this.committedOutdatedRewrites.set(toolUseId, committed);
+			}
+			for (const key of keys) {
+				committed.add(key);
+			}
+		}
+	}
+
+	/** Estimates reclaimable bytes for stale locators inside one tool-result block. */
+	private estimateOutdatedReclaimBytes(
+		content: ToolResultContent["content"],
+		outdatedKeys: ReadonlySet<string>,
+	): number {
+		const allLocators = this.extractReadLocatorsFromToolResultContent(content);
+		const blockFullyOutdated =
+			allLocators.length > 0 &&
+			allLocators.every((locator) =>
+				outdatedKeys.has(this.toReadLocatorKey(locator)),
+			);
+
+		const attributeText = (text: string): number => {
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(text);
+			} catch {
+				return blockFullyOutdated || allLocators.length === 0
+					? utf8ByteLength(this.truncateMiddle(text))
+					: 0;
+			}
+			const entries = Array.isArray(parsed) ? parsed : [parsed];
+			let total = 0;
+			for (const entry of entries) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += this.providerBoundEntryBytes(entry);
+				}
+			}
+			return total;
+		};
+
+		if (typeof content === "string") {
+			return attributeText(content);
+		}
+		// Image siblings are rewritten positionally, so count them positionally too.
+		const outdatedKeySet = new Set(outdatedKeys);
+		let outdatedImageCount = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				outdatedImageCount += this.countOutdatedImageEntries(
+					entry.text,
+					outdatedKeySet,
+				);
+			}
+		}
+		let total = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				total += attributeText(entry.text);
+			} else if (entry.type === "image") {
+				if (outdatedImageCount > 0) {
+					outdatedImageCount -= 1;
+					total += utf8ByteLength(entry.data);
+				}
+			} else if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += this.providerBoundEntryBytes(entry);
+				}
+			} else if (entry.type === "file") {
+				if (
+					outdatedKeys.has(
+						this.toReadLocatorKey({
+							path: entry.path,
+							startLine: null,
+							endLine: null,
+						}),
+					)
+				) {
+					total += utf8ByteLength(this.truncateMiddle(entry.content));
+				}
+			}
+		}
+		return total;
+	}
+
+	private providerBoundEntryBytes(entry: unknown): number {
+		const providerBound = this.truncateNestedStrings(entry);
+		return utf8ByteLength(JSON.stringify(providerBound));
 	}
 
 	private addMissingToolResults(messages: Message[]): Message[] {
@@ -483,16 +771,20 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return this.tryParseReadLocators(content);
 		}
+		const locators: ReadLocator[] = [];
 		for (const entry of content) {
-			if (entry.type !== "text") {
+			if (entry.type === "text") {
+				locators.push(...this.tryParseReadLocators(entry.text));
 				continue;
 			}
-			const locators = this.tryParseReadLocators(entry.text);
-			if (locators.length > 0) {
-				return locators;
+			if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator) {
+					locators.push(locator);
+				}
 			}
 		}
-		return [];
+		return this.dedupeReadLocators(locators);
 	}
 
 	private tryParseReadLocators(text: string): ReadLocator[] {
@@ -631,9 +923,7 @@ export class MessageBuilder {
 			);
 		}
 
-		// Two-pass over content array: first count outdated image entries embedded
-		// in text payloads (those need to convert image siblings → text). Second
-		// pass rewrites entries.
+		// Image entries are paired with text result markers, so rewrite them positionally.
 		let pendingImageReplacements = 0;
 		for (const entry of content) {
 			if (entry.type === "text") {
@@ -660,6 +950,12 @@ export class MessageBuilder {
 					type: "text",
 					text: OUTDATED_FILE_CONTENT,
 				} satisfies TextContent;
+			}
+			if (isStructuredToolResultEntry(entry)) {
+				return this.replaceOutdatedReadEntry(
+					entry,
+					outdatedKeys,
+				) as typeof entry;
 			}
 			if (entry.type !== "text") {
 				return entry;
@@ -750,8 +1046,19 @@ export class MessageBuilder {
 		return !!toolName && READ_TOOL_NAMES.has(toolName);
 	}
 
-	private shouldTruncateTool(toolName: string | undefined): boolean {
-		return !!toolName && this.targetToolNames.has(toolName);
+	/**
+	 * Tool results can outlive their paired tool_use block (compacted or
+	 * imported histories), so fall back to the name carried on the result
+	 * itself when the id lookup misses.
+	 */
+	private resolveToolName(block: ToolResultContent): string | undefined {
+		const cached = this.toolNameByIdCache.get(block.tool_use_id);
+		if (cached !== undefined) {
+			return cached;
+		}
+		return typeof block.name === "string" && block.name.length > 0
+			? block.name.toLowerCase()
+			: undefined;
 	}
 
 	private truncateToolResultContent(
@@ -765,12 +1072,54 @@ export class MessageBuilder {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
 			}
-			if (entry.type !== "text") {
-				return entry;
+			if (entry.type === "text") {
+				const next = this.truncateMiddle(entry.text);
+				return next === entry.text ? entry : { ...entry, text: next };
 			}
-			const next = this.truncateMiddle(entry.text);
-			return next === entry.text ? entry : { ...entry, text: next };
+			if (isStructuredToolResultEntry(entry)) {
+				return this.truncateNestedStrings(entry) as typeof entry;
+			}
+			return entry;
 		});
+	}
+
+	/**
+	 * Deep-truncates string values inside structured tool outputs (e.g.
+	 * `ToolOperationResult[]` from run_commands/read_files), which carry the
+	 * payload in untyped `{query, result, ...}` fields rather than text
+	 * blocks. Image blocks are left intact so base64 payloads survive.
+	 */
+	private truncateNestedStrings(value: unknown): unknown {
+		if (typeof value === "string") {
+			return this.truncateMiddle(value);
+		}
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.truncateNestedStrings(item);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+		if (value !== null && typeof value === "object") {
+			if (isBinaryContentLike(value)) {
+				return value;
+			}
+			let changed = false;
+			const next: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				const out = this.truncateNestedStrings(item);
+				if (out !== item) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+		return value;
 	}
 
 	private truncateMiddle(text: string): string {
@@ -781,11 +1130,36 @@ export class MessageBuilder {
 		);
 	}
 
-	private truncateToTotalTextBudget(messages: Message[]): Message[] {
-		if (this.maxTotalTextBytes <= 0) {
-			return messages;
+	private truncateAssistantText(text: string): string {
+		if (this.hasRepeatedToolCallMarkup(text)) {
+			return truncateMiddleByChars(
+				text,
+				this.maxAssistantToolMarkupChars,
+				TRUNCATE_ASSISTANT_TOOL_MARKUP_MARKER,
+			);
 		}
+		return truncateMiddleByChars(
+			text,
+			this.maxAssistantTextChars,
+			TRUNCATE_ASSISTANT_TEXT_MARKER,
+		);
+	}
 
+	private hasRepeatedToolCallMarkup(text: string): boolean {
+		if (text.length <= this.maxAssistantToolMarkupChars) {
+			return false;
+		}
+		let count = 0;
+		for (const _match of text.matchAll(TOOL_CALL_MARKUP_PATTERN)) {
+			count += 1;
+			if (count >= REPEATED_TOOL_CALL_MARKUP_THRESHOLD) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private truncateToTotalTextBudget(messages: Message[]): Message[] {
 		let totalBytes = this.countMessageTextBytes(messages);
 		if (totalBytes <= this.maxTotalTextBytes) {
 			return messages;
@@ -793,7 +1167,7 @@ export class MessageBuilder {
 
 		const next = messages.map((message) => {
 			if (!Array.isArray(message.content)) {
-				return message;
+				return { ...message };
 			}
 			return {
 				...message,
@@ -809,18 +1183,15 @@ export class MessageBuilder {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
-			if (currentBytes <= MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES) {
+			if (currentBytes <= candidate.minBytes) {
 				continue;
 			}
 			const overflow = totalBytes - this.maxTotalTextBytes;
-			const targetBytes = Math.max(
-				MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
-				currentBytes - overflow,
-			);
+			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
 				targetBytes,
-				TRUNCATE_MARKER_BUDGET,
+				candidate.makeMarker,
 			);
 			candidate.set(truncated);
 			totalBytes -= currentBytes - utf8ByteLength(truncated);
@@ -843,6 +1214,12 @@ export class MessageBuilder {
 					total += utf8ByteLength(block.thinking);
 				} else if (block.type === "file") {
 					total += utf8ByteLength(block.content);
+				} else if (block.type === "tool_use") {
+					// Model-generated tool arguments ship on the wire too. Counting
+					// them keeps the budget honest; if tool results alone cannot
+					// absorb the overflow, oversized argument strings are truncated
+					// as a last resort (see collectTruncationCandidates).
+					total += countNestedStringBytes(block.input);
 				} else if (block.type === "tool_result") {
 					if (typeof block.content === "string") {
 						total += utf8ByteLength(block.content);
@@ -852,6 +1229,8 @@ export class MessageBuilder {
 								total += utf8ByteLength(entry.text);
 							} else if (entry.type === "file") {
 								total += utf8ByteLength(entry.content);
+							} else if (isStructuredToolResultEntry(entry)) {
+								total += countNestedStringBytes(entry);
 							}
 						}
 					}
@@ -864,22 +1243,49 @@ export class MessageBuilder {
 	private collectTruncationCandidates(
 		messages: Message[],
 	): TruncationCandidate[] {
-		const candidates: TruncationCandidate[] = [];
+		const resultCandidates: TruncationCandidate[] = [];
+		const inputCandidates: TruncationCandidate[] = [];
 		for (const message of messages) {
+			if (message.role === "assistant" && typeof message.content === "string") {
+				resultCandidates.push({
+					byteLength: utf8ByteLength(message.content),
+					minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+					makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
+					get: () => message.content as string,
+					set: (value) => {
+						message.content = value;
+					},
+				});
+				continue;
+			}
 			if (!Array.isArray(message.content)) {
 				continue;
 			}
 			for (const block of message.content) {
+				if (block.type === "tool_use") {
+					collectNestedStringCandidates(block.input, inputCandidates);
+					continue;
+				}
+				if (message.role === "assistant" && block.type === "text") {
+					resultCandidates.push({
+						byteLength: utf8ByteLength(block.text),
+						minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+						makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
+						get: () => block.text,
+						set: (value) => {
+							block.text = value;
+						},
+					});
+					continue;
+				}
 				if (block.type !== "tool_result") {
 					continue;
 				}
-				const toolName = this.toolNameByIdCache.get(block.tool_use_id);
-				if (!this.shouldTruncateTool(toolName)) {
-					continue;
-				}
 				if (typeof block.content === "string") {
-					candidates.push({
+					resultCandidates.push({
 						byteLength: utf8ByteLength(block.content),
+						minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+						makeMarker: TRUNCATE_MARKER_BUDGET,
 						get: () => block.content as string,
 						set: (value) => {
 							block.content = value;
@@ -889,31 +1295,241 @@ export class MessageBuilder {
 				}
 				for (const entry of block.content) {
 					if (entry.type === "text") {
-						candidates.push({
+						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),
+							minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+							makeMarker: TRUNCATE_MARKER_BUDGET,
 							get: () => entry.text,
 							set: (value) => {
 								entry.text = value;
 							},
 						});
 					} else if (entry.type === "file") {
-						candidates.push({
+						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.content),
+							minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+							makeMarker: TRUNCATE_MARKER_BUDGET,
 							get: () => entry.content,
 							set: (value) => {
 								entry.content = value;
 							},
 						});
+					} else if (isStructuredToolResultEntry(entry)) {
+						collectNestedStringCandidates(entry, resultCandidates);
 					}
 				}
 			}
 		}
-		return candidates.sort((l, r) => r.byteLength - l.byteLength);
+		// Tool results and assistant text truncate first; model-generated
+		// tool_use arguments are a last resort because some providers
+		// revalidate or replay them. All three being candidates keeps the
+		// budget reclaimable no matter which side carries the overflow.
+		resultCandidates.sort((l, r) => r.byteLength - l.byteLength);
+		inputCandidates.sort((l, r) => r.byteLength - l.byteLength);
+		return [...resultCandidates, ...inputCandidates];
+	}
+
+	private applyMediaBudget(messages: Message[]): Message[] {
+		const budget = this.resolveMediaBudget();
+		if (
+			budget.maxImageEncodedBytes === Number.POSITIVE_INFINITY &&
+			budget.maxImageDecodedBytes === Number.POSITIVE_INFINITY &&
+			budget.maxTotalMediaBytes === Number.POSITIVE_INFINITY
+		) {
+			return messages;
+		}
+
+		const state = createMediaBudgetState();
+		let changed = false;
+		const next = messages.map((message) => {
+			if (!Array.isArray(message.content)) {
+				return message;
+			}
+			let contentChanged = false;
+			const content = message.content.map((block) => {
+				const out = this.applyMediaBudgetToBlock(block, budget, state);
+				if (out !== block) {
+					contentChanged = true;
+				}
+				return out;
+			});
+			if (!contentChanged) {
+				return message;
+			}
+			changed = true;
+			return { ...message, content };
+		});
+
+		return changed ? next : messages;
+	}
+
+	private resolveMediaBudget(): ResolvedMediaBudget {
+		return resolveMediaBudget(this.mediaBudget);
+	}
+
+	private applyMediaBudgetToBlock(
+		block: ContentBlock,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): ContentBlock {
+		if (isImageContentLike(block)) {
+			return this.limitImageContent(block, budget, state);
+		}
+
+		if (block.type !== "tool_result" || typeof block.content === "string") {
+			return block;
+		}
+
+		let changed = false;
+		const content = block.content.map((entry) => {
+			const out = this.applyMediaBudgetToToolResultEntry(entry, budget, state);
+			if (out !== entry) {
+				changed = true;
+			}
+			return out as (typeof block.content)[number];
+		});
+
+		return changed
+			? { ...block, content: content as ToolResultContent["content"] }
+			: block;
+	}
+
+	private applyMediaBudgetToToolResultEntry(
+		entry: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): unknown {
+		if (isImageContentLike(entry)) {
+			return this.limitImageContent(entry, budget, state);
+		}
+		if (isStructuredToolResultEntry(entry)) {
+			return this.limitNestedMedia(entry, budget, state);
+		}
+		return entry;
+	}
+
+	private limitNestedMedia(
+		value: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): unknown {
+		if (isImageContentLike(value)) {
+			const limited = this.limitImageContent(value, budget, state);
+			return limited.type === "text" ? limited.text : limited;
+		}
+
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.limitNestedMedia(item, budget, state);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+
+		if (value !== null && typeof value === "object") {
+			let changed = false;
+			const next: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				const out = this.limitNestedMedia(item, budget, state);
+				if (out !== item) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+
+		return value;
+	}
+
+	private limitImageContent(
+		image: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): ImageContent | TextContent {
+		if (!isImageContentWithData(image)) {
+			return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+		}
+
+		const validation = validateAndReserveImageMedia(
+			image.mediaType,
+			image.data,
+			{
+				maxImageEncodedBytes: budget.maxImageEncodedBytes,
+				maxImageDecodedBytes: budget.maxImageDecodedBytes,
+				maxTotalMediaBytes: budget.maxTotalMediaBytes,
+			},
+			state,
+		);
+		if (!validation.ok) {
+			return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+		}
+
+		return {
+			...image,
+			data: validation.base64,
+			mediaType: validation.mediaType,
+		};
 	}
 }
 
+const DSML_BAR = String.raw`[\|\uFF5C]`;
+// Compiled once at module load; String.prototype.matchAll clones the regex
+// per call, so sharing the global-flagged instance is safe.
+const TOOL_CALL_MARKUP_PATTERN = new RegExp(
+	String.raw`<\s*(?:${DSML_BAR}\s*)?DSML\s*(?:${DSML_BAR}\s*)?(?:tool_calls|invoke)\b[^>]*>|<\s*/?\s*(?:tool_calls?|tool_call|function_calls?|function_call|invoke)\b[^>]*>`,
+	"gi",
+);
+
 function utf8ByteLength(text: string): number {
 	return Buffer.byteLength(text, "utf8");
+}
+
+function parsePositiveIntegerEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseNonNegativeLimitEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const normalized = value.trim().toLowerCase();
+	if (normalized === "infinity" || normalized === "disable") {
+		return Number.POSITIVE_INFINITY;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function normalizePositiveLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: fallback;
+}
+
+function normalizeNonNegativeLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	if (typeof value !== "number" || Number.isNaN(value) || value < 0) {
+		return fallback;
+	}
+	return Number.isFinite(value) ? Math.floor(value) : value;
 }
 
 function truncateMiddleByChars(
@@ -966,11 +1582,146 @@ function truncateMiddleToBytes(
 }
 
 function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
+	if (block.type === "tool_use") {
+		// Inputs are budget-truncation candidates of last resort, so they need
+		// the same deep-clone treatment as structured results: a shallow copy
+		// would leak truncation mutations back into conversation history.
+		return {
+			...block,
+			input: deepCloneJsonLike(block.input) as typeof block.input,
+		};
+	}
 	if (block.type !== "tool_result" || typeof block.content === "string") {
 		return { ...block };
 	}
 	return {
 		...block,
-		content: block.content.map((entry) => ({ ...entry })),
+		// Structured entries can nest the payload strings arbitrarily deep, so
+		// a shallow copy would leak budget-truncation mutations back into the
+		// original conversation history.
+		content: block.content.map((entry) =>
+			isStructuredToolResultEntry(entry)
+				? (deepCloneJsonLike(entry) as typeof entry)
+				: { ...entry },
+		),
 	};
+}
+
+/**
+ * True for tool_result content entries that are not the typed text/image/file
+ * blocks — i.e. structured tool outputs such as `ToolOperationResult[]`
+ * entries that the runtime stores directly in the content array.
+ */
+function isStructuredToolResultEntry(entry: unknown): boolean {
+	if (entry === null || typeof entry !== "object") {
+		return false;
+	}
+	const type = (entry as { type?: unknown }).type;
+	return type !== "text" && type !== "image" && type !== "file";
+}
+
+function isImageContentLike(value: unknown): boolean {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "image"
+	);
+}
+
+function isImageContentWithData(value: unknown): value is ImageContent {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "image" &&
+		typeof (value as { data?: unknown }).data === "string" &&
+		typeof (value as { mediaType?: unknown }).mediaType === "string"
+	);
+}
+
+function isBinaryContentLike(value: unknown): boolean {
+	return isImageContentWithData(value);
+}
+
+function countNestedStringBytes(value: unknown): number {
+	if (typeof value === "string") {
+		return utf8ByteLength(value);
+	}
+	if (Array.isArray(value)) {
+		let total = 0;
+		for (const item of value) {
+			total += countNestedStringBytes(item);
+		}
+		return total;
+	}
+	if (value !== null && typeof value === "object") {
+		if (isBinaryContentLike(value)) {
+			return 0;
+		}
+		let total = 0;
+		for (const item of Object.values(value)) {
+			total += countNestedStringBytes(item);
+		}
+		return total;
+	}
+	return 0;
+}
+
+function collectNestedStringCandidates(
+	container: unknown,
+	candidates: TruncationCandidate[],
+): void {
+	if (Array.isArray(container)) {
+		container.forEach((item, index) => {
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+					makeMarker: TRUNCATE_MARKER_BUDGET,
+					get: () => container[index] as string,
+					set: (value) => {
+						container[index] = value;
+					},
+				});
+			} else {
+				collectNestedStringCandidates(item, candidates);
+			}
+		});
+		return;
+	}
+	if (container !== null && typeof container === "object") {
+		if (isBinaryContentLike(container)) {
+			return;
+		}
+		const record = container as Record<string, unknown>;
+		for (const key of Object.keys(record)) {
+			const item = record[key];
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+					makeMarker: TRUNCATE_MARKER_BUDGET,
+					get: () => record[key] as string,
+					set: (value) => {
+						record[key] = value;
+					},
+				});
+			} else {
+				collectNestedStringCandidates(item, candidates);
+			}
+		}
+	}
+}
+
+function deepCloneJsonLike(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(deepCloneJsonLike);
+	}
+	if (value !== null && typeof value === "object") {
+		const out: Record<string, unknown> = {};
+		for (const [key, item] of Object.entries(value)) {
+			out[key] = deepCloneJsonLike(item);
+		}
+		return out;
+	}
+	return value;
 }

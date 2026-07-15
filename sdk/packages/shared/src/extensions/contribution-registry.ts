@@ -8,8 +8,17 @@ import type { ClientContext, UserContext } from "./context";
 export interface AgentExtensionCommand {
 	name: string;
 	description?: string;
-	handler?: (input: string) => Promise<string> | string;
+	handler?: (
+		input: string,
+	) => Promise<AgentExtensionCommandResult> | AgentExtensionCommandResult;
 }
+
+export type AgentExtensionCommandResult =
+	| string
+	| {
+			reply?: string;
+			submitPrompt?: string;
+	  };
 
 export interface AgentExtensionRule {
 	id: string;
@@ -37,6 +46,53 @@ export interface AgentExtensionAutomationEventType {
 	attributesSchema?: Record<string, unknown>;
 	payloadSchema?: Record<string, unknown>;
 	examples?: AutomationEventEnvelope[];
+	metadata?: Record<string, unknown>;
+}
+
+export interface AgentExtensionMcpEnvValue {
+	// Read this environment variable from the host process. Defaults to the target env var name.
+	fromEnv?: string;
+	// Literal fallback value used when `fromEnv` is omitted or not set.
+	value?: string;
+	// Skip the MCP server when no value can be resolved.
+	required?: boolean;
+}
+
+export type AgentExtensionMcpEnv = Record<
+	string,
+	string | AgentExtensionMcpEnvValue
+>;
+
+export interface AgentExtensionMcpStdioTransport {
+	type: "stdio";
+	command: string;
+	args?: string[];
+	cwd?: string;
+	env?: Record<string, string>;
+}
+
+export interface AgentExtensionMcpSseTransport {
+	type: "sse";
+	url: string;
+	headers?: Record<string, string>;
+}
+
+export interface AgentExtensionMcpStreamableHttpTransport {
+	type: "streamableHttp";
+	url: string;
+	headers?: Record<string, string>;
+}
+
+export type AgentExtensionMcpTransport =
+	| AgentExtensionMcpStdioTransport
+	| AgentExtensionMcpSseTransport
+	| AgentExtensionMcpStreamableHttpTransport;
+
+export interface AgentExtensionMcpServer {
+	name: string;
+	transport: AgentExtensionMcpTransport;
+	// Top-level env values are merged into stdio process env only.
+	env?: AgentExtensionMcpEnv;
 	metadata?: Record<string, unknown>;
 }
 
@@ -78,6 +134,8 @@ export interface AgentExtensionApi<TTool = AgentTool, TMessage = unknown> {
 	registerAutomationEventType: (
 		eventType: AgentExtensionAutomationEventType,
 	) => void;
+	// Register an MCP server exposed as runtime tools. Requires the `mcp` capability.
+	registerMcpServer: (server: AgentExtensionMcpServer) => void;
 }
 
 export type AgentExtensionHooks = Partial<AgentRuntimeHooks>;
@@ -139,6 +197,7 @@ const ExtensionCapabilityOptions = [
 	"messageBuilders",
 	"providers",
 	"automationEvents",
+	"mcp",
 ] as const;
 
 export type AgentExtensionCapability =
@@ -158,6 +217,7 @@ export interface AgentExtensionRegistry<TTool = AgentTool, TMessage = unknown> {
 	messageBuilder: AgentExtensionMessageBuilder<TMessage>[];
 	providers: AgentExtensionProvider[];
 	automationEventTypes: AgentExtensionAutomationEventType[];
+	mcpServers: AgentExtensionMcpServer[];
 }
 
 /**
@@ -210,6 +270,10 @@ export interface ContributionRegistryOptions<
 	extensions?: TExtension[];
 	/** Workspace context forwarded to each extension's `setup(api, ctx)` call. */
 	setupContext?: PluginSetupContext;
+}
+
+export interface ContributionRegistryInitializeOptions {
+	tolerateSetupErrors?: boolean;
 }
 
 interface NormalizedExtension<
@@ -373,6 +437,7 @@ export class ContributionRegistry<
 		messageBuilder: [],
 		providers: [],
 		automationEventTypes: [],
+		mcpServers: [],
 	};
 	private normalized: NormalizedExtension<TExtension, TTool, TMessage>[] = [];
 	private phase: "resolve" | "validate" | "setup" | "activate" | "run" =
@@ -412,38 +477,66 @@ export class ContributionRegistry<
 		this.phase = "setup";
 	}
 
-	async setup(): Promise<void> {
+	async setup(
+		options: ContributionRegistryInitializeOptions = {},
+	): Promise<void> {
 		if (this.phase === "resolve") this.resolve();
 		if (this.phase === "validate") this.validate();
 		if (this.phase !== "setup") return;
 
+		let firstSetupError: unknown;
+		const successfulSetups: AgentExtensionRegistry<TTool, TMessage>[] = [];
 		for (const entry of this.normalized) {
 			const { extension } = entry;
 			if (extension.disabled) continue;
 			const extensionName = asExtensionName(extension, entry.order);
+			const pending: AgentExtensionRegistry<TTool, TMessage> = {
+				tools: [],
+				commands: [],
+				rules: [],
+				messageBuilder: [],
+				providers: [],
+				automationEventTypes: [],
+				mcpServers: [],
+			};
 			const api: AgentExtensionApi<TTool, TMessage> = {
-				registerTool: (tool) => this.registry.tools.push(tool),
-				registerCommand: (command) => this.registry.commands.push(command),
+				registerTool: (tool) => pending.tools.push(tool),
+				registerCommand: (command) => pending.commands.push(command),
 				registerRule: (rule) => {
 					if (!entry.manifest.capabilities.has("rules")) {
 						throw new Error(
 							`Invalid setup for extension "${extensionName}": registerRule requires the "rules" capability`,
 						);
 					}
-					this.registry.rules.push(rule);
+					pending.rules.push(rule);
 				},
 				registerMessageBuilder: (builder) =>
-					this.registry.messageBuilder.push(builder),
-				registerProvider: (provider) => this.registry.providers.push(provider),
+					pending.messageBuilder.push(builder),
+				registerProvider: (provider) => pending.providers.push(provider),
 				registerAutomationEventType: (eventType) => {
 					if (!entry.manifest.capabilities.has("automationEvents")) {
 						throw new Error(
 							`Invalid setup for extension "${extensionName}": registerAutomationEventType requires the "automationEvents" capability`,
 						);
 					}
-					this.registry.automationEventTypes.push(
+					pending.automationEventTypes.push(
 						normalizeAutomationEventType(eventType, extensionName),
 					);
+				},
+				registerMcpServer: (server) => {
+					if (!entry.manifest.capabilities.has("mcp")) {
+						throw new Error(
+							`Invalid setup for extension "${extensionName}": registerMcpServer requires the "mcp" capability`,
+						);
+					}
+					pending.mcpServers.push({
+						...server,
+						metadata: {
+							...(server.metadata ?? {}),
+							source: "plugin",
+							plugin: extensionName,
+						},
+					});
 				},
 			};
 			const setupContext = entry.manifest.capabilities.has("automationEvents")
@@ -452,9 +545,32 @@ export class ContributionRegistry<
 						...this.setupContext,
 						automation: undefined,
 					};
-			await extension.setup?.(api, setupContext);
+			try {
+				await extension.setup?.(api, setupContext);
+				successfulSetups.push(pending);
+			} catch (error) {
+				if (options.tolerateSetupErrors !== true) {
+					throw error;
+				}
+				firstSetupError ??= error;
+			}
+		}
+		if (firstSetupError && options.tolerateSetupErrors !== true) {
+			throw firstSetupError;
+		}
+		for (const pending of successfulSetups) {
+			this.registry.tools.push(...pending.tools);
+			this.registry.commands.push(...pending.commands);
+			this.registry.rules.push(...pending.rules);
+			this.registry.messageBuilder.push(...pending.messageBuilder);
+			this.registry.providers.push(...pending.providers);
+			this.registry.automationEventTypes.push(...pending.automationEventTypes);
+			this.registry.mcpServers.push(...pending.mcpServers);
 		}
 		this.phase = "activate";
+		if (firstSetupError) {
+			throw firstSetupError;
+		}
 	}
 
 	activate(): void {
@@ -469,11 +585,18 @@ export class ContributionRegistry<
 		this.phase = "run";
 	}
 
-	async initialize(): Promise<void> {
+	async initialize(
+		options: ContributionRegistryInitializeOptions = {},
+	): Promise<void> {
 		this.resolve();
 		this.validate();
-		await this.setup();
-		this.activate();
+		try {
+			await this.setup(options);
+		} finally {
+			if (this.phase === "activate") {
+				this.activate();
+			}
+		}
 	}
 
 	isActivated(): boolean {
@@ -488,6 +611,7 @@ export class ContributionRegistry<
 			messageBuilder: [...this.registry.messageBuilder],
 			providers: [...this.registry.providers],
 			automationEventTypes: [...this.registry.automationEventTypes],
+			mcpServers: [...this.registry.mcpServers],
 		};
 	}
 
@@ -501,6 +625,10 @@ export class ContributionRegistry<
 
 	getRegisteredAutomationEventTypes(): AgentExtensionAutomationEventType[] {
 		return [...this.registry.automationEventTypes];
+	}
+
+	getRegisteredMcpServers(): AgentExtensionMcpServer[] {
+		return [...this.registry.mcpServers];
 	}
 
 	getValidatedExtensions(): TExtension[] {

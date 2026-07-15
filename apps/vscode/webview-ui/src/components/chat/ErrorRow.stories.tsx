@@ -214,6 +214,23 @@ export const ClineSpendLimitMinimal: Story = {
 	},
 }
 
+// ClinePass entitlement error (user not subscribed to a required model plan)
+export const ClinePassEntitlementError: Story = {
+	args: {
+		message: createMockMessage(),
+		errorType: "error",
+		apiRequestFailedMessage:
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
+	},
+	parameters: {
+		docs: {
+			description: {
+				story: "ClinePass model returns the SDK ClineNotSubscribedError message when the user is not subscribed. A human-readable message with a 'Get ClinePass' subscribe link and a retry button is shown.",
+			},
+		},
+	},
+}
+
 // Authentication-related errors with configurable scenarios
 export const AuthenticationErrors: Story = {
 	args: {

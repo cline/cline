@@ -126,10 +126,7 @@
 				"${workspaceFolder}/apps/vscode/dist-standalone/**/*.js"
 			],
 			"preLaunchTask": "compile-standalone",
-			"runtimeExecutable": "npx",
-			"runtimeArgs": [
-				"tsx"
-			],
+			"runtimeExecutable": "bun",
 			"program": "scripts/test-standalone-core-api-server.ts",
 			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
@@ -183,7 +180,7 @@
 			"name": "Open Storybook",
 			"type": "node",
 			"request": "launch",
-			"runtimeExecutable": "npm",
+			"runtimeExecutable": "bun",
 			"runtimeArgs": [
 				"run",
 				"storybook"

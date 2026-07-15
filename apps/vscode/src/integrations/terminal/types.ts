@@ -1,10 +1,12 @@
 /**
- * Shared terminal types and interfaces for both VSCode and Standalone terminal managers.
- * These types ensure compatibility between the VSCode-based TerminalManager and
- * the StandaloneTerminalManager used in CLI/JetBrains environments.
+ * Shared terminal process types for the VSCode foreground terminal manager.
+ *
+ * These types describe the event/process surface implemented by
+ * `VscodeTerminalProcess` and consumed by `VscodeTerminalManager`. The
+ * standalone (CLI/JetBrains) terminal manager was removed — those hosts run
+ * commands through the SDK's built-in `run_commands` (child_process) tool.
  */
 
-import type { ClineToolResponseContent } from "@shared/messages"
 import type { EventEmitter } from "events"
 
 // =============================================================================
@@ -19,6 +21,13 @@ export interface TerminalCompletionDetails {
 	exitCode?: number | null
 	/** Termination signal when available */
 	signal?: NodeJS.Signals | null
+	/**
+	 * True when the terminal was closed while the command was still running.
+	 * There is no exit code in this case — the command's success/failure is
+	 * unknown, but callers must not report success, since e.g. the terminal
+	 * closing mid-`npm test` must not be read as tests passing.
+	 */
+	terminalClosed?: boolean
 }
 
 export interface TerminalProcessEvents {
@@ -31,14 +40,14 @@ export interface TerminalProcessEvents {
 
 /**
  * Interface for terminal process implementations.
- * Both VscodeTerminalProcess and StandaloneTerminalProcess implement this interface.
+ * Implemented by VscodeTerminalProcess.
  *
  * Events emitted:
  * - 'line': Emitted for each line of output
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
- * - 'no_shell_integration': Emitted when shell integration is not available (VSCode only)
+ * - 'no_shell_integration': Emitted when shell integration is not available
  */
 export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	/**
@@ -48,7 +57,6 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	/**
 	 * Whether to wait for shell integration before running commands.
-	 * VSCode processes may need to wait, standalone processes don't.
 	 */
 	waitForShellIntegration: boolean
 
@@ -69,15 +77,6 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	 * Get completion metadata for the most recent command execution.
 	 */
 	getCompletionDetails?(): TerminalCompletionDetails
-
-	/**
-	 * Terminate the process if it's still running.
-	 * Only available for standalone processes (child_process).
-	 * VSCode terminal processes cannot be terminated via this interface.
-	 *
-	 * May be async to allow for graceful shutdown with SIGKILL fallback.
-	 */
-	terminate?(): void | Promise<void>
 }
 
 // =============================================================================
@@ -107,7 +106,7 @@ export interface TerminalInfo {
 }
 
 /**
- * Minimal terminal interface that both VSCode terminals and standalone terminals implement.
+ * Minimal terminal interface implemented by VSCode terminals.
  */
 export interface ITerminal {
 	/** Terminal name */
@@ -132,13 +131,6 @@ export interface ITerminal {
 }
 
 /**
- * Terminal process result interface.
- * @deprecated Use ITerminalProcess instead.
- * This is kept for backwards compatibility.
- */
-export type ITerminalProcessResult = ITerminalProcess
-
-/**
  * Promise-like interface for terminal process results.
  * Combines Promise<void> with ITerminalProcess for flexible usage.
  * This allows the process to be awaited while also providing access to events.
@@ -158,277 +150,3 @@ export type TerminalProcessResultPromise = Promise<void> &
 		/** Listen once for any event */
 		once(event: string, listener: (...args: any[]) => void): TerminalProcessResultPromise
 	}
-
-/**
- * Interface for terminal managers (both VSCode and Standalone implementations).
- * Defines the contract that both implementations must follow.
- */
-export interface ITerminalManager {
-	/**
-	 * Run a command in the specified terminal.
-	 * @param terminalInfo The terminal to run the command in
-	 * @param command The command to execute
-	 * @returns A promise-like object that emits events and resolves on completion
-	 */
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise
-
-	/**
-	 * Get or create a terminal for the specified working directory.
-	 * @param cwd The working directory for the terminal
-	 * @returns The terminal info for an available terminal
-	 */
-	getOrCreateTerminal(cwd: string): Promise<TerminalInfo>
-
-	/**
-	 * Get terminals filtered by busy state.
-	 * @param busy Whether to get busy or idle terminals
-	 * @returns Array of terminal info with id and last command
-	 */
-	getTerminals(busy: boolean): { id: number; lastCommand: string }[]
-
-	/**
-	 * Get output that hasn't been retrieved yet from a terminal.
-	 * @param terminalId The terminal ID
-	 * @returns The unretrieved output string
-	 */
-	getUnretrievedOutput(terminalId: number): string
-
-	/**
-	 * Check if a terminal's process is actively outputting.
-	 * @param terminalId The terminal ID
-	 * @returns Whether the process is hot
-	 */
-	isProcessHot(terminalId: number): boolean
-
-	/**
-	 * Dispose of all terminals and clean up resources.
-	 */
-	disposeAll(): void
-
-	/**
-	 * Set the timeout for waiting for shell integration.
-	 * @param timeout Timeout in milliseconds
-	 */
-	setShellIntegrationTimeout(timeout: number): void
-
-	/**
-	 * Enable or disable terminal reuse.
-	 * @param enabled Whether to enable terminal reuse
-	 */
-	setTerminalReuseEnabled(enabled: boolean): void
-
-	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void
-
-	/**
-	 * Set the default terminal profile.
-	 * @param profile The profile identifier
-	 */
-	setDefaultTerminalProfile(profile: string): void
-
-	/**
-	 * Process output lines, potentially truncating if over limit.
-	 * @param outputLines Array of output lines
-	 * @param overrideLimit Optional limit override
-	 * @returns Processed output string
-	 */
-	processOutput(outputLines: string[], overrideLimit?: number): string
-}
-
-/**
- * Options for creating a standalone terminal.
- */
-export interface StandaloneTerminalOptions {
-	/** Terminal name */
-	name?: string
-	/** Working directory */
-	cwd?: string
-	/** Shell path to use */
-	shellPath?: string
-}
-
-// =============================================================================
-// Background Command Types
-// =============================================================================
-
-/**
- * Represents a command running in the background after user clicked "Proceed While Running".
- * Used by StandaloneTerminalManager to track background commands.
- */
-export interface BackgroundCommand {
-	/** Unique identifier for the background command */
-	id: string
-	/** The command string being executed */
-	command: string
-	/** Timestamp when the command started */
-	startTime: number
-	/** Current status of the command */
-	status: "running" | "completed" | "error" | "timed_out"
-	/** Path to the log file where output is being written */
-	logFilePath: string
-	/** Number of lines written to the log file */
-	lineCount: number
-	/** Exit code if the command completed or errored */
-	exitCode?: number
-	/** The terminal process running the command */
-	process: TerminalProcessResultPromise
-}
-
-// =============================================================================
-// Command Executor Types
-// =============================================================================
-
-/**
- * Tracker for shell integration warnings to determine when to show background terminal suggestion.
- * Used internally by CommandExecutor to track warning frequency.
- */
-export interface ShellIntegrationWarningTracker {
-	/** Timestamps of recent shell integration warnings */
-	timestamps: number[]
-	/** Timestamp when the suggestion was last shown */
-	lastSuggestionShown?: number
-}
-
-/**
- * Represents an active background command that can be cancelled
- * @deprecated Use BackgroundCommand instead
- */
-export interface ActiveBackgroundCommand {
-	process: {
-		terminate?: () => void
-		continue?: () => void
-	}
-	command: string
-	outputLines: string[]
-}
-
-/**
- * Response from an ask() call
- */
-export interface AskResponse {
-	response: string // "yesButtonClicked" | "noButtonClicked" | "messageResponse"
-	text?: string
-	images?: string[]
-	files?: string[]
-}
-
-/**
- * Callbacks for CommandExecutor to interact with Task state
- * These are bound methods from the Task class that allow CommandExecutor
- * to update UI and state without owning that state directly.
- */
-export interface CommandExecutorCallbacks {
-	/** Display a message in the chat UI (non-blocking) */
-	say: (type: string, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
-	/**
-	 * Ask the user a question and wait for response (blocking)
-	 * This is used for "Proceed While Running" flow where we need to wait for user input
-	 */
-	ask: (type: string, text?: string, partial?: boolean) => Promise<AskResponse>
-	/** Resolve the currently pending ask (if any). Used to release command_output waits on terminal lifecycle transitions. */
-	resolvePendingAsk?: (response: AskResponse["response"]) => void
-	/** Update the background command running state in the controller */
-	updateBackgroundCommandState: (running: boolean) => void
-	/**
-	 * Update a cline message by index
-	 * Supports updating commandCompleted status and/or text content
-	 */
-	updateClineMessage: (index: number, updates: { commandCompleted?: boolean; text?: string }) => Promise<void>
-	/** Get cline messages array */
-	getClineMessages: () => Array<{ ask?: string; say?: string; text?: string }>
-	/** Add content to user message for next API request */
-	addToUserMessageContent: (content: { type: string; text: string }) => void
-}
-
-/**
- * Optional per-command execution behavior overrides.
- */
-export interface CommandExecutionOptions {
-	/**
-	 * Force command execution in standalone/background terminal mode for this command.
-	 * This is useful for subagent runs and headless-style execution flows.
-	 */
-	useBackgroundExecution?: boolean
-	/**
-	 * Suppress command interaction/output UI messages (ask/say) for this command execution.
-	 * Command output is still captured and returned as the tool result.
-	 */
-	suppressUserInteraction?: boolean
-}
-
-/**
- * Configuration for CommandExecutor
- */
-export interface CommandExecutorConfig {
-	/** Working directory for command execution */
-	cwd: string
-	/** Task ID for tracking */
-	taskId: string
-	/** Unique task identifier */
-	ulid: string
-	/** Terminal execution mode */
-	terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-	/** The primary terminal manager (VSCode or Standalone) */
-	terminalManager: ITerminalManager
-}
-
-/** Alias for backwards compatibility */
-export type FullCommandExecutorConfig = CommandExecutorConfig
-
-// =============================================================================
-// Command Orchestrator Types
-// =============================================================================
-
-/**
- * Options for command orchestration
- */
-export interface OrchestrationOptions {
-	/** The command being executed */
-	command: string
-	/** Optional timeout in seconds */
-	timeoutSeconds?: number
-	/** Callback to track output lines for background command tracking */
-	onOutputLine?: (line: string) => void
-	/** Whether to show shell integration warning with suggestion */
-	showShellIntegrationSuggestion?: boolean
-	/**
-	 * Callback invoked when user clicks "Proceed While Running".
-	 * Used to start background command tracking in the terminal manager.
-	 * @param existingOutput The output lines captured so far (to write to log file)
-	 * @returns The log file path if tracking was started, undefined otherwise
-	 */
-	onProceedWhileRunning?: (existingOutput: string[]) => { logFilePath: string } | undefined
-	/**
-	 * The type of terminal being used for telemetry tracking.
-	 * Defaults to "vscode" for backward compatibility.
-	 */
-	terminalType?: "vscode" | "standalone"
-	/**
-	 * If true, suppresses command-output ask/say UI interactions.
-	 * Output is still collected and included in the final result.
-	 */
-	suppressUserInteraction?: boolean
-}
-
-/**
- * Result of command orchestration
- */
-export interface OrchestrationResult {
-	/** Whether the user rejected/cancelled the command */
-	userRejected: boolean
-	/** The result content to return */
-	result: ClineToolResponseContent
-	/** Whether the command completed */
-	completed: boolean
-	/** All output lines captured */
-	outputLines: string[]
-	/** Path to log file if output was too large and written to file */
-	logFilePath?: string
-	/** Process exit code when available */
-	exitCode?: number | null
-	/** Process termination signal when available */
-	signal?: NodeJS.Signals | null
-}

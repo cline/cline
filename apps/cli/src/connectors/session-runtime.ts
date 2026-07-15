@@ -62,7 +62,9 @@ export async function buildConnectorStartRequest(input: {
 }): Promise<ChatStartSessionRequest> {
 	const providerSettingsManager = new ProviderSettingsManager();
 	const lastUsedProviderSettings =
-		providerSettingsManager.getLastUsedProviderSettings();
+		providerSettingsManager.getLastUsedProviderSettings({
+			isClinePassEnabled: true,
+		});
 	const provider = normalizeProviderId(
 		input.options.provider?.trim() ||
 			lastUsedProviderSettings?.provider ||

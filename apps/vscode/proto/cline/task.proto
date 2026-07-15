@@ -12,6 +12,8 @@ option java_package = "bot.cline.proto";
 service TaskService {
   // Cancels the currently running task
   rpc cancelTask(EmptyRequest) returns (Empty);
+  // Cancels a queued prompt by ID
+  rpc cancelQueuedPrompt(StringRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Clears the current task
@@ -32,16 +34,14 @@ service TaskService {
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
   // Sends a response to a previous ask operation
   rpc askResponse(AskResponseRequest) returns (Empty);
+  // Edits a previous user message, truncates following conversation, and regenerates
+  rpc editMessageAndRegenerate(EditMessageAndRegenerateRequest) returns (Empty);
   // Records task feedback (thumbs up/down)
   rpc taskFeedback(StringRequest) returns (Empty);
-  // Shows task completion changes diff in a view
-  rpc taskCompletionViewChanges(Int64Request) returns (Empty);
   // Executes a quick win task with command and title
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
-  // Explains changes with AI and adds inline comments to the diff view
-  rpc explainChanges(ExplainChangesRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -73,6 +73,7 @@ message TaskResponse {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_legacy = 12;
 }
 
 // Request for getting task history with filtering
@@ -82,12 +83,14 @@ message GetTaskHistoryRequest {
   string search_query = 3;
   string sort_by = 4;
   bool current_workspace_only = 5;
+  int32 limit = 6;
+  int32 offset = 7;
 }
 
 // Response for task history
 message TaskHistoryArray {
   repeated TaskItem tasks = 1;
-  int32 total_count = 2;
+  bool has_more = 2;
 }
 
 // Task item details for history list
@@ -103,6 +106,7 @@ message TaskItem {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_legacy = 12;
 }
 
 // Request for ask response operation
@@ -112,6 +116,16 @@ message AskResponseRequest {
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;
+}
+
+// Request for editing a past user message and regenerating the conversation after it
+message EditMessageAndRegenerateRequest {
+  Metadata metadata = 1;
+  int64 message_ts = 2;
+  string text = 3;
+  repeated string images = 4;
+  repeated string files = 5;
+  bool restore_workspace = 6;
 }
 
 // Request for executing a quick win task
@@ -124,11 +138,4 @@ message ExecuteQuickWinRequest {
 // Results returned when deleting all task history
 message DeleteAllTaskHistoryCount {
   int32 tasks_deleted = 1;
-}
-
-// Request for explaining changes with AI
-message ExplainChangesRequest {
-  Metadata metadata = 1;
-  // Timestamp of the completion message to explain changes for
-  int64 message_ts = 2;
 }

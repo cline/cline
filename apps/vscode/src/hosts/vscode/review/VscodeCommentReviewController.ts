@@ -1,6 +1,5 @@
 import * as vscode from "vscode"
-import { sendAddToInputEvent } from "@/core/controller/ui/subscribeToAddToInput"
-import { CommentReviewController, type OnReplyCallback, type ReviewComment } from "@/integrations/editor/CommentReviewController"
+import { CommentReviewController, type ReviewComment } from "@/integrations/editor/CommentReviewController"
 import { Logger } from "@/shared/services/Logger"
 import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
 
@@ -18,55 +17,15 @@ const CLINE_AVATAR_URL = "https://avatars.githubusercontent.com/u/184127137"
 export class VscodeCommentReviewController extends CommentReviewController implements vscode.Disposable {
 	private commentController: vscode.CommentController
 	private threads: Map<string, vscode.CommentThread> = new Map()
-	/** Maps thread to its absolute file path (needed because virtual URIs don't contain the full path) */
-	private threadFilePaths: Map<vscode.CommentThread, string> = new Map()
-	private onReplyCallback?: OnReplyCallback
-	private disposables: vscode.Disposable[] = []
 
 	/** The currently streaming comment thread */
 	private streamingThread: vscode.CommentThread | null = null
-	private streamingContent: string = ""
+	private streamingContent = ""
 
 	constructor() {
 		super()
 		// Create the comment controller
 		this.commentController = vscode.comments.createCommentController("cline-ai-review", "Cline AI Review")
-
-		// Configure options for the reply input
-		this.commentController.options = {
-			placeHolder: "Ask a question about this code...",
-			prompt: "Reply to Cline",
-		}
-
-		// Configure the commenting range provider (optional - allows commenting on any line)
-		this.commentController.commentingRangeProvider = {
-			provideCommentingRanges: (document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.Range[] => {
-				// Allow commenting on any line in the document
-				const lineCount = document.lineCount
-				return [new vscode.Range(0, 0, lineCount - 1, 0)]
-			},
-		}
-
-		// Register reply command - this is called when user clicks the Reply button
-		this.disposables.push(
-			vscode.commands.registerCommand("cline.reviewComment.reply", async (reply: vscode.CommentReply) => {
-				await this.handleReply(reply)
-			}),
-		)
-
-		// Register add to chat command - sends the conversation to Cline's main chat
-		this.disposables.push(
-			vscode.commands.registerCommand("cline.reviewComment.addToChat", async (thread: vscode.CommentThread) => {
-				await this.handleAddToChat(thread)
-			}),
-		)
-	}
-
-	/**
-	 * Set the callback for handling user replies
-	 */
-	setOnReplyCallback(callback: OnReplyCallback): void {
-		this.onReplyCallback = callback
 	}
 
 	/**
@@ -114,14 +73,12 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		const thread = this.commentController.createCommentThread(uri, range, [commentObj])
 
 		// Configure thread
-		thread.canReply = true
+		thread.canReply = false
 		thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
 
 		// Store for later management
 		const threadKey = this.getThreadKey(comment.filePath, comment.startLine, comment.endLine)
 		this.threads.set(threadKey, thread)
-		// Store absolute file path for reply handling (virtual URIs don't contain the full path)
-		this.threadFilePaths.set(thread, comment.filePath)
 	}
 
 	/**
@@ -134,7 +91,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		endLine: number,
 		relativePath?: string,
 		fileContent?: string,
-		revealComment: boolean = false,
+		revealComment = false,
 	): void {
 		// Use virtual diff URI if relativePath and fileContent are provided
 		let uri: vscode.Uri
@@ -159,7 +116,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 
 		// Create the thread
 		const thread = this.commentController.createCommentThread(uri, range, [commentObj])
-		thread.canReply = true
+		thread.canReply = false
 		thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
 
 		// Store for streaming updates
@@ -169,7 +126,6 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		// Store for later management
 		const threadKey = this.getThreadKey(filePath, startLine, endLine)
 		this.threads.set(threadKey, thread)
-		this.threadFilePaths.set(thread, filePath)
 
 		// Open the virtual document and scroll to show the comment in center (only if requested)
 		if (revealComment) {
@@ -183,12 +139,17 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	 */
 	private async revealCommentInDocument(thread: vscode.CommentThread): Promise<void> {
 		try {
+			const range = thread.range
+			if (!range) {
+				return
+			}
+
 			// Open the document (works with virtual URIs)
 			const doc = await vscode.workspace.openTextDocument(thread.uri)
 
 			// Show the document and scroll to the comment
 			// Use the start of the range so the comment appears in center (not the code block)
-			const commentPosition = new vscode.Range(thread.range.start, thread.range.start)
+			const commentPosition = new vscode.Range(range.start, range.start)
 			const editor = await vscode.window.showTextDocument(doc, {
 				selection: commentPosition,
 				preserveFocus: false,
@@ -263,7 +224,6 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	 */
 	clearAllComments(): void {
 		for (const thread of this.threads.values()) {
-			this.threadFilePaths.delete(thread)
 			thread.dispose()
 		}
 		this.threads.clear()
@@ -276,7 +236,6 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		const keysToRemove: string[] = []
 		for (const [key, thread] of this.threads.entries()) {
 			if (key.startsWith(filePath + ":")) {
-				this.threadFilePaths.delete(thread)
 				thread.dispose()
 				keysToRemove.push(key)
 			}
@@ -291,122 +250,6 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	 */
 	getThreadCount(): number {
 		return this.threads.size
-	}
-
-	/**
-	 * Handle a reply from the user
-	 */
-	private async handleReply(reply: vscode.CommentReply): Promise<void> {
-		const thread = reply.thread
-		const replyText = reply.text
-
-		// Add user's reply to the thread immediately
-		const userComment: vscode.Comment = {
-			body: new vscode.MarkdownString(replyText),
-			mode: vscode.CommentMode.Preview,
-			author: {
-				name: "You",
-			},
-		}
-		thread.comments = [...thread.comments, userComment]
-
-		// If we have a callback, get AI response
-		if (this.onReplyCallback) {
-			// Use stored absolute path (virtual URIs don't contain the full path)
-			const filePath = this.threadFilePaths.get(thread) || thread.uri.fsPath
-			const startLine = thread.range.start.line
-			const endLine = thread.range.end.line
-
-			// Collect existing comments for context (exclude the user's reply we just added)
-			const existingComments = thread.comments.slice(0, -1).map((c) => {
-				const author = c.author.name
-				const body = typeof c.body === "string" ? c.body : c.body.value
-				return `${author}: ${body}`
-			})
-
-			// Add an empty streaming comment that will be updated as chunks arrive
-			let streamingContent = ""
-			const updateStreamingComment = (content: string) => {
-				const streamingComment: vscode.Comment = {
-					body: new vscode.MarkdownString(content || "_Thinking..._"),
-					mode: vscode.CommentMode.Preview,
-					author: {
-						name: "Cline",
-						iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
-					},
-				}
-				thread.comments = [...thread.comments.slice(0, -1), streamingComment]
-			}
-
-			// Add initial thinking placeholder
-			const thinkingComment: vscode.Comment = {
-				body: new vscode.MarkdownString("_Thinking..._"),
-				mode: vscode.CommentMode.Preview,
-				author: {
-					name: "Cline",
-					iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
-				},
-			}
-			thread.comments = [...thread.comments, thinkingComment]
-
-			// Fire off the AI request with streaming callback
-			this.onReplyCallback(filePath, startLine, endLine, replyText, existingComments, (chunk) => {
-				// Append chunk and update the comment
-				streamingContent += chunk
-				updateStreamingComment(streamingContent)
-			})
-				.then(() => {
-					// Ensure final content is displayed
-					if (streamingContent) {
-						updateStreamingComment(streamingContent)
-					}
-				})
-				.catch((error) => {
-					// Show error
-					const errorComment: vscode.Comment = {
-						body: new vscode.MarkdownString(
-							`_Error getting response: ${error instanceof Error ? error.message : "Unknown error"}_`,
-						),
-						mode: vscode.CommentMode.Preview,
-						author: {
-							name: "Cline",
-							iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
-						},
-					}
-					thread.comments = [...thread.comments.slice(0, -1), errorComment]
-				})
-		}
-	}
-
-	/**
-	 * Handle adding the thread conversation to Cline's main chat
-	 */
-	private async handleAddToChat(thread: vscode.CommentThread): Promise<void> {
-		const filePath = this.threadFilePaths.get(thread) || thread.uri.fsPath
-		const startLine = thread.range.start.line + 1 // Convert to 1-indexed for display
-		const endLine = thread.range.end.line + 1
-
-		// Collect all comments from the thread
-		const conversation = thread.comments
-			.map((c) => {
-				const author = c.author.name === "You" ? "User" : c.author.name
-				const body = typeof c.body === "string" ? c.body : c.body.value
-				return `**${author}:** ${body}`
-			})
-			.join("\n\n")
-
-		// Format the context message
-		const contextMessage = `The following is a conversation from a code review comment on \`${filePath}\` (lines ${startLine}-${endLine}). The user would like to continue this discussion with you:
-
----
-
-${conversation}
-
----
-
-Please continue helping the user with their question about this code.`
-
-		await sendAddToInputEvent(contextMessage)
 	}
 
 	private getThreadKey(filePath: string, startLine: number, endLine: number): string {
@@ -443,9 +286,6 @@ Please continue helping the user with their question about this code.`
 	dispose(): void {
 		this.clearAllComments()
 		this.commentController.dispose()
-		for (const disposable of this.disposables) {
-			disposable.dispose()
-		}
 	}
 }
 

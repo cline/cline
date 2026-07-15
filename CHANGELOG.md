@@ -1,5 +1,72 @@
 # Changelog
 
+## [4.0.0]
+
+### Added
+
+- Add the SDK-backed VS Code extension runtime. Cline now runs tasks through the shared Cline SDK session layer for agent turns, tools, Plan/Act mode coordination, MCP, checkpoints, telemetry, provider changes, compaction, mistake limits, and task history.
+- Add ClinePass to the VS Code extension, including onboarding, provider selection, signup and subscription handoff, live model lists, entitlement and organization error states, out-of-credit prompts, and clearer ClinePass auth/error handling.
+- Add the Customize marketplace for discovering and managing Skills, MCP servers, and Plugins from the extension, including installed/marketplace tabs, search and filtering, install/uninstall flows, enable/disable controls, and support for plugin-bundled skills.
+- Cline Plugins: Plugins let you extend Cline with custom tools, workflows, skills, and MCP-powered capabilities tailored to your team or project. Install them from the new Customize marketplace to add specialized behavior, connect external services, and package reusable automations—so Cline can do more than code: it can adapt to the way you work.
+- Add queued prompts in chat. Messages submitted while Cline is already working are now queued, shown while the current turn streams, and can be cancelled before they run.
+- Add edit-and-regenerate support for previous user messages, with clearer Reset Chat and Reset Code actions.
+- Add generic SDK provider settings and model-catalog support so more providers can share the same model picker, reasoning controls, dynamic model IDs, provider config persistence, and custom model handling.
+- Add additional SDK-backed provider exposure and model/provider updates, including ClinePass models, refreshed Cline catalog data, Fireworks GLM 5.2, Kimi K2.6 Fast, Kimi K2.7 Code, Qwen 3.7 Plus, MiniMax M3 updates, SAP AI Core wiring, LiteLLM model fetching, Codex OAuth credentials, and OpenAI-compatible model settings.
+- Add MCP support for plugins and shared marketplace install/uninstall plumbing used by the VS Code extension.
+
+### Changed
+
+- Migrate the VS Code extension from the legacy task implementation to the shared Cline SDK and move the extension build/package workflow to Bun.
+- Rework Plan/Act mode handling through SDK coordinators, including closer CLI parity and automatic continuation when switching from Plan to Act.
+- Rework provider and model configuration around `providers.json`, the model catalog, and SDK session config so settings are preserved consistently across provider switches and active sessions can restart when the selected provider changes.
+- Simplify provider settings UI by replacing many provider-specific views with shared generic settings components and consistent reasoning selectors.
+- Simplify terminal execution through the SDK run-commands path, including clearer non-interactive command guidance and safer structured command formatting.
+- Migrate legacy MCP files and formats into the shared settings file and protect MCP settings writes with safer locking/atomic updates.
+- Refresh the MCP hub automatically after marketplace installs so newly installed servers are available without a manual restart.
+- Reorganize MCP/Skills/Plugins entry points under Customize, hide workflows from the Customize menu, wrap Customize tabs on narrow screens, and allow the MCP Marketplace tab to be disabled remotely while installed MCP servers remain accessible.
+- Simplify auto-approval settings. Command auto-approval is now disabled by default for safer new and reset configurations, and the auto-approval UI has been streamlined.
+- Update task history handling for the SDK migration, including legacy task history visibility, metadata preservation on resume, and corrected deletion behavior.
+- Route compacting and mistake-limit behavior through the SDK so the Compact button and mistake tracking affect the active SDK session.
+- Remove the legacy Explain Changes feature as part of the SDK migration cleanup.
+- Temporarily disable subagents in the VS Code extension while the SDK-backed experience is stabilized.
+
+### Fixed
+
+- Fix marketplace edge cases, including refreshing MCP servers after marketplace installs, disabling the MCP Marketplace tab from remote config, hiding workflows from Customize, surfacing plugin-bundled skills, and uninstalling shared marketplace entries.
+- Fix chat submission during active turns by queuing user messages instead of dropping or racing them, showing pending/queued states promptly, rendering direct user messages immediately, and removing delayed send behavior.
+- Fix editing previous user messages so Escape cancels editing locally and reset action labels are clearer.
+- Fix terminal reliability, including standalone Windows output capture, hardened PowerShell command handling, running-state display for in-progress commands, raw structured command preservation, single-quote handling, cwd setup timeouts, failing-command stdout capture, heredoc coalescing, and removal of duplicated command echoes in tool results.
+- Fix SDK tool-result and provider-message budgeting by truncating large tool outputs by default, capping assistant text, limiting bash/file-read/search output ingestion, bounding media budgets, batching outdated-read rewrites to preserve provider prefix caches, and normalizing JSON-like tool inputs by schema.
+- Fix login and feature-flag resolution by using the correct user/account identity on startup and simplifying the login UX.
+
+## [3.89.2]
+
+### Fixed
+
+- Complete the fix for the Anthropic provider on VS Code 1.123 and later by upgrading the bundled Anthropic SDK to a release compatible with the Node 24 runtime.
+- Update the Vertex AI provider to a compatible Anthropic Vertex SDK release so it works with the upgraded Anthropic SDK.
+
+## [3.89.1]
+
+### Fixed
+
+- Restore the Anthropic provider on VS Code 1.123 and later, where the updated Node 24 runtime broke the bundled Anthropic SDK.
+- Handle the DeepSeek V4 reasoning format.
+
+## [3.89.0]
+
+### Added
+
+- Add Claude Fable 5 model support.
+
+### Fixed
+
+- Fix MiniMax M3 thinking controls across gateways.
+
+### Changed
+
+- Clean up the Codex model list.
+
 ## [3.88.1]
 
 ### Added

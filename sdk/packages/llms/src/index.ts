@@ -1,5 +1,6 @@
 export type {
 	ModelCollection,
+	ModelIdAliasRule,
 	ModelInfo,
 	ModelInfo as CatalogModelInfo,
 	ProviderCapability as CatalogProviderCapability,
@@ -8,6 +9,8 @@ export type {
 	ProviderProtocol,
 } from "./models";
 export {
+	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
 	filterOpenAICodexModels,
 	getAllProviders,
@@ -19,12 +22,15 @@ export {
 	getProviderCollectionSync,
 	getProviderIds,
 	hasProvider,
+	isCanonicalModelIdForAliasRules,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	preferCanonicalModelIds,
 	registerModel,
 	registerProvider,
 	resetRegistry,
 	sortModelsByReleaseDate,
 	unregisterProvider,
+	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
 export type {
 	ApiHandler,
@@ -52,12 +58,25 @@ export type {
 export {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
 	createHandler,
 	createHandlerAsync,
+	extractClinePassLimitMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
 	isBuiltInProviderId,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
 	registerAsyncHandler,
@@ -71,4 +90,11 @@ export {
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
+export {
+	type OpenAICodexRequestHeaderContext,
+	type ProviderRequestHeaderClientContext,
+	type ProviderRequestHeaderLayers,
+	type ResolveProviderRequestHeadersInput,
+	resolveProviderRequestHeaders,
+} from "./providers/request-headers";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";

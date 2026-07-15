@@ -1,9 +1,11 @@
 import {
 	createContextCompactionPrepareTurn,
+	createSessionCompactionState,
 	type ProviderConfig,
 	type ProviderSettings,
 	type ProviderSettingsManager,
 	type ReasoningSettings,
+	type SessionCompactionState,
 	toProviderConfig,
 } from "@cline/core";
 import type { Message } from "@cline/shared";
@@ -52,13 +54,22 @@ export async function compactInteractiveMessages(input: {
 	providerSettingsManager: ProviderSettingsManager;
 	sessionId: string;
 	messages: Message[];
-}): Promise<{ compacted: boolean; messages: Message[] }> {
+	abortSignal?: AbortSignal;
+}): Promise<{
+	compacted: boolean;
+	canonicalMessages: Message[];
+	compactionState?: SessionCompactionState;
+}> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
-	const maxInputTokens =
-		input.config.compaction?.maxInputTokens ??
-		modelInfo?.maxInputTokens ??
-		modelInfo?.contextWindow ??
-		FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS;
+	const compactionModelInfo = modelInfo
+		? {
+				...modelInfo,
+				id: modelInfo.id ?? input.config.modelId,
+			}
+		: {
+				id: input.config.modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			};
 	const compact = createContextCompactionPrepareTurn(
 		{
 			providerConfig: resolveCompactionProviderConfig(
@@ -81,8 +92,11 @@ export async function compactInteractiveMessages(input: {
 		{ mode: "manual" },
 	);
 	if (!compact) {
-		return { compacted: false, messages: input.messages };
+		return { compacted: false, canonicalMessages: input.messages };
 	}
+	// Manual compaction intentionally summarizes the full canonical transcript
+	// instead of reusing a prior sidecar summary, which avoids summary-of-summary
+	// drift across repeated `/compact` calls.
 	const result = await compact({
 		agentId: "cli",
 		conversationId: input.sessionId,
@@ -90,21 +104,26 @@ export async function compactInteractiveMessages(input: {
 		iteration: 0,
 		messages: input.messages,
 		apiMessages: input.messages,
-		abortSignal: new AbortController().signal,
+		abortSignal: input.abortSignal ?? new AbortController().signal,
 		systemPrompt: "",
 		tools: [],
 		model: {
 			id: input.config.modelId,
 			provider: input.config.providerId,
-			info: {
-				...(modelInfo ?? {}),
-				id: modelInfo?.id ?? input.config.modelId,
-				maxInputTokens: maxInputTokens,
-			},
+			info: compactionModelInfo,
 		},
 	});
-	if (!result) {
-		return { compacted: false, messages: input.messages };
+	if (!result?.messages) {
+		return { compacted: false, canonicalMessages: input.messages };
 	}
-	return { compacted: true, messages: result.messages };
+	return {
+		compacted: true,
+		canonicalMessages: input.messages,
+		compactionState: createSessionCompactionState({
+			sourceMessages: input.messages,
+			compactedMessages: result.messages,
+			conversationId: input.sessionId,
+			systemPrompt: result.systemPrompt,
+		}),
+	};
 }

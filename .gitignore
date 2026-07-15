@@ -13,6 +13,9 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.cline/enterprise
+.cline/remote-config
+**/.cline/remote-config
 .venv
 .actrc
 CLAUDE.local.md
@@ -81,3 +84,11 @@ apps/vscode/webview-ui/src/**/*.js.map
 *.db-wal
 .cline/**/managed.json
 .cline/**/bundle.json
+apps/vscode/tsconfig.test.generated.json
+.next/dev/static
+**/src-tauri/target/debug/.fingerprint
+apps/examples/desktop-app/src-tauri/target
+apps/examples/desktop-app/webview/.next
+
+# Next.js generated type shim (churns between dev and build)
+apps/examples/desktop-app/webview/next-env.d.ts

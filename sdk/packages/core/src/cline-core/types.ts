@@ -12,6 +12,7 @@ import type {
 	CronSpecRecord,
 } from "../cron/store/sqlite-cron-store";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
+import type { CheckpointWorkspaceCompareResult } from "../session/checkpoint-diff";
 import type { RuntimeCapabilities } from "../runtime/capabilities";
 import type { SessionHistoryListOptions } from "../runtime/host/history";
 import type { SessionBackend } from "../runtime/host/host";
@@ -21,6 +22,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../runtime/host/runtime-host";
+import type { FeatureFlagsService } from "../services/feature-flags";
 import type { CoreSessionConfig } from "../types/config";
 import type { SessionMessagesArtifactUploader } from "../types/session";
 
@@ -165,6 +167,14 @@ export interface RestoreResult {
 	checkpoint: CheckpointEntry;
 }
 
+export interface CompareCheckpointInput {
+	sessionId: string;
+	checkpointRunCount: number;
+	cwd?: string;
+}
+
+export type CompareCheckpointResult = CheckpointWorkspaceCompareResult;
+
 export interface ClineCoreOptions {
 	/**
 	 * A human-readable name for this SDK client (e.g. `"my-app"`, `"acme-bot"`).
@@ -205,6 +215,11 @@ export interface ClineCoreOptions {
 	 * If omitted, telemetry is a no-op.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Feature flags service for this ClineCore instance.
+	 * If omitted, Core uses a no-op provider with default flag values.
+	 */
+	featureFlags?: FeatureFlagsService;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.

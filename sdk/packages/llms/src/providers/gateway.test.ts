@@ -1,11 +1,21 @@
-import type { AgentMessage, AgentModelEvent } from "@cline/shared";
+import {
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
+import { access } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+	type AgentMessage,
+	type AgentModelEvent,
+	estimateRequestInputTokens,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
-import {
-	createGateway,
-	estimateRequestInputTokens,
-	resolveGatewayRequestMaxTokens,
-} from "./gateway";
+import { createGateway, resolveGatewayRequestMaxTokens } from "./gateway";
 
 const streamTextSpy = vi.fn();
 const openaiCompatibleFactorySpy = vi.fn();
@@ -27,6 +37,19 @@ const codexExecSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "openai-codex",
 }));
+
+function createFetchMock() {
+	const fetchMock = vi.fn(
+		async (
+			_input: Parameters<typeof fetch>[0],
+			_init?: Parameters<typeof fetch>[1],
+		) => new Response("ok"),
+	);
+	return {
+		fetchMock,
+		fetch: fetchMock as unknown as typeof fetch,
+	};
+}
 
 vi.mock("ai", () => ({
 	jsonSchema: (schema: unknown, options: unknown) => ({
@@ -104,6 +127,27 @@ const baseMessages: AgentMessage[] = [
 	},
 ];
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
+const originalCaptureProviderRequest =
+	process.env.CLINE_CAPTURE_PROVIDER_REQUEST;
+const originalCaptureWire = process.env.CLINE_CAPTURE_WIRE;
+const originalCaptureDir = process.env.CLINE_CAPTURE_DIR;
+const originalCaptureDataDir = process.env.CLINE_DATA_DIR;
+const originalCaptureMaxPreviewBytes =
+	process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES;
+const originalCaptureCleanup = process.env.CLINE_CAPTURE_CLEANUP;
+
+function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
+	return readdirSync(dir)
+		.filter((file) => file.endsWith(".provider-request.json"))
+		.sort()
+		.map(
+			(file) =>
+				JSON.parse(readFileSync(join(dir, file), "utf8")) as Record<
+					string,
+					unknown
+				>,
+		);
+}
 
 describe("sdk-gateway", () => {
 	beforeEach(() => {
@@ -139,6 +183,38 @@ describe("sdk-gateway", () => {
 			delete process.env.OPENROUTER_API_KEY;
 		} else {
 			process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
+		}
+		if (originalCaptureProviderRequest === undefined) {
+			delete process.env.CLINE_CAPTURE_PROVIDER_REQUEST;
+		} else {
+			process.env.CLINE_CAPTURE_PROVIDER_REQUEST =
+				originalCaptureProviderRequest;
+		}
+		if (originalCaptureWire === undefined) {
+			delete process.env.CLINE_CAPTURE_WIRE;
+		} else {
+			process.env.CLINE_CAPTURE_WIRE = originalCaptureWire;
+		}
+		if (originalCaptureDir === undefined) {
+			delete process.env.CLINE_CAPTURE_DIR;
+		} else {
+			process.env.CLINE_CAPTURE_DIR = originalCaptureDir;
+		}
+		if (originalCaptureDataDir === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = originalCaptureDataDir;
+		}
+		if (originalCaptureMaxPreviewBytes === undefined) {
+			delete process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES;
+		} else {
+			process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES =
+				originalCaptureMaxPreviewBytes;
+		}
+		if (originalCaptureCleanup === undefined) {
+			delete process.env.CLINE_CAPTURE_CLEANUP;
+		} else {
+			process.env.CLINE_CAPTURE_CLEANUP = originalCaptureCleanup;
 		}
 	});
 
@@ -344,6 +420,7 @@ describe("sdk-gateway", () => {
 			"anthropic",
 			"bedrock",
 			"cline",
+			"cline-pass",
 			"minimax",
 			"oca",
 			"openrouter",
@@ -360,6 +437,11 @@ describe("sdk-gateway", () => {
 		const openrouter = gateway
 			.listProviders()
 			.find((provider) => provider.id === "openrouter");
+		expect(openrouter?.metadata?.stickySession).toEqual({
+			transport: "json-body",
+			field: "session_id",
+			metadataKey: "sessionId",
+		});
 		const promptCacheRoutes =
 			openrouter?.metadata?.routing?.promptCache?.routes ?? [];
 
@@ -720,6 +802,159 @@ describe("sdk-gateway", () => {
 				]),
 			}),
 		);
+	});
+
+	it("strips reasoning history before sending Cerebras follow-up requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cerebras",
+					apiKey: "cerebras-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cerebras",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{ type: "reasoning", text: "internal thinking" },
+							{ type: "text", text: "Hello!" },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	it("omits Cerebras reasoning-only assistant history instead of sending empty assistant content", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cerebras",
+					apiKey: "cerebras-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cerebras",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [{ type: "reasoning", text: "internal thinking" }],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	it("strips reasoning history for Cerebras base URL aliases", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "cerebras-key",
+					baseUrl: "https://api.cerebras.ai",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{ type: "reasoning", text: "internal thinking" },
+							{ type: "text", text: "Hello!" },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
 	});
 
 	it("reads Anthropic cache usage from provider metadata", async () => {
@@ -1564,6 +1799,286 @@ describe("sdk-gateway", () => {
 						providerOptions: expect.anything(),
 					}),
 				}),
+			}),
+		);
+	});
+
+	it("preserves Vertex thought signatures on tool calls and replays them", async () => {
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "editor",
+					input: { path: "/tmp/out.txt" },
+					providerMetadata: {
+						vertex: {
+							thoughtSignature: "sig_1",
+						},
+					},
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vertex",
+					options: {
+						project: "test-project",
+						location: "global",
+					},
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "editor",
+						description: "Edits files",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "call_1",
+				toolName: "editor",
+				metadata: expect.objectContaining({
+					thoughtSignature: "sig_1",
+				}),
+			}),
+		);
+
+		const toolCallEvent = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> =>
+				event.type === "tool-call-delta",
+		);
+		expect(toolCallEvent).toBeDefined();
+
+		streamTextSpy.mockReset();
+
+		const replayCases = [
+			{
+				name: "fresh event metadata",
+				metadata: toolCallEvent?.metadata,
+			},
+			{
+				name: "persisted history metadata",
+				metadata: { signature: "sig_1" },
+			},
+		];
+
+		for (const replayCase of replayCases) {
+			streamTextSpy.mockReset();
+			streamTextSpy.mockReturnValueOnce({
+				fullStream: makeStreamParts([
+					{ type: "text-delta", textDelta: `done ${replayCase.name}` },
+					{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+				]),
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "vertex",
+					modelId: "gemini-3-flash-preview",
+					messages: [
+						{
+							id: `assistant_${replayCase.name}`,
+							role: "assistant",
+							content: [
+								{
+									type: "tool-call",
+									toolCallId: "call_1",
+									toolName: "editor",
+									input: { path: "/tmp/out.txt" },
+									metadata: replayCase.metadata,
+								},
+							],
+							createdAt: Date.now(),
+						},
+						{
+							id: `tool_${replayCase.name}`,
+							role: "tool",
+							content: [
+								{
+									type: "tool-result",
+									toolCallId: "call_1",
+									toolName: "editor",
+									output: { ok: true },
+								},
+							],
+							createdAt: Date.now(),
+						},
+					],
+					tools: [
+						{
+							name: "editor",
+							description: "Edits files",
+							inputSchema: { type: "object" },
+						},
+					],
+				}),
+			);
+
+			expect(streamTextSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					messages: expect.arrayContaining([
+						expect.objectContaining({
+							role: "assistant",
+							content: [
+								expect.objectContaining({
+									type: "tool-call",
+									toolCallId: "call_1",
+									toolName: "editor",
+									providerOptions: {
+										google: {
+											thoughtSignature: "sig_1",
+										},
+									},
+								}),
+							],
+						}),
+					]),
+				}),
+			);
+		}
+	});
+
+	it("preserves legacy Google snake_case thought signatures", async () => {
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_legacy",
+					toolName: "editor",
+					input: { path: "/tmp/out.txt" },
+					providerMetadata: {
+						google: {
+							thought_signature: "sig_legacy",
+						},
+					},
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "gemini",
+					apiKey: "google-key",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "editor",
+						description: "Edits files",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "call_legacy",
+				toolName: "editor",
+				metadata: expect.objectContaining({
+					thought_signature: "sig_legacy",
+				}),
+			}),
+		);
+
+		streamTextSpy.mockReset();
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "done" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: [
+					{
+						id: "assistant_legacy",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "call_legacy",
+								toolName: "editor",
+								input: { path: "/tmp/out.txt" },
+								metadata: {
+									thought_signature: "sig_legacy",
+								},
+							},
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "tool_legacy",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "call_legacy",
+								toolName: "editor",
+								output: { ok: true },
+							},
+						],
+						createdAt: Date.now(),
+					},
+				],
+				tools: [
+					{
+						name: "editor",
+						description: "Edits files",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "assistant",
+						content: [
+							expect.objectContaining({
+								type: "tool-call",
+								toolCallId: "call_legacy",
+								toolName: "editor",
+								providerOptions: {
+									google: {
+										thoughtSignature: "sig_legacy",
+									},
+								},
+							}),
+						],
+					}),
+				]),
 			}),
 		);
 	});
@@ -2991,7 +3506,7 @@ describe("sdk-gateway", () => {
 			expect.objectContaining({
 				providerOptions: expect.objectContaining({
 					openrouter: expect.objectContaining({
-						reasoning: { exclude: true },
+						reasoning: { effort: "none" },
 					}),
 				}),
 			}),
@@ -3291,5 +3806,733 @@ describe("sdk-gateway", () => {
 		);
 
 		expect(createProvider).toHaveBeenCalledOnce();
+	});
+
+	it("writes AI SDK prompt captures with request metadata correlation", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					finishReason: "stop",
+					usage: { inputTokens: 1, outputTokens: 1 },
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					captureId: "cap-session-1-run-1-2",
+					sessionId: "session-1",
+					runId: "run-1",
+					conversationId: "conv-1",
+					iteration: 2,
+				},
+			}),
+		);
+
+		const records = readCaptureRecords(captureDir);
+		expect(records).toHaveLength(1);
+		expect(readdirSync(captureDir)).toContain(
+			"cap-session-1-run-1-2.ai_sdk_prompt.1.provider-request.json",
+		);
+		expect(records[0]).toMatchObject({
+			captureStage: "ai_sdk_prompt",
+			attempt: 1,
+			mode: "summary",
+			correlation: {
+				captureId: "cap-session-1-run-1-2",
+				sessionId: "session-1",
+				runId: "run-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+			},
+		});
+		expect(records[0]?.summary).toMatchObject({
+			messages: {
+				messageCount: 1,
+				roleCounts: { user: 1 },
+				messages: [
+					expect.objectContaining({
+						index: 0,
+						role: "user",
+						sha256: expect.any(String),
+					}),
+				],
+			},
+		});
+		expect(records[0]).not.toHaveProperty("payload");
+	});
+
+	it("falls back to a stable per-request capture filename without captureId", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-fallback-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { runId: "run-fallback", iteration: 4 },
+			}),
+		);
+
+		const files = readdirSync(captureDir).filter((file) =>
+			file.endsWith(".provider-request.json"),
+		);
+		expect(files).toHaveLength(1);
+		expect(files[0]).toMatch(
+			/^cap_run-fallback_4_[a-f0-9]{16}\.ai_sdk_prompt\.1\.provider-request\.json$/,
+		);
+	});
+
+	it("honors the full capture preview byte cap override", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-full-capture-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "full";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES = "24";
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: [
+					{
+						id: "user_full",
+						role: "user",
+						content: [{ type: "text", text: "Hello ".repeat(50) }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const payload = readCaptureRecords(captureDir)[0]?.payload as
+			| { preview?: string; truncated?: boolean }
+			| undefined;
+		expect(payload).toMatchObject({ truncated: true });
+		expect(
+			Buffer.byteLength(payload?.preview ?? "", "utf8"),
+		).toBeLessThanOrEqual(24);
+	});
+
+	it("does not write provider request captures without an explicit capture or data dir", async () => {
+		const cwd = process.cwd();
+		const tempCwd = mkdtempSync(join(tmpdir(), "llms-capture-cwd-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		delete process.env.CLINE_CAPTURE_DIR;
+		delete process.env.CLINE_DATA_DIR;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		try {
+			process.chdir(tempCwd);
+			const gateway = createGateway({
+				providerConfigs: [
+					{
+						providerId: "openrouter",
+						apiKey: "test-key",
+					},
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "openrouter",
+					modelId: "anthropic/claude-test",
+					messages: baseMessages,
+				}),
+			);
+
+			await expect(
+				access(join(tempCwd, ".cline", "provider-request-captures")),
+			).rejects.toThrow();
+		} finally {
+			process.chdir(cwd);
+		}
+	});
+
+	it("does not wrap provider fetch when wire capture is disabled", async () => {
+		const customFetch = vi.fn() as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).toBe(customFetch);
+	});
+
+	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					sessionId: "session-openrouter",
+					conversationId: "conversation-openrouter",
+				},
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "session-openrouter",
+		});
+	});
+
+	it("preserves default model metadata when request metadata is present", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+		const model = gateway.createAgentModel(
+			{
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+			},
+			{
+				metadata: {
+					sessionId: "default-session",
+					traceId: "default-trace",
+				},
+			},
+		);
+
+		await collect(
+			await model.stream({
+				messages: baseMessages,
+				tools: [],
+				options: {
+					metadata: {
+						runId: "request-run",
+						traceId: "request-trace",
+					},
+				},
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "default-session",
+		});
+	});
+
+	it("adds configured JSON-body sticky session fields for providers that opt in", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "json-body",
+							field: "sticky_session",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-longer-than-eight" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			sticky_session: "session-longer-than-eight",
+		});
+	});
+
+	it("adds configured header sticky session fields for providers that opt in", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "header",
+							field: "x-session-id",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-header" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			headers: { "x-existing": "kept" },
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		const headers = new Headers(init?.headers);
+		expect(headers.get("x-session-id")).toBe("session-header");
+		expect(headers.get("x-existing")).toBe("kept");
+	});
+
+	it("preserves explicit configured header sticky session values", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "header",
+							field: "x-session-id",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-header" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			headers: { "x-session-id": "explicit-header-session" },
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(new Headers(init?.headers).get("x-session-id")).toBe(
+			"explicit-header-session",
+		);
+	});
+
+	it("preserves explicit OpenRouter session_id in JSON wire requests", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { sessionId: "session-openrouter" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({
+				session_id: "explicit-session",
+				messages: [{ role: "user", content: "hi" }],
+			}),
+		});
+
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "explicit-session",
+		});
+	});
+
+	it("does not inspect a Request body when init explicitly sets a null body", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { sessionId: "session-openrouter" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		const request = new Request(
+			"https://openrouter.ai/api/v1/chat/completions",
+			{
+				method: "POST",
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+			},
+		);
+		await config.fetch?.(request, { body: null });
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		expect(customFetchMock.mock.calls[0]?.[0]).toBe(request);
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(init?.body).toBeNull();
+	});
+
+	it("does not fall back to conversationId for OpenRouter session_id", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { conversationId: "conversation-openrouter" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).toBe(customFetch);
+	});
+
+	it("wraps provider fetch for wire capture while delegating to the configured fetch", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-wire-capture-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_WIRE = "true";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		const customFetch = vi.fn(
+			async () => new Response("ok"),
+		) as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { runId: "run-wire", iteration: 3 },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const records = readCaptureRecords(captureDir);
+		expect(records.map((record) => record.captureStage)).toEqual([
+			"ai_sdk_prompt",
+			"wire_request",
+		]);
+		expect(records[1]).toMatchObject({
+			captureStage: "wire_request",
+			correlation: {
+				runId: "run-wire",
+				iteration: 3,
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+			},
+			summary: {
+				messages: {
+					messageCount: 1,
+					roleCounts: { user: 1 },
+					messages: [
+						expect.objectContaining({
+							index: 0,
+							role: "user",
+							sha256: expect.any(String),
+						}),
+					],
+				},
+			},
+		});
+	});
+
+	it("increments capture attempts instead of overwriting repeated wire requests", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-wire-attempts-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_WIRE = "true";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		const customFetch = vi.fn(
+			async () => new Response("ok"),
+		) as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { captureId: "cap-repeat", runId: "run-repeat" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "first" }] }),
+		});
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "second" }] }),
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(
+			readdirSync(captureDir)
+				.filter((file) => file.endsWith(".provider-request.json"))
+				.sort(),
+		).toEqual([
+			"cap-repeat.ai_sdk_prompt.1.provider-request.json",
+			"cap-repeat.wire_request.1.provider-request.json",
+			"cap-repeat.wire_request.2.provider-request.json",
+		]);
+		const records = readCaptureRecords(captureDir);
+		expect(records.map((record) => record.attempt)).toEqual([1, 1, 2]);
+	});
+
+	it("prunes old capture files unless cleanup is disabled", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-cleanup-"));
+		const oldFile = join(
+			captureDir,
+			"old.ai_sdk_prompt.1.provider-request.json",
+		);
+		writeFileSync(oldFile, "{}\n", { mode: 0o600 });
+		const oldDate = new Date(Date.now() - 48 * 60 * 60 * 1000);
+		utimesSync(oldFile, oldDate, oldDate);
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test-key" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { captureId: "cap-cleanup-on" },
+			}),
+		);
+
+		expect(readdirSync(captureDir)).not.toContain(
+			"old.ai_sdk_prompt.1.provider-request.json",
+		);
+
+		const keepDir = mkdtempSync(join(tmpdir(), "llms-capture-keep-"));
+		const keepFile = join(keepDir, "old.ai_sdk_prompt.1.provider-request.json");
+		writeFileSync(keepFile, "{}\n", { mode: 0o600 });
+		utimesSync(keepFile, oldDate, oldDate);
+		process.env.CLINE_CAPTURE_DIR = keepDir;
+		process.env.CLINE_CAPTURE_CLEANUP = "off";
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { captureId: "cap-cleanup-off" },
+			}),
+		);
+
+		expect(readdirSync(keepDir)).toContain(
+			"old.ai_sdk_prompt.1.provider-request.json",
+		);
 	});
 });

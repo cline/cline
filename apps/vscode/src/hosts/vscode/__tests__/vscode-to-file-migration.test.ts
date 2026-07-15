@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import { ClineFileStorage } from "@shared/storage/ClineFileStorage"
 import { createStorageContext, type StorageContext } from "@shared/storage/storage-context"
@@ -6,6 +6,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
+import { getServerAuthHash } from "@/utils/mcpAuth"
 import { exportVSCodeStorageToSharedFiles } from "../vscode-to-file-migration"
 
 /**
@@ -62,6 +63,9 @@ function createMockVSCodeContext() {
 			},
 			setKeysForSync() {},
 		},
+		globalStorageUri: {
+			fsPath: "",
+		},
 		// Expose internal stores for test setup
 		_globalStateStore: globalStateStore,
 		_secretsStore: secretsStore,
@@ -73,11 +77,14 @@ describe("vscode-to-file-migration", () => {
 	let sandbox: sinon.SinonSandbox
 	let tempDir: string
 	let storageContext: StorageContext
+	let originalMcpSettingsPath: string | undefined
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
+		originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH
 		tempDir = path.join(os.tmpdir(), `migration-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		fs.mkdirSync(tempDir, { recursive: true })
+		process.env.CLINE_MCP_SETTINGS_PATH = path.join(tempDir, "runtime-mcp-settings", "cline_mcp_settings.json")
 
 		storageContext = createStorageContext({
 			clineDir: tempDir,
@@ -87,6 +94,11 @@ describe("vscode-to-file-migration", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+		if (originalMcpSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath
+		}
 		try {
 			fs.rmSync(tempDir, { recursive: true, force: true })
 		} catch {
@@ -105,14 +117,41 @@ describe("vscode-to-file-migration", () => {
 			result.globalStateCount.should.be.greaterThan(0)
 			storageContext.globalState.get("mode")!.should.equal("act")
 			// Both sentinels should be written
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(1)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(1)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(2)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(2)
+		})
+
+		it("should run only MCP settings migration when v1 storage export sentinels are already present", async () => {
+			storageContext.globalState.update("__vscodeMigrationVersion", 1)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 1)
+			const mockCtx = createMockVSCodeContext()
+			mockCtx._globalStateStore.set("mode", "plan")
+			mockCtx._workspaceStateStore.set("localClineRulesToggles", { "rule-1": true })
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({ mcpServers: { fromV1: { command: "node" } } }),
+			)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+			result.globalStateCount.should.equal(0)
+			result.secretsCount.should.equal(0)
+			result.workspaceStateCount.should.equal(0)
+			result.mcpServersAdded.should.equal(1)
+			;(storageContext.globalState.get("mode") === undefined).should.be.true()
+			;(storageContext.workspaceState.get("localClineRulesToggles") === undefined).should.be.true()
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(2)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(2)
 		})
 
 		it("should skip everything when both sentinels are current version", async () => {
 			// Pre-set BOTH sentinels
-			storageContext.globalState.update("__vscodeMigrationVersion", 1)
-			storageContext.workspaceState.set("__vscodeMigrationVersion", 1)
+			storageContext.globalState.update("__vscodeMigrationVersion", 2)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 2)
 
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan")
@@ -123,6 +162,7 @@ describe("vscode-to-file-migration", () => {
 			result.migrated.should.be.false()
 			result.globalStateCount.should.equal(0)
 			result.workspaceStateCount.should.equal(0)
+			result.mcpServersAdded.should.equal(0)
 			// Should NOT have the VSCode values — migration was skipped
 			const modeVal = storageContext.globalState.get("mode")
 			;(modeVal === undefined).should.be.true()
@@ -138,6 +178,9 @@ describe("vscode-to-file-migration", () => {
 			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
 
 			result.migrated.should.be.false()
+			result.globalStateCount.should.equal(0)
+			result.workspaceStateCount.should.equal(0)
+			result.mcpServersAdded.should.equal(0)
 		})
 
 		it("should re-run migration if sentinels are lower version", async () => {
@@ -173,7 +216,7 @@ describe("vscode-to-file-migration", () => {
 			const stored = storageContext.workspaceState.get("localClineRulesToggles") as any
 			stored.should.deepEqual({ "rule-1": true })
 			// Workspace sentinel should now be set
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(1)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(2)
 		})
 
 		it("should migrate globals when workspace already migrated", async () => {
@@ -194,7 +237,7 @@ describe("vscode-to-file-migration", () => {
 			// Workspace state should NOT have been migrated
 			result.workspaceStateCount.should.equal(0)
 			// Global sentinel should now be set
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(1)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(2)
 		})
 	})
 
@@ -248,6 +291,238 @@ describe("vscode-to-file-migration", () => {
 			// taskHistory should NOT be in the file store
 			const val = storageContext.globalState.get("taskHistory")
 			;(val === undefined).should.be.true()
+		})
+	})
+
+	describe("legacy MCP settings migration", () => {
+		function sharedMcpSettingsPath() {
+			return process.env.CLINE_MCP_SETTINGS_PATH!
+		}
+
+		function readSharedMcpSettings() {
+			return JSON.parse(fs.readFileSync(sharedMcpSettingsPath(), "utf8"))
+		}
+
+		it("writes to the runtime MCP settings resolver path rather than storage.dataDir", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({ mcpServers: { overrideTarget: { command: "node" } } }),
+			)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.mcpServersAdded.should.equal(1)
+			fs.existsSync(sharedMcpSettingsPath()).should.be.true()
+			fs.existsSync(path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")).should.be.false()
+			readSharedMcpSettings().mcpServers.overrideTarget.should.deepEqual({
+				transport: { type: "stdio", command: "node" },
+			})
+		})
+
+		it("skips a legacy source that resolves to the shared MCP settings file", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const sharedSettingsDir = path.dirname(sharedMcpSettingsPath())
+			fs.mkdirSync(sharedSettingsDir, { recursive: true })
+			mockCtx.globalStorageUri.fsPath = path.dirname(sharedSettingsDir)
+			fs.writeFileSync(sharedMcpSettingsPath(), JSON.stringify({ mcpServers: { alreadyShared: { command: "node" } } }))
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.mcpServersAdded.should.equal(0)
+			const tombstone = storageContext.globalState.get("__vscodeLegacyMcpSettingsMigration") as any
+			;(tombstone?.sources?.vscodeGlobalStorage === undefined).should.be.true()
+			const settings = readSharedMcpSettings()
+			settings.mcpServers.alreadyShared.should.deepEqual({ command: "node" })
+		})
+
+		it("uses the MCP settings lock when writing migrated servers", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({ mcpServers: { lockedServer: { command: "node" } } }),
+			)
+
+			const sharedSettingsPath = sharedMcpSettingsPath()
+			const lockDir = `${sharedSettingsPath}.lock`
+			fs.mkdirSync(lockDir, { recursive: true })
+			fs.writeFileSync(path.join(lockDir, "owner.test"), "test")
+			const freshMtime = new Date()
+			fs.utimesSync(lockDir, freshMtime, freshMtime)
+
+			const migration = exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+			await new Promise((resolve) => setTimeout(resolve, 75))
+			;(fs.existsSync(sharedSettingsPath) === false).should.be.true()
+			fs.rmSync(lockDir, { recursive: true, force: true })
+
+			const result = await migration
+			result.mcpServersAdded.should.equal(1)
+			const settings = readSharedMcpSettings()
+			settings.mcpServers.lockedServer.should.deepEqual({ transport: { type: "stdio", command: "node" } })
+		})
+
+		it("merges missing legacy MCP servers from VSCode globalStorage without overwriting shared settings", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({
+					mcpServers: {
+						existing: { command: "legacy-existing", args: ["old"] },
+						stdioLegacy: { command: "node", args: ["server.js"], env: { API_KEY: "abc" } },
+					},
+				}),
+			)
+
+			const sharedSettingsDir = path.dirname(sharedMcpSettingsPath())
+			fs.mkdirSync(sharedSettingsDir, { recursive: true })
+			fs.writeFileSync(
+				sharedMcpSettingsPath(),
+				JSON.stringify({
+					mcpServers: {
+						existing: {
+							transport: { type: "stdio", command: "shared-existing" },
+							disabled: true,
+						},
+					},
+				}),
+			)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.mcpServersAdded.should.equal(1)
+			result.mcpServersSkippedExisting.should.equal(1)
+			const settings = readSharedMcpSettings()
+			settings.mcpServers.existing.should.deepEqual({
+				transport: { type: "stdio", command: "shared-existing" },
+				disabled: true,
+			})
+			settings.mcpServers.stdioLegacy.should.deepEqual({
+				transport: { type: "stdio", command: "node", args: ["server.js"], env: { API_KEY: "abc" } },
+			})
+		})
+
+		it("preserves top-level URL for migrated remote-configured URL servers", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({
+					mcpServers: {
+						managed: {
+							url: "https://managed.example.com/mcp",
+							type: "streamableHttp",
+							remoteConfigured: true,
+							disabled: true,
+							autoApprove: ["tool-a"],
+						},
+					},
+				}),
+			)
+
+			await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			readSharedMcpSettings().mcpServers.managed.should.deepEqual({
+				transport: { type: "streamableHttp", url: "https://managed.example.com/mcp" },
+				disabled: true,
+				autoApprove: ["tool-a"],
+				remoteConfigured: true,
+				url: "https://managed.example.com/mcp",
+			})
+		})
+
+		it("upgrades legacy transportType and OAuth secret format into SDK MCP settings format", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			const serverUrl = "https://linear.example.com/mcp"
+			const serverHash = getServerAuthHash("linear", serverUrl)
+
+			mockCtx._secretsStore.set(
+				"mcpOAuthSecrets",
+				JSON.stringify({
+					[serverHash]: {
+						tokens: { access_token: "old-token", refresh_token: "refresh" },
+						tokens_saved_at: 123456,
+						client_info: { client_id: "client-id" },
+						code_verifier: "verifier",
+						redirect_url_at_registration: "http://127.0.0.1:1456/mcp/oauth/callback",
+					},
+				}),
+			)
+
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({
+					mcpServers: {
+						linear: {
+							transportType: "http",
+							url: serverUrl,
+							headers: { Authorization: "Bearer static" },
+							disabled: false,
+							timeout: 30,
+						},
+					},
+				}),
+			)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.mcpServersAdded.should.equal(1)
+			const settings = readSharedMcpSettings()
+			settings.mcpServers.linear.should.deepEqual({
+				transport: {
+					type: "streamableHttp",
+					url: serverUrl,
+					headers: { Authorization: "Bearer static" },
+				},
+				disabled: false,
+				timeout: 30,
+				oauth: {
+					clientInformation: { client_id: "client-id" },
+					tokens: { access_token: "old-token", refresh_token: "refresh" },
+					codeVerifier: "verifier",
+					redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+					lastAuthenticatedAt: 123456,
+				},
+			})
+		})
+
+		it("writes source tombstones and does not re-import a deleted migrated server", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({ mcpServers: { oneShot: { command: "node" } } }),
+			)
+
+			await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+			const settingsPath = sharedMcpSettingsPath()
+			fs.writeFileSync(settingsPath, JSON.stringify({ mcpServers: {} }))
+
+			const second = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			second.mcpServersAdded.should.equal(0)
+			const settings = readSharedMcpSettings()
+			;(settings.mcpServers.oneShot === undefined).should.be.true()
+			const tombstone = storageContext.globalState.get("__vscodeLegacyMcpSettingsMigration") as any
+			tombstone.sources.vscodeGlobalStorage.path.should.equal(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+			)
 		})
 	})
 

@@ -13,7 +13,59 @@ From `apps/examples/desktop-app/`:
 - `bun run build:sidecar` - build the Bun sidecar bundle
 - `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
+- `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+## Web Visual System
+
+The framework-neutral color, typography, radius, and navigation contract lives
+in the internal [`@cline/ui`](../../../sdk/packages/ui/README.md) workspace
+package. Other Cline web surfaces can take only its tokens or opt into the
+Tailwind adapter and shared base styles without depending on the desktop
+runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
+desktop integration notes.
+
+## Shareable Desktop Packages
+
+Tauri desktop bundles are OS-specific, so build each package on the target OS:
+
+- macOS: `bun run package:desktop:mac`
+- Windows: `bun run package:desktop:windows`
+- Linux: `bun run package:desktop:linux`
+
+The macOS package script refuses to create a shareable package unless Developer ID signing and notarization credentials are configured. This prevents the common Gatekeeper failure where a downloaded unsigned build appears damaged on a teammate's Mac.
+
+Set either `APPLE_CERTIFICATE` or `APPLE_SIGNING_IDENTITY`, plus one notarization credential set before packaging macOS:
+
+- `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`
+- `APPLE_API_KEY` or `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
+
+For local-only macOS testing, use `bun run package:desktop:mac --allow-unsigned-mac`. That ad-hoc signs the `.app` and strips quarantine attributes, but it is not suitable for a downloaded build shared with teammates.
+
+### macOS signing & notarization, step by step
+
+One-time keychain setup:
+
+1. Get the **Developer ID Application** identity from your team admin. A `.cer` alone is not enough — you need the private key. If the admin generated the CSR, have them export the identity from Keychain Access as a `.p12` and import it:
+   `security import BeeCertificates.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -T /usr/bin/security`
+2. If `security find-identity -v -p codesigning` still reports `0 valid identities`, the Apple intermediate CA is missing. Install it:
+   `curl -O https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer && security import DeveloperIDG2CA.cer -k ~/Library/Keychains/login.keychain-db`
+3. Re-run `security find-identity -v -p codesigning` — it should now list `Developer ID Application: <Team Name> (<TEAMID>)`. That exact quoted string is your `APPLE_SIGNING_IDENTITY`.
+4. Get an **App Store Connect API key** from the admin: the `AuthKey_<KEYID>.p8` file, the Key ID, and the Issuer ID (a UUID from App Store Connect → Users and Access → Integrations). This is used for notarization only — nothing is published.
+
+Per-build:
+
+```bash
+export APPLE_SIGNING_IDENTITY="Developer ID Application: <Team Name> (<TEAMID>)"
+export APPLE_API_KEY="<KEYID>"           # Tauri reads APPLE_API_KEY (the Key ID); APPLE_API_KEY_ID alone silently skips notarization
+export APPLE_API_KEY_PATH="/path/to/AuthKey_<KEYID>.p8"
+export APPLE_API_ISSUER="<issuer UUID>"
+bun run package:desktop:mac
+```
+
+The first signing run pops a keychain dialog — enter your macOS login password and click **Always Allow**. Notarization uploads the app to Apple's automated malware scan (typically 2–10 minutes) and staples the ticket. Artifacts land in `dist/desktop/`; share the `.dmg`. The DMG name takes its version from `src-tauri/tauri.conf.json`, the zip name from `package.json` — bump both.
+
+Do not remove `src-tauri/entitlements.plist` or the `bundle.macOS.entitlements` reference in `tauri.conf.json`: notarization requires the hardened runtime, which breaks the Bun-compiled sidecar (`SharedArrayBuffer is not defined`, surfacing in-app as "desktop backend endpoint not ready") unless the JIT entitlements are present.
 
 ## Runtime Overview
 
