@@ -210,6 +210,7 @@ export function useLocalCommandActions(input: {
 			}
 			return runLocalSlashCommandAction({
 				name: resolved.name,
+				isRunning: session.isRunning,
 				invocation,
 				openAccount,
 				openConfig,
@@ -238,6 +239,7 @@ export function useLocalCommandActions(input: {
 			openSkills,
 			runCompact,
 			runFork,
+			session.isRunning,
 			slashCommandRegistry,
 		],
 	);
