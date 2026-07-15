@@ -19,10 +19,11 @@ From `apps/examples/desktop-app/`:
 ## Web Visual System
 
 The framework-neutral color, typography, radius, and navigation contract lives
-in [`webview/styles/design-tokens.css`](./webview/styles/design-tokens.css).
-Other Cline web surfaces can import that file and map its semantic variables
-into their own component framework without depending on the desktop runtime.
-See [`webview/styles/README.md`](./webview/styles/README.md) for the usage rules.
+in the internal [`@cline/ui`](../../../sdk/packages/ui/README.md) workspace
+package. Other Cline web surfaces can take only its tokens or opt into the
+Tailwind adapter and shared base styles without depending on the desktop
+runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
+desktop integration notes.
 
 ## Shareable Desktop Packages
 

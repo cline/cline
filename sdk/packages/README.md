@@ -13,6 +13,7 @@ This directory is the single documentation source for package-level responsibili
 | `@cline/llms` | Model catalog + provider settings schema + handler creation SDK | `@cline/agents`, `@cline/core`, apps | None |
 | `@cline/agents` | Stateless agent runtime loop (tools, hooks, extensions, teams, streaming) | `@cline/core`, apps | `@cline/llms`, `@cline/shared` |
 | `@cline/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, local and hub runtime services, hub discovery and client helpers) | CLI/Desktop apps | `@cline/agents`, `@cline/llms`, `@cline/shared` |
+| `@cline/ui` | Internal framework-neutral web theme, Tailwind adapter, and optional base styles | Cline web apps | None |
 
 ## How Packages Work Together
 
@@ -32,6 +33,8 @@ This directory is the single documentation source for package-level responsibili
 - Put hub discovery, attach flows, and session-oriented client adapters in `@cline/core/hub`.
 - Put cross-package utility types and path/session constants in `@cline/shared`.
 - Put remote-config schemas, materialization, telemetry normalization, and blob upload primitives in `@cline/shared/remote-config`.
+- Put shared web tokens and visual foundations in `@cline/ui`; keep fonts,
+  shell layout, and product-specific animation with each consuming app.
 
 ## Runtime Entry Points
 

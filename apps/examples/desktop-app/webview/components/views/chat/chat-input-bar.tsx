@@ -637,7 +637,7 @@ export function ChatInputBar({
 			className={cn(
 				"bg-card",
 				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--cline-violet)_72%,transparent)] backdrop-blur-md"
+					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
 					: "border-t border-border bg-card/95 backdrop-blur-sm",
 			)}
 		>
@@ -1160,7 +1160,7 @@ export function ChatInputBar({
 								className={cn(
 									"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
 									variant === "welcome"
-										? "rounded-md bg-[linear-gradient(145deg,var(--cline-violet-strong),var(--cline-violet))] text-white shadow-sm hover:brightness-110"
+										? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
 										: "rounded-full bg-foreground text-background hover:bg-foreground/80",
 								)}
 								disabled={!canSend}

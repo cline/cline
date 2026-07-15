@@ -24,6 +24,7 @@
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
+		"@cline/ui": "workspace:*",
 		"@fontsource-variable/schibsted-grotesk": "^5.2.8",
 		"@fontsource/azeret-mono": "^5.2.9",
 		"@hookform/resolvers": "^3.9.1",
