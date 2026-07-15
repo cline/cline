@@ -217,17 +217,26 @@ jobs:
 
       # The nightly identity must have fully propagated (nightlify -> both
       # bundle manifests -> union manifest) or we'd publish over the stable
-      # extension ID.
+      # extension ID. The bundle sub-manifest checks guard the version
+      # stamping: the About tab and telemetry extension_version read those.
       - name: Assert nightly manifest identity
         working-directory: staging
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
         run: |
           node -e '
-            const pkg = require("./package.json");
             const assert = require("node:assert");
+            const expected = process.env.EXPECTED_VERSION;
+            const pkg = require("./package.json");
             assert.equal(pkg.name, "cline-nightly", `unexpected name ${pkg.name}`);
             assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
-            assert.equal(pkg.version, "${{ steps.version.outputs.version }}", `unexpected version ${pkg.version}`);
-            console.log(`nightly identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
+            assert.equal(pkg.version, expected, `unexpected union version ${pkg.version}`);
+            for (const bundle of ["next", "legacy"]) {
+              const sub = require(`./${bundle}/package.json`);
+              assert.equal(sub.name, "cline-nightly", `unexpected ${bundle} bundle name ${sub.name}`);
+              assert.equal(sub.version, expected, `unexpected ${bundle} bundle version ${sub.version}`);
+            }
+            console.log(`nightly identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version} (bundle identities aligned)`);
           '
 
       - name: Install Publishing Tools

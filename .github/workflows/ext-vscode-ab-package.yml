@@ -155,15 +155,25 @@ jobs:
 
             # This workflow publishes the STABLE identity. If nightlify ever leaks
             # into this path the union manifest would ship under the wrong name.
+            # The bundle sub-manifest checks guard the set-version.mjs stamping:
+            # the About tab and telemetry extension_version read those files.
             - name: Assert stable manifest identity
               working-directory: staging
+              env:
+                  EXPECTED_VERSION: ${{ github.event.inputs.version }}
               run: |
                   node -e '
-                    const pkg = require("./package.json");
                     const assert = require("node:assert");
+                    const expected = process.env.EXPECTED_VERSION;
+                    const pkg = require("./package.json");
                     assert.equal(pkg.name, "claude-dev", `unexpected name ${pkg.name}`);
                     assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
-                    console.log(`stable identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
+                    assert.equal(pkg.version, expected, `unexpected union version ${pkg.version}`);
+                    for (const bundle of ["next", "legacy"]) {
+                      const sub = require(`./${bundle}/package.json`);
+                      assert.equal(sub.version, expected, `unexpected ${bundle} bundle version ${sub.version}`);
+                    }
+                    console.log(`stable identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version} (bundle versions aligned)`);
                   '
 
             - name: Package VSIX
