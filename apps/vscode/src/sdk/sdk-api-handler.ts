@@ -12,7 +12,13 @@ import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
-import { resolveApiKey, resolveBaseUrl, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
+import {
+	resolveApiKey,
+	resolveBaseUrl,
+	resolveClaudeCodeProviderConfig,
+	resolveModelId,
+	resolveVertexProviderConfig,
+} from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 
 export interface BuildApiHandlerOptions {
@@ -57,12 +63,17 @@ export function buildSdkProviderConfig(
 
 	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
 
+	// Claude Code spawns the local CLI, so the user-configured executable path
+	// must reach the provider as pathToClaudeCodeExecutable.
+	const claudeCodeProviderConfig = providerId === "claude-code" ? resolveClaudeCodeProviderConfig(configuration) : undefined
+
 	const base: ProviderConfig = {
 		providerId: toSdkProviderId(providerId),
 		modelId: modelId ?? "",
 		apiKey: apiKey ?? "",
 		baseUrl,
 		...(vertexProviderConfig ?? {}),
+		...(claudeCodeProviderConfig ?? {}),
 		// Use the proxy-aware fetch so gateway providers respect corporate proxy
 		// configuration (see .clinerules/network.md).
 		fetch,
