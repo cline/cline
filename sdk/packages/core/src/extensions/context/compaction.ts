@@ -370,6 +370,7 @@ export function createContextCompactionPrepareTurn(
 			{
 				kind: statusReason,
 				reason: statusReason,
+				phase: "started",
 				iteration: context.iteration,
 				triggerTokens: requestTriggerTokens,
 				targetTokens: requestTargetTokens,
@@ -430,6 +431,20 @@ export function createContextCompactionPrepareTurn(
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
 			} as Record<string, unknown>);
+			context.emitStatusNotice?.(
+				mode === "manual" ? "compacted" : "auto-compacted",
+				{
+					kind: statusReason,
+					reason: statusReason,
+					phase: "completed",
+					iteration: context.iteration,
+					tokensBefore: requestInputTokens,
+					tokensAfter: afterRequestTokens,
+					messagesBefore: beforeMessageCount,
+					messagesAfter: result.messages.length,
+					maxInputTokens,
+				},
+			);
 			captureCompactionExecuted(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: telemetryStrategy,
@@ -476,6 +491,16 @@ export function createContextCompactionPrepareTurn(
 				});
 			}
 		} else {
+			context.emitStatusNotice?.(
+				mode === "manual" ? "compaction-skipped" : "auto-compaction-skipped",
+				{
+					kind: statusReason,
+					reason: statusReason,
+					phase: "skipped",
+					iteration: context.iteration,
+					maxInputTokens,
+				},
+			);
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: telemetryStrategy,
