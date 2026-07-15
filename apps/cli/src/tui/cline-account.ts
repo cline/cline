@@ -152,11 +152,8 @@ export async function createClineAccountService(input: {
 }
 
 /**
- * Persist the active-organization context into the cached cline provider
- * settings so cached-credential telemetry identity (headless runs, the hub
- * daemon) can attach organization attribution without a network call. When
- * the user is on their personal account, stale org fields are cleared.
- * Best-effort: persistence failures must never break the account view.
+ * Persist the active organization so headless runs and the hub daemon can
+ * attach it to telemetry identity. Personal account clears stale org fields.
  */
 function persistClineOrganizationContext(
 	activeOrganization: ClineAccountOrganization | null,

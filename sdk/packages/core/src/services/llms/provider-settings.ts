@@ -59,9 +59,7 @@ export const AuthSettingsSchema = z.object({
 	refreshToken: z.string().optional(),
 	expiresAt: z.number().int().positive().optional(),
 	accountId: z.string().optional(),
-	// Active-organization context persisted at account load so
-	// cached-credential telemetry identity (headless CLI, hub daemon) can
-	// attach organization attribution without a network call.
+	// Active organization at last account load, for telemetry attribution.
 	organizationId: z.string().optional(),
 	organizationName: z.string().optional(),
 	memberId: z.string().optional(),
