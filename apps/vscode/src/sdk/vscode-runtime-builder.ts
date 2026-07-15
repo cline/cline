@@ -3,6 +3,7 @@ import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
 
 interface McpToolDescriptor {
@@ -124,6 +125,8 @@ export interface VscodeExtraToolsOptions {
 	getTerminalManager?: () => VscodeTerminalManager
 	/** Current VS Code terminal execution mode, captured when the session tools are built. */
 	vscodeTerminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+	/** Registry of in-flight foreground executions for "Proceed While Running". */
+	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
 export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
@@ -159,6 +162,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 				getTerminalManager: options.getTerminalManager,
 				bashTimeoutMs: executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : undefined,
 				vscodeTerminalExecutionMode: executionMode,
+				foregroundCommands: options.foregroundCommands,
 			}),
 		)
 		Logger.log(
