@@ -3,6 +3,7 @@ import {
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	parseWorkspaceSelectionStorage,
+	workspacePathsFromSessions,
 } from "./workspace-paths";
 
 describe("workspace paths", () => {
@@ -42,6 +43,18 @@ describe("workspace paths", () => {
 			"/projects/e",
 			"/projects/f",
 		]);
+	});
+
+	it("builds the project catalog from every loaded history workspace", () => {
+		const sessions = Array.from({ length: 25 }, (_, index) => ({
+			workspaceRoot: `/projects/project-${String(index + 1).padStart(2, "0")}`,
+		}));
+		sessions.push({ workspaceRoot: "/projects/project-01/" });
+
+		const paths = workspacePathsFromSessions(sessions);
+
+		expect(paths).toHaveLength(25);
+		expect(paths).toContain("/projects/project-25");
 	});
 
 	it("restores the selected project and catalog across thread remounts", () => {

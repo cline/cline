@@ -46,6 +46,7 @@ import {
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
+	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
 
@@ -57,11 +58,6 @@ type Thread = {
 	id: string;
 	historySession?: SessionHistoryItem;
 	hasStarted?: boolean;
-};
-
-type WorkspaceSessionItem = {
-	cwd?: string;
-	workspaceRoot?: string;
 };
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
@@ -217,6 +213,10 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const historyWorkspacePaths = useMemo(
+		() => workspacePathsFromSessions(sessionHistory.sessions),
+		[sessionHistory.sessions],
+	);
 
 	return (
 		<SidebarProvider>
@@ -255,6 +255,7 @@ export default function Home() {
 							<ChatThreadPane
 								key={activeThread.id}
 								historySession={activeThread.historySession}
+								knownWorkspacePaths={historyWorkspacePaths}
 								onUpdateSessionMetadata={handleUpdateSessionMetadata}
 								threadId={activeThread.id}
 								onDeleteSession={handleDeleteSession}
@@ -281,6 +282,7 @@ export default function Home() {
 function ChatThreadPane({
 	threadId,
 	historySession,
+	knownWorkspacePaths,
 	onUpdateSessionMetadata,
 	onDeleteSession,
 	onNewThread,
@@ -289,6 +291,7 @@ function ChatThreadPane({
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
+	knownWorkspacePaths: string[];
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
@@ -342,8 +345,11 @@ function ChatThreadPane({
 		Record<string, { apiKey: string }>
 	>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
-	const [workspaces, setWorkspaces] = useState<string[]>(
-		() => readWorkspaceSelectionFromWindow().workspaces,
+	const [workspaces, setWorkspaces] = useState<string[]>(() =>
+		mergeWorkspacePaths(
+			readWorkspaceSelectionFromWindow().workspaces,
+			knownWorkspacePaths,
+		),
 	);
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
@@ -357,6 +363,16 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+
+	useEffect(() => {
+		setWorkspaces((current) => {
+			const merged = mergeWorkspacePaths(current, knownWorkspacePaths);
+			return current.length === merged.length &&
+				current.every((workspace, index) => workspace === merged[index])
+				? current
+				: merged;
+		});
+	}, [knownWorkspacePaths]);
 
 	useEffect(() => {
 		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
@@ -486,40 +502,15 @@ function ChatThreadPane({
 
 	const listWorkspaces = useCallback(
 		async (preferredWorkspace?: string): Promise<string[]> => {
-			const roots = new Set<string>();
 			const preferred = (preferredWorkspace || "").trim();
-			if (preferred) {
-				roots.add(preferred);
-			}
 			const current = (
 				workspaceRef.current.workspaceRoot ||
 				workspaceRef.current.cwd ||
 				""
 			).trim();
-			if (current) {
-				roots.add(current);
-			}
-
-			try {
-				const discovered = await desktopClient
-					.invoke<WorkspaceSessionItem[]>("list_discovered_sessions", {
-						limit: 20,
-					})
-					.catch(() => []);
-
-				for (const session of discovered) {
-					const candidate = (session.workspaceRoot || session.cwd || "").trim();
-					if (candidate) {
-						roots.add(candidate);
-					}
-				}
-			} catch {
-				// Keep fallback to current workspace when history is unavailable.
-			}
-
-			return [...roots].sort((a, b) => a.localeCompare(b));
+			return mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]);
 		},
-		[],
+		[knownWorkspacePaths],
 	);
 
 	const refreshWorkspaces = useCallback(
@@ -586,7 +577,7 @@ function ChatThreadPane({
 					setGitBranch("no-git");
 				});
 
-			// Re-fetch workspace list so the new root appears
+			// Refresh the merged history, stored, and current workspace catalog.
 			void refreshWorkspaces(nextWorkspace);
 
 			return true;
