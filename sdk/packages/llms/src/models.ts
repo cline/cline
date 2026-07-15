@@ -33,6 +33,7 @@ export {
 	registerModel,
 	registerProvider,
 	resetRegistry,
+	unregisterModel,
 	unregisterProvider,
 } from "./providers/model-registry";
 export {

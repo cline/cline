@@ -50,8 +50,10 @@ describe("shell helpers", () => {
 			"-c",
 			"ls | head -5",
 		]);
-		expect(
-			getShellArgs("C:\\Windows\\System32\\wsl.exe", "echo hi"),
-		).toEqual(["bash", "-c", "echo hi"]);
+		expect(getShellArgs("C:\\Windows\\System32\\wsl.exe", "echo hi")).toEqual([
+			"bash",
+			"-c",
+			"echo hi",
+		]);
 	});
 });

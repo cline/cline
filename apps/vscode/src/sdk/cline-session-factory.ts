@@ -17,7 +17,8 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import type { ModelInfo as SdkModelInfo } from "@cline/llms"
+import { getGeneratedModelsForProvider, getModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
@@ -37,7 +38,11 @@ import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import type { ResolvedModelSelection } from "./model-catalog/contracts"
+import { nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-catalog/model-values"
+import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
 import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
@@ -209,8 +214,73 @@ function resolveOcaReasoningConfig(mode: Mode, apiConfig: ApiConfiguration | und
 
 function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, mode: Mode): number | undefined {
 	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
-	const maxTokens = modelInfo?.maxTokens
-	return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+	return positiveFiniteNumber(modelInfo?.maxTokens)
+}
+
+function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
+	const modelInfo = selection.modelInfo
+	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>(
+		(selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>,
+	)
+	const setCapability = (capability: NonNullable<SdkModelInfo["capabilities"]>[number], enabled: boolean): void => {
+		if (enabled) capabilities.add(capability)
+		else capabilities.delete(capability)
+	}
+	if (modelInfo.supportsImages !== undefined) setCapability("images", modelInfo.supportsImages)
+	setCapability("prompt-cache", modelInfo.supportsPromptCache)
+	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
+	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
+
+	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
+	const contextWindow = positiveFiniteNumber(modelInfo.contextWindow)
+	const maxInputTokens = positiveFiniteNumber(selection.overrides?.maxInputTokens)
+	const temperature = nonNegativeFiniteNumber(modelInfo.temperature)
+	const inputPrice = nonNegativeFiniteNumber(modelInfo.inputPrice)
+	const outputPrice = nonNegativeFiniteNumber(modelInfo.outputPrice)
+	const cacheRead = nonNegativeFiniteNumber(modelInfo.cacheReadsPrice)
+	const cacheWrite = nonNegativeFiniteNumber(modelInfo.cacheWritesPrice)
+	const apiFormat = toSdkApiFormat(modelInfo.apiFormat)
+	const hasPricing =
+		inputPrice !== undefined || outputPrice !== undefined || cacheRead !== undefined || cacheWrite !== undefined
+
+	return {
+		id: selection.modelId,
+		name: modelInfo.name ?? selection.modelId,
+		...(maxTokens !== undefined ? { maxTokens } : {}),
+		...(contextWindow !== undefined ? { contextWindow } : {}),
+		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
+		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(temperature !== undefined ? { temperature } : {}),
+		...(hasPricing
+			? {
+					pricing: {
+						...(inputPrice !== undefined ? { input: inputPrice } : {}),
+						...(outputPrice !== undefined ? { output: outputPrice } : {}),
+						...(cacheRead !== undefined ? { cacheRead } : {}),
+						...(cacheWrite !== undefined ? { cacheWrite } : {}),
+					},
+				}
+			: {}),
+	}
+}
+
+function resolveCommittedRuntimeModel(
+	providerId: string,
+	mode: Mode,
+	modelId: string | undefined,
+): ResolvedModelSelection | undefined {
+	if (!modelId) {
+		return undefined
+	}
+	try {
+		const parsedProviderId = parseProviderId(providerId)
+		const selection = createProviderConfigStore().readSelection(parsedProviderId, mode)
+		return selection?.modelId === modelId ? selection : resolveRuntimeModelSelection(parsedProviderId, modelId)
+	} catch (error) {
+		Logger.warn(`[SessionFactory] Failed to resolve committed model settings for provider=${providerId}:`, error)
+		return undefined
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -611,7 +681,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
 	apiKey = apiKey ?? ""
-	const maxTokensPerTurn = providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined
+	const committedRuntimeModel = resolveCommittedRuntimeModel(providerId, mode, modelId)
+	const overriddenMaxTokens = committedRuntimeModel?.overrides?.maxTokens
+	const maxTokensPerTurn =
+		positiveFiniteNumber(overriddenMaxTokens) ??
+		(providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined)
+	const temperature = nonNegativeFiniteNumber(committedRuntimeModel?.overrides?.temperature)
 	const reasoningConfig =
 		providerId === "oca"
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
@@ -662,6 +737,27 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const sdkProviderId = toSdkProviderId(providerId)
 	const hostIdentity = await resolveHostIdentity()
 	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
+	try {
+		// Constructing the settings manager loads providers.json and models.json into
+		// the @cline/llms registry. Reading models from that registry ensures custom
+		// model overrides are included in the inference provider config, not just in
+		// the webview/display path.
+		getProviderSettingsManager(resolveDataDir())
+		knownModels = await getModelsForProvider(sdkProviderId)
+		// Only inject host-resolved metadata that carries real information
+		// (catalog/state base or user overrides). Pure fallback fabrications
+		// must not reach the runtime; the SDK's own resolution handles those.
+		const isPureFallbackModel = committedRuntimeModel?.modelInfoSource === "fallback" && !committedRuntimeModel.overrides
+		if (committedRuntimeModel && !isPureFallbackModel && !knownModels?.[modelId]) {
+			knownModels = {
+				...(knownModels ?? {}),
+				[modelId]: toSdkModelInfo(committedRuntimeModel),
+			}
+		}
+	} catch (error) {
+		Logger.warn(`[SessionFactory] Failed to resolve known models for provider=${sdkProviderId}:`, error)
+	}
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
@@ -677,6 +773,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		fetch,
 	}
 
@@ -707,6 +804,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		mode: mode === "plan" ? "plan" : "act",
 		...reasoningConfig,
 		...(maxTokensPerTurn !== undefined ? { maxTokensPerTurn } : {}),
+		...(temperature !== undefined ? { temperature } : {}),
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {

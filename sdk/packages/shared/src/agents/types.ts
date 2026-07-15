@@ -714,6 +714,10 @@ export interface AgentConfig {
 	 */
 	maxTokensPerTurn?: number;
 	/**
+	 * Sampling temperature per API call
+	 */
+	temperature?: number;
+	/**
 	 * Timeout for each API call in milliseconds
 	 * @default 180000 (3 minutes)
 	 */
@@ -888,6 +892,7 @@ export const AgentConfigSchema = z.object({
 	maxIterations: z.number().positive().optional(),
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),
+	temperature: z.number().nonnegative().optional(),
 	apiTimeoutMs: z.number().positive().default(180000),
 	userFileContentLoader: z
 		.function()
