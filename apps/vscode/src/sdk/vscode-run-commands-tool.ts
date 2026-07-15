@@ -122,11 +122,14 @@ function beginLogCapture(process: ITerminalProcess, terminalCommand: string, exi
 	}
 
 	const onLine = (line: string): void => {
-		writeLine(line)
-		if (bytesWritten > PROCEED_LOG_MAX_BYTES) {
+		// Check the cap before writing: a single huge line (e.g. a dumped
+		// binary blob or minified bundle) must not blow past the cap.
+		if (bytesWritten + Buffer.byteLength(line) + 1 > PROCEED_LOG_MAX_BYTES) {
 			writeLine(`[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached; further output is not logged.]`)
 			process.removeListener("line", onLine)
+			return
 		}
+		writeLine(line)
 	}
 	process.on("line", onLine)
 	process.once("completed", (details) => {
@@ -170,7 +173,7 @@ export async function executeForeground(
 	// truncateCommandOutput's own head/tail strategy below — since build/test
 	// failures usually appear at the end of output.
 	const maxBufferedLines = MAX_UNRETRIEVED_LINES
-	process.on("line", (line: string) => {
+	const bufferLine = (line: string): void => {
 		if (outputLines.length < maxBufferedLines) {
 			outputLines.push(line)
 		} else {
@@ -178,7 +181,8 @@ export async function executeForeground(
 			outputLines.push(line)
 			droppedLines++
 		}
-	})
+	}
+	process.on("line", bufferLine)
 
 	// Handle abort signal
 	if (abortSignal) {
@@ -203,7 +207,12 @@ export async function executeForeground(
 			}
 			detachedLogFilePath = beginLogCapture(process, terminalCommand, outputLines)
 			telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
+			// detach() flushes any partial line (reaching both bufferLine and
+			// the log) before resolving the awaited promise. After that the
+			// partial output is final: stop buffering so the remaining
+			// (log-only) output doesn't mutate outputLines while it's read.
 			process.detach()
+			process.removeListener("line", bufferLine)
 		},
 	})
 

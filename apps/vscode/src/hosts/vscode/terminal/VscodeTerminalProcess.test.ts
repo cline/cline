@@ -712,4 +712,23 @@ describe("TerminalProcess (Integration Tests)", () => {
 		processAny.emitIfEol("after detach\n")
 		lines.should.containEql("after detach")
 	})
+
+	it("detach flushes a buffered partial line before emitting continue", () => {
+		const processAny = process as any
+		const events: string[] = []
+		process.on("continue", () => events.push("continue"))
+		process.on("line", (line) => events.push(`line:${line}`))
+
+		// A chunk with no trailing newline stays in the internal buffer.
+		processAny.emitIfEol("partial output")
+		processAny.buffer.should.equal("partial output")
+
+		process.detach()
+
+		// The partial line must reach listeners before 'continue' resolves the
+		// awaited promise; otherwise it is missing from the partial output and
+		// from the log's initial flush.
+		events.should.eql(["line:partial output", "continue"])
+		processAny.buffer.should.equal("")
+	})
 })

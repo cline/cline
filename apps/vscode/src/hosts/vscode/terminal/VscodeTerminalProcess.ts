@@ -531,6 +531,11 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	 * terminal stays busy and is not eligible for reuse until then.
 	 */
 	detach() {
+		// Flush any partial line (no trailing newline yet) so it reaches
+		// listeners before the awaited promise resolves; otherwise it would be
+		// dropped from both the partial output and the log capture if the
+		// command exits without further newline-terminated output.
+		this.emitRemainingBufferIfListening()
 		this.emit("continue")
 	}
 

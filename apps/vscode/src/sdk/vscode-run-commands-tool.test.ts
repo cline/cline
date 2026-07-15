@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { TerminalCompletionDetails } from "@/integrations/terminal/types"
 import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
-import { executeForeground, formatCommandForTerminal } from "./vscode-run-commands-tool"
+import { executeForeground, formatCommandForTerminal, PROCEED_LOG_MAX_BYTES } from "./vscode-run-commands-tool"
 
 // The real telemetry proxy lazily initializes TelemetryService, which requires
 // a HostProvider that unit tests don't set up.
@@ -331,5 +331,75 @@ describe("executeForeground — Proceed While Running", () => {
 		expect(fs.readFileSync(secondLog!, "utf8")).toContain("second output")
 		fs.rmSync(firstLog!, { force: true })
 		fs.rmSync(secondLog!, { force: true })
+	})
+
+	it("stops logging before a line that would exceed the size cap", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		const terminalManager = createFakeTerminalManager(process)
+
+		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
+		await waitFor(() => coordinator.isRunning)
+
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		const result = await resultPromise
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+
+		// A single line larger than the whole cap must not be written at all —
+		// the cap is checked before writing, so one huge line (e.g. a dumped
+		// blob) cannot blow the log far past PROCEED_LOG_MAX_BYTES.
+		emitLine("small line before the blob")
+		emitLine("x".repeat(PROCEED_LOG_MAX_BYTES))
+		emitLine("after the cap")
+		complete({ exitCode: 0 })
+
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed with exit code 0]")
+			} catch {
+				return false
+			}
+		})
+		const log = fs.readFileSync(logFilePath!, "utf8")
+		expect(log).toContain("small line before the blob")
+		expect(log).toContain(`[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached`)
+		expect(log).not.toContain("xxxx")
+		expect(log).not.toContain("after the cap")
+		expect(log.length).toBeLessThan(PROCEED_LOG_MAX_BYTES)
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
+	it("freezes the partial output at detach while later output still reaches the log", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		const terminalManager = createFakeTerminalManager(process)
+
+		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
+		await waitFor(() => coordinator.isRunning)
+		emitLine("before detach")
+
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		// Emitted after detach but before the tool call's result is built:
+		// must appear only in the log, never in the partial output.
+		emitLine("after detach")
+		const result = await resultPromise
+
+		expect(result).toContain("before detach")
+		expect(result).not.toContain("after detach")
+
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		complete({ exitCode: 0 })
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed with exit code 0]")
+			} catch {
+				return false
+			}
+		})
+		const log = fs.readFileSync(logFilePath!, "utf8")
+		expect(log).toContain("before detach")
+		expect(log).toContain("after detach")
+		fs.rmSync(logFilePath!, { force: true })
 	})
 })
