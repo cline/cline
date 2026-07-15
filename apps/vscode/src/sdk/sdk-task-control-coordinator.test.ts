@@ -94,6 +94,28 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("shows a legacy task with a warning and a resume ask", async () => {
+		const legacyMessages: ClineMessage[] = [{ ts: 1, type: "say", say: "task", text: "legacy task" }]
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: legacyMessages,
+			isLegacyTask: true,
+		})
+
+		await coordinator.showTaskWithId("legacy-task")
+
+		expect(options.taskHistory.isLegacyTask).toHaveBeenCalledWith("legacy-task")
+		expect(state.task?.messageStateHandler.getClineMessages()).toEqual([
+			{ ts: 1, type: "say", say: "task", text: "legacy task" },
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: expect.stringContaining("legacy task"),
+			}),
+			expect.objectContaining({ type: "ask", ask: "resume_task" }),
+		])
+	})
+
 	it("does not show a task that is missing from history", async () => {
 		const { coordinator, options } = makeCoordinator({ hasHistoryItem: false })
 
@@ -175,6 +197,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 		taskHistory: {
 			getClineMessages: vi.fn().mockResolvedValue(input.clineMessages ?? []),
+			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
 			findHistoryItem: vi.fn(() =>
 				input.hasHistoryItem === false
 					? undefined
@@ -212,6 +235,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkTaskControlCoordinatorOptions["taskHistory"] & {
 			findHistoryItem: ReturnType<typeof vi.fn>
 			getClineMessages: ReturnType<typeof vi.fn>
+			isLegacyTask: ReturnType<typeof vi.fn>
 		}
 		getTask: ReturnType<typeof vi.fn>
 		setTask: ReturnType<typeof vi.fn>
@@ -231,6 +255,7 @@ interface MakeCoordinatorInput {
 	task: ReturnType<typeof makeTask>
 	hasHistoryItem: boolean
 	clineMessages: ClineMessage[]
+	isLegacyTask: boolean
 }
 
 function makeActiveSession() {

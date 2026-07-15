@@ -659,7 +659,7 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * Trigger mode for a compaction attempt.
  *
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
- *   when input tokens exceed the configured threshold.
+ *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
  */
 export type TelemetryCompactionMode = "auto" | "manual";
@@ -671,6 +671,7 @@ export interface CaptureCompactionExecutedProperties {
 	messagesBefore: number;
 	messagesAfter: number;
 	messagesRemoved: number;
+	/** Full-request token estimates, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	tokensAfter: number;
 	tokensSaved: number;
@@ -710,6 +711,7 @@ export interface CaptureCompactionSkippedProperties {
 	 * be introduced without changing the schema.
 	 */
 	reason: string;
+	/** Full-request token estimate, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	triggerTokens: number;
 	maxInputTokens: number;

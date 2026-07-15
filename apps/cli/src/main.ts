@@ -982,9 +982,15 @@ export async function runCli(): Promise<void> {
 		// and cannot be retroactively updated; this is by design for
 		// lightweight subcommand and pre-auth CLI flows. See CLINE-2406.
 		if (provider === "cline") {
-			const savedAccountId = selectedProviderSettings?.auth?.accountId;
-			if (savedAccountId) {
-				identifyTelemetryAccount({ id: savedAccountId, provider: "cline" });
+			const savedAuth = selectedProviderSettings?.auth;
+			if (savedAuth?.accountId) {
+				identifyTelemetryAccount({
+					id: savedAuth.accountId,
+					provider: "cline",
+					organizationId: savedAuth.organizationId,
+					organizationName: savedAuth.organizationName,
+					memberId: savedAuth.memberId,
+				});
 			}
 		}
 

@@ -3,6 +3,7 @@ import {
 	createClineTelemetryServiceConfig,
 	type ITelemetryService,
 } from "@cline/shared";
+import type { AuthSettings } from "../../services/llms/provider-settings";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { identifyAccount } from "../../services/telemetry/core-events";
 import { createConfiguredTelemetryHandle } from "../../services/telemetry/OpenTelemetryProvider";
@@ -49,27 +50,37 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 	// migration and provider registration side effects, while
 	// getProviderSettings re-reads the file on every call anyway.
 	let settingsManager: ProviderSettingsManager | undefined;
-	const resolveCachedClineAccountId = (): string | undefined => {
+	const resolveCachedClineAuth = (): AuthSettings | undefined => {
 		try {
 			settingsManager ??= new ProviderSettingsManager();
-			return (
-				settingsManager.getProviderSettings("cline")?.auth?.accountId?.trim() ||
-				undefined
-			);
+			return settingsManager.getProviderSettings("cline")?.auth;
 		} catch {
 			// Telemetry identity must never interfere with daemon operation.
 			return undefined;
 		}
 	};
 
-	let identifiedAccountId: string | undefined;
+	let identifiedKey: string | undefined;
 	const refreshIdentity = (): void => {
-		const accountId = resolveCachedClineAccountId();
-		if (!accountId || accountId === identifiedAccountId) {
+		const auth = resolveCachedClineAuth();
+		const accountId = auth?.accountId?.trim();
+		if (!auth || !accountId) {
 			return;
 		}
-		identifiedAccountId = accountId;
-		identifyAccount(handle.telemetry, { id: accountId, provider: "cline" });
+		// Re-identify on account OR active-organization change so a long-lived
+		// daemon keeps org attribution current after an org switch.
+		const key = `${accountId}:${auth.organizationId ?? ""}`;
+		if (key === identifiedKey) {
+			return;
+		}
+		identifiedKey = key;
+		identifyAccount(handle.telemetry, {
+			id: accountId,
+			provider: "cline",
+			organizationId: auth.organizationId,
+			organizationName: auth.organizationName,
+			memberId: auth.memberId,
+		});
 	};
 
 	refreshIdentity();

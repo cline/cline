@@ -39,9 +39,32 @@ export function truncateCommandOutput(output: string): string {
 	return output
 }
 
+export class CommandExitError extends Error {
+	constructor(
+		readonly exitCode: number,
+		readonly output: string,
+	) {
+		super(`Command exited with code ${exitCode}`)
+		this.name = "CommandExitError"
+	}
+}
+
 export function createShellExecutor() {
 	return async () => ""
 }
+
+// Real (dependency-light) edit-executor implementations, re-exported from the sdk source so
+// the diff-edit coordinator and its tests exercise the actual content/parse semantics. These
+// modules only pull in node:fs/node:path and the patch parser — not the heavy core runtime.
+export {
+	computePatchChanges,
+	createApplyPatchExecutor,
+	type PatchFileChange,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch"
+export { PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
+export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
+export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
+export type { ApplyPatchExecutor, EditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/types"
 
 export function createShellTool(execute: unknown) {
 	return {
