@@ -124,10 +124,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
-			controller.stateManager.setGlobalState(
-				"vscodeTerminalExecutionMode",
-				request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal",
-			)
+			const previousMode = controller.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
+			const nextMode = request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal"
+			controller.stateManager.setGlobalState("vscodeTerminalExecutionMode", nextMode)
+			controller.handleTerminalExecutionModeChanged(previousMode, nextMode)
 		}
 
 		// Update max consecutive mistakes

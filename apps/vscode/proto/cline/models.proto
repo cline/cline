@@ -281,6 +281,9 @@ message OpenAiModelsRequest {
   Metadata metadata = 1;
   string base_url = 2;
   string api_key = 3;
+  // Provider whose stored settings (API key, headers) back the request when
+  // the webview only has a masked key. Defaults to "openai".
+  string provider_id = 4;
 }
 
 // Request for fetching SAP AI Core models

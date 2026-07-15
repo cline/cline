@@ -54,11 +54,15 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 	}
 
 	const modelInfo: SdkModelInfo | undefined = input.config.knownModels?.[input.config.modelId]
-	const maxInputTokens =
-		input.config.compaction?.maxInputTokens ??
-		modelInfo?.maxInputTokens ??
-		modelInfo?.contextWindow ??
-		FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS
+	const compactionModelInfo: SdkModelInfo = modelInfo
+		? {
+				...modelInfo,
+				id: modelInfo.id ?? input.config.modelId,
+			}
+		: {
+				id: input.config.modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			}
 
 	const compact = createContextCompactionPrepareTurn(
 		{
@@ -98,11 +102,7 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 		model: {
 			id: input.config.modelId,
 			provider: input.config.providerId,
-			info: {
-				...(modelInfo ?? {}),
-				id: modelInfo?.id ?? input.config.modelId,
-				maxInputTokens,
-			},
+			info: compactionModelInfo,
 		},
 	})
 	if (!result) {

@@ -6,8 +6,9 @@ import type {
 	RestoreResult,
 	StartSessionResult,
 } from "@cline/core"
+import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
-import { ITerminalManager } from "@/integrations/terminal"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
@@ -17,14 +18,20 @@ import { VscodeSessionHost } from "./vscode-session-host"
 
 type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
 type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
+type EditorExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["editorExecutor"]>
+type ApplyPatchExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["applyPatchExecutor"]>
 
 export interface SdkSessionLifecycleOptions {
 	mcpHub: McpHub
 	requestToolApproval: RequestToolApprovalHandler
 	askQuestion: AskQuestionHandler
+	/** Custom `editor` executor (diff-view edit pipeline); replaces the SDK's disk writer. */
+	editorExecutor?: EditorExecutorHandler
+	/** Custom `apply_patch` executor (reverts the diff preview, then applies via the SDK default). */
+	applyPatchExecutor?: ApplyPatchExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
@@ -32,6 +39,14 @@ export interface SdkSessionLifecycleOptions {
 	onSendStart?: (sessionId: string) => void
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
+	/**
+	 * Returns (and clears) a pending user-initiated plan/act switch recorded by
+	 * SdkModeCoordinator for this session, so fireAndForgetSend — the single
+	 * funnel for outbound turn sends — can stamp a <mode_notice> onto the next
+	 * message. Consumed exactly once; null when no switch is pending.
+	 */
+	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
+	onDidBecomeIdle?: () => void
 }
 
 export class SdkSessionLifecycle {
@@ -56,8 +71,13 @@ export class SdkSessionLifecycle {
 	}
 
 	setRunning(isRunning: boolean): void {
-		if (this.activeSession) {
-			this.activeSession.isRunning = isRunning
+		const activeSession = this.activeSession
+		if (!activeSession || activeSession.isRunning === isRunning) {
+			return
+		}
+		activeSession.isRunning = isRunning
+		if (!isRunning) {
+			this.options.onDidBecomeIdle?.()
 		}
 	}
 
@@ -143,6 +163,7 @@ export class SdkSessionLifecycle {
 	}
 
 	async replaceActiveSession(options: {
+		expectedSession: ActiveSession
 		startInput: Parameters<VscodeSessionHost["start"]>[0]
 		initialMessages?: Parameters<VscodeSessionHost["start"]>[0]["initialMessages"]
 		disposeReason: string
@@ -155,7 +176,7 @@ export class SdkSessionLifecycle {
 		| undefined
 	> {
 		const oldSession = this.activeSession
-		if (!oldSession) {
+		if (!oldSession || oldSession !== options.expectedSession || oldSession.isRunning) {
 			return undefined
 		}
 
@@ -298,6 +319,8 @@ export class SdkSessionLifecycle {
 				mcpHub: this.options.mcpHub,
 				requestToolApproval: this.options.requestToolApproval,
 				askQuestion: this.options.askQuestion,
+				editorExecutor: this.options.editorExecutor,
+				applyPatchExecutor: this.options.applyPatchExecutor,
 				getTerminalManager: this.options.getTerminalManager,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,
@@ -337,11 +360,19 @@ export class SdkSessionLifecycle {
 			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
 			return true
 		}
+		// Mark a preceding user-initiated mode switch on this message so the model
+		// sees exactly when the rules changed, instead of only inferring it from
+		// the user_input mode attribute flipping (mirrors the CLI's
+		// run-interactive stamping). The notice survives prepareTurnInput's
+		// normalizeUserInput sanitize and is hidden from display surfaces by
+		// stripModeNotices.
+		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
+		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
 		this.options.onSendStart?.(sessionId)
 		sdkHost
 			.send({
 				sessionId,
-				prompt,
+				prompt: noticedPrompt,
 				userImages: images,
 				userFiles: files,
 				delivery,

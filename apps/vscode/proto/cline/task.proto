@@ -73,6 +73,7 @@ message TaskResponse {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_legacy = 12;
 }
 
 // Request for getting task history with filtering
@@ -105,6 +106,7 @@ message TaskItem {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_legacy = 12;
 }
 
 // Request for ask response operation

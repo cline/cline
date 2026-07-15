@@ -1,7 +1,17 @@
 import type { ConfiguredTelemetryHandle, ITelemetryService } from "@cline/core"
 import type { Mock } from "vitest"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Setting } from "@/shared/proto/index.host"
+
+const coreTelemetryMocks = vi.hoisted(() => ({
+	createConfig: vi.fn((config: Record<string, unknown>) => config),
+	createHandle: vi.fn(),
+}))
+
+vi.mock("@cline/core", () => ({
+	createClineTelemetryServiceConfig: coreTelemetryMocks.createConfig,
+	createConfiguredTelemetryHandle: coreTelemetryMocks.createHandle,
+}))
 
 const telemetryState = vi.hoisted(() => ({
 	clineTelemetrySetting: "unset" as string | undefined,
@@ -31,7 +41,7 @@ vi.mock("@/hosts/host-provider", () => ({
 	},
 }))
 
-import { VscodeTelemetryPolicyService } from "./sdk-telemetry"
+import { createVscodeSdkTelemetryHandle, VscodeTelemetryPolicyService } from "./sdk-telemetry"
 
 describe("VscodeTelemetryPolicyService", () => {
 	beforeEach(() => {
@@ -39,6 +49,40 @@ describe("VscodeTelemetryPolicyService", () => {
 		telemetryState.hostSetting = Setting.ENABLED
 		telemetryState.subscribeCallback = undefined
 		telemetryState.unsubscribe.mockReset()
+		coreTelemetryMocks.createConfig.mockClear()
+		coreTelemetryMocks.createHandle.mockReset()
+		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "")
+	})
+
+	afterEach(() => {
+		vi.unstubAllEnvs()
+	})
+
+	it("adds rollout metadata as SDK common properties", () => {
+		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "next")
+		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+
+		createVscodeSdkTelemetryHandle()
+
+		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				commonProperties: {
+					extension_variant: "next",
+				},
+			}),
+		)
+	})
+
+	it("omits SDK rollout common properties from ordinary builds", () => {
+		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+
+		createVscodeSdkTelemetryHandle()
+
+		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				commonProperties: {},
+			}),
+		)
 	})
 
 	it("drops ordinary events until the async host telemetry setting resolves", () => {

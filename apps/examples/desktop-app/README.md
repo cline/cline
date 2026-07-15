@@ -16,6 +16,15 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Web Visual System
+
+The framework-neutral color, typography, radius, and navigation contract lives
+in the internal [`@cline/ui`](../../../sdk/packages/ui/README.md) workspace
+package. Other Cline web surfaces can take only its tokens or opt into the
+Tailwind adapter and shared base styles without depending on the desktop
+runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
+desktop integration notes.
+
 ## Shareable Desktop Packages
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:

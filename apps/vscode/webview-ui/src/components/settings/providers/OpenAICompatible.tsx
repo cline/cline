@@ -133,44 +133,51 @@ export const OpenAICompatibleProvider = ({
 		}
 	}, [])
 
-	const refreshOpenAiModels = useCallback(async (baseUrl?: string, apiKey?: string) => {
-		const trimmedBaseUrl = baseUrl?.trim()
-		const requestId = openAiModelsRequestRef.current + 1
-		openAiModelsRequestRef.current = requestId
+	const refreshOpenAiModels = useCallback(
+		async (baseUrl?: string, apiKey?: string) => {
+			const trimmedBaseUrl = baseUrl?.trim()
+			const requestId = openAiModelsRequestRef.current + 1
+			openAiModelsRequestRef.current = requestId
 
-		if (!trimmedBaseUrl) {
-			setAvailableOpenAiModels([])
-			setOpenAiModelsError(undefined)
-			setIsRefreshingOpenAiModels(false)
-			return
-		}
-
-		setIsRefreshingOpenAiModels(true)
-		setOpenAiModelsError(undefined)
-
-		try {
-			const response = await ModelsServiceClient.refreshOpenAiModels(
-				OpenAiModelsRequest.create({
-					baseUrl: trimmedBaseUrl,
-					apiKey,
-				}),
-			)
-
-			if (openAiModelsRequestRef.current === requestId) {
-				setAvailableOpenAiModels(response.values)
-			}
-		} catch (error) {
-			console.error("Failed to refresh OpenAI models:", error)
-			if (openAiModelsRequestRef.current === requestId) {
+			if (!trimmedBaseUrl) {
 				setAvailableOpenAiModels([])
-				setOpenAiModelsError(error instanceof Error ? error.message : String(error))
-			}
-		} finally {
-			if (openAiModelsRequestRef.current === requestId) {
+				setOpenAiModelsError(undefined)
 				setIsRefreshingOpenAiModels(false)
+				return
 			}
-		}
-	}, [])
+
+			setIsRefreshingOpenAiModels(true)
+			setOpenAiModelsError(undefined)
+
+			try {
+				// providerId lets the host back the request with this provider's
+				// stored API key and headers — the webview only sees a masked key
+				// for custom providers, so it can't send the credential itself.
+				const response = await ModelsServiceClient.refreshOpenAiModels(
+					OpenAiModelsRequest.create({
+						providerId,
+						baseUrl: trimmedBaseUrl,
+						apiKey,
+					}),
+				)
+
+				if (openAiModelsRequestRef.current === requestId) {
+					setAvailableOpenAiModels(response.values)
+				}
+			} catch (error) {
+				console.error("Failed to refresh OpenAI models:", error)
+				if (openAiModelsRequestRef.current === requestId) {
+					setAvailableOpenAiModels([])
+					setOpenAiModelsError(error instanceof Error ? error.message : String(error))
+				}
+			} finally {
+				if (openAiModelsRequestRef.current === requestId) {
+					setIsRefreshingOpenAiModels(false)
+				}
+			}
+		},
+		[providerId],
+	)
 
 	const debouncedRefreshOpenAiModels = useCallback(
 		(baseUrl?: string, apiKey?: string) => {

@@ -48,6 +48,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_SUCCEEDED: "user.auth_succeeded",
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
+		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
 		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
@@ -252,10 +253,40 @@ export function captureAuthLoggedOut(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	reason?: string,
+	details?: { status?: number; errorCode?: string },
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
 		provider,
 		reason,
+		status: details?.status,
+		errorCode: details?.errorCode,
+	});
+}
+
+/**
+ * Fires when a token refresh fails for a reason that does NOT invalidate the
+ * session (network error, timeout, 5xx) and stored credentials were kept.
+ * Before the transient-vs-invalid_grant fix, `tokenExpired: true` instances
+ * were misclassified as invalid grants and wiped stored credentials — this
+ * event is the "prevented logout" counter for tracking that fix in
+ * production.
+ */
+export function captureAuthRefreshSoftFailure(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: {
+		status?: number;
+		errorCode?: string;
+		errorName?: string;
+		tokenExpired?: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
+		provider,
+		status: details?.status,
+		errorCode: details?.errorCode,
+		errorName: details?.errorName,
+		tokenExpired: details?.tokenExpired,
 	});
 }
 
@@ -628,7 +659,7 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * Trigger mode for a compaction attempt.
  *
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
- *   when input tokens exceed the configured threshold.
+ *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
  */
 export type TelemetryCompactionMode = "auto" | "manual";
@@ -640,6 +671,7 @@ export interface CaptureCompactionExecutedProperties {
 	messagesBefore: number;
 	messagesAfter: number;
 	messagesRemoved: number;
+	/** Full-request token estimates, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	tokensAfter: number;
 	tokensSaved: number;
@@ -679,6 +711,7 @@ export interface CaptureCompactionSkippedProperties {
 	 * be introduced without changing the schema.
 	 */
 	reason: string;
+	/** Full-request token estimate, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	triggerTokens: number;
 	maxInputTokens: number;
