@@ -97,7 +97,6 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				cwd: string
 				stdio: ["ignore", "pipe", "pipe"]
 				env: NodeJS.ProcessEnv
-				shell?: boolean
 			} = {
 				cwd: cwd,
 				stdio: ["ignore", "pipe", "pipe"], // Disable STDIN to prevent interactivity
@@ -116,10 +115,10 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				},
 			}
 
-			// Enable the shell option for "cmd.exe" to prevent double quotes from being over escaped
+			// The explicit /d /s /c arguments already invoke cmd's command parser.
+			// Enabling Node's shell option here would wrap cmd.exe in another shell,
+			// which can execute commands as a no-op while still returning exit code 0.
 			if (shell.toLowerCase().includes("cmd")) {
-				shellOptions.shell = true
-
 				// windowsHide keeps a console-less parent from popping a window for
 				// the child (see the non-cmd branch); no-op on non-Windows.
 				this.childProcess = spawn("cmd.exe", shellArgs, { ...shellOptions, windowsHide: true })
