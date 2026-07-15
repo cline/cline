@@ -207,14 +207,7 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
-export {
-	buildClineClientRequestHeaders,
-	type ClineClientRequestHeadersInput,
-	DEFAULT_REQUEST_HEADERS,
-	type MergeClineClientRequestHeadersInput,
-	mergeClineClientRequestHeaders,
-	serializeAbortReason,
-} from "./llms/requests";
+export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
 	estimateRequestInputTokens,
@@ -239,6 +232,7 @@ export {
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
+export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {
