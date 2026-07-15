@@ -148,9 +148,10 @@ The loader derives the namespace from its own `packageJSON.name` at runtime
 manifest's name — no build flags involved. Nightly builds also show a
 status-bar indicator (`Cline: Next` / `Cline: Legacy`); stable builds never do.
 
-Dispatching the nightly workflow with `dry-run` builds and uploads the
-installable `.vsix` without publishing or tagging — use that (from any branch)
-to verify changes before they reach the cron.
+Dispatching the nightly workflow from `main` with `dry-run` builds and uploads
+the installable `.vsix` without publishing or tagging. The publish job is
+intentionally restricted to `main` by both the workflow and the
+`PublishNightly` environment's deployment-branch policy.
 
 ### Telemetry events
 

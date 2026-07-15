@@ -54,13 +54,11 @@ jobs:
     permissions:
       contents: write
     name: Publish Cline (Nightly) Combined Extension
-    # Branch allowlist: main (the cron + real publishes) plus any branch being
-    # rehearsed with dry-run. NOTE this `if` is advisory only — a dispatched
-    # branch runs its own copy of this file. The enforced gate is the
-    # PublishNightly environment's deployment-branch policy (repo settings),
-    # which must list the same branches. Publish/tag steps are additionally
-    # gated to main below.
-    if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/saoudrizwan/extension-ab-loader')
+    # Defense in depth: only protected main may enter the publishing environment.
+    # This `if` is advisory because a dispatched branch runs its own copy of this
+    # file; the enforced gate is the PublishNightly environment's deployment-branch
+    # policy, which must also allow only main.
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: PublishNightly
 
@@ -247,9 +245,8 @@ jobs:
           path: staging/cline-nightly-${{ steps.version.outputs.version }}.vsix
           if-no-files-found: error
 
-      # Publish/tag only from main and never on a dry run. Step-level (not
-      # job-level) gating so the PR branch can be dispatched with dry-run to
-      # produce an installable artifact before the workflow lands on main.
+      # The job is main-only; step-level dry-run gating still permits a build-only
+      # rehearsal without publishing or tagging.
       - name: Publish to VS Code Marketplace and Open VSX
         if: github.ref == 'refs/heads/main' && inputs.dry-run != true
         working-directory: staging
