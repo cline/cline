@@ -6,6 +6,7 @@ const readThemeFile = (name: string) =>
 	readFileSync(join(packageRoot, "theme", name), "utf8");
 
 const tokens = readThemeFile("tokens.css");
+const tokensWithoutComments = tokens.replace(/\/\*[\s\S]*?\*\//g, "");
 const theme = readThemeFile("theme.css");
 const base = readThemeFile("base.css");
 const index = readThemeFile("index.css");
@@ -39,11 +40,7 @@ if (
 ) {
 	throw new Error("theme contract must not expose --cline-* variables");
 }
-if (
-	tokens.includes("@theme") ||
-	tokens.includes("@apply") ||
-	tokens.includes("@layer")
-) {
+if (/@(?:apply|custom-variant|layer|theme)\b/.test(tokensWithoutComments)) {
 	throw new Error("tokens.css must remain framework-neutral");
 }
 if (theme.includes("tokens.css") || !theme.includes("@theme inline")) {

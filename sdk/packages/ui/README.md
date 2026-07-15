@@ -8,7 +8,7 @@ contract; it is not part of the public SDK release yet.
 
 | Import | Contents | Requires Tailwind |
 | --- | --- | --- |
-| `@cline/ui/theme/tokens.css` | Light/dark custom properties only | No |
+| `@cline/ui/theme/tokens.css` | Light/dark custom properties only; no native `color-scheme` policy | No |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Yes |
 | `@cline/ui/theme/base.css` | Optional base, Markdown, scrollbar, selection, and cursor styles; import after tokens and theme | Yes |
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Yes |
@@ -50,7 +50,9 @@ Brand artwork may use the small extension set (`--primary-emphasis` and the
   variation; do not rename the default contract.
 - `base.css` is optional because it includes opinionated Markdown and global
   interaction styles. When importing files individually, load `tokens.css`,
-  then `theme.css`, then `base.css`. Token-only consumers do not receive resets.
+  then `theme.css`, then `base.css`. Token-only consumers do not receive resets
+  or `color-scheme`; import the base layer or declare `color-scheme` locally so
+  native controls follow the selected light/dark theme.
 - Shell-specific layout such as `#__next`, viewport locking, and app animation
   keyframes stays with each consumer.
 - Contract changes should include a compatibility note and a consumer build.

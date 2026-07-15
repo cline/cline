@@ -154,7 +154,10 @@ describe("@cline/ui theme contract", () => {
 
 	it("keeps the token-only entry point framework-neutral", () => {
 		const tokens = read("tokens.css");
-		expect(tokens).not.toMatch(/@(apply|custom-variant|layer|theme)\b/);
+		const tokensWithoutComments = tokens.replace(/\/\*[\s\S]*?\*\//g, "");
+		expect(tokensWithoutComments).not.toMatch(
+			/@(apply|custom-variant|layer|theme)\b/,
+		);
 		const rules = topLevelRules(tokens);
 		expect(rules.map((rule) => rule.selector)).toEqual([":root", ".dark"]);
 		for (const rule of rules) {
