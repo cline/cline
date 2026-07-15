@@ -52,6 +52,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		coreTelemetryMocks.createConfig.mockClear()
 		coreTelemetryMocks.createHandle.mockReset()
 		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "")
+		vi.stubEnv("CLINE_ROLLOUT_VERSION", "")
 	})
 
 	afterEach(() => {
@@ -60,6 +61,7 @@ describe("VscodeTelemetryPolicyService", () => {
 
 	it("adds rollout metadata as SDK common properties", () => {
 		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "next")
+		vi.stubEnv("CLINE_ROLLOUT_VERSION", "4.1.0")
 		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
 
 		createVscodeSdkTelemetryHandle()
@@ -68,6 +70,7 @@ describe("VscodeTelemetryPolicyService", () => {
 			expect.objectContaining({
 				commonProperties: {
 					extension_variant: "next",
+					rollout_version: "4.1.0",
 				},
 			}),
 		)

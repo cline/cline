@@ -3,7 +3,7 @@ import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
-import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
+import { ROLLOUT_BUNDLE_ACTIVATED_EVENT } from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -86,6 +86,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider, {
 			extension_variant: "next",
+			rollout_version: "4.1.0",
 		})
 
 		service.captureTaskCreated("task-rollout", "anthropic")
@@ -93,8 +94,10 @@ describe("TelemetryService metrics", () => {
 
 		const taskEvent = provider.logs.find((entry) => entry.event === "task.created")
 		assert.strictEqual(taskEvent?.properties?.extension_variant, "next")
+		assert.strictEqual(taskEvent?.properties?.rollout_version, "4.1.0")
 		for (const entry of [...provider.counters, ...provider.histograms]) {
 			assert.strictEqual(entry.attributes.extension_variant, "next")
+			assert.strictEqual(entry.attributes.rollout_version, "4.1.0")
 		}
 	})
 
@@ -102,13 +105,19 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider, {
 			extension_variant: "legacy",
+			rollout_version: "4.1.0",
 		})
 
 		service.captureRolloutBundleActivated({
 			attemptedBundle: "next",
 			actualBundle: "legacy",
 			fallback: true,
-			error: new TypeError("x".repeat(ROLLOUT_ERROR_MESSAGE_LIMIT + 20)),
+			error: new TypeError("sensitive activation detail"),
+			decisionReason: "cached_next",
+			loaderVersion: "4.1.0",
+			vscodeVersion: "1.103.0",
+			msSinceLastActivation: 1_000,
+			override: "setting",
 		})
 
 		const events = provider.logs.filter((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT)
@@ -116,9 +125,15 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(events[0].properties?.attempted_bundle, "next")
 		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
 		assert.strictEqual(events[0].properties?.fallback, true)
+		assert.strictEqual(events[0].properties?.decision_reason, "cached_next")
+		assert.strictEqual(events[0].properties?.loader_version, "4.1.0")
+		assert.strictEqual(events[0].properties?.vscode_version, "1.103.0")
+		assert.strictEqual(events[0].properties?.ms_since_last_activation, 1_000)
+		assert.strictEqual(events[0].properties?.override, "setting")
 		assert.strictEqual(events[0].properties?.error_type, "TypeError")
-		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
+		assert.strictEqual(events[0].properties?.error_message, undefined)
 		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
+		assert.strictEqual(events[0].properties?.rollout_version, "4.1.0")
 	})
 
 	it("does not capture rollout activation events for ordinary builds", () => {

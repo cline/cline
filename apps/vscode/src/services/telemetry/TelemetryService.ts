@@ -120,6 +120,8 @@ export type TelemetryMetadata = {
 	is_dev: string | undefined
 	/** Present only in bundles built by the combined legacy/next rollout workflow. */
 	extension_variant?: RolloutTelemetryMetadata["extension_variant"]
+	/** Combined VSIX version, distinct from the nested bundle's source version. */
+	rollout_version?: RolloutTelemetryMetadata["rollout_version"]
 }
 
 /**
@@ -631,6 +633,11 @@ export class TelemetryService {
 				attempted_bundle: input.attemptedBundle,
 				actual_bundle: input.actualBundle,
 				fallback: input.fallback,
+				decision_reason: input.decisionReason,
+				loader_version: input.loaderVersion,
+				vscode_version: input.vscodeVersion,
+				ms_since_last_activation: input.msSinceLastActivation,
+				override: input.override,
 				...(input.fallback ? getRolloutErrorProperties(input.error) : {}),
 			},
 		})

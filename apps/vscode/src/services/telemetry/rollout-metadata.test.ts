@@ -1,40 +1,78 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { getRolloutErrorProperties, getRolloutTelemetryMetadata, ROLLOUT_ERROR_MESSAGE_LIMIT } from "./rollout-metadata"
+import {
+	attachRolloutTelemetryMetadata,
+	getRolloutErrorProperties,
+	getRolloutTelemetryMetadata,
+	ROLLOUT_ERROR_TYPE_LIMIT,
+} from "./rollout-metadata"
 
 const originalVariant = process.env.CLINE_ROLLOUT_VARIANT
+const originalRolloutVersion = process.env.CLINE_ROLLOUT_VERSION
 
 afterEach(() => {
 	restoreEnv("CLINE_ROLLOUT_VARIANT", originalVariant)
+	restoreEnv("CLINE_ROLLOUT_VERSION", originalRolloutVersion)
 })
 
 describe("rollout telemetry metadata", () => {
 	it("returns metadata for a rollout build", () => {
 		process.env.CLINE_ROLLOUT_VARIANT = "next"
+		process.env.CLINE_ROLLOUT_VERSION = "4.1.0"
 
 		expect(getRolloutTelemetryMetadata()).toEqual({
 			extension_variant: "next",
+			rollout_version: "4.1.0",
 		})
 	})
 
 	it("omits metadata for ordinary or invalid builds", () => {
 		delete process.env.CLINE_ROLLOUT_VARIANT
+		process.env.CLINE_ROLLOUT_VERSION = "4.1.0"
 		expect(getRolloutTelemetryMetadata()).toEqual({})
 
 		process.env.CLINE_ROLLOUT_VARIANT = "invalid"
 		expect(getRolloutTelemetryMetadata()).toEqual({})
 	})
 
-	it("bounds fallback errors without including stacks", () => {
-		const error = new TypeError("x".repeat(ROLLOUT_ERROR_MESSAGE_LIMIT + 20))
-		const properties = getRolloutErrorProperties(error)
+	it("decorates accepted error events while preserving their properties", () => {
+		process.env.CLINE_ROLLOUT_VARIANT = "next"
+		process.env.CLINE_ROLLOUT_VERSION = "4.1.0"
+		const event: { properties?: Record<string, unknown> } = {
+			properties: { existing: true, extension_variant: "spoofed" },
+		}
 
-		expect(properties.error_type).toBe("TypeError")
-		expect(properties.error_message).toHaveLength(ROLLOUT_ERROR_MESSAGE_LIMIT)
-		expect(properties.error_message).not.toContain("TypeError:")
+		attachRolloutTelemetryMetadata(event)
+
+		expect(event.properties).toEqual({
+			existing: true,
+			extension_variant: "next",
+			rollout_version: "4.1.0",
+		})
+	})
+
+	it("does not label error events from ordinary builds", () => {
+		delete process.env.CLINE_ROLLOUT_VARIANT
+		delete process.env.CLINE_ROLLOUT_VERSION
+		const event: { properties?: Record<string, unknown> } = {
+			properties: { existing: true },
+		}
+		attachRolloutTelemetryMetadata(event)
+		expect(event.properties).toEqual({ existing: true })
+	})
+
+	it("reports only a bounded error type and never the raw fallback message", () => {
+		const error = new TypeError('authorization: Bearer abc123 {"apiKey":"secret"}')
+		expect(getRolloutErrorProperties(error)).toEqual({ error_type: "TypeError" })
+
+		error.name = "x".repeat(ROLLOUT_ERROR_TYPE_LIMIT + 1)
+		expect(getRolloutErrorProperties(error)).toEqual({ error_type: "Error" })
+
+		error.name = "Unsafe Error Name"
+		expect(getRolloutErrorProperties(error)).toEqual({ error_type: "Error" })
 	})
 })
 
-function restoreEnv(key: "CLINE_ROLLOUT_VARIANT", value: string | undefined): void {
+function restoreEnv(key: "CLINE_ROLLOUT_VARIANT" | "CLINE_ROLLOUT_VERSION", value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[key]
 	} else {

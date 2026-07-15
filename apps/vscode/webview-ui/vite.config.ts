@@ -139,6 +139,8 @@ export default defineConfig({
 		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
 		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
 		"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(process.env.ENABLE_ERROR_AUTOCAPTURE),
+		"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(process.env.CLINE_ROLLOUT_VARIANT ?? ""),
+		"process.env.CLINE_ROLLOUT_VERSION": JSON.stringify(process.env.CLINE_ROLLOUT_VERSION ?? ""),
 		// OpenTelemetry environment variables
 		"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED),
 		"process.env.OTEL_METRICS_EXPORTER": JSON.stringify(process.env.OTEL_METRICS_EXPORTER),
