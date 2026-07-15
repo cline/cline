@@ -55,6 +55,7 @@ import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
+import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { emitWorkspaceLifecycleTelemetry } from "./workspace/workspace-telemetry";
 
 function formatPluginFailure(failure: PluginInitializationFailure): string {
@@ -306,6 +307,7 @@ export interface LocalRuntimeBootstrap {
 	workspaceMetadata: string;
 	/** Structured git + path metadata generated alongside workspaceMetadata. */
 	workspaceInfo: WorkspaceInfo;
+	gitState: GitWorkspaceState;
 	extensions: AgentConfig["extensions"];
 	hooks: AgentHooks | undefined;
 	toolPolicies: AgentConfig["toolPolicies"];
@@ -351,8 +353,14 @@ export async function prepareLocalRuntimeBootstrap(
 	// Generate workspace + git metadata once, early, so it can be forwarded to
 	// hooks and extensions. The serialized string goes into CoreSessionConfig
 	// as workspaceMetadata; the structured object is kept as workspaceInfo.
-	const { workspaceInfo, workspaceMetadata, durationMs, vcsType, initError } =
-		await buildWorkspaceMetadataWithInfo(workspacePath);
+	const {
+		workspaceInfo,
+		workspaceMetadata,
+		gitState,
+		durationMs,
+		vcsType,
+		initError,
+	} = await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
@@ -500,6 +508,7 @@ export async function prepareLocalRuntimeBootstrap(
 		providerConfig,
 		workspaceMetadata,
 		workspaceInfo,
+		gitState,
 		extensions,
 		hooks,
 		toolPolicies,
