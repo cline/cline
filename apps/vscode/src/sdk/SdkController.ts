@@ -15,7 +15,12 @@ import {
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
-import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
+import {
+	type ConsecutiveMistakeLimitContext,
+	formatDisplayUserInput,
+	type RemoteConfig,
+	type RemoteConfigBundle,
+} from "@cline/shared"
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -297,7 +302,10 @@ export class Controller {
 				this.mode.queueSwitchToActMode()
 			},
 			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
-			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
+			onConsecutiveMistakeLimitReached: (context) => {
+				this.captureMistakeLimitReached(context)
+				return this.interactions.handleConsecutiveMistakeLimitReached(context)
+			},
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
 			getCwd: () => this.getWorkspaceRoot(),
@@ -965,6 +973,25 @@ export class Controller {
 
 	private beginProviderFailureTelemetryTurn(): void {
 		this.providerFailureTelemetryTurnGate.beginTurn()
+	}
+
+	/**
+	 * Fires once per consecutive-mistake-limit hit, right before the
+	 * mistake_limit_reached ask is surfaced to the user.
+	 */
+	private captureMistakeLimitReached(context: ConsecutiveMistakeLimitContext): void {
+		const ulid = this.sessions.getActiveSession()?.sessionId ?? this.task?.taskId
+		if (!ulid) {
+			return
+		}
+		telemetryService.captureMistakeLimitReached({
+			ulid,
+			model: this.getSessionModelId() ?? this.getTaskModelId() ?? "unknown",
+			provider: this.getSessionProviderId() ?? "unknown",
+			reason: context.reason,
+			consecutiveMistakes: context.consecutiveMistakes,
+			maxConsecutiveMistakes: context.maxConsecutiveMistakes,
+		})
 	}
 
 	/**
