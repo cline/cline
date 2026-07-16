@@ -68,6 +68,7 @@ import {
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
+import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
@@ -204,6 +205,15 @@ export class Controller {
 	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
 	private _terminalManager?: VscodeTerminalManager
 
+	// Registry of in-flight foreground (VS Code terminal) command executions.
+	// Owned here — not by the session — so it survives session rebuilds, which
+	// recreate the tool set. Drives the "Proceed While Running" button.
+	private readonly foregroundCommands = new SdkForegroundCommandCoordinator({
+		onRunningChanged: () => {
+			void this.postStateToWebview()
+		},
+	})
+
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
@@ -330,6 +340,7 @@ export class Controller {
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
+			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
 				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
 				// (vscode-session-host.ts, sdk-terminal-execution-mode-coordinator.ts):
@@ -1174,6 +1185,19 @@ export class Controller {
 		stubWarn("cancelBackgroundCommand")
 	}
 
+	/**
+	 * "Proceed While Running": detach every in-flight foreground terminal
+	 * command. Each pending run_commands call returns its partial output plus
+	 * the log file path the remaining output is redirected to, and the agent
+	 * turn continues while the commands keep running in their terminals.
+	 */
+	async proceedWhileRunningCommand(): Promise<void> {
+		const detached = this.foregroundCommands.proceedWhileRunning()
+		if (detached === 0) {
+			Logger.warn("[SdkController] proceedWhileRunningCommand: No foreground command is running")
+		}
+	}
+
 	async cancelQueuedPrompt(promptId: string): Promise<void> {
 		const trimmedPromptId = promptId.trim()
 		if (!trimmedPromptId) {
@@ -1868,6 +1892,7 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
+				foregroundCommandRunning: this.foregroundCommands.isRunning,
 			})
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)

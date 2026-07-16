@@ -16,8 +16,8 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
-import { Logger } from "@/shared/services/Logger"
 import type { MarkerlessCompletionCause } from "@/services/telemetry/TelemetryService"
+import { Logger } from "@/shared/services/Logger"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
 import { classifyShellPrompt, getLastLine } from "./shellPromptHeuristics"
 
@@ -519,6 +519,23 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		this.removeAllListeners("line")
+		this.emit("continue")
+	}
+
+	/**
+	 * Resolve the awaited promise while the command keeps running ("Proceed
+	 * While Running"). Listeners stay attached and 'line' events keep
+	 * flowing — unlike continue() — so callers can stream the remaining
+	 * output until the command actually completes. Because 'completed' is
+	 * only emitted by the read loop when the command genuinely ends, the
+	 * terminal stays busy and is not eligible for reuse until then.
+	 */
+	detach() {
+		// Flush any partial line (no trailing newline yet) so it reaches
+		// listeners before the awaited promise resolves; otherwise it would be
+		// dropped from both the partial output and the log capture if the
+		// command exits without further newline-terminated output.
+		this.emitRemainingBufferIfListening()
 		this.emit("continue")
 	}
 
