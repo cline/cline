@@ -2849,9 +2849,7 @@ export class Task {
 			}
 			const { response, text, images, files } = await this.ask(
 				"mistake_limit_reached",
-				this.api.getModel().id.includes("claude")
-					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use a stronger model with better tool-calling and agentic coding capabilities.",
+				`Cline made too many mistakes in a row and paused the task so you can decide how to proceed. You can send guidance to help it get back on track (e.g. "Try breaking the task into smaller steps"), or start a new task.`,
 			);
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
