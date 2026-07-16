@@ -313,6 +313,8 @@ export class TelemetryService {
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
 			// Tracks when API providers return errors
 			PROVIDER_API_ERROR: "task.provider_api_error",
+			// Tracks when the consecutive mistake limit is reached and the user is prompted
+			MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
 			// Tracks when users enable the focus chain feature
 			FOCUS_CHAIN_ENABLED: "task.focus_chain_enabled",
 			// Tracks when users disable the focus chain feature
@@ -1498,6 +1500,33 @@ export class TelemetryService {
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
+	}
+
+	/**
+	 * Records when the consecutive mistake limit is reached and the user is shown
+	 * the mistake_limit_reached prompt
+	 * @param ulid Unique identifier for the task/session
+	 * @param model Identifier of the model used
+	 * @param provider Identifier of the API provider used
+	 * @param reason What kind of mistake tripped the limit (api_error, invalid_tool_call, tool_execution_failed)
+	 * @param consecutiveMistakes Number of consecutive mistakes recorded when the limit was hit
+	 * @param maxConsecutiveMistakes The configured mistake limit
+	 */
+	public captureMistakeLimitReached(args: {
+		ulid: string
+		model: string
+		provider: string
+		reason: string
+		consecutiveMistakes: number
+		maxConsecutiveMistakes: number
+	}) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MISTAKE_LIMIT_REACHED,
+			properties: {
+				...args,
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**
