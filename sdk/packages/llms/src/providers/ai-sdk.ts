@@ -496,10 +496,13 @@ function buildRecoverableToolErrorMetadata(input: {
 	toolName: string;
 }): Record<string, unknown> {
 	return buildToolCallMetadata({
-		metadata: mergeToolCallMetadata(extractProviderThoughtMetadata(input.part), {
-			inputParseError: `Tool call ${input.toolName} was rejected before execution: ${input.errorMessage}`,
-			aiSdkToolError: input.errorMessage,
-		}),
+		metadata: mergeToolCallMetadata(
+			extractProviderThoughtMetadata(input.part),
+			{
+				inputParseError: `Tool call ${input.toolName} was rejected before execution: ${input.errorMessage}`,
+				aiSdkToolError: input.errorMessage,
+			},
+		),
 		request: input.request,
 		context: input.context,
 	});
@@ -903,7 +906,8 @@ function extractProviderThoughtMetadata(
 			openai.itemId = openaiMetadata.itemId;
 		}
 		if (typeof openaiMetadata.reasoningEncryptedContent === "string") {
-			openai.reasoningEncryptedContent = openaiMetadata.reasoningEncryptedContent;
+			openai.reasoningEncryptedContent =
+				openaiMetadata.reasoningEncryptedContent;
 		}
 		if (Object.keys(openai).length > 0) {
 			metadata.openai = openai;
