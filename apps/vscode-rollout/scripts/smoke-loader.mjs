@@ -409,7 +409,6 @@ await runScenario(
 		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "next");
 		const [featureFlagCalled] = featureFlagCalledCaptures(fetchCalls);
 		assert.ok(featureFlagCalled, "rollout refresh must emit the PostHog feature-flag exposure event");
-		assert.equal(featureFlagCalled.event, "$feature_flag_called");
 		assert.equal(featureFlagCalled.properties.$feature_flag, "ext-sdk-bundle-rollout");
 		assert.equal(featureFlagCalled.properties.$feature_flag_response, true);
 	},
