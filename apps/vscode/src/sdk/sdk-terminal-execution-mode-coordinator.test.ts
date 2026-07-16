@@ -35,6 +35,33 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
+	it("does nothing when the terminal profile did not change", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalProfileChanged("powershell", "powershell")
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+	})
+
+	it("treats undefined and 'default' as the same profile", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalProfileChanged(undefined, "default")
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+	})
+
+	it("requests a rebuild when the terminal profile changes", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalProfileChanged("default", "cmd")
+
+		expect(options.rebuilds.request).toHaveBeenCalledWith("terminalExecutionMode", expect.any(Function))
+	})
+
 	it("schedules restart while the active session is running", () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })

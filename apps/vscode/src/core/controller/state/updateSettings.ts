@@ -236,11 +236,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update default terminal profile
 		if (request.defaultTerminalProfile !== undefined) {
+			const previousProfile = controller.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 			controller.stateManager.setGlobalState("defaultTerminalProfile", request.defaultTerminalProfile)
 			// Update the live terminal manager so new terminals use the new profile.
 			// Existing terminals are left open — they're keyed by effective shell
 			// and reused when compatible, or skipped when not.
 			controller.terminalManager?.setDefaultTerminalProfile(request.defaultTerminalProfile)
+			// Rebuild the session so the run_commands tool description names the new shell.
+			controller.handleTerminalProfileChanged(previousProfile, request.defaultTerminalProfile)
 		}
 
 		if (request.backgroundEditEnabled !== undefined) {

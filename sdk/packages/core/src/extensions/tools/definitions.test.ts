@@ -5,6 +5,7 @@ import {
 	getToolContextTelemetry,
 } from "../../services/telemetry/tool-context";
 import {
+	buildRunCommandsDescription,
 	createDefaultTools,
 	createReadFilesTool,
 	createSearchTool,
@@ -477,6 +478,54 @@ describe("default apply_patch tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+});
+
+describe("run_commands tool description", () => {
+	it("names PowerShell with ';' sequencing for PowerShell shells", () => {
+		const description = buildRunCommandsDescription("powershell", true);
+		expect(description).toContain("Commands run through PowerShell");
+		expect(description).toContain("use ';' to sequence commands");
+		expect(description).toContain("in Windows environment");
+	});
+
+	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
+		const description = buildRunCommandsDescription("cmd", true);
+		expect(description).toContain("Commands run through cmd.exe");
+		expect(description).toContain("use '&&' to sequence commands");
+		expect(description).not.toContain("PowerShell");
+	});
+
+	it("describes WSL bash with the /mnt working-directory mapping", () => {
+		const description = buildRunCommandsDescription("wsl", true);
+		expect(description).toContain("bash in WSL");
+		expect(description).toContain("/mnt/<drive>");
+		expect(description).not.toContain("PowerShell");
+	});
+
+	it("notes the Windows host for POSIX shells on Windows only", () => {
+		const onWindows = buildRunCommandsDescription("posix", true);
+		expect(onWindows).toContain("POSIX (bash-compatible) shell on Windows");
+		expect(onWindows).not.toContain("PowerShell");
+
+		const onUnix = buildRunCommandsDescription("posix", false);
+		expect(onUnix).not.toContain("Windows");
+		expect(onUnix).toContain("grep/head/tail");
+	});
+
+	it("derives the createShellTool description from config.shell", () => {
+		const posixTool = createShellTool(async () => "ok", {
+			shell: "/bin/bash",
+		});
+		expect(posixTool.description).toContain(
+			"Run non-interactive shell commands",
+		);
+		expect(posixTool.description).not.toContain("PowerShell");
+
+		const cmdTool = createShellTool(async () => "ok", {
+			shell: "C:\\Windows\\System32\\cmd.exe",
+		});
+		expect(cmdTool.description).toContain("Commands run through cmd.exe");
 	});
 });
 

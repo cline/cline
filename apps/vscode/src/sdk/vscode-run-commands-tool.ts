@@ -290,17 +290,30 @@ export async function executeForeground(
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolves the shell the user's terminal profile setting selects right now.
+ * Both execution modes run this shell: foreground terminals are created from
+ * the same profile (VscodeTerminalManager.setDefaultTerminalProfile), and the
+ * background executor spawns it directly.
+ */
+function resolveConfiguredShell(): string {
+	const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"
+	return getShellForProfile(profileId)
+}
+
+/**
  * Creates the custom `run_commands` tool for the VSCode extension.
  *
  * This tool suppresses and replaces the SDK's built-in `run_commands` tool.
- * The terminal execution mode is captured when the session's tool set is built.
- * Switching modes rebuilds the active SDK session so the tool timeout and
- * execution mode stay aligned.
+ * The terminal execution mode and shell are captured when the session's tool
+ * set is built. Switching modes or terminal profiles rebuilds the active SDK
+ * session so the tool timeout, execution mode, and the shell named in the
+ * tool description stay aligned with what actually runs.
  */
 export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): AgentTool {
 	return createShellTool(createVscodeShellExecutor(options), {
 		cwd: options.cwd,
 		bashTimeoutMs: options.bashTimeoutMs,
+		shell: resolveConfiguredShell(),
 	})
 }
 
@@ -319,10 +332,11 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 		Logger.log(`[VscodeRunCommands] Executing command in ${executionMode} mode`)
 
 		if (executionMode === "backgroundExec") {
-			// Background path — use SDK's createShellExecutor
-			// Resolve shell from the user's terminal profile setting
-			const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"
-			const shell = getShellForProfile(profileId)
+			// Background path — use SDK's createShellExecutor.
+			// Re-resolve the shell per invocation: a profile change rebuilds the
+			// session, but that rebuild is deferred while a task is running, so
+			// commands issued in the meantime must still use the new profile.
+			const shell = resolveConfiguredShell()
 
 			// Recreate the executor if the shell has changed
 			if (!bgExecutor || bgExecutorShell !== shell) {
