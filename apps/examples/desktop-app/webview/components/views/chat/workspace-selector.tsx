@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -17,17 +18,6 @@ function formatWorkspacePath(path: string): string {
 		return tail ? `~/${tail}` : "~";
 	}
 	return path;
-}
-
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
 }
 
 export function WorkspaceSelector({
