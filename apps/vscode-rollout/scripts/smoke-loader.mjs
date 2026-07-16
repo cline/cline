@@ -108,6 +108,18 @@ function captureCalls(fetchCalls) {
 		.map(([, init]) => JSON.parse(init.body));
 }
 
+function captureEvents(fetchCalls, event) {
+	return captureCalls(fetchCalls).filter((capture) => capture.event === event);
+}
+
+function loaderDecisionCaptures(fetchCalls) {
+	return captureEvents(fetchCalls, "extension.rollout.loader_decision");
+}
+
+function featureFlagCalledCaptures(fetchCalls) {
+	return captureEvents(fetchCalls, "$feature_flag_called");
+}
+
 function decideCalls(fetchCalls) {
 	return fetchCalls.filter(([url]) => String(url).includes("/decide"));
 }
@@ -390,11 +402,15 @@ await runScenario(
 	{
 		fetchController: makeFlagFetch({ rollout: true }),
 	},
-	async ({ context, api }) => {
+	async ({ context, api, fetchCalls }) => {
 		// This window already decided legacy from the (empty) cache; the refresh
 		// promotes the NEXT window.
 		assert.deepEqual(api, { bundle: "legacy" });
 		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "next");
+		const [featureFlagCalled] = featureFlagCalledCaptures(fetchCalls);
+		assert.ok(featureFlagCalled, "rollout refresh must emit the PostHog feature-flag exposure event");
+		assert.equal(featureFlagCalled.properties.$feature_flag, "ext-sdk-bundle-rollout");
+		assert.equal(featureFlagCalled.properties.$feature_flag_response, true);
 	},
 );
 
@@ -404,11 +420,16 @@ await runScenario(
 		seed: { "cline.rollout.bundle": "next" },
 		fetchController: makeFlagFetch({ rollout: false }),
 	},
-	async ({ context, api }) => {
+	async ({ context, api, fetchCalls }) => {
 		// This window already ran next; dialing the flag down moves the machine
 		// back to legacy on its next reload.
 		assert.deepEqual(api, { bundle: "next" });
 		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "legacy");
+		const [featureFlagCalled] = featureFlagCalledCaptures(fetchCalls);
+		assert.ok(featureFlagCalled, "rollout refresh must emit the PostHog feature-flag exposure event");
+		assert.equal(featureFlagCalled.event, "$feature_flag_called");
+		assert.equal(featureFlagCalled.properties.$feature_flag, "ext-sdk-bundle-rollout");
+		assert.equal(featureFlagCalled.properties.$feature_flag_response, false);
 	},
 );
 
@@ -518,10 +539,10 @@ await runScenario(
 	},
 	async ({ fetchCalls }) => {
 		await waitFor(
-			() => captureCalls(fetchCalls).length > 0,
+			() => loaderDecisionCaptures(fetchCalls).length > 0,
 			"loader_decision capture never reached the network",
 		);
-		const captures = captureCalls(fetchCalls);
+		const captures = loaderDecisionCaptures(fetchCalls);
 		assert.equal(captures.length, 1);
 		const [capture] = captures;
 		assert.equal(capture.event, "extension.rollout.loader_decision");
@@ -544,13 +565,13 @@ await runScenario(
 	},
 	async ({ fetchCalls }) => {
 		await waitFor(
-			() => captureCalls(fetchCalls).length > 0,
+			() => loaderDecisionCaptures(fetchCalls).length > 0,
 			"fallback loader_decision capture never reached the network",
 		);
 		// Give an incorrect second capture (the pre-fix fallback:false event from
 		// the recursive legacy success) time to reach the network before counting.
 		await new Promise((resolve) => setTimeout(resolve, 100));
-		const captures = captureCalls(fetchCalls);
+		const captures = loaderDecisionCaptures(fetchCalls);
 		assert.equal(
 			captures.length,
 			1,
@@ -617,10 +638,10 @@ await runScenario(
 			"no bundle survived to report the authoritative event",
 		);
 		await waitFor(
-			() => captureCalls(fetchCalls).length >= 2,
+			() => loaderDecisionCaptures(fetchCalls).length >= 2,
 			"double failure should capture the fallback AND the double_failure events",
 		);
-		const captures = captureCalls(fetchCalls);
+		const captures = loaderDecisionCaptures(fetchCalls);
 		assert.equal(captures.length, 2);
 		for (const capture of captures) {
 			assert.equal(capture.event, "extension.rollout.loader_decision");

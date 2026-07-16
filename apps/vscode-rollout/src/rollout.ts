@@ -7,6 +7,7 @@ import {
 	type Bundle,
 	COHORT_STATE_KEY,
 	parseRolloutAssignment,
+	ROLLOUT_FLAG,
 } from "./cohort";
 
 /**
@@ -18,6 +19,7 @@ import {
 const POSTHOG_HOST = "https://data.cline.bot";
 const POSTHOG_API_KEY = process.env.TELEMETRY_SERVICE_API_KEY;
 const FETCH_TIMEOUT_MS = 10_000;
+const FEATURE_FLAG_CALLED_EVENT = "$feature_flag_called";
 
 /**
  * Mirror the distinct-id derivation in apps/vscode
@@ -92,10 +94,51 @@ async function fetchAssignment(
 		return undefined;
 	}
 	try {
-		return parseRolloutAssignment(await response.json());
+		const decideResponse = await response.json();
+		const assignment = parseRolloutAssignment(decideResponse);
+		if (!assignment) {
+			return undefined;
+		}
+
+		// Mirror FeatureFlagsService/PostHog SDK exposure tracking for this
+		// loader-owned flag evaluation. This event is intentionally not gated by
+		// telemetry opt-out: feature-flag evaluation remains enabled so PostHog can
+		// correctly attribute rollout cohorts, while loader_decision below still
+		// respects user/host telemetry settings.
+		void reportFeatureFlagCalled(
+			distinctId,
+			getRolloutFlagResponse(decideResponse),
+		).catch(() => {});
+
+		return assignment;
 	} catch {
 		return undefined;
 	}
+}
+
+function getRolloutFlagResponse(response: unknown): unknown {
+	const flags = (
+		response as { featureFlags?: Record<string, unknown> } | undefined
+	)?.featureFlags;
+	return flags && typeof flags === "object" ? flags[ROLLOUT_FLAG] : undefined;
+}
+
+async function reportFeatureFlagCalled(
+	distinctId: string,
+	flagResponse: unknown,
+): Promise<void> {
+	if (!POSTHOG_API_KEY) {
+		return;
+	}
+	await postJson(`${POSTHOG_HOST}/capture/`, {
+		api_key: POSTHOG_API_KEY,
+		event: FEATURE_FLAG_CALLED_EVENT,
+		distinct_id: distinctId,
+		properties: {
+			$feature_flag: ROLLOUT_FLAG,
+			$feature_flag_response: flagResponse,
+		},
+	});
 }
 
 /**
