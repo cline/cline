@@ -814,7 +814,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("clears discovery on build mismatch when protocol is compatible", async () => {
+	it("returns undefined on build mismatch but keeps discovery for retirement", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -861,12 +861,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
 		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
-		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
-			"/tmp/hub-discovery.json",
-		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("clears discovery when a hub omits build metadata", async () => {
+	it("returns undefined and keeps discovery when a hub omits build metadata", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -911,9 +909,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
 		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
-		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
-			"/tmp/hub-discovery.json",
-		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
 	it("clears discovery on protocol mismatch", async () => {
@@ -1008,6 +1004,65 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			}),
 		).resolves.toBe("ws://127.0.0.1:25464/hub");
 		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+	});
+
+	it("replaces a stale-build hub through the daemon ensure API without dropping its discovery record", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const clearHubDiscoveryMock = vi.fn();
+		const ensureDetachedHubServerMock = vi.fn(async () => ({
+			url: "ws://127.0.0.1:25465/hub",
+			authToken: "new-token",
+		}));
+		const staleRecord = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 25464,
+			url: "ws://127.0.0.1:25464/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: ensureDetachedHubServerMock,
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => staleRecord),
+				probeHubServer: vi.fn(async () => staleRecord),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+			};
+		});
+
+		const { ensureCompatibleLocalHubUrl } = await import(".");
+
+		await expect(
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			}),
+		).resolves.toBe("ws://127.0.0.1:25465/hub");
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		// The stale record must survive until the daemon retires the hub; it
+		// carries the authToken/pid the retirement path needs.
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
 	it("returns undefined when the daemon ensure fails", async () => {

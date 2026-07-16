@@ -983,10 +983,11 @@ export async function resolveCompatibleLocalHubUrl(
 	if (compatible.status === "compatible") {
 		return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
 	}
-	if (
-		compatible.status === "protocol_mismatch" ||
-		compatible.status === "build_mismatch"
-	) {
+	// Keep the discovery record on build_mismatch: it carries the authToken
+	// and pid the daemon ensure/prewarm paths need to retire the stale hub
+	// gracefully. Clearing it here would leave retirement with only an
+	// unauthenticated /health probe, which cannot stop the old daemon.
+	if (compatible.status === "protocol_mismatch") {
 		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 	}
 	return undefined;

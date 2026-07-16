@@ -223,6 +223,38 @@ describe("hub server startup", () => {
 		expect(payload.buildId).toBe(resolveHubBuildId());
 	});
 
+	it("does not reuse a discovered hub from a different build", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-stale-build");
+		vi.stubEnv("CLINE_HUB_BUILD_ID", "old-build");
+		try {
+			const stale = await startHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			servers.add(stale);
+
+			vi.stubEnv("CLINE_HUB_BUILD_ID", "new-build");
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				allowPortFallback: true,
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+
+			expect(result.action).toBe("started");
+			expect(result.url).not.toBe(stale.url);
+			servers.add(requireServer(result.server));
+		} finally {
+			vi.unstubAllEnvs();
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+	});
+
 	it("shuts down active server through the shutdown endpoint", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-shutdown");
 		const result = await ensureHubWebSocketServer({

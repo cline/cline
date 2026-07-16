@@ -610,6 +610,10 @@ export async function ensureHubWebSocketServer(
 			if (
 				healthy?.url &&
 				isHubProtocolCompatible(healthy).compatible &&
+				// Never reuse a hub from a different build: it keeps serving
+				// stale code after an upgrade. The authenticated probe reads
+				// /status, which always reports buildId.
+				healthy.buildId?.trim() === resolveHubBuildId() &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discovered.authToken,
 				}))
