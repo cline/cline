@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 3.0.42
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+
 ## 3.0.41
 
 - Compaction now shows progress status in the TUI
