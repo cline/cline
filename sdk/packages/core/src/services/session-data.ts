@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
-import { normalizeUserInput, stripModeNotices } from "@cline/shared";
+import { normalizeUserInput, stripRuntimeNotices } from "@cline/shared";
 import { nanoid } from "nanoid";
 import {
 	parseSubSessionId,
@@ -235,7 +235,9 @@ export function deriveTitleFromPrompt(
 	// stripped here rather than inside normalizeUserInput -- that function also
 	// sanitizes model-bound prompts (prepareTurnInput), where the notice must
 	// survive to reach the model.
-	const normalized = stripModeNotices(normalizeUserInput(prompt ?? "")).trim();
+	const normalized = stripRuntimeNotices(
+		normalizeUserInput(prompt ?? ""),
+	).trim();
 	if (!normalized) return undefined;
 	return normalizeTitle(normalized.split("\n")[0]?.trim());
 }

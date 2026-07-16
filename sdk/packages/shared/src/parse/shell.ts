@@ -49,6 +49,27 @@ export function getShellKind(shell: string): ShellKind {
 	return "posix";
 }
 
+/**
+ * Human/model-facing name for a shell executable, used when prompting about
+ * shell changes. PowerShell variants and cmd get their family name (their
+ * syntax is what matters, not the install path); POSIX shells keep their
+ * base name (bash, zsh, fish, ...) since syntax differs between them.
+ */
+export function getShellDisplayName(shell: string): string {
+	switch (getShellKind(shell)) {
+		case "powershell":
+			return "PowerShell";
+		case "cmd":
+			return "cmd.exe";
+		case "wsl":
+			return "bash (WSL)";
+		case "posix": {
+			const baseName = normalizeShellName(shell);
+			return baseName.endsWith(".exe") ? baseName.slice(0, -4) : baseName;
+		}
+	}
+}
+
 export function getShellArgs(shell: string, command: string): string[] {
 	switch (getShellKind(shell)) {
 		case "powershell":

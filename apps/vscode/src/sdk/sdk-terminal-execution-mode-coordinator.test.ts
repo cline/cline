@@ -13,6 +13,13 @@ vi.mock("@/shared/services/Logger", () => ({
 	},
 }))
 
+/** Profile-to-shell mapping used by the injected resolveShellForProfile. */
+const SHELL_BY_PROFILE: Record<string, string> = {
+	default: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+	powershell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+	cmd: "C:\\Windows\\System32\\cmd.exe",
+}
+
 describe("SdkTerminalExecutionModeCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -60,6 +67,59 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 		coordinator.handleTerminalProfileChanged("default", "cmd")
 
 		expect(options.rebuilds.request).toHaveBeenCalledWith("terminalExecutionMode", expect.any(Function))
+	})
+
+	it("records a shell notice for the active session when the profile changes shell", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalProfileChanged("default", "cmd")
+
+		expect(coordinator.consumeShellChangeNotice("some-other-task")).toBeNull()
+		expect(coordinator.consumeShellChangeNotice("old-session")).toEqual({
+			from: SHELL_BY_PROFILE.default,
+			to: SHELL_BY_PROFILE.cmd,
+		})
+		expect(coordinator.consumeShellChangeNotice("old-session")).toBeNull()
+	})
+
+	it("records no shell notice when the new profile resolves to the same shell", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalProfileChanged("default", "powershell")
+
+		expect(coordinator.consumeShellChangeNotice("old-session")).toBeNull()
+		// The tool description still names the (unchanged) shell correctly; the
+		// rebuild is cheap and keeps profile bookkeeping in one place.
+		expect(options.rebuilds.request).toHaveBeenCalled()
+	})
+
+	it("cancels the shell notice when the user switches back before sending", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalProfileChanged("default", "cmd")
+		coordinator.handleTerminalProfileChanged("cmd", "default")
+
+		expect(coordinator.consumeShellChangeNotice("old-session")).toBeNull()
+	})
+
+	it("records no shell notice without an active session", () => {
+		const { coordinator } = makeCoordinator()
+
+		coordinator.handleTerminalProfileChanged("default", "cmd")
+
+		expect(coordinator.consumeShellChangeNotice("old-session")).toBeNull()
+	})
+
+	it("records no shell notice for execution mode changes", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator } = makeCoordinator({ activeSession })
+
+		coordinator.handleTerminalExecutionModeChanged("backgroundExec", "vscodeTerminal")
+
+		expect(coordinator.consumeShellChangeNotice("old-session")).toBeNull()
 	})
 
 	it("schedules restart while the active session is running", () => {
@@ -171,6 +231,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		resolveShellForProfile: vi.fn((profileId: string) => SHELL_BY_PROFILE[profileId] ?? SHELL_BY_PROFILE.default),
 		rebuilds: {
 			request: vi.fn((_reason: string, rebuild: () => Promise<void>) => {
 				if (!initialRebuildScheduled && !activeSession?.isRunning) {

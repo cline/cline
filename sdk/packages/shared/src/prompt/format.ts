@@ -1,3 +1,5 @@
+import { getShellDisplayName } from "../parse/shell";
+
 export function formatFileContentBlock(path: string, content: string): string {
 	return `<file_content path="${path}">\n${content}\n</file_content>`;
 }
@@ -36,7 +38,7 @@ export function parseUserInputMode(
  * plan and act modes. Prepended to the first user message sent after the
  * switch. It survives normalizeUserInput (so the outbound sanitize in
  * prepareTurnInput delivers it to the model) and is hidden from transcript
- * display by stripModeNotices at display boundaries.
+ * display by stripRuntimeNotices at display boundaries.
  */
 export function formatModeSwitchNotice(
 	from: "act" | "plan",
@@ -45,23 +47,41 @@ export function formatModeSwitchNotice(
 	return `<mode_notice>The user switched from ${from} mode to ${to} mode before sending this message.</mode_notice>`;
 }
 
-export type ModeSwitchNotice = {
-	from: "act" | "plan";
-	to: "act" | "plan";
+/**
+ * Marks the point where the user changed the terminal shell that run_commands
+ * uses, so the model stops writing commands in the previous shell's syntax.
+ * Transcript momentum dominates the (also updated) tool description here:
+ * after pages of PowerShell commands the model keeps writing PowerShell
+ * unless the change is called out in the conversation itself. Same delivery
+ * and display rules as formatModeSwitchNotice.
+ */
+export function formatShellChangeNotice(
+	fromShell: string,
+	toShell: string,
+): string {
+	const from = getShellDisplayName(fromShell);
+	const to = getShellDisplayName(toShell);
+	return `<environment_notice>The user changed the terminal shell from ${from} to ${to} before sending this message. Commands now run through ${to}; write all subsequent commands in ${to} syntax.</environment_notice>`;
+}
+
+export type SwitchNotice<T extends string> = {
+	from: T;
+	to: T;
 };
 
+export type ModeSwitchNotice = SwitchNotice<"act" | "plan">;
+export type ShellChangeNotice = SwitchNotice<string>;
+
 /**
- * Tracks a user-initiated mode switch so the next user message can carry a
- * <mode_notice> marking it. Only UI toggles should be recorded: the
- * model-initiated switch_to_act_mode path already announces itself via the
- * continuation prompt. A round trip (plan -> act -> plan before sending
- * anything) cancels out, since the mode the model last saw never effectively
- * changed.
+ * Tracks a user-initiated setting switch so the next user message can carry a
+ * notice marking it. A round trip (a -> b -> a before sending anything)
+ * cancels out, since the value the model last saw never effectively changed,
+ * and chained switches keep the original starting value.
  */
-export function createModeSwitchNoticeTracker() {
-	let pending: ModeSwitchNotice | null = null;
+export function createSwitchNoticeTracker<T extends string>() {
+	let pending: SwitchNotice<T> | null = null;
 	return {
-		record(from: "act" | "plan", to: "act" | "plan"): void {
+		record(from: T, to: T): void {
 			if (from === to) {
 				return;
 			}
@@ -71,7 +91,7 @@ export function createModeSwitchNoticeTracker() {
 			}
 			pending = { from, to };
 		},
-		consume(): ModeSwitchNotice | null {
+		consume(): SwitchNotice<T> | null {
 			const notice = pending;
 			pending = null;
 			return notice;
@@ -79,8 +99,26 @@ export function createModeSwitchNoticeTracker() {
 	};
 }
 
+/**
+ * Mode-switch tracker for <mode_notice>. Only UI toggles should be recorded:
+ * the model-initiated switch_to_act_mode path already announces itself via
+ * the continuation prompt.
+ */
+export function createModeSwitchNoticeTracker() {
+	return createSwitchNoticeTracker<"act" | "plan">();
+}
+
 export type ModeSwitchNoticeTracker = ReturnType<
 	typeof createModeSwitchNoticeTracker
+>;
+
+/** Shell-change tracker for <environment_notice>, over resolved shell paths. */
+export function createShellChangeNoticeTracker() {
+	return createSwitchNoticeTracker<string>();
+}
+
+export type ShellChangeNoticeTracker = ReturnType<
+	typeof createShellChangeNoticeTracker
 >;
 
 export type UserCommandEnvelope = {
@@ -146,15 +184,18 @@ export function normalizeUserInput(input?: string): string {
 }
 
 /**
- * Removes runtime-generated <mode_notice> elements (content included): they
- * are not user-typed text and must not render as such. Deliberately NOT part
- * of normalizeUserInput -- that function also sanitizes outbound prompts
- * before the host wraps them (prepareTurnInput), and stripping there deletes
- * the notice before the model ever sees it.
+ * Removes runtime-generated notice elements (content included): they are not
+ * user-typed text and must not render as such. Deliberately NOT part of
+ * normalizeUserInput -- that function also sanitizes outbound prompts before
+ * the host wraps them (prepareTurnInput), and stripping there deletes the
+ * notices before the model ever sees them.
  */
-export function stripModeNotices(input?: string): string {
+export function stripRuntimeNotices(input?: string): string {
 	if (!input?.trim()) return "";
-	return removeTagElements(input, "mode_notice").trim();
+	return removeTagElements(
+		removeTagElements(input, "mode_notice"),
+		"environment_notice",
+	).trim();
 }
 
 // indexOf-based rather than a regex: a lazy dot-all pattern re-scans to the
@@ -177,7 +218,7 @@ function removeTagElements(input: string, tag: string): string {
 }
 
 export function formatDisplayUserInput(input?: string): string {
-	const normalized = stripModeNotices(normalizeUserInput(input));
+	const normalized = stripRuntimeNotices(normalizeUserInput(input));
 	const envelope = parseUserCommandEnvelope(input);
 	if (!envelope) {
 		return normalized;

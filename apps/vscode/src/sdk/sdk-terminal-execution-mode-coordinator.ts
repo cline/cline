@@ -1,3 +1,4 @@
+import { createShellChangeNoticeTracker, type ShellChangeNotice, type ShellChangeNoticeTracker } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -24,28 +25,86 @@ export interface SdkTerminalExecutionModeCoordinatorOptions {
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
 	rebuilds: Pick<SdkSessionRebuildScheduler, "request">
+	/**
+	 * Maps a terminal profile ID to the shell it runs (getShellForProfile).
+	 * Injected so shell-notice decisions are testable without VS Code config.
+	 */
+	resolveShellForProfile: (profileId: string) => string
 }
 
 export class SdkTerminalExecutionModeCoordinator {
+	/**
+	 * Pending shell change, stamped as an <environment_notice> onto the next
+	 * outbound message by SdkSessionLifecycle.fireAndForgetSend. Tracked over
+	 * resolved shells rather than profile IDs so profile changes that keep the
+	 * same shell (e.g. "default" -> "powershell" where default is PowerShell)
+	 * record nothing, and a round trip back to the shell the model last used
+	 * cancels out. Session-scoped like SdkModeCoordinator's mode notice: the
+	 * setting is global, so the notice stays pending for the recorded session
+	 * even if the user visits another task before sending.
+	 */
+	private shellChangeNoticeTracker: ShellChangeNoticeTracker = createShellChangeNoticeTracker()
+	private shellChangeNoticeSessionId: string | null = null
+
 	constructor(private readonly options: SdkTerminalExecutionModeCoordinatorOptions) {}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
 		if (previous === next) {
 			return
 		}
+		// No shell notice: both modes resolve the shell from the same profile
+		// setting, so the shell does not change with the execution mode.
 		this.requestRebuild(`Terminal execution mode changed: ${previous} -> ${next}`)
 	}
 
 	/**
 	 * The terminal profile selects the shell, and the run_commands tool
 	 * description names that shell, so a profile change requires the same
-	 * session rebuild as an execution mode change.
+	 * session rebuild as an execution mode change — plus a conversation
+	 * notice, since the transcript's earlier commands still model the old
+	 * shell's syntax.
 	 */
 	handleTerminalProfileChanged(previous: string | undefined, next: string): void {
 		if ((previous || "default") === (next || "default")) {
 			return
 		}
+		this.recordShellChangeNotice(previous || "default", next || "default")
 		this.requestRebuild(`Terminal profile changed: ${previous ?? "default"} -> ${next}`)
+	}
+
+	/**
+	 * Returns (and clears) the pending shell-change notice when the outbound
+	 * message targets the session the change was recorded for; otherwise
+	 * leaves it pending.
+	 */
+	consumeShellChangeNotice(sessionId: string): ShellChangeNotice | null {
+		if (this.shellChangeNoticeSessionId !== sessionId) {
+			return null
+		}
+		const notice = this.shellChangeNoticeTracker.consume()
+		if (notice) {
+			this.shellChangeNoticeSessionId = null
+		}
+		return notice
+	}
+
+	private recordShellChangeNotice(previousProfileId: string, nextProfileId: string): void {
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession) {
+			// No transcript to correct: a future session starts with the right
+			// tool description and no momentum in the old shell.
+			return
+		}
+		if (this.shellChangeNoticeSessionId !== activeSession.sessionId) {
+			// A stale notice for another session is superseded rather than merged:
+			// round-trip cancellation only makes sense within one transcript.
+			this.shellChangeNoticeTracker = createShellChangeNoticeTracker()
+		}
+		this.shellChangeNoticeSessionId = activeSession.sessionId
+		this.shellChangeNoticeTracker.record(
+			this.options.resolveShellForProfile(previousProfileId),
+			this.options.resolveShellForProfile(nextProfileId),
+		)
 	}
 
 	private requestRebuild(reason: string): void {

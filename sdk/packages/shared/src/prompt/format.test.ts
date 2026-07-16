@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
 	createModeSwitchNoticeTracker,
+	createShellChangeNoticeTracker,
 	formatDisplayUserInput,
 	formatModeSwitchNotice,
+	formatShellChangeNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 	parseUserInputMode,
-	stripModeNotices,
+	stripRuntimeNotices,
 } from "./format";
 
 describe("prompt format helpers", () => {
@@ -88,13 +90,45 @@ describe("prompt format helpers", () => {
 		expect(normalizeUserInput(prompt)).toBe(prompt);
 	});
 
-	it("removes every mode notice and leaves unclosed ones intact", () => {
+	it("formats a shell change notice using shell display names", () => {
 		expect(
-			stripModeNotices(
-				"<mode_notice>a</mode_notice>hello<mode_notice>b</mode_notice> there",
+			formatShellChangeNotice(
+				"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+				"C:\\Windows\\System32\\cmd.exe",
+			),
+		).toBe(
+			"<environment_notice>The user changed the terminal shell from PowerShell to cmd.exe before sending this message. Commands now run through cmd.exe; write all subsequent commands in cmd.exe syntax.</environment_notice>",
+		);
+	});
+
+	it("hides shell change notices from displayed user input", () => {
+		const wrapped = formatUserInputBlock(
+			`${formatShellChangeNotice("/bin/bash", "/bin/zsh")}\nnow run the build`,
+			"act",
+		);
+		expect(formatDisplayUserInput(wrapped)).toBe("now run the build");
+	});
+
+	it("keeps shell change notices when normalizing outbound prompts", () => {
+		const prompt = `${formatShellChangeNotice("powershell", "cmd.exe")}\ndo it`;
+		expect(normalizeUserInput(prompt)).toBe(prompt);
+	});
+
+	it("hides stacked mode and shell notices on one message from display", () => {
+		const wrapped = formatUserInputBlock(
+			`${formatModeSwitchNotice("plan", "act")}\n${formatShellChangeNotice("powershell", "cmd.exe")}\ngo`,
+			"act",
+		);
+		expect(formatDisplayUserInput(wrapped)).toBe("go");
+	});
+
+	it("removes every runtime notice and leaves unclosed ones intact", () => {
+		expect(
+			stripRuntimeNotices(
+				"<mode_notice>a</mode_notice>hello<environment_notice>b</environment_notice> there",
 			),
 		).toBe("hello there");
-		expect(stripModeNotices("<mode_notice>dangling")).toBe(
+		expect(stripRuntimeNotices("<mode_notice>dangling")).toBe(
 			"<mode_notice>dangling",
 		);
 	});
@@ -104,7 +138,7 @@ describe("prompt format helpers", () => {
 		// opening tags must not trigger quadratic rescanning.
 		const hostile = "<mode_notice>".repeat(50_000);
 		const started = performance.now();
-		const result = stripModeNotices(hostile);
+		const result = stripRuntimeNotices(hostile);
 		expect(performance.now() - started).toBeLessThan(1_000);
 		expect(result).toBe(hostile);
 	});
@@ -146,6 +180,22 @@ describe("createModeSwitchNoticeTracker", () => {
 
 		tracker.record("plan", "plan");
 
+		expect(tracker.consume()).toBeNull();
+	});
+});
+
+describe("createShellChangeNoticeTracker", () => {
+	it("records a change and cancels a round trip back to the original shell", () => {
+		const tracker = createShellChangeNoticeTracker();
+
+		tracker.record("powershell", "cmd.exe");
+		expect(tracker.consume()).toEqual({
+			from: "powershell",
+			to: "cmd.exe",
+		});
+
+		tracker.record("powershell", "cmd.exe");
+		tracker.record("cmd.exe", "powershell");
 		expect(tracker.consume()).toBeNull();
 	});
 });

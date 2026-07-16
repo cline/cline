@@ -223,6 +223,7 @@ export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
 	getShellArgs,
+	getShellDisplayName,
 	getShellKind,
 	type ShellKind,
 } from "./parse/shell";
@@ -244,17 +245,23 @@ export {
 export type {
 	ModeSwitchNotice,
 	ModeSwitchNoticeTracker,
+	ShellChangeNotice,
+	ShellChangeNoticeTracker,
+	SwitchNotice,
 } from "./prompt/format";
 export {
 	createModeSwitchNoticeTracker,
+	createShellChangeNoticeTracker,
+	createSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatFileContentBlock,
 	formatModeSwitchNotice,
+	formatShellChangeNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
-	stripModeNotices,
+	stripRuntimeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { isClineProvider } from "./providers/utils";

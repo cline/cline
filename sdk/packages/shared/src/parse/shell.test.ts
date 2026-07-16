@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultShell, getShellArgs, getShellKind } from "./shell";
+import {
+	getDefaultShell,
+	getShellArgs,
+	getShellDisplayName,
+	getShellKind,
+} from "./shell";
 
 describe("shell helpers", () => {
 	it("selects PowerShell on Windows and bash elsewhere", () => {
@@ -55,6 +60,22 @@ describe("shell helpers", () => {
 			"-c",
 			"echo hi",
 		]);
+	});
+
+	it("names shells for prompting by family or POSIX base name", () => {
+		expect(
+			getShellDisplayName("C:\\Program Files\\PowerShell\\7\\pwsh.exe"),
+		).toBe("PowerShell");
+		expect(getShellDisplayName("C:\\Windows\\System32\\cmd.exe")).toBe(
+			"cmd.exe",
+		);
+		expect(getShellDisplayName("C:\\Windows\\System32\\wsl.exe")).toBe(
+			"bash (WSL)",
+		);
+		expect(getShellDisplayName("/bin/zsh")).toBe("zsh");
+		expect(
+			getShellDisplayName("C:\\Program Files\\Git\\bin\\bash.exe"),
+		).toBe("bash");
 	});
 
 	it("classifies shells into kinds consistent with their spawn args", () => {

@@ -611,6 +611,61 @@ describe("SdkSessionLifecycle", () => {
 
 		expect(send).toHaveBeenCalledWith(expect.objectContaining({ prompt: "hello" }))
 	})
+
+	it("stamps a pending shell-change notice onto the outbound prompt", async () => {
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		let pending: { from: string; to: string } | null = { from: "powershell", to: "cmd.exe" }
+		const consumeShellChangeNotice = vi.fn(() => {
+			const notice = pending
+			pending = null
+			return notice
+		})
+		const lifecycle = makeLifecycle({ consumeShellChangeNotice })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "list the files")
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "<environment_notice>The user changed the terminal shell from PowerShell to cmd.exe before sending this message. Commands now run through cmd.exe; write all subsequent commands in cmd.exe syntax.</environment_notice>\nlist the files",
+			}),
+		)
+
+		// Consumed by the first send; the next message is clean.
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "now build")
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+		expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: "now build" }))
+	})
+
+	it("stamps pending mode and shell notices together, mode first", async () => {
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({
+			consumeModeSwitchNotice: vi.fn(() => ({ from: "plan" as const, to: "act" as const })),
+			consumeShellChangeNotice: vi.fn(() => ({ from: "powershell", to: "cmd.exe" })),
+		})
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "do it")
+		await vi.waitFor(() => expect(send).toHaveBeenCalled())
+
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt:
+					"<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>\n" +
+					"<environment_notice>The user changed the terminal shell from PowerShell to cmd.exe before sending this message. Commands now run through cmd.exe; write all subsequent commands in cmd.exe syntax.</environment_notice>\n" +
+					"do it",
+			}),
+		)
+	})
 })
 
 function makeLifecycle(overrides: Partial<ConstructorParameters<typeof SdkSessionLifecycle>[0]> = {}) {

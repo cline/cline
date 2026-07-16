@@ -1,4 +1,4 @@
-import { normalizeUserInput, stripModeNotices } from "@cline/shared"
+import { normalizeUserInput, stripRuntimeNotices } from "@cline/shared"
 import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 
 export type SdkUserMessage = {
@@ -46,7 +46,7 @@ export function isSyntheticUserPrompt(text: string): boolean {
 	// <mode_notice> element to the canned continuation, so strip those too or
 	// the synthetic prompt would start counting as a visible user message and
 	// shift every later edit/regenerate ordinal by one.
-	const normalized = stripModeNotices(normalizeUserInput(text))
+	const normalized = stripRuntimeNotices(normalizeUserInput(text))
 	return normalized.startsWith("[TASK RESUMPTION]") || normalized === ACT_MODE_CONTINUATION_PROMPT
 }
 

@@ -46,6 +46,7 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
+import { getShellForProfile } from "@/utils/shell"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
@@ -359,9 +360,11 @@ export class Controller {
 			onSendStart: () => {
 				this.beginProviderFailureTelemetryTurn()
 			},
-			// this.mode is assigned later in this constructor; the closure only
-			// runs at send time, long after construction completes.
+			// this.mode and this.terminalExecutionMode are assigned later in this
+			// constructor; the closures only run at send time, long after
+			// construction completes.
 			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
+			consumeShellChangeNotice: (sessionId) => this.terminalExecutionMode.consumeShellChangeNotice(sessionId),
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
@@ -482,6 +485,7 @@ export class Controller {
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 			rebuilds: this.sessionRebuilds,
+			resolveShellForProfile: getShellForProfile,
 		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
 			stateManager: this.stateManager,

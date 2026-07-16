@@ -6,7 +6,7 @@ import type {
 	RestoreResult,
 	StartSessionResult,
 } from "@cline/core"
-import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import { formatModeSwitchNotice, formatShellChangeNotice, type ModeSwitchNotice, type ShellChangeNotice } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -49,6 +49,13 @@ export interface SdkSessionLifecycleOptions {
 	 * message. Consumed exactly once; null when no switch is pending.
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
+	/**
+	 * Returns (and clears) a pending terminal-shell change recorded by
+	 * SdkTerminalExecutionModeCoordinator for this session, stamped as an
+	 * <environment_notice> the same way. Independent of the mode notice; when
+	 * both are pending, both are stamped onto the same message.
+	 */
+	consumeShellChangeNotice?: (sessionId: string) => ShellChangeNotice | null
 	onDidBecomeIdle?: () => void
 }
 
@@ -364,14 +371,22 @@ export class SdkSessionLifecycle {
 			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
 			return true
 		}
-		// Mark a preceding user-initiated mode switch on this message so the model
-		// sees exactly when the rules changed, instead of only inferring it from
-		// the user_input mode attribute flipping (mirrors the CLI's
-		// run-interactive stamping). The notice survives prepareTurnInput's
-		// normalizeUserInput sanitize and is hidden from display surfaces by
-		// stripModeNotices.
-		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
-		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
+		// Mark preceding user-initiated setting changes on this message so the
+		// model sees exactly when the rules changed: a plan/act switch (mirrors
+		// the CLI's run-interactive stamping) and/or a terminal-shell change.
+		// Each notice is tracked and consumed independently, so either, both, or
+		// neither may be present. The notices survive prepareTurnInput's
+		// normalizeUserInput sanitize and are hidden from display surfaces by
+		// stripRuntimeNotices.
+		const modeNotice = this.options.consumeModeSwitchNotice?.(sessionId)
+		const shellNotice = this.options.consumeShellChangeNotice?.(sessionId)
+		const noticedPrompt = [
+			modeNotice ? formatModeSwitchNotice(modeNotice.from, modeNotice.to) : undefined,
+			shellNotice ? formatShellChangeNotice(shellNotice.from, shellNotice.to) : undefined,
+			prompt,
+		]
+			.filter((part): part is string => part !== undefined)
+			.join("\n")
 		this.options.onSendStart?.(sessionId)
 		sdkHost
 			.send({
