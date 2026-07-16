@@ -1,5 +1,9 @@
 # Cline SDK Changelog
 
+## 0.0.63
+
+- The session runtime now emits `task.mistake_limit_reached` telemetry when the consecutive-mistake limit is hit, so every host (CLI, VS Code extension, hub daemon) captures it — including auto-stops when no host prompt is configured
+
 ## 0.0.62
 
 - Fixed Ollama native API routing so context window and timeout settings work again
