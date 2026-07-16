@@ -65,8 +65,28 @@ jobs:
               with:
                   node-version: 22
 
-            - name: Build next bundle
+            - name: Install next workspace dependencies
               working-directory: next-src
+              run: bun install
+
+            # @cline/* are local workspace symlinks to source packages; apps/vscode's
+            # `package` script does NOT build them, so without this the esbuild step
+            # fails on a fresh checkout. (The nightly workflow already does this.)
+            - name: Build SDK packages
+              working-directory: next-src
+              run: bun run build:sdk
+
+            # Stamp the combined version into each bundle's package.json AFTER
+            # install and BEFORE its build: the About tab and telemetry
+            # extension_version read the bundle's own manifest, so without this
+            # the VSIX reports three different versions depending on where you
+            # look. (The nightly workflow gets the same alignment via nightlify.mjs.)
+            - name: Align next bundle version
+              working-directory: next-src/apps/vscode-rollout
+              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/next-src/apps/vscode" --version "${{ github.event.inputs.version }}"
+
+            - name: Build next bundle
+              working-directory: next-src/apps/vscode
               env:
                   CLINE_ENVIRONMENT: production
                   TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -82,16 +102,17 @@ jobs:
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-              run: |
-                  bun install
-                  cd apps/vscode
-                  bun run package
+              run: bun run package
 
             - name: Install legacy dependencies
               working-directory: legacy-src
               run: |
                   npm --prefix apps/vscode install --include=optional
                   npm --prefix apps/vscode/webview-ui install --include=optional
+
+            - name: Align legacy bundle version
+              working-directory: next-src/apps/vscode-rollout
+              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/legacy-src/apps/vscode" --version "${{ github.event.inputs.version }}"
 
             - name: Build legacy bundle
               working-directory: legacy-src/apps/vscode
@@ -134,15 +155,25 @@ jobs:
 
             # This workflow publishes the STABLE identity. If nightlify ever leaks
             # into this path the union manifest would ship under the wrong name.
+            # The bundle sub-manifest checks guard the set-version.mjs stamping:
+            # the About tab and telemetry extension_version read those files.
             - name: Assert stable manifest identity
               working-directory: staging
+              env:
+                  EXPECTED_VERSION: ${{ github.event.inputs.version }}
               run: |
                   node -e '
-                    const pkg = require("./package.json");
                     const assert = require("node:assert");
+                    const expected = process.env.EXPECTED_VERSION;
+                    const pkg = require("./package.json");
                     assert.equal(pkg.name, "claude-dev", `unexpected name ${pkg.name}`);
                     assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
-                    console.log(`stable identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
+                    assert.equal(pkg.version, expected, `unexpected union version ${pkg.version}`);
+                    for (const bundle of ["next", "legacy"]) {
+                      const sub = require(`./${bundle}/package.json`);
+                      assert.equal(sub.version, expected, `unexpected ${bundle} bundle version ${sub.version}`);
+                    }
+                    console.log(`stable identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version} (bundle versions aligned)`);
                   '
 
             - name: Package VSIX
