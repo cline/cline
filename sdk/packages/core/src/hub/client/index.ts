@@ -19,6 +19,7 @@ import {
 	type HubOwnerContext,
 	probeHubServer,
 	readHubDiscovery,
+	resolveHubBuildId,
 } from "../discovery";
 import {
 	resolveProductionHubOwnerContext,
@@ -831,7 +832,7 @@ type HubProbeResult =
 			url: string;
 	  }
 	| {
-			status: "unreachable" | "protocol_mismatch";
+			status: "unreachable" | "protocol_mismatch" | "build_mismatch";
 			url: string;
 	  };
 
@@ -857,6 +858,16 @@ async function probeCompatibleHubUrl(
 	if (!isHubProtocolCompatible(record).compatible) {
 		return {
 			status: "protocol_mismatch",
+			url: normalized,
+		};
+	}
+	// A protocol-compatible hub from an older build keeps serving stale code
+	// after an upgrade; report it so callers stop reusing it and the daemon
+	// ensure/prewarm paths retire it. Missing/blank buildId counts as stale.
+	const recordBuildId = record.buildId?.trim();
+	if (!recordBuildId || recordBuildId !== resolveHubBuildId()) {
+		return {
+			status: "build_mismatch",
 			url: normalized,
 		};
 	}
@@ -994,7 +1005,10 @@ export async function resolveCompatibleLocalHubUrl(
 	if (compatible.status === "compatible") {
 		return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
 	}
-	if (compatible.status === "protocol_mismatch") {
+	if (
+		compatible.status === "protocol_mismatch" ||
+		compatible.status === "build_mismatch"
+	) {
 		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 	}
 	return undefined;

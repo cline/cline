@@ -303,7 +303,7 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("reuses a protocol-compatible healthy hub from a different build", async () => {
+	it("retires a healthy hub from a different build and starts a replacement", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
 			readHubDiscovery
@@ -311,13 +311,24 @@ describe("ensureDetachedHubServer", () => {
 					url: "ws://127.0.0.1:25463/hub",
 					authToken: "old-token",
 				})
-				.mockResolvedValueOnce(undefined);
-			probeHubServer.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "old-build",
-				pid: 12345,
-			});
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "new-token",
+				});
+			probeHubServer
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
@@ -325,12 +336,15 @@ describe("ensureDetachedHubServer", () => {
 
 			expect(result).toEqual({
 				url: "ws://127.0.0.1:25463/hub",
-				authToken: "old-token",
+				authToken: "new-token",
 			});
-			expect(requestHubShutdown).not.toHaveBeenCalled();
-			expect(clearHubDiscovery).not.toHaveBeenCalled();
-			expect(kill).not.toHaveBeenCalled();
-			expect(spawn).not.toHaveBeenCalled();
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"old-token",
+			);
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+			expect(spawn).toHaveBeenCalledOnce();
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
 		} finally {
 			kill.mockRestore();

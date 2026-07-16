@@ -22,6 +22,7 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildId,
 } from "../discovery";
 import {
 	type HubEndpointOverrides,
@@ -66,7 +67,14 @@ function resolveDefaultHubOwnerContext() {
 }
 
 function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
-	return isHubProtocolCompatible(record).compatible;
+	if (!isHubProtocolCompatible(record).compatible) {
+		return false;
+	}
+	// A protocol-compatible hub from an older build keeps serving stale code
+	// after an upgrade, so require the running hub's build to match ours.
+	// Missing/blank buildId means a pre-buildId daemon and is also retired.
+	const recordBuildId = record.buildId?.trim();
+	return !!recordBuildId && recordBuildId === resolveHubBuildId();
 }
 
 function withMatchingDiscoveryRetirementMetadata(

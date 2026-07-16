@@ -810,7 +810,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("keeps discovery on build mismatch when protocol is compatible", async () => {
+	it("clears discovery on build mismatch when protocol is compatible", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -856,13 +856,13 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
-			"ws://127.0.0.1:59999/hub",
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
+			"/tmp/hub-discovery.json",
 		);
-		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("keeps discovery when a hub omits build metadata but has compatible protocol", async () => {
+	it("clears discovery when a hub omits build metadata", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -906,10 +906,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
-			"ws://127.0.0.1:59999/hub",
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
+			"/tmp/hub-discovery.json",
 		);
-		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
 	it("clears discovery on protocol mismatch", async () => {
@@ -1062,6 +1062,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				await vi.importActual<typeof import("../discovery")>("../discovery");
 			return {
 				...actual,
+				resolveHubBuildId: () => "test-build",
 				readHubDiscovery: readHubDiscoveryMock,
 				probeHubServer: vi.fn(async () => record),
 				clearHubDiscovery: vi.fn(async () => undefined),
