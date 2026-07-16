@@ -7,6 +7,7 @@ import {
 	isClaude4PlusModelFamily,
 	isGeminiFlashModel,
 	isGLMModelFamily,
+	isGPT51PlusModel,
 	isGPT5ModelFamily,
 	isGptOssModelFamily,
 	isNativeToolCallingConfig,
@@ -142,6 +143,14 @@ describe("isGPT5ModelFamily", () => {
 		isGPT5ModelFamily("gpt-oss-120b").should.equal(false)
 		isGPT5ModelFamily("claude-3-sonnet").should.equal(false)
 		isGPT5ModelFamily("gemini-pro").should.equal(false)
+	})
+})
+
+describe("isGPT51PlusModel", () => {
+	it("should recognize GPT-5.6 model ID variants", () => {
+		isGPT51PlusModel("gpt-5.6-sol").should.equal(true)
+		isGPT51PlusModel("gpt-5-6-terra").should.equal(true)
+		isGPT51PlusModel("openai/gpt-5.6-luna").should.equal(true)
 	})
 })
 

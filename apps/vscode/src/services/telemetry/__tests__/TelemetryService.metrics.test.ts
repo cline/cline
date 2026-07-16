@@ -1,6 +1,7 @@
 import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
+import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -79,6 +80,61 @@ function createTelemetryService(provider: FakeProvider, overrides: Partial<Telem
 }
 
 describe("TelemetryService metrics", () => {
+	it("includes rollout metadata on legacy events and metrics", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, {
+			extension_variant: "legacy",
+		})
+
+		service.captureTaskCreated("task-rollout", "anthropic")
+		service.captureTokenUsage("task-rollout", 120, 80, "anthropic", "model-a")
+
+		const taskEvent = provider.logs.find((entry) => entry.event === "task.created")
+		assert.strictEqual(taskEvent?.properties?.extension_variant, "legacy")
+		for (const entry of [...provider.counters, ...provider.histograms]) {
+			assert.strictEqual(entry.attributes.extension_variant, "legacy")
+		}
+	})
+
+	it("captures one bounded rollout fallback event for rollout builds", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, {
+			extension_variant: "legacy",
+		})
+
+		service.captureRolloutBundleActivated({
+			attemptedBundle: "next",
+			actualBundle: "legacy",
+			fallback: true,
+			error: new TypeError("x".repeat(ROLLOUT_ERROR_MESSAGE_LIMIT + 20)),
+		})
+
+		const events = provider.logs.filter((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT)
+		assert.strictEqual(events.length, 1)
+		assert.strictEqual(events[0].properties?.attempted_bundle, "next")
+		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
+		assert.strictEqual(events[0].properties?.fallback, true)
+		assert.strictEqual(events[0].properties?.error_type, "TypeError")
+		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
+		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
+	})
+
+	it("does not capture rollout activation events for ordinary builds", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureRolloutBundleActivated({
+			attemptedBundle: "legacy",
+			actualBundle: "legacy",
+			fallback: false,
+		})
+
+		assert.strictEqual(
+			provider.logs.some((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT),
+			false,
+		)
+	})
+
 	it("captureTokenUsage emits token counters and histograms", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)

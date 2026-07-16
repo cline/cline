@@ -115,7 +115,9 @@ export function isGPT51PlusModel(id: string): boolean {
 		modelId.includes("gpt-5.4") ||
 		modelId.includes("gpt-5-4") ||
 		modelId.includes("gpt-5.5") ||
-		modelId.includes("gpt-5-5")
+		modelId.includes("gpt-5-5") ||
+		modelId.includes("gpt-5.6") ||
+		modelId.includes("gpt-5-6")
 	)
 }
 
