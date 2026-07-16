@@ -4,6 +4,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { resolveApiKey } from "../http";
+import { resolveAiSdkTemperature } from "../temperature";
 import type { ProviderFactoryResult } from "./types";
 
 function isChatGptOAuthBaseUrl(baseUrl: string | undefined): boolean {
@@ -39,13 +40,16 @@ export async function createOpenAIProviderModule(
 	const isChatGptOAuth = isChatGptOAuthBaseUrl(config.baseUrl);
 	return {
 		model: (modelId) => provider.responses(modelId),
-		buildStreamConfig: (request) => ({
-			...(!isChatGptOAuth &&
-			request.maxTokens !== undefined &&
-			request.defaultedMaxTokens !== true
-				? { maxOutputTokens: request.maxTokens }
-				: {}),
-			temperature: request.temperature,
-		}),
+		buildStreamConfig: (request, requestContext) => {
+			const temperature = resolveAiSdkTemperature(request, requestContext);
+			return {
+				...(!isChatGptOAuth &&
+				request.maxTokens !== undefined &&
+				request.defaultedMaxTokens !== true
+					? { maxOutputTokens: request.maxTokens }
+					: {}),
+				...(temperature !== undefined ? { temperature } : {}),
+			};
+		},
 	};
 }

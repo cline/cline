@@ -35,6 +35,7 @@ import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
 } from "./routing/provider-options";
+import { resolveAiSdkTemperature } from "./temperature";
 import type {
 	AiSdkStreamPart,
 	AiSdkStreamResult,
@@ -55,13 +56,14 @@ type ProviderModuleKind = AiSdkProviderOptionsTarget;
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Partial<CallSettings> {
+	const temperature = resolveAiSdkTemperature(request, context);
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
 			: {}),
-		temperature: request.temperature,
+		...(temperature !== undefined ? { temperature } : {}),
 	};
 }
 
