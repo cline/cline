@@ -252,4 +252,19 @@ describe("getButtonConfigFromState (dispatch + legacy fallback)", () => {
 		const turnState: TurnState = { phase: "completed", seq: 3 }
 		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.completion_result)
 	})
+
+	it("streaming phase shows Proceed While Running when a foreground command is running", () => {
+		const messages: ClineMessage[] = [{ ts: 1, type: "say", say: "command", text: "npm run dev", partial: true }]
+		const turnState: TurnState = { phase: "streaming", seq: 4 }
+		expect(getButtonConfigFromState(messages, turnState, "act", true)).toEqual(BUTTON_CONFIGS.foreground_command_running)
+		expect(getButtonConfigFromState(messages, turnState, "act", false)).toEqual(BUTTON_CONFIGS.partial)
+	})
+
+	it("foreground command flag only affects the streaming phase", () => {
+		const messages: ClineMessage[] = []
+		expect(getButtonConfigFromState(messages, { phase: "completed", seq: 5 }, "act", true)).toEqual(
+			BUTTON_CONFIGS.completion_result,
+		)
+		expect(getButtonConfigFromState(messages, { phase: "idle", seq: 6 }, "act", true)).toEqual(BUTTON_CONFIGS.default)
+	})
 })

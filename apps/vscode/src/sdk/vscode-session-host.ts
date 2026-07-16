@@ -31,12 +31,15 @@ import {
 	type ToolExecutors,
 } from "@cline/core"
 import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import { StateManager } from "@/core/storage/StateManager"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
+import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
@@ -72,7 +75,9 @@ export interface VscodeSessionHostOptions {
 	 * When provided, the SDK's built-in `run_commands` is suppressed and replaced
 	 * with a custom tool that supports foreground/background terminal execution.
 	 */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
+	/** Registry of in-flight foreground executions for "Proceed While Running". */
+	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
 export class VscodeSessionHost implements SdkSessionHost {
@@ -126,9 +131,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 					const inputWithRemoteConfig = remoteConfigIntegration
 						? await remoteConfigIntegration.applyToStartSessionInput(input)
 						: input
+					const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 					const extraTools = await createVscodeExtraTools(options.mcpHub, {
 						cwd: inputWithRemoteConfig.config.cwd,
 						getTerminalManager: options.getTerminalManager,
+						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
+						foregroundCommands: options.foregroundCommands,
 					})
 					return {
 						...inputWithRemoteConfig,

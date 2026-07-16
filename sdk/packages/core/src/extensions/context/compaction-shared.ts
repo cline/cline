@@ -1,4 +1,4 @@
-import type { ToolResultContent } from "@cline/llms";
+import type { ModelInfo, ToolResultContent } from "@cline/llms";
 import {
 	CHARS_PER_TOKEN,
 	estimateTokens,
@@ -7,16 +7,15 @@ import {
 
 export { CHARS_PER_TOKEN, estimateTokens };
 
-import type {
-	CoreCompactionContext,
-	CoreCompactionSummarizerConfig,
-} from "../../types/config";
+import type { CoreCompactionSummarizerConfig } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 
 export const DEFAULT_MAX_INPUT_TOKENS = 128_000;
-export const DEFAULT_THRESHOLD_RATIO = 0.9;
+/** Estimate the usable input share when only a context window is reported. */
+export const CONTEXT_WINDOW_INPUT_RATIO = 0.9;
+/** Compact once the transcript consumes this share of the usable input budget. */
+export const COMPACTION_TRIGGER_RATIO = 0.9;
 export const DEFAULT_TARGET_RATIO = 0.7;
-export const DEFAULT_RESERVE_TOKENS = 16_384;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
 export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
@@ -37,6 +36,36 @@ export interface CompactionSummaryMetadata {
 }
 
 export type EstimateMessageTokens = (message: MessageWithMetadata) => number;
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Resolve the model's usable prompt budget. A reported input limit is
+ * authoritative but cannot exceed the context window. When the model only
+ * reports a context window, retain a conservative margin for request overhead.
+ */
+export function resolveEffectiveMaxInputTokens(
+	input: Pick<ModelInfo, "maxInputTokens" | "contextWindow">,
+): number | undefined {
+	const contextWindow = isPositiveFiniteNumber(input.contextWindow)
+		? input.contextWindow
+		: undefined;
+	const maxInputTokens = isPositiveFiniteNumber(input.maxInputTokens)
+		? input.maxInputTokens
+		: undefined;
+
+	if (maxInputTokens !== undefined) {
+		return contextWindow === undefined
+			? maxInputTokens
+			: Math.min(maxInputTokens, contextWindow);
+	}
+
+	return contextWindow === undefined
+		? undefined
+		: contextWindow * CONTEXT_WINDOW_INPUT_RATIO;
+}
 
 export function truncateText(text: string, limit: number): string {
 	if (text.length <= limit) {
@@ -508,10 +537,4 @@ export function buildSummaryMessage(options: {
 			generatedAt: Date.now(),
 		} satisfies CompactionSummaryMetadata,
 	};
-}
-
-export function getMaxInputTokens(
-	context: Pick<CoreCompactionContext, "maxInputTokens">,
-): number {
-	return context.maxInputTokens;
 }

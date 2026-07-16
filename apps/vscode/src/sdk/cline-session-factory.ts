@@ -17,7 +17,13 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import type { ModelInfo as SdkModelInfo } from "@cline/llms"
+import {
+	getGeneratedModelsForProvider,
+	getModelsForProvider,
+	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+} from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
@@ -37,7 +43,11 @@ import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import type { ResolvedModelSelection } from "./model-catalog/contracts"
+import { nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-catalog/model-values"
+import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
 import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
@@ -209,8 +219,73 @@ function resolveOcaReasoningConfig(mode: Mode, apiConfig: ApiConfiguration | und
 
 function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, mode: Mode): number | undefined {
 	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
-	const maxTokens = modelInfo?.maxTokens
-	return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+	return positiveFiniteNumber(modelInfo?.maxTokens)
+}
+
+function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
+	const modelInfo = selection.modelInfo
+	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>(
+		(selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>,
+	)
+	const setCapability = (capability: NonNullable<SdkModelInfo["capabilities"]>[number], enabled: boolean): void => {
+		if (enabled) capabilities.add(capability)
+		else capabilities.delete(capability)
+	}
+	if (modelInfo.supportsImages !== undefined) setCapability("images", modelInfo.supportsImages)
+	setCapability("prompt-cache", modelInfo.supportsPromptCache)
+	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
+	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
+
+	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
+	const contextWindow = positiveFiniteNumber(modelInfo.contextWindow)
+	const maxInputTokens = positiveFiniteNumber(selection.overrides?.maxInputTokens)
+	const temperature = nonNegativeFiniteNumber(modelInfo.temperature)
+	const inputPrice = nonNegativeFiniteNumber(modelInfo.inputPrice)
+	const outputPrice = nonNegativeFiniteNumber(modelInfo.outputPrice)
+	const cacheRead = nonNegativeFiniteNumber(modelInfo.cacheReadsPrice)
+	const cacheWrite = nonNegativeFiniteNumber(modelInfo.cacheWritesPrice)
+	const apiFormat = toSdkApiFormat(modelInfo.apiFormat)
+	const hasPricing =
+		inputPrice !== undefined || outputPrice !== undefined || cacheRead !== undefined || cacheWrite !== undefined
+
+	return {
+		id: selection.modelId,
+		name: modelInfo.name ?? selection.modelId,
+		...(maxTokens !== undefined ? { maxTokens } : {}),
+		...(contextWindow !== undefined ? { contextWindow } : {}),
+		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
+		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(temperature !== undefined ? { temperature } : {}),
+		...(hasPricing
+			? {
+					pricing: {
+						...(inputPrice !== undefined ? { input: inputPrice } : {}),
+						...(outputPrice !== undefined ? { output: outputPrice } : {}),
+						...(cacheRead !== undefined ? { cacheRead } : {}),
+						...(cacheWrite !== undefined ? { cacheWrite } : {}),
+					},
+				}
+			: {}),
+	}
+}
+
+function resolveCommittedRuntimeModel(
+	providerId: string,
+	mode: Mode,
+	modelId: string | undefined,
+): ResolvedModelSelection | undefined {
+	if (!modelId) {
+		return undefined
+	}
+	try {
+		const parsedProviderId = parseProviderId(providerId)
+		const selection = createProviderConfigStore().readSelection(parsedProviderId, mode)
+		return selection?.modelId === modelId ? selection : resolveRuntimeModelSelection(parsedProviderId, modelId)
+	} catch (error) {
+		Logger.warn(`[SessionFactory] Failed to resolve committed model settings for provider=${providerId}:`, error)
+		return undefined
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -303,8 +378,21 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 
 const DEFAULT_PROVIDER_ID = "cline"
 
+/**
+ * Providers whose model list comes from a live local endpoint (Ollama's
+ * `/api/tags`, LM Studio's `/v1/models`). Their installed models are the only
+ * meaningful catalog; a bundled-catalog default would silently select a model
+ * the user never installed (e.g. an Ollama Cloud nemotron model).
+ */
+function providerHasLocalModelSource(providerId: string): boolean {
+	return Boolean(MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.modelsSourceUrl)
+}
+
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
 	const sdkProviderId = toSdkProviderId(providerId)
+	if (providerHasLocalModelSource(providerId)) {
+		return undefined
+	}
 	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]
 	if (!collection) {
 		return undefined
@@ -479,6 +567,42 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+type OllamaProviderConfig = {
+	modelInfo?: { id: string; name: string; contextWindow: number }
+	timeoutMs?: number
+}
+
+/**
+ * Resolve the user's "Model Context Window" setting for Ollama and surface it
+ * as the selected model's `contextWindow`. The gateway carries it on the
+ * resolved model definition, and the Ollama vendor maps it onto the wire as
+ * `options.num_ctx` — without it Ollama loads every model with its 4096-token
+ * server default. Keeping it on the model also means context management
+ * budgets against the window Ollama actually applies (Ollama truncates the
+ * prompt to `num_ctx` server-side).
+ */
+export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: string | undefined): OllamaProviderConfig {
+	// providers.json (`contextWindow`) is the source of truth; the legacy
+	// StateManager string is a migration fallback (the config store mirrors
+	// writes to both).
+	let settingsContextWindow: number | undefined
+	try {
+		const value = getProviderSettingsManager().getProviderSettings("ollama")?.contextWindow
+		settingsContextWindow = typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read Ollama settings from providers.json")
+	}
+	const raw = config.ollamaApiOptionsCtxNum?.trim()
+	const parsed = raw ? Number(raw) : Number.NaN
+	const legacyContextWindow = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined
+	const contextWindow = settingsContextWindow ?? legacyContextWindow ?? OLLAMA_DEFAULT_CONTEXT_WINDOW
+	const timeoutMs = config.requestTimeoutMs
+	return {
+		...(typeof timeoutMs === "number" && timeoutMs > 0 ? { timeoutMs } : {}),
+		...(modelId ? { modelInfo: { id: modelId, name: modelId, contextWindow } } : {}),
+	}
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -536,6 +660,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let bedrockProviderConfig: BedrockProviderConfig | undefined
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
+	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -569,6 +694,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			if (providerId === "sapaicore") {
 				sapProviderConfig = buildSapProviderConfig(apiConfig, mode)
 				baseUrl = sapProviderConfig.baseUrl
+			}
+
+			if (providerId === "ollama") {
+				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
 			}
 
 			Logger.log(
@@ -606,12 +735,31 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// Final defaults. Keep this aligned with the provider catalog so the UI and
 	// session factory share one source of truth for default models.
 	providerId = providerId ?? DEFAULT_PROVIDER_ID
-	modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
+	if (!modelId && providerHasLocalModelSource(providerId)) {
+		// Local-model-source providers: the committed selection lives in
+		// providers.json when the legacy state slot is empty (e.g. configs
+		// created through the SDK settings store). Never fall through to a
+		// catalog default — an empty model id surfaces an explicit "select a
+		// model" state instead of silently running a model the user never chose.
+		try {
+			modelId = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))?.model?.trim()
+		} catch {
+			Logger.warn(`[SessionFactory] Failed to read ${providerId} model from providers.json`)
+		}
+		modelId = modelId || ""
+	} else {
+		modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
+	}
 	if (!apiKey && apiConfig) {
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
 	apiKey = apiKey ?? ""
-	const maxTokensPerTurn = providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined
+	const committedRuntimeModel = resolveCommittedRuntimeModel(providerId, mode, modelId)
+	const overriddenMaxTokens = committedRuntimeModel?.overrides?.maxTokens
+	const maxTokensPerTurn =
+		positiveFiniteNumber(overriddenMaxTokens) ??
+		(providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined)
+	const temperature = nonNegativeFiniteNumber(committedRuntimeModel?.overrides?.temperature)
 	const reasoningConfig =
 		providerId === "oca"
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
@@ -662,13 +810,34 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const sdkProviderId = toSdkProviderId(providerId)
 	const hostIdentity = await resolveHostIdentity()
 	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
+	try {
+		// Constructing the settings manager loads providers.json and models.json into
+		// the @cline/llms registry. Reading models from that registry ensures custom
+		// model overrides are included in the inference provider config, not just in
+		// the webview/display path.
+		getProviderSettingsManager(resolveDataDir())
+		knownModels = await getModelsForProvider(sdkProviderId)
+		// Only inject host-resolved metadata that carries real information
+		// (catalog/state base or user overrides). Pure fallback fabrications
+		// must not reach the runtime; the SDK's own resolution handles those.
+		const isPureFallbackModel = committedRuntimeModel?.modelInfoSource === "fallback" && !committedRuntimeModel.overrides
+		if (committedRuntimeModel && !isPureFallbackModel && !knownModels?.[modelId]) {
+			knownModels = {
+				...(knownModels ?? {}),
+				[modelId]: toSdkModelInfo(committedRuntimeModel),
+			}
+		}
+	} catch (error) {
+		Logger.warn(`[SessionFactory] Failed to resolve known models for provider=${sdkProviderId}:`, error)
+	}
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
 	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
 	// additionally need structured options (region/project/auth/SAP OAuth), which core
 	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig
+	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? ollamaProviderConfig
 	// Spread the cloud config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
@@ -677,6 +846,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		fetch,
 	}
 
@@ -707,6 +877,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		mode: mode === "plan" ? "plan" : "act",
 		...reasoningConfig,
 		...(maxTokensPerTurn !== undefined ? { maxTokensPerTurn } : {}),
+		...(temperature !== undefined ? { temperature } : {}),
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {

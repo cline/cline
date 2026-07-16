@@ -24,6 +24,7 @@ export {
 // Built-in Executors
 export {
 	type ApplyPatchExecutorOptions,
+	CommandExitError,
 	computePatchChanges,
 	createApplyPatchExecutor,
 	createDefaultExecutors,

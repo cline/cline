@@ -34,7 +34,7 @@ import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
@@ -68,6 +68,7 @@ import {
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
+import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
@@ -77,10 +78,12 @@ import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
+import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
@@ -93,6 +96,7 @@ import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { VscodeSessionHost } from "./vscode-session-host"
+import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceRootPath } from "./workspace-root"
 
@@ -142,6 +146,7 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 		tokensOut: item.tokensOut ?? 0,
 		cacheWrites: item.cacheWrites ?? 0,
 		cacheReads: item.cacheReads ?? 0,
+		isLegacy: item.isLegacy ?? false,
 	})
 }
 
@@ -155,12 +160,14 @@ export class Controller {
 	private turnStateTracker!: TurnStateTracker
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
+	private sessionRebuilds: SdkSessionRebuildScheduler
 	private interactions: SdkInteractionCoordinator
 	private diffEdits: SdkDiffEditCoordinator
 	private sessionConfigBuilder: SdkSessionConfigBuilder
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
+	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
 	private providerChanges: SdkProviderChangeCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
@@ -192,11 +199,20 @@ export class Controller {
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
-	// Lazy terminal manager for foreground terminal execution.
-	// Concrete impl comes from HostProvider (VscodeTerminalManager in VSCode,
-	// StandaloneTerminalManager in cline-core / JetBrains).
+	// Lazy terminal manager for foreground (VS Code terminal) command execution.
 	// Created on first use; shared across all sessions in this Controller's lifetime.
-	private _terminalManager?: ITerminalManager
+	// Only used in the `vscodeTerminal` execution mode — `backgroundExec` and the
+	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
+	private _terminalManager?: VscodeTerminalManager
+
+	// Registry of in-flight foreground (VS Code terminal) command executions.
+	// Owned here — not by the session — so it survives session rebuilds, which
+	// recreate the tool set. Drives the "Proceed While Running" button.
+	private readonly foregroundCommands = new SdkForegroundCommandCoordinator({
+		onRunningChanged: () => {
+			void this.postStateToWebview()
+		},
+	})
 
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
@@ -322,14 +338,21 @@ export class Controller {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
 			},
+			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
+			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
+				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
+				// (vscode-session-host.ts, sdk-terminal-execution-mode-coordinator.ts):
+				// this factory itself is only invoked when a caller has already
+				// resolved to "vscodeTerminal" mode on a real VS Code host, but
+				// VscodeTerminalManager's constructor still assumes
+				// vscode.window.onDidStartTerminalShellExecution exists, which the
+				// standalone (JetBrains/CLI) stub does not provide.
 				if (!this._terminalManager) {
-					this._terminalManager = HostProvider.get().createTerminalManager()
+					this._terminalManager = new VscodeTerminalManager()
 					this.applyTerminalSettings(this._terminalManager)
-					Logger.log(
-						`[SdkController] Created ${this._terminalManager.constructor.name} for foreground terminal execution`,
-					)
+					Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
 				}
 				return this._terminalManager
 			},
@@ -342,7 +365,6 @@ export class Controller {
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
-				await this.providerChanges.handleTurnComplete(this.mode)
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
@@ -402,6 +424,7 @@ export class Controller {
 				this.postStateToWebview().catch(() => {})
 			},
 		})
+		this.sessionRebuilds = new SdkSessionRebuildScheduler({ sessions: this.sessions })
 		this.taskHistory = new SdkTaskHistory({
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
@@ -427,6 +450,7 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			rebuilds: this.sessionRebuilds,
 			onAutoContinueStarting: () => {
 				this.turnStateTracker.set("streaming")
 				this.messageTranslatorState.clearTurnOutcome()
@@ -445,6 +469,19 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			rebuilds: this.sessionRebuilds,
+		})
+		this.terminalExecutionMode = new SdkTerminalExecutionModeCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
+			buildStartSessionInput,
+			postStateToWebview: () => this.postStateToWebview(),
+			rebuilds: this.sessionRebuilds,
 		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
 			stateManager: this.stateManager,
@@ -457,6 +494,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			rebuilds: this.sessionRebuilds,
 		})
 		this.followups = new SdkFollowupCoordinator({
 			stateManager: this.stateManager,
@@ -465,7 +503,10 @@ export class Controller {
 			messages: this.messages,
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			waitForPendingModeRebuild: () => this.mode.waitForPendingRebuild(),
+			waitForPendingRebuilds: async () => {
+				await this.mode.waitForPendingRebuild()
+				await this.sessionRebuilds.waitUntilSettled()
+			},
 			getTask: () => this.task,
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
@@ -538,9 +579,6 @@ export class Controller {
 			messageTranslatorState: this.messageTranslatorState,
 			sessions: this.sessions,
 			messages: this.messages,
-			mcpTools: this.mcpTools,
-			providerChanges: this.providerChanges,
-			mode: this.mode,
 			taskHistory: this.taskHistory,
 			stateManager: this.stateManager,
 			getTask: () => this.task,
@@ -604,6 +642,23 @@ export class Controller {
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
+	}
+
+	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
+		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
+	}
+
+	private handleSessionBecameIdle(): void {
+		if (this.mode?.hasPendingModeChange()) {
+			// The mode rebuild reads the latest provider and tool configuration, so
+			// it supersedes any passive rebuild that was queued for the old mode.
+			this.sessionRebuilds.cancel("provider")
+			this.mode.applyPendingModeChange().catch((error) => {
+				Logger.error("[SdkController] Failed to apply deferred mode change:", error)
+			})
+			return
+		}
+		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
@@ -1130,6 +1185,19 @@ export class Controller {
 		stubWarn("cancelBackgroundCommand")
 	}
 
+	/**
+	 * "Proceed While Running": detach every in-flight foreground terminal
+	 * command. Each pending run_commands call returns its partial output plus
+	 * the log file path the remaining output is redirected to, and the agent
+	 * turn continues while the commands keep running in their terminals.
+	 */
+	async proceedWhileRunningCommand(): Promise<void> {
+		const detached = this.foregroundCommands.proceedWhileRunning()
+		if (detached === 0) {
+			Logger.warn("[SdkController] proceedWhileRunningCommand: No foreground command is running")
+		}
+	}
+
 	async cancelQueuedPrompt(promptId: string): Promise<void> {
 		const trimmedPromptId = promptId.trim()
 		if (!trimmedPromptId) {
@@ -1633,6 +1701,9 @@ export class Controller {
 				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 				modelId: item.model || metadataString(metadata, "modelId") || "",
+				isLegacy:
+					metadataBoolean(metadata, "legacyTask") === true ||
+					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
 			}
 		})
 
@@ -1654,6 +1725,7 @@ export class Controller {
 					cacheWrites: 0,
 					cacheReads: 0,
 					modelId: this.task.api?.getModel?.().id ?? "",
+					isLegacy: false,
 				})
 			}
 		}
@@ -1667,16 +1739,15 @@ export class Controller {
 			throw new Error(`Task not found in history: ${id}`)
 		}
 
-		// SDK-backed tasks are no longer stored under VS Code's globalStorageFsPath/tasks.
-		// The SDK owns session persistence and exposes the persisted messages artifact path
-		// on the session history record; open that artifact's containing session directory.
-		const taskDirPath = historyItem.messagesPath ? path.dirname(historyItem.messagesPath) : undefined
+		const taskDirPath = historyItem.messagesPath
+			? path.dirname(historyItem.messagesPath)
+			: this.taskHistory.getLegacyTaskDirPath(id)
 		if (!taskDirPath) {
-			throw new Error(`Task history item has no SDK artifact path: ${id}`)
+			throw new Error(`Task history item has no artifact path: ${id}`)
 		}
 
 		await fs.access(taskDirPath)
-		Logger.log(`[EXPORT] Opening SDK task directory: ${taskDirPath}`)
+		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
 		const open = (await import("open")).default
 		await open(taskDirPath)
 	}
@@ -1821,6 +1892,7 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
+				foregroundCommandRunning: this.foregroundCommands.isRunning,
 			})
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
@@ -1906,7 +1978,7 @@ export class Controller {
 	 * Called once when the lazy terminal manager is first created, and can be
 	 * called again when settings change at runtime.
 	 */
-	applyTerminalSettings(terminalManager: ITerminalManager): void {
+	applyTerminalSettings(terminalManager: VscodeTerminalManager): void {
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		if (shellIntegrationTimeout !== undefined) {
 			terminalManager.setShellIntegrationTimeout(Number(shellIntegrationTimeout))
@@ -1932,7 +2004,7 @@ export class Controller {
 	 * Get the terminal manager instance (if created).
 	 * Used by updateSettings handlers to apply runtime changes.
 	 */
-	get terminalManager(): ITerminalManager | undefined {
+	get terminalManager(): VscodeTerminalManager | undefined {
 		return this._terminalManager
 	}
 

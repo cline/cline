@@ -1,5 +1,23 @@
 # Cline SDK Changelog
 
+## 0.0.62
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+- Telemetry is no longer attached to hub tool contexts
+
+## 0.0.61
+
+- Context compaction now reports progress status while it runs
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Fixed benign git states being reported as workspace initialization errors
+- Plan/Act mode guidance added to the system prompt, with nudges when switching modes
+- Editor diff view restored for SDK edit tools
+- Model IDs are now suggested from OpenAI-compatible endpoints
+- VS Code terminal reliability improvements (OSC 633 parsing, exit codes, timeout handling)
+- Provider-specific request headers are now centralized in the LLM layer
+- Telemetry now attaches organization context when identifying with cached credentials
+- Added a shared `@cline/ui` theme package
+
 ## 0.0.60
 
 - Fixed an issue where a transient network or server error during token refresh could log you out — transient failures no longer clear your credentials

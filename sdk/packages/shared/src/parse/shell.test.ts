@@ -43,4 +43,17 @@ describe("shell helpers", () => {
 			getShellArgs("C:\\Program Files\\Git\\bin\\bash.exe", "echo hi"),
 		).toEqual(["-c", "echo hi"]);
 	});
+
+	it("runs commands through guest bash for the WSL launcher", () => {
+		expect(getShellArgs("wsl.exe", "ls | head -5")).toEqual([
+			"bash",
+			"-c",
+			"ls | head -5",
+		]);
+		expect(getShellArgs("C:\\Windows\\System32\\wsl.exe", "echo hi")).toEqual([
+			"bash",
+			"-c",
+			"echo hi",
+		]);
+	});
 });

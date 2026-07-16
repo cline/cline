@@ -75,7 +75,7 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).not.toHaveBeenCalled()
 	})
 
-	it("marks turns complete and delegates provider restart handling", async () => {
+	it("marks turns complete through the session lifecycle", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, event } = makeCoordinator({
 			activeSession,
@@ -89,8 +89,6 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
-		expect(options.mcpTools.checkDeferredRestart).toHaveBeenCalledOnce()
-		expect(options.providerChanges.handleTurnComplete).toHaveBeenCalledWith(options.mode)
 	})
 
 	it("posts state on turn end even when the turn-complete event carries NO messages", async () => {
@@ -351,16 +349,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		messages: {
 			appendAndEmit: vi.fn(),
 		},
-		mcpTools: {
-			checkDeferredRestart: vi.fn(),
-		},
-		providerChanges: {
-			handleTurnComplete: vi.fn().mockResolvedValue(undefined),
-		},
-		mode: {
-			hasPendingModeChange: vi.fn(() => input.hasPendingModeChange ?? false),
-			applyPendingModeChange: vi.fn().mockResolvedValue(undefined),
-		},
 		taskHistory: {
 			updateTaskUsage: vi.fn(),
 		},
@@ -377,14 +365,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			setRunning: ReturnType<typeof vi.fn>
 		}
 		messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
-		mcpTools: SdkSessionEventCoordinatorOptions["mcpTools"] & { checkDeferredRestart: ReturnType<typeof vi.fn> }
-		providerChanges: NonNullable<SdkSessionEventCoordinatorOptions["providerChanges"]> & {
-			handleTurnComplete: ReturnType<typeof vi.fn>
-		}
-		mode: SdkSessionEventCoordinatorOptions["mode"] & {
-			hasPendingModeChange: ReturnType<typeof vi.fn>
-			applyPendingModeChange: ReturnType<typeof vi.fn>
-		}
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
@@ -412,7 +392,6 @@ function makeActiveSession(input: Partial<{ isRunning: boolean }> = {}) {
 
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
-	hasPendingModeChange: boolean
 	task: { taskId: string }
 	isClineFreeModel: () => Promise<boolean>
 	translation: {
