@@ -543,9 +543,7 @@ describe("NodeHubClient", () => {
 			globalThis as unknown as { WebSocket?: typeof RecoveryWebSocket }
 		).WebSocket = RecoveryWebSocket;
 		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: vi.fn(async () => {
-				throw new Error("unexpected ensureDetachedHubServer call");
-			}),
+			spawnDetachedHubServerWithRetry: vi.fn(async () => undefined),
 		}));
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -700,9 +698,7 @@ describe("NodeHubClient", () => {
 			globalThis as unknown as { WebSocket?: typeof ExplicitEndpointWebSocket }
 		).WebSocket = ExplicitEndpointWebSocket;
 		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: vi.fn(async () => {
-				throw new Error("unexpected ensureDetachedHubServer call");
-			}),
+			spawnDetachedHubServerWithRetry: vi.fn(async () => undefined),
 		}));
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -963,15 +959,26 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		);
 	});
 
-	it("starts missing local hubs through the daemon ensure API", async () => {
+	it("starts missing local hubs through the retrying daemon spawn API", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
-		const ensureDetachedHubServerMock = vi.fn(async () => ({
-			url: "ws://127.0.0.1:25464/hub",
+		const spawnDetachedHubServerWithRetryMock = vi.fn(async () => undefined);
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
 			authToken: "token",
-		}));
-		const readHubDiscoveryMock = vi.fn().mockResolvedValue(undefined);
+			host: "127.0.0.1",
+			port: 25464,
+			url: "ws://127.0.0.1:25464/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		const readHubDiscoveryMock = vi
+			.fn()
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce(record);
 		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: ensureDetachedHubServerMock,
+			spawnDetachedHubServerWithRetry: spawnDetachedHubServerWithRetryMock,
 		}));
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -990,7 +997,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				...actual,
 				resolveHubBuildId: () => "test-build",
 				readHubDiscovery: readHubDiscoveryMock,
-				probeHubServer: vi.fn(async () => undefined),
+				probeHubServer: vi.fn(async () => record),
 				clearHubDiscovery: vi.fn(async () => undefined),
 			};
 		});
@@ -1003,106 +1010,15 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				cwd: "/tmp/project",
 			}),
 		).resolves.toBe("ws://127.0.0.1:25464/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
-	});
-
-	it("replaces a stale-build hub through the daemon ensure API without dropping its discovery record", async () => {
-		vi.stubGlobal("WebSocket", MockWebSocket);
-		const clearHubDiscoveryMock = vi.fn();
-		const ensureDetachedHubServerMock = vi.fn(async () => ({
-			url: "ws://127.0.0.1:25465/hub",
-			authToken: "new-token",
-		}));
-		const staleRecord = {
-			hubId: "hub-test",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			authToken: "old-token",
-			host: "127.0.0.1",
-			port: 25464,
-			url: "ws://127.0.0.1:25464/hub",
-			startedAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
-		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: ensureDetachedHubServerMock,
-		}));
-		vi.doMock("../discovery/workspace", () => ({
-			resolveProductionHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath: "/tmp/hub-discovery.json",
-			}),
-			resolveSharedHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath: "/tmp/hub-discovery.json",
-			}),
-		}));
-		vi.doMock("../discovery", async () => {
-			const actual =
-				await vi.importActual<typeof import("../discovery")>("../discovery");
-			return {
-				...actual,
-				resolveHubBuildId: () => "current-build",
-				readHubDiscovery: vi.fn(async () => staleRecord),
-				probeHubServer: vi.fn(async () => staleRecord),
-				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
-					clearHubDiscoveryMock(...args);
-				}),
-			};
-		});
-
-		const { ensureCompatibleLocalHubUrl } = await import(".");
-
-		await expect(
-			ensureCompatibleLocalHubUrl({
-				workspaceRoot: "/tmp/project",
-				cwd: "/tmp/project",
-			}),
-		).resolves.toBe("ws://127.0.0.1:25465/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
-		// The stale record must survive until the daemon retires the hub; it
-		// carries the authToken/pid the retirement path needs.
-		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
-	});
-
-	it("returns undefined when the daemon ensure fails", async () => {
-		vi.stubGlobal("WebSocket", MockWebSocket);
-		const ensureDetachedHubServerMock = vi.fn(async () => {
-			throw new Error("could not be retired automatically");
-		});
-		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: ensureDetachedHubServerMock,
-		}));
-		vi.doMock("../discovery/workspace", () => ({
-			resolveProductionHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath: "/tmp/hub-discovery.json",
-			}),
-			resolveSharedHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath: "/tmp/hub-discovery.json",
-			}),
-		}));
-		vi.doMock("../discovery", async () => {
-			const actual =
-				await vi.importActual<typeof import("../discovery")>("../discovery");
-			return {
-				...actual,
-				readHubDiscovery: vi.fn(async () => undefined),
-				probeHubServer: vi.fn(async () => undefined),
-				clearHubDiscovery: vi.fn(async () => undefined),
-			};
-		});
-
-		const { ensureCompatibleLocalHubUrl } = await import(".");
-
-		await expect(
-			ensureCompatibleLocalHubUrl({
-				workspaceRoot: "/tmp/project",
-				cwd: "/tmp/project",
-			}),
-		).resolves.toBeUndefined();
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(spawnDetachedHubServerWithRetryMock).toHaveBeenCalledWith(
+			"/tmp/project",
+		);
+		expect(
+			spawnDetachedHubServerWithRetryMock.mock.invocationCallOrder[0],
+		).toBeGreaterThan(readHubDiscoveryMock.mock.invocationCallOrder[0]);
+		expect(
+			spawnDetachedHubServerWithRetryMock.mock.invocationCallOrder[0],
+		).toBeLessThan(readHubDiscoveryMock.mock.invocationCallOrder[1]);
 	});
 
 	it("resolves the shared-owner discovery hub in development builds", async () => {
@@ -1196,9 +1112,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			}),
 		}));
 		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: vi.fn(async () => {
-				throw new Error("unexpected ensureDetachedHubServer call");
-			}),
+			spawnDetachedHubServerWithRetry: vi.fn(async () => undefined),
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
