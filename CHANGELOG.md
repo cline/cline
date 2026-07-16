@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.0.9]
+
+### Added
+
+- Add GPT-5.6 ChatGPT subscription models.
+
+### Changed
+
+- Soften and shorten the message shown when Cline hits the consecutive mistake limit.
+
+### Fixed
+
+- Handle cumulative usage snapshots from OpenAI-compatible providers so token counts are no longer over-reported.
+- Load skills from files saved as UTF-8 with a byte-order mark (BOM).
+
 ## [4.0.8]
 
 ### Added
