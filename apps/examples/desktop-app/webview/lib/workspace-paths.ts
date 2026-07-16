@@ -9,6 +9,8 @@ export type WorkspaceSelectionStorage = {
 export type WorkspacePathSource = {
 	cwd?: string;
 	workspaceRoot?: string;
+	startedAt?: string;
+	endedAt?: string;
 };
 
 export function normalizeWorkspacePath(path: string): string {
@@ -21,6 +23,11 @@ export function normalizeWorkspacePath(path: string): string {
 	return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
 }
 
+/**
+ * Dedupes paths across groups, keeping the first spelling seen and the
+ * first-seen position, so callers control the ranking (e.g. session recency)
+ * through argument order.
+ */
 export function mergeWorkspacePaths(
 	...pathGroups: ReadonlyArray<readonly string[]>
 ): string[] {
@@ -34,13 +41,37 @@ export function mergeWorkspacePaths(
 			}
 		}
 	}
-	return [...byNormalizedPath.values()].sort((a, b) => a.localeCompare(b));
+	return [...byNormalizedPath.values()];
 }
 
 const POSIX_HOME_OR_DESKTOP_PATTERN =
 	/^(?:\/Users\/[^/]+|\/home\/[^/]+|\/root)(?:\/Desktop)?$/;
 const WINDOWS_HOME_OR_DESKTOP_PATTERN =
 	/^[a-z]:[\\/]users[\\/][^\\/]+(?:[\\/]desktop)?$/i;
+
+let hostHomePath = "";
+
+/**
+ * The webview bundle has no usable `process.env`, so standard home locations
+ * are matched by the patterns above and the sidecar reports the real host
+ * home directory through `get_process_context` to cover non-standard ones.
+ */
+export function registerHostHomeDirectory(path: string): void {
+	hostHomePath = normalizeWorkspacePath(path);
+}
+
+function isRegisteredHomeOrDesktop(normalized: string): boolean {
+	if (!hostHomePath) {
+		return false;
+	}
+	if (normalized === hostHomePath) {
+		return true;
+	}
+	return (
+		normalized.startsWith(hostHomePath) &&
+		/^[\\/]desktop$/i.test(normalized.slice(hostHomePath.length))
+	);
+}
 
 /**
  * Sessions can run anywhere (Cline-internal worktrees and plugin installs
@@ -58,6 +89,7 @@ export function isExcludedWorkspacePath(path: string): boolean {
 		return true;
 	}
 	return (
+		isRegisteredHomeOrDesktop(normalized) ||
 		POSIX_HOME_OR_DESKTOP_PATTERN.test(normalized) ||
 		WINDOWS_HOME_OR_DESKTOP_PATTERN.test(normalized)
 	);
@@ -67,14 +99,40 @@ export function filterWorkspacePaths(paths: readonly string[]): string[] {
 	return paths.filter((path) => !isExcludedWorkspacePath(path));
 }
 
+/**
+ * Workspaces with the most recent session activity come first; paths whose
+ * sessions carry no parseable timestamp fall back to alphabetical order at
+ * the end.
+ */
 export function workspacePathsFromSessions(
 	sessions: readonly WorkspacePathSource[],
 ): string[] {
+	const lastActivityByPath = new Map<string, number>();
+	for (const session of sessions) {
+		const normalized = normalizeWorkspacePath(
+			session.workspaceRoot || session.cwd || "",
+		);
+		if (!normalized) {
+			continue;
+		}
+		const activity = Date.parse(session.endedAt ?? session.startedAt ?? "");
+		if (Number.isNaN(activity)) {
+			continue;
+		}
+		const known = lastActivityByPath.get(normalized);
+		if (known === undefined || activity > known) {
+			lastActivityByPath.set(normalized, activity);
+		}
+	}
 	return filterWorkspacePaths(
 		mergeWorkspacePaths(
 			sessions.map((session) => session.workspaceRoot || session.cwd || ""),
 		),
-	);
+	).sort((a, b) => {
+		const aTime = lastActivityByPath.get(normalizeWorkspacePath(a)) ?? 0;
+		const bTime = lastActivityByPath.get(normalizeWorkspacePath(b)) ?? 0;
+		return bTime === aTime ? a.localeCompare(b) : bTime - aTime;
+	});
 }
 
 export function parseWorkspaceSelectionStorage(

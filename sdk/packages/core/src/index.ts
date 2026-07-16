@@ -137,11 +137,6 @@ export {
 	type UserRemoteConfigResponse,
 } from "./account";
 export {
-	hashSecret,
-	setSdkLogger,
-	sdkDebug,
-} from "./logging/early-logger";
-export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,
 } from "./auth/client";
@@ -407,6 +402,11 @@ export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
+	hashSecret,
+	sdkDebug,
+	setSdkLogger,
+} from "./logging/early-logger";
+export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	type PreparedRemoteConfigCoreIntegration,
@@ -460,6 +460,11 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
+export {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,

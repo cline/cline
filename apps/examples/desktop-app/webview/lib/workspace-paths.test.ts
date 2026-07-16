@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	filterWorkspacePaths,
 	isExcludedWorkspacePath,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	parseWorkspaceSelectionStorage,
+	registerHostHomeDirectory,
 	workspacePathsFromSessions,
 } from "./workspace-paths";
 
@@ -44,6 +45,36 @@ describe("workspace paths", () => {
 			"/projects/d",
 			"/projects/e",
 			"/projects/f",
+		]);
+	});
+
+	it("keeps the first-seen order so earlier groups rank first", () => {
+		expect(
+			mergeWorkspacePaths(["/projects/zulu", "/projects/mike"], [
+				"/projects/alpha",
+				"/projects/zulu/",
+			]),
+		).toEqual(["/projects/zulu", "/projects/mike", "/projects/alpha"]);
+	});
+
+	it("orders the catalog by the most recent session in each workspace", () => {
+		const paths = workspacePathsFromSessions([
+			{ workspaceRoot: "/projects/old", startedAt: "2026-01-05T00:00:00Z" },
+			{
+				workspaceRoot: "/projects/active",
+				startedAt: "2026-02-01T00:00:00Z",
+				endedAt: "2026-02-01T01:00:00Z",
+			},
+			{ workspaceRoot: "/projects/old", startedAt: "2026-03-01T00:00:00Z" },
+			{ workspaceRoot: "/projects/mid", startedAt: "2026-02-15T00:00:00Z" },
+			{ workspaceRoot: "/projects/undated" },
+		]);
+
+		expect(paths).toEqual([
+			"/projects/old",
+			"/projects/mid",
+			"/projects/active",
+			"/projects/undated",
 		]);
 	});
 
@@ -89,6 +120,31 @@ describe("workspace paths", () => {
 		expect(
 			isExcludedWorkspacePath("C:\\Users\\Saoud\\.cline\\worktrees\\abc"),
 		).toBe(true);
+	});
+
+	describe("with a registered host home directory", () => {
+		afterEach(() => {
+			registerHostHomeDirectory("");
+		});
+
+		it("excludes a non-standard home and its Desktop but keeps projects inside them", () => {
+			registerHostHomeDirectory("/srv/homes/bea/");
+
+			expect(isExcludedWorkspacePath("/srv/homes/bea")).toBe(true);
+			expect(isExcludedWorkspacePath("/srv/homes/bea/Desktop")).toBe(true);
+			expect(isExcludedWorkspacePath("/srv/homes/bea/projects/app")).toBe(
+				false,
+			);
+			expect(isExcludedWorkspacePath("/srv/homes/beatrix")).toBe(false);
+		});
+
+		it("matches Windows homes case-insensitively", () => {
+			registerHostHomeDirectory("D:\\Homes\\Bea");
+
+			expect(isExcludedWorkspacePath("d:\\homes\\bea\\")).toBe(true);
+			expect(isExcludedWorkspacePath("D:\\Homes\\Bea\\Desktop")).toBe(true);
+			expect(isExcludedWorkspacePath("D:\\Homes\\Bea\\cline")).toBe(false);
+		});
 	});
 
 	it("excludes home and Desktop directories but keeps projects inside them", () => {

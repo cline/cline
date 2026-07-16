@@ -6,6 +6,7 @@ import {
 	rmSync,
 	statSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
@@ -34,6 +35,7 @@ import {
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	resolvePluginConfigSearchPaths,
@@ -50,6 +52,7 @@ import {
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import packageJson from "../package.json";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -182,6 +185,31 @@ function removePathIfExists(
 		recursive: options?.recursive === true,
 	});
 	return true;
+}
+
+// Cline access tokens expire between app launches, so account requests must
+// resolve through the refresh-aware OAuth manager instead of reading the
+// persisted token directly. A single shared instance keeps concurrent account
+// requests single-flight; the refresh token is single-use, so parallel
+// refreshes would invalidate each other.
+let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
+
+async function resolveFreshClineAuthToken(
+	manager: ProviderSettingsManager,
+): Promise<string | undefined> {
+	try {
+		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
+		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
+			providerId: "cline",
+		});
+		if (resolution?.apiKey) {
+			return resolution.apiKey;
+		}
+	} catch {
+		// Fall back to the persisted token; the account request surfaces the
+		// auth failure to the caller.
+	}
+	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
 }
 
 async function listSessionsFromSidecarManager(
@@ -756,7 +784,13 @@ export async function handleCommand(
 
 	// ── Process context ───────────────────────────────────────────────
 	if (command === "get_process_context") {
-		return { workspaceRoot: ctx.workspaceRoot, cwd: ctx.workspaceRoot };
+		return {
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+			homeDir: homedir(),
+			platform: process.platform,
+			appVersion: packageJson.version,
+		};
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
@@ -953,7 +987,7 @@ export async function handleCommand(
 		const accountService = new ClineAccountService({
 			apiBaseUrl:
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => resolveLocalClineAuthToken(settings),
+			getAuthToken: async () => resolveFreshClineAuthToken(manager),
 		});
 		return await executeClineAccountAction(
 			args as ClineAccountActionRequest,
