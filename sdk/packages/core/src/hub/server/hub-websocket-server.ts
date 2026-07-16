@@ -364,6 +364,11 @@ export async function startHubWebSocketServer(
 				minClientProtocolVersion: versionPayload.minClientProtocolVersion,
 				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,
 				coreVersion: versionPayload.coreVersion,
+				// Unauthenticated probes rely on /health to judge build
+				// compatibility; without buildId every probe would classify this
+				// hub as a stale build. No new exposure: buildId defaults to
+				// coreVersion (above) and /version already serves it untokened.
+				buildId: versionPayload.buildId,
 				host,
 				port,
 				url,

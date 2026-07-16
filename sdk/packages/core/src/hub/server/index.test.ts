@@ -11,6 +11,7 @@ import {
 	clearHubDiscovery,
 	createInMemoryHubOwnerContext,
 	readHubDiscovery,
+	resolveHubBuildId,
 	toHubHealthUrl,
 	writeHubDiscovery,
 } from "../discovery";
@@ -203,6 +204,23 @@ describe("hub server startup", () => {
 			});
 			await clearHubDiscovery(owner.discoveryPath);
 		}
+	});
+
+	it("reports its buildId on the unauthenticated health endpoint", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-health-build");
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.add(requireServer(result.server));
+
+		const health = await fetch(new URL("/health", toHubHealthUrl(result.url)));
+		expect(health.status).toBe(200);
+		const payload = (await health.json()) as { buildId?: string };
+		expect(payload.buildId).toBe(resolveHubBuildId());
 	});
 
 	it("shuts down active server through the shutdown endpoint", async () => {
