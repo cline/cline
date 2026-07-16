@@ -1047,6 +1047,223 @@ describe("createContextCompactionPrepareTurn", () => {
 		}
 	});
 
+	it("compacts a single-task tool loop by cutting at an assistant boundary", async () => {
+		// Repro for agentic auto-compaction permanently skipping in hosts like
+		// the VS Code extension: the canonical transcript is one typed task
+		// message followed by a long assistant tool_use / user tool_result
+		// loop. findCutIndex used to accept only typed-user turn starts as cut
+		// boundaries, so the snap always walked back to index 0 and
+		// runAgenticCompaction returned undefined ("auto-compaction-skipped")
+		// on every turn. Assistant messages are equally safe boundaries: a
+		// tool_use keeps its result in the user message that follows it.
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-loop",
+						text: "## Goal\nBuild the feature\n\n## Next\nContinue",
+					},
+					{ type: "done", id: "summary-loop", success: true },
+				]),
+			),
+		});
+
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "<task>Build the feature</task>" },
+		];
+		for (let i = 0; i < 12; i++) {
+			messages.push({
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: `loop-tool-${i}`,
+						name: "read_files",
+						input: { file_paths: [`/tmp/f${i}.ts`] },
+					},
+				],
+			});
+			messages.push({
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: `loop-tool-${i}`,
+						name: "read_files",
+						content: "x".repeat(1_500),
+					},
+				],
+			});
+		}
+		messages.push({ role: "assistant", content: "working on it" });
+
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1_000,
+			},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 4_000 },
+			},
+		});
+
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"auto-compacted",
+			expect.objectContaining({ kind: "auto_compaction" }),
+		);
+		expect(result?.messages[0]).toMatchObject({
+			role: "user",
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(result?.messages.length).toBeLessThan(messages.length);
+		// The preserved tail must not orphan either half of a tool pair.
+		const toolUseIds2 = new Set<string>();
+		const toolResultIds2 = new Set<string>();
+		for (const msg of result?.messages ?? []) {
+			if (!Array.isArray(msg.content)) continue;
+			for (const block of msg.content) {
+				if (block.type === "tool_use") toolUseIds2.add(block.id);
+				if (block.type === "tool_result") {
+					toolResultIds2.add(block.tool_use_id);
+				}
+			}
+		}
+		for (const id of toolUseIds2) {
+			expect(toolResultIds2.has(id)).toBe(true);
+		}
+		for (const id of toolResultIds2) {
+			expect(toolUseIds2.has(id)).toBe(true);
+		}
+	});
+
+	it("re-compacts a projection that starts with a compaction summary", async () => {
+		// After a successful compaction, the state-aware wrapper re-runs the
+		// strategy on [summary message, ...preserved tail]. The summary is not
+		// a typed turn start, so the old boundary rule made every follow-up
+		// auto-compaction skip while the tail kept growing.
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-refold",
+						text: "## Goal\nStill building\n\n## Next\nContinue",
+					},
+					{ type: "done", id: "summary-refold", success: true },
+				]),
+			),
+		});
+
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Context summary:\n\nearlier work" },
+				],
+				metadata: {
+					kind: "compaction_summary",
+					summary: "earlier work",
+					details: { readFiles: [], modifiedFiles: [] },
+					tokensBefore: 100,
+					generatedAt: 1,
+				},
+			},
+		];
+		for (let i = 0; i < 12; i++) {
+			messages.push({
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: `refold-tool-${i}`,
+						name: "read_files",
+						input: { file_paths: [`/tmp/g${i}.ts`] },
+					},
+				],
+			});
+			messages.push({
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: `refold-tool-${i}`,
+						name: "read_files",
+						content: "y".repeat(1_500),
+					},
+				],
+			});
+		}
+
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1_000,
+			},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 4_000 },
+			},
+		});
+
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"auto-compacted",
+			expect.objectContaining({ kind: "auto_compaction" }),
+		);
+		expect(result?.messages[0]).toMatchObject({
+			role: "user",
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(result?.messages.length).toBeLessThan(messages.length);
+	});
+
 	it("uses the configured summarizer model for compaction", async () => {
 		createHandlerMock.mockReturnValue({
 			createMessage: vi.fn(() =>

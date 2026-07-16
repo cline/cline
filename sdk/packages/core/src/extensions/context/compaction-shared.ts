@@ -300,16 +300,25 @@ export function findLatestSummaryIndex(
 	return -1;
 }
 
+/**
+ * A cut boundary is safe when starting the preserved tail there cannot
+ * orphan half of a tool_use/tool_result pair. Typed user turns qualify,
+ * and so do assistant messages: an assistant's tool_use keeps its results
+ * in the user message that follows it, so both halves stay on the same
+ * side of the cut. A tool_result-only user message is never safe — its
+ * matching tool_use sits in the preceding assistant message and would be
+ * folded into the summary, leaving an orphaned tool_result the provider
+ * rejects.
+ */
+function isSafeCutBoundary(message: MessageWithMetadata): boolean {
+	return message.role === "assistant" || isTurnStartMessage(message);
+}
+
 export function findCutIndex(
 	messages: MessageWithMetadata[],
 	preserveRecentTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
 ): number {
-	const lastTurnStartIndex = findLastTurnStartIndex(messages);
-	if (lastTurnStartIndex <= 0) {
-		return 0;
-	}
-
 	let total = 0;
 	let candidate = messages.length;
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -324,14 +333,17 @@ export function findCutIndex(
 		return 0;
 	}
 
-	// Snap to a turn-start boundary so the cut never splits a
-	// tool_use/tool_result pair (or any other intra-turn block).
-	// Everything before the cut gets summarized; everything from
-	// the cut forward is preserved. Both halves of any pair must
-	// land on the same side or the provider will see an orphaned
-	// tool_result (or tool_use) and reject the request.
-	let cut = Math.min(candidate, lastTurnStartIndex);
-	while (cut > 0 && !isTurnStartMessage(messages[cut])) {
+	// Never summarize away the latest typed user prompt: when one exists
+	// past index 0, the cut stays at or before it so that whole turn
+	// survives verbatim. Transcripts without a later typed turn (a single
+	// task followed by one long tool loop, or a projection that starts
+	// with a compaction summary) still cut at the token-budget candidate.
+	const lastTurnStartIndex = findLastTurnStartIndex(messages);
+	let cut =
+		lastTurnStartIndex > 0
+			? Math.min(candidate, lastTurnStartIndex)
+			: candidate;
+	while (cut > 0 && !isSafeCutBoundary(messages[cut])) {
 		cut -= 1;
 	}
 	return cut;
