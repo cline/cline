@@ -122,7 +122,9 @@ export function emptyModelsFile(): StoredModelsFile {
 export function parseModelsFile(input: unknown): StoredModelsFile {
 	const result = StoredModelsFileEnvelopeSchema.safeParse(input);
 	if (!result.success) {
-		sdkDebug("models.json content is not a valid models file envelope; starting from an empty registry");
+		sdkDebug(
+			"models.json content is not a valid models file envelope; starting from an empty registry",
+		);
 		return emptyModelsFile();
 	}
 

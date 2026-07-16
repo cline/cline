@@ -1,5 +1,10 @@
 # Cline SDK Changelog
 
+## 0.0.62
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+- Telemetry is no longer attached to hub tool contexts
+
 ## 0.0.61
 
 - Context compaction now reports progress status while it runs
