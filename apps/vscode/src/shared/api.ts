@@ -2532,6 +2532,42 @@ export const openAiNativeModels = {
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
 export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.3-codex"
 export const openAiCodexModels = {
+	"gpt-5.6-sol": {
+		maxTokens: 128_000,
+		contextWindow: 372_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.6 Sol: OpenAI's latest frontier agentic coding model via ChatGPT subscription",
+	},
+	"gpt-5.6-terra": {
+		maxTokens: 128_000,
+		contextWindow: 372_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.6 Terra: OpenAI's balanced agentic coding model via ChatGPT subscription",
+	},
+	"gpt-5.6-luna": {
+		maxTokens: 128_000,
+		contextWindow: 372_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.6 Luna: OpenAI's fast agentic coding model via ChatGPT subscription",
+	},
 	"gpt-5.5": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
