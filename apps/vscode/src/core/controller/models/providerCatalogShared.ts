@@ -208,6 +208,7 @@ export function toRedactedProviderConfigResponse(
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
 		aws: toRedactedAwsProviderConfigProto(config.aws),
 		gcp: toRedactedGcpProviderConfigProto(config.gcp),
+		contextWindow: config.contextWindow,
 	})
 }
 
@@ -227,6 +228,10 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
+		// A zero context window over the wire means "clear the setting".
+		...(protoPatch.contextWindow !== undefined
+			? { contextWindow: protoPatch.contextWindow > 0 ? protoPatch.contextWindow : null }
+			: {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {
 					auth: {

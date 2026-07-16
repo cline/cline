@@ -512,6 +512,17 @@ function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): v
 		writeStateKey("clineApiKey", patch.auth?.accessToken)
 		writeStateKey("clineAccountId", patch.auth?.accountId)
 	}
+
+	// Mirror the Ollama context window to the legacy state key so older
+	// readers (proto ApiConfiguration, webview display fallback) stay in sync
+	// with providers.json.
+	if (provider === "ollama" && "contextWindow" in patch) {
+		const contextWindow = patch.contextWindow
+		writeStateKey(
+			"ollamaApiOptionsCtxNum",
+			typeof contextWindow === "number" && contextWindow > 0 ? String(contextWindow) : undefined,
+		)
+	}
 }
 
 function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
@@ -558,6 +569,15 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 			} else {
 				next.gcp = nextGcp
 			}
+		}
+	}
+
+	if ("contextWindow" in patch) {
+		const contextWindow = patch.contextWindow
+		if (typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0) {
+			next.contextWindow = Math.floor(contextWindow)
+		} else {
+			delete next.contextWindow
 		}
 	}
 
@@ -649,8 +669,12 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Re
 
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
 	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
-	// Prune model metadata that earlier builds may have written to providers.json.
-	delete next.contextWindow
+	// Prune model metadata that earlier builds may have written to
+	// providers.json — except for Ollama, whose contextWindow is a real
+	// user setting (maps to num_ctx) written by the settings UI.
+	if (providerKey(providerId) !== "ollama") {
+		delete next.contextWindow
+	}
 	delete next.maxTokens
 
 	saveProviderSettings(providerId, next)

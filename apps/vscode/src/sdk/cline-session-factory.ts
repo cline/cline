@@ -18,7 +18,12 @@ import {
 	type StartSessionResult,
 } from "@cline/core"
 import type { ModelInfo as SdkModelInfo } from "@cline/llms"
-import { getGeneratedModelsForProvider, getModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import {
+	getGeneratedModelsForProvider,
+	getModelsForProvider,
+	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+} from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
@@ -373,8 +378,21 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 
 const DEFAULT_PROVIDER_ID = "cline"
 
+/**
+ * Providers whose model list comes from a live local endpoint (Ollama's
+ * `/api/tags`, LM Studio's `/v1/models`). Their installed models are the only
+ * meaningful catalog; a bundled-catalog default would silently select a model
+ * the user never installed (e.g. an Ollama Cloud nemotron model).
+ */
+function providerHasLocalModelSource(providerId: string): boolean {
+	return Boolean(MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.modelsSourceUrl)
+}
+
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
 	const sdkProviderId = toSdkProviderId(providerId)
+	if (providerHasLocalModelSource(providerId)) {
+		return undefined
+	}
 	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]
 	if (!collection) {
 		return undefined
@@ -549,6 +567,42 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+type OllamaProviderConfig = {
+	modelInfo?: { id: string; name: string; contextWindow: number }
+	timeoutMs?: number
+}
+
+/**
+ * Resolve the user's "Model Context Window" setting for Ollama and surface it
+ * as the selected model's `contextWindow`. The gateway carries it on the
+ * resolved model definition, and the Ollama vendor maps it onto the wire as
+ * `options.num_ctx` — without it Ollama loads every model with its 4096-token
+ * server default. Keeping it on the model also means context management
+ * budgets against the window Ollama actually applies (Ollama truncates the
+ * prompt to `num_ctx` server-side).
+ */
+export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: string | undefined): OllamaProviderConfig {
+	// providers.json (`contextWindow`) is the source of truth; the legacy
+	// StateManager string is a migration fallback (the config store mirrors
+	// writes to both).
+	let settingsContextWindow: number | undefined
+	try {
+		const value = getProviderSettingsManager().getProviderSettings("ollama")?.contextWindow
+		settingsContextWindow = typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read Ollama settings from providers.json")
+	}
+	const raw = config.ollamaApiOptionsCtxNum?.trim()
+	const parsed = raw ? Number(raw) : Number.NaN
+	const legacyContextWindow = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined
+	const contextWindow = settingsContextWindow ?? legacyContextWindow ?? OLLAMA_DEFAULT_CONTEXT_WINDOW
+	const timeoutMs = config.requestTimeoutMs
+	return {
+		...(typeof timeoutMs === "number" && timeoutMs > 0 ? { timeoutMs } : {}),
+		...(modelId ? { modelInfo: { id: modelId, name: modelId, contextWindow } } : {}),
+	}
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -606,6 +660,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let bedrockProviderConfig: BedrockProviderConfig | undefined
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
+	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -639,6 +694,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			if (providerId === "sapaicore") {
 				sapProviderConfig = buildSapProviderConfig(apiConfig, mode)
 				baseUrl = sapProviderConfig.baseUrl
+			}
+
+			if (providerId === "ollama") {
+				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
 			}
 
 			Logger.log(
@@ -676,7 +735,21 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// Final defaults. Keep this aligned with the provider catalog so the UI and
 	// session factory share one source of truth for default models.
 	providerId = providerId ?? DEFAULT_PROVIDER_ID
-	modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
+	if (!modelId && providerHasLocalModelSource(providerId)) {
+		// Local-model-source providers: the committed selection lives in
+		// providers.json when the legacy state slot is empty (e.g. configs
+		// created through the SDK settings store). Never fall through to a
+		// catalog default — an empty model id surfaces an explicit "select a
+		// model" state instead of silently running a model the user never chose.
+		try {
+			modelId = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))?.model?.trim()
+		} catch {
+			Logger.warn(`[SessionFactory] Failed to read ${providerId} model from providers.json`)
+		}
+		modelId = modelId || ""
+	} else {
+		modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
+	}
 	if (!apiKey && apiConfig) {
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
@@ -764,7 +837,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
 	// additionally need structured options (region/project/auth/SAP OAuth), which core
 	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig
+	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? ollamaProviderConfig
 	// Spread the cloud config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {

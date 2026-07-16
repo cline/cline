@@ -99,6 +99,12 @@ export interface EffectiveProviderConfig {
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
 	/**
+	 * Provider-level context window (providers.json `contextWindow`).
+	 * Provider-neutral: for Ollama it maps to `options.num_ctx` at the
+	 * vendor boundary.
+	 */
+	readonly contextWindow?: number
+	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
 	 */
@@ -140,6 +146,7 @@ export interface ProviderConfigPatch {
 	readonly region?: string | null
 	readonly aws?: AwsProviderConfig | null
 	readonly gcp?: GcpProviderConfig | null
+	readonly contextWindow?: number | null
 	readonly auth?: {
 		readonly accessToken?: string
 		readonly refreshToken?: string

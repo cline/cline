@@ -355,7 +355,6 @@ function toAiSdkMessages(
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
 		} else if (!includeReasoning && skippedReasoning) {
-			continue;
 		} else if (message.role === "user" || message.role === "assistant") {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
@@ -1125,6 +1124,10 @@ async function createProviderModule(
 			const { createDifyProviderModule } = await import("./vendors/community");
 			return createDifyProviderModule(config);
 		}
+		case "ollama": {
+			const { createOllamaProviderModule } = await import("./vendors/ollama");
+			return createOllamaProviderModule(config, context);
+		}
 		case "sapaicore": {
 			const { createSapAiCoreProviderModule } = await import(
 				"./vendors/community"
@@ -1296,4 +1299,5 @@ export const createClaudeCodeProvider = createAiSdkProvider("claude-code");
 export const createOpenAICodexProvider = createAiSdkProvider("openai-codex");
 export const createOpenCodeProvider = createAiSdkProvider("opencode");
 export const createDifyProvider = createAiSdkProvider("dify");
+export const createOllamaProvider = createAiSdkProvider("ollama");
 export const createSapAiCoreProvider = createAiSdkProvider("sapaicore");
