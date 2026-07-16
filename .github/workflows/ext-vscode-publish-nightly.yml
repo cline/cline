@@ -279,6 +279,12 @@ jobs:
 
       - name: Tag published commit
         if: github.ref == 'refs/heads/main' && inputs.dry-run != true
+        # Best-effort bookkeeping: the default GITHUB_TOKEN cannot create a ref
+        # whose commit modifies workflow files (no workflows permission exists
+        # for it), so this step fails whenever HEAD touched .github/workflows.
+        # The publish already succeeded by this point — don't mark the run red;
+        # push the tag manually with user credentials when it matters.
+        continue-on-error: true
         working-directory: next-src
         env:
           GH_TOKEN: ${{ github.token }}
