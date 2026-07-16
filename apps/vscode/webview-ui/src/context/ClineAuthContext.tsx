@@ -1,4 +1,4 @@
-import type { UserOrganization } from "@shared/proto/cline/account"
+import type { AuthState, UserOrganization } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import deepEqual from "fast-deep-equal"
 import type React from "react"
@@ -52,17 +52,19 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	// Handle auth status update events
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
-			onResponse: async (response: any) => {
+			onResponse: async (response: AuthState) => {
+				if (response?.user?.uid) {
+					// Auth updates are also emitted when the active organization changes.
+					// Refresh organizations even when the signed-in user remains the same.
+					await getUserOrganizations()
+				}
+
 				setUser((oldUser) => {
 					if (!response?.user?.uid) {
 						return null
 					}
 
-					if (response?.user && oldUser?.uid !== response.user.uid) {
-						// Once we have a new user, fetch organizations that
-						// allow us to display the active account in account view UI
-						// and fetch the correct credit balance to display on mount
-						getUserOrganizations()
+					if (oldUser?.uid !== response.user.uid) {
 						return response.user
 					}
 
