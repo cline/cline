@@ -648,6 +648,10 @@ export class Controller {
 		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
 	}
 
+	handleTerminalProfileChanged(previous: string | undefined, next: string): void {
+		this.terminalExecutionMode.handleTerminalProfileChanged(previous, next)
+	}
+
 	private handleSessionBecameIdle(): void {
 		if (this.mode?.hasPendingModeChange()) {
 			// The mode rebuild reads the latest provider and tool configuration, so

@@ -1,3 +1,4 @@
+import { existsSync } from "fs"
 import { userInfo } from "os"
 import * as vscode from "vscode"
 
@@ -171,11 +172,6 @@ function getShellFromUserInfo(): string | null {
 function getShellFromEnv(): string | null {
 	const { env } = process
 
-	if (process.platform === "win32") {
-		// On Windows, COMSPEC typically holds cmd.exe
-		return env.COMSPEC || "C:\\Windows\\System32\\cmd.exe"
-	}
-
 	if (process.platform === "darwin") {
 		// On macOS/Linux, SHELL is commonly the environment variable
 		return env.SHELL || "/bin/zsh"
@@ -304,6 +300,17 @@ export function getShellForProfile(profileId: string): string {
 // 5) Publicly Exposed Shell Getter
 // -----------------------------------------------------
 
+/**
+ * The shell VS Code launches on Windows when the user has not configured a
+ * default terminal profile: its built-in default is PowerShell (pwsh when
+ * installed, Windows PowerShell otherwise) — never cmd.exe. Mirroring that
+ * here keeps the "default" profile meaning the same shell whether commands
+ * run in a visible VS Code terminal or a background child process.
+ */
+function getWindowsDefaultShell(): string {
+	return existsSync(SHELL_PATHS.POWERSHELL_7) ? SHELL_PATHS.POWERSHELL_7 : SHELL_PATHS.POWERSHELL_LEGACY
+}
+
 export function getShell(): string {
 	// 1. Check VS Code config first.
 	if (process.platform === "win32") {
@@ -312,6 +319,10 @@ export function getShell(): string {
 		if (windowsShell) {
 			return windowsShell
 		}
+		// No profile configured — match the shell VS Code's default terminal
+		// would launch. userInfo()/COMSPEC are not consulted: VS Code's own
+		// terminal ignores them too, and they would resolve to cmd.exe.
+		return getWindowsDefaultShell()
 	} else if (process.platform === "darwin") {
 		// macOS from VS Code
 		const macShell = getMacShellFromVSCode()
@@ -338,12 +349,6 @@ export function getShell(): string {
 		return envShell
 	}
 
-	// 4. Finally, fall back to a default
-	if (process.platform === "win32") {
-		// On Windows, if we got here, we have no config, no COMSPEC, and one very messed up operating system.
-		// Use CMD as a last resort
-		return SHELL_PATHS.CMD
-	}
-	// On macOS/Linux, fallback to a POSIX shell - This is the behavior of our old shell detection method.
+	// 4. Fall back to a POSIX shell - This is the behavior of our old shell detection method.
 	return SHELL_PATHS.FALLBACK
 }
