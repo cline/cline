@@ -1,4 +1,4 @@
-import type { UserOrganization } from "@shared/proto/cline/account"
+import type { AuthState, UserOrganization } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import deepEqual from "fast-deep-equal"
 import type React from "react"
@@ -52,22 +52,22 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	// Handle auth status update events
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
-			onResponse: async (response: any) => {
-				setUser((oldUser) => {
-					if (!response?.user?.uid) {
-						return null
-					}
+			onResponse: async (response: AuthState) => {
+				const responseUser = response.user
+				if (!responseUser?.uid) {
+					setUser(null)
+					setUserOrganizations(null)
+					return
+				}
 
-					if (response?.user && oldUser?.uid !== response.user.uid) {
-						// Once we have a new user, fetch organizations that
-						// allow us to display the active account in account view UI
-						// and fetch the correct credit balance to display on mount
-						getUserOrganizations()
-						return response.user
-					}
+				// Refresh organizations on every auth status update, not just user
+				// changes. Switching organizations doesn't change the uid, so gating
+				// this on uid changes leaves stale `active` flags — which reset the
+				// account view's org dropdown on remount. The deepEqual guard in
+				// getUserOrganizations prevents no-op re-renders.
+				getUserOrganizations()
 
-					return oldUser
-				})
+				setUser((oldUser) => (oldUser?.uid !== responseUser.uid ? responseUser : oldUser))
 			},
 			onError: (error: Error) => {
 				console.error("Error in auth callback subscription:", error)
