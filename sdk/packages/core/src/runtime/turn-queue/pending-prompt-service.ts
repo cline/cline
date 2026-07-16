@@ -29,6 +29,7 @@ export interface PendingPromptQueueState {
 export interface PendingPromptsControllerDeps {
 	getSession(sessionId: string): ActiveSession | undefined;
 	emit(event: CoreSessionEvent): void;
+	onChanged?(session: ActiveSession): void;
 	send(input: {
 		sessionId: string;
 		prompt: string;
@@ -268,7 +269,8 @@ export class PendingPromptsController {
 		this.emitPrompts(session);
 	}
 
-	emitPrompts(session: ActiveSession): void {
+	emitPrompts(session: ActiveSession, persist = true): void {
+		if (persist) this.deps.onChanged?.(session);
 		this.deps.emit({
 			type: "pending_prompts",
 			payload: {
