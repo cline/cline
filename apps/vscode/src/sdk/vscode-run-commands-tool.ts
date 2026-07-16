@@ -105,37 +105,48 @@ export function formatCommandForTerminal(command: ShellCommand): string {
 function beginLogCapture(process: ITerminalProcess, terminalCommand: string, existingLines: string[]): string {
 	const logFilePath = ClineTempManager.createTempFilePath("proceed-while-running")
 	const stream = fs.createWriteStream(logFilePath, { flags: "a" })
+	const sizeCapMessage = `[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached; further output is not logged.]`
 	stream.on("error", (error) => {
 		Logger.error(`[VscodeRunCommands] Failed writing proceed-while-running log ${logFilePath}:`, error)
 	})
 
 	let bytesWritten = 0
-	const writeLine = (line: string): void => {
+	const tryWriteLine = (line: string): boolean => {
 		const chunk = `${line}\n`
-		bytesWritten += Buffer.byteLength(chunk)
+		const chunkBytes = Buffer.byteLength(chunk)
+		if (bytesWritten + chunkBytes > PROCEED_LOG_MAX_BYTES) {
+			return false
+		}
+		bytesWritten += chunkBytes
 		stream.write(chunk)
+		return true
 	}
 
-	writeLine(`[Running command: ${terminalCommand}]`)
+	let sizeCapReached = !tryWriteLine(`[Running command: ${terminalCommand}]`)
 	for (const line of existingLines) {
-		writeLine(line)
+		if (!tryWriteLine(line)) {
+			sizeCapReached = true
+			break
+		}
 	}
 
 	const onLine = (line: string): void => {
 		// Check the cap before writing: a single huge line (e.g. a dumped
 		// binary blob or minified bundle) must not blow past the cap.
-		if (bytesWritten + Buffer.byteLength(line) + 1 > PROCEED_LOG_MAX_BYTES) {
-			writeLine(`[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached; further output is not logged.]`)
+		if (!tryWriteLine(line)) {
+			tryWriteLine(sizeCapMessage)
 			process.removeListener("line", onLine)
-			return
 		}
-		writeLine(line)
 	}
-	process.on("line", onLine)
+	if (sizeCapReached) {
+		tryWriteLine(sizeCapMessage)
+	} else {
+		process.on("line", onLine)
+	}
 	process.once("completed", (details) => {
 		process.removeListener("line", onLine)
 		const exitCode = details?.exitCode
-		writeLine(
+		tryWriteLine(
 			exitCode !== undefined && exitCode !== null
 				? `[Command completed with exit code ${exitCode}]`
 				: "[Command completed]",

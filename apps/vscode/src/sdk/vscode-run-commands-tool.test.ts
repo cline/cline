@@ -24,11 +24,13 @@ vi.mock("@services/telemetry", () => ({
  */
 function createFakeTerminalProcess(options: { lines?: string[]; completionDetails?: TerminalCompletionDetails } = {}) {
 	const emitter = new EventEmitter()
+	let resolvePromise!: () => void
 	// Emit on a macrotask (not a microtask) so executeForeground's
 	// `await terminalManager.getOrCreateTerminal(cwd)` and subsequent
 	// `process.on("line", ...)` registration are guaranteed to run first,
 	// matching the ordering a real terminal process provides.
 	const promise = new Promise<void>((resolve) => {
+		resolvePromise = resolve
 		setTimeout(() => {
 			for (const line of options.lines ?? []) {
 				emitter.emit("line", line)
@@ -43,6 +45,10 @@ function createFakeTerminalProcess(options: { lines?: string[]; completionDetail
 		catch: promise.catch.bind(promise),
 		finally: promise.finally.bind(promise),
 		getCompletionDetails: () => options.completionDetails ?? {},
+		detach: () => {
+			emitter.emit("continue")
+			resolvePromise()
+		},
 	})
 	return fakeProcess as unknown as ReturnType<VscodeTerminalManager["runCommand"]>
 }
@@ -367,6 +373,35 @@ describe("executeForeground — Proceed While Running", () => {
 		expect(log).not.toContain("xxxx")
 		expect(log).not.toContain("after the cap")
 		expect(log.length).toBeLessThan(PROCEED_LOG_MAX_BYTES)
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
+	it("applies the size cap to lines buffered before detach", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		const terminalManager = createFakeTerminalManager(process)
+
+		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
+		await waitFor(() => coordinator.isRunning)
+		emitLine("x".repeat(PROCEED_LOG_MAX_BYTES))
+
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		const result = await resultPromise
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+		complete({ exitCode: 0 })
+
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed with exit code 0]")
+			} catch {
+				return false
+			}
+		})
+		const log = fs.readFileSync(logFilePath!, "utf8")
+		expect(log).toContain(`[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached`)
+		expect(log).not.toContain("xxxx")
+		expect(Buffer.byteLength(log)).toBeLessThanOrEqual(PROCEED_LOG_MAX_BYTES)
 		fs.rmSync(logFilePath!, { force: true })
 	})
 
