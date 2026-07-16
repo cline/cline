@@ -301,6 +301,23 @@ export function getShellForProfile(profileId: string): string {
 // -----------------------------------------------------
 
 /**
+ * Absolute paths where a modern PowerShell (pwsh) may be installed, most
+ * preferred first: MSI/ZIP installs under Program Files (either architecture),
+ * then the Microsoft Store install under LOCALAPPDATA. This is the single
+ * candidate list shared with the async prober in utils/powershell.ts.
+ */
+export function getWindowsPwshInstallPaths(): string[] {
+	const programFiles = process.env.ProgramW6432 || process.env.ProgramFiles || "C:\\Program Files"
+	const localAppData = process.env.LOCALAPPDATA
+	return [
+		`${programFiles}\\PowerShell\\7\\pwsh.exe`,
+		`${programFiles}\\PowerShell\\6\\pwsh.exe`,
+		SHELL_PATHS.POWERSHELL_7,
+		...(localAppData ? [`${localAppData}\\Microsoft\\WindowsApps\\pwsh.exe`] : []),
+	]
+}
+
+/**
  * The shell VS Code launches on Windows when the user has not configured a
  * default terminal profile: its built-in default is PowerShell (pwsh when
  * installed, Windows PowerShell otherwise) — never cmd.exe. Mirroring that
@@ -308,7 +325,8 @@ export function getShellForProfile(profileId: string): string {
  * run in a visible VS Code terminal or a background child process.
  */
 function getWindowsDefaultShell(): string {
-	return existsSync(SHELL_PATHS.POWERSHELL_7) ? SHELL_PATHS.POWERSHELL_7 : SHELL_PATHS.POWERSHELL_LEGACY
+	const pwsh = getWindowsPwshInstallPaths().find((candidate) => existsSync(candidate))
+	return pwsh ?? SHELL_PATHS.POWERSHELL_LEGACY
 }
 
 export function getShell(): string {
@@ -323,7 +341,8 @@ export function getShell(): string {
 		// would launch. userInfo()/COMSPEC are not consulted: VS Code's own
 		// terminal ignores them too, and they would resolve to cmd.exe.
 		return getWindowsDefaultShell()
-	} else if (process.platform === "darwin") {
+	}
+	if (process.platform === "darwin") {
 		// macOS from VS Code
 		const macShell = getMacShellFromVSCode()
 		if (macShell) {

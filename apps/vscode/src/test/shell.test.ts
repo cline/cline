@@ -136,9 +136,19 @@ describe("Shell Detection Tests", () => {
 
 		it("defaults to PowerShell 7 when no profile is configured and pwsh is installed", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			process.env.ProgramW6432 = "C:\\Program Files"
 			existsSyncImpl = (() => true) as any
 
 			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("defaults to Store-installed pwsh when that is the only pwsh present", () => {
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = ((path: string) => path === storePwsh) as any
+
+			expect(getShell()).to.equal(storePwsh)
 		})
 
 		it("defaults to legacy Windows PowerShell when no profile is configured and pwsh is absent", () => {

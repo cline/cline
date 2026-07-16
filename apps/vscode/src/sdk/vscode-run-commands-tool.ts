@@ -296,7 +296,9 @@ export async function executeForeground(
  * background executor spawns it directly.
  */
 function resolveConfiguredShell(): string {
-	const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"
+	// The setting is typed string, but guard empty values the same way the
+	// settings handlers do (they skip persisting "" but older stores may hold one).
+	const profileId = StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") || "default"
 	return getShellForProfile(profileId)
 }
 
