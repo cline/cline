@@ -38,9 +38,17 @@ export interface CoreModelConfig {
 	 */
 	reasoningEffort?: ProviderConfig["reasoningEffort"];
 	/**
+	 * Explicit thinking/reasoning token budget for capable models.
+	 */
+	thinkingBudgetTokens?: number;
+	/**
 	 * Maximum output tokens per API call.
 	 */
 	maxTokensPerTurn?: number;
+	/**
+	 * Sampling temperature per API call.
+	 */
+	temperature?: number;
 }
 
 export interface CoreRuntimeFeatures {
@@ -49,6 +57,33 @@ export interface CoreRuntimeFeatures {
 	enableAgentTeams: boolean;
 	disableMcpSettingsTools?: boolean;
 	yolo?: boolean;
+}
+
+export type CoreCompactionMode = "auto" | "manual";
+
+export interface CoreCompactionBudget {
+	request: {
+		/** Estimated tokens for the full provider request. */
+		inputTokens: number;
+		/** Effective provider input limit. */
+		maxInputTokens: number;
+		/** Full-request token count that triggers automatic compaction. */
+		triggerTokens: number;
+		/** Full-request token count the strategy output should fit within. */
+		targetTokens: number;
+		/** Fixed system-prompt, tool-definition, and request framing cost. */
+		overheadTokens: number;
+		thresholdRatio: number;
+		utilizationRatio: number;
+	};
+	messages: {
+		/** Estimated tokens in the compactable message transcript. */
+		inputTokens: number;
+		/** Message budget corresponding to the full-request trigger. */
+		triggerTokens: number;
+		/** Message budget the strategy should compact toward. */
+		targetTokens: number;
+	};
 }
 
 export interface CoreCompactionContext {
@@ -62,15 +97,36 @@ export interface CoreCompactionContext {
 		provider: string;
 		info?: ModelInfo;
 	};
-	maxInputTokens: number;
-	triggerTokens: number;
-	targetTokens?: number;
-	thresholdRatio: number;
-	utilizationRatio: number;
+	mode: CoreCompactionMode;
+	budget: CoreCompactionBudget;
+}
+
+// Mirrors BudgetPolicyIntent in extensions/context/budget-projection/types.ts.
+// Keep this public API type decoupled from the internal projection module.
+export type CoreCompactionBudgetPolicyIntent =
+	| "agentic_summary"
+	| "basic_compaction_projection"
+	| "normal_provider_request";
+
+// Mirrors LiveTailHandling in extensions/context/budget-projection/types.ts.
+// Keep this public API type decoupled from the internal projection module.
+export type CoreCompactionLiveTailHandling =
+	| "included_verbatim"
+	| "included_degraded"
+	| "summarized_as_context"
+	| "omitted_with_warning"
+	| "preserved_out_of_band";
+
+export interface CoreCompactionBudgetMetadata {
+	policyIntent: CoreCompactionBudgetPolicyIntent;
+	actionCount: number;
+	warningCount: number;
+	liveTailHandling: CoreCompactionLiveTailHandling;
 }
 
 export interface CoreCompactionResult {
 	messages: MessageWithMetadata[];
+	budget?: CoreCompactionBudgetMetadata;
 }
 
 export interface CoreCompactionSummarizerConfig {
@@ -79,6 +135,13 @@ export interface CoreCompactionSummarizerConfig {
 	apiKey?: string;
 	baseUrl?: string;
 	headers?: Record<string, string>;
+	/**
+	 * Optional pre-resolved model metadata for the summarizer. Supplying either
+	 * this or `knownModels` lets agentic compaction budget summary input against
+	 * the summarizer model's actual context window instead of falling back to the
+	 * active model's window.
+	 */
+	modelInfo?: ModelInfo;
 	knownModels?: Record<string, ModelInfo>;
 	providerConfig?: ProviderConfig;
 	maxOutputTokens?: number;
@@ -89,10 +152,7 @@ export type CoreCompactionStrategy = "basic" | "agentic";
 export interface CoreCompactionConfig {
 	enabled?: boolean;
 	strategy?: CoreCompactionStrategy;
-	thresholdRatio?: number;
-	reserveTokens?: number;
 	preserveRecentTokens?: number;
-	maxInputTokens?: number;
 	summarizer?: CoreCompactionSummarizerConfig;
 	compact?: (
 		context: CoreCompactionContext,

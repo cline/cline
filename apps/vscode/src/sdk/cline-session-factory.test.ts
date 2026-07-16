@@ -2,6 +2,9 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { CoreSessionConfig } from "@cline/core"
+import * as LlmsModels from "@cline/llms"
+import { ApiFormat } from "@shared/proto/cline/models"
+import { Logger } from "@shared/services/Logger"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	buildResumeSessionInput,
@@ -15,9 +18,12 @@ import {
 	resolveApiKey,
 	updateHistoryItem,
 } from "./cline-session-factory"
+import { parseProviderId } from "./model-catalog/provider-id"
+import { createProviderConfigStore } from "./model-catalog/store"
 
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
+		getFilePath: vi.fn(() => path.join(tempDir, "settings", "providers.json")),
 		getLastUsedProviderSettings: vi.fn(() => undefined),
 		getProviderSettings: vi.fn((_providerId?: string) => undefined),
 		saveProviderSettings: vi.fn(),
@@ -39,6 +45,9 @@ const mocks = vi.hoisted(() => {
 				}
 				return undefined
 			}),
+			setGlobalStateBatch: vi.fn(),
+			setGlobalState: vi.fn(),
+			setSecret: vi.fn(),
 		},
 	}
 })
@@ -72,11 +81,14 @@ vi.mock("@shared/services/Logger", () => ({
 
 let tempDir: string
 const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH
+const previousDataDir = process.env.CLINE_DATA_DIR
 
 beforeEach(() => {
 	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-session-factory-"))
+	process.env.CLINE_DATA_DIR = tempDir
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = path.join(tempDir, "global-settings.json")
 	vi.clearAllMocks()
+	LlmsModels.resetRegistry()
 	mocks.stateManager.getApiConfiguration.mockReturnValue({
 		actModeApiProvider: "anthropic",
 		actModeApiModelId: "claude-sonnet-4-6",
@@ -88,12 +100,14 @@ beforeEach(() => {
 		}
 		return undefined
 	})
+	mocks.providerSettingsManager.getFilePath.mockReturnValue(path.join(tempDir, "settings", "providers.json"))
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 })
 
 afterEach(() => {
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath
+	process.env.CLINE_DATA_DIR = previousDataDir
 	fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
@@ -133,6 +147,11 @@ describe("getDefaultModelIdForProvider", () => {
 
 	it("returns undefined for unknown providers", () => {
 		expect(getDefaultModelIdForProvider("unknown-provider")).toBeUndefined()
+	})
+
+	it("returns no default for local-model-source providers so a cloud-catalog model is never silently selected", () => {
+		expect(getDefaultModelIdForProvider("ollama")).toBeUndefined()
+		expect(getDefaultModelIdForProvider("lmstudio")).toBeUndefined()
 	})
 
 	it("resolves the OpenAI Compatible default through the extension's openai alias", () => {
@@ -230,9 +249,11 @@ describe("normalizeSdkBaseUrl", () => {
 		expect(normalizeSdkBaseUrl("openai-compatible", "   ")).toBeUndefined()
 	})
 
-	it("uses provider catalog defaults to add the SDK endpoint path when the user supplies only an origin", () => {
-		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434")).toBe("http://localhost:11434/v1")
-		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/")).toBe("http://localhost:11434/v1")
+	it("passes Ollama origins through unchanged (the native-API vendor appends /api itself)", () => {
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434")).toBe("http://localhost:11434")
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/")).toBe("http://localhost:11434/")
+		// Legacy 4.0.x configs may carry the OpenAI-compat /v1 suffix; it is
+		// preserved here and rewritten to /api by the vendor.
 		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/v1")).toBe("http://localhost:11434/v1")
 	})
 
@@ -429,6 +450,40 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
+	it("preserves rich SDK catalog entries without extension-side replacement", async () => {
+		const expectedModel = structuredClone((await LlmsModels.getModelsForProvider("anthropic"))["claude-sonnet-4-6"])
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "anthropic",
+			actModeApiModelId: "claude-sonnet-4-6",
+			apiKey: "anthropic-key",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["claude-sonnet-4-6"]
+
+		expect(knownModel).toEqual(expectedModel)
+		expect(knownModel.capabilities).toEqual(
+			expect.arrayContaining(["images", "files", "tools", "reasoning", "structured_output", "temperature", "prompt-cache"]),
+		)
+		expect(knownModel.pricing).toEqual(expectedModel.pricing)
+		expect(knownModel.releaseDate).toBe(expectedModel.releaseDate)
+		expect(knownModel.family).toBe(expectedModel.family)
+	})
+
+	it("keeps session creation non-fatal when known-model lookup fails", async () => {
+		const lookupError = new Error("registry unavailable")
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(lookupError)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).not.toHaveProperty("knownModels")
+		expect(Logger.warn).toHaveBeenCalledWith(
+			"[SessionFactory] Failed to resolve known models for provider=anthropic:",
+			lookupError,
+		)
+		getModelsSpy.mockRestore()
+	})
+
 	it("passes OpenAI Compatible max output tokens as an explicit request limit", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",
@@ -451,9 +506,85 @@ describe("buildSessionConfig", () => {
 		expect(config.providerId).toBe("openai-compatible")
 		expect(config.modelId).toBe("custom-reasoner")
 		expect(config.knownModels).toBeUndefined()
-		expect((config.providerConfig as any).knownModels).toBeUndefined()
+		expect((config.providerConfig as any).knownModels).toBeDefined()
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
+	})
+
+	it("uses OpenAI Compatible overrides from models.json for runtime request settings", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+			actModeOpenAiModelInfo: { supportsPromptCache: false },
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "custom-reasoner",
+			overrides: {
+				name: "Custom Reasoner",
+				contextWindow: 16_000,
+				maxInputTokens: 15_000,
+				maxTokens: 1_234,
+				capabilities: ["images", "reasoning", "streaming", "tools"],
+				supportsVision: false,
+				supportsAttachments: true,
+				supportsReasoning: false,
+				temperature: 0,
+				inputPrice: 1,
+				outputPrice: 2,
+				cacheReadsPrice: 0.1,
+				cacheWritesPrice: 0.5,
+				apiFormat: ApiFormat.OPENAI_RESPONSES,
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["custom-reasoner"]
+
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("custom-reasoner")
+		expect((config as any).maxTokensPerTurn).toBe(1_234)
+		expect((config as any).temperature).toBe(0)
+		expect(knownModel).toMatchObject({
+			id: "custom-reasoner",
+			name: "Custom Reasoner",
+			contextWindow: 16_000,
+			maxInputTokens: 15_000,
+			maxTokens: 1_234,
+			capabilities: ["streaming", "tools", "files"],
+			apiFormat: "openai-responses",
+			temperature: 0,
+			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0.5 },
+		})
+	})
+
+	it("keeps -1 OpenAI Compatible values out of request settings and fallback knownModels", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+			actModeOpenAiModelInfo: { supportsPromptCache: false },
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "custom-reasoner",
+			overrides: {
+				name: "Custom Reasoner",
+				maxTokens: -1,
+				temperature: -1,
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect((config as any).maxTokensPerTurn).toBeUndefined()
+		expect((config as any).temperature).toBeUndefined()
+		const knownModel = (config.providerConfig as any).knownModels["custom-reasoner"]
+		expect(knownModel).not.toHaveProperty("maxTokens")
+		expect(knownModel).not.toHaveProperty("temperature", -1)
 	})
 
 	it("passes OCA reasoning effort from legacy mode settings to SDK sessions", async () => {
@@ -622,16 +753,16 @@ describe("buildSessionConfig", () => {
 	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline-pass",
-			actModeClinePassModelId: "cline-pass/glm-5.1",
+			actModeClinePassModelId: "cline-pass/glm-5.2",
 		} as any)
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect(config.providerId).toBe("cline-pass")
-		expect(config.modelId).toBe("cline-pass/glm-5.1")
+		expect(config.modelId).toBe("cline-pass/glm-5.2")
 		expect(config.apiKey).toBe("")
-		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.1" })
+		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.2" })
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
@@ -730,6 +861,27 @@ describe("buildSessionConfig", () => {
 			enabled: true,
 			strategy: "basic",
 		})
+	})
+
+	it("emits the shared mode-tag instructions in both act and plan system prompts", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+
+		const actConfig = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "act" })
+		const planConfig = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "plan" })
+
+		// The shared prompt builder now owns the mode semantics: the
+		// <user_input mode> / <mode_notice> explanation goes to both modes, the
+		// plan-mode contract (read-only run_commands included) only to plan.
+		expect(actConfig.systemPrompt).toContain("# Plan / Act Modes")
+		expect(actConfig.systemPrompt).toContain("<mode_notice>")
+		expect(actConfig.systemPrompt).not.toContain("# Plan Mode\n")
+
+		expect(planConfig.systemPrompt).toContain("# Plan / Act Modes")
+		expect(planConfig.systemPrompt).toContain("# Plan Mode\n")
+		expect(planConfig.systemPrompt).toContain(
+			"run_commands tool remains available in plan mode strictly for read-only inspection",
+		)
+		expect(planConfig.systemPrompt).toContain("switch_to_act_mode")
 	})
 })
 

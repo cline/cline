@@ -30,12 +30,12 @@ export interface SdkFollowupCoordinatorOptions {
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	resolveContextMentions: (text: string) => Promise<string>
-	isClineProviderActive: () => boolean
+	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	/** Resolves once no plan/act mode rebuild is in flight. */
-	waitForPendingModeRebuild: () => Promise<void>
+	/** Resolves once no session rebuild is in flight. */
+	waitForPendingRebuilds: () => Promise<void>
 	/**
 	 * Called when resuming a task fails. askResponse moved the turn phase to
 	 * streaming before delegating here, so the failure must move it to a
@@ -70,13 +70,10 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		const isActiveTurnInProgress = () => !!activeSession && (activeSession.isRunning || submittedDuringActiveTurn)
-		if (!isActiveTurnInProgress() && task) {
-			// A mode rebuild clears the active session while the old stop is
-			// awaited and only marks the replacement running after the
-			// continuation send. Resuming in that window would start a parallel
-			// session that the rebuild then kills, losing this message. Wait for
-			// the rebuild and re-evaluate against the rebuilt session.
-			await this.options.waitForPendingModeRebuild()
+		if (!isActiveTurnInProgress()) {
+			// Rebuilds replace the active session. Wait before choosing the host so
+			// this follow-up cannot be sent to the session being replaced.
+			await this.options.waitForPendingRebuilds()
 			activeSession = this.options.sessions.getActiveSession()
 		}
 		if (!isActiveTurnInProgress() && task) {
@@ -119,7 +116,7 @@ export class SdkFollowupCoordinator {
 
 			const errorMsg = error instanceof Error ? error.message : String(error)
 			const isClineAuth =
-				this.options.isClineProviderActive() &&
+				this.options.isClineManagedProviderActive() &&
 				(errorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
 					errorMsg.toLowerCase().includes("missing api key") ||
 					errorMsg.toLowerCase().includes("unauthorized"))
@@ -156,9 +153,13 @@ export class SdkFollowupCoordinator {
 		const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
 		config.sessionId = taskId
 
+		const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
 		const tempManager = await this.options.createTempSessionHost()
-		const initialMessages = await this.options.loadInitialMessages(tempManager, taskId)
+		const persistedInitialMessages = await this.options.loadInitialMessages(tempManager, taskId)
 		await tempManager.dispose("readMessages")
+		const initialMessages = isLegacyTask
+			? await this.options.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
+			: persistedInitialMessages
 
 		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
 

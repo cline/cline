@@ -18,6 +18,7 @@ type ProviderSettingsLike = {
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
+	readonly contextWindow?: number
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
 }
@@ -102,7 +103,6 @@ const headerFields: Partial<Record<string, keyof ApiConfiguration>> = {
 }
 
 const extrasFields: Partial<Record<string, Partial<Record<string, keyof ApiConfiguration>>>> = {
-	ollama: { ollamaApiOptionsCtxNum: "ollamaApiOptionsCtxNum" },
 	lmstudio: { lmStudioMaxTokens: "lmStudioMaxTokens" },
 	litellm: { liteLlmUsePromptCache: "liteLlmUsePromptCache" },
 	openrouter: { openRouterProviderSorting: "openRouterProviderSorting" },
@@ -157,6 +157,14 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean | un
 	return typeof value === "boolean" ? value : undefined
 }
 
+function readPositiveInteger(value: unknown): number | undefined {
+	const parsed = typeof value === "string" ? Number(value) : value
+	if (typeof parsed === "number" && Number.isFinite(parsed) && parsed > 0) {
+		return Math.floor(parsed)
+	}
+	return undefined
+}
+
 function readGcp(record: Record<string, unknown>): GcpProviderConfig | undefined {
 	const gcp = record.gcp
 	if (!isPlainRecord(gcp)) {
@@ -206,6 +214,7 @@ function readProviderSettings(providerId: ProviderId): ConfigParts {
 			region: readString(settings, "region"),
 			aws: readAws(settings),
 			gcp: readGcp(settings),
+			contextWindow: readPositiveInteger(settings.contextWindow),
 			auth: readAuth(settings),
 			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
 		} satisfies ProviderSettingsLike
@@ -298,6 +307,16 @@ function readStateAws(provider: string, config: ApiConfiguration): AwsProviderCo
 	return Object.values(aws).some((value) => value !== undefined) ? aws : undefined
 }
 
+function readStateContextWindow(provider: string, config: ApiConfiguration): number | undefined {
+	// Only Ollama has a legacy context-window state key; other providers keep
+	// theirs in providers.json exclusively.
+	if (provider !== "ollama") {
+		return undefined
+	}
+
+	return readPositiveInteger(config.ollamaApiOptionsCtxNum)
+}
+
 function readStateConfig(providerId: ProviderId, config: ApiConfiguration): ConfigParts {
 	const provider = providerId.toString()
 	return {
@@ -308,6 +327,7 @@ function readStateConfig(providerId: ProviderId, config: ApiConfiguration): Conf
 		region: readStringFromConfig(config, regionFields[provider]),
 		aws: readStateAws(provider, config),
 		gcp: readStateGcp(provider, config),
+		contextWindow: readStateContextWindow(provider, config),
 		auth: readStateAuth(provider, config),
 		extras: readStateExtras(provider, config),
 	}
@@ -372,6 +392,10 @@ export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveP
 	// fields as a fallback for old installs, but let providers.json win when both exist.
 	assignIfDefined(merged, "aws", mergeAws(stateConfig.aws, providerSettings.aws))
 	assignIfDefined(merged, "gcp", mergeGcp(stateConfig.gcp, providerSettings.gcp))
+	// providers.json is the source of truth for the context window; the legacy
+	// Ollama StateManager key is a migration fallback (the store mirrors writes
+	// to both).
+	assignIfDefined(merged, "contextWindow", providerSettings.contextWindow ?? stateConfig.contextWindow)
 	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
 	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
 

@@ -106,7 +106,7 @@ describe("compactInteractiveMessages", () => {
 		}));
 		const config = createConfig();
 		const compact = vi.fn((context: CoreCompactionContext) => {
-			expect(context.maxInputTokens).toBe(400_000);
+			expect(context.budget.request.maxInputTokens).toBe(400_000);
 			return { messages: [messages[0]] };
 		});
 		config.knownModels = {
@@ -126,10 +126,11 @@ describe("compactInteractiveMessages", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toEqual([messages[0]]);
+		expect(result.canonicalMessages).toEqual(messages);
+		expect(result.compactionState?.messages).toEqual([messages[0]]);
 	});
 
-	it("falls back to legacy contextWindow for manual compaction", async () => {
+	it("uses 90 percent of legacy contextWindow for manual compaction", async () => {
 		const longText = "x".repeat(16_000);
 		const messages = Array.from({ length: 10 }, (_, index) => ({
 			role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
@@ -137,7 +138,7 @@ describe("compactInteractiveMessages", () => {
 		}));
 		const config = createConfig();
 		const compact = vi.fn((context: CoreCompactionContext) => {
-			expect(context.maxInputTokens).toBe(400_000);
+			expect(context.budget.request.maxInputTokens).toBe(360_000);
 			return { messages: [messages[0]] };
 		});
 		config.knownModels = {
@@ -157,7 +158,8 @@ describe("compactInteractiveMessages", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toEqual([messages[0]]);
+		expect(result.canonicalMessages).toEqual(messages);
+		expect(result.compactionState?.messages).toEqual([messages[0]]);
 	});
 
 	it("uses a useful target budget for manual compaction", async () => {
@@ -174,7 +176,8 @@ describe("compactInteractiveMessages", () => {
 			messages,
 		});
 
-		const compactedTextLength = result.messages.reduce(
+		const compactedMessages = result.compactionState?.messages ?? [];
+		const compactedTextLength = compactedMessages.reduce(
 			(total, message) =>
 				total +
 				(typeof message.content === "string" ? message.content.length : 0),
@@ -182,8 +185,9 @@ describe("compactInteractiveMessages", () => {
 		);
 
 		expect(result.compacted).toBe(true);
-		expect(result.messages.length).toBeGreaterThan(1);
-		expect(result.messages.length).toBeLessThan(messages.length);
+		expect(result.canonicalMessages).toEqual(messages);
+		expect(compactedMessages.length).toBeGreaterThan(1);
+		expect(compactedMessages.length).toBeLessThan(messages.length);
 		expect(compactedTextLength).toBeGreaterThan(1_000);
 	});
 
@@ -214,8 +218,9 @@ describe("compactInteractiveMessages", () => {
 		});
 
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toHaveLength(messages.length);
-		expect(result.messages[0]?.content).toBe(
+		expect(result.canonicalMessages).toEqual(messages);
+		expect(result.compactionState?.messages).toHaveLength(messages.length);
+		expect(result.compactionState?.messages[0]?.content).toBe(
 			"same count but content should be trimmed",
 		);
 	});

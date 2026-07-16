@@ -215,6 +215,7 @@ export function WorkspaceSelector({
 						variant="ghost"
 						aria-label="Close menu"
 						className="fixed inset-0 z-40 cursor-default h-auto rounded-none opacity-0"
+						data-cursor="default"
 						onClick={() => {
 							setOpen(false);
 							setShowWorkspacePathInput(false);

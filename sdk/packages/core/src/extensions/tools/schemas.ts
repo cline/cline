@@ -14,7 +14,7 @@ export const INPUT_ARG_CHAR_LIMIT = 6000;
  */
 const AbsolutePath = z
 	.string()
-	.describe("The absolute file path of a text file to read content from");
+	.describe("The absolute path of a text file to read content from");
 
 export const ReadFileLineRangeSchema = z
 	.object({
@@ -46,7 +46,7 @@ export const ReadFileRequestSchema = z
 		end_line: ReadFileLineRangeSchema.shape.end_line,
 	})
 	.describe(
-		"A file read request with optional inclusive one-based line bounds",
+		"A file read request with optional inclusive one-based line bounds. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
 	);
 
 /**
@@ -56,26 +56,50 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
+
+const ReadFileRangeAliasFields = {
+	start_line: ReadFileLineRangeSchema.shape.start_line,
+	end_line: ReadFileLineRangeSchema.shape.end_line,
+};
+
+/**
+ * Tolerant per-entry schema for read requests. Some models emit the path
+ * under `file_path`/`filePath` instead of `path`; normalize those aliases to
+ * the canonical shape so downstream code only ever sees `path`.
+ */
+const LooseReadFileRequestSchema = z.union([
+	ReadFileRequestSchema,
+	z
+		.object({ file_path: AbsolutePath, ...ReadFileRangeAliasFields })
+		.transform(({ file_path, ...rest }) => ({ path: file_path, ...rest })),
+	z
+		.object({ filePath: AbsolutePath, ...ReadFileRangeAliasFields })
+		.transform(({ filePath, ...rest }) => ({ path: filePath, ...rest })),
+]);
 
 /**
  * Union schema for read_files tool input, allowing either a single string, an array of strings, or the full object schema
  */
 export const ReadFilesInputUnionSchema = z.union([
 	ReadFilesInputSchema,
-	ReadFileRequestSchema,
-	z.array(ReadFileRequestSchema),
+	LooseReadFileRequestSchema,
+	z.array(LooseReadFileRequestSchema),
 	z.array(z.string()),
 	z.string(),
-	z.object({ files: z.array(z.union([AbsolutePath, ReadFileRequestSchema])) }),
-	z.object({ files: ReadFileRequestSchema }),
+	z.object({
+		files: z.array(z.union([AbsolutePath, LooseReadFileRequestSchema])),
+	}),
+	z.object({ files: LooseReadFileRequestSchema }),
 	z.object({ files: AbsolutePath }),
 	z.object({ file_paths: z.array(AbsolutePath) }),
 	z.object({ file_paths: z.string() }),
-	z.object({ paths: z.array(z.union([AbsolutePath, ReadFileRequestSchema])) }),
-	z.object({ paths: ReadFileRequestSchema }),
+	z.object({
+		paths: z.array(z.union([AbsolutePath, LooseReadFileRequestSchema])),
+	}),
+	z.object({ paths: LooseReadFileRequestSchema }),
 	z.object({ paths: z.string() }),
 ]);
 
@@ -170,7 +194,7 @@ export const EditFileInputSchema = z
 		path: z
 			.string()
 			.min(1)
-			.describe("The absolute file path for the action to be performed on"),
+			.describe("The absolute path for the action to be performed on"),
 		old_text: z
 			.string()
 			.nullable()

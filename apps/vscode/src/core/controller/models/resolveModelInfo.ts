@@ -12,10 +12,11 @@ import { type ProviderCatalogController, parseProviderIdRequest } from "./provid
  * Resolution order:
  *
  *   1. Committed selection — the user's most-recently-chosen plan/act
- *      selection in the provider config store. This is the source of
- *      truth for dynamic-list providers (openrouter, openai-compatible,
- *      ollama, lmstudio, requesty, litellm, …) where the picker writes
- *      the live `ModelInfo` into the selection when the user commits.
+ *      model ID resolved against SDK catalog metadata, the picker's state
+ *      snapshot, and stored overrides by the provider config store. A
+ *      selection whose metadata is pure fallback fabrication (no catalog or
+ *      state base, no overrides) is deferred behind the catalog steps below
+ *      and only returned as a last resort.
  *
  *   2. Catalog peek — a non-fetching look-up of the catalog cache for
  *      the provider's current effective config fingerprint. Hits when
@@ -41,23 +42,24 @@ export async function resolveModelInfo(
 	const requestedModelId = request.modelId?.trim() || ""
 
 	const store = controller.getProviderConfigStore()
+	// A committed selection whose metadata is pure fallback fabrication (no
+	// catalog/state base and no user overrides) must not shadow the live
+	// catalog below; it is kept only as a last resort before "unknown".
+	let fallbackSelection: ReturnType<typeof store.readSelection>
 	if (requestedModelId) {
-		const actSelection = store.readSelection(providerId, "act")
-		if (actSelection?.modelId === requestedModelId) {
+		for (const mode of ["act", "plan"] as const) {
+			const selection = store.readSelection(providerId, mode)
+			if (selection?.modelId !== requestedModelId) {
+				continue
+			}
+			if (selection.modelInfoSource === "fallback" && !selection.overrides) {
+				fallbackSelection ??= selection
+				continue
+			}
 			return ResolveModelInfoResponse.create({
 				providerId,
-				modelId: actSelection.modelId,
-				modelInfo: toProtobufModelInfo(actSelection.modelInfo),
-				source: "committed-selection",
-			})
-		}
-
-		const planSelection = store.readSelection(providerId, "plan")
-		if (planSelection?.modelId === requestedModelId) {
-			return ResolveModelInfoResponse.create({
-				providerId,
-				modelId: planSelection.modelId,
-				modelInfo: toProtobufModelInfo(planSelection.modelInfo),
+				modelId: selection.modelId,
+				modelInfo: toProtobufModelInfo(selection.modelInfo),
 				source: "committed-selection",
 			})
 		}
@@ -74,7 +76,9 @@ export async function resolveModelInfo(
 	const cached = catalog.peekModels(providerId)
 	if (cached?.ok) {
 		const hit = pickFromCatalog(cached, requestedModelId, allowCustomModelIds)
-		if (hit) {
+		// A default-model substitution answers a question about a different
+		// model; the committed selection, even fallback-grade, is closer.
+		if (hit && (hit.matchedRequested || !fallbackSelection)) {
 			return ResolveModelInfoResponse.create({
 				providerId,
 				modelId: hit.modelId,
@@ -90,7 +94,7 @@ export async function resolveModelInfo(
 	const resolved = await catalog.resolveModels(providerId).catch(() => undefined)
 	if (resolved?.ok) {
 		const hit = pickFromCatalog(resolved, requestedModelId, allowCustomModelIds)
-		if (hit) {
+		if (hit && (hit.matchedRequested || !fallbackSelection)) {
 			return ResolveModelInfoResponse.create({
 				providerId,
 				modelId: hit.modelId,
@@ -98,6 +102,15 @@ export async function resolveModelInfo(
 				source: hit.matchedRequested ? "sdk-known-models" : "sdk-default",
 			})
 		}
+	}
+
+	if (fallbackSelection) {
+		return ResolveModelInfoResponse.create({
+			providerId,
+			modelId: fallbackSelection.modelId,
+			modelInfo: toProtobufModelInfo(fallbackSelection.modelInfo),
+			source: "committed-selection",
+		})
 	}
 
 	return ResolveModelInfoResponse.create({

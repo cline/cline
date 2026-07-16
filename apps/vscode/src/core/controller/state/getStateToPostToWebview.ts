@@ -25,6 +25,7 @@ export async function getStateToPostToWebview(controller: {
 	mcpHub?: any
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
+	foregroundCommandRunning?: boolean
 	workspaceManager?: any
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 }): Promise<ExtensionState> {
@@ -157,6 +158,7 @@ export async function getStateToPostToWebview(controller: {
 		favoritedModelIds,
 		backgroundCommandRunning: controller.backgroundCommandRunning ?? false,
 		backgroundCommandTaskId: controller.backgroundCommandTaskId,
+		foregroundCommandRunning: controller.foregroundCommandRunning ?? false,
 		workspaceRoots: controller.workspaceManager?.getRoots?.() ?? [],
 		primaryRootIndex: controller.workspaceManager?.getPrimaryIndex?.() ?? 0,
 		isMultiRootWorkspace: (controller.workspaceManager?.getRoots?.()?.length ?? 0) > 1,

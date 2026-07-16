@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
+	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
 import {
@@ -23,7 +25,8 @@ import {
 	type TerminalTheme,
 } from "../palette";
 import type { ChatEntry } from "../types";
-import { getSyntaxStyle } from "../utils/syntax-style";
+import { formatCompactionDividerLabel } from "../utils/compaction-status";
+import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
 	parseApplyPatchInput,
@@ -131,7 +134,7 @@ function formatToolParams(
 				const el = f.endLine != null ? String(f.endLine) : "undefined";
 				const sep = i > 0 ? "; " : "";
 				return (
-					<span key={f.path}>
+					<span key={`${i}:${f.path}`}>
 						{sep}
 						{shortenPath(f.path)}
 						<span fg="gray">
@@ -419,13 +422,95 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	);
 }
 
+function CompactionDividerRow(props: {
+	entry: Extract<ChatEntry, { kind: "compaction" }>;
+}) {
+	const { entry } = props;
+	const { width: terminalWidth } = useTerminalDimensions();
+	const inProgress = entry.status === "started";
+	const labelColor = inProgress
+		? "cyan"
+		: entry.status === "failed"
+			? "red"
+			: entry.status === "cancelled" || entry.status === "skipped"
+				? "gray"
+				: "cyan";
+	const label = `✻ ${formatCompactionDividerLabel(entry)} ✻`;
+	// Fill the remaining line with a plain rule instead of a flexGrow bordered
+	// box: a single fixed-content text row keeps the renderer's diffing stable.
+	const ruleWidth = Math.max(2, Math.min(40, terminalWidth - label.length - 8));
+	return (
+		<box flexDirection="row">
+			{inProgress ? (
+				<box width={2}>
+					<spinner name="dots" color={labelColor} />
+				</box>
+			) : (
+				<text fg="gray" content="── " />
+			)}
+			<text fg={labelColor} selectable content={label} />
+			<text fg="gray" content={` ${"─".repeat(ruleWidth)}`} />
+		</box>
+	);
+}
+
+function ClinePassLimitErrorView(props: {
+	message: string;
+	defaultFg?: string;
+	terminalTheme: TerminalTheme;
+}) {
+	const detail = getClinePassLimitDetailMessage(props.message) ?? props.message;
+
+	return (
+		<box flexDirection="row">
+			<text fg={palette.act} content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={palette.act}
+				paddingX={1}
+			>
+				<text fg="red">ClinePass limit reached</text>
+				<text fg={props.defaultFg} selectable content={detail} />
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="Switch to Cline usage-based billing and retry with the Cline provider."
+				/>
+				<box flexDirection="row">
+					<text fg="gray">Interactive CLI: </text>
+					<text
+						fg={props.defaultFg}
+						selectable
+						content="type /model, press tab to change provider, choose Cline, then retry."
+					/>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">Headless CLI: </text>
+					<text fg={props.defaultFg} selectable content="rerun with " />
+					<code
+						content="--provider cline"
+						filetype="bash"
+						syntaxStyle={getSyntaxStyle(props.terminalTheme)}
+						selectable
+					/>
+					<text fg={props.defaultFg} selectable content="." />
+				</box>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
+	/** Mode the entry was produced in (resolved with the current-mode fallback). */
+	mode?: SyntaxAccentMode;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	terminalTheme: TerminalTheme;
 }) {
-	const { entry, accent = palette.act, terminalTheme } = props;
+	const { entry, accent = palette.act, mode = "act", terminalTheme } = props;
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
 	const userMsgBg = getUserMessageBackground(terminalBg);
@@ -484,7 +569,7 @@ export function ChatEntryView(props: {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle(terminalTheme)}
+							syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>
@@ -532,6 +617,15 @@ export function ChatEntryView(props: {
 					/>
 				);
 			}
+			if (isClinePassLimitErrorMessage(entry.text)) {
+				return (
+					<ClinePassLimitErrorView
+						message={entry.text}
+						defaultFg={defaultFg}
+						terminalTheme={terminalTheme}
+					/>
+				);
+			}
 			return (
 				<box flexDirection="row">
 					<text fg="red" content="* " />
@@ -554,6 +648,9 @@ export function ChatEntryView(props: {
 					<text fg="gray" selectable content={entry.text} />
 				</box>
 			);
+
+		case "compaction":
+			return <CompactionDividerRow entry={entry} />;
 
 		case "done": {
 			const parts: string[] = [];

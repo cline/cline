@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createGatewayApiHandler, toGatewayRequestMessages } from "./compat";
+import {
+	_testing,
+	createGatewayApiHandler,
+	toGatewayRequestMessages,
+} from "./compat";
 import { ClineNotSubscribedError } from "./errors";
 import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "./gateway";
 import type { Message } from "./types";
@@ -775,5 +779,73 @@ describe("toGatewayRequestMessages — tool_result with images", () => {
 		const [userMessage] = toGatewayRequestMessages(messages);
 		const toolResult = userMessage.content[0] as Record<string, unknown>;
 		expect(toolResult.output).toBe("raw string output");
+	});
+});
+
+describe("buildGatewayModels", () => {
+	const { buildGatewayModels } = _testing;
+
+	it("projects configured maxInputTokens onto the selected gateway model", () => {
+		const models = buildGatewayModels("ollama", {
+			providerId: "ollama",
+			modelId: "llama3.1",
+			maxInputTokens: 8192,
+			knownModels: {
+				"llama3.1": {
+					id: "llama3.1",
+					name: "llama3.1",
+					contextWindow: 131072,
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "llama3.1",
+				contextWindow: 8192,
+				maxInputTokens: 8192,
+			}),
+		]);
+	});
+
+	it("creates a definition for the selected model when it is not in knownModels", () => {
+		const models = buildGatewayModels("ollama", {
+			providerId: "ollama",
+			modelId: "minimax-m3:cloud",
+			maxInputTokens: 500000,
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "minimax-m3:cloud",
+				contextWindow: 500000,
+				maxInputTokens: 500000,
+			}),
+		]);
+	});
+
+	it("lets an explicit modelInfo override win over the generic limit", () => {
+		const models = buildGatewayModels("ollama", {
+			providerId: "ollama",
+			modelId: "llama3.1",
+			maxInputTokens: 8192,
+			modelInfo: { id: "llama3.1", contextWindow: 16384 },
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "llama3.1",
+				contextWindow: 16384,
+			}),
+		]);
+	});
+
+	it("returns undefined when there is nothing to project", () => {
+		expect(
+			buildGatewayModels("ollama", {
+				providerId: "ollama",
+				modelId: "llama3.1",
+			}),
+		).toBeUndefined();
 	});
 });

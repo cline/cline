@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.56",
+	"version": "0.0.62",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -60,6 +60,7 @@
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@streamparser/json": "^0.0.21",
 		"ai": "^6.0.144",
+		"ai-sdk-ollama": "^3.8.8",
 		"ai-sdk-provider-claude-code": "^3.4.3",
 		"ai-sdk-provider-codex-cli": "^1.1.0",
 		"ai-sdk-provider-opencode-sdk": "^3.0.1",

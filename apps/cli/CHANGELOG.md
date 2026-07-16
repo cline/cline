@@ -1,5 +1,50 @@
 # Cline CLI Changelog
 
+## 3.0.42
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+
+## 3.0.41
+
+- Compaction now shows progress status in the TUI
+- Model IDs are now suggested from OpenAI-compatible endpoints when configuring a provider
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Compaction no longer runs during an active turn
+- Fixed a crash when the terminal title was updated during TUI teardown
+- The API key fallback hint is now highlighted for better visibility
+- Benign git states are no longer reported as workspace initialization errors
+
+## 3.0.40
+
+- Added a manual API key escape hatch for Cline OAuth providers, so you can enter a key by hand from settings
+- Fixed provider config not reloading when switching models
+- Fixed auto-update failing to detect Bun global installs after symlink resolution
+- Fixed unexpected logouts caused by transient network or server errors during token refresh
+- The ClinePass usage-limit error is now surfaced clearly when you hit the limit
+- Session id is now preserved when continuing within the same session
+- Hardened context compaction budget handling
+
+## 3.0.39
+
+- You can now select Cline free models on the ClinePass provider in the model picker
+- Removed the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- `str_replace` edits now report accurate diffs
+- Fixed context compaction so canonical session history is preserved
+- The detached hub daemon now emits telemetry, and telemetry identity now includes `user_id`
+- Cline provider requests now send versioned client-identity headers
+
+## 3.0.38
+
+- New plan/act accent palette: act mode is now blue (`#79b8ff`) and plan mode amber, replacing the old cyan/yellow — applied across dialogs, the model selector, config, onboarding, markdown, and syntax highlighting, with light-theme variants tuned for contrast
+- Restyled chat input: a minimal frame with full-width horizontal rules and a bold accent prompt glyph instead of the tinted background, plus slimmer user-message bubbles
+- Assistant markdown accents are now tinted by the mode (plan/act) they were produced in
+- Polished the status bar usage display and ClinePass model name
+- Harmonized the success/diff green and dark syntax-highlighting colors with the new brand palette
+- The thinking-level picker now defaults its cursor to Medium instead of Off
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected (from SDK v0.0.58)
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit, so under-specified models get a usable context budget (from SDK v0.0.57)
+
 ## 3.0.37
 
 - Weaker models (e.g. DeepSeek) that emit malformed tool calls — wrong argument types or truncated JSON — are now handled gracefully and run instead of erroring out

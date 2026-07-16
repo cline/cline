@@ -47,9 +47,6 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	optimizeDeps: {
-		force: true, // Forces re-optimization
-	},
 	plugins: [react(), tailwindcss(), writePortToFile()],
 	test: {
 		environment: "jsdom",
@@ -85,6 +82,11 @@ export default defineConfig({
 	},
 	build: {
 		outDir: "build",
+		// VS Code 1.101 embeds Chromium 134 through Electron 35.5.1, but the same
+		// webview is shipped by the JetBrains plugin, whose IntelliJ Platform 2025.1
+		// minimum runs JBR/JCEF on Chromium 122. Keep the shared bundle at the older
+		// host's floor unless both products raise their minimum runtime.
+		target: "chrome122",
 		reportCompressedSize: false,
 		// Only minify in production build
 		minify: !isDevBuild,
@@ -111,9 +113,13 @@ export default defineConfig({
 		chunkSizeWarningLimit: 100000,
 	},
 	server: {
+		host: "127.0.0.1",
 		port: 25463,
+		fs: {
+			allow: [resolve(__dirname), resolve(__dirname, "../src/shared")],
+		},
 		hmr: {
-			host: "localhost",
+			host: "127.0.0.1",
 			protocol: "ws",
 		},
 		cors: {

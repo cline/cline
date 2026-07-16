@@ -16,6 +16,7 @@ import {
 	deleteLocalProvider,
 	getLocalProviderModels,
 	listLocalProviders,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
@@ -70,6 +71,12 @@ describe("models registry parsing", () => {
 						alpha: {
 							name: "Alpha",
 							capabilities: ["reasoning"],
+							inputPrice: 1.25,
+							outputPrice: 3.5,
+							cacheReadsPrice: 0.25,
+							cacheWritesPrice: 1.5,
+							temperature: 0.2,
+							isR1FormatRequired: true,
 						},
 					},
 				},
@@ -93,7 +100,81 @@ describe("models registry parsing", () => {
 		});
 		await expect(
 			LlmsModels.getModelsForProvider("schema-provider"),
-		).resolves.toHaveProperty("alpha");
+		).resolves.toMatchObject({
+			alpha: {
+				pricing: {
+					input: 1.25,
+					output: 3.5,
+					cacheRead: 0.25,
+					cacheWrite: 1.5,
+				},
+				temperature: 0.2,
+				apiFormat: "r1",
+			},
+		});
+	});
+
+	it("drops invalid model numbers and lets explicit capability booleans win", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"normalized-provider": {
+					provider: {
+						name: "Normalized Provider",
+						baseUrl: "https://normalized.example.invalid/v1",
+					},
+					models: {
+						alpha: {
+							maxTokens: -1,
+							contextWindow: Number.POSITIVE_INFINITY,
+							maxInputTokens: 0,
+							capabilities: ["images", "files", "reasoning", "tools"],
+							supportsVision: false,
+							supportsAttachments: false,
+							supportsReasoning: false,
+							inputPrice: Number.NaN,
+							outputPrice: 2,
+							cacheReadsPrice: -1,
+							temperature: -1,
+							apiFormat: "openai-responses",
+							isR1FormatRequired: false,
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["normalized-provider"];
+		expect(entry?.models?.alpha).toEqual({
+			capabilities: ["images", "files", "reasoning", "tools"],
+			supportsVision: false,
+			supportsAttachments: false,
+			supportsReasoning: false,
+			outputPrice: 2,
+			apiFormat: "openai-responses",
+			isR1FormatRequired: false,
+		});
+		if (!entry) {
+			throw new Error("expected normalized provider entry");
+		}
+
+		registerCustomProvider("normalized-provider", entry);
+
+		await expect(
+			LlmsModels.getModelsForProvider("normalized-provider"),
+		).resolves.toMatchObject({
+			alpha: {
+				capabilities: ["tools"],
+				apiFormat: "openai-responses",
+				pricing: { output: 2 },
+			},
+		});
+		const model = (await LlmsModels.getModelsForProvider("normalized-provider"))
+			.alpha;
+		expect(model).not.toHaveProperty("maxTokens");
+		expect(model).not.toHaveProperty("contextWindow");
+		expect(model).not.toHaveProperty("maxInputTokens");
+		expect(model).not.toHaveProperty("temperature");
 	});
 
 	it("skips malformed provider entries while preserving valid providers", () => {
@@ -1235,6 +1316,53 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const p = providers.find((x) => x.id === "enabled-check-provider");
 		expect(p?.enabled).toBe(true);
+	});
+
+	it("marks alias providers enabled without copying shared OAuth credentials", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const state = manager.read();
+		expect(state.providers["cline-pass"]?.settings).toEqual({
+			provider: "cline-pass",
+		});
+		expect(state.providers["cline-pass"]?.tokenSource).toBe("oauth");
+	});
+
+	it("resolves shared OAuth metadata for ClinePass catalog entries", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			oauthAccessTokenPresent: true,
+		});
 	});
 
 	it("exposes model count", async () => {

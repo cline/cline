@@ -27,7 +27,10 @@ export type DelegatedAgentConnectionConfig = Pick<
 	| "providerConfig"
 	| "knownModels"
 	| "thinking"
+	| "reasoningEffort"
+	| "thinkingBudgetTokens"
 	| "maxTokensPerTurn"
+	| "temperature"
 >;
 
 export interface DelegatedAgentRuntimeConfig
@@ -88,7 +91,10 @@ export function createDelegatedAgentConfigProvider(
 			providerConfig: runtimeConfig.providerConfig,
 			knownModels: runtimeConfig.knownModels,
 			thinking: runtimeConfig.thinking,
+			reasoningEffort: runtimeConfig.reasoningEffort,
+			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
 			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
+			temperature: runtimeConfig.temperature,
 		}),
 		updateConnectionDefaults: (overrides) => {
 			runtimeConfig = {

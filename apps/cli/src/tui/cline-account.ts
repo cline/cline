@@ -151,6 +151,38 @@ export async function createClineAccountService(input: {
 	});
 }
 
+/**
+ * Persist the active organization so headless runs and the hub daemon can
+ * attach it to telemetry identity. Personal account clears stale org fields.
+ */
+function persistClineOrganizationContext(
+	activeOrganization: ClineAccountOrganization | null,
+	userId: string,
+): void {
+	try {
+		const manager = new ProviderSettingsManager();
+		const persisted = manager.getProviderSettings("cline");
+		if (!persisted) {
+			return;
+		}
+		manager.saveProviderSettings(
+			{
+				...persisted,
+				auth: {
+					...persisted.auth,
+					accountId: persisted.auth?.accountId ?? userId,
+					organizationId: activeOrganization?.organizationId,
+					organizationName: activeOrganization?.name,
+					memberId: activeOrganization?.memberId,
+				},
+			},
+			{ setLastUsed: false },
+		);
+	} catch {
+		// Best-effort only.
+	}
+}
+
 export async function loadClineAccountSnapshot(input: {
 	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
@@ -183,6 +215,7 @@ export async function loadClineAccountSnapshot(input: {
 		memberId: activeOrganization?.memberId,
 	};
 	identifyTelemetryAccount(accountContext, input.config.logger);
+	persistClineOrganizationContext(activeOrganization, user.id);
 
 	return {
 		user,

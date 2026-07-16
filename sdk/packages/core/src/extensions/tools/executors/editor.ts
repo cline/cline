@@ -71,32 +71,57 @@ function createLineDiff(
 ): string {
 	const oldLines = oldContent.split("\n");
 	const newLines = newContent.split("\n");
-	const max = Math.max(oldLines.length, newLines.length);
+
+	// Trim the common prefix and suffix so only the changed region is emitted;
+	// a naive positional compare would mispair every line after an edit that
+	// changes the line count.
+	let start = 0;
+	while (
+		start < oldLines.length &&
+		start < newLines.length &&
+		oldLines[start] === newLines[start]
+	) {
+		start++;
+	}
+	let oldEnd = oldLines.length;
+	let newEnd = newLines.length;
+	while (
+		oldEnd > start &&
+		newEnd > start &&
+		oldLines[oldEnd - 1] === newLines[newEnd - 1]
+	) {
+		oldEnd--;
+		newEnd--;
+	}
+
+	// Split the line budget between removals and additions so neither side is
+	// silently dropped when the other alone would exhaust maxLines.
+	const removedCount = oldEnd - start;
+	const addedCount = newEnd - start;
+	let removedBudget = removedCount;
+	let addedBudget = addedCount;
+	if (removedCount + addedCount > maxLines) {
+		removedBudget = Math.min(
+			removedCount,
+			Math.max(Math.ceil(maxLines / 2), maxLines - addedCount),
+		);
+		addedBudget = Math.min(addedCount, maxLines - removedBudget);
+	}
+
 	const out: string[] = ["```diff"];
-	let emitted = 0;
+	for (let i = start; i < start + removedBudget; i++) {
+		out.push(`-${i + 1}: ${oldLines[i]}`);
+	}
+	for (let i = start; i < start + addedBudget; i++) {
+		out.push(`+${i + 1}: ${newLines[i]}`);
+	}
 
-	for (let i = 0; i < max; i++) {
-		if (emitted >= maxLines) {
-			out.push("... diff truncated ...");
-			break;
-		}
-
-		const oldLine = oldLines[i];
-		const newLine = newLines[i];
-
-		if (oldLine === newLine) {
-			continue;
-		}
-
-		const lineNo = i + 1;
-		if (oldLine !== undefined) {
-			out.push(`-${lineNo}: ${oldLine}`);
-			emitted++;
-		}
-		if (newLine !== undefined && emitted < maxLines) {
-			out.push(`+${lineNo}: ${newLine}`);
-			emitted++;
-		}
+	const omittedRemoved = removedCount - removedBudget;
+	const omittedAdded = addedCount - addedBudget;
+	if (omittedRemoved > 0 || omittedAdded > 0) {
+		out.push(
+			`... diff truncated (${omittedRemoved} more removed, ${omittedAdded} more added lines) ...`,
+		);
 	}
 
 	out.push("```");

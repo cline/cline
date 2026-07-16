@@ -1,0 +1,57 @@
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+	/* Register non-default typography companions for standard text utilities. */
+	--text-xs--letter-spacing: var(--text-xs--letter-spacing);
+	--text-sm--letter-spacing: var(--text-sm--letter-spacing);
+	--text-base--letter-spacing: var(--text-base--letter-spacing);
+	--text-lg--letter-spacing: var(--text-lg--letter-spacing);
+	--text-xl--letter-spacing: var(--text-xl--letter-spacing);
+	--text-2xl--letter-spacing: var(--text-2xl--letter-spacing);
+	--text-3xl--letter-spacing: var(--text-3xl--letter-spacing);
+	--text-4xl--letter-spacing: var(--text-4xl--letter-spacing);
+	--text-6xl--letter-spacing: var(--text-6xl--letter-spacing);
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary-emphasis: var(--primary-emphasis);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+	--color-brand-violet: var(--brand-violet);
+	--color-brand-lilac: var(--brand-lilac);
+	--color-brand-magenta: var(--brand-magenta);
+	--color-brand-periwinkle: var(--brand-periwinkle);
+	--color-brand-cyan: var(--brand-cyan);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+}
