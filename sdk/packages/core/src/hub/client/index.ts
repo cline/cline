@@ -13,7 +13,7 @@ import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
 } from "../../runtime/host/runtime-host";
-import { spawnDetachedHubServerWithRetry } from "../daemon";
+import { ensureDetachedHubServer } from "../daemon";
 import {
 	clearHubDiscovery,
 	type HubOwnerContext,
@@ -179,8 +179,6 @@ export interface LocalHubResolutionOptions {
 	cwd?: string;
 }
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
-const HUB_STARTUP_POLL_MS = 200;
 const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
@@ -890,26 +888,6 @@ async function probeCompatibleHubUrl(
 	};
 }
 
-async function waitForCompatibleHubUrl(
-	owner: HubOwnerContext,
-): Promise<string | undefined> {
-	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		const record = await readHubDiscovery(owner.discoveryPath);
-		if (record?.url) {
-			const compatible = await probeCompatibleHubUrl(record.url, {
-				verifyConnection: true,
-				authToken: record.authToken,
-			});
-			if (compatible.status === "compatible") {
-				return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
-			}
-		}
-		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
-	}
-	return undefined;
-}
-
 async function waitForHubToRetire(url: string): Promise<boolean> {
 	const deadline = Date.now() + HUB_RECOVERY_RETIRE_TIMEOUT_MS;
 	while (Date.now() < deadline) {
@@ -1031,9 +1009,17 @@ export async function ensureCompatibleLocalHubUrl(
 	if (options.endpoint?.trim()) {
 		return undefined;
 	}
-	const owner = resolveDefaultHubOwnerContext();
-	await spawnDetachedHubServerWithRetry(options.workspaceRoot ?? process.cwd());
-	return await waitForCompatibleHubUrl(owner);
+	// Delegate to the daemon module's ensure so a stale hub still holding the
+	// configured port is retired before the replacement spawns; a raw spawn
+	// would die on the occupied port and this would time out to undefined.
+	try {
+		const ensured = await ensureDetachedHubServer(
+			options.workspaceRoot ?? process.cwd(),
+		);
+		return ensured.url;
+	} catch {
+		return undefined;
+	}
 }
 
 export async function requestHubShutdown(
