@@ -43,6 +43,7 @@ import {
 } from "@/lib/session-history";
 import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
+	filterWorkspacePaths,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -346,9 +347,11 @@ function ChatThreadPane({
 	>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
 	const [workspaces, setWorkspaces] = useState<string[]>(() =>
-		mergeWorkspacePaths(
-			readWorkspaceSelectionFromWindow().workspaces,
-			knownWorkspacePaths,
+		filterWorkspacePaths(
+			mergeWorkspacePaths(
+				readWorkspaceSelectionFromWindow().workspaces,
+				knownWorkspacePaths,
+			),
 		),
 	);
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
@@ -366,7 +369,9 @@ function ChatThreadPane({
 
 	useEffect(() => {
 		setWorkspaces((current) => {
-			const merged = mergeWorkspacePaths(current, knownWorkspacePaths);
+			const merged = filterWorkspacePaths(
+				mergeWorkspacePaths(current, knownWorkspacePaths),
+			);
 			return current.length === merged.length &&
 				current.every((workspace, index) => workspace === merged[index])
 				? current
@@ -508,7 +513,12 @@ function ChatThreadPane({
 				workspaceRef.current.cwd ||
 				""
 			).trim();
-			return mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]);
+			// The active workspace can be an excluded path (restored session,
+			// process cwd fallback); it renders via its own registration in the
+			// selector and welcome screen instead of joining the catalog.
+			return filterWorkspacePaths(
+				mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]),
+			);
 		},
 		[knownWorkspacePaths],
 	);
@@ -562,7 +572,9 @@ function ChatThreadPane({
 				workspaceRoot: nextWorkspace,
 				cwd: nextWorkspace,
 			}));
-			setWorkspaces((prev) => mergeWorkspacePaths(prev, [nextWorkspace]));
+			setWorkspaces((prev) =>
+				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
+			);
 
 			// Fire git branch + workspace list refresh in the background
 			desktopClient

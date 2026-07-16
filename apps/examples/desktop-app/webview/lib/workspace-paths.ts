@@ -37,11 +37,43 @@ export function mergeWorkspacePaths(
 	return [...byNormalizedPath.values()].sort((a, b) => a.localeCompare(b));
 }
 
+const POSIX_HOME_OR_DESKTOP_PATTERN =
+	/^(?:\/Users\/[^/]+|\/home\/[^/]+|\/root)(?:\/Desktop)?$/;
+const WINDOWS_HOME_OR_DESKTOP_PATTERN =
+	/^[a-z]:[\\/]users[\\/][^\\/]+(?:[\\/]desktop)?$/i;
+
+/**
+ * Sessions can run anywhere (Cline-internal worktrees and plugin installs
+ * under `.cline`, or a shell's default cwd like the home or Desktop
+ * directory), but those locations are not projects to offer in the
+ * workspace catalog. The active workspace root is registered separately,
+ * so an explicitly opened directory still shows while selected.
+ */
+export function isExcludedWorkspacePath(path: string): boolean {
+	const normalized = normalizeWorkspacePath(path);
+	if (!normalized) {
+		return false;
+	}
+	if (normalized.split(/[\\/]/).includes(".cline")) {
+		return true;
+	}
+	return (
+		POSIX_HOME_OR_DESKTOP_PATTERN.test(normalized) ||
+		WINDOWS_HOME_OR_DESKTOP_PATTERN.test(normalized)
+	);
+}
+
+export function filterWorkspacePaths(paths: readonly string[]): string[] {
+	return paths.filter((path) => !isExcludedWorkspacePath(path));
+}
+
 export function workspacePathsFromSessions(
 	sessions: readonly WorkspacePathSource[],
 ): string[] {
-	return mergeWorkspacePaths(
-		sessions.map((session) => session.workspaceRoot || session.cwd || ""),
+	return filterWorkspacePaths(
+		mergeWorkspacePaths(
+			sessions.map((session) => session.workspaceRoot || session.cwd || ""),
+		),
 	);
 }
 
@@ -67,7 +99,9 @@ export function parseWorkspaceSelectionStorage(
 			: [];
 		return {
 			lastWorkspace,
-			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
+			workspaces: filterWorkspacePaths(
+				mergeWorkspacePaths(workspaces, [lastWorkspace]),
+			),
 		};
 	} catch {
 		return { lastWorkspace: "", workspaces: [] };
@@ -98,9 +132,9 @@ export function writeWorkspaceSelectionToWindow(
 			WORKSPACE_SELECTION_STORAGE_KEY,
 			JSON.stringify({
 				lastWorkspace: value.lastWorkspace.trim(),
-				workspaces: mergeWorkspacePaths(value.workspaces, [
-					value.lastWorkspace,
-				]),
+				workspaces: filterWorkspacePaths(
+					mergeWorkspacePaths(value.workspaces, [value.lastWorkspace]),
+				),
 			}),
 		);
 	} catch {

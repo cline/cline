@@ -181,7 +181,20 @@ export function WorkspaceSelector({
 		b.toLowerCase().includes(search.toLowerCase()),
 	);
 
-	const filteredWorkspaces = workspaces.filter((w) =>
+	// The catalog excludes non-project paths (home, Desktop, ~/.cline), but an
+	// explicitly opened workspace must stay visible while it is active.
+	const availableWorkspaces = useMemo(() => {
+		const byNormalizedPath = new Map<string, string>();
+		const register = (path: string) => {
+			const trimmed = path.trim();
+			if (trimmed) byNormalizedPath.set(normalizeWorkspacePath(trimmed), trimmed);
+		};
+		register(workspaceRoot);
+		for (const path of workspaces) register(path);
+		return [...byNormalizedPath.values()];
+	}, [workspaceRoot, workspaces]);
+
+	const filteredWorkspaces = availableWorkspaces.filter((w) =>
 		w.toLowerCase().includes(search.toLowerCase()),
 	);
 
