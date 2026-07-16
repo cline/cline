@@ -2849,7 +2849,7 @@ export class Task {
 			}
 			const { response, text, images, files } = await this.ask(
 				"mistake_limit_reached",
-				`Cline made too many mistakes in a row and paused the task so you can decide how to proceed. You can send guidance to help it get back on track (e.g. "Try breaking the task into smaller steps"), or start a new task.`,
+				`Cline hit repeated tool call failures. Try guiding it with a new prompt.`,
 			);
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
