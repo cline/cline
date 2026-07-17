@@ -1,6 +1,7 @@
 import {
 	type BasicLogger,
 	CHARS_PER_TOKEN,
+	type ContentBlock,
 	type MessageWithMetadata,
 } from "@cline/shared";
 import type {
@@ -13,9 +14,13 @@ import {
 	findFirstUserMessageIndex,
 	findLastAssistantIndex,
 	findLastTurnStartIndex,
+	formatToolActivitySummary,
+	hasToolActivity,
 	isCompactionSummaryMessage,
 	isTurnStartMessage,
 	MIN_TRUNCATED_MESSAGE_TOKENS,
+	summarizeToolActivity,
+	type ToolActivitySummary,
 	truncateToolResultContentForCompaction,
 } from "./compaction-shared";
 
@@ -347,6 +352,106 @@ function haveMessagesChanged(
 	return JSON.stringify(original) !== JSON.stringify(next);
 }
 
+function buildDroppedWorkSummaryBlock(
+	summary: ToolActivitySummary,
+): ContentBlock {
+	return {
+		type: "text",
+		text: `<SYSTEM>\nEarlier context was compacted. Summary of your actions before the user's next request:\n${formatToolActivitySummary(summary)}</SYSTEM>`,
+	};
+}
+
+function userContentBlocks(message: MessageWithMetadata): ContentBlock[] {
+	if (typeof message.content === "string") {
+		return message.content.trim()
+			? [{ type: "text", text: message.content }]
+			: [];
+	}
+	// Attached file contents are stale context bloat once the turn is old
+	// enough to compact; the dropped-work summaries carry the file paths.
+	return message.content.filter((block) => block.type !== "file");
+}
+
+/**
+ * Collapse runs of adjacent typed user messages — left behind when the
+ * assistant turns between them were removed — into a single user message.
+ * Each gap is bridged with a summary of the tool work that was dropped
+ * there, resolved by message id against the original transcript.
+ */
+function mergeAdjacentUserTurns(
+	messages: MessageWithMetadata[],
+	originalMessages: MessageWithMetadata[],
+): MessageWithMetadata[] {
+	const originalIndexById = new Map<string, number>();
+	originalMessages.forEach((message, index) => {
+		if (message.id) {
+			originalIndexById.set(message.id, index);
+		}
+	});
+	const resolveOriginalIndex = (
+		message: MessageWithMetadata,
+	): number | undefined =>
+		message.id ? originalIndexById.get(message.id) : undefined;
+
+	const merged: MessageWithMetadata[] = [];
+	let index = 0;
+	while (index < messages.length) {
+		if (!isTurnStartMessage(messages[index])) {
+			merged.push(messages[index]);
+			index += 1;
+			continue;
+		}
+		let runEnd = index;
+		while (
+			runEnd + 1 < messages.length &&
+			isTurnStartMessage(messages[runEnd + 1])
+		) {
+			runEnd += 1;
+		}
+		if (runEnd === index) {
+			merged.push(messages[index]);
+			index += 1;
+			continue;
+		}
+		const blocks: ContentBlock[] = [];
+		for (let member = index; member <= runEnd; member += 1) {
+			if (member > index) {
+				const previousIndex = resolveOriginalIndex(messages[member - 1]);
+				const currentIndex = resolveOriginalIndex(messages[member]);
+				if (
+					previousIndex !== undefined &&
+					currentIndex !== undefined &&
+					currentIndex > previousIndex + 1
+				) {
+					const summary = summarizeToolActivity(
+						originalMessages.slice(previousIndex + 1, currentIndex),
+					);
+					if (hasToolActivity(summary)) {
+						blocks.push(buildDroppedWorkSummaryBlock(summary));
+					}
+				}
+			}
+			blocks.push(...userContentBlocks(messages[member]));
+		}
+		merged.push({ ...messages[index], content: blocks });
+		index = runEnd + 1;
+	}
+	return merged;
+}
+
+/**
+ * Per-message token metrics describe the request context at the time the
+ * message was produced; after compaction rewrites the transcript they no
+ * longer add up, so they are dropped from the compacted result.
+ */
+function stripStaleMetrics(message: MessageWithMetadata): MessageWithMetadata {
+	if (!message.metrics) {
+		return message;
+	}
+	const { metrics: _metrics, ...rest } = message;
+	return rest;
+}
+
 function splitLatestTurn(messages: MessageWithMetadata[]): {
 	compactable: MessageWithMetadata[];
 	protectedTail: MessageWithMetadata[];
@@ -460,11 +565,15 @@ export function runBasicCompaction(options: {
 			maxInputTokens: options.context.budget.request.maxInputTokens,
 		});
 	}
-	const resultMessages = budgeted.messages;
+	const mergedMessages = mergeAdjacentUserTurns(
+		budgeted.messages,
+		options.context.messages,
+	);
 
-	if (!haveMessagesChanged(options.context.messages, resultMessages)) {
+	if (!haveMessagesChanged(options.context.messages, mergedMessages)) {
 		return undefined;
 	}
+	const resultMessages = mergedMessages.map(stripStaleMetrics);
 
 	const beforeTokens = beforeCompactableTokens + protectedTailTokens;
 	const afterTokens = getTotalTokens(

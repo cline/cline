@@ -484,11 +484,189 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		const compacted = runForcedBasicCompaction(messages, 1);
 
+		// Adjacent typed user messages left behind by the removals merge
+		// into a single user message.
 		expect(compacted).toEqual([
-			{ role: "user", content: "Old request" },
-			{ role: "user", content: "Read the latest file" },
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Old request" },
+					{ type: "text", text: "Read the latest file" },
+				],
+			},
 		]);
 		expectNoOrphanedToolPairs(compacted);
+	});
+
+	it("bridges merged user turns with dropped-work summaries and drops stale metrics", () => {
+		const grepCommand =
+			'grep -rn "sidebarItem\\|sidebarText\\|sidebar:\\|variant" /repo/webview/components/ui/button.tsx --include "*.tsx" --color=never';
+		const editorDiff = JSON.stringify({
+			query: "edit:/repo/webview/components/agent-sidebar.tsx",
+			result:
+				"Edited /repo/webview/components/agent-sidebar.tsx\n```diff\n-467: \told\n+467: \tnew\n-479: \tolder\n+479: \tnewer\n```",
+		});
+		const messages: MessageWithMetadata[] = [
+			{
+				id: "u1",
+				role: "user",
+				content: [
+					{ type: "text", text: "request one" },
+					{
+						type: "file",
+						path: "/repo/webview/components/agent-sidebar.tsx",
+						content: "x".repeat(5_000),
+					},
+				],
+			},
+			{
+				id: "a1",
+				role: "assistant",
+				metrics: { inputTokens: 100, outputTokens: 10, cost: 0.25 },
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-edit",
+						name: "editor",
+						input: {
+							path: "/repo/webview/components/agent-sidebar.tsx",
+							old_text: "a",
+							new_text: "b",
+						},
+					},
+				],
+			},
+			{
+				id: "t1",
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-edit",
+						name: "editor",
+						content: editorDiff,
+					},
+				],
+			},
+			{
+				id: "a2",
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-read",
+						name: "read_files",
+						input: {
+							files: [
+								{
+									path: "/repo/webview/components/agent-sidebar.tsx",
+									start_line: 462,
+									end_line: 480,
+								},
+							],
+						},
+					},
+				],
+			},
+			{
+				id: "t2",
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-read",
+						name: "read_files",
+						content: "462 | ...",
+					},
+				],
+			},
+			{ id: "a3", role: "assistant", content: "Done with the first request." },
+			{ id: "u2", role: "user", content: [{ type: "text", text: "request two" }] },
+			{
+				id: "a4",
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-grep",
+						name: "run_commands",
+						input: { commands: [grepCommand] },
+					},
+				],
+			},
+			{
+				id: "t3",
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-grep",
+						name: "run_commands",
+						content: "button.tsx:12: ...",
+					},
+				],
+			},
+			{ id: "a5", role: "assistant", content: "Done with the second request." },
+			{
+				id: "u3",
+				role: "user",
+				content: [{ type: "text", text: "request three" }],
+			},
+			{
+				id: "a6",
+				role: "assistant",
+				metrics: {
+					inputTokens: 500,
+					outputTokens: 20,
+					cacheReadTokens: 400,
+					cacheWriteTokens: 0,
+					cost: 0.5,
+				},
+				content: "Final answer for request three.",
+			},
+		];
+		// Budget: exactly the typed user turns plus the protected tail, with a
+		// margin smaller than any assistant turn so every old assistant/tool
+		// turn must be removed.
+		const targetTokens =
+			estimateJsonTokens(messages[0]) +
+			estimateJsonTokens(messages[6]) +
+			estimateJsonTokens(messages[10]) +
+			estimateJsonTokens(messages[11]) +
+			40;
+
+		const compacted = runForcedBasicCompaction(
+			messages,
+			targetTokens,
+		) as MessageWithMetadata[];
+
+		expect(compacted).toHaveLength(2);
+		const merged = compacted[0];
+		expect(merged.id).toBe("u1");
+		expect(merged.role).toBe("user");
+		const texts = (Array.isArray(merged.content) ? merged.content : []).map(
+			(block) => (block.type === "text" ? block.text : `[${block.type}]`),
+		);
+		expect(texts).toHaveLength(5);
+		expect(texts[0]).toBe("request one");
+		expect(texts[1]).toContain("<SYSTEM>");
+		expect(texts[1]).toContain(
+			"Files read:\n/repo/webview/components/agent-sidebar.tsx:462-480",
+		);
+		expect(texts[1]).toContain(
+			"Files edited:\n/repo/webview/components/agent-sidebar.tsx:467-479",
+		);
+		expect(texts[2]).toBe("request two");
+		expect(texts[3]).toContain("Commands ran:\ngrep -rn");
+		// Long commands are truncated to 100 chars with a trailing ellipsis.
+		expect(texts[3]).not.toContain("--color=never");
+		expect(texts[3]).toContain("...");
+		expect(texts[4]).toBe("request three");
+		// Stale attached file contents are dropped from merged turns.
+		expect(JSON.stringify(compacted)).not.toContain('"type":"file"');
+		// Token metrics no longer add up after compaction and are dropped.
+		expect(compacted[1].id).toBe("a6");
+		expect(compacted[1].metrics).toBeUndefined();
 	});
 
 	it("budgets the complete basic compaction output including the latest turn", () => {
@@ -562,7 +740,14 @@ describe("createContextCompactionPrepareTurn", () => {
 			},
 		});
 
-		expect(result?.messages?.[0]?.content).toBe(task);
+		// The task prompt and the follow-up merge into one user message; the
+		// task text itself must survive verbatim, not truncated.
+		const firstContent = result?.messages?.[0]?.content;
+		const firstText =
+			Array.isArray(firstContent) && firstContent[0]?.type === "text"
+				? firstContent[0].text
+				: firstContent;
+		expect(firstText).toBe(task);
 		expect(JSON.stringify(result?.messages)).toContain("Create /app/filter.py");
 		expect(JSON.stringify(result?.messages)).not.toContain("<user_input\n...");
 	});
@@ -609,7 +794,13 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		expect(compacted?.messages[0]?.content).not.toBe(oversizedPrompt);
-		expect(String(compacted?.messages[0]?.content)).toContain("\n...");
+		const mergedContent = compacted?.messages[0]?.content;
+		const mergedText = Array.isArray(mergedContent)
+			? mergedContent
+					.map((block) => (block.type === "text" ? block.text : ""))
+					.join("\n")
+			: String(mergedContent);
+		expect(mergedText).toContain("\n...");
 	});
 
 	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {
