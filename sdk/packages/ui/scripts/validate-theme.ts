@@ -59,13 +59,21 @@ if (
 	throw new Error("theme entry point must compose tokens, theme, and base CSS");
 }
 for (const subpath of [
+	".",
+	"./components.css",
 	"./theme/index.css",
 	"./theme/tokens.css",
 	"./theme/theme.css",
 	"./theme/base.css",
 ]) {
-	const target = manifest.exports?.[subpath];
-	if (!target || !existsSync(join(packageRoot, target))) {
+	const exported = manifest.exports?.[subpath];
+	const target =
+		typeof exported === "string"
+			? exported
+			: typeof exported === "object" && exported !== null
+				? (exported as { import?: string }).import
+				: undefined;
+	if (!target || (subpath !== "." && !existsSync(join(packageRoot, target)))) {
 		throw new Error(`package.json export ${subpath} is missing or invalid`);
 	}
 }

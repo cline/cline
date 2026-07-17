@@ -1,0 +1,11 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"outDir": "dist",
+		"rootDir": "src",
+		"types": ["react", "react-dom"]
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx"],
+	"exclude": ["tests"]
+}

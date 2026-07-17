@@ -2,7 +2,15 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"noEmit": true,
-		"types": ["bun", "node"]
+		"jsx": "react-jsx",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["bun", "node", "react", "react-dom"]
 	},
-	"include": ["scripts/**/*.ts", "tests/**/*.ts"]
+	"include": [
+		"scripts/**/*.ts",
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"tests/**/*.ts",
+		"tests/**/*.tsx"
+	]
 }

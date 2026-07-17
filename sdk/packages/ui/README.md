@@ -4,6 +4,34 @@ Shared, framework-independent UI foundations for Cline web products. The
 package is internal to this monorepo while the first consumers settle the
 contract; it is not part of the public SDK release yet.
 
+## React entry points
+
+Import the component stylesheet once in a consumer shell, after the theme:
+
+```css
+@import "@cline/ui/theme/tokens.css";
+@import "@cline/ui/components.css";
+```
+
+Then import product-neutral primitives from the package root:
+
+```tsx
+import {
+  AgentActivity,
+  AgentApprovalCard,
+  AgentComposer,
+  AgentQuickActions,
+  AgentSurface,
+  SearchCombobox,
+  SessionStatus,
+} from "@cline/ui";
+```
+
+These components own visual and accessible interaction contracts only. Hosts
+continue to own routing, authentication, repository data, session state, and
+transport. The component CSS uses `cline-ui-*` selectors and semantic theme
+variables so importing it cannot restyle unrelated product surfaces.
+
 ## Theme entry points
 
 | Import | Contents | Requires Tailwind |

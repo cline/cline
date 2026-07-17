@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -213,6 +215,7 @@ describe("@cline/ui theme contract", () => {
 			readFileSync(join(packageRoot, "package.json"), "utf8"),
 		) as { exports?: Record<string, string> };
 		for (const subpath of [
+			"./components.css",
 			"./theme/index.css",
 			"./theme/tokens.css",
 			"./theme/theme.css",

@@ -11,6 +11,11 @@
 	"internal": true,
 	"type": "module",
 	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./components.css": "./components.css",
 		"./theme/index.css": "./theme/index.css",
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
@@ -18,23 +23,44 @@
 		"./package.json": "./package.json"
 	},
 	"files": [
+		"components.css",
+		"dist",
 		"theme",
 		"README.md"
 	],
 	"sideEffects": [
+		"./components.css",
 		"./theme/*.css"
 	],
 	"scripts": {
-		"build": "bun scripts/validate-theme.ts",
+		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
+		"prepare": "tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
 		"test": "vitest run --config vitest.config.ts"
 	},
+	"dependencies": {
+		"@radix-ui/react-collapsible": "1.1.12",
+		"@radix-ui/react-popover": "1.1.15",
+		"@radix-ui/react-slot": "1.2.4",
+		"cmdk": "1.1.1"
+	},
 	"peerDependencies": {
+		"react": ">=19.0.0 <20.0.0",
+		"react-dom": ">=19.0.0 <20.0.0",
 		"tailwindcss": ">=4.0.0 <5"
 	},
 	"peerDependenciesMeta": {
 		"tailwindcss": {
 			"optional": true
 		}
+	},
+	"devDependencies": {
+		"@testing-library/react": "^16.2.0",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"jsdom": "^26.0.0",
+		"react": "19.2.4",
+		"react-dom": "19.2.4",
+		"typescript": "^5.9.3"
 	}
 }
