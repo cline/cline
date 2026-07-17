@@ -10,6 +10,8 @@
 	"private": true,
 	"internal": true,
 	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
@@ -34,7 +36,6 @@
 	],
 	"scripts": {
 		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
-		"prepare": "tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
 		"test": "vitest run --config vitest.config.ts"
 	},
