@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 3.0.43
+
+- The CLI now automatically trusts your operating system's certificate store, so it works behind corporate proxies and TLS-inspecting firewalls without manually setting `NODE_EXTRA_CA_CERTS` (fixes "unable to get local issuer certificate" errors, including Windows intermediate CA stores)
+
 ## 3.0.42
 
 - Fixed Ollama native API routing so context window and timeout settings work again
