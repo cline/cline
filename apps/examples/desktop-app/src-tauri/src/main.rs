@@ -8,7 +8,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::{Manager, RunEvent, State};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, RunEvent, State, WindowEvent};
 
 #[derive(Clone)]
 struct AppContext {
@@ -473,6 +475,51 @@ fn open_mcp_settings_file() -> Result<String, String> {
     Ok(settings_path.to_string_lossy().to_string())
 }
 
+/// Begin an OS-level drag of the calling window (used by the floating pet so it
+/// can be dragged anywhere on screen without window decorations).
+#[tauri::command]
+fn start_pet_drag(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// Show the floating pet window and (re)assert its always-on-top / all-Spaces
+/// presence so it floats above other apps even when the main window is hidden.
+#[tauri::command]
+fn show_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(pet) = app.get_webview_window("pet") {
+        pet.show().map_err(|e| e.to_string())?;
+        let _ = pet.set_always_on_top(true);
+        let _ = pet.set_visible_on_all_workspaces(true);
+    }
+    Ok(())
+}
+
+/// Hide the floating pet window (its dismiss button and the settings toggle).
+#[tauri::command]
+fn hide_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(pet) = app.get_webview_window("pet") {
+        pet.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn is_pet_visible(app: tauri::AppHandle) -> bool {
+    app.get_webview_window("pet")
+        .and_then(|pet| pet.is_visible().ok())
+        .unwrap_or(false)
+}
+
+/// Bring the main window back after it was hidden by closing it.
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.show().map_err(|e| e.to_string())?;
+        let _ = main.set_focus();
+    }
+    Ok(())
+}
+
 fn main() {
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
@@ -502,13 +549,63 @@ fn main() {
                     eprintln!("[desktop-backend] health check failed: {error}");
                 }
             });
+
+            // Tray icon so the app can keep running after the main window is
+            // closed, with explicit Show / Quit actions.
+            if let Some(icon) = app.default_window_icon().cloned() {
+                let show_item =
+                    MenuItem::with_id(app, "show_window", "Show Window", true, None::<&str>)?;
+                let quit_item =
+                    MenuItem::with_id(app, "quit", "Quit Cline Code", true, None::<&str>)?;
+                let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+                TrayIconBuilder::with_id("cline-tray")
+                    .icon(icon)
+                    .tooltip("Cline Code")
+                    .menu(&tray_menu)
+                    .show_menu_on_left_click(true)
+                    .on_menu_event(|app, event| match event.id().as_ref() {
+                        "show_window" => {
+                            if let Some(main) = app.get_webview_window("main") {
+                                let _ = main.show();
+                                let _ = main.set_focus();
+                            }
+                        }
+                        "quit" => app.exit(0),
+                        _ => {}
+                    })
+                    .build(app)?;
+            }
+
+            // Keep the pet floating above other apps and on every Space, so it
+            // stays visible even when the main window is minimized or hidden.
+            if let Some(pet) = app.get_webview_window("pet") {
+                let _ = pet.set_always_on_top(true);
+                let _ = pet.set_visible_on_all_workspaces(true);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
             pick_workspace_directory,
-            open_mcp_settings_file
+            open_mcp_settings_file,
+            start_pet_drag,
+            show_pet,
+            hide_pet,
+            is_pet_visible,
+            show_main_window
         ])
+        .on_window_event(|window, event| {
+            // Closing the main window hides it and keeps the app (and sidecar)
+            // running in the background; the tray or Dock reopens it, and
+            // Cmd+Q / the tray Quit item performs the real shutdown.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
         .run(|app_handle, event| match event {
@@ -517,6 +614,13 @@ fn main() {
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
                     .stop();
+            }
+            // Clicking the Dock icon on macOS reopens the hidden main window.
+            RunEvent::Reopen { .. } => {
+                if let Some(main) = app_handle.get_webview_window("main") {
+                    let _ = main.show();
+                    let _ = main.set_focus();
+                }
             }
             _ => {}
         });

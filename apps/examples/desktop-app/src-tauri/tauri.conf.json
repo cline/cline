@@ -10,6 +10,7 @@
 		"frontendDist": "../webview/out"
 	},
 	"app": {
+		"macOSPrivateApi": true,
 		"windows": [
 			{
 				"label": "main",
@@ -17,6 +18,21 @@
 				"width": 1500,
 				"height": 980,
 				"resizable": true
+			},
+			{
+				"label": "pet",
+				"title": "Nyan Pet",
+				"width": 184,
+				"height": 120,
+				"resizable": false,
+				"transparent": true,
+				"decorations": false,
+				"alwaysOnTop": true,
+				"skipTaskbar": true,
+				"shadow": false,
+				"focus": false,
+				"maximizable": false,
+				"minimizable": false
 			}
 		],
 		"security": {

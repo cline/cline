@@ -8,6 +8,7 @@ import {
 	readStoredPetGif,
 	setStoredPetGif,
 } from "@/lib/nyan-pet";
+import { hidePet, isPetVisible, isTauri, showPet } from "@/lib/pet-window";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -589,8 +590,55 @@ function GeneralSettingsContent() {
 					/>
 				</div>
 				<NyanPetSetting />
+				<PetWindowToggle />
 			</section>
 		</PageFrame>
+	);
+}
+
+function PetWindowToggle() {
+	const [inDesktopApp, setInDesktopApp] = useState(false);
+	const [visible, setVisible] = useState(false);
+
+	useEffect(() => {
+		if (!isTauri()) {
+			return;
+		}
+		setInDesktopApp(true);
+		void isPetVisible().then(setVisible);
+	}, []);
+
+	const toggle = useCallback(async (next: boolean) => {
+		setVisible(next);
+		if (next) {
+			await showPet();
+		} else {
+			await hidePet();
+		}
+	}, []);
+
+	// Only meaningful in the desktop app, where the pet is its own OS window.
+	if (!inDesktopApp) {
+		return null;
+	}
+
+	return (
+		<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+			<div>
+				<p className="text-[17px] font-semibold text-foreground">
+					Show floating pet
+				</p>
+				<p className="mt-1 text-[15px] text-muted-foreground">
+					Float the pet on top of your screen so it stays visible even when this
+					window is minimized or closed.
+				</p>
+			</div>
+			<Switch
+				aria-label="Show floating pet"
+				checked={visible}
+				onCheckedChange={(checked) => void toggle(checked)}
+			/>
+		</div>
 	);
 }
 

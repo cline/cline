@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
-import { NyanCat } from "@/components/nyan-cat";
+import { NyanCat, PetWindowView } from "@/components/nyan-cat";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -39,6 +39,7 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { getCurrentWindowLabel, isTauri } from "@/lib/pet-window";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -75,6 +76,35 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	// Both the main and the floating-pet windows load this same page; branch on
+	// the Tauri window label so the pet window renders only the pet. Render
+	// nothing until resolved so the client-only branches never hydrate wrong.
+	const [windowKind, setWindowKind] = useState<"pending" | "main" | "pet">(
+		"pending",
+	);
+
+	useEffect(() => {
+		let active = true;
+		void getCurrentWindowLabel().then((label) => {
+			if (active) {
+				setWindowKind(label === "pet" ? "pet" : "main");
+			}
+		});
+		return () => {
+			active = false;
+		};
+	}, []);
+
+	if (windowKind === "pending") {
+		return null;
+	}
+	if (windowKind === "pet") {
+		return <PetWindowView />;
+	}
+	return <MainApp />;
+}
+
+function MainApp() {
 	const [view, setView] = useState<"chat" | "sessions" | "settings">("chat");
 	const [settingsSection, setSettingsSection] =
 		useState<SettingsSection>("General");
@@ -230,7 +260,7 @@ export default function Home() {
 		<AccountProvider>
 			<SidebarProvider>
 				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-					<NyanCat />
+					{!isTauri() ? <NyanCat /> : null}
 					<Sidebar
 						className="border-r border-sidebar-border"
 						collapsible="icon"
