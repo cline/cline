@@ -10,7 +10,6 @@ import {
 	Filter,
 	FolderTree,
 	GitFork,
-	Home,
 	Loader2,
 	MessageSquare,
 	PanelLeftOpen,
@@ -517,13 +516,13 @@ export function AgentSidebar({
 								"bg-sidebar-accent text-sidebar-accent-foreground",
 							isCollapsed && "mx-auto size-9 justify-center px-0",
 						)}
-						aria-label="Home"
+						aria-label="New Session"
 						onClick={openHome}
-						title="Home"
+						title="New Session"
 						variant="sidebarItem"
 					>
-						<Home className="size-4" />
-						{!isCollapsed ? "Home" : null}
+						<Plus className="size-4" />
+						{!isCollapsed ? "New Session" : null}
 					</Button>
 				</div>
 
@@ -594,17 +593,6 @@ export function AgentSidebar({
 									</Button>
 									{sortMenu}
 									{filterMenu}
-									<Button
-										aria-label="New session"
-										className="m-0! size-8 p-0! text-muted-foreground hover:text-sidebar-foreground"
-										onClick={openNewThread}
-										size="icon"
-										title="New session"
-										type="button"
-										variant="ghost"
-									>
-										<Plus className="size-4" />
-									</Button>
 								</div>
 							</div>
 							{searchOpen ? (

@@ -1129,7 +1129,10 @@ function ChatThreadPane({
 						)
 					}
 					composer={composer}
+					gitBranch={gitBranch}
+					onListGitBranches={listGitBranches}
 					onStartChat={setPromptInput}
+					onSwitchGitBranch={switchGitBranch}
 					quickActions={[]}
 				/>
 			</div>
