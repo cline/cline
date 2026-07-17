@@ -477,6 +477,76 @@
 	gap: 0.5rem;
 }
 
+.cline-ui-dialog__overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 100;
+	background: rgb(0 0 0 / 52%);
+	backdrop-filter: blur(2px);
+	animation: cline-ui-fade-in 140ms ease-out;
+}
+
+.cline-ui-dialog__content {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	z-index: 101;
+	display: grid;
+	width: min(calc(100vw - 2rem), 26rem);
+	box-sizing: border-box;
+	gap: 0.625rem;
+	transform: translate(-50%, -50%);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-xl);
+	background: var(--popover);
+	color: var(--popover-foreground);
+	box-shadow: 0 24px 80px rgb(0 0 0 / 24%);
+	font-family: var(--font-sans);
+	padding: 1rem;
+	animation: cline-ui-dialog-in 160ms ease-out;
+}
+
+.cline-ui-dialog__title {
+	margin: 0;
+	font-size: var(--text-base);
+	font-weight: var(--font-weight-semibold);
+	line-height: var(--text-base--line-height);
+}
+
+.cline-ui-dialog__description {
+	margin: 0;
+	color: var(--muted-foreground);
+	font-size: var(--text-sm);
+	line-height: var(--text-sm--line-height);
+}
+
+.cline-ui-dialog__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	margin-top: 0.375rem;
+}
+
+@keyframes cline-ui-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes cline-ui-dialog-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, calc(-50% + 0.5rem)) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, -50%) scale(1);
+	}
+}
+
 .cline-ui-session-status {
 	display: inline-flex;
 	align-items: center;

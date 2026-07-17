@@ -27,17 +27,29 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 		},
 		ref,
 	) {
-		const Component = asChild ? Slot : "button";
+		const classNames = cx(
+			"cline-ui-button",
+			`cline-ui-button--${variant}`,
+			`cline-ui-button--${size}`,
+			iconOnly && "cline-ui-button--icon",
+			className,
+		);
+		if (asChild) {
+			return (
+				<Slot
+					aria-busy={loading || undefined}
+					className={classNames}
+					ref={ref}
+					{...props}
+				>
+					{children}
+				</Slot>
+			);
+		}
 		return (
-			<Component
+			<button
 				aria-busy={loading || undefined}
-				className={cx(
-					"cline-ui-button",
-					`cline-ui-button--${variant}`,
-					`cline-ui-button--${size}`,
-					iconOnly && "cline-ui-button--icon",
-					className,
-				)}
+				className={classNames}
 				disabled={disabled || loading}
 				ref={ref}
 				type={type}
@@ -47,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 					<span aria-hidden="true" className="cline-ui-spinner" />
 				) : null}
 				{children}
-			</Component>
+			</button>
 		);
 	},
 );

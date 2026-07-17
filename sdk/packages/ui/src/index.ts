@@ -11,6 +11,7 @@ export { AgentComposer, type AgentComposerProps } from "./agent-composer.js";
 export { AgentSurface } from "./agent-surface.js";
 export { AgentAurora, type AgentAuroraProps } from "./aurora.js";
 export { Button, type ButtonProps } from "./button.js";
+export { ConfirmDialog, type ConfirmDialogProps } from "./confirm-dialog.js";
 export {
 	type AgentQuickAction,
 	AgentQuickActions,

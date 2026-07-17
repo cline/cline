@@ -7,6 +7,7 @@ import {
 	AgentQuickActions,
 	AgentSurface,
 	Button,
+	ConfirmDialog,
 	SearchCombobox,
 	SessionStatus,
 } from "../src/index.js";
@@ -113,6 +114,25 @@ describe("@cline/ui agent components", () => {
 		expect(onReject).toHaveBeenCalledOnce();
 	});
 
+	it("confirms destructive actions without owning state", () => {
+		const onConfirm = vi.fn();
+		const onOpenChange = vi.fn();
+		render(
+			<ConfirmDialog
+				danger
+				description="This cannot be undone."
+				onConfirm={onConfirm}
+				onOpenChange={onOpenChange}
+				open
+				title="Delete session?"
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+		expect(onConfirm).toHaveBeenCalledOnce();
+		expect(screen.getByText("This cannot be undone.")).toBeTruthy();
+	});
+
 	it("provides composable surface, status, button, and quick actions", () => {
 		const onSelect = vi.fn();
 		render(
@@ -138,5 +158,14 @@ describe("@cline/ui agent components", () => {
 		expect(onSelect).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "review" }),
 		);
+	});
+
+	it("composes link buttons through a single slot child", () => {
+		render(
+			<Button asChild>
+				<a href="/integrations">Connect GitHub</a>
+			</Button>,
+		);
+		expect(screen.getByRole("link", { name: "Connect GitHub" })).toBeTruthy();
 	});
 });

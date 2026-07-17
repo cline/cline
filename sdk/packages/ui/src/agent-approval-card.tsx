@@ -10,6 +10,7 @@ export interface AgentApprovalCardProps {
 	onApprove: () => void;
 	onReject: () => void;
 	rejectLabel?: string;
+	responding?: boolean;
 	title: ReactNode;
 }
 
@@ -21,6 +22,7 @@ export function AgentApprovalCard({
 	onApprove,
 	onReject,
 	rejectLabel = "Reject",
+	responding = false,
 	title,
 }: AgentApprovalCardProps) {
 	return (
@@ -38,10 +40,20 @@ export function AgentApprovalCard({
 				<div className="cline-ui-approval__detail">{detail}</div>
 			) : null}
 			<div className="cline-ui-approval__actions">
-				<Button onClick={onReject} size="sm" variant="secondary">
+				<Button
+					disabled={responding}
+					onClick={onReject}
+					size="sm"
+					variant="secondary"
+				>
 					{rejectLabel}
 				</Button>
-				<Button onClick={onApprove} size="sm" variant="primary">
+				<Button
+					loading={responding}
+					onClick={onApprove}
+					size="sm"
+					variant="primary"
+				>
 					{approveLabel}
 				</Button>
 			</div>
