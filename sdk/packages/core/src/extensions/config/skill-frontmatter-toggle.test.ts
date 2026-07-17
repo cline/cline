@@ -86,6 +86,24 @@ ${content}`);
 		expect(updateSkillMarkdownEnabledState(content, true)).toBe(content);
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
+	// from being recognized when toggling a skill's enabled state.
+	it("disables a skill whose content starts with a UTF-8 BOM", () => {
+		const content = `\uFEFF---
+name: code-review
+description: Review code carefully
+---
+First line.`;
+
+		const updated = updateSkillMarkdownEnabledState(content, false);
+		const parsed = parseSkillConfigFromMarkdown(updated, "fallback");
+
+		expect(parsed.disabled).toBe(true);
+		expect(parsed.frontmatter.name).toBe("code-review");
+		expect(parsed.frontmatter.description).toBe("Review code carefully");
+	});
+
 	it("writes toggled content and returns the resulting state", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-skill-toggle-"));
 		tempRoots.push(tempRoot);

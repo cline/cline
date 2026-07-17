@@ -97,6 +97,25 @@ describe("ApiOptions Component", () => {
 		expect(modelIdInput).toBeInTheDocument()
 	})
 
+	it.each([
+		["openai-native", "OpenAI API Key"],
+		["openai-codex", "Sign in to OpenAI Codex"],
+	])("renders only the dedicated form for %s", (provider, dedicatedFormText) => {
+		mockExtensionState({
+			planModeApiProvider: provider as any,
+			actModeApiProvider: provider as any,
+		})
+
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={false} />
+			</ExtensionStateContextProvider>,
+		)
+
+		expect(screen.getByText(dedicatedFormText)).toBeInTheDocument()
+		expect(screen.queryByText("Custom Headers")).not.toBeInTheDocument()
+	})
+
 	it("renders the OpenAI-compatible form for custom/unknown catalog providers", () => {
 		vi.mocked(useProviderListings).mockReturnValue({
 			providers: [

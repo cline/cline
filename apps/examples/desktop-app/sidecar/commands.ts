@@ -52,6 +52,7 @@ import {
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import {
 	connectorChannelsPayload,
@@ -586,7 +587,7 @@ async function listUserInstructionConfigs(
 					const ext = extname(entry.name).toLowerCase();
 					if (ext !== ".yml" && ext !== ".yaml") continue;
 					const filePath = join(directory, entry.name);
-					const raw = readFileSync(filePath, "utf8");
+					const raw = readFileSyncStrippingUtf8Bom(filePath);
 					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 					const fm = fmMatch?.[1] ?? "";
 					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);

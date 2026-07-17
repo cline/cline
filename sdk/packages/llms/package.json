@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.62",
+	"version": "0.0.64",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
