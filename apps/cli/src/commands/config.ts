@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import {
@@ -13,9 +13,9 @@ import {
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
 	type SkillConfig,
-	stripUtf8Bom,
 	type WorkflowConfig,
 } from "@cline/core";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { Command } from "commander";
 import { getToolCatalog } from "../runtime/tools";
 import { loadInteractiveConfigData } from "../tui/interactive-config";
@@ -210,9 +210,7 @@ async function runAgentsConfigCommand(
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				// stripUtf8Bom keeps the frontmatter regex below matching files saved with
-				// a leading UTF-8 BOM (see cline/cline#12151).
-				const raw = stripUtf8Bom(readFileSync(filePath, "utf8"));
+				const raw = readFileSyncStrippingUtf8Bom(filePath);
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);

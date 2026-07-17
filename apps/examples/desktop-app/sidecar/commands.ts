@@ -49,7 +49,8 @@ import {
 	toggleDisabledTool,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
-import { getClineEnvironmentConfig, stripUtf8Bom } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -558,9 +559,7 @@ async function listUserInstructionConfigs(
 					const ext = extname(entry.name).toLowerCase();
 					if (ext !== ".yml" && ext !== ".yaml") continue;
 					const filePath = join(directory, entry.name);
-					// stripUtf8Bom keeps the frontmatter regex below matching files saved with
-					// a leading UTF-8 BOM (see cline/cline#12151).
-					const raw = stripUtf8Bom(readFileSync(filePath, "utf8"));
+					const raw = readFileSyncStrippingUtf8Bom(filePath);
 					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 					const fm = fmMatch?.[1] ?? "";
 					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);

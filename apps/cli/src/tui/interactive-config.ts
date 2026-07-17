@@ -24,10 +24,10 @@ import {
 	resolvePluginConfigSearchPaths,
 	resolvePluginSkillDirectoriesFromPaths,
 	type SkillConfig,
-	stripUtf8Bom,
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "@cline/core";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { getToolCatalog } from "../runtime/tools";
 import {
 	type InteractiveSlashCommand,
@@ -196,9 +196,7 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				// stripUtf8Bom keeps the frontmatter regex below matching files saved with
-				// a leading UTF-8 BOM (see cline/cline#12151).
-				const raw = stripUtf8Bom(readFileSync(filePath, "utf8"));
+				const raw = readFileSyncStrippingUtf8Bom(filePath);
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);
