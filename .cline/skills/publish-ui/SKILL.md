@@ -27,10 +27,10 @@ Release `@cline/ui` independently from the Cline SDK runtime packages.
 1. Inspect the branch, current version, npm state, and UI changes.
 
 ```sh
-sleep 1 && git status --short --branch
+git status --short --branch
 node -p "require('./sdk/packages/ui/package.json').version"
 npm view @cline/ui dist-tags versions --json
-sleep 1 && git log --oneline --no-merges -- \
+git log --oneline --no-merges -- \
   sdk/packages/ui apps/examples/desktop-app/webview/components/views/chat \
   .github/workflows/ui-publish.yml
 ```
@@ -56,9 +56,9 @@ Inspect `bun pm pack --dry-run` when the exported file set changed.
 4. Commit the version bump separately from feature work. Ask before pushing.
 
 ```sh
-sleep 1 && git add sdk/packages/ui/package.json bun.lock
-sleep 1 && git commit -m "chore(ui): release vX.Y.Z"
-sleep 1 && git push origin HEAD
+git add sdk/packages/ui/package.json bun.lock
+git commit -m "chore(ui): release vX.Y.Z"
+git push origin HEAD
 ```
 
 5. After the release commit reaches `main`, ask which npm tag to use and ask
