@@ -263,6 +263,18 @@ describe("createProviderConfigStore", () => {
 		})
 	})
 
+	it("reads and writes the Novita API key through StateManager", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("novita-ai")
+
+		const written = store.write(providerId, { apiKey: "novita-key" })
+
+		expect(written).toEqual({ providerId, apiKey: "novita-key" })
+		expect(mocks.getApiConfiguration().novitaApiKey).toBe("novita-key")
+		expect(store.read(providerId)).toEqual(written)
+	})
+
 	it("reads migrated OpenAI Compatible settings from the SDK provider id", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setProviderSettings({

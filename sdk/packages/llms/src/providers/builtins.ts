@@ -696,6 +696,17 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.studio.nebius.ai/v1" },
 	},
 	{
+		id: "novita-ai",
+		name: "Novita AI",
+		description: "OpenAI-compatible access to Novita-hosted models",
+		family: "openai-compatible",
+		defaultModelId: "moonshotai/kimi-k3",
+		apiKeyEnv: ["NOVITA_API_KEY"],
+		modelsProviderId: "novita-ai",
+		defaults: { baseUrl: "https://api.novita.ai/openai" },
+		docsUrl: "https://novita.ai/docs/guides/introduction",
+	},
+	{
 		id: "baseten",
 		name: "Baseten",
 		description: "ML inference platform",

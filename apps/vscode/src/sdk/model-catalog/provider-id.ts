@@ -34,6 +34,7 @@ const KNOWN_API_PROVIDERS = {
 	litellm: true,
 	moonshot: true,
 	nebius: true,
+	"novita-ai": true,
 	fireworks: true,
 	asksage: true,
 	xai: true,

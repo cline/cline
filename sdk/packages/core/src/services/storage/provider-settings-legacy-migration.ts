@@ -136,6 +136,7 @@ interface LegacySecrets {
 	zaiApiKey?: string;
 	huggingFaceApiKey?: string;
 	nebiusApiKey?: string;
+	novitaApiKey?: string;
 	sambanovaApiKey?: string;
 	cerebrasApiKey?: string;
 	sapAiCoreClientId?: string;
@@ -476,6 +477,7 @@ function buildLegacyProviderSettings(
 		zai: legacySecrets.zaiApiKey,
 		huggingface: legacySecrets.huggingFaceApiKey,
 		nebius: legacySecrets.nebiusApiKey,
+		"novita-ai": legacySecrets.novitaApiKey,
 		sambanova: legacySecrets.sambanovaApiKey,
 		cerebras: legacySecrets.cerebrasApiKey,
 		groq: legacySecrets.groqApiKey,

@@ -66,6 +66,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 		zai: "zaiApiKey",
 		huggingface: "huggingFaceApiKey",
 		nebius: "nebiusApiKey",
+		"novita-ai": "novitaApiKey",
 		sambanova: "sambanovaApiKey",
 		cerebras: "cerebrasApiKey",
 		groq: "groqApiKey",

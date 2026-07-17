@@ -26,6 +26,7 @@ export type ApiProvider =
 	| "litellm"
 	| "moonshot"
 	| "nebius"
+	| "novita-ai"
 	| "fireworks"
 	| "asksage"
 	| "xai"

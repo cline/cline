@@ -140,6 +140,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const mistralApiKey = await context.secrets.get("mistralApiKey")
 			const asksageApiKey = await context.secrets.get("asksageApiKey")
 			const xaiApiKey = await context.secrets.get("xaiApiKey")
+			const novitaApiKey = await context.secrets.get("novitaApiKey")
 			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
@@ -184,6 +185,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				clineAccountId,
 				asksageApiKey,
 				xaiApiKey,
+				novitaApiKey,
 				sambanovaApiKey,
 				sapAiCoreClientId,
 				difyApiKey,

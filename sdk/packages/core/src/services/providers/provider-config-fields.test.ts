@@ -44,6 +44,16 @@ describe("getProviderConfigFields", () => {
 		);
 	});
 
+	it("returns api-key auth with apiKey + baseUrl for Novita AI", () => {
+		const result = getProviderConfigFields("novita-ai");
+		expect(result.providerId).toBe("novita-ai");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"https://api.novita.ai/openai",
+		);
+	});
+
 	it("returns api-key auth with apiKey + baseUrl for user-added providers", () => {
 		registerCustomProvider("internal-router", {
 			provider: {

@@ -12,6 +12,7 @@ import {
 	getProvider,
 	getProviderIds,
 } from "./model-registry";
+import { resolveProviderModelCatalogKeys } from "./provider-keys";
 
 describe("provider-ids", () => {
 	it("keeps built-in provider ids aligned with model registry loaders", () => {
@@ -126,6 +127,29 @@ describe("provider-ids", () => {
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "poolside",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
+	it("registers Novita AI as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("novita-ai");
+
+		await expect(getProvider("novita-ai")).resolves.toMatchObject({
+			id: "novita-ai",
+			name: "Novita AI",
+			baseUrl: "https://api.novita.ai/openai",
+			defaultModelId: "moonshotai/kimi-k3",
+			client: "openai-compatible",
+		});
+		const models = await getModelsForProvider("novita-ai");
+		expect(models).toHaveProperty("moonshotai/kimi-k3");
+		expect(Object.keys(models).length).toBeGreaterThan(1);
+		expect(resolveProviderModelCatalogKeys("novita-ai")).toContain("novita-ai");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "novita-ai",
 		);
 		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
 			createProvider: createOpenAICompatibleProvider,

@@ -189,6 +189,7 @@ const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
 	"lmstudio",
 	"litellm",
 	"openai-compatible",
+	"novita-ai",
 ]);
 
 function shouldExposeBaseUrlField(

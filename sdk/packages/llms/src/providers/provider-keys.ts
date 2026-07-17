@@ -70,6 +70,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "nebius",
 	},
 	{
+		modelsDevKey: "novita-ai",
+		generatedProviderId: "novita-ai",
+		runtimeProviderId: "novita-ai",
+	},
+	{
 		modelsDevKey: "huggingface",
 		generatedProviderId: "huggingface",
 		runtimeProviderId: "huggingface",

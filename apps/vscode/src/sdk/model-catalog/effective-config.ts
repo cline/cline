@@ -47,6 +47,7 @@ const apiKeyFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	zai: "zaiApiKey",
 	huggingface: "huggingFaceApiKey",
 	nebius: "nebiusApiKey",
+	"novita-ai": "novitaApiKey",
 	sambanova: "sambanovaApiKey",
 	cerebras: "cerebrasApiKey",
 	groq: "groqApiKey",
