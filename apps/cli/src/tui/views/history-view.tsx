@@ -352,6 +352,7 @@ function HistoryListContent({
 								fg={isSel ? palette.textOnSelection : undefined}
 								flexGrow={1}
 							>
+								{row.source === "schedule" ? "⏰ " : ""}
 								{title}
 							</text>
 							{showCost && cost != null && cost > 0 && (

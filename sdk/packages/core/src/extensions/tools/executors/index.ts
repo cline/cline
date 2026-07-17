@@ -41,6 +41,14 @@ export {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
 } from "./file-read";
+export {
+	createScheduleTaskExecutor,
+	type ScheduleTaskClient,
+	type ScheduleTaskConnectorDelivery,
+	type ScheduleTaskCreateInput,
+	type ScheduleTaskCreateResult,
+	type ScheduleTaskExecutorOptions,
+} from "./schedule-task";
 export { createSearchExecutor, type SearchExecutorOptions } from "./search";
 export {
 	createWebFetchExecutor,

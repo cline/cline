@@ -60,6 +60,10 @@ export class HubScheduleCommandService {
 							tags: Array.isArray(envelope.payload?.tags)
 								? (envelope.payload?.tags as string[])
 								: undefined,
+							originSessionId:
+								typeof envelope.payload?.originSessionId === "string"
+									? envelope.payload.originSessionId
+									: undefined,
 						}),
 					});
 				case "schedule.get":

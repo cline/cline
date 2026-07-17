@@ -13,6 +13,7 @@ import type {
 	ApplyPatchInput,
 	EditFileInput,
 	ReadFileRequest,
+	ScheduleTaskInput,
 	StructuredCommandInput,
 } from "./schemas";
 
@@ -193,6 +194,23 @@ export type VerifySubmitExecutor = (
 ) => Promise<string>;
 
 /**
+ * Executor for creating a scheduled (recurring) task
+ *
+ * The executor closes over a schedule client (and, when the session is
+ * connector-backed, the current thread's delivery descriptor). It is only
+ * injected for hosts that can reach a schedule service, which is why
+ * `schedule_task` only appears when this executor is provided.
+ *
+ * @param input - Validated schedule_task input
+ * @param context - Tool execution context (carries the origin `sessionId`)
+ * @returns A human-readable confirmation string for the model
+ */
+export type ScheduleTaskExecutor = (
+	input: ScheduleTaskInput,
+	context: AgentToolContext,
+) => Promise<string>;
+
+/**
  * Collection of all tool executors
  */
 export interface ToolExecutors {
@@ -214,6 +232,8 @@ export interface ToolExecutors {
 	askQuestion?: AskQuestionExecutor;
 	/** Final submission implementation */
 	submit?: VerifySubmitExecutor;
+	/** Scheduled-task creation implementation */
+	scheduleTask?: ScheduleTaskExecutor;
 }
 
 // =============================================================================
@@ -232,7 +252,8 @@ export type DefaultToolName =
 	| "editor"
 	| "skills"
 	| "ask_question"
-	| "submit_and_exit";
+	| "submit_and_exit"
+	| "schedule_task";
 
 /**
  * Configuration for enabling/disabling default tools
@@ -293,6 +314,13 @@ export interface DefaultToolsConfig {
 	enableSubmitAndExit?: boolean;
 
 	/**
+	 * Enable the schedule_task tool. Only takes effect when a `scheduleTask`
+	 * executor is also provided (it requires a schedule client the host injects).
+	 * @default true
+	 */
+	enableScheduleTask?: boolean;
+
+	/**
 	 * Current working directory for tools that need it
 	 */
 	cwd?: string;
@@ -344,6 +372,12 @@ export interface DefaultToolsConfig {
 	 * @default 15000
 	 */
 	submitTimeoutMs?: number;
+
+	/**
+	 * Timeout for schedule_task operations in milliseconds
+	 * @default 15000
+	 */
+	scheduleTaskTimeoutMs?: number;
 }
 
 /**

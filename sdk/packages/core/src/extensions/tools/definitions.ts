@@ -46,6 +46,8 @@ import {
 	ReadFilesInputSchema,
 	ReadFilesInputUnionSchema,
 	RunCommandsInputSchema,
+	type ScheduleTaskInput,
+	ScheduleTaskInputSchema,
 	type SearchCodebaseInput,
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
@@ -62,6 +64,7 @@ import type {
 	DefaultToolsConfig,
 	EditorExecutor,
 	FileReadExecutor,
+	ScheduleTaskExecutor,
 	SearchExecutor,
 	ShellExecutor,
 	SkillsExecutorWithMetadata,
@@ -446,6 +449,40 @@ export function createShellTool(
 }
 
 /**
+ * Create the schedule_task tool
+ *
+ * Lets the agent create a recurring scheduled task. The actual scheduling work
+ * is delegated to the injected {@link ScheduleTaskExecutor}, which closes over a
+ * host-provided schedule client — that is why this tool only appears when a
+ * `scheduleTask` executor is supplied.
+ */
+export function createScheduleTaskTool(
+	executor: ScheduleTaskExecutor,
+	config: Pick<DefaultToolsConfig, "scheduleTaskTimeoutMs"> = {},
+): AgentTool<ScheduleTaskInput, string> {
+	const timeoutMs = config.scheduleTaskTimeoutMs ?? 15000;
+
+	return createTool<ScheduleTaskInput, string>({
+		name: "schedule_task",
+		description:
+			"Schedule a recurring task that runs a prompt on a cron cadence. " +
+			"Use `schedule` for a five-field cron pattern (e.g. '0 9 * * *' for 09:00 daily). " +
+			"`deliverTo` controls where each run's output goes: 'new_session' (an independent session that shows up in session history), " +
+			"'origin_session' (delivered back into THIS session as follow-up work for you to continue), or " +
+			"'connector' (posted into the current chat thread as a notification; only valid inside a connector session). " +
+			"Defaults to 'new_session'. Use this when the user asks to run something on a schedule or be reminded periodically.",
+		inputSchema: zodToJsonSchema(ScheduleTaskInputSchema),
+		timeoutMs,
+		retryable: false,
+		maxRetries: 0,
+		execute: async (input, context) => {
+			const validatedInput = validateWithZod(ScheduleTaskInputSchema, input);
+			return executor(validatedInput, context);
+		},
+	});
+}
+
+/**
  * Create the fetch_web_content tool
  *
  * Fetches content from URLs and analyzes them using provided prompts.
@@ -821,6 +858,7 @@ export function createDefaultTools(
 		enableSkills = true,
 		enableAskQuestion = true,
 		enableSubmitAndExit = false,
+		enableScheduleTask = true,
 		...config
 	} = options;
 
@@ -870,6 +908,11 @@ export function createDefaultTools(
 	// Add submit_and_exit tool if enabled and executor provided
 	if (submitExecutor) {
 		tools.push(createSubmitAndExitTool(submitExecutor, config));
+	}
+
+	// Add schedule_task tool if enabled and executor provided
+	if (enableScheduleTask && executors.scheduleTask) {
+		tools.push(createScheduleTaskTool(executors.scheduleTask, config));
 	}
 
 	return tools as unknown as AgentTool[];

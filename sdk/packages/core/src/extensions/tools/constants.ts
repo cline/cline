@@ -19,6 +19,7 @@ export const DefaultToolNames = {
 	SKILLS: "skills",
 	ASK: "ask_question",
 	SUBMIT_AND_EXIT: "submit_and_exit",
+	SCHEDULE_TASK: "schedule_task",
 } as const;
 
 /**
@@ -34,4 +35,5 @@ export const ALL_DEFAULT_TOOL_NAMES: DefaultToolName[] = [
 	DefaultToolNames.SKILLS,
 	DefaultToolNames.ASK,
 	DefaultToolNames.SUBMIT_AND_EXIT,
+	DefaultToolNames.SCHEDULE_TASK,
 ];

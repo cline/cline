@@ -83,6 +83,12 @@ export interface ListSchedulesOptions {
 	enabled?: boolean;
 	limit?: number;
 	tags?: string[];
+	/**
+	 * Only return schedules created by an agent from this origin session
+	 * (matched against `metadata.originSessionId`). Used to surface the
+	 * schedule↔session linkage ("N scheduled tasks opened for this session").
+	 */
+	originSessionId?: string;
 }
 
 export interface ListScheduleExecutionsOptions {
@@ -249,9 +255,22 @@ export class HubScheduleService {
 	}
 
 	public listSchedules(options: ListSchedulesOptions = {}): ScheduleRecord[] {
-		return this.store
-			.listHubSchedules(options)
+		const { originSessionId, limit } = options;
+		// When filtering by origin session we must filter on the mapped record's
+		// metadata, so drop the store-level limit and re-apply it afterwards.
+		const storeOptions = originSessionId
+			? { ...options, limit: undefined }
+			: options;
+		const schedules = this.store
+			.listHubSchedules(storeOptions)
 			.map((spec) => specToSchedule(spec));
+		if (!originSessionId) {
+			return schedules;
+		}
+		const filtered = schedules.filter(
+			(schedule) => schedule.metadata?.originSessionId === originSessionId,
+		);
+		return typeof limit === "number" ? filtered.slice(0, limit) : filtered;
 	}
 
 	public updateSchedule(

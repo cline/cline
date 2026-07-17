@@ -228,6 +228,22 @@ export async function getOrCreateSessionId<
 			sessionId,
 			metadata: {
 				transport: input.transport,
+				// Delivery descriptor for this connector thread. Lets the
+				// agent-facing schedule_task tool (deliverTo: "connector") post a
+				// scheduled run's result back into this thread, reusing the same
+				// per-adapter delivery path as user-typed /schedule.
+				delivery: {
+					adapter: input.transport,
+					threadId: input.thread.id,
+					bindingKey: input.thread.id,
+					...(input.thread.channelId
+						? { channelId: input.thread.channelId }
+						: {}),
+					...(threadState.participantKey
+						? { participantKey: threadState.participantKey }
+						: {}),
+					...(input.hookBotUserName ? { userName: input.hookBotUserName } : {}),
+				},
 				...input.sessionMetadata,
 				...(remoteConfigMetadata ?? {}),
 				...(threadState.participantKey

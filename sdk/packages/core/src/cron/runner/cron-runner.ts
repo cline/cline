@@ -415,6 +415,14 @@ export class CronRunner {
 						: run.status === "queued"
 							? "pending"
 							: "failed";
+		const deliveryMode =
+			typeof spec.metadata?.deliveryMode === "string"
+				? spec.metadata.deliveryMode
+				: undefined;
+		const originSessionId =
+			typeof spec.metadata?.originSessionId === "string"
+				? spec.metadata.originSessionId
+				: undefined;
 		this.options.eventPublisher(eventType, {
 			scheduleId: spec.externalId,
 			executionId: run.runId,
@@ -426,6 +434,10 @@ export class CronRunner {
 				: undefined,
 			status,
 			errorMessage: run.error,
+			// Delivery routing hints for agent-created schedules. Consumers use
+			// these to feed a run's output back into the origin session.
+			...(deliveryMode ? { deliveryMode } : {}),
+			...(originSessionId ? { originSessionId } : {}),
 		});
 	}
 
@@ -526,7 +538,12 @@ export class CronRunner {
 			provider,
 			model,
 			mode,
-			source: spec.source?.trim() || "user",
+			// Hub-created schedules surface their run sessions in history tagged
+			// with source "schedule" so users can distinguish scheduled runs.
+			source:
+				spec.source?.trim() === "hub-schedule"
+					? "schedule"
+					: spec.source?.trim() || "user",
 			systemPrompt: await this.buildSystemPrompt(
 				spec,
 				workspaceRoot,

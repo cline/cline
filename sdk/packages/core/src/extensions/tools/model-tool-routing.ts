@@ -44,6 +44,7 @@ const TOOL_NAME_TO_FLAG: Record<
 		| "enableSkills"
 		| "enableAskQuestion"
 		| "enableSubmitAndExit"
+		| "enableScheduleTask"
 	>
 > = {
 	read_files: "enableReadFiles",
@@ -55,6 +56,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	skills: "enableSkills",
 	ask_question: "enableAskQuestion",
 	submit_and_exit: "enableSubmitAndExit",
+	schedule_task: "enableScheduleTask",
 };
 
 export const DEFAULT_MODEL_TOOL_ROUTING_RULES: ToolRoutingRule[] = [

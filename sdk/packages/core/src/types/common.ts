@@ -45,6 +45,7 @@ export const SessionSource = {
 	IDE: "ide",
 	JETBRAINS: "jetbrains",
 	NEOVIM: "neovim",
+	SCHEDULE: "schedule",
 	UNKNOWN: "unknown",
 } as const;
 

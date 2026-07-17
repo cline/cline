@@ -3,12 +3,15 @@ import type {
 	HubCommandEnvelope,
 	HubEventEnvelope,
 	HubReplyEnvelope,
+	HubScheduleCreateInput,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import { captureSdkError, createSessionId } from "@cline/shared";
+import { deliverScheduleResultToOriginSession } from "../../cron/delivery/origin-session-delivery";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import { createScheduleTaskExecutor } from "../../extensions/tools";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	PendingPromptsRuntimeService,
@@ -184,13 +187,78 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		// The schedule_task tool executor runs inside hub-hosted agent sessions.
+		// It reaches this hub's own HubScheduleService (assigned later in this
+		// constructor) via a lazy reference and resolves workspaceRoot/cwd from
+		// the origin session when the agent omits them.
+		const sessionHostRef: {
+			current?: RuntimeHost & Partial<PendingPromptsRuntimeService>;
+		} = {};
+		const scheduleTaskExecutor = createScheduleTaskExecutor({
+			client: {
+				createSchedule: async (input) => {
+					let workspaceRoot = input.workspaceRoot?.trim();
+					let cwd = input.cwd?.trim();
+					const originSessionId = input.originSessionId?.trim();
+					const metadata: Record<string, unknown> = {
+						...(input.metadata ?? {}),
+					};
+					const needsConnectorDelivery =
+						metadata.deliveryMode === "connector" && !metadata.delivery;
+					if (
+						(!workspaceRoot || !cwd || needsConnectorDelivery) &&
+						originSessionId
+					) {
+						const originSession = await sessionHostRef.current
+							?.getSession(originSessionId)
+							.catch(() => undefined);
+						workspaceRoot = workspaceRoot || originSession?.workspaceRoot;
+						cwd = cwd || originSession?.cwd;
+						if (needsConnectorDelivery) {
+							const delivery = originSession?.metadata?.delivery;
+							if (delivery && typeof delivery === "object") {
+								metadata.delivery = delivery;
+							}
+						}
+					}
+					if (metadata.deliveryMode === "connector" && !metadata.delivery) {
+						throw new Error(
+							"schedule_task deliverTo='connector' is only available inside a connector-backed session (no thread delivery target found).",
+						);
+					}
+					if (!workspaceRoot) {
+						throw new Error(
+							"schedule_task could not resolve a workspaceRoot for the scheduled run.",
+						);
+					}
+					const created = this.schedules.createSchedule({
+						name: input.name,
+						cronPattern: input.cronPattern,
+						prompt: input.prompt,
+						workspaceRoot,
+						cwd,
+						mode: input.mode,
+						createdBy: input.createdBy,
+						metadata: metadata as HubScheduleCreateInput["metadata"],
+					});
+					return {
+						scheduleId: created.scheduleId,
+						nextRunAt: created.nextRunAt,
+					};
+				},
+			},
+		});
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
 				sessionService: new CoreSessionService(new SqliteSessionStore()),
 				fetch: options.fetch,
 				telemetry: options.telemetry,
+				capabilities: {
+					toolExecutors: { scheduleTask: scheduleTaskExecutor },
+				},
 			});
+		sessionHostRef.current = this.sessionHost;
 		this.ctx = {
 			clients: this.clients,
 			sessionState: this.sessionState,
@@ -239,6 +307,41 @@ export class HubServerTransport implements NativeHubTransport {
 							: undefined,
 					),
 				);
+				// For agent-created schedules with deliverTo:"origin_session",
+				// feed the run's result back into the originating session as a
+				// queued follow-up turn (best-effort; skipped if not active).
+				const record =
+					payload && typeof payload === "object"
+						? (payload as Record<string, unknown>)
+						: undefined;
+				if (record?.deliveryMode === "origin_session") {
+					const originSessionId =
+						typeof record.originSessionId === "string"
+							? record.originSessionId
+							: undefined;
+					if (originSessionId) {
+						void deliverScheduleResultToOriginSession({
+							host: this.sessionHost,
+							originSessionId,
+							runSessionId:
+								typeof record.sessionId === "string"
+									? record.sessionId
+									: undefined,
+							scheduleId:
+								typeof record.scheduleId === "string"
+									? record.scheduleId
+									: "unknown",
+							status:
+								typeof record.status === "string" ? record.status : "unknown",
+							errorMessage:
+								typeof record.errorMessage === "string"
+									? record.errorMessage
+									: undefined,
+						}).catch(() => {
+							// Best-effort delivery.
+						});
+					}
+				}
 			},
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);

@@ -346,3 +346,79 @@ export type AskQuestionInput = z.infer<typeof AskQuestionInputSchema>;
  * Input for the submit and exit tool
  */
 export type SubmitInput = z.infer<typeof SubmitInputSchema>;
+
+/**
+ * Where a scheduled task's output is delivered.
+ * - `new_session`: each run creates its own session that appears in session
+ *   history (marked with source=schedule).
+ * - `origin_session`: the run's output is delivered back into the session that
+ *   created the schedule, as follow-up work for the main agent.
+ * - `connector`: the run's output is posted into the connector chat thread this
+ *   session belongs to (only valid inside a connector-backed session).
+ */
+export const ScheduleTaskDeliverToSchema = z
+	.enum(["new_session", "origin_session", "connector"])
+	.describe(
+		"Where each scheduled run's output goes: 'new_session' (independent session in history), 'origin_session' (fed back into this session as follow-up work), or 'connector' (posted into the current chat thread; only valid in a connector session).",
+	);
+
+/**
+ * Schema for the schedule_task tool input
+ */
+export const ScheduleTaskInputSchema = z
+	.object({
+		name: z
+			.string()
+			.min(1)
+			.describe("Short human-readable name for the scheduled task."),
+		prompt: z
+			.string()
+			.min(1)
+			.describe(
+				"The task instructions the scheduled run should execute each time it fires.",
+			),
+		schedule: z
+			.string()
+			.min(1)
+			.describe(
+				"Five-field cron pattern describing the cadence, e.g. '0 9 * * *' for 09:00 every day.",
+			),
+		deliverTo: ScheduleTaskDeliverToSchema.optional().describe(
+			"Where each run's output goes. Defaults to 'new_session' when omitted.",
+		),
+		timezone: z
+			.string()
+			.optional()
+			.describe(
+				"Optional IANA timezone for interpreting the cron pattern, e.g. 'America/New_York'.",
+			),
+		mode: z
+			.enum(["act", "plan"])
+			.optional()
+			.describe("Optional agent mode for the scheduled run."),
+		workspaceRoot: z
+			.string()
+			.optional()
+			.describe(
+				"Optional absolute workspace root for the run; defaults to this session's workspace.",
+			),
+		cwd: z
+			.string()
+			.optional()
+			.describe(
+				"Optional working directory for the run; defaults to this session's cwd.",
+			),
+	})
+	.describe(
+		"Create a recurring scheduled task that runs a prompt on a cron cadence.",
+	);
+
+/**
+ * Input for the schedule_task tool
+ */
+export type ScheduleTaskInput = z.infer<typeof ScheduleTaskInputSchema>;
+
+/**
+ * Delivery target for `deliverTo: 'new_session' | 'origin_session' | 'connector'`.
+ */
+export type ScheduleTaskDeliverTo = z.infer<typeof ScheduleTaskDeliverToSchema>;
