@@ -102,4 +102,25 @@ describe("InMemoryMcpManager", () => {
 			}),
 		).rejects.toThrow(/disabled/i);
 	});
+
+	it("redacts secret-bearing connection diagnostics", async () => {
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () =>
+				createClient({
+					connect: vi.fn(async () => {
+						throw new Error("Failed with access_token=token-secret");
+					}),
+				}),
+		});
+		await manager.registerServer({
+			name: "secret-error",
+			transport: { type: "sse", url: "https://example.test/sse" },
+		});
+
+		await expect(manager.connectServer("secret-error")).rejects.toThrow();
+
+		expect(manager.listServers()[0]?.lastError).toBe(
+			"Failed with access_token=[REDACTED]",
+		);
+	});
 });

@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -9,7 +11,6 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { BasicLogger } from "@cline/shared";
@@ -232,6 +233,30 @@ export function resolveDefaultMcpSettingsPath(): string {
 	return resolveMcpSettingsPath();
 }
 
+function ensurePrivateSettingsDirectory(directoryPath: string): void {
+	if (!existsSync(directoryPath)) {
+		mkdirSync(directoryPath, { recursive: true, mode: 0o700 });
+	}
+	if (process.platform !== "win32") {
+		try {
+			chmodSync(directoryPath, 0o700);
+		} catch {
+			// Best effort: keep working on filesystems without POSIX permissions.
+		}
+	}
+}
+
+function hardenExistingSettingsFile(filePath: string): void {
+	if (process.platform === "win32") {
+		return;
+	}
+	try {
+		chmodSync(filePath, 0o600);
+	} catch {
+		// Best effort: reads and writes should still work on unusual filesystems.
+	}
+}
+
 /**
  * Atomically write the MCP settings file using a temp file + rename.
  *
@@ -243,13 +268,18 @@ export function resolveDefaultMcpSettingsPath(): string {
  * always observes either the old or the new complete file.
  */
 function atomicWriteSettingsFile(filePath: string, contents: string): void {
-	mkdirSync(dirname(filePath), { recursive: true });
+	ensurePrivateSettingsDirectory(dirname(filePath));
 	const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}.${Math.random()
 		.toString(36)
 		.slice(2)}`;
 	try {
-		writeFileSync(tempPath, contents, { encoding: "utf8", flag: "wx" });
+		writeFileSync(tempPath, contents, {
+			encoding: "utf8",
+			flag: "wx",
+			mode: 0o600,
+		});
 		renameSync(tempPath, filePath);
+		hardenExistingSettingsFile(filePath);
 	} catch (error) {
 		try {
 			unlinkSync(tempPath);
@@ -298,6 +328,11 @@ interface AcquiredSettingsLock {
 	ownerFile: string;
 }
 
+export function isSettingsLockContentionError(error: unknown): boolean {
+	const code = (error as NodeJS.ErrnoException).code;
+	return code === "EEXIST" || code === "ENOTEMPTY";
+}
+
 /**
  * Cross-process lock implemented as a populated directory. Acquisition creates a
  * staging directory, writes a unique owner marker inside it, then renames the
@@ -313,10 +348,10 @@ function tryAcquireSettingsLock(
 	lockDir: string,
 	token: string,
 ): AcquiredSettingsLock | undefined {
-	mkdirSync(dirname(lockDir), { recursive: true });
+	ensurePrivateSettingsDirectory(dirname(lockDir));
 	const stagingDir = `${lockDir}.tmp.${token}`;
 	rmSync(stagingDir, { recursive: true, force: true });
-	mkdirSync(stagingDir, { recursive: true });
+	mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
 	writeFileSync(join(stagingDir, `owner.${token}`), token, {
 		encoding: "utf8",
 		flag: "wx",
@@ -326,7 +361,10 @@ function tryAcquireSettingsLock(
 		return { lockDir, ownerFile: join(lockDir, `owner.${token}`) };
 	} catch (error) {
 		rmSync(stagingDir, { recursive: true, force: true });
-		if (existsSync(lockDir)) {
+		// On POSIX, renaming a directory over another populated directory may
+		// report either EEXIST or ENOTEMPTY. The winning writer can release the
+		// lock before existsSync runs, so classify the original error first.
+		if (isSettingsLockContentionError(error) || existsSync(lockDir)) {
 			return undefined;
 		}
 		throw error;
@@ -551,6 +589,7 @@ function runPureSettingsMutator<T>(
 }
 
 function readJsonObject(filePath: string): Record<string, unknown> {
+	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
@@ -613,6 +652,8 @@ export function loadMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): McpSettingsFile {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	ensurePrivateSettingsDirectory(dirname(filePath));
+	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
@@ -673,7 +714,12 @@ export function hasMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): boolean {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	return existsSync(filePath);
+	const exists = existsSync(filePath);
+	if (exists) {
+		ensurePrivateSettingsDirectory(dirname(filePath));
+		hardenExistingSettingsFile(filePath);
+	}
+	return exists;
 }
 
 export function resolveMcpServerRegistrations(

@@ -132,7 +132,12 @@ export async function ensureAgentSkillsDirectoryExists(options: { isGlobal: bool
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
-	return getGlobalStorageDir("settings")
+	const settingsDir = path.resolve(HostProvider.get().globalStorageFsPath, "settings")
+	await fs.mkdir(settingsDir, { recursive: true, mode: 0o700 })
+	if (process.platform !== "win32") {
+		await fs.chmod(settingsDir, 0o700).catch(() => {})
+	}
+	return settingsDir
 }
 
 /**
@@ -141,10 +146,18 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
  * @returns Path to the MCP settings file
  */
 export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
+	await fs.mkdir(settingsDirectoryPath, { recursive: true, mode: 0o700 })
+	if (process.platform !== "win32") {
+		await fs.chmod(settingsDirectoryPath, 0o700).catch(() => {})
+	}
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
 	const tempPath = `${mcpSettingsFilePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
 	try {
-		await fs.writeFile(tempPath, JSON.stringify({ mcpServers: {} }, null, 2), { encoding: "utf8", flag: "wx" })
+		await fs.writeFile(tempPath, JSON.stringify({ mcpServers: {} }, null, 2), {
+			encoding: "utf8",
+			flag: "wx",
+			mode: 0o600,
+		})
 		// Hard-linking publishes the fully-written temp file without overwriting an
 		// existing settings file. EEXIST means another process won the create race.
 		await fs.link(tempPath, mcpSettingsFilePath)
@@ -154,6 +167,9 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 		}
 	} finally {
 		await fs.unlink(tempPath).catch(() => {})
+	}
+	if (process.platform !== "win32") {
+		await fs.chmod(mcpSettingsFilePath, 0o600).catch(() => {})
 	}
 	return mcpSettingsFilePath
 }

@@ -1,3 +1,4 @@
+import { sanitizeMcpDiagnosticText } from "./oauth";
 import type {
 	McpConnectionStatus,
 	McpManager,
@@ -205,7 +206,9 @@ export class InMemoryMcpManager implements McpManager {
 			state.updatedAt = nowMs();
 		} catch (error) {
 			state.status = "disconnected";
-			state.lastError = error instanceof Error ? error.message : String(error);
+			state.lastError = sanitizeMcpDiagnosticText(
+				error instanceof Error ? error.message : String(error),
+			);
 			state.updatedAt = nowMs();
 			throw error;
 		}

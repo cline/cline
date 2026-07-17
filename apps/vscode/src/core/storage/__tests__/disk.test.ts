@@ -19,7 +19,13 @@ const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
 mock.module("@utils/fs", fsUtilsMock)
 mock.module("@/utils/fs", fsUtilsMock)
 
-import { getAllHooksDirs, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
+import {
+	ensureSettingsDirectoryExists,
+	getAllHooksDirs,
+	getMcpSettingsFilePath,
+	getWorkspaceHooksDirs,
+	setRuntimeHooksDir,
+} from "../disk"
 import { StateManager } from "../StateManager"
 
 describe("disk - hooks functionality", () => {
@@ -279,5 +285,38 @@ describe("disk - atomic writes", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+	})
+
+	it("creates and repairs MCP settings with owner-only permissions", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "secure-mcp-settings")
+		const settingsPath = await getMcpSettingsFilePath(settingsDir)
+
+		if (process.platform !== "win32") {
+			const directoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			const fileMode = (await fs.stat(settingsPath)).mode & 0o777
+			directoryMode.should.equal(0o700)
+			fileMode.should.equal(0o600)
+
+			await fs.chmod(settingsDir, 0o755)
+			await fs.chmod(settingsPath, 0o644)
+			await getMcpSettingsFilePath(settingsDir)
+			const repairedDirectoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			const repairedMode = (await fs.stat(settingsPath)).mode & 0o777
+			repairedDirectoryMode.should.equal(0o700)
+			repairedMode.should.equal(0o600)
+		}
+	})
+
+	it("creates the host settings directory with owner-only permissions", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "settings")
+		await fs.rm(settingsDir, { recursive: true, force: true })
+
+		const created = await ensureSettingsDirectoryExists()
+
+		created.should.equal(settingsDir)
+		if (process.platform !== "win32") {
+			const directoryMode = (await fs.stat(created)).mode & 0o777
+			directoryMode.should.equal(0o700)
+		}
 	})
 })

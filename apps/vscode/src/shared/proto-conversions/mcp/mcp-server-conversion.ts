@@ -1,13 +1,36 @@
 import {
+	McpServerStatus,
 	McpPrompt as ProtoMcpPrompt,
 	McpPromptArgument as ProtoMcpPromptArgument,
 	McpResource as ProtoMcpResource,
 	McpResourceTemplate as ProtoMcpResourceTemplate,
 	McpServer as ProtoMcpServer,
-	McpServerStatus,
 	McpTool as ProtoMcpTool,
 } from "@shared/proto/cline/mcp"
 import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
+
+function sanitizeMcpDiagnosticTextForWebview(message: string): string {
+	return message
+		.replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]")
+		.replace(/\bAuthorization["']?\s*[:=]\s*(?:Bearer|Basic)?\s*[^\s,;}]+/gi, "Authorization: [REDACTED]")
+		.replace(
+			/((?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|code[_-]?verifier|api[_-]?key|token)["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
+			"$1[REDACTED]",
+		)
+		.replace(/https?:\/\/[^\s"'<>]+/gi, (rawUrl) => {
+			try {
+				const url = new URL(rawUrl)
+				if (!url.search && !url.hash) {
+					return rawUrl
+				}
+				url.search = ""
+				url.hash = ""
+				return `${url.toString()}?[REDACTED]`
+			} catch {
+				return "[REDACTED URL]"
+			}
+		})
+}
 
 // Helper to convert TS status to Proto enum
 function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {
@@ -21,12 +44,38 @@ function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {
 	}
 }
 
+/**
+ * The extension backend needs the complete MCP config to create and restart
+ * transports, but the webview only reads URL, timeout, and remote-management
+ * metadata. Project that minimal shape before crossing the webview boundary so
+ * OAuth state, headers, environment variables, and secret-bearing arguments do
+ * not become part of the frontend state.
+ */
+export function projectMcpServerConfigForWebview(config: string): string {
+	try {
+		const parsed = JSON.parse(config) as Record<string, unknown>
+		const transport =
+			parsed.transport && typeof parsed.transport === "object" && !Array.isArray(parsed.transport)
+				? (parsed.transport as Record<string, unknown>)
+				: parsed
+		const projected = {
+			...(typeof transport.type === "string" ? { type: transport.type } : {}),
+			...(typeof transport.url === "string" ? { url: sanitizeMcpDiagnosticTextForWebview(transport.url) } : {}),
+			...(typeof parsed.timeout === "number" ? { timeout: parsed.timeout } : {}),
+			...(typeof parsed.remoteConfigured === "boolean" ? { remoteConfigured: parsed.remoteConfigured } : {}),
+		}
+		return JSON.stringify(projected)
+	} catch {
+		return "{}"
+	}
+}
+
 export function convertMcpServersToProtoMcpServers(mcpServers: McpServer[]): ProtoMcpServer[] {
 	const protoServers: ProtoMcpServer[] = mcpServers.map((server) => ({
 		name: server.name,
-		config: server.config,
+		config: projectMcpServerConfigForWebview(server.config),
 		status: convertMcpStatusToProto(server.status),
-		error: server.error,
+		error: server.error ? sanitizeMcpDiagnosticTextForWebview(server.error) : server.error,
 
 		// Convert nested types
 		tools: (server.tools || []).map(convertTool),
