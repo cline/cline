@@ -144,7 +144,10 @@ function saveOAuthCredentials(input: {
 			([, value]) => value !== undefined,
 		),
 	);
-	const metadata = { ...(input.settings?.auth?.metadata ?? {}), ...incomingMetadata };
+	const metadata = {
+		...(input.settings?.auth?.metadata ?? {}),
+		...incomingMetadata,
+	};
 	if (Object.keys(metadata).length > 0) {
 		auth.metadata = metadata;
 	}

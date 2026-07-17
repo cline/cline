@@ -20,7 +20,7 @@ interface ActionButtonsProps {
  */
 export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState, mode, messageHandlers }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
-	const { turnState } = useExtensionState()
+	const { turnState, foregroundCommandRunning } = useExtensionState()
 
 	// Tracks the ask the user last acted on. Clicking a footer button latches this so the
 	// buttons disable immediately (and survive the trailing bookkeeping re-renders before the
@@ -41,8 +41,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	// buttons immune to trailing bookkeeping messages and never disagree with the thinking
 	// indicator (RC1).
 	const buttonConfig = useMemo(() => {
-		return getButtonConfigFromState(messages, turnState, mode)
-	}, [messages, turnState, mode])
+		return getButtonConfigFromState(messages, turnState, mode, foregroundCommandRunning)
+	}, [messages, turnState, mode, foregroundCommandRunning])
 
 	// Identity of the ask that currently owns the footer buttons. The button config objects are
 	// shared singletons (e.g. BUTTON_CONFIGS.tool_approve), so two consecutive identical asks

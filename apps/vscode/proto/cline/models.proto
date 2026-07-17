@@ -63,7 +63,7 @@ service ModelsService {
   rpc readProviderConfig(StringRequest) returns (ProviderConfigResponse);
   // Writes provider configuration fields and returns redacted effective configuration
   rpc writeProviderConfig(WriteProviderConfigRequest) returns (ProviderConfigResponse);
-  // Commits a mode-specific model selection atomically with its model metadata
+  // Commits a mode-specific model ID with optional user-authored metadata overrides
   rpc commitModelSelection(CommitModelSelectionRequest) returns (Empty);
 }
 
@@ -120,6 +120,36 @@ message OpenRouterModelInfo {
   optional double temperature = 14;
   optional bool supports_reasoning = 15;
   optional ApiFormat api_format = 16;
+}
+
+// User-authored per-model metadata stored in models.json.
+//
+// Semantics:
+//  - `capabilities` accepts only the SDK ModelCapability values (e.g.
+//    "images", "tools", "prompt-cache", "reasoning", "files"); unknown
+//    strings are silently dropped by the host. The array is additive over
+//    the base metadata; the explicit supports_* booleans win when both are
+//    present.
+//  - `is_r1_format_required` is a legacy alias that forces the R1 chat
+//    format only when true; `api_format` is canonical.
+//  - Invalid numbers (non-positive token limits, negative prices or
+//    temperature, non-finite values) are silently discarded, not rejected.
+message ModelOverrides {
+  optional string name = 1;
+  optional int64 max_tokens = 2;
+  optional int64 context_window = 3;
+  optional int64 max_input_tokens = 4;
+  repeated string capabilities = 5;
+  optional bool supports_vision = 6;
+  optional bool supports_attachments = 7;
+  optional bool supports_reasoning = 8;
+  optional double input_price = 9;
+  optional double output_price = 10;
+  optional double cache_reads_price = 11;
+  optional double cache_writes_price = 12;
+  optional double temperature = 13;
+  optional ApiFormat api_format = 14;
+  optional bool is_r1_format_required = 15;
 }
 
 // Shared response message for model information
@@ -222,12 +252,16 @@ message ProviderConfigResponse {
   optional CommittedModelSelection act_selection = 11;
   optional AwsProviderConfig aws = 12;
   optional GcpProviderConfig gcp = 13;
+  // Provider-level context window (providers.json `contextWindow`). Used by
+  // bring-your-own-model providers (e.g. Ollama, where it maps to num_ctx).
+  optional int32 context_window = 14;
 }
 
 message CommittedModelSelection {
   string provider_id = 1;
   string model_id = 2;
   OpenRouterModelInfo model_info = 3;
+  optional ModelOverrides overrides = 4;
 }
 
 message ProviderReasoningPatch {
@@ -249,6 +283,8 @@ message WriteProviderConfigPatch {
   optional bool clear_headers = 10;
   optional AwsProviderConfig aws = 11;
   optional GcpProviderConfig gcp = 12;
+  // Provider-level context window; 0 clears the setting.
+  optional int32 context_window = 13;
 }
 
 message WriteProviderConfigRequest {
@@ -257,10 +293,18 @@ message WriteProviderConfigRequest {
 }
 
 message CommitModelSelectionRequest {
+  // Field 4 carried `OpenRouterModelInfo model_info` in earlier releases.
+  // Reusing the number with a different message type mis-decodes on version
+  // skew, so the retired field stays reserved.
+  reserved 4;
+  reserved "model_info";
   string provider_id = 1;
   string mode = 2;
   string model_id = 3;
-  OpenRouterModelInfo model_info = 4;
+  // Tri-state: ABSENT leaves the model's stored overrides unchanged, an
+  // explicitly EMPTY message clears them, and a populated message replaces
+  // them wholesale (no per-field merge).
+  optional ModelOverrides overrides = 5;
 }
 
 message ClineRecommendedModel {

@@ -23,6 +23,48 @@ const childEnv = {
 	CLINE_WRAPPER_PATH: scriptPath,
 };
 
+// Auto-discover OS trust anchors and pass them to the Bun child via
+// NODE_EXTRA_CA_CERTS. The Bun runtime does not read the OS store on its own,
+// so corporate/self-signed CAs would otherwise fail. This wrapper runs on
+// Node, which can read the full store here.
+try {
+	const caCerts = require("./ca-certs.cjs");
+	const outcome = caCerts.configureNodeExtraCaCerts(childEnv);
+	const debug =
+		process.env.CLINE_DEBUG === "1" || process.env.CLINE_DEBUG === "true";
+	// Not debug-gated: on old Nodes the harvest silently doing nothing is
+	// indistinguishable from a broken corporate proxy. Stamped per Node
+	// version so the nudge shows once, not on every command.
+	if (
+		outcome &&
+		outcome.action === "api-unavailable" &&
+		!childEnv.NODE_EXTRA_CA_CERTS &&
+		caCerts.shouldWarnApiUnavailable(childEnv)
+	) {
+		console.warn(
+			`[cline] Node ${process.versions.node} cannot read the OS trust store (needs >= 22.15); ` +
+				"corporate or self-signed CAs may fail TLS. Upgrade Node or set NODE_EXTRA_CA_CERTS.",
+		);
+	}
+	if (debug && outcome) {
+		if (outcome.action === "no-system-certs") {
+			console.warn(
+				"[cline] No OS trust anchors found; relying on the runtime's bundled CAs.",
+			);
+		} else if (outcome.action === "write-failed") {
+			console.warn(
+				"[cline] Could not write the managed CA bundle; relying on the runtime's bundled CAs.",
+			);
+		} else {
+			console.warn(
+				`[cline] Trust: ${outcome.systemCertCount} OS + ${outcome.userCertCount} user CAs (${outcome.action}) -> ${outcome.path}`,
+			);
+		}
+	}
+} catch {
+	// Best effort: fall back to the runtime's default trust on any failure.
+}
+
 function run(target) {
 	const result = childProcess.spawnSync(target, process.argv.slice(2), {
 		stdio: "inherit",

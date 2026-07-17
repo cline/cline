@@ -2189,6 +2189,61 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("captures task.mistake_limit_reached telemetry exactly once when the limit is hit", async () => {
+		const capture = vi.fn();
+		const telemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		};
+		const { deps } = makeScriptedRuntime({
+			events: failedToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 2 },
+				sessionId: "sess_mistakes",
+				telemetry,
+			}),
+			deps,
+		);
+
+		await session.run("one");
+		// First failed turn — counter 1 < 2, no telemetry yet.
+		const limitEvents = () =>
+			capture.mock.calls
+				.map((call) => call[0])
+				.filter((event) => event.event === "task.mistake_limit_reached");
+		expect(limitEvents()).toHaveLength(0);
+
+		await session.continue("two");
+		// Second failed turn hits the limit: exactly one event, even though
+		// no `onConsecutiveMistakeLimitReached` callback is configured (the
+		// tracker falls back to the default stop decision).
+		const events = limitEvents();
+		expect(events).toHaveLength(1);
+		expect(events[0].properties).toMatchObject({
+			ulid: "sess_mistakes",
+			model: "claude-3-5-sonnet",
+			provider: "anthropic",
+			reason: "tool_execution_failed",
+			consecutiveMistakes: 2,
+			maxConsecutiveMistakes: 2,
+			isSubagent: false,
+		});
+		expect(events[0].properties.agentId).toMatch(/^agent_/);
+	});
+
 	it("aborts on hard-threshold loop detection of identical tool calls", async () => {
 		const identical = (i: number): AgentRuntimeEvent => ({
 			type: "tool-started",

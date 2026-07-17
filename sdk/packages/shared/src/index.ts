@@ -238,6 +238,7 @@ export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,
+	stripUtf8Bom,
 	trimNonEmpty,
 	truncateSplit,
 	truncateStr,

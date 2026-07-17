@@ -13,6 +13,54 @@ export interface StartSessionResult {
 
 export const MAX_COMMAND_OUTPUT_CHARS = 200_000
 
+export interface StoredModelEntry {
+	id?: string
+	name?: string
+	maxTokens?: number
+	contextWindow?: number
+	maxInputTokens?: number
+	capabilities?: string[]
+	[key: string]: unknown
+}
+
+export interface StoredModelsFile {
+	version: 1
+	providers: Record<string, { models?: Record<string, StoredModelEntry> }>
+}
+
+const modelsFiles = new Map<string, StoredModelsFile>()
+
+function cloneModelsFile(modelsFile: StoredModelsFile): StoredModelsFile {
+	return structuredClone(modelsFile)
+}
+
+export function resetModelsFileState(): void {
+	modelsFiles.clear()
+}
+
+export function readModelsFileSync(filePath: string): StoredModelsFile {
+	return cloneModelsFile(modelsFiles.get(filePath) ?? { version: 1, providers: {} })
+}
+
+export function writeModelsFileSync(filePath: string, next: StoredModelsFile): void {
+	modelsFiles.set(filePath, cloneModelsFile(next))
+}
+
+export function resolveModelsRegistryPath(): string {
+	return "/tmp/models.json"
+}
+
+export function ensureCustomProvidersLoadedSync(): void {}
+
+// Real implementation re-exported from the sdk source (same pattern as the
+// apply-patch executors below) so store writes are reflected in the live
+// @cline/llms registry exactly as in production. Tests that touch it must
+// reset the registry (LlmsModels.resetRegistry()) between tests.
+export {
+	StoredModelEntrySchema,
+	syncStoredProviderRegistration,
+} from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {

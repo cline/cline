@@ -571,6 +571,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
 			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
+			temperature: configWithProvider.temperature,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
@@ -1771,10 +1772,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				(await readGitWorkspaceState(resolveWorkspacePath(session.config)));
 			if (!state || !session.artifacts) return;
 			if (
-				hasCurrentSessionGitMetadata(
-					session.artifacts.manifest.metadata,
-					state,
-				)
+				hasCurrentSessionGitMetadata(session.artifacts.manifest.metadata, state)
 			) {
 				return;
 			}

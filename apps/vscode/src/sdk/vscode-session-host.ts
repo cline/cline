@@ -36,9 +36,10 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
-import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
+import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
@@ -75,6 +76,8 @@ export interface VscodeSessionHostOptions {
 	 * with a custom tool that supports foreground/background terminal execution.
 	 */
 	getTerminalManager?: () => VscodeTerminalManager
+	/** Registry of in-flight foreground executions for "Proceed While Running". */
+	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
 export class VscodeSessionHost implements SdkSessionHost {
@@ -133,6 +136,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 						cwd: inputWithRemoteConfig.config.cwd,
 						getTerminalManager: options.getTerminalManager,
 						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
+						foregroundCommands: options.foregroundCommands,
 					})
 					return {
 						...inputWithRemoteConfig,

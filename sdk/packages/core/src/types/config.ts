@@ -45,6 +45,10 @@ export interface CoreModelConfig {
 	 * Maximum output tokens per API call.
 	 */
 	maxTokensPerTurn?: number;
+	/**
+	 * Sampling temperature per API call.
+	 */
+	temperature?: number;
 }
 
 export interface CoreRuntimeFeatures {

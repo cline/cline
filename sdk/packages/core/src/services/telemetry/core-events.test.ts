@@ -9,6 +9,7 @@ import {
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
 	captureTelemetryOptOut,
@@ -270,6 +271,35 @@ describe("captureWorkspacePathResolved", () => {
 		).not.toThrow();
 	});
 });
+
+describe("captureMistakeLimitReached", () => {
+	const baseProps = {
+		ulid: "sess-1",
+		model: "claude-3-5-sonnet",
+		provider: "anthropic",
+		reason: "tool_execution_failed",
+		consecutiveMistakes: 3,
+		maxConsecutiveMistakes: 3,
+	};
+
+	test("emits task.mistake_limit_reached with limit context and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureMistakeLimitReached(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.mistake_limit_reached");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof properties?.timestamp).toBe("string");
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			captureMistakeLimitReached(undefined, baseProps),
+		).not.toThrow();
+	});
+});
+
 describe("captureCompactionExecuted", () => {
 	const baseProps = {
 		ulid: "ulid-1",

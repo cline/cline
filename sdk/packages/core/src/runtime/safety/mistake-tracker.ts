@@ -60,6 +60,12 @@ export interface MistakeTrackerOptions {
 	) =>
 		| Promise<ConsecutiveMistakeLimitDecision>
 		| ConsecutiveMistakeLimitDecision;
+	/**
+	 * Observability hook fired exactly once per limit hit, right before the
+	 * limit decision is resolved — regardless of whether `onLimitReached` is
+	 * configured or what it decides. Used for telemetry.
+	 */
+	readonly onLimitTelemetry?: (ctx: ConsecutiveMistakeLimitContext) => void;
 	readonly emit: (event: AgentEvent) => void;
 	readonly log: LeveledLog;
 	readonly agentId: string;
@@ -107,14 +113,16 @@ export class MistakeTracker {
 			return { action: "continue" };
 		}
 
+		const limitContext: ConsecutiveMistakeLimitContext = {
+			iteration: input.iteration,
+			consecutiveMistakes: next,
+			maxConsecutiveMistakes: max,
+			reason: input.reason,
+			details: input.details,
+		};
+		this.options.onLimitTelemetry?.(limitContext);
 		const decision = await resolveConsecutiveMistakeDecision(
-			{
-				iteration: input.iteration,
-				consecutiveMistakes: next,
-				maxConsecutiveMistakes: max,
-				reason: input.reason,
-				details: input.details,
-			},
+			limitContext,
 			this.options.onLimitReached,
 		);
 
