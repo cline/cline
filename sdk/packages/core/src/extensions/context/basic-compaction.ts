@@ -293,19 +293,21 @@ function stripStaleMetrics(message: MessageWithMetadata): MessageWithMetadata {
 	return rest;
 }
 
+interface AggregatedUsage {
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
+	cost: number;
+}
+
 /**
  * Sum the per-message usage metrics that compaction is about to strip, so
  * the aggregate survives on the compaction message's metadata.
  */
-function aggregateUsageMetrics(messages: MessageWithMetadata[]):
-	| {
-			inputTokens: number;
-			outputTokens: number;
-			cacheReadTokens: number;
-			cacheWriteTokens: number;
-			cost: number;
-	  }
-	| undefined {
+function aggregateUsageMetrics(
+	messages: MessageWithMetadata[],
+): AggregatedUsage | undefined {
 	let found = false;
 	const totals = {
 		inputTokens: 0,
@@ -329,12 +331,113 @@ function aggregateUsageMetrics(messages: MessageWithMetadata[]):
 	return found ? totals : undefined;
 }
 
+function addAggregatedUsage(
+	first: AggregatedUsage | undefined,
+	second: AggregatedUsage | undefined,
+): AggregatedUsage | undefined {
+	if (!first) {
+		return second;
+	}
+	if (!second) {
+		return first;
+	}
+	return {
+		inputTokens: first.inputTokens + second.inputTokens,
+		outputTokens: first.outputTokens + second.outputTokens,
+		cacheReadTokens: first.cacheReadTokens + second.cacheReadTokens,
+		cacheWriteTokens: first.cacheWriteTokens + second.cacheWriteTokens,
+		cost: first.cost + second.cost,
+	};
+}
+
 /**
- * Fold the whole conversation history. Only typed user prompts survive
- * verbatim; every assistant turn and tool exchange — including the ones
- * after the latest typed prompt — is dropped and re-surfaced as
- * dropped-work summaries when the surviving prompts merge into a single
- * user message. No summarizer model is involved.
+ * Compaction stats accumulate across repeated compactions: the folded
+ * first message carries the running totals, and each new pass adds only
+ * what it removed this time.
+ */
+function readPriorCompactionStats(message: MessageWithMetadata | undefined): {
+	messagesRemoved: number;
+	usageBefore: AggregatedUsage | undefined;
+} {
+	const metadata = message?.metadata as Record<string, unknown> | undefined;
+	if (!metadata || metadata.kind !== "compaction") {
+		return { messagesRemoved: 0, usageBefore: undefined };
+	}
+	const usage = metadata.usageBefore as Partial<AggregatedUsage> | undefined;
+	return {
+		messagesRemoved:
+			typeof metadata.messagesRemoved === "number"
+				? metadata.messagesRemoved
+				: 0,
+		usageBefore:
+			usage && typeof usage === "object"
+				? {
+						inputTokens: usage.inputTokens ?? 0,
+						outputTokens: usage.outputTokens ?? 0,
+						cacheReadTokens: usage.cacheReadTokens ?? 0,
+						cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+						cost: usage.cost ?? 0,
+					}
+				: undefined,
+	};
+}
+
+const COMPACTION_PRESERVED_MARKER = "preserved";
+
+/**
+ * Messages that survived an earlier compaction are frozen: a later
+ * compaction never re-folds them, so repeated compactions only process
+ * the messages added since. Without this, each pass would re-drop the
+ * previously preserved answers and stack duplicate summary blocks onto
+ * the already-folded prompts.
+ */
+function isPreservedByCompaction(message: MessageWithMetadata): boolean {
+	return (
+		(message.metadata as { compaction?: string } | undefined)?.compaction ===
+		COMPACTION_PRESERVED_MARKER
+	);
+}
+
+function markPreservedByCompaction(
+	message: MessageWithMetadata,
+): MessageWithMetadata {
+	if (isPreservedByCompaction(message)) {
+		return message;
+	}
+	return {
+		...message,
+		metadata: { ...message.metadata, compaction: COMPACTION_PRESERVED_MARKER },
+	};
+}
+
+/**
+ * The concluding assistant answer of an older turn is kept as archive:
+ * thinking blocks carry no value there and are dropped. Returns undefined
+ * when nothing text-bearing remains.
+ */
+function sanitizeOlderAssistantFinal(
+	message: MessageWithMetadata,
+): MessageWithMetadata | undefined {
+	if (typeof message.content === "string") {
+		return message.content.trim() ? message : undefined;
+	}
+	const kept = message.content.filter(
+		(block) => block.type !== "thinking" && block.type !== "redacted_thinking",
+	);
+	if (!kept.some((block) => block.type === "text" && block.text.trim())) {
+		return undefined;
+	}
+	return { ...message, content: kept };
+}
+
+/**
+ * Fold the conversation history without a summarizer model. Typed user
+ * prompts always survive. The latest typed turn keeps its newest messages
+ * verbatim within the token target, dropping only the oldest ones (the
+ * kept suffix starts at an assistant message so no tool pair is split).
+ * Older turns keep their concluding assistant answer when it fits, newest
+ * turns first. Everything else is dropped and re-surfaced as dropped-work
+ * summaries attached to the surviving prompts.
  */
 export function runBasicCompaction(options: {
 	context: CoreCompactionContext;
@@ -342,6 +445,7 @@ export function runBasicCompaction(options: {
 	logger?: BasicLogger;
 }): CoreCompactionResult | undefined {
 	const originalMessages = options.context.messages;
+	const estimate = options.estimateMessageTokens;
 	// A lone message has nothing to compact around it; truncating the only
 	// prompt would just corrupt the active request.
 	if (originalMessages.length < 2) {
@@ -354,28 +458,154 @@ export function runBasicCompaction(options: {
 			options.context.budget.messages.triggerTokens,
 		),
 	);
-	const keptMessages: MessageWithMetadata[] = [];
-	for (const message of originalMessages) {
-		if (!isTurnStartMessage(message)) {
-			continue;
-		}
-		const sanitized = sanitizeTypedUserMessage(message);
-		if (sanitized) {
-			keptMessages.push(sanitized);
+
+	const typedIndices: number[] = [];
+	for (let index = 0; index < originalMessages.length; index += 1) {
+		if (isTurnStartMessage(originalMessages[index])) {
+			typedIndices.push(index);
 		}
 	}
-	if (keptMessages.length === 0) {
+	const sanitizedTypedByIndex = new Map<number, MessageWithMetadata>();
+	for (const index of typedIndices) {
+		const sanitized = sanitizeTypedUserMessage(originalMessages[index]);
+		if (sanitized) {
+			sanitizedTypedByIndex.set(index, sanitized);
+		}
+	}
+	if (sanitizedTypedByIndex.size === 0) {
 		return undefined;
+	}
+	const latestTypedOriginalIndex = typedIndices[typedIndices.length - 1];
+
+	// Typed prompts are mandatory; budget them at their post-merge shape
+	// (attachments survive only on the latest prompt).
+	let totalTokens = 0;
+	for (const [index, sanitized] of sanitizedTypedByIndex) {
+		totalTokens += estimate({
+			...sanitized,
+			content: userContentBlocks(sanitized, index === latestTypedOriginalIndex),
+		});
+	}
+
+	// Output of an earlier compaction is frozen: those messages are kept
+	// as-is and never re-folded, so this pass only processes new messages.
+	const frozenIndices = new Set<number>();
+	for (let index = 0; index < originalMessages.length; index += 1) {
+		if (sanitizedTypedByIndex.has(index)) {
+			continue;
+		}
+		if (isPreservedByCompaction(originalMessages[index])) {
+			frozenIndices.add(index);
+			totalTokens += estimate(originalMessages[index]);
+		}
+	}
+
+	// Latest typed turn: preserve the newest messages that fit, dropping
+	// only the oldest. Snapping the kept suffix forward to an assistant
+	// message keeps tool pairs intact (a tool_use holds its result in the
+	// user message that follows it).
+	const keptExtraIndices = new Set<number>();
+	{
+		let start = originalMessages.length;
+		let accumulated = 0;
+		for (
+			let index = originalMessages.length - 1;
+			index > latestTypedOriginalIndex;
+			index -= 1
+		) {
+			// Reaching frozen messages means the rest is a previous
+			// compaction's output — already kept, nothing left to walk.
+			if (frozenIndices.has(index)) {
+				break;
+			}
+			const cost = estimate(originalMessages[index]);
+			if (totalTokens + accumulated + cost > totalTargetTokens) {
+				break;
+			}
+			accumulated += cost;
+			start = index;
+		}
+		while (
+			start < originalMessages.length &&
+			originalMessages[start].role !== "assistant"
+		) {
+			start += 1;
+		}
+		for (let index = start; index < originalMessages.length; index += 1) {
+			keptExtraIndices.add(index);
+			totalTokens += estimate(originalMessages[index]);
+		}
+	}
+
+	// Older typed turns: keep each turn's concluding assistant answer when
+	// it fits, newest turns first.
+	const olderFinalByIndex = new Map<number, MessageWithMetadata>();
+	for (let block = typedIndices.length - 2; block >= 0; block -= 1) {
+		const blockStart = typedIndices[block] + 1;
+		const blockEnd = typedIndices[block + 1];
+		for (let index = blockEnd - 1; index >= blockStart; index -= 1) {
+			const candidate = originalMessages[index];
+			// A frozen answer from an earlier compaction already covers this
+			// turn.
+			if (frozenIndices.has(index)) {
+				break;
+			}
+			if (candidate.role !== "assistant") {
+				continue;
+			}
+			// An assistant message with a tool_use cannot stand alone (its
+			// result is dropped); look further back for the turn's answer.
+			if (
+				Array.isArray(candidate.content) &&
+				candidate.content.some((b) => b.type === "tool_use")
+			) {
+				continue;
+			}
+			const preserved = sanitizeOlderAssistantFinal(candidate);
+			if (preserved) {
+				const cost = estimate(preserved);
+				if (totalTokens + cost <= totalTargetTokens) {
+					olderFinalByIndex.set(index, preserved);
+					totalTokens += cost;
+				}
+			}
+			break;
+		}
+	}
+
+	const keptMessages: MessageWithMetadata[] = [];
+	for (let index = 0; index < originalMessages.length; index += 1) {
+		const typed = sanitizedTypedByIndex.get(index);
+		if (typed) {
+			keptMessages.push(typed);
+			continue;
+		}
+		if (frozenIndices.has(index) || keptExtraIndices.has(index)) {
+			keptMessages.push(originalMessages[index]);
+			continue;
+		}
+		const olderFinal = olderFinalByIndex.get(index);
+		if (olderFinal) {
+			keptMessages.push(olderFinal);
+		}
 	}
 	const beforeTokens = getTotalTokens(
 		originalMessages,
 		options.estimateMessageTokens,
 	);
-	// Safety valve for pathological budgets: if the typed prompts alone
-	// exceed the target, the projection trims them best-effort.
+	// Safety valve for estimator drift. The floor is whatever the selection
+	// deliberately kept: typed prompts and frozen output of earlier
+	// compactions must not be trimmed to chase a target that is already
+	// below their size (e.g. a repeated manual compaction halving its
+	// target each run). The trigger stays a hard ceiling — content that
+	// cannot fit the window at all is still trimmed best-effort.
+	const projectionTargetTokens = Math.min(
+		Math.max(totalTargetTokens, totalTokens),
+		Math.max(1, options.context.budget.messages.triggerTokens),
+	);
 	const budgeted = buildBudgetProjection({
 		messages: keptMessages,
-		targetTokens: totalTargetTokens,
+		targetTokens: projectionTargetTokens,
 		policyIntent: "basic_compaction_projection",
 		estimateMessageTokens: options.estimateMessageTokens,
 	});
@@ -397,8 +627,14 @@ export function runBasicCompaction(options: {
 	}
 	// Mirror the recovery_notice metadata convention: mark the folded
 	// message as system-inserted and record what the fold removed, since
-	// the per-message metrics it aggregates are stripped below.
-	const usageBefore = aggregateUsageMetrics(originalMessages);
+	// the per-message metrics it aggregates are stripped below. Stats
+	// accumulate across repeated compactions — earlier passes already
+	// stripped their metrics, so this pass only sees the new tail's.
+	const prior = readPriorCompactionStats(mergedMessages[0]);
+	const usageBefore = addAggregatedUsage(
+		prior.usageBefore,
+		aggregateUsageMetrics(originalMessages),
+	);
 	const compactionMetadata = {
 		kind: "compaction",
 		reason:
@@ -406,19 +642,25 @@ export function runBasicCompaction(options: {
 				? "manual_compaction"
 				: "auto_compaction",
 		displayRole: "system",
-		messagesRemoved: originalMessages.length - mergedMessages.length,
+		messagesRemoved:
+			prior.messagesRemoved + (originalMessages.length - mergedMessages.length),
 		...(usageBefore ? { usageBefore } : {}),
 	};
-	const resultMessages = mergedMessages.map((message, index) =>
-		stripStaleMetrics(
-			index === 0 && isTurnStartMessage(message)
-				? {
-						...message,
-						metadata: { ...message.metadata, ...compactionMetadata },
-					}
-				: message,
-		),
-	);
+	const resultMessages = mergedMessages.map((message, index) => {
+		if (index === 0 && isTurnStartMessage(message)) {
+			return stripStaleMetrics({
+				...message,
+				metadata: { ...message.metadata, ...compactionMetadata },
+			});
+		}
+		// Non-typed survivors (kept tool pairs and preserved answers) are
+		// frozen so the next compaction leaves them alone.
+		return stripStaleMetrics(
+			isTurnStartMessage(message)
+				? message
+				: markPreservedByCompaction(message),
+		);
+	});
 
 	const afterTokens = getTotalTokens(
 		resultMessages,
