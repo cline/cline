@@ -6,12 +6,13 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type CoreSessionConfig,
+	readGlobalSettings,
 	type SessionPendingPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
 } from "@cline/core";
 import type { Message } from "@cline/llms";
-import { buildClineSystemPrompt } from "@cline/shared";
+import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import type {
@@ -36,6 +37,31 @@ const workspaceMetadataPromises = new Map<
 	string,
 	WorkspaceMetadataCacheEntry
 >();
+
+export function rewriteDesktopTeamPrompt(
+	prompt: string,
+	disabledTools: ReadonlySet<string> = new Set(
+		readGlobalSettings().disabledTools ?? [],
+	),
+): string {
+	const match = /^\/team\b([\s\S]*)$/i.exec(prompt.trim());
+	if (!match) return prompt;
+	const task = match[1]?.trim();
+	if (!task) {
+		throw new Error(
+			"Usage: /team <task description>. Starts a team of agents for the given task.",
+		);
+	}
+	if (disabledTools.has("teams")) {
+		throw new Error(
+			"Agent teams are disabled. Enable the Teams tool in Customizations → Tools.",
+		);
+	}
+	return formatUserCommandBlock(
+		`spawn a team of agents for the following task: ${task}`,
+		"team",
+	);
+}
 
 function getWorkspaceMetadataPromise(
 	cwd: string,
@@ -217,16 +243,6 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
-		enableSpawnAgent:
-			config.enableSpawn ??
-			config.enableSpawnAgent ??
-			config.enable_spawn ??
-			false,
-		enableAgentTeams:
-			config.enableTeams ??
-			config.enableAgentTeams ??
-			config.enable_teams ??
-			false,
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
@@ -518,6 +534,7 @@ async function handleSend(
 	if (!sessionId) throw new Error("sessionId is required");
 	const prompt = request.prompt?.trim();
 	if (!prompt) throw new Error("prompt is required");
+	const runtimePrompt = rewriteDesktopTeamPrompt(prompt);
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
 	if (request.config) {
@@ -551,7 +568,7 @@ async function handleSend(
 		// turn finishes and emit pending_prompts / pending_prompt_submitted events.
 		await manager.send({
 			sessionId,
-			prompt,
+			prompt: runtimePrompt,
 			delivery: "queue",
 			userImages: request.attachments?.userImages,
 		});
@@ -575,7 +592,7 @@ async function handleSend(
 		);
 		const result = await manager.send({
 			sessionId,
-			prompt,
+			prompt: runtimePrompt,
 			delivery,
 			userImages: request.attachments?.userImages,
 		});

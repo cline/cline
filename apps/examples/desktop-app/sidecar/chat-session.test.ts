@@ -4,10 +4,25 @@ import {
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
 	prewarmWorkspaceMetadata,
+	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import type { SidecarContext } from "./types";
+
+describe("rewriteDesktopTeamPrompt", () => {
+	it("rewrites /team for the core runtime", () => {
+		expect(rewriteDesktopTeamPrompt("/team inspect the app", new Set())).toBe(
+			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		);
+	});
+
+	it("rejects /team when the Teams tool is disabled", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", new Set(["teams"])),
+		).toThrow("Agent teams are disabled");
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {

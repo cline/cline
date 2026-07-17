@@ -638,6 +638,8 @@ async function listUserInstructionConfigs(
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
 	});
 
