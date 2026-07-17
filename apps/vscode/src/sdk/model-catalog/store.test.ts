@@ -1018,5 +1018,10 @@ describe("createProviderConfigStore", () => {
 
 		const capabilities = (selection.modelInfo as unknown as { capabilities?: string[] }).capabilities
 		expect(capabilities).toContain("tools")
+		// Capabilities are inherited from the base model, but the routed model id
+		// must remain the ARN — a Custom-ARN model is used precisely so requests
+		// route through the application-inference-profile (for AIP routing and
+		// billing attribution). Substituting the base id here would break that.
+		expect(selection.modelId).toBe(arn)
 	})
 })
