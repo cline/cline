@@ -224,6 +224,28 @@ describe("Kimi For Coding reasoning", () => {
 		});
 	});
 
+	it("enables Anthropic thinking for K3 models via the kimi-k3 family route", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "kimi-for-coding",
+				modelId: "k3[1m]",
+				maxTokens: 131072,
+			}),
+			makeContext({
+				providerId: "kimi-for-coding",
+				modelId: "k3[1m]",
+				family: "kimi-k3",
+				modelMetadata: { reasoningDefaultOn: true },
+				capabilities: ["text", "reasoning"],
+				metadata: KIMI_FOR_CODING_ROUTING_METADATA,
+			}),
+		);
+
+		expect(result.anthropic).toMatchObject({
+			thinking: { type: "enabled", budgetTokens: 1024 },
+		});
+	});
+
 	it("does not send Anthropic thinking when it is explicitly disabled", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({

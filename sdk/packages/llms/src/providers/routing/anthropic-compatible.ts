@@ -95,9 +95,18 @@ const KIMI_K2_REASONING_ROUTE: GatewayModelRoute = {
 	family: "kimi-k2",
 };
 
+const KIMI_K3_REASONING_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "kimi-k3",
+};
+
 export const KIMI_FOR_CODING_ROUTING_METADATA = createAnthropicRoutingMetadata({
 	promptCacheRoutes: [],
-	reasoningRoutes: [KIMI_FOR_CODING_REASONING_ROUTE, KIMI_K2_REASONING_ROUTE],
+	reasoningRoutes: [
+		KIMI_FOR_CODING_REASONING_ROUTE,
+		KIMI_K2_REASONING_ROUTE,
+		KIMI_K3_REASONING_ROUTE,
+	],
 });
 
 export const ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA =

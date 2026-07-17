@@ -49,9 +49,20 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+			"k3",
+			"k3[1m]",
 			"kimi-for-coding",
 			"kimi-for-coding-highspeed",
 		]);
+		expect(resolved?.knownModels?.k3).toMatchObject({
+			name: "Kimi K3",
+			contextWindow: 262144,
+			family: "kimi-k3",
+		});
+		expect(resolved?.knownModels?.["k3[1m]"]).toMatchObject({
+			contextWindow: 1048576,
+			family: "kimi-k3",
+		});
 		expect(resolved?.knownModels?.["kimi-for-coding"]).toMatchObject({
 			name: "Kimi K2.7 Code",
 		});

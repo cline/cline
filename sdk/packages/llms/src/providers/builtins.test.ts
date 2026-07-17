@@ -148,15 +148,33 @@ describe("built-in provider metadata", () => {
 		);
 	});
 
-	it("uses Kimi's documented K2.7 model IDs and enables thinking by default", async () => {
+	it("exposes Kimi's documented K3 and K2.7 model IDs and enables thinking by default", async () => {
 		const models = await getModelsForProvider("kimi-for-coding");
 		const provider = await getProvider("kimi-for-coding");
 
 		expect(provider?.defaultModelId).toBe("kimi-for-coding");
 		expect(Object.keys(models)).toEqual([
+			"k3",
+			"k3[1m]",
 			"kimi-for-coding",
 			"kimi-for-coding-highspeed",
 		]);
+		expect(models.k3).toMatchObject({
+			id: "k3",
+			name: "Kimi K3",
+			contextWindow: 262144,
+			maxTokens: 131072,
+			family: "kimi-k3",
+			capabilities: expect.arrayContaining(["tools", "reasoning"]),
+			metadata: { reasoningDefaultOn: true },
+		});
+		expect(models["k3[1m]"]).toMatchObject({
+			id: "k3[1m]",
+			contextWindow: 1048576,
+			maxInputTokens: 1048576,
+			family: "kimi-k3",
+			metadata: { reasoningDefaultOn: true },
+		});
 		expect(models["kimi-for-coding"]).toMatchObject({
 			id: "kimi-for-coding",
 			name: "Kimi K2.7 Code",
@@ -173,13 +191,25 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
-	it("keeps Kimi's public aliases when generated K2.7 metadata is unavailable", () => {
+	it("keeps Kimi's public aliases when generated model metadata is unavailable", () => {
 		const models = buildKimiForCodingModels({});
 
 		expect(Object.keys(models)).toEqual([
+			"k3",
+			"k3[1m]",
 			"kimi-for-coding",
 			"kimi-for-coding-highspeed",
 		]);
+		expect(models.k3).toMatchObject({
+			contextWindow: 262144,
+			maxTokens: 131072,
+			family: "kimi-k3",
+		});
+		expect(models["k3[1m]"]).toMatchObject({
+			contextWindow: 1048576,
+			maxInputTokens: 1048576,
+			family: "kimi-k3",
+		});
 		expect(models["kimi-for-coding"]).toMatchObject({
 			contextWindow: 262144,
 			maxTokens: 32768,

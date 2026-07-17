@@ -379,7 +379,7 @@ function buildClineModels(): Record<string, ModelInfo> {
 export function buildKimiForCodingModels(
 	models = generatedModels("kimi-for-coding"),
 ): Record<string, ModelInfo> {
-	const base: ModelInfo = models.k2p7 ?? {
+	const k2p7Base: ModelInfo = models.k2p7 ?? {
 		id: "k2p7",
 		name: "Kimi K2.7 Code",
 		contextWindow: 262_144,
@@ -388,26 +388,65 @@ export function buildKimiForCodingModels(
 		capabilities: ["images", "tools", "reasoning", "structured_output"],
 		family: "kimi-k2",
 	};
+	const k3Base: ModelInfo = models.k3 ?? {
+		id: "k3",
+		name: "Kimi K3",
+		contextWindow: 1_048_576,
+		maxInputTokens: 1_048_576,
+		maxTokens: 131_072,
+		capabilities: [
+			"images",
+			"tools",
+			"reasoning",
+			"structured_output",
+			"temperature",
+		],
+		releaseDate: "2026-07-16",
+		family: "kimi-k3",
+	};
+	// The kimi.com/coding endpoint serves plain `k3` at a 256K context; the
+	// 1M context requires the `k3[1m]` variant.
+	const k3: ModelInfo = {
+		...k3Base,
+		contextWindow: 262_144,
+		maxInputTokens: 262_144,
+		description:
+			"Latest Kimi coding model with low/high/max thinking effort (defaults to max). Requires thinking; Kimi routes to K2.6 when thinking is disabled. Requires a Moderato plan or above.",
+		metadata: {
+			...k3Base.metadata,
+			reasoningDefaultOn: true,
+		},
+	};
 	// Kimi exposes stable standard/high-speed aliases rather than catalog IDs.
 	const standard: ModelInfo = {
-		...base,
+		...k2p7Base,
 		id: "kimi-for-coding",
 		name: "Kimi K2.7 Code",
 		description:
-			"Latest Kimi coding model. Requires thinking; Kimi routes Standard to K2.6 when thinking is disabled.",
+			"Kimi K2.7 Code served under a stable alias. Requires thinking; Kimi routes Standard to K2.6 when thinking is disabled.",
 		metadata: {
-			...base.metadata,
+			...k2p7Base.metadata,
 			reasoningDefaultOn: true,
 		},
 	};
 	return {
+		k3,
+		"k3[1m]": {
+			...k3,
+			id: "k3[1m]",
+			name: "Kimi K3 (1M context)",
+			contextWindow: 1_048_576,
+			maxInputTokens: 1_048_576,
+			description:
+				"Kimi K3 with a 1M-token context window. Requires an Allegretto plan or above.",
+		},
 		"kimi-for-coding": standard,
 		"kimi-for-coding-highspeed": {
 			...standard,
 			id: "kimi-for-coding-highspeed",
 			name: "Kimi K2.7 Code HighSpeed",
 			description:
-				"High-speed variant of the latest Kimi coding model. Roughly 5–6× faster output than Standard with the same coding ability; consumes ~3× the quota. Requires an Allegretto plan or above.",
+				"High-speed variant of Kimi K2.7 Code. Roughly 5–6× faster output than Standard with the same coding ability; consumes ~3× the quota. Requires an Allegretto plan or above.",
 		},
 	};
 }
