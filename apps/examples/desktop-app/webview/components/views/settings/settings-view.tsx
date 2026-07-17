@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
+import {
+	DEFAULT_NYAN_PET_SRC,
+	MAX_NYAN_PET_BYTES,
+	readStoredPetGif,
+	setStoredPetGif,
+} from "@/lib/nyan-pet";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -581,7 +588,109 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
+				<NyanPetSetting />
 			</section>
 		</PageFrame>
+	);
+}
+
+function NyanPetSetting() {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+	const [petGif, setPetGif] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		setPetGif(readStoredPetGif());
+	}, []);
+
+	const handleFile = useCallback((file: File | undefined) => {
+		if (!file) {
+			return;
+		}
+		setError(null);
+		if (!file.type.startsWith("image/")) {
+			setError("Please choose an image file — an animated GIF works best.");
+			return;
+		}
+		if (file.size > MAX_NYAN_PET_BYTES) {
+			setError("That image is too large. Please pick one under 3 MB.");
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			const dataUrl = typeof reader.result === "string" ? reader.result : null;
+			if (!dataUrl) {
+				setError("Could not read that image.");
+				return;
+			}
+			try {
+				setStoredPetGif(dataUrl);
+				setPetGif(dataUrl);
+			} catch {
+				setError("Could not save that image — it may be too large to store.");
+			}
+		};
+		reader.onerror = () => setError("Could not read that image.");
+		reader.readAsDataURL(file);
+	}, []);
+
+	const handleReset = useCallback(() => {
+		setStoredPetGif(null);
+		setPetGif(null);
+		setError(null);
+		if (inputRef.current) {
+			inputRef.current.value = "";
+		}
+	}, []);
+
+	const previewSrc = petGif ?? DEFAULT_NYAN_PET_SRC;
+
+	return (
+		<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+			<div>
+				<p className="text-[17px] font-semibold text-foreground">Desktop pet</p>
+				<p className="mt-1 text-[15px] text-muted-foreground">
+					Replace Nyan Cat with your own GIF. It floats on top of the app, and
+					its tune plays while you hover or drag it.
+				</p>
+				{error ? (
+					<p className="mt-2 text-xs text-destructive" role="alert">
+						{error}
+					</p>
+				) : null}
+			</div>
+			<div className="flex shrink-0 items-center gap-3 max-[720px]:justify-end">
+				<div className="flex h-14 w-20 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+					{/* biome-ignore lint/performance/noImgElement: user-provided data URL, not statically optimizable */}
+					<img
+						alt="Desktop pet preview"
+						className="max-h-full max-w-full object-contain"
+						src={previewSrc}
+					/>
+				</div>
+				<input
+					accept="image/gif,image/png,image/jpeg,image/webp"
+					className="hidden"
+					onChange={(event) => {
+						handleFile(event.target.files?.[0]);
+						event.target.value = "";
+					}}
+					ref={inputRef}
+					type="file"
+				/>
+				<Button
+					onClick={() => inputRef.current?.click()}
+					type="button"
+					variant="outline"
+				>
+					Upload GIF
+				</Button>
+				{petGif ? (
+					<Button onClick={handleReset} type="button" variant="ghost">
+						Reset
+					</Button>
+				) : null}
+			</div>
+		</div>
 	);
 }

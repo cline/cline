@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { NyanCat } from "@/components/nyan-cat";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -229,6 +230,7 @@ export default function Home() {
 		<AccountProvider>
 			<SidebarProvider>
 				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+					<NyanCat />
 					<Sidebar
 						className="border-r border-sidebar-border"
 						collapsible="icon"
