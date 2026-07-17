@@ -214,10 +214,29 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses VS Code profile path if available", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/usr/local/bin/fish") as typeof actualFs.existsSync
 			mockVsCodeConfig("osx", "MyCustomShell", {
 				MyCustomShell: { path: "/usr/local/bin/fish" },
 			})
 			expect(getShell()).to.equal("/usr/local/bin/fish")
+		})
+
+		it("expands and selects the first existing path in an array-valued profile", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/bin/zsh") as typeof actualFs.existsSync
+			mockVsCodeConfig("osx", "MyCustomShell", {
+				MyCustomShell: { path: ["/opt/homebrew/bin/zsh", "/bin/zsh"] },
+			})
+			expect(getShell()).to.equal("/bin/zsh")
+		})
+
+		it("falls back past a configured path that does not exist", () => {
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			mockVsCodeConfig("osx", "MyCustomShell", {
+				MyCustomShell: { path: "/missing/shell" },
+			})
+			userInfoImpl = () => ({ shell: "/opt/homebrew/bin/zsh" }) as any
+
+			expect(getShell()).to.equal("/opt/homebrew/bin/zsh")
 		})
 
 		it("falls back to userInfo().shell if no VS Code config is available", () => {
@@ -250,8 +269,26 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses VS Code profile path if available", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/usr/bin/fish") as typeof actualFs.existsSync
 			mockVsCodeConfig("linux", "CustomProfile", {
 				CustomProfile: { path: "/usr/bin/fish" },
+			})
+			expect(getShell()).to.equal("/usr/bin/fish")
+		})
+
+		it("expands and selects the first existing path in an array-valued profile", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/bin/bash") as typeof actualFs.existsSync
+			mockVsCodeConfig("linux", "CustomProfile", {
+				CustomProfile: { path: ["/usr/bin/fish", "/bin/bash"] },
+			})
+			expect(getShell()).to.equal("/bin/bash")
+		})
+
+		it("resolves a bare executable name from PATH without PATHEXT probing", () => {
+			process.env.PATH = "/opt/tools:/usr/bin"
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/usr/bin/fish") as typeof actualFs.existsSync
+			mockVsCodeConfig("linux", "CustomProfile", {
+				CustomProfile: { path: "fish" },
 			})
 			expect(getShell()).to.equal("/usr/bin/fish")
 		})

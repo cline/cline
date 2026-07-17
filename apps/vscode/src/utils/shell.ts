@@ -1,6 +1,6 @@
 import { existsSync } from "fs"
 import { userInfo } from "os"
-import { win32 as path } from "path"
+import * as nodePath from "path"
 import * as vscode from "vscode"
 
 export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
@@ -31,8 +31,11 @@ const SHELL_PATHS = {
 	FALLBACK: "/bin/sh",
 } as const
 
+// VS Code permits `path: string | string[]` in terminal profiles on every
+// platform (the stock Windows "Command Prompt" profile is an array), so all
+// three profile shapes model both forms.
 interface MacTerminalProfile {
-	path?: string
+	path?: string | string[]
 }
 
 type MacTerminalProfiles = Record<string, MacTerminalProfile>
@@ -45,7 +48,7 @@ interface WindowsTerminalProfile {
 type WindowsTerminalProfiles = Record<string, WindowsTerminalProfile>
 
 interface LinuxTerminalProfile {
-	path?: string
+	path?: string | string[]
 }
 
 type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
@@ -91,31 +94,52 @@ function getLinuxTerminalConfig() {
 // 2) Platform-Specific VS Code Shell Retrieval
 // -----------------------------------------------------
 
-function getWindowsEnvironmentVariable(name: string): string | undefined {
+function isWindows(): boolean {
+	return process.platform === "win32"
+}
+
+/** The path module matching the host platform's separators and semantics. */
+function hostPath(): nodePath.PlatformPath {
+	return isWindows() ? nodePath.win32 : nodePath.posix
+}
+
+function getEnvironmentVariable(name: string): string | undefined {
+	// Windows environment variable names are case-insensitive; POSIX names
+	// are case-sensitive.
+	if (!isWindows()) {
+		return process.env[name]
+	}
 	const entry = Object.entries(process.env).find(([key]) => key.toLowerCase() === name.toLowerCase())
 	return entry?.[1]
 }
 
-function expandWindowsShellPath(candidate: string): string {
+/** Expands VS Code's `${env:NAME}` references in a profile path. */
+function expandShellPath(candidate: string): string {
 	return candidate.replace(/\$\{env:([^}]+)\}/gi, (reference, name: string) => {
-		return getWindowsEnvironmentVariable(name.trim()) ?? reference
+		return getEnvironmentVariable(name.trim()) ?? reference
 	})
 }
 
-function findWindowsExecutable(candidate: string): string | null {
+/**
+ * Resolves a profile path candidate to an existing executable: absolute or
+ * relative paths are checked directly; bare names are searched on PATH
+ * (with PATHEXT on Windows, mirroring how VS Code launches profiles).
+ */
+function findExecutable(candidate: string): string | null {
+	const path = hostPath()
 	if (path.basename(candidate) !== candidate) {
-		return existsSync(path.normalize(candidate)) ? candidate : null
+		const normalized = path.normalize(candidate)
+		return existsSync(normalized) ? normalized : null
 	}
 
-	const pathValue = getWindowsEnvironmentVariable("PATH")
+	const pathValue = getEnvironmentVariable("PATH")
 	if (!pathValue) {
 		return null
 	}
 
-	const extensions = path.extname(candidate)
-		? [""]
-		: (getWindowsEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD").split(";")
-	for (const directory of pathValue.split(";")) {
+	const extensions =
+		!isWindows() || path.extname(candidate) ? [""] : (getEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD").split(";")
+	for (const directory of pathValue.split(path.delimiter)) {
 		for (const extension of extensions) {
 			const executable = path.join(directory, `${candidate}${extension}`)
 			if (existsSync(executable)) {
@@ -127,12 +151,12 @@ function findWindowsExecutable(candidate: string): string | null {
 	return null
 }
 
-/** Resolves the first usable path in a VS Code Windows terminal profile. */
-function resolveWindowsShellPath(configuredPath: string | string[] | undefined): string | null {
+/** Resolves the first usable path in a VS Code terminal profile. */
+function resolveShellPath(configuredPath: string | string[] | undefined): string | null {
 	const candidates = typeof configuredPath === "string" ? [configuredPath] : configuredPath
 	for (const candidate of candidates ?? []) {
-		const expandedPath = expandWindowsShellPath(candidate)
-		const executable = findWindowsExecutable(expandedPath)
+		const expandedPath = expandShellPath(candidate)
+		const executable = findExecutable(expandedPath)
 		if (executable) {
 			return executable
 		}
@@ -148,7 +172,7 @@ function getWindowsShellFromVSCode(): string | null {
 	}
 
 	const profile = profiles[defaultProfileName]
-	const configuredShell = resolveWindowsShellPath(profile?.path)
+	const configuredShell = resolveShellPath(profile?.path)
 
 	// If the profile name indicates PowerShell, do version-based detection.
 	// In testing it was found these typically do not have a path, and this
@@ -187,8 +211,7 @@ function getMacShellFromVSCode(): string | null {
 		return null
 	}
 
-	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+	return resolveShellPath(profiles[defaultProfileName]?.path)
 }
 
 /** Attempts to retrieve a shell path from VS Code config on Linux. */
@@ -198,8 +221,7 @@ function getLinuxShellFromVSCode(): string | null {
 		return null
 	}
 
-	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+	return resolveShellPath(profiles[defaultProfileName]?.path)
 }
 
 // -----------------------------------------------------
