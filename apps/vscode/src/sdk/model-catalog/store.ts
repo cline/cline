@@ -410,7 +410,46 @@ function readBaseModelInfoForProvider(providerId: ProviderId, modelId: string): 
 		}
 	}
 
+	// Bedrock Custom-ARN / application-inference-profile selections store the raw
+	// ARN as their model id, which never matches a catalog entry. Inherit the
+	// configured base model's catalog metadata (capabilities, context window,
+	// pricing) so a custom-ARN model advertises the same capabilities as the
+	// base model it proxies — without this, `capabilities` is empty and the
+	// "tools" capability is dropped, so native tool_use/tool_result blocks are
+	// sent with no tool schema and Bedrock's Converse API returns a 400 (#12302).
+	const bedrockBaseModelId = readBedrockCustomModelBaseId(providerId, modelId)
+	if (bedrockBaseModelId) {
+		return readBaseModelInfoForProvider(providerId, bedrockBaseModelId)
+	}
+
 	return undefined
+}
+
+/**
+ * For a Bedrock Custom-ARN selection whose model id is an ARN the catalog does
+ * not know, return the configured base model id (`{plan,act}ModeAwsBedrockCustomModelBaseId`)
+ * so capability metadata can be inherited from it. Returns undefined unless the
+ * provider is Bedrock, the requested id is not itself a known base id (avoids
+ * infinite recursion), and a distinct base id is configured.
+ *
+ * The base id is read mode-agnostically (`actMode ?? planMode`) because the
+ * store writes both keys to the same value in a single patch (see
+ * `writeStateFields`, which sets `planModeAwsBedrockCustomModelBaseId` and
+ * `actModeAwsBedrockCustomModelBaseId` together), so they never diverge through
+ * the store. If a future write path can set them independently, thread the
+ * active `mode` from `readSelectionFromState` down through `resolveSelection`
+ * and read the mode-specific key instead (as sibling call sites like
+ * `bedrock-config.ts` already do).
+ */
+function readBedrockCustomModelBaseId(providerId: ProviderId, modelId: string): string | undefined {
+	if (toSdkProviderId(providerId) !== "bedrock") {
+		return undefined
+	}
+	const apiConfiguration = StateManager.get().getApiConfiguration()
+	const baseId = (
+		apiConfiguration.actModeAwsBedrockCustomModelBaseId ?? apiConfiguration.planModeAwsBedrockCustomModelBaseId
+	)?.trim()
+	return baseId && baseId.length > 0 && baseId !== modelId ? baseId : undefined
 }
 
 function resolveSelection(selection: ModelSelection, stateModelInfoHint?: ModelInfo): ResolvedModelSelection {
