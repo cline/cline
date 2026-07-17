@@ -1,0 +1,154 @@
+name: ui-publish
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "sdk/packages/ui/**"
+      - "apps/examples/desktop-app/package.json"
+      - "apps/examples/desktop-app/webview/app/globals.css"
+      - "apps/examples/desktop-app/webview/components/views/chat/**"
+      - ".github/workflows/ui-publish.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "sdk/packages/ui/**"
+      - "apps/examples/desktop-app/package.json"
+      - "apps/examples/desktop-app/webview/app/globals.css"
+      - "apps/examples/desktop-app/webview/components/views/chat/**"
+      - ".github/workflows/ui-publish.yml"
+  workflow_dispatch:
+    inputs:
+      npm_tag:
+        description: "npm distribution tag"
+        required: true
+        type: choice
+        options:
+          - next
+          - latest
+        default: next
+      confirm_publish:
+        description: 'Type "publish" to publish @cline/ui to npm'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  quality:
+    name: UI quality and package checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+
+      - name: Install dependencies
+        run: bun install --filter @cline/ui --filter @cline/code --frozen-lockfile
+
+      - name: Typecheck UI
+        run: bun -F @cline/ui typecheck
+
+      - name: Test UI
+        run: bun -F @cline/ui test
+
+      - name: Build Storybook
+        run: bun -F @cline/ui build-storybook
+
+      - name: Test packed package
+        run: bun -F @cline/ui test:package
+
+      - name: Test desktop chat integration
+        run: bun -F @cline/code test:chat-ui
+
+      - name: Pack publish artifact
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pack_dir="$RUNNER_TEMP/ui-npm-pack"
+          mkdir -p "$pack_dir"
+          cd sdk/packages/ui
+          bun pm pack --destination "$pack_dir" --quiet
+
+      - name: Upload publish artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-npm-package
+          path: ${{ runner.temp }}/ui-npm-pack/*.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish @cline/ui
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'cline/cline' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_publish == 'publish'
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-npm-package
+          path: ${{ runner.temp }}/ui-npm-pack
+
+      - name: Verify publish tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_version=$(npm --version)
+          echo "npm ${npm_version}"
+          node -e 'const [major, minor, patch] = process.argv[1].split(".").map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) process.exit(1)' "$npm_version"
+
+      - name: Publish package
+        shell: bash
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+          NPM_TAG: ${{ inputs.npm_tag }}
+        run: |
+          set -euo pipefail
+          archive=$(find "$RUNNER_TEMP/ui-npm-pack" -maxdepth 1 -name '*.tgz' -print -quit)
+          if [ -z "$archive" ]; then
+            echo "UI package archive was not downloaded"
+            exit 1
+          fi
+
+          version=$(tar -xOf "$archive" package/package.json | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => process.stdout.write(JSON.parse(input).version))')
+          if npm view "@cline/ui@${version}" version >/dev/null 2>&1; then
+            echo "@cline/ui@${version} already exists; bump sdk/packages/ui/package.json before publishing"
+            exit 1
+          fi
+
+          npm publish "$archive" --tag "$NPM_TAG" --access public
+          echo "Published @cline/ui@${version} with npm tag '${NPM_TAG}'"
