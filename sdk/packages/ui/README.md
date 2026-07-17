@@ -4,6 +4,9 @@ Shared, framework-independent UI foundations for Cline web products. The
 package is internal to this monorepo while the first consumers settle the
 contract; it is not part of the public SDK release yet.
 
+See the [adoption primer](./ADOPTION.md) for integration choices, copy-paste
+setup, consumer responsibilities, and publication status.
+
 ## Theme entry points
 
 | Import | Contents | Requires Tailwind |
