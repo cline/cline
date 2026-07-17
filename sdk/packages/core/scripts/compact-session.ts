@@ -14,6 +14,7 @@ type StrategySelection = CompactionStrategy | "both";
 
 const PROVIDER_API_KEY_ENV: Record<string, string> = {
 	anthropic: "ANTHROPIC_API_KEY",
+	cline: "CLINE_API_KEY",
 	gemini: "GOOGLE_API_KEY",
 	mistral: "MISTRAL_API_KEY",
 	openai: "OPENAI_API_KEY",
@@ -39,7 +40,7 @@ Options:
 	                              before the file extension.
 
 The directory must contain messages.json or exactly one *.messages.json file.
-Provider API key defaults: ANTHROPIC_API_KEY, OPENAI_API_KEY,
+Provider API key defaults: ANTHROPIC_API_KEY, CLINE_API_KEY, OPENAI_API_KEY,
 GOOGLE_API_KEY, or MISTRAL_API_KEY, according to --provider.`);
 	process.exit(1);
 }
@@ -132,10 +133,11 @@ function readMessages(payload: unknown): {
 		const candidate = message as Record<string, unknown>;
 		if (
 			(candidate.role !== "user" && candidate.role !== "assistant") ||
-			!Array.isArray(candidate.content)
+			(typeof candidate.content !== "string" &&
+				!Array.isArray(candidate.content))
 		) {
 			throw new Error(
-				`messages[${index}] must have a user/assistant role and array content`,
+				`messages[${index}] must have a user/assistant role and string or array content`,
 			);
 		}
 	}
@@ -174,7 +176,10 @@ if (!directory || positionals.length !== 1) usage();
 const strategySelection = parseStrategy(values.strategy);
 const strategies = selectedStrategies(strategySelection);
 if (strategies.includes("agentic") && (!providerId || !modelId)) {
-	throw new Error("--provider and --model are required for agentic compaction");
+	console.error(
+		"Error: --provider and --model are required for agentic compaction\n",
+	);
+	usage();
 }
 
 const maxInputTokens = positiveInteger(
