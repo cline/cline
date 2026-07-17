@@ -213,6 +213,7 @@ describe("@cline/ui theme contract", () => {
 			readFileSync(join(packageRoot, "package.json"), "utf8"),
 		) as { exports?: Record<string, string> };
 		for (const subpath of [
+			"./components/agent-chat.css",
 			"./theme/index.css",
 			"./theme/tokens.css",
 			"./theme/theme.css",
@@ -222,5 +223,24 @@ describe("@cline/ui theme contract", () => {
 			expect(target, `missing export ${subpath}`).toBeTypeOf("string");
 			expect(existsSync(join(packageRoot, target ?? ""))).toBe(true);
 		}
+	});
+
+	it("is configured as a standalone public npm package", () => {
+		const manifest = JSON.parse(
+			readFileSync(join(packageRoot, "package.json"), "utf8"),
+		) as {
+			internal?: boolean;
+			license?: string;
+			private?: boolean;
+			publishConfig?: { access?: string };
+			version?: string;
+		};
+
+		expect(manifest.private).toBe(false);
+		expect(manifest.internal).toBe(true);
+		expect(manifest.publishConfig?.access).toBe("public");
+		expect(manifest.license).toBe("Apache-2.0");
+		expect(manifest.version).toMatch(/^\d+\.\d+\.\d+/);
+		expect(manifest.version).not.toBe("0.0.0");
 	});
 });
