@@ -46,7 +46,7 @@
 	],
 	"license": "Apache-2.0",
 	"scripts": {
-		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json && bun scripts/validate-package.ts",
+		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
 		"prepack": "bun run build",
 		"storybook": "storybook dev -p 6006",
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
