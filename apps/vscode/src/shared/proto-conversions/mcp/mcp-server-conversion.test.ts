@@ -28,7 +28,7 @@ describe("MCP server proto conversion", () => {
 
 		expect(JSON.parse(converted.config)).toEqual({
 			type: "streamableHttp",
-			url: "https://mcp.example.com/connect?[REDACTED]",
+			url: "https://mcp.example.com/connect?[REDACTED]#[REDACTED]",
 			timeout: 120,
 			remoteConfigured: true,
 		})

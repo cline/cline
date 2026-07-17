@@ -48,7 +48,36 @@ describe("mcp config loader", () => {
 
 	it("does not hide unrelated lock-directory errors", () => {
 		expect(isSettingsLockContentionError({ code: "EACCES" })).toBe(false);
+		expect(isSettingsLockContentionError(null)).toBe(false);
+		expect(isSettingsLockContentionError(undefined)).toBe(false);
 	});
+
+	it("does not create a directory when loading a missing settings file", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const settingsDir = join(tempRoot, "missing", "settings");
+		const filePath = join(settingsDir, "cline_mcp_settings.json");
+
+		expect(() => loadMcpSettingsFile({ filePath })).toThrow();
+		expect(existsSync(settingsDir)).toBe(false);
+	});
+
+	it.skipIf(process.platform === "win32")(
+		"checks for a settings file without changing its permissions",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const settingsDir = join(tempRoot, "settings");
+			mkdirSync(settingsDir, { mode: 0o755 });
+			const filePath = join(settingsDir, "cline_mcp_settings.json");
+			await writeFile(filePath, JSON.stringify({ mcpServers: {} }), "utf8");
+			chmodSync(filePath, 0o644);
+
+			expect(hasMcpSettingsFile({ filePath })).toBe(true);
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o755);
+			expect(statSync(filePath).mode & 0o777).toBe(0o644);
+		},
+	);
 
 	it.skipIf(process.platform === "win32")(
 		"hardens an existing settings file when it is read",

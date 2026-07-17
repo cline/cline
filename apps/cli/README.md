@@ -169,7 +169,9 @@ Manage MCP servers with the interactive wizard:
 
 > **Security:** `~/.cline/data/settings/cline_mcp_settings.json` may contain OAuth tokens, client credentials,
 > API keys, environment variables, and authorization headers. Treat it as credential-bearing state: do not
-> publish it in logs, support bundles, or configuration exports without redacting secrets.
+> publish it in logs, support bundles, or configuration exports without redacting secrets. On POSIX systems,
+> Cline repairs the settings directory and file to owner-only permissions (`0700` and `0600`) whenever settings
+> are loaded or updated; group-shared MCP settings are not supported.
 
 ```sh
 cline mcp

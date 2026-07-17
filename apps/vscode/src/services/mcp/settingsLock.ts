@@ -59,14 +59,15 @@ interface AcquiredSettingsLock {
 }
 
 export function isSettingsLockContentionError(error: unknown): boolean {
+	if (error === null || typeof error !== "object") {
+		return false
+	}
 	const code = (error as NodeJS.ErrnoException).code
 	return code === "EEXIST" || code === "ENOTEMPTY"
 }
 
 function ensurePrivateSettingsDirectory(directoryPath: string): void {
-	if (!existsSync(directoryPath)) {
-		mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
-	}
+	mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
 	if (process.platform !== "win32") {
 		try {
 			chmodSync(directoryPath, 0o700)

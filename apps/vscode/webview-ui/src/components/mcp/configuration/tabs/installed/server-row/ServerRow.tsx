@@ -27,6 +27,7 @@ import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
+import { mcpEndpointUrlsMatch } from "./remote-server-url"
 
 // constant JSX.Elements
 const TimeoutOptions = [
@@ -69,8 +70,8 @@ const ServerRow = ({
 		}
 		try {
 			const serverConfig = JSON.parse(server.config)
-			return remoteMCPServers.some(
-				(remoteServer: { url: string }) => serverConfig.url && serverConfig.url === remoteServer.url,
+			return remoteMCPServers.some((remoteServer: { url: string }) =>
+				mcpEndpointUrlsMatch(serverConfig.url, remoteServer.url),
 			)
 		} catch {
 			return false
@@ -201,7 +202,7 @@ const ServerRow = ({
 		const serverUrl = getServerUrl(server)
 		if (!serverUrl) return false
 
-		const remoteServer = remoteMCPServers.find((remote) => remote.url === serverUrl)
+		const remoteServer = remoteMCPServers.find((remote) => mcpEndpointUrlsMatch(remote.url, serverUrl))
 		return remoteServer?.alwaysEnabled === true
 	})()
 

@@ -1,11 +1,9 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-	createMcpOAuthProviderContext,
-	sanitizeMcpDiagnosticText,
-} from "./oauth";
+import { createMcpOAuthProviderContext } from "./oauth";
 
 describe("mcp oauth", () => {
 	const tempRoots: string[] = [];

@@ -26,6 +26,8 @@ describe("updateMcpSettingsFile", () => {
 
 	it("does not hide unrelated lock-directory errors", () => {
 		expect(isSettingsLockContentionError({ code: "EACCES" })).toBe(false)
+		expect(isSettingsLockContentionError(null)).toBe(false)
+		expect(isSettingsLockContentionError(undefined)).toBe(false)
 	})
 
 	it("does not yield while holding the settings lock", async () => {

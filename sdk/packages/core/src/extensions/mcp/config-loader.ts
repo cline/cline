@@ -234,9 +234,11 @@ export function resolveDefaultMcpSettingsPath(): string {
 }
 
 function ensurePrivateSettingsDirectory(directoryPath: string): void {
-	if (!existsSync(directoryPath)) {
-		mkdirSync(directoryPath, { recursive: true, mode: 0o700 });
-	}
+	mkdirSync(directoryPath, { recursive: true, mode: 0o700 });
+	hardenExistingSettingsDirectory(directoryPath);
+}
+
+function hardenExistingSettingsDirectory(directoryPath: string): void {
 	if (process.platform !== "win32") {
 		try {
 			chmodSync(directoryPath, 0o700);
@@ -329,6 +331,9 @@ interface AcquiredSettingsLock {
 }
 
 export function isSettingsLockContentionError(error: unknown): boolean {
+	if (error === null || typeof error !== "object") {
+		return false;
+	}
 	const code = (error as NodeJS.ErrnoException).code;
 	return code === "EEXIST" || code === "ENOTEMPTY";
 }
@@ -652,7 +657,7 @@ export function loadMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): McpSettingsFile {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	ensurePrivateSettingsDirectory(dirname(filePath));
+	hardenExistingSettingsDirectory(dirname(filePath));
 	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
@@ -714,12 +719,7 @@ export function hasMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): boolean {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	const exists = existsSync(filePath);
-	if (exists) {
-		ensurePrivateSettingsDirectory(dirname(filePath));
-		hardenExistingSettingsFile(filePath);
-	}
-	return exists;
+	return existsSync(filePath);
 }
 
 export function resolveMcpServerRegistrations(

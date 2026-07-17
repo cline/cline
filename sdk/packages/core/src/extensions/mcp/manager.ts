@@ -1,4 +1,4 @@
-import { sanitizeMcpDiagnosticText } from "./oauth";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import type {
 	McpConnectionStatus,
 	McpManager,

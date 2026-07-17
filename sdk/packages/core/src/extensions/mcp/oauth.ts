@@ -13,6 +13,7 @@ import type {
 	OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import {
 	type OAuthServerCloseInfo,
 	type OAuthServerListeningInfo,
@@ -79,32 +80,6 @@ function toErrorMessage(error: unknown): string {
 		}
 	}
 	return String(error);
-}
-
-export function sanitizeMcpDiagnosticText(message: string): string {
-	return message
-		.replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]")
-		.replace(
-			/\bAuthorization["']?\s*[:=]\s*(?:Bearer|Basic)?\s*[^\s,;}]+/gi,
-			"Authorization: [REDACTED]",
-		)
-		.replace(
-			/((?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|code[_-]?verifier|api[_-]?key|token)["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
-			"$1[REDACTED]",
-		)
-		.replace(/https?:\/\/[^\s"'<>]+/gi, (rawUrl) => {
-			try {
-				const url = new URL(rawUrl);
-				if (!url.search && !url.hash) {
-					return rawUrl;
-				}
-				url.search = "";
-				url.hash = "";
-				return `${url.toString()}?[REDACTED]`;
-			} catch {
-				return "[REDACTED URL]";
-			}
-		});
 }
 
 function createOAuthClientMetadata(redirectUrl: string): OAuthClientMetadata {

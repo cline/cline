@@ -1,3 +1,4 @@
+import { sanitizeMcpDiagnosticText } from "@cline/shared"
 import {
 	McpServerStatus,
 	McpPrompt as ProtoMcpPrompt,
@@ -8,29 +9,6 @@ import {
 	McpTool as ProtoMcpTool,
 } from "@shared/proto/cline/mcp"
 import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
-
-function sanitizeMcpDiagnosticTextForWebview(message: string): string {
-	return message
-		.replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]")
-		.replace(/\bAuthorization["']?\s*[:=]\s*(?:Bearer|Basic)?\s*[^\s,;}]+/gi, "Authorization: [REDACTED]")
-		.replace(
-			/((?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|code[_-]?verifier|api[_-]?key|token)["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
-			"$1[REDACTED]",
-		)
-		.replace(/https?:\/\/[^\s"'<>]+/gi, (rawUrl) => {
-			try {
-				const url = new URL(rawUrl)
-				if (!url.search && !url.hash) {
-					return rawUrl
-				}
-				url.search = ""
-				url.hash = ""
-				return `${url.toString()}?[REDACTED]`
-			} catch {
-				return "[REDACTED URL]"
-			}
-		})
-}
 
 // Helper to convert TS status to Proto enum
 function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {
@@ -60,7 +38,7 @@ export function projectMcpServerConfigForWebview(config: string): string {
 				: parsed
 		const projected = {
 			...(typeof transport.type === "string" ? { type: transport.type } : {}),
-			...(typeof transport.url === "string" ? { url: sanitizeMcpDiagnosticTextForWebview(transport.url) } : {}),
+			...(typeof transport.url === "string" ? { url: sanitizeMcpDiagnosticText(transport.url) } : {}),
 			...(typeof parsed.timeout === "number" ? { timeout: parsed.timeout } : {}),
 			...(typeof parsed.remoteConfigured === "boolean" ? { remoteConfigured: parsed.remoteConfigured } : {}),
 		}
@@ -75,7 +53,7 @@ export function convertMcpServersToProtoMcpServers(mcpServers: McpServer[]): Pro
 		name: server.name,
 		config: projectMcpServerConfigForWebview(server.config),
 		status: convertMcpStatusToProto(server.status),
-		error: server.error ? sanitizeMcpDiagnosticTextForWebview(server.error) : server.error,
+		error: server.error ? sanitizeMcpDiagnosticText(server.error) : server.error,
 
 		// Convert nested types
 		tools: (server.tools || []).map(convertTool),

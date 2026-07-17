@@ -3,11 +3,11 @@ import { StringDecoder } from "node:string_decoder";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import {
 	createMcpOAuthProviderContext,
 	createMcpSdkTransport,
 	type McpOAuthProviderContext,
-	sanitizeMcpDiagnosticText,
 } from "./oauth";
 import type {
 	McpServerClient,
