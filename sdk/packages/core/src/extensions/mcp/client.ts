@@ -140,9 +140,13 @@ class StdioMcpClient implements McpServerClient {
 	private stderrBuffer = "";
 	private connected = false;
 	private protocolMode: StdioProtocolMode = "newline";
+	private readonly requestTimeoutMs: number;
+	private readonly connectTimeoutMs: number;
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
+		this.requestTimeoutMs = registration.timeoutMs ?? MCP_REQUEST_TIMEOUT_MS;
+		this.connectTimeoutMs = registration.timeoutMs ?? MCP_CONNECT_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -172,7 +176,7 @@ class StdioMcpClient implements McpServerClient {
 							version: "0.0.0",
 						},
 					},
-					MCP_CONNECT_TIMEOUT_MS,
+					this.connectTimeoutMs,
 				);
 				this.notify("notifications/initialized");
 				this.connected = true;
@@ -360,7 +364,7 @@ class StdioMcpClient implements McpServerClient {
 	private async request(
 		method: string,
 		params?: Record<string, unknown>,
-		timeoutMs = MCP_REQUEST_TIMEOUT_MS,
+		timeoutMs = this.requestTimeoutMs,
 	): Promise<unknown> {
 		const child = this.process;
 		if (!child?.stdin.writable) {
