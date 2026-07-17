@@ -114,9 +114,13 @@ export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensio
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/types"
 
-export function createShellTool(execute: unknown) {
+export function createShellTool(execute: unknown, config: { shell?: string } = {}) {
+	if (config.shell !== undefined && typeof config.shell !== "string") {
+		throw new TypeError("shell must be a string")
+	}
 	return {
 		name: "run_commands",
+		description: "Run commands",
 		execute,
 	}
 }

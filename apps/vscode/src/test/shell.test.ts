@@ -88,10 +88,48 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses explicit PowerShell 7 path from VS Code config (profile path)", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Program Files\\PowerShell\\7\\pwsh.exe") as typeof actualFs.existsSync
 			mockVsCodeConfig("windows", "PowerShell", {
 				PowerShell: { path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
 			})
 			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("expands and selects the first configured profile path when it exists", () => {
+			process.env.windir = "C:\\Windows"
+			existsSyncImpl = (() => true) as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": {
+					path: [`\${env:windir}\\Sysnative\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+				},
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\Sysnative\\cmd.exe")
+		})
+
+		it("falls through configured profile paths in order", () => {
+			process.env.windir = "C:\\Windows"
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Windows\\System32\\cmd.exe") as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": {
+					path: [`\${env:windir}\\Sysnative\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+				},
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
+		})
+
+		it("resolves a configured executable name from PATH", () => {
+			process.env.PATH = "C:\\Tools;C:\\Windows\\System32"
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Windows\\System32\\cmd.exe") as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": { path: "cmd.exe" },
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
 		})
 
 		it("uses PowerShell 7 path if source is 'PowerShell' but no explicit path", () => {
