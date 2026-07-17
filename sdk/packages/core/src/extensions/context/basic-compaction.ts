@@ -1,8 +1,7 @@
-import {
-	type BasicLogger,
-	CHARS_PER_TOKEN,
-	type ContentBlock,
-	type MessageWithMetadata,
+import type {
+	BasicLogger,
+	ContentBlock,
+	MessageWithMetadata,
 } from "@cline/shared";
 import type {
 	CoreCompactionContext,
@@ -11,66 +10,12 @@ import type {
 import { buildBudgetProjection } from "./budget-projection";
 import {
 	type EstimateMessageTokens,
-	findFirstUserMessageIndex,
-	findLastAssistantIndex,
-	findLastTurnStartIndex,
 	formatToolActivitySummary,
 	hasToolActivity,
-	isCompactionSummaryMessage,
 	isTurnStartMessage,
-	MIN_TRUNCATED_MESSAGE_TOKENS,
 	summarizeToolActivity,
 	type ToolActivitySummary,
-	truncateToolResultContentForCompaction,
 } from "./compaction-shared";
-
-interface BasicCompactionCandidate {
-	index: number;
-	message: MessageWithMetadata;
-	estimatedTokens: number;
-	toolPairIds: string[];
-	isFirstUser: boolean;
-	isLastUser: boolean;
-	isLastAssistant: boolean;
-}
-
-interface BasicCompactionCandidateSet {
-	candidates: BasicCompactionCandidate[];
-	totalTokens: number;
-}
-
-function sanitizeMessageForBasic(
-	message: MessageWithMetadata,
-): MessageWithMetadata | undefined {
-	if (isCompactionSummaryMessage(message)) {
-		return undefined;
-	}
-	if (typeof message.content === "string") {
-		const text = message.content.trim();
-		return text ? { ...message, content: text } : undefined;
-	}
-
-	// Preserve multimodal structure: trim text blocks, keep non-text blocks intact.
-	const kept = message.content.filter(
-		(block) => block.type !== "text" || block.text.trim(),
-	);
-	if (kept.length === 0) {
-		return undefined;
-	}
-	return {
-		...message,
-		content: kept.map((block) =>
-			block.type === "text"
-				? { ...block, text: block.text.trim() }
-				: block.type === "tool_result"
-					? {
-							...block,
-							content: truncateToolResultContentForCompaction(block.content),
-						}
-					: block,
-		),
-	};
-}
 
 function getTotalTokens(
 	messages: MessageWithMetadata[],
@@ -82,267 +27,25 @@ function getTotalTokens(
 	);
 }
 
-function truncateMessageText(text: string, limit: number): string {
-	if (text.length <= limit) {
-		return text;
-	}
-	const suffix = "\n...";
-	const sliceLength = Math.max(1, limit - suffix.length);
-	return `${text.slice(0, sliceLength)}${suffix}`;
-}
-
-function truncateMessageToTokens(
+function sanitizeTypedUserMessage(
 	message: MessageWithMetadata,
-	maxTokens: number,
-): MessageWithMetadata {
-	const safeMaxTokens = Number.isFinite(maxTokens) ? Math.max(1, maxTokens) : 1;
-	const targetChars = Math.max(16, safeMaxTokens * CHARS_PER_TOKEN);
-
+): MessageWithMetadata | undefined {
 	if (typeof message.content === "string") {
-		const truncated = truncateMessageText(message.content, targetChars).trim();
-		return { ...message, content: truncated || "..." };
+		const text = message.content.trim();
+		return text ? { ...message, content: text } : undefined;
 	}
-
-	// Preserve content block array structure while truncating text blocks.
-	let remaining = targetChars;
-	const truncatedBlocks = message.content.map((block) => {
-		if (block.type !== "text" || remaining <= 0) {
-			return block;
-		}
-		const truncated = truncateMessageText(block.text, remaining).trim();
-		remaining -= truncated.length;
-		return { ...block, text: truncated || "..." };
-	});
-	return { ...message, content: truncatedBlocks };
-}
-
-function buildBasicCandidates(
-	messages: MessageWithMetadata[],
-	estimateMessageTokens: EstimateMessageTokens,
-): BasicCompactionCandidateSet {
-	const firstUserIndex = findFirstUserMessageIndex(messages);
-	const lastUserIndex = findLastTurnStartIndex(messages);
-	const lastAssistantIndex = findLastAssistantIndex(messages);
-	const candidates: BasicCompactionCandidate[] = [];
-	let totalTokens = 0;
-	for (let index = 0; index < messages.length; index += 1) {
-		const sanitized = sanitizeMessageForBasic(messages[index]);
-		if (!sanitized) {
-			continue;
-		}
-		const estimatedTokens = estimateMessageTokens(sanitized);
-		totalTokens += estimatedTokens;
-		candidates.push({
-			index,
-			message: sanitized,
-			estimatedTokens,
-			toolPairIds: collectToolPairIds(sanitized),
-			isFirstUser: index === firstUserIndex,
-			isLastUser: index === lastUserIndex,
-			isLastAssistant: index === lastAssistantIndex,
-		});
-	}
-	return { candidates, totalTokens };
-}
-
-function updateCandidate(
-	candidates: BasicCompactionCandidate[],
-	index: number,
-	message: MessageWithMetadata,
-	estimateMessageTokens: EstimateMessageTokens,
-): number {
-	const candidate = candidates[index];
-	const previousTokens = candidate.estimatedTokens;
-	candidate.message = message;
-	candidate.estimatedTokens = estimateMessageTokens(message);
-	candidate.toolPairIds = collectToolPairIds(message);
-	return candidate.estimatedTokens - previousTokens;
-}
-
-function collectToolPairIds(message: MessageWithMetadata): string[] {
-	if (!Array.isArray(message.content)) {
-		return [];
-	}
-	const ids: string[] = [];
-	for (const block of message.content) {
-		if (block.type === "tool_use") {
-			ids.push(block.id);
-		} else if (block.type === "tool_result") {
-			ids.push(block.tool_use_id);
-		}
-	}
-	return ids;
-}
-
-function buildToolPairCandidateIndex(
-	candidates: BasicCompactionCandidate[],
-): Map<string, Set<BasicCompactionCandidate>> {
-	const indexByToolUseId = new Map<string, Set<BasicCompactionCandidate>>();
-	for (const candidate of candidates) {
-		for (const id of candidate.toolPairIds) {
-			const existing = indexByToolUseId.get(id);
-			if (existing) {
-				existing.add(candidate);
-			} else {
-				indexByToolUseId.set(id, new Set([candidate]));
-			}
-		}
-	}
-	return indexByToolUseId;
-}
-
-function collectAtomicRemovalCandidates(
-	activeCandidates: Set<BasicCompactionCandidate>,
-	pairIndex: Map<string, Set<BasicCompactionCandidate>>,
-	startCandidate: BasicCompactionCandidate,
-): Set<BasicCompactionCandidate> {
-	const removalCandidates = new Set<BasicCompactionCandidate>();
-	const queue = [startCandidate];
-	let queueIndex = 0;
-
-	while (queueIndex < queue.length) {
-		const candidate = queue[queueIndex];
-		queueIndex += 1;
-		if (
-			candidate === undefined ||
-			!activeCandidates.has(candidate) ||
-			removalCandidates.has(candidate)
-		) {
-			continue;
-		}
-		removalCandidates.add(candidate);
-		for (const id of candidate.toolPairIds) {
-			for (const linkedCandidate of pairIndex.get(id) ?? []) {
-				if (!removalCandidates.has(linkedCandidate)) {
-					queue.push(linkedCandidate);
-				}
-			}
-		}
-	}
-
-	return removalCandidates;
-}
-
-function removeCandidateSetInPlace(
-	candidates: BasicCompactionCandidate[],
-	removalCandidates: Set<BasicCompactionCandidate>,
-): void {
-	let writeIndex = 0;
-	for (const candidate of candidates) {
-		if (removalCandidates.has(candidate)) {
-			continue;
-		}
-		candidates[writeIndex] = candidate;
-		writeIndex += 1;
-	}
-	candidates.length = writeIndex;
-}
-
-function removeCandidatesByPredicate(
-	candidates: BasicCompactionCandidate[],
-	predicate: (candidate: BasicCompactionCandidate) => boolean,
-	targetTokens: number,
-	totalTokens: number,
-): number {
-	const activeCandidates = new Set(candidates);
-	const pairIndex = buildToolPairCandidateIndex(candidates);
-	for (
-		let index = 0;
-		index < candidates.length && totalTokens > targetTokens;
-	) {
-		if (!predicate(candidates[index])) {
-			index += 1;
-			continue;
-		}
-		const removalCandidates = collectAtomicRemovalCandidates(
-			activeCandidates,
-			pairIndex,
-			candidates[index],
-		);
-		if (removalCandidates.size === 0) {
-			index += 1;
-			continue;
-		}
-		let removedTokens = 0;
-		for (const candidate of removalCandidates) {
-			removedTokens += candidate.estimatedTokens;
-			activeCandidates.delete(candidate);
-		}
-		totalTokens -= removedTokens;
-		removeCandidateSetInPlace(candidates, removalCandidates);
-	}
-	return totalTokens;
-}
-
-function trimCandidatesToBudget(
-	candidates: BasicCompactionCandidate[],
-	targetTokens: number,
-	totalTokens: number,
-	triggerTokens: number,
-	estimateMessageTokens: EstimateMessageTokens,
-): number {
-	if (totalTokens <= targetTokens) {
-		return totalTokens;
-	}
-
-	for (
-		let index = candidates.length - 1;
-		index >= 0 && totalTokens > targetTokens;
-		index -= 1
-	) {
-		const candidate = candidates[index];
-		if (candidate.isFirstUser) {
-			continue;
-		}
-		const desiredTokens = Math.max(
-			MIN_TRUNCATED_MESSAGE_TOKENS,
-			candidate.estimatedTokens - (totalTokens - targetTokens),
-		);
-		if (desiredTokens >= candidate.estimatedTokens) {
-			continue;
-		}
-		totalTokens += updateCandidate(
-			candidates,
-			index,
-			truncateMessageToTokens(candidate.message, desiredTokens),
-			estimateMessageTokens,
-		);
-	}
-
-	if (totalTokens <= targetTokens) {
-		return totalTokens;
-	}
-
-	const firstUserIndex = candidates.findIndex(
-		(candidate) => candidate.isFirstUser,
+	const kept = message.content.filter(
+		(block) => block.type !== "text" || block.text.trim(),
 	);
-	if (firstUserIndex >= 0) {
-		const firstUser = candidates[firstUserIndex];
-		if (firstUser.estimatedTokens <= triggerTokens) {
-			return totalTokens;
-		}
-		while (totalTokens > targetTokens) {
-			const candidate = candidates[firstUserIndex];
-			const desiredTokens = Math.max(
-				1,
-				candidate.estimatedTokens - (totalTokens - targetTokens),
-			);
-			if (desiredTokens >= candidate.estimatedTokens) {
-				break;
-			}
-			const previousTokens = candidate.estimatedTokens;
-			totalTokens += updateCandidate(
-				candidates,
-				firstUserIndex,
-				truncateMessageToTokens(candidate.message, desiredTokens),
-				estimateMessageTokens,
-			);
-			if (candidate.estimatedTokens >= previousTokens) {
-				break;
-			}
-		}
+	if (kept.length === 0) {
+		return undefined;
 	}
-	return totalTokens;
+	return {
+		...message,
+		content: kept.map((block) =>
+			block.type === "text" ? { ...block, text: block.text.trim() } : block,
+		),
+	};
 }
 
 function haveMessagesChanged(
@@ -352,31 +55,71 @@ function haveMessagesChanged(
 	return JSON.stringify(original) !== JSON.stringify(next);
 }
 
+/** How many of the conversation's most recent assistant text contents
+ * survive verbatim inside the dropped-work summaries. */
+const PRESERVED_ASSISTANT_TEXT_COUNT = 3;
+
+function assistantTextContent(
+	message: MessageWithMetadata,
+): string | undefined {
+	if (message.role !== "assistant") {
+		return undefined;
+	}
+	if (typeof message.content === "string") {
+		const text = message.content.trim();
+		return text || undefined;
+	}
+	const text = message.content
+		.filter((block) => block.type === "text")
+		.map((block) => block.text.trim())
+		.filter(Boolean)
+		.join("\n");
+	return text || undefined;
+}
+
 function buildDroppedWorkSummaryBlock(
 	summary: ToolActivitySummary,
+	preservedResponses: string[],
 ): ContentBlock {
+	const responsesSection =
+		preservedResponses.length > 0
+			? `\n\nYour recent responses:\n${preservedResponses.join("\n---\n")}`
+			: "";
 	return {
 		type: "text",
-		text: `<SYSTEM>\nEarlier context was compacted. Summary of your actions before the user's next request:\n${formatToolActivitySummary(summary)}</SYSTEM>`,
+		text: `<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\n${formatToolActivitySummary(summary)}${responsesSection}</SYSTEM_NOTICE>`,
 	};
 }
 
-function userContentBlocks(message: MessageWithMetadata): ContentBlock[] {
+function userContentBlocks(
+	message: MessageWithMetadata,
+	keepAttachments: boolean,
+): ContentBlock[] {
 	if (typeof message.content === "string") {
 		return message.content.trim()
 			? [{ type: "text", text: message.content }]
 			: [];
 	}
-	// Attached file contents are stale context bloat once the turn is old
-	// enough to compact; the dropped-work summaries carry the file paths.
-	return message.content.filter((block) => block.type !== "file");
+	if (keepAttachments) {
+		return [...message.content];
+	}
+	// Attached files and images are stale context bloat once the turn is
+	// old enough to compact; the dropped-work summaries carry file paths.
+	// Only the latest typed prompt keeps its attachments — they may be
+	// load-bearing for the active request.
+	return message.content.filter(
+		(block) => block.type !== "file" && block.type !== "image",
+	);
 }
 
 /**
  * Collapse runs of adjacent typed user messages — left behind when the
  * assistant turns between them were removed — into a single user message.
  * Each gap is bridged with a summary of the tool work that was dropped
- * there, resolved by message id against the original transcript.
+ * there, resolved by message id against the original transcript. Work
+ * dropped after a typed user message with no surviving messages in
+ * between (e.g. the current turn's tool calls) gets a trailing summary
+ * appended to that message.
  */
 function mergeAdjacentUserTurns(
 	messages: MessageWithMetadata[],
@@ -393,11 +136,59 @@ function mergeAdjacentUserTurns(
 	): number | undefined =>
 		message.id ? originalIndexById.get(message.id) : undefined;
 
-	const merged: MessageWithMetadata[] = [];
+	// The conversation's most recent assistant text contents survive
+	// verbatim inside the summary block covering the span they were
+	// dropped from.
+	const preservedTextIndices = new Set<number>();
+	for (
+		let scan = originalMessages.length - 1;
+		scan >= 0 && preservedTextIndices.size < PRESERVED_ASSISTANT_TEXT_COUNT;
+		scan -= 1
+	) {
+		if (assistantTextContent(originalMessages[scan])) {
+			preservedTextIndices.add(scan);
+		}
+	}
+	const collectPreservedResponses = (start: number, end: number): string[] => {
+		const responses: string[] = [];
+		for (let position = start; position < end; position += 1) {
+			if (!preservedTextIndices.has(position)) {
+				continue;
+			}
+			const text = assistantTextContent(originalMessages[position]);
+			if (text) {
+				responses.push(text);
+			}
+		}
+		return responses;
+	};
+
+	interface MergedEntry {
+		message: MessageWithMetadata;
+		firstOriginalIndex: number | undefined;
+		lastOriginalIndex: number | undefined;
+		isTypedUser: boolean;
+	}
+
+	let latestTypedIndex = -1;
+	for (let scan = messages.length - 1; scan >= 0; scan -= 1) {
+		if (isTurnStartMessage(messages[scan])) {
+			latestTypedIndex = scan;
+			break;
+		}
+	}
+
+	const entries: MergedEntry[] = [];
 	let index = 0;
 	while (index < messages.length) {
 		if (!isTurnStartMessage(messages[index])) {
-			merged.push(messages[index]);
+			const originalIndex = resolveOriginalIndex(messages[index]);
+			entries.push({
+				message: messages[index],
+				firstOriginalIndex: originalIndex,
+				lastOriginalIndex: originalIndex,
+				isTypedUser: false,
+			});
 			index += 1;
 			continue;
 		}
@@ -408,35 +199,85 @@ function mergeAdjacentUserTurns(
 		) {
 			runEnd += 1;
 		}
-		if (runEnd === index) {
-			merged.push(messages[index]);
-			index += 1;
-			continue;
-		}
-		const blocks: ContentBlock[] = [];
-		for (let member = index; member <= runEnd; member += 1) {
-			if (member > index) {
-				const previousIndex = resolveOriginalIndex(messages[member - 1]);
-				const currentIndex = resolveOriginalIndex(messages[member]);
-				if (
-					previousIndex !== undefined &&
-					currentIndex !== undefined &&
-					currentIndex > previousIndex + 1
-				) {
-					const summary = summarizeToolActivity(
-						originalMessages.slice(previousIndex + 1, currentIndex),
-					);
-					if (hasToolActivity(summary)) {
-						blocks.push(buildDroppedWorkSummaryBlock(summary));
+		let message = messages[index];
+		if (runEnd > index) {
+			const blocks: ContentBlock[] = [];
+			for (let member = index; member <= runEnd; member += 1) {
+				if (member > index) {
+					const previousIndex = resolveOriginalIndex(messages[member - 1]);
+					const currentIndex = resolveOriginalIndex(messages[member]);
+					if (
+						previousIndex !== undefined &&
+						currentIndex !== undefined &&
+						currentIndex > previousIndex + 1
+					) {
+						const summary = summarizeToolActivity(
+							originalMessages.slice(previousIndex + 1, currentIndex),
+						);
+						const responses = collectPreservedResponses(
+							previousIndex + 1,
+							currentIndex,
+						);
+						if (hasToolActivity(summary) || responses.length > 0) {
+							blocks.push(buildDroppedWorkSummaryBlock(summary, responses));
+						}
 					}
 				}
+				blocks.push(
+					...userContentBlocks(messages[member], member === latestTypedIndex),
+				);
 			}
-			blocks.push(...userContentBlocks(messages[member]));
+			message = { ...messages[index], content: blocks };
+		} else {
+			const blocks = userContentBlocks(message, index === latestTypedIndex);
+			if (
+				Array.isArray(message.content) &&
+				blocks.length !== message.content.length
+			) {
+				message = { ...message, content: blocks };
+			}
 		}
-		merged.push({ ...messages[index], content: blocks });
+		entries.push({
+			message,
+			firstOriginalIndex: resolveOriginalIndex(messages[index]),
+			lastOriginalIndex: resolveOriginalIndex(messages[runEnd]),
+			isTypedUser: true,
+		});
 		index = runEnd + 1;
 	}
-	return merged;
+
+	// Trailing gaps: dropped work between a typed user message and the next
+	// surviving message (or the end of the transcript) is summarized into
+	// that user message so the model keeps a trace of its own actions.
+	for (let entry = 0; entry < entries.length; entry += 1) {
+		const current = entries[entry];
+		if (!current.isTypedUser || current.lastOriginalIndex === undefined) {
+			continue;
+		}
+		const next = entries[entry + 1];
+		const gapEnd = next ? next.firstOriginalIndex : originalMessages.length;
+		if (gapEnd === undefined || gapEnd <= current.lastOriginalIndex + 1) {
+			continue;
+		}
+		const summary = summarizeToolActivity(
+			originalMessages.slice(current.lastOriginalIndex + 1, gapEnd),
+		);
+		const responses = collectPreservedResponses(
+			current.lastOriginalIndex + 1,
+			gapEnd,
+		);
+		if (!hasToolActivity(summary) && responses.length === 0) {
+			continue;
+		}
+		current.message = {
+			...current.message,
+			content: [
+				...userContentBlocks(current.message, true),
+				buildDroppedWorkSummaryBlock(summary, responses),
+			],
+		};
+	}
+	return entries.map((entry) => entry.message);
 }
 
 /**
@@ -452,28 +293,60 @@ function stripStaleMetrics(message: MessageWithMetadata): MessageWithMetadata {
 	return rest;
 }
 
-function splitLatestTurn(messages: MessageWithMetadata[]): {
-	compactable: MessageWithMetadata[];
-	protectedTail: MessageWithMetadata[];
-} {
-	const lastTurnStartIndex = findLastTurnStartIndex(messages);
-	if (
-		lastTurnStartIndex < 0 ||
-		(lastTurnStartIndex === 0 && !isTurnStartMessage(messages[0]))
-	) {
-		return { compactable: messages, protectedTail: [] };
-	}
-	return {
-		compactable: messages.slice(0, lastTurnStartIndex),
-		protectedTail: messages.slice(lastTurnStartIndex),
+/**
+ * Sum the per-message usage metrics that compaction is about to strip, so
+ * the aggregate survives on the compaction message's metadata.
+ */
+function aggregateUsageMetrics(messages: MessageWithMetadata[]):
+	| {
+			inputTokens: number;
+			outputTokens: number;
+			cacheReadTokens: number;
+			cacheWriteTokens: number;
+			cost: number;
+	  }
+	| undefined {
+	let found = false;
+	const totals = {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+		cost: 0,
 	};
+	for (const message of messages) {
+		const metrics = message.metrics;
+		if (!metrics) {
+			continue;
+		}
+		found = true;
+		totals.inputTokens += metrics.inputTokens ?? 0;
+		totals.outputTokens += metrics.outputTokens ?? 0;
+		totals.cacheReadTokens += metrics.cacheReadTokens ?? 0;
+		totals.cacheWriteTokens += metrics.cacheWriteTokens ?? 0;
+		totals.cost += metrics.cost ?? 0;
+	}
+	return found ? totals : undefined;
 }
 
+/**
+ * Fold the whole conversation history. Only typed user prompts survive
+ * verbatim; every assistant turn and tool exchange — including the ones
+ * after the latest typed prompt — is dropped and re-surfaced as
+ * dropped-work summaries when the surviving prompts merge into a single
+ * user message. No summarizer model is involved.
+ */
 export function runBasicCompaction(options: {
 	context: CoreCompactionContext;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
 }): CoreCompactionResult | undefined {
+	const originalMessages = options.context.messages;
+	// A lone message has nothing to compact around it; truncating the only
+	// prompt would just corrupt the active request.
+	if (originalMessages.length < 2) {
+		return undefined;
+	}
 	const totalTargetTokens = Math.max(
 		1,
 		Math.min(
@@ -481,82 +354,31 @@ export function runBasicCompaction(options: {
 			options.context.budget.messages.triggerTokens,
 		),
 	);
-	const { compactable, protectedTail } = splitLatestTurn(
-		options.context.messages,
-	);
-	if (compactable.length === 0) {
+	const keptMessages: MessageWithMetadata[] = [];
+	for (const message of originalMessages) {
+		if (!isTurnStartMessage(message)) {
+			continue;
+		}
+		const sanitized = sanitizeTypedUserMessage(message);
+		if (sanitized) {
+			keptMessages.push(sanitized);
+		}
+	}
+	if (keptMessages.length === 0) {
 		return undefined;
 	}
-	const protectedTailTokens = getTotalTokens(
-		protectedTail,
+	const beforeTokens = getTotalTokens(
+		originalMessages,
 		options.estimateMessageTokens,
 	);
-	const targetTokens = Math.max(1, totalTargetTokens - protectedTailTokens);
-	const candidateSet = buildBasicCandidates(
-		compactable,
-		options.estimateMessageTokens,
-	);
-	const { candidates } = candidateSet;
-	if (candidates.length === 0) {
-		return undefined;
-	}
-	const beforeCompactableTokens = candidateSet.totalTokens;
-	let totalTokens = beforeCompactableTokens;
-
-	totalTokens = removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "assistant" && !candidate.isLastAssistant,
-		targetTokens,
-		totalTokens,
-	);
-	totalTokens = removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "user" &&
-			!candidate.isFirstUser &&
-			!candidate.isLastUser,
-		targetTokens,
-		totalTokens,
-	);
-	totalTokens = removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "assistant" && candidate.isLastAssistant,
-		targetTokens,
-		totalTokens,
-	);
-	totalTokens = removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "user" &&
-			candidate.isLastUser &&
-			!candidate.isFirstUser,
-		targetTokens,
-		totalTokens,
-	);
-
-	totalTokens = trimCandidatesToBudget(
-		candidates,
-		targetTokens,
-		totalTokens,
-		options.context.budget.messages.triggerTokens,
-		options.estimateMessageTokens,
-	);
-
-	const nextMessages = [
-		...candidates.map((candidate) => candidate.message),
-		...protectedTail,
-	];
+	// Safety valve for pathological budgets: if the typed prompts alone
+	// exceed the target, the projection trims them best-effort.
 	const budgeted = buildBudgetProjection({
-		messages: nextMessages,
+		messages: keptMessages,
 		targetTokens: totalTargetTokens,
 		policyIntent: "basic_compaction_projection",
 		estimateMessageTokens: options.estimateMessageTokens,
 	});
-	// This final projection owns the hard output budget. Unlike the earlier
-	// basic candidate passes, it can drop completed tool pairs after the latest
-	// typed prompt while preserving coherent tool closures.
 	if (budgeted.status === "failed") {
 		options.logger?.debug("Basic compaction returned best-effort projection", {
 			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
@@ -567,15 +389,37 @@ export function runBasicCompaction(options: {
 	}
 	const mergedMessages = mergeAdjacentUserTurns(
 		budgeted.messages,
-		options.context.messages,
+		originalMessages,
 	);
 
-	if (!haveMessagesChanged(options.context.messages, mergedMessages)) {
+	if (!haveMessagesChanged(originalMessages, mergedMessages)) {
 		return undefined;
 	}
-	const resultMessages = mergedMessages.map(stripStaleMetrics);
+	// Mirror the recovery_notice metadata convention: mark the folded
+	// message as system-inserted and record what the fold removed, since
+	// the per-message metrics it aggregates are stripped below.
+	const usageBefore = aggregateUsageMetrics(originalMessages);
+	const compactionMetadata = {
+		kind: "compaction",
+		reason:
+			options.context.mode === "manual"
+				? "manual_compaction"
+				: "auto_compaction",
+		displayRole: "system",
+		messagesRemoved: originalMessages.length - mergedMessages.length,
+		...(usageBefore ? { usageBefore } : {}),
+	};
+	const resultMessages = mergedMessages.map((message, index) =>
+		stripStaleMetrics(
+			index === 0 && isTurnStartMessage(message)
+				? {
+						...message,
+						metadata: { ...message.metadata, ...compactionMetadata },
+					}
+				: message,
+		),
+	);
 
-	const beforeTokens = beforeCompactableTokens + protectedTailTokens;
 	const afterTokens = getTotalTokens(
 		resultMessages,
 		options.estimateMessageTokens,
@@ -585,9 +429,9 @@ export function runBasicCompaction(options: {
 			action.reason === "over_budget" || action.reason === "tool_pair_boundary",
 	).length;
 	options.logger?.debug("Performed basic compaction", {
-		messagesBefore: options.context.messages.length,
+		messagesBefore: originalMessages.length,
 		messagesAfter: resultMessages.length,
-		messagesRemoved: options.context.messages.length - resultMessages.length,
+		messagesRemoved: originalMessages.length - resultMessages.length,
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
 		budgetStatus: budgeted.status,

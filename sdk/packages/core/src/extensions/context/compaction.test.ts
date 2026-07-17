@@ -298,7 +298,9 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
-	it("truncates retained arbitrary tool results during basic compaction", () => {
+	it("returns no result when the transcript has no typed user prompt", () => {
+		// The whole-history fold anchors on typed user prompts; a transcript
+		// of pure tool traffic has nothing to fold around.
 		const omittedTail = "TAIL_SHOULD_NOT_SURVIVE_BASIC_COMPACTION";
 		const longToolOutput =
 			"x".repeat(TOOL_RESULT_CHAR_LIMIT + 5_000) + omittedTail;
@@ -358,26 +360,13 @@ describe("createContextCompactionPrepareTurn", () => {
 			estimateMessageTokens: createTokenEstimator(),
 		});
 
-		expect(result?.messages).toHaveLength(2);
-		const toolResultMessage = result?.messages[1];
-		expect(Array.isArray(toolResultMessage?.content)).toBe(true);
-		const block = Array.isArray(toolResultMessage?.content)
-			? toolResultMessage.content[0]
-			: undefined;
-		expect(block?.type).toBe("tool_result");
-		if (block?.type !== "tool_result" || typeof block.content === "string") {
-			throw new Error("expected structured tool result");
-		}
-		expect(block.content[0]).toEqual(
-			expect.objectContaining({
-				type: "text",
-				text: expect.stringContaining("...[truncated"),
-			}),
-		);
-		expect(JSON.stringify(result?.messages)).not.toContain(omittedTail);
+		expect(result).toBeUndefined();
 	});
 
-	it("protects a fresh tool result from basic compaction", () => {
+	it("drops the latest turn's tool pair atomically when over budget", () => {
+		// The whole history is compactable — there is no protected latest
+		// turn. A fresh tool pair that does not fit the budget is removed
+		// with both halves together, never split.
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Read the file" },
 			assistantToolUseMessage("tool-a"),
@@ -389,10 +378,19 @@ describe("createContextCompactionPrepareTurn", () => {
 		const compacted = runForcedBasicCompaction(messages, targetTokens);
 
 		expectNoOrphanedToolPairs(compacted);
-		expect(collectToolPairPresence(compacted).get("tool-a")).toEqual({
-			hasResult: true,
-			hasUse: true,
-		});
+		expect(collectToolPairPresence(compacted).get("tool-a")).toBeUndefined();
+		expect(compacted).toEqual([
+			{
+				role: "user",
+				content: "Read the file",
+				metadata: {
+					kind: "compaction",
+					reason: "manual_compaction",
+					displayRole: "system",
+					messagesRemoved: 2,
+				},
+			},
+		]);
 	});
 
 	it("removes older tool pairs atomically while preserving a newer pair", () => {
@@ -485,7 +483,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const compacted = runForcedBasicCompaction(messages, 1);
 
 		// Adjacent typed user messages left behind by the removals merge
-		// into a single user message.
+		// into a single user message carrying the compaction metadata.
 		expect(compacted).toEqual([
 			{
 				role: "user",
@@ -493,6 +491,12 @@ describe("createContextCompactionPrepareTurn", () => {
 					{ type: "text", text: "Old request" },
 					{ type: "text", text: "Read the latest file" },
 				],
+				metadata: {
+					kind: "compaction",
+					reason: "manual_compaction",
+					displayRole: "system",
+					messagesRemoved: 4,
+				},
 			},
 		]);
 		expectNoOrphanedToolPairs(compacted);
@@ -581,7 +585,11 @@ describe("createContextCompactionPrepareTurn", () => {
 				],
 			},
 			{ id: "a3", role: "assistant", content: "Done with the first request." },
-			{ id: "u2", role: "user", content: [{ type: "text", text: "request two" }] },
+			{
+				id: "u2",
+				role: "user",
+				content: [{ type: "text", text: "request two" }],
+			},
 			{
 				id: "a4",
 				role: "assistant",
@@ -625,14 +633,12 @@ describe("createContextCompactionPrepareTurn", () => {
 				content: "Final answer for request three.",
 			},
 		];
-		// Budget: exactly the typed user turns plus the protected tail, with a
-		// margin smaller than any assistant turn so every old assistant/tool
-		// turn must be removed.
+		// The fold is unconditional; the budget only needs enough room that
+		// the projection safety valve does not trim the typed prompts.
 		const targetTokens =
 			estimateJsonTokens(messages[0]) +
 			estimateJsonTokens(messages[6]) +
 			estimateJsonTokens(messages[10]) +
-			estimateJsonTokens(messages[11]) +
 			40;
 
 		const compacted = runForcedBasicCompaction(
@@ -640,33 +646,59 @@ describe("createContextCompactionPrepareTurn", () => {
 			targetTokens,
 		) as MessageWithMetadata[];
 
-		expect(compacted).toHaveLength(2);
+		// Everything folds into a single user message — the final assistant
+		// answer survives inside the trailing summary block.
+		expect(compacted).toHaveLength(1);
 		const merged = compacted[0];
 		expect(merged.id).toBe("u1");
 		expect(merged.role).toBe("user");
 		const texts = (Array.isArray(merged.content) ? merged.content : []).map(
 			(block) => (block.type === "text" ? block.text : `[${block.type}]`),
 		);
-		expect(texts).toHaveLength(5);
+		expect(texts).toHaveLength(6);
 		expect(texts[0]).toBe("request one");
-		expect(texts[1]).toContain("<SYSTEM>");
+		expect(texts[1]).toContain("<SYSTEM_NOTICE>");
 		expect(texts[1]).toContain(
 			"Files read:\n/repo/webview/components/agent-sidebar.tsx:462-480",
 		);
 		expect(texts[1]).toContain(
 			"Files edited:\n/repo/webview/components/agent-sidebar.tsx:467-479",
 		);
+		// The last three assistant text contents survive inside the summary
+		// covering the span they were dropped from.
+		expect(texts[1]).toContain(
+			"Your recent responses:\nDone with the first request.",
+		);
 		expect(texts[2]).toBe("request two");
 		expect(texts[3]).toContain("Commands ran:\ngrep -rn");
 		// Long commands are truncated to 100 chars with a trailing ellipsis.
 		expect(texts[3]).not.toContain("--color=never");
 		expect(texts[3]).toContain("...");
+		expect(texts[3]).toContain(
+			"Your recent responses:\nDone with the second request.",
+		);
 		expect(texts[4]).toBe("request three");
+		expect(texts[5]).toContain(
+			"Your recent responses:\nFinal answer for request three.",
+		);
 		// Stale attached file contents are dropped from merged turns.
 		expect(JSON.stringify(compacted)).not.toContain('"type":"file"');
-		// Token metrics no longer add up after compaction and are dropped.
-		expect(compacted[1].id).toBe("a6");
-		expect(compacted[1].metrics).toBeUndefined();
+		// Token metrics no longer add up after compaction and are dropped;
+		// the aggregate survives on the compaction message's metadata.
+		expect(JSON.stringify(compacted)).not.toContain('"metrics"');
+		expect(merged.metadata).toEqual({
+			kind: "compaction",
+			reason: "manual_compaction",
+			displayRole: "system",
+			messagesRemoved: 11,
+			usageBefore: {
+				inputTokens: 600,
+				outputTokens: 30,
+				cacheReadTokens: 400,
+				cacheWriteTokens: 0,
+				cost: 0.75,
+			},
+		});
 	});
 
 	it("budgets the complete basic compaction output including the latest turn", () => {
@@ -1373,9 +1405,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const messages: MessageWithMetadata[] = [
 			{
 				role: "user",
-				content: [
-					{ type: "text", text: "Context summary:\n\nearlier work" },
-				],
+				content: [{ type: "text", text: "Context summary:\n\nearlier work" }],
 				metadata: {
 					kind: "compaction_summary",
 					summary: "earlier work",
@@ -2719,14 +2749,13 @@ describe("createContextCompactionPrepareTurn", () => {
 			estimateMessageTokens: createTokenEstimator(),
 		});
 
-		expect(result?.messages).toBeDefined();
+		// The older turn's image is dropped; the merged message keeps both
+		// typed texts.
+		expect(result?.messages).toHaveLength(1);
 		expect(result?.messages[0]?.content).toEqual([
 			{ type: "text", text: "Older user turn" },
+			{ type: "text", text: "Latest user turn" },
 		]);
-		expect(result?.messages.at(-1)).toEqual({
-			role: "user",
-			content: "Latest user turn",
-		});
 	});
 
 	it("does not compact when only pre-truncation messages exceed the threshold", async () => {
