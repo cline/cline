@@ -101,12 +101,14 @@ export interface ClineOAuthCredentials extends OAuthCredentials {
 class ClineOAuthTokenError extends Error {
 	public readonly status?: number;
 	public readonly errorCode?: string;
+	public readonly requestId?: string;
 
-	constructor(message: string, opts?: { status?: number; errorCode?: string }) {
+	constructor(message: string, opts?: { status?: number; errorCode?: string, requestId?: string }) {
 		super(message);
 		this.name = "ClineOAuthTokenError";
 		this.status = opts?.status;
 		this.errorCode = opts?.errorCode;
+		this.requestId = opts?.requestId;
 	}
 
 	public isLikelyInvalidGrant(): boolean {
@@ -333,6 +335,7 @@ async function pollWorkOSTokens(options: {
 					{
 						status: response.status,
 						errorCode: payload.error,
+						requestId: response.headers.get("x-request-id") ?? "none",
 					},
 				);
 			}
@@ -342,6 +345,7 @@ async function pollWorkOSTokens(options: {
 					{
 						status: response.status,
 						errorCode: payload.error,
+						requestId: response.headers.get("x-request-id") ?? "none",
 					},
 				);
 			}
@@ -383,7 +387,7 @@ async function registerWorkOSTokens(
 		const details = parseOAuthError(text);
 		throw new ClineOAuthTokenError(
 			`Token registration failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code },
+			{ status: response.status, errorCode: details.code, requestId: response.headers.get("x-request-id") ?? "none" },
 		);
 	}
 
@@ -429,7 +433,7 @@ async function exchangeAuthorizationCode(
 		const details = parseOAuthError(text);
 		throw new ClineOAuthTokenError(
 			`Token exchange failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code },
+			{ status: response.status, errorCode: details.code, requestId: response.headers.get("x-request-id") ?? "none" },
 		);
 	}
 
@@ -652,12 +656,13 @@ export async function refreshClineToken(
 	if (!response.ok) {
 		const text = await response.text().catch(() => "");
 		const details = parseOAuthError(text);
+		const requestId = response.headers.get("x-request-id") ?? "none";
 		sdkDebug(
-			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"}`,
+			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"} requestId=${requestId}`,
 		);
 		throw new ClineOAuthTokenError(
 			`Token refresh failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code },
+			{ status: response.status, errorCode: details.code, requestId },
 		);
 	}
 
