@@ -96,6 +96,9 @@ describe("@cline/ui agent components", () => {
 		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Repository" }));
+		expect(
+			screen.getByRole("combobox").closest(".cline-ui-theme"),
+		).toBeTruthy();
 		fireEvent.change(screen.getByRole("combobox"), {
 			target: { value: "core-platform" },
 		});
@@ -156,6 +159,9 @@ describe("@cline/ui agent components", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 		expect(onConfirm).toHaveBeenCalledOnce();
 		expect(screen.getByText("This cannot be undone.")).toBeTruthy();
+		expect(screen.getByRole("dialog").classList.contains("cline-ui-theme")).toBe(
+			true,
+		);
 	});
 
 	it("provides composable surface, status, button, and quick actions", () => {

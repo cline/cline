@@ -74,9 +74,9 @@ export function SearchCombobox({
 				</button>
 			</Popover.Trigger>
 			<Popover.Portal>
-				<Popover.Content
-					align="start"
-					className="cline-ui-combobox__popover"
+					<Popover.Content
+						align="start"
+						className="cline-ui-theme cline-ui-combobox__popover"
 					collisionPadding={8}
 					sideOffset={6}
 				>

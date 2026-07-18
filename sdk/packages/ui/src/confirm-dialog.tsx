@@ -28,8 +28,8 @@ export function ConfirmDialog({
 	return (
 		<Dialog.Root onOpenChange={onOpenChange} open={open}>
 			<Dialog.Portal>
-				<Dialog.Overlay className="cline-ui-dialog__overlay" />
-				<Dialog.Content className="cline-ui-dialog__content">
+				<Dialog.Overlay className="cline-ui-theme cline-ui-dialog__overlay" />
+				<Dialog.Content className="cline-ui-theme cline-ui-dialog__content">
 					<Dialog.Title className="cline-ui-dialog__title">
 						{title}
 					</Dialog.Title>
