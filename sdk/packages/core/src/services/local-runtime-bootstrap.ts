@@ -113,25 +113,6 @@ function hasConfigExtension(
 	return hasRuntimeConfigExtension(extensions, kind);
 }
 
-function countSeededRootRuns(
-	messages: StartSessionInput["initialMessages"],
-): number {
-	let count = 0;
-	for (const message of messages ?? []) {
-		if (message.role !== "user") continue;
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object" &&
-			!Array.isArray(message.metadata)
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") continue;
-		count += 1;
-	}
-	return count;
-}
-
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
@@ -237,7 +218,9 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	createSpawnTool: () => AgentTool;
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
-		metadata: Record<string, unknown>,
+		updater: (
+			current: Record<string, unknown> | undefined,
+		) => Record<string, unknown>,
 	) => Promise<void> | void;
 }
 
@@ -415,7 +398,6 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
-					initialRunCount: countSeededRootRuns(input.initialMessages),
 					readSessionMetadata,
 					writeSessionMetadata,
 				})

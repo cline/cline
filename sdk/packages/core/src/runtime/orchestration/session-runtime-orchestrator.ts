@@ -425,9 +425,13 @@ export class SessionRuntime {
 			getConversationId: () => this.conversation.getConversationId(),
 			getActiveRunId: () => this.activeRunId ?? "",
 			appendRecoveryNotice: (message, _reason) => {
+				// Tag this synthetic system message so checkpoint run
+				// counting excludes it - see
+				// sdk/packages/core/src/session/checkpoint-message-filter.ts.
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: message }],
+					metadata: { kind: "recovery_notice" },
 				});
 			},
 		});
@@ -1220,9 +1224,13 @@ export class SessionRuntime {
 		}
 		if (verdict.kind === "soft") {
 			if (verdict.message) {
+				// Tag this synthetic system message so checkpoint run
+				// counting excludes it - see
+				// sdk/packages/core/src/session/checkpoint-message-filter.ts.
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: verdict.message }],
+					metadata: { kind: "loop_detection_notice" },
 				});
 			}
 			return;
@@ -1265,9 +1273,13 @@ export class SessionRuntime {
 			const outcome = await this.mistakeTracker.record(input);
 			if (outcome.action === "stop") {
 				this.trackerAbortInFlight = true;
+				// Tag this synthetic system message so checkpoint run
+				// counting excludes it - see
+				// sdk/packages/core/src/session/checkpoint-message-filter.ts.
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: outcome.message }],
+					metadata: { kind: "mistake_stop_notice" },
 				});
 				this.activeRuntime?.abort(outcome.reason ?? outcome.message);
 			}

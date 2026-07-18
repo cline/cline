@@ -398,6 +398,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 					);
 			}
 		}
+		// A continuation carrying a new prompt (e.g. resuming after an
+		// interruption, or an auto-continue after a retry) is not
+		// `isReadOnlyResumeStart`, so `resumedArtifacts` stays unset above.
+		// `session.sessionMetadata` (seeded from `initialSessionMetadata`
+		// below) is what `ensureSessionPersisted` later upserts wholesale
+		// into storage the first time this in-memory session object needs
+		// to persist - if that metadata is left at its git-only default,
+		// checkpoint history (and anything else previously accumulated)
+		// gets silently overwritten even though it's still on disk/in the
+		// DB, because checkpoint history has no other source to recompute
+		// from. Preserve the existing persisted metadata as a fallback base
+		// in this case, without touching the read-only-resume path above.
+		let existingMetadataOnContinuation: Record<string, unknown> | undefined;
+		if (
+			!resumedArtifacts &&
+			requestedSessionId.length > 0 &&
+			initialMessages.length > 0
+		) {
+			const existingManifestForContinuation =
+				await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				);
+			existingMetadataOnContinuation = existingManifestForContinuation?.metadata as
+				| Record<string, unknown>
+				| undefined;
+		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
 			initialUsage,
 			sessionDir,
@@ -477,12 +504,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 				(await this.getSession(sessionId))?.metadata as
 					| Record<string, unknown>
 					| undefined,
-			writeSessionMetadata: async (metadata) => {
-				await this.persistSessionMetadata(sessionId, () => metadata);
-			},
+			writeSessionMetadata: (updater) =>
+				this.persistSessionMetadata(sessionId, updater),
 		});
 		const initialSessionMetadata = withSessionGitMetadata(
-			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
+			startInput.sessionMetadata ??
+				resumedArtifacts?.manifest.metadata ??
+				existingMetadataOnContinuation,
 			bootstrap.gitState,
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;

@@ -105,6 +105,31 @@ describe("checkpoint message trimming", () => {
 		]);
 	});
 
+	// Tool results are modeled as `role: "user"` messages in this wire format
+	// (ToolResultContent blocks) - they must not be mistaken for a genuine
+	// user turn when locating the checkpoint's message index.
+	it("does not count tool_result-only messages as a user turn", () => {
+		const messages = [
+			{ role: "user" as const, content: "first" },
+			{ role: "assistant" as const, content: "first response" },
+			{
+				role: "user" as const,
+				content: [
+					{
+						type: "tool_result" as const,
+						tool_use_id: "call_1",
+						name: "read_file",
+						content: "file contents",
+					},
+				],
+			},
+			{ role: "assistant" as const, content: "second response" },
+			{ role: "user" as const, content: "second" },
+		];
+
+		expect(trimMessagesToCheckpoint(messages, 2)).toEqual(messages.slice(0, 5));
+	});
+
 	it("uses the nearest earlier checkpoint when an identical snapshot was deduplicated", () => {
 		const messages = [
 			{ role: "user" as const, content: "first" },

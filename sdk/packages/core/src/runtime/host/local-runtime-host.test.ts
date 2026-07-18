@@ -2023,7 +2023,42 @@ describe("LocalRuntimeHost", () => {
 							parentAgentId: null,
 							status: "running" as const,
 							iteration: 1,
-							messages: [],
+							// Checkpoint runCount is derived from genuine user
+							// messages in the snapshot (checkpoint-run-counting.ts),
+							// so this fake agent must mirror the real
+							// AgentRuntime's behavior of seeding `state.messages`
+							// from `initialMessages` instead of hardcoding `[]`.
+							messages: [
+								{
+									id: "m1",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "first" }],
+									createdAt: 1,
+								},
+								{
+									id: "m2",
+									role: "assistant" as const,
+									content: [
+										{ type: "text" as const, text: "first response" },
+									],
+									createdAt: 2,
+								},
+								{
+									id: "m3",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "second" }],
+									createdAt: 3,
+								},
+								// The new prompt for this run ("hello"), as a real
+								// AgentRuntime would have already pushed it to
+								// state.messages before beforeModel fires.
+								{
+									id: "m4",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "hello" }],
+									createdAt: 4,
+								},
+							],
 							pendingToolCalls: [],
 							usage: {
 								inputTokens: 0,
@@ -2032,9 +2067,6 @@ describe("LocalRuntimeHost", () => {
 								cacheWriteTokens: 0,
 							},
 						};
-						await config.hooks?.beforeRun?.({
-							snapshot: { ...snapshot, iteration: 0 },
-						});
 						await config.hooks?.beforeModel?.({
 							snapshot,
 							request: { messages: [], tools: [] },
@@ -2109,6 +2141,146 @@ describe("LocalRuntimeHost", () => {
 				totalCost: 0,
 			}),
 		});
+	});
+
+	it("preserves checkpoint history when resuming a session with a new prompt", async () => {
+		const sessionId = "sess-checkpoint-resume-with-prompt";
+		const repoCwd = join(isolatedHomeDir, "checkpoint-resume-repo");
+		const existingManifest: SessionManifest = {
+			...createManifest(sessionId),
+			metadata: {
+				checkpoint: {
+					latest: {
+						ref: "old-ref",
+						createdAt: 1,
+						runCount: 1,
+						kind: "commit",
+					},
+					history: [
+						{
+							ref: "old-ref",
+							createdAt: 1,
+							runCount: 1,
+							kind: "commit",
+						},
+					],
+				},
+			},
+		};
+		const newCheckpointRef = "b".repeat(40);
+		const createCheckpoint = vi.fn(({ runCount }) => ({
+			ref: newCheckpointRef,
+			createdAt: 456,
+			runCount,
+			kind: "commit" as const,
+		}));
+		const readSessionManifest = vi.fn().mockResolvedValue(existingManifest);
+		const createRootSessionWithArtifacts = vi
+			.fn()
+			.mockImplementation((input: { metadata?: Record<string, unknown> }) => ({
+				manifestPath: "/tmp/manifest-checkpoint-resume.json",
+				messagesPath: "/tmp/messages-checkpoint-resume.json",
+				manifest: { ...existingManifest, metadata: input.metadata },
+			}));
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			readSessionManifest,
+			createRootSessionWithArtifacts,
+			persistSessionMessages: vi.fn(),
+			updateSession,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockImplementation(() => {
+				return {
+					tools: [],
+					shutdown: vi.fn(),
+				};
+			}),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: (config) =>
+				({
+					run: vi.fn().mockImplementation(async () => {
+						const snapshot = {
+							agentId: "agent_1",
+							runId: "conv_1",
+							parentAgentId: null,
+							status: "running" as const,
+							iteration: 1,
+							messages: [],
+							pendingToolCalls: [],
+							usage: {
+								inputTokens: 0,
+								outputTokens: 0,
+								cacheReadTokens: 0,
+								cacheWriteTokens: 0,
+							},
+						};
+						await config.hooks?.beforeModel?.({
+							snapshot,
+							request: { messages: [], tools: [] },
+						});
+						return createResult();
+					}),
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		// Simulates continuing an existing task with a new message: a
+		// sessionId is already assigned and prior turns are seeded via
+		// initialMessages, but a new prompt is also attached. This makes
+		// `isReadOnlyResumeStart` false, so `resumedArtifacts` stays unset,
+		// and `ensureSessionPersisted` lazily calls
+		// `createRootSessionWithArtifacts` on this turn - which performs a
+		// wholesale upsert of session metadata into storage. Without
+		// preserving the existing checkpoint history first, that upsert
+		// would silently wipe every earlier checkpoint entry.
+		await manager.startSession(
+			normalizeStartInput({
+				config: {
+					...createConfig({ sessionId, cwd: repoCwd }),
+					checkpoint: { enabled: true, createCheckpoint },
+				},
+				prompt: "continue please",
+				initialMessages: [
+					{ role: "user", content: "first" },
+					{ role: "assistant", content: "first response" },
+				],
+				interactive: true,
+			}),
+		);
+
+		expect(readSessionManifest).toHaveBeenCalledWith(sessionId);
+		expect(createRootSessionWithArtifacts).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					checkpoint: expect.objectContaining({
+						history: expect.arrayContaining([
+							expect.objectContaining({
+								ref: "old-ref",
+								runCount: 1,
+							}),
+						]),
+					}),
+				}),
+			}),
+		);
 	});
 
 	it("persists assistant message metadata for usage and model identity", async () => {
