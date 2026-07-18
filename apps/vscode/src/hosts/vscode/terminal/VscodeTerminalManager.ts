@@ -262,10 +262,15 @@ export class VscodeTerminalManager {
 		return mergePromise(process, promise)
 	}
 
-	async getOrCreateTerminal(cwd: string): Promise<ITerminalInfo> {
+	/**
+	 * @param profileId Terminal profile to create/match the terminal with.
+	 * Defaults to the current setting; callers that captured the profile
+	 * earlier (e.g. when the model request was built) pass it here so a
+	 * settings change does not switch shells under an in-flight tool call.
+	 */
+	async getOrCreateTerminal(cwd: string, profileId: string = this.defaultTerminalProfile): Promise<ITerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
-		const expectedShellPath =
-			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
+		const expectedShellPath = profileId !== "default" ? getShellForProfile(profileId) : undefined
 		// Resolve effective shell for comparison (so "default" and "zsh" match on macOS)
 		const effectiveExpected = VscodeTerminalManager.effectiveShellPath(expectedShellPath)
 
