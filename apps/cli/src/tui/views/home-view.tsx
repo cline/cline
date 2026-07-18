@@ -25,6 +25,7 @@ import {
 	getModeInputPlaceholder,
 } from "../palette";
 import { HOME_VIEW_MAX_WIDTH, type TuiProps } from "../types";
+import { getHomeShortcutHint } from "../utils/responsive-layout";
 
 export function HomeView(props: {
 	config: TuiProps["config"];
@@ -78,7 +79,9 @@ export function HomeView(props: {
 	const maxInputTokens = resolveModelMaxInputTokens(config);
 	const hasAutocomplete =
 		props.autocomplete?.mode && props.autocomplete.options.length > 0;
-	const contentWidth = Math.min(width, HOME_VIEW_MAX_WIDTH);
+	const contentWidth = Math.max(1, Math.min(width, HOME_VIEW_MAX_WIDTH));
+	const compactHome = height < 22 || contentWidth < 42;
+	const shortcutHint = getHomeShortcutHint(contentWidth);
 	const hasTypedInput = inputValue.trim().length > 0;
 	const inputStartX = Math.floor((width - contentWidth) / 2) + 2;
 	const clamp = (value: number, min: number, max: number) =>
@@ -105,17 +108,17 @@ export function HomeView(props: {
 				alignItems="center"
 				justifyContent="center"
 			>
-				<TrackedRobot cursorX={trackedCursorX} cursorY={trackedCursorY} />
-				<box marginTop={1} marginBottom={1} flexShrink={0}>
+				{!compactHome && (
+					<TrackedRobot cursorX={trackedCursorX} cursorY={trackedCursorY} />
+				)}
+				<box marginTop={compactHome ? 0 : 1} marginBottom={1} flexShrink={0}>
 					<text fg={defaultFg}>
 						<strong>What can I do for you?</strong>
 					</text>
 				</box>
-				<box marginBottom={1} flexShrink={0}>
+				<box marginBottom={compactHome ? 0 : 1} flexShrink={0}>
 					<text fg="gray">
-						<em>
-							Use / for slash commands, @ for file mentions, Ctrl+P for menu
-						</em>
+						<em>{shortcutHint}</em>
 					</text>
 				</box>
 			</box>

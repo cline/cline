@@ -14,6 +14,7 @@ import {
 	getSuccessColor,
 } from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
+import { fitStatusRow, truncateToWidth } from "../utils/responsive-layout";
 
 export function createContextBar(
 	used: number,
@@ -187,32 +188,43 @@ export function StatusBar(props: StatusBarProps) {
 		? createContextBar(totalTokens, maxInputTokens)
 		: undefined;
 
-	// Available content width after accounting for padding.
-	// Home view: parent box is capped at 60 wide, status bar adds paddingX=1 (-2).
-	// Chat view: status bar adds paddingX=1 (-2).
-	const avail =
+	// Keep the footer within the terminal at every width. The full layout uses
+	// two dense rows; narrow terminals switch to compact labels and omit
+	// secondary details before they can wrap.
+	const avail = Math.max(
+		1,
 		props.variant === "home"
 			? Math.min(width, HOME_VIEW_MAX_WIDTH) - 2
-			: width - 2;
-
-	// Row 1 layout: [model + context info] .... [Plan/Act toggle]
-	// When the full row doesn't fit, context info drops to its own row 2.
-	// Model ID truncates with "..." before wrapping; toggle stays right-aligned.
-	const toggleWidth = 20;
+			: width - 2,
+	);
+	const compact = avail < 48;
+	const activeModeLabel = uiMode === "plan" ? "● Plan" : "● Act";
+	const modeWidth = compact ? activeModeLabel.length : 18;
+	const modelRow = fitStatusRow(avail, modeWidth);
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
 		providerId: props.providerId,
 	});
-	const contextText = bar
+	const hasUsage = totalTokens > 0 || totalCost > 0;
+	const fullContextText = bar
 		? ` ${bar.filled}${bar.empty} ${usageText}`
 		: ` ${usageText}`;
-	const firstRowFits =
-		modelId.length + contextText.length + toggleWidth + 1 <= avail;
-	const renderContextText = (withLeadingSpace: boolean) => (
+	const compactContextText = ` ${usageText}`;
+	const preferredContextText = compact ? compactContextText : fullContextText;
+	const contextText = !hasUsage
+		? ""
+		: preferredContextText.length <= modelRow.leftWidth - 8
+			? preferredContextText
+			: compactContextText.length <= modelRow.leftWidth - 8
+				? compactContextText
+				: "";
+	const showContextBar =
+		Boolean(bar) && !compact && contextText === fullContextText;
+	const renderContextText = () => (
 		<>
-			{withLeadingSpace && " "}
-			{bar && (
+			{" "}
+			{showContextBar && bar && (
 				<>
 					<span fg={contextBarFilledFg}>{bar.filled}</span>
 					<span fg="gray">{bar.empty}</span>{" "}
@@ -221,76 +233,110 @@ export function StatusBar(props: StatusBarProps) {
 			{usageText}
 		</>
 	);
-
-	const modelMaxLen = Math.max(
-		10,
-		avail - toggleWidth - (firstRowFits ? contextText.length : 0) - 1,
+	const truncatedModel = truncateToWidth(
+		modelId,
+		Math.max(1, modelRow.leftWidth - contextText.length),
 	);
-	const truncatedModel =
-		modelId.length > modelMaxLen
-			? `${modelId.slice(0, modelMaxLen - 3)}...`
-			: modelId;
 
-	// Repo row: [workspace (branch) | N files +X -Y]
-	// Git stats stay visible; path/branch truncates with "..." when narrow.
-	const hasGitDiff = gitDiffStats && gitDiffStats.files > 0;
-	const gitSuffix = hasGitDiff
-		? ` | ${gitDiffStats.files} file${gitDiffStats.files !== 1 ? "s" : ""} +${gitDiffStats.additions} -${gitDiffStats.deletions}`
-		: "";
+	const approvalLabel = compact
+		? autoApproveAll
+			? "Auto: all"
+			: "Auto: safe"
+		: autoApproveAll
+			? "Auto: all (Shift+Tab)"
+			: "Auto: safe (Shift+Tab)";
+	const repoRow = fitStatusRow(avail, approvalLabel.length);
 	const pathPart = workspaceName + (gitBranch ? ` (${gitBranch})` : "");
-	const pathMax = Math.max(5, avail - gitSuffix.length);
-	const truncatedPath =
-		pathPart.length > pathMax
-			? `${pathPart.slice(0, pathMax - 3)}...`
-			: pathPart;
+	const diffStats =
+		gitDiffStats && gitDiffStats.files > 0 ? gitDiffStats : null;
+	const diffLabel = diffStats
+		? compact
+			? `${diffStats.files}f +${diffStats.additions} -${diffStats.deletions}`
+			: `${diffStats.files} file${diffStats.files !== 1 ? "s" : ""} +${diffStats.additions} -${diffStats.deletions}`
+		: "";
+	const diffSeparator = pathPart ? " | " : "";
+	const showDiff =
+		Boolean(diffStats) &&
+		repoRow.leftWidth >=
+			diffSeparator.length + diffLabel.length + (pathPart ? 6 : 0);
+	const pathMax = Math.max(
+		0,
+		repoRow.leftWidth -
+			(showDiff ? diffSeparator.length + diffLabel.length : 0),
+	);
+	const truncatedPath = truncateToWidth(pathPart, pathMax);
+	const activeModeAccent = uiMode === "plan" ? planAccent : actAccent;
+
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<box flexDirection="row" justifyContent="space-between">
-				<text fg="gray">
-					{truncatedModel}
-					{firstRowFits && renderContextText(true)}
-				</text>
-				<box
-					flexDirection="row"
-					gap={1}
+			<box
+				flexDirection="row"
+				gap={modelRow.showRight ? 1 : 0}
+				overflow="hidden"
+			>
+				<text
+					fg="gray"
+					width={modelRow.leftWidth}
 					flexShrink={0}
-					onMouseDown={onToggleMode}
+					overflow="hidden"
+					wrapMode="none"
 				>
-					<text fg={uiMode === "plan" ? planAccent : "gray"}>
-						{uiMode === "plan" ? "●" : "○"} Plan
-					</text>
-					<text fg={uiMode === "act" ? actAccent : "gray"}>
-						{uiMode === "act" ? "●" : "○"} Act
-					</text>
-					<text fg="gray">(Tab)</text>
-				</box>
-			</box>
-
-			{!firstRowFits && <text fg="gray">{renderContextText(false)}</text>}
-
-			<text fg={defaultFg}>
-				{truncatedPath}
-				{hasGitDiff && (
-					<span fg="gray">
-						{" | "}
-						{gitDiffStats.files} file
-						{gitDiffStats.files !== 1 ? "s" : ""}{" "}
-						<span fg={successColor}>+{gitDiffStats.additions}</span>{" "}
-						<span fg="red">-{gitDiffStats.deletions}</span>
-					</span>
-				)}
-			</text>
-
-			{autoApproveAll ? (
-				<text fg={defaultFg}>
-					<span fg={successColor}>
-						{"\u23f5\u23f5"} Auto-approve all enabled
-					</span>
-					<span fg="gray"> (Shift+Tab)</span>
+					{truncatedModel}
+					{contextText && renderContextText()}
 				</text>
-			) : (
-				<text fg="gray">Auto-approve all disabled (Shift+Tab)</text>
-			)}
+				{modelRow.showRight && (
+					<box
+						flexDirection="row"
+						gap={compact ? 0 : 1}
+						flexShrink={0}
+						onMouseDown={onToggleMode}
+					>
+						{compact ? (
+							<text fg={activeModeAccent}>{activeModeLabel}</text>
+						) : (
+							<>
+								<text fg={uiMode === "plan" ? planAccent : "gray"}>
+									{uiMode === "plan" ? "●" : "○"} Plan
+								</text>
+								<text fg={uiMode === "act" ? actAccent : "gray"}>
+									{uiMode === "act" ? "●" : "○"} Act
+								</text>
+								<text fg="gray">(Tab)</text>
+							</>
+						)}
+					</box>
+				)}
+			</box>
+			<box
+				flexDirection="row"
+				gap={repoRow.showRight ? 1 : 0}
+				overflow="hidden"
+			>
+				<text
+					fg={defaultFg}
+					width={repoRow.leftWidth}
+					flexShrink={0}
+					overflow="hidden"
+					wrapMode="none"
+				>
+					{truncatedPath}
+					{showDiff && diffStats && (
+						<span fg="gray">
+							{diffSeparator}
+							{compact
+								? `${diffStats.files}f`
+								: `${diffStats.files} file${diffStats.files !== 1 ? "s" : ""}`}{" "}
+							<span fg={successColor}>+{diffStats.additions}</span>{" "}
+							<span fg="red">-{diffStats.deletions}</span>
+						</span>
+					)}
+				</text>
+				{repoRow.showRight && (
+					<text fg={autoApproveAll ? successColor : "gray"} flexShrink={0}>
+						{approvalLabel}
+					</text>
+				)}
+			</box>
 		</box>
 	);
 }

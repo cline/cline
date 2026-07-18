@@ -74,8 +74,8 @@ function ReasoningBlock(props: { text: string; streaming: boolean }) {
 					</text>
 				</box>
 				<box flexDirection="column" paddingLeft={2}>
-					{lines.map((line) => (
-						<text key={line} fg="gray" selectable>
+					{lines.map((line, index) => (
+						<text key={`${index}:${line}`} fg="gray" selectable>
 							<em>{line || " "}</em>
 						</text>
 					))}
@@ -92,8 +92,8 @@ function ReasoningBlock(props: { text: string; streaming: boolean }) {
 					{"\u25bc"} <em>Thinking:</em>
 				</text>
 				<box flexDirection="column" paddingLeft={2}>
-					{lines.map((line) => (
-						<text key={line} fg="gray" selectable>
+					{lines.map((line, index) => (
+						<text key={`${index}:${line}`} fg="gray" selectable>
 							<em>{line || " "}</em>
 						</text>
 					))}
@@ -246,7 +246,7 @@ function ToolCallView(props: {
 						<text fg={accent}>*</text>
 					)}
 				</box>
-				<text fg={defaultFg} selectable>
+				<text fg={defaultFg} selectable wrapMode="word">
 					<span fg={accent}>
 						<strong>{toolName}</strong>
 					</span>
