@@ -233,7 +233,7 @@ function ToolCallView(props: {
 	const params = formatToolParams(toolName, props.rawInput, inputSummary);
 
 	return (
-		<box flexDirection="column">
+		<box flexDirection="column" width="100%">
 			<box flexDirection="row">
 				<box width={2}>
 					{streaming ? (

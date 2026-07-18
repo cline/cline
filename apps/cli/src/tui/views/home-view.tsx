@@ -96,21 +96,28 @@ export function HomeView(props: {
 			width="100%"
 			height="100%"
 			alignItems="center"
-			justifyContent="center"
 			onMouseMove={mouse.onMouseMove}
 		>
-			<TrackedRobot cursorX={trackedCursorX} cursorY={trackedCursorY} />
-			<box marginTop={1} marginBottom={1} flexShrink={0}>
-				<text fg={defaultFg}>
-					<strong>What can I do for you?</strong>
-				</text>
-			</box>
-			<box marginBottom={1} flexShrink={0}>
-				<text fg="gray">
-					<em>
-						Use / for slash commands, @ for file mentions, Ctrl+P for menu
-					</em>
-				</text>
+			<box
+				flexDirection="column"
+				width="100%"
+				flexGrow={1}
+				alignItems="center"
+				justifyContent="center"
+			>
+				<TrackedRobot cursorX={trackedCursorX} cursorY={trackedCursorY} />
+				<box marginTop={1} marginBottom={1} flexShrink={0}>
+					<text fg={defaultFg}>
+						<strong>What can I do for you?</strong>
+					</text>
+				</box>
+				<box marginBottom={1} flexShrink={0}>
+					<text fg="gray">
+						<em>
+							Use / for slash commands, @ for file mentions, Ctrl+P for menu
+						</em>
+					</text>
+				</box>
 			</box>
 
 			<box flexDirection="column" width={contentWidth} flexShrink={0}>

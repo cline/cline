@@ -161,6 +161,7 @@ function EditOutput(props: {
 	return (
 		<box
 			flexDirection="column"
+			width="100%"
 			paddingLeft={2}
 			onMouseDown={() => setExpanded(!expanded)}
 		>
@@ -170,11 +171,13 @@ function EditOutput(props: {
 				language={language}
 			/>
 			{expanded && (
-				<box marginLeft={2} marginTop={1} marginBottom={1}>
+				<box width="100%" marginTop={1} marginBottom={1}>
 					<diff
+						width="100%"
 						diff={makeUnifiedDiff(oldText, newText, editorInfo.path)}
 						view="unified"
 						filetype={language ?? "text"}
+						wrapMode="char"
 						syntaxStyle={getSyntaxStyle(props.theme)}
 						showLineNumbers
 						addedBg={diffPalette.addedBg}
@@ -216,6 +219,7 @@ function ApplyPatchOutput(props: {
 	return (
 		<box
 			flexDirection="column"
+			width="100%"
 			paddingLeft={2}
 			onMouseDown={() => setExpanded(!expanded)}
 		>
@@ -225,11 +229,13 @@ function ApplyPatchOutput(props: {
 				language={fileLabel}
 			/>
 			{expanded && (
-				<box marginLeft={2} marginTop={1} marginBottom={1}>
+				<box width="100%" marginTop={1} marginBottom={1}>
 					<diff
+						width="100%"
 						diff={info.diff}
 						view="unified"
 						filetype={language ?? "text"}
+						wrapMode="char"
 						syntaxStyle={getSyntaxStyle(props.theme)}
 						showLineNumbers
 						addedBg={diffPalette.addedBg}
