@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.43",
+      "version": "3.0.44",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -698,18 +698,24 @@
         "@streamparser/json": "^0.0.21",
         "ai": "^6.0.144",
         "ai-sdk-ollama": "^3.8.8",
-        "ai-sdk-provider-claude-code": "^3.4.3",
-        "ai-sdk-provider-codex-cli": "^1.1.0",
         "ai-sdk-provider-opencode-sdk": "^3.0.1",
         "dify-ai-provider": "^1.1.0",
         "nanoid": "^5.1.7",
         "zod": "^4.3.6",
       },
+      "devDependencies": {
+        "ai-sdk-provider-claude-code": "^3.4.3",
+        "ai-sdk-provider-codex-cli": "^1.1.0",
+      },
       "peerDependencies": {
         "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+        "ai-sdk-provider-claude-code": "^3.4.3",
+        "ai-sdk-provider-codex-cli": "^1.1.0",
       },
       "optionalPeers": [
         "@aws-sdk/client-bedrock-runtime",
+        "ai-sdk-provider-claude-code",
+        "ai-sdk-provider-codex-cli",
       ],
     },
     "sdk/packages/sdk": {
