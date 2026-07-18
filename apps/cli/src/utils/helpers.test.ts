@@ -151,9 +151,11 @@ describe("parseArgs", () => {
 	it("parses act/plan mode flags", () => {
 		const parsedPlan = parseArgs(["--plan"]);
 		expect(parsedPlan.mode).toBe("plan");
+		expect(parsedPlan.modeExplicitlySet).toBe(true);
 
 		const parsedAct = parseArgs(["-a"]);
 		expect(parsedAct.mode).toBe("act");
+		expect(parsedAct.modeExplicitlySet).toBe(true);
 	});
 
 	it("parses bare --thinking as medium before a flag", () => {

@@ -844,14 +844,6 @@ export async function runCli(): Promise<void> {
 		}
 	}
 	setCurrentOutputMode(args.outputMode);
-	const defaultToolAutoApprove = true;
-	const effectiveToolAutoApprove =
-		args.autoApproveOverride ?? defaultToolAutoApprove;
-	const toolPolicies: Record<string, ToolPolicy> = {
-		"*": {
-			autoApprove: effectiveToolAutoApprove,
-		},
-	};
 
 	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
 		writeErr(
@@ -927,6 +919,33 @@ export async function runCli(): Promise<void> {
 		resolveSystemPrompt,
 		runAgent,
 	} = await loadCliRuntimeModules();
+	const shouldApplyTuiSettings =
+		(args.interactive || (!args.prompt && process.stdin.isTTY)) &&
+		args.mode !== "yolo" &&
+		args.mode !== "zen";
+	const persistedTuiSettings = shouldApplyTuiSettings
+		? coreServer.readCliTuiSettings()
+		: undefined;
+	if (persistedTuiSettings) {
+		args = {
+			...args,
+			mode:
+				!args.modeExplicitlySet && persistedTuiSettings.mode
+					? persistedTuiSettings.mode
+					: args.mode,
+			compactionMode:
+				args.compactionMode ?? persistedTuiSettings.compactionMode,
+			verbose: args.verbose || persistedTuiSettings.verbose === true,
+		};
+	}
+	const defaultToolAutoApprove = persistedTuiSettings?.autoApproveAll ?? true;
+	const effectiveToolAutoApprove =
+		args.autoApproveOverride ?? defaultToolAutoApprove;
+	const toolPolicies: Record<string, ToolPolicy> = {
+		"*": {
+			autoApprove: effectiveToolAutoApprove,
+		},
+	};
 
 	// Register the SDK early logger as early as possible — before any
 	// provider settings reads — so the full startup sequence is captured.

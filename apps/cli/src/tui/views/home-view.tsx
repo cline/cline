@@ -3,10 +3,10 @@ import { useState } from "react";
 import {
 	AutocompleteDropdown,
 	type AutocompleteDropdownProps,
-	DROPDOWN_MAX_HEIGHT,
 } from "../components/autocomplete-dropdown";
 import { InputBar, type TextareaHandle } from "../components/input-bar";
 import {
+	getWorkspaceDisplayName,
 	resolveModelDisplayName,
 	resolveModelMaxInputTokens,
 	StatusBar,
@@ -138,36 +138,30 @@ export function HomeView(props: {
 					textareaRef={props.textareaRef}
 				/>
 
-				<box flexDirection="column" height={DROPDOWN_MAX_HEIGHT + 1}>
-					{hasAutocomplete && props.autocomplete ? (
-						<AutocompleteDropdown
-							{...props.autocomplete}
-							accent={accent}
-							containerWidth={Math.min(width, HOME_VIEW_MAX_WIDTH)}
+				{hasAutocomplete && props.autocomplete ? (
+					<AutocompleteDropdown
+						{...props.autocomplete}
+						accent={accent}
+						containerWidth={Math.min(width, HOME_VIEW_MAX_WIDTH)}
+					/>
+				) : (
+					<box marginTop={1}>
+						<StatusBar
+							providerId={config.providerId}
+							modelId={modelDisplayName}
+							totalTokens={session.lastTotalTokens}
+							totalCost={session.lastTotalCost}
+							maxInputTokens={maxInputTokens}
+							uiMode={session.uiMode}
+							autoApproveAll={session.autoApproveAll}
+							workspaceName={getWorkspaceDisplayName(config.workspaceRoot)}
+							gitBranch={repoStatus.branch}
+							gitDiffStats={repoStatus.diffStats}
+							onToggleMode={props.onToggleMode}
+							variant="home"
 						/>
-					) : (
-						<box marginTop={1}>
-							<StatusBar
-								providerId={config.providerId}
-								modelId={modelDisplayName}
-								totalTokens={session.lastTotalTokens}
-								totalCost={session.lastTotalCost}
-								maxInputTokens={maxInputTokens}
-								uiMode={session.uiMode}
-								autoApproveAll={session.autoApproveAll}
-								workspaceName={
-									config.workspaceRoot
-										? (config.workspaceRoot.split("/").pop() ?? "")
-										: ""
-								}
-								gitBranch={repoStatus.branch}
-								gitDiffStats={repoStatus.diffStats}
-								onToggleMode={props.onToggleMode}
-								variant="home"
-							/>
-						</box>
-					)}
-				</box>
+					</box>
+				)}
 			</box>
 		</box>
 	);

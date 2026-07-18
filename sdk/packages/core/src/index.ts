@@ -487,6 +487,7 @@ export {
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 export type {
+	CliTuiSettings,
 	GlobalCompactionStrategy,
 	GlobalSettings,
 } from "./services/global-settings";
@@ -499,11 +500,13 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCliTuiSettings,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
+	setCliTuiSettings,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,

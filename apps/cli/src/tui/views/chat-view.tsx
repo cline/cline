@@ -10,6 +10,7 @@ import { InlineToolResponse } from "../components/inline-tool-response";
 import { InputBar, type TextareaHandle } from "../components/input-bar";
 import { QueuedPrompts } from "../components/queued-prompts";
 import {
+	getWorkspaceDisplayName,
 	resolveModelDisplayName,
 	resolveModelMaxInputTokens,
 	StatusBar,
@@ -153,11 +154,7 @@ export function ChatView(props: {
 					maxInputTokens={maxInputTokens}
 					uiMode={session.uiMode}
 					autoApproveAll={session.autoApproveAll}
-					workspaceName={
-						config.workspaceRoot
-							? (config.workspaceRoot.split("/").pop() ?? "")
-							: ""
-					}
+					workspaceName={getWorkspaceDisplayName(config.workspaceRoot)}
 					gitBranch={repoStatus.branch}
 					gitDiffStats={repoStatus.diffStats}
 					onToggleMode={props.onToggleMode}

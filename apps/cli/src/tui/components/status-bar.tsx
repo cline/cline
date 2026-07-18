@@ -44,6 +44,15 @@ export function resolveContextBarFilledForeground(
 	return defaultForeground ?? "#ffffff";
 }
 
+export function getWorkspaceDisplayName(
+	workspaceRoot: string | undefined,
+): string {
+	if (!workspaceRoot) return "";
+	const trimmedRoot = workspaceRoot.replace(/[\\/]+$/, "");
+	if (!trimmedRoot) return workspaceRoot;
+	return trimmedRoot.split(/[\\/]/).pop() ?? workspaceRoot;
+}
+
 function formatCost(cost: number): string {
 	return `$${cost.toFixed(2)}`;
 }

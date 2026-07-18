@@ -5,9 +5,11 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	readCliTuiSettings,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	setAutoUpdateEnabledGlobally,
+	setCliTuiSettings,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
@@ -149,6 +151,41 @@ describe("global-settings", () => {
 				autoUpdateEnabled: true,
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
+				telemetryOptOut: false,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("persists CLI TUI preferences independently from shared settings", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			setCliTuiSettings({
+				mode: "plan",
+				autoApproveAll: false,
+				verbose: true,
+				compactionMode: "off",
+			});
+			setCliTuiSettings({ mode: "act" });
+
+			expect(readCliTuiSettings()).toEqual({
+				mode: "act",
+				autoApproveAll: false,
+				verbose: true,
+				compactionMode: "off",
+			});
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				cliTui: {
+					mode: "act",
+					autoApproveAll: false,
+					verbose: true,
+					compactionMode: "off",
+				},
 				telemetryOptOut: false,
 			});
 		} finally {
@@ -321,6 +358,7 @@ describe("global-settings", () => {
 				const settingsPath = join(root, "global-settings.json");
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 				writeGlobalSettings({
+					cliTui: { mode: "plan" },
 					disabledTools: ["editor"],
 					disabledPlugins: ["/plugins/example.js"],
 				});
@@ -328,6 +366,7 @@ describe("global-settings", () => {
 				const settings = readGlobalSettings();
 
 				expect(Object.isFrozen(settings)).toBe(true);
+				expect(Object.isFrozen(settings.cliTui)).toBe(true);
 				expect(Object.isFrozen(settings.disabledTools)).toBe(true);
 				expect(Object.isFrozen(settings.disabledPlugins)).toBe(true);
 				expect(() => {
@@ -335,6 +374,9 @@ describe("global-settings", () => {
 				}).toThrow();
 				expect(() => {
 					settings.disabledTools?.push("malicious");
+				}).toThrow();
+				expect(() => {
+					settings.cliTui!.mode = "act";
 				}).toThrow();
 			} finally {
 				await rm(root, { recursive: true, force: true });

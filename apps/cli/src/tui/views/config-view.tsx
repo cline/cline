@@ -1,4 +1,8 @@
-import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
+import {
+	readGlobalSettings,
+	setAutoUpdateEnabledGlobally,
+	setCliTuiSettings,
+} from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -597,14 +601,20 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				break;
 			case "toggle":
 				switch (row.id) {
-					case "mode":
-						setMode(mode === "plan" ? "act" : "plan");
+					case "mode": {
+						const nextMode = mode === "plan" ? "act" : "plan";
+						setMode(nextMode);
+						setCliTuiSettings({ mode: nextMode });
 						props.onToggleMode();
 						break;
-					case "auto-approve":
-						setAutoApprove(!autoApprove);
+					}
+					case "auto-approve": {
+						const nextAutoApprove = !autoApprove;
+						setAutoApprove(nextAutoApprove);
+						setCliTuiSettings({ autoApproveAll: nextAutoApprove });
 						props.onToggleAutoApprove();
 						break;
+					}
 					case "auto-update":
 						setAutoUpdateEnabled((previous) => {
 							const next = !previous;
@@ -615,13 +625,17 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					case "compaction": {
 						const nextMode = getNextCliCompactionMode(compactionMode);
 						setCompactionMode(nextMode);
+						setCliTuiSettings({ compactionMode: nextMode });
 						props.onSetCompactionMode(nextMode);
 						break;
 					}
-					case "verbose":
-						config.verbose = !verbose;
-						setVerbose(!verbose);
+					case "verbose": {
+						const nextVerbose = !verbose;
+						config.verbose = nextVerbose;
+						setVerbose(nextVerbose);
+						setCliTuiSettings({ verbose: nextVerbose });
 						break;
+					}
 				}
 				break;
 			case "ext": {

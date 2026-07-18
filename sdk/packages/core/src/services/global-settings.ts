@@ -37,11 +37,23 @@ export type GlobalCompactionStrategy = z.infer<
 	typeof GlobalCompactionStrategySchema
 >;
 
+const CliTuiSettingsSchema = z
+	.object({
+		mode: z.enum(["plan", "act"]).optional(),
+		autoApproveAll: z.boolean().optional(),
+		verbose: z.boolean().optional(),
+		compactionMode: z.enum(["basic", "agentic", "off"]).optional(),
+	})
+	.strip();
+
+export type CliTuiSettings = z.infer<typeof CliTuiSettingsSchema>;
+
 export const GlobalSettingsSchema = z
 	.object({
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		compactionStrategy: GlobalCompactionStrategySchema.optional(),
+		cliTui: CliTuiSettingsSchema.optional(),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -51,6 +63,7 @@ export const GlobalSettingsSchema = z
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
 			compactionStrategy?: GlobalCompactionStrategy;
+			cliTui?: CliTuiSettings;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
@@ -59,6 +72,9 @@ export const GlobalSettingsSchema = z
 		};
 		if (settings.compactionStrategy) {
 			normalized.compactionStrategy = settings.compactionStrategy;
+		}
+		if (Object.keys(settings.cliTui ?? {}).length > 0) {
+			normalized.cliTui = settings.cliTui;
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
@@ -93,6 +109,9 @@ function invalidateSettingsCache(): void {
 }
 
 function freezeSettings(value: GlobalSettings): GlobalSettings {
+	if (value.cliTui) {
+		Object.freeze(value.cliTui);
+	}
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
 	}
@@ -191,6 +210,24 @@ export function setAutoUpdateEnabledGlobally(
 		},
 		options,
 	);
+}
+
+export function readCliTuiSettings(): CliTuiSettings {
+	return readGlobalSettings().cliTui ?? {};
+}
+
+export function setCliTuiSettings(settings: Partial<CliTuiSettings>): void {
+	if (Object.keys(settings).length === 0) {
+		return;
+	}
+	const current = readGlobalSettings();
+	writeGlobalSettings({
+		...current,
+		cliTui: {
+			...current.cliTui,
+			...settings,
+		},
+	});
 }
 
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {

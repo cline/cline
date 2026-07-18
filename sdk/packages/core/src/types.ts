@@ -118,7 +118,11 @@ export {
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
-export type { GlobalSettings } from "./services/global-settings";
+export type {
+	CliTuiSettings,
+	GlobalCompactionStrategy,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
@@ -128,11 +132,13 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCliTuiSettings,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
+	setCliTuiSettings,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
@@ -140,7 +146,6 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { GlobalCompactionStrategy } from "./services/global-settings";
 export type {
 	ListPluginToolsResult,
 	PluginToolSummary,

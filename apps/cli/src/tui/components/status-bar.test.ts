@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	createContextBar,
 	formatStatusBarUsageText,
+	getWorkspaceDisplayName,
 	resolveContextBarFilledForeground,
 	resolveModelDisplayName,
 } from "./status-bar";
@@ -128,5 +129,16 @@ describe("resolveModelDisplayName", () => {
 				},
 			}),
 		).toBe("GLM 5.2");
+	});
+});
+
+describe("getWorkspaceDisplayName", () => {
+	it("uses the final segment for POSIX and Windows workspace paths", () => {
+		expect(getWorkspaceDisplayName("/mnt/c/VibeCode/project")).toBe("project");
+		expect(getWorkspaceDisplayName("C:\\VibeCode\\project")).toBe("project");
+	});
+
+	it("handles a trailing path separator", () => {
+		expect(getWorkspaceDisplayName("C:\\VibeCode\\project\\")).toBe("project");
 	});
 });
