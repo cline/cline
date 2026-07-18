@@ -1,5 +1,15 @@
+import type {
+	GatewayProviderContext,
+	GatewayStreamRequest,
+} from "@cline/shared";
+import type { CallSettings } from "ai";
+
 export interface ProviderFactoryResult {
 	model: (modelId: string) => unknown;
+	buildStreamConfig?: (
+		request: GatewayStreamRequest,
+		context: GatewayProviderContext,
+	) => Partial<CallSettings>;
 }
 
 export interface AiSdkStreamPart {

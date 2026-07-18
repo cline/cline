@@ -112,6 +112,7 @@ export {
 	parseUserCommandEnvelope,
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
+	stripUtf8Bom,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {
@@ -136,11 +137,6 @@ export {
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
 } from "./account";
-export {
-	hashSecret,
-	setSdkLogger,
-	sdkDebug,
-} from "./logging/early-logger";
 export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,
@@ -407,6 +403,11 @@ export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
+	hashSecret,
+	sdkDebug,
+	setSdkLogger,
+} from "./logging/early-logger";
+export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	type PreparedRemoteConfigCoreIntegration,
@@ -651,6 +652,7 @@ export {
 	captureMentionFailed,
 	captureMentionSearchResults,
 	captureMentionUsed,
+	captureMistakeLimitReached,
 	captureModeSwitch,
 	captureProviderApiError,
 	captureProviderConfigured,

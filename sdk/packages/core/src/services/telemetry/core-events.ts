@@ -63,6 +63,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		SKILL_USED: "task.skill_used",
 		DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		PROVIDER_API_ERROR: "task.provider_api_error",
+		MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
 		MENTION_SEARCH_RESULTS: "task.mention_search_results",
@@ -486,6 +487,28 @@ export function captureProviderApiError(
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR, {
 		...properties,
 		errorMessage: truncateErrorMessage(properties.errorMessage) ?? "unknown",
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * Records when the consecutive mistake limit is reached, right before the
+ * limit decision (host prompt / auto-stop) is resolved.
+ */
+export function captureMistakeLimitReached(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		model: string;
+		provider?: string;
+		/** What kind of mistake tripped the limit. */
+		reason: string;
+		consecutiveMistakes: number;
+		maxConsecutiveMistakes: number;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MISTAKE_LIMIT_REACHED, {
+		...properties,
 		timestamp: new Date().toISOString(),
 	});
 }
