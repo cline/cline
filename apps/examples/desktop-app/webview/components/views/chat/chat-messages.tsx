@@ -319,7 +319,7 @@ function ChatMessagesImpl({
 	return (
 		<Conversation
 			className="h-full min-h-0 min-w-0"
-			resetKey={sessionId ?? "new-chat"}
+			key={sessionId ?? "new-chat"}
 		>
 			<ConversationViewport
 				aria-label="Agent conversation"
@@ -714,7 +714,7 @@ function MessageBubble({
 							<MessageAction
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={onCopyRawText}
-								tooltip={wasCopied ? "Copied" : "Copy message"}
+								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
 									<Check className="h-3.5 w-3.5" />
@@ -728,7 +728,7 @@ function MessageBubble({
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
-								tooltip="Restore checkpoint"
+								title="Restore checkpoint"
 							>
 								{restorePending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -756,7 +756,7 @@ function MessageBubble({
 									: "Copy assistant message"
 							}
 							onClick={onCopyRawText}
-							tooltip={wasCopied ? "Copied" : "Copy raw assistant output"}
+							title={wasCopied ? "Copied" : "Copy raw assistant output"}
 						>
 							{wasCopied ? (
 								<Check className="h-3 w-3" />
@@ -770,7 +770,7 @@ function MessageBubble({
 							disabled={forkPending}
 							label="Fork session"
 							onClick={onForkSession}
-							tooltip="Fork session - copy full message history into a new session"
+							title="Fork session - copy full message history into a new session"
 						>
 							{forkPending ? (
 								<Loader2 className="h-3 w-3 animate-spin" />

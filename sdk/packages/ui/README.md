@@ -6,8 +6,8 @@ chat language without adopting another product's routes, state, or runtime.
 
 The package is configured for public npm releases on its own version and
 release cycle. Its API is still pre-stable, so consumers should pin an exact
-version and review compatibility notes when updating. If npm reports `E404`,
-the initial `0.1.0` bootstrap release is still pending.
+version and review compatibility notes when updating. Check availability with
+`npm view @cline/ui version`; an `E404` means the first release is still pending.
 
 See the [adoption primer](./ADOPTION.md) for complete setup instructions,
 component examples, boundaries, and release status.
@@ -17,7 +17,7 @@ component examples, boundaries, and release status.
 After the initial release is available:
 
 ```bash
-bun add @cline/ui
+bun add --exact @cline/ui
 ```
 
 Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
@@ -130,6 +130,12 @@ Then open `http://localhost:6006`. Build the static catalog with:
 bun -F @cline/ui build-storybook
 ```
 
+In the repository's agent sandbox, bind to a forwarded host and unused port:
+
+```bash
+bun -F @cline/ui storybook -- --host 0.0.0.0 --port 3490 --exact-port
+```
+
 The catalog includes the theme foundations and representative agent-chat
 states in light, dark, desktop, and narrow viewports.
 
@@ -157,14 +163,13 @@ only after a manual dispatch from `main`. Production releases use the npm
 `latest` tag; deliberate previews use `next`. UI releases do not trigger the
 SDK release, GitHub releases, or Slack announcements.
 
-The first release is a one-time manual bootstrap because npm only accepts a
-trusted-publisher configuration for an existing package. Maintainers use the
-repository's `publish-ui` skill for that bootstrap and for later releases.
+Maintainers use the repository's `publish-ui` skill for the initial bootstrap
+and later releases.
 
-Pin an exact version in production applications:
+Pin the currently released version in production applications:
 
 ```bash
-bun add @cline/ui@0.1.0
+bun add --exact @cline/ui
 ```
 
 Commit the consumer lockfile and update deliberately. The package is ESM and

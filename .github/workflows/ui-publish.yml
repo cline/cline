@@ -73,21 +73,29 @@ jobs:
       - name: Build Storybook
         run: bun -F @cline/ui build-storybook
 
-      - name: Test packed package
-        run: bun -F @cline/ui test:package
+      - name: Build UI package
+        run: bun -F @cline/ui build
 
       - name: Test desktop chat integration
         run: bun -F @cline/code test:chat-ui
 
       - name: Pack publish artifact
-        if: github.event_name == 'workflow_dispatch'
+        id: pack
         shell: bash
         run: |
           set -euo pipefail
           pack_dir="$RUNNER_TEMP/ui-npm-pack"
           mkdir -p "$pack_dir"
           cd sdk/packages/ui
-          bun pm pack --destination "$pack_dir" --quiet
+          bun pm pack --ignore-scripts --destination "$pack_dir" --quiet
+          archive=$(find "$pack_dir" -maxdepth 1 -name '*.tgz' -print -quit)
+          test -n "$archive"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Test packed package
+        env:
+          UI_PACKAGE_ARCHIVE: ${{ steps.pack.outputs.archive }}
+        run: bun sdk/packages/ui/scripts/smoke-package.ts "$UI_PACKAGE_ARCHIVE"
 
       - name: Upload publish artifact
         if: github.event_name == 'workflow_dispatch'
@@ -96,7 +104,7 @@ jobs:
           name: ui-npm-package
           path: ${{ runner.temp }}/ui-npm-pack/*.tgz
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
   publish:
     name: Publish @cline/ui
@@ -104,9 +112,11 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
-      inputs.confirm_publish == 'publish'
+      inputs.confirm_publish == 'publish' &&
+      !endsWith(github.actor, '[bot]')
     needs: quality
     runs-on: ubuntu-latest
+    environment: Publish
     permissions:
       contents: read
       id-token: write
@@ -129,7 +139,7 @@ jobs:
           set -euo pipefail
           npm_version=$(npm --version)
           echo "npm ${npm_version}"
-          node -e 'const [major, minor, patch] = process.argv[1].split(".").map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) process.exit(1)' "$npm_version"
+          node -e 'const [major, minor, patch] = process.argv[1].split(".").map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) { console.error("npm 11.5.1 or newer is required for trusted publishing"); process.exit(1); }' "$npm_version"
 
       - name: Publish package
         shell: bash

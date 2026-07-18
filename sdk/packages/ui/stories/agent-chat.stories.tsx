@@ -69,7 +69,7 @@ export const CompleteConversation = () => (
 				Can you find the settings screen and align it with our shared theme?
 			</MessageContent>
 			<MessageActions>
-				<MessageAction label="Copy user message" tooltip="Copy message">
+				<MessageAction label="Copy user message" title="Copy message">
 					Copy
 				</MessageAction>
 			</MessageActions>
@@ -128,7 +128,7 @@ export const CompleteConversation = () => (
 				</ul>
 			</MessageContent>
 			<MessageActions>
-				<MessageAction label="Copy assistant message" tooltip="Copy response">
+				<MessageAction label="Copy assistant message" title="Copy response">
 					Copy
 				</MessageAction>
 			</MessageActions>

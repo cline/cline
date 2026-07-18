@@ -164,37 +164,41 @@ describe("@cline/ui agent chat primitives", () => {
 		).not.toBeNull();
 	});
 
-	it("resets sticky scrolling when the conversation identity changes", async () => {
-		const transcript = (resetKey: string) => (
-			<Conversation resetKey={resetKey}>
+	it("resets conversation state when its React key changes", async () => {
+		const transcript = (conversationKey: string) => (
+			<Conversation key={conversationKey}>
 				<ConversationViewport>
-					<ConversationContent>Conversation {resetKey}</ConversationContent>
+					<ConversationContent>
+						Conversation {conversationKey}
+					</ConversationContent>
 				</ConversationViewport>
 				<ConversationScrollButton />
 			</Conversation>
 		);
 		await render(transcript("session-a"));
 
-		const viewport = container.querySelector(
+		const firstViewport = container.querySelector(
 			".cline-chat-conversation-viewport",
 		) as HTMLDivElement;
-		const scrollTo = vi.fn();
-		Object.defineProperties(viewport, {
+		Object.defineProperties(firstViewport, {
 			clientHeight: { configurable: true, value: 100 },
 			scrollHeight: { configurable: true, value: 500 },
 			scrollTop: { configurable: true, value: 0, writable: true },
-			scrollTo: { configurable: true, value: scrollTo },
 		});
 
-		await act(async () => viewport.dispatchEvent(new Event("wheel")));
-		scrollTo.mockClear();
-		await render(transcript("session-b"));
-
-		expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 500 });
-
-		await act(async () => viewport.dispatchEvent(new Event("scroll")));
+		await act(async () => firstViewport.dispatchEvent(new Event("scroll")));
 		expect(
 			container.querySelector('button[aria-label="Scroll to latest message"]'),
 		).not.toBeNull();
+
+		await render(transcript("session-b"));
+
+		const nextViewport = container.querySelector(
+			".cline-chat-conversation-viewport",
+		);
+		expect(nextViewport).not.toBe(firstViewport);
+		expect(
+			container.querySelector('button[aria-label="Scroll to latest message"]'),
+		).toBeNull();
 	});
 });

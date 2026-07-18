@@ -15,9 +15,14 @@ Release `@cline/ui` independently from the Cline SDK runtime packages.
   version/publish scripts. It is still a public npm package because
   `private: false` and `publishConfig.access: public` control npm publication.
 - `latest` is the production channel. `next` is an opt-in preview channel.
+- Use prerelease versions such as `0.2.0-next.0` for `next`; do not publish a
+  version intended for `latest` under the preview tag because npm versions
+  cannot be republished.
 - There is no UI Git tag, GitHub release, schedule, or Slack announcement.
 - PRs and pushes run UI quality checks but never publish. Publishing requires a
   manual workflow dispatch from `main` with `confirm_publish=publish`.
+- The publish job and npm trust relationship use the protected `Publish`
+  environment.
 - Every npm publication needs a new semver version; npm versions are immutable.
 - Always ask before pushing commits, triggering the publish workflow, changing
   npm trust settings, or running a local publish command.
@@ -35,9 +40,11 @@ git log --oneline --no-merges -- \
   .github/workflows/ui-publish.yml
 ```
 
-2. Ask for patch, minor, major, or an explicit version. Do not guess. Update
-   only `sdk/packages/ui/package.json` and its workspace version in `bun.lock`.
-   Do not run the SDK version command.
+2. Ask for the npm channel and version together. For `latest`, ask for patch,
+   minor, major, or an explicit version. For `next`, require an explicit
+   prerelease version such as `0.2.0-next.0`. Do not guess. Update only
+   `sdk/packages/ui/package.json` and its workspace version in `bun.lock`. Do
+   not run the SDK version command.
 
 3. Validate the release candidate.
 
@@ -50,7 +57,8 @@ bun -F @cline/ui build-storybook
 bun -F @cline/code test:chat-ui
 ```
 
-The packed-package test installs the tarball in clean Bun and Node consumers.
+The packed-package test installs the tarball with Bun/React 19 and with
+npm/Node/React 18.
 Inspect `bun pm pack --dry-run` when the exported file set changed.
 
 4. Commit the version bump separately from feature work. Ask before pushing.
@@ -61,7 +69,7 @@ git commit -m "chore(ui): release vX.Y.Z"
 git push origin HEAD
 ```
 
-5. After the release commit reaches `main`, ask which npm tag to use and ask
+5. After the release commit reaches `main`, restate the selected npm tag and ask
    for explicit publish approval. Then trigger and watch the standalone
    workflow:
 
@@ -101,15 +109,17 @@ npm view @cline/ui version
 If npm is older than 11.15, ask before upgrading with
 `npm install -g npm@^11.15.0`.
 
-2. Build, test, and inspect the exact initial tarball. Record the absolute
-   archive path printed by the final command.
+2. Run the normal release validation in step 3 above. Then build, pack, test,
+   and inspect the exact initial tarball. Record the absolute archive path
+   printed by the final command.
 
 ```sh
-bun -F @cline/ui test:package
+bun -F @cline/ui build
 pack_dir=$(mktemp -d)
-(cd sdk/packages/ui && bun pm pack --destination "$pack_dir" --quiet)
+(cd sdk/packages/ui && bun pm pack --ignore-scripts --destination "$pack_dir" --quiet)
 tarball=$(find "$pack_dir" -maxdepth 1 -name '*.tgz' -print -quit)
 test -n "$tarball"
+bun sdk/packages/ui/scripts/smoke-package.ts "$tarball"
 tar -tzf "$tarball"
 printf 'Bootstrap archive: %s\n' "$tarball"
 ```
@@ -128,6 +138,7 @@ npm publish /absolute/path/from-step-2.tgz --access public --tag latest
 npm trust github @cline/ui \
   --repo cline/cline \
   --file ui-publish.yml \
+  --env Publish \
   --allow-publish
 ```
 

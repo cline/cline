@@ -9,17 +9,27 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
+const importCheck =
+	'import { Conversation, Message } from "@cline/ui/components/agent-chat"; const css = import.meta.resolve("@cline/ui/components/agent-chat.css"); const tokens = import.meta.resolve("@cline/ui/theme/tokens.css"); if (!Conversation || !Message || !css || !tokens) process.exit(1);';
 
 async function run(command: string[], cwd: string): Promise<void> {
-	const process = Bun.spawn(command, {
+	const child = Bun.spawn(command, {
 		cwd,
 		stderr: "inherit",
 		stdout: "inherit",
 	});
-	const exitCode = await process.exited;
+	const exitCode = await child.exited;
 	if (exitCode !== 0) {
 		throw new Error(`${command.join(" ")} exited with ${exitCode}`);
 	}
+}
+
+function createConsumer(root: string): void {
+	mkdirSync(root, { recursive: true });
+	writeFileSync(
+		join(root, "package.json"),
+		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module" }, null, 2)}\n`,
+	);
 }
 
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));
@@ -30,7 +40,14 @@ try {
 		const packDirectory = join(temporaryRoot, "pack");
 		mkdirSync(packDirectory, { recursive: true });
 		await run(
-			[process.execPath, "pm", "pack", "--destination", packDirectory],
+			[
+				process.execPath,
+				"pm",
+				"pack",
+				"--ignore-scripts",
+				"--destination",
+				packDirectory,
+			],
 			packageRoot,
 		);
 		const archiveName = readdirSync(packDirectory).find((name) =>
@@ -40,33 +57,31 @@ try {
 		archive = join(packDirectory, archiveName);
 	}
 
-	writeFileSync(
-		join(temporaryRoot, "package.json"),
-		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module" }, null, 2)}\n`,
-	);
+	const bunConsumer = join(temporaryRoot, "bun-consumer");
+	createConsumer(bunConsumer);
 	await run(
 		[process.execPath, "add", "--ignore-scripts", archive, "react@19.2.4"],
-		temporaryRoot,
+		bunConsumer,
 	);
+	await run([process.execPath, "-e", importCheck], bunConsumer);
+
+	const npmConsumer = join(temporaryRoot, "npm-consumer");
+	createConsumer(npmConsumer);
 	await run(
 		[
-			process.execPath,
-			"-e",
-			'import { Conversation, Message } from "@cline/ui/components/agent-chat"; const css = import.meta.resolve("@cline/ui/components/agent-chat.css"); const tokens = import.meta.resolve("@cline/ui/theme/tokens.css"); if (!Conversation || !Message || !css || !tokens) process.exit(1);',
+			"npm",
+			"install",
+			"--ignore-scripts",
+			"--no-audit",
+			"--no-fund",
+			archive,
+			"react@18.3.1",
 		],
-		temporaryRoot,
+		npmConsumer,
 	);
-	await run(
-		[
-			"node",
-			"--input-type=module",
-			"-e",
-			'import { Conversation, Message } from "@cline/ui/components/agent-chat"; const css = import.meta.resolve("@cline/ui/components/agent-chat.css"); const tokens = import.meta.resolve("@cline/ui/theme/tokens.css"); if (!Conversation || !Message || !css || !tokens) process.exit(1);',
-		],
-		temporaryRoot,
-	);
+	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
 	console.log(
-		`Verified packed ${basename(archive)} in a clean Bun and Node consumer`,
+		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });

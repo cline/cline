@@ -19,6 +19,9 @@ import {
 	useState,
 } from "react";
 
+const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
+const SCROLL_BUTTON_THRESHOLD_PX = 120;
+
 function classNames(...values: Array<string | undefined | false>): string {
 	return values.filter(Boolean).join(" ");
 }
@@ -54,24 +57,10 @@ function useConversation(): ConversationContextValue {
 	return context;
 }
 
-export type ConversationProps = HTMLAttributes<HTMLDivElement> & {
-	resetKey?: string | number;
-	stickToBottomThreshold?: number;
-	scrollButtonThreshold?: number;
-};
+export type ConversationProps = HTMLAttributes<HTMLDivElement>;
 
 export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
-	(
-		{
-			children,
-			className,
-			resetKey,
-			stickToBottomThreshold = 24,
-			scrollButtonThreshold = 120,
-			...props
-		},
-		ref,
-	) => {
+	({ children, className, ...props }, ref) => {
 		const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
 		const [content, setContent] = useState<HTMLDivElement | null>(null);
 		const [showScrollButton, setShowScrollButton] = useState(false);
@@ -99,21 +88,16 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					lastProgrammaticScrollTop.current = viewport.scrollTop;
 					shouldStickToBottom.current = true;
 					setShowScrollButton(false);
-					if (distance <= stickToBottomThreshold) {
+					if (distance <= STICK_TO_BOTTOM_THRESHOLD_PX) {
 						isProgrammaticScroll.current = false;
 						clearProgrammaticScroll();
 					}
 					return;
 				}
 			}
-			shouldStickToBottom.current = distance <= stickToBottomThreshold;
-			setShowScrollButton(distance > scrollButtonThreshold);
-		}, [
-			clearProgrammaticScroll,
-			scrollButtonThreshold,
-			stickToBottomThreshold,
-			viewport,
-		]);
+			shouldStickToBottom.current = distance <= STICK_TO_BOTTOM_THRESHOLD_PX;
+			setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
+		}, [clearProgrammaticScroll, viewport]);
 
 		const scrollToBottom = useCallback(
 			(behavior: ScrollBehavior = "smooth") => {
@@ -193,10 +177,9 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 		useEffect(() => () => clearProgrammaticScroll(), [clearProgrammaticScroll]);
 
 		useLayoutEffect(() => {
-			void resetKey;
 			if (!viewport || !content) return;
 			scrollToBottom("auto");
-		}, [content, resetKey, scrollToBottom, viewport]);
+		}, [content, scrollToBottom, viewport]);
 
 		useEffect(() => {
 			if (!content || !viewport || typeof ResizeObserver === "undefined")
@@ -421,22 +404,18 @@ export type MessageActionProps = Omit<
 	"type"
 > & {
 	label: string;
-	tooltip?: string;
 };
 
 export const MessageAction = ({
 	"aria-label": ariaLabel,
 	className,
 	label,
-	title,
-	tooltip,
 	...props
 }: MessageActionProps) => (
 	<button
 		{...props}
 		aria-label={ariaLabel ?? label}
 		className={classNames("cline-chat-message-action", className)}
-		title={tooltip ?? title}
 		type="button"
 	/>
 );

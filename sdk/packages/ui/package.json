@@ -26,7 +26,8 @@
 		"./package.json": "./package.json"
 	},
 	"files": [
-		"components",
+		"components/agent-chat/agent-chat.css",
+		"components/agent-chat/index.tsx",
 		"dist",
 		"theme",
 		"ADOPTION.md",
@@ -48,7 +49,7 @@
 	"scripts": {
 		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
 		"prepack": "bun run build",
-		"storybook": "storybook dev -p 6006",
+		"storybook": "storybook dev",
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
 		"test:package": "bun run build && bun scripts/smoke-package.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",

@@ -48,9 +48,10 @@ without turning `@cline/ui` into a second agent runtime.
 ## Current status
 
 `@cline/ui` is configured for public npm publication with its own version and
-manual release workflow. If npm reports `E404`, the initial `0.1.0` bootstrap
-release is still pending. The API is pre-stable, so production consumers should
-pin exact versions and review compatibility notes when updating.
+manual release workflow. Check availability with `npm view @cline/ui version`;
+an `E404` means the first release is still pending. The API is pre-stable, so
+production consumers should pin exact versions and review compatibility notes
+when updating.
 
 Desktop is the first production-shaped consumer of both the theme and shared
 chat primitives. Storybook is the reference catalog for isolated component
@@ -93,13 +94,13 @@ After the initial release is available, install the latest production UI
 release:
 
 ```bash
-bun add @cline/ui
+bun add --exact @cline/ui
 ```
 
 Production applications can pin an exact version:
 
 ```bash
-bun add @cline/ui@0.1.0
+bun add --exact @cline/ui
 ```
 
 The package is ESM. Its React entry point targets browser applications. Install
@@ -128,7 +129,7 @@ bun update @cline/ui
 For deliberate previews, UI releases can publish an unstable `next` npm tag:
 
 ```bash
-bun add @cline/ui@next
+bun add --exact @cline/ui@next
 ```
 
 Do not use `next` for production applications. UI versions move independently
@@ -276,7 +277,7 @@ export function AgentTranscript({
   return (
     <Conversation
       className="agent-chat-root"
-      resetKey={conversationId}
+      key={conversationId}
       style={{ height: "32rem" }}
     >
       <ConversationViewport aria-label="Agent conversation">
@@ -328,8 +329,8 @@ the available height.
 
 The example intentionally injects a consumer-owned `renderMarkdown`. Different
 products currently have different Streamdown plugins, syntax-highlighting
-budgets, link-confirmation behavior, and image policies. `resetKey` resets
-sticky-scroll state when the active session changes. The shared package
+budgets, link-confirmation behavior, and image policies. The React `key` resets
+conversation-local state when the active session changes. The shared package
 standardizes the surrounding presentation without silently changing those
 security and product decisions.
 
@@ -354,6 +355,12 @@ representative chat and mobile viewports. Stories cover:
 - Collapsed, expanded, and streaming reasoning
 - Pending, running, successful, and failed tool activity
 - Expandable and static tool summaries
+
+In the repository's agent sandbox, bind to a forwarded host and unused port:
+
+```bash
+bun -F @cline/ui storybook -- --host 0.0.0.0 --port 3490 --exact-port
+```
 
 Build the production Storybook bundle with:
 
@@ -436,7 +443,7 @@ erase product boundaries.
 - [ ] Import `agent-chat.css` when using the React primitives.
 - [ ] Install React 18.3 or 19 when using the React primitives.
 - [ ] Map product message/tool models at the package boundary.
-- [ ] Pass a stable conversation identifier through `resetKey`.
+- [ ] Use the stable conversation identifier as the `Conversation` React `key`.
 - [ ] Keep Markdown and link/image policy explicit in the consumer.
 - [ ] Confirm the application's `.dark` behavior.
 - [ ] Put deliberate overrides after package imports.
@@ -451,7 +458,7 @@ erase product boundaries.
 Until the package has a stable version, contract changes should:
 
 - Include a compatibility note
-- Run package validation, typechecking, and tests
+- Run the package build, typechecking, and tests
 - Build Storybook
 - Build every active consumer
 - Include light/dark visual evidence when values change
