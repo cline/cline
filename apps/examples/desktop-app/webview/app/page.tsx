@@ -36,6 +36,10 @@ import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import {
+	readChatBackground,
+	subscribeChatBackground,
+} from "@/lib/chat-background";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -385,6 +389,14 @@ function ChatThreadPane({
 		string | null
 	>(null);
 	const [gitBranch, setGitBranch] = useState("no-git");
+	const [chatBackground, setChatBackground] = useState<string | null>(null);
+
+	useEffect(() => {
+		setChatBackground(readChatBackground());
+		return subscribeChatBackground(() =>
+			setChatBackground(readChatBackground()),
+		);
+	}, []);
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>({});
@@ -1102,71 +1114,86 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			<div
-				className={
-					isWelcomeState
-						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
-				}
-			>
-				{!isWelcomeState ? (
-					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
-							deletingSession={deletingSession}
-							diff={{
-								additions: summary.additions,
-								deletions: summary.deletions,
-							}}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={() => {
-								if (hasDiffChanges) setShowDiffView(true);
-							}}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={status}
-							title={threadTitle}
+			<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+				{chatBackground ? (
+					<>
+						<div
+							aria-hidden="true"
+							className="pointer-events-none absolute inset-0 bg-cover bg-center"
+							style={{ backgroundImage: `url("${chatBackground}")` }}
 						/>
-					</div>
+						<div
+							aria-hidden="true"
+							className="pointer-events-none absolute inset-0 bg-background/80"
+						/>
+					</>
 				) : null}
-				<WelcomeScreen
-					active={isWelcomeState}
-					body={
-						showDiffView ? (
-							<DiffView
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
-						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								error={displayedError}
-								messages={displayedMessages}
-								onRestoreCheckpoint={(runCount) =>
-									void restoreCheckpoint(runCount)
-								}
-								onForkSession={handleForkSession}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={displayedStatus}
-							/>
-						)
+				<div
+					className={
+						isWelcomeState
+							? "relative z-10 grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+							: "relative z-10 grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
 					}
-					composer={composer}
-					gitBranch={gitBranch}
-					onListGitBranches={listGitBranches}
-					onStartChat={setPromptInput}
-					onSwitchGitBranch={switchGitBranch}
-					quickActions={[]}
-				/>
+				>
+					{!isWelcomeState ? (
+						<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={{
+									additions: summary.additions,
+									deletions: summary.deletions,
+								}}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={() => {
+									if (hasDiffChanges) setShowDiffView(true);
+								}}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={status}
+								title={threadTitle}
+							/>
+						</div>
+					) : null}
+					<WelcomeScreen
+						active={isWelcomeState}
+						body={
+							showDiffView ? (
+								<DiffView
+									fileDiffs={fileDiffs}
+									onClose={() => setShowDiffView(false)}
+								/>
+							) : (
+								<ChatMessages
+									onAnswerAskQuestion={handleAnswerAskQuestion}
+									onApproveToolApproval={handleApproveToolApproval}
+									onRejectToolApproval={handleRejectToolApproval}
+									chatTransportState={chatTransportState}
+									error={displayedError}
+									messages={displayedMessages}
+									onRestoreCheckpoint={(runCount) =>
+										void restoreCheckpoint(runCount)
+									}
+									onForkSession={handleForkSession}
+									pendingToolApprovals={pendingToolApprovals}
+									pendingAskQuestions={pendingAskQuestions}
+									sessionId={displayedSessionId}
+									streamingMessageId={activeAssistantMessageId}
+									isSessionSwitching={displayedIsSwitching}
+									status={displayedStatus}
+								/>
+							)
+						}
+						composer={composer}
+						gitBranch={gitBranch}
+						onListGitBranches={listGitBranches}
+						onStartChat={setPromptInput}
+						onSwitchGitBranch={switchGitBranch}
+						quickActions={[]}
+					/>
+				</div>
 			</div>
 			<AlertDialog
 				open={deleteConfirmOpen}

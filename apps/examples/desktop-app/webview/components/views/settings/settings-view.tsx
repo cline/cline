@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+	MAX_CHAT_BACKGROUND_BYTES,
+	readChatBackground,
+	setChatBackground,
+} from "@/lib/chat-background";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	DEFAULT_NYAN_PET_SRC,
@@ -591,8 +596,113 @@ function GeneralSettingsContent() {
 				</div>
 				<NyanPetSetting />
 				<PetWindowToggle />
+				<ChatBackgroundSetting />
 			</section>
 		</PageFrame>
+	);
+}
+
+function ChatBackgroundSetting() {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+	const [background, setBackground] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		setBackground(readChatBackground());
+	}, []);
+
+	const handleFile = useCallback((file: File | undefined) => {
+		if (!file) {
+			return;
+		}
+		setError(null);
+		if (!file.type.startsWith("image/")) {
+			setError("Please choose an image file.");
+			return;
+		}
+		if (file.size > MAX_CHAT_BACKGROUND_BYTES) {
+			setError("That image is too large. Please pick one under 3 MB.");
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			const dataUrl = typeof reader.result === "string" ? reader.result : null;
+			if (!dataUrl) {
+				setError("Could not read that image.");
+				return;
+			}
+			try {
+				setChatBackground(dataUrl);
+				setBackground(dataUrl);
+			} catch {
+				setError("Could not save that image — it may be too large to store.");
+			}
+		};
+		reader.onerror = () => setError("Could not read that image.");
+		reader.readAsDataURL(file);
+	}, []);
+
+	const handleReset = useCallback(() => {
+		setChatBackground(null);
+		setBackground(null);
+		setError(null);
+		if (inputRef.current) {
+			inputRef.current.value = "";
+		}
+	}, []);
+
+	return (
+		<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+			<div>
+				<p className="text-[17px] font-semibold text-foreground">
+					Chat background
+				</p>
+				<p className="mt-1 text-[15px] text-muted-foreground">
+					Upload an image to show behind your chat conversation.
+				</p>
+				{error ? (
+					<p className="mt-2 text-xs text-destructive" role="alert">
+						{error}
+					</p>
+				) : null}
+			</div>
+			<div className="flex shrink-0 items-center gap-3 max-[720px]:justify-end">
+				<div className="flex h-14 w-24 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+					{background ? (
+						// biome-ignore lint/performance/noImgElement: user-provided data URL, not statically optimizable
+						<img
+							alt="MCP background preview"
+							className="h-full w-full object-cover"
+							src={background}
+						/>
+					) : (
+						<span className="text-xs text-muted-foreground">None</span>
+					)}
+				</div>
+				<input
+					accept="image/gif,image/png,image/jpeg,image/webp"
+					className="hidden"
+					onChange={(event) => {
+						handleFile(event.target.files?.[0]);
+						event.target.value = "";
+					}}
+					ref={inputRef}
+					type="file"
+				/>
+				<Button
+					onClick={() => inputRef.current?.click()}
+					type="button"
+					variant="outline"
+				>
+					Upload image
+				</Button>
+				{background ? (
+					<Button onClick={handleReset} type="button" variant="ghost">
+						Reset
+					</Button>
+				) : null}
+			</div>
+		</div>
 	);
 }
 
