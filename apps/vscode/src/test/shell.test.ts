@@ -121,6 +121,19 @@ describe("Shell Detection Tests", () => {
 			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
 		})
 
+		it("skips profile paths with variable references it cannot expand", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Windows\\System32\\cmd.exe") as typeof actualFs.existsSync
+			process.env.windir = "C:\\Windows"
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": {
+					path: [`\${workspaceFolder}\\tools\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+				},
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
+		})
+
 		it("resolves a configured executable name from PATH", () => {
 			process.env.PATH = "C:\\Tools;C:\\Windows\\System32"
 			existsSyncImpl = ((candidate: actualFs.PathLike) =>

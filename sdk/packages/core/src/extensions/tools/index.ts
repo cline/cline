@@ -141,7 +141,11 @@ export interface CreateBuiltinToolsOptions
 	 */
 	executorOptions?: DefaultExecutorsOptions;
 	/**
-	 * Optional executor overrides/additions for tools without built-ins
+	 * Optional executor overrides/additions for tools without built-ins.
+	 * An overriding `bash` executor replaces the built-in one wholesale: it
+	 * decides its own shell, and the resolved `shell` option only shapes the
+	 * run_commands description. Overriders must honor that shell themselves
+	 * to keep the description truthful.
 	 */
 	executors?: Partial<ToolExecutors>;
 }

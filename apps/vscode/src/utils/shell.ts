@@ -2,6 +2,7 @@ import { existsSync } from "fs"
 import { userInfo } from "os"
 import * as nodePath from "path"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
 export const WINDOWS_POWERSHELL_LEGACY_PATH = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
@@ -156,6 +157,13 @@ function resolveShellPath(configuredPath: string | string[] | undefined): string
 	const candidates = typeof configuredPath === "string" ? [configuredPath] : configuredPath
 	for (const candidate of candidates ?? []) {
 		const expandedPath = expandShellPath(candidate)
+		if (expandedPath.includes("${")) {
+			// Only ${env:NAME} references are expanded here. VS Code resolves
+			// more variable kinds (e.g. ${workspaceFolder}); surface the gap
+			// instead of silently skipping the user's configured shell.
+			Logger.warn(`[shell] Skipping terminal profile path with unresolved variable reference: ${candidate}`)
+			continue
+		}
 		const executable = findExecutable(expandedPath)
 		if (executable) {
 			return executable
