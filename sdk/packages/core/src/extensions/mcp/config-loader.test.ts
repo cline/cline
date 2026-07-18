@@ -16,13 +16,13 @@ import {
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpSettingsMutatorPurityError,
 	registerMcpServersFromSettingsFile,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsMutatorPurityError,
 } from "./config-loader";
 
 describe("mcp config loader", () => {
@@ -52,6 +52,7 @@ describe("mcp config loader", () => {
 								command: "npx",
 								args: ["-y", "@modelcontextprotocol/server-filesystem"],
 							},
+							initializeTimeoutMs: 2_500,
 						},
 						search: {
 							transport: {
@@ -85,6 +86,7 @@ describe("mcp config loader", () => {
 				disabled: undefined,
 				metadata: undefined,
 				oauth: undefined,
+				initializeTimeoutMs: 2_500,
 			},
 			{
 				name: "search",
@@ -95,8 +97,31 @@ describe("mcp config loader", () => {
 				disabled: true,
 				metadata: undefined,
 				oauth: undefined,
+				initializeTimeoutMs: undefined,
 			},
 		]);
+	});
+
+	it("rejects initialize timeouts below 100ms", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					docs: {
+						transport: { type: "stdio", command: "npx" },
+						initializeTimeoutMs: 99,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(() => loadMcpSettingsFile({ filePath })).toThrow(
+			/initializeTimeoutMs/,
+		);
 	});
 
 	it("registers loaded servers with an mcp manager", async () => {
