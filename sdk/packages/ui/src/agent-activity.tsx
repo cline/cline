@@ -28,7 +28,7 @@ export function AgentActivity({
 	const content = detail ?? children;
 	const activityContents = (
 		<>
-			<span className="cline-ui-activity__icon">
+			<span aria-hidden="true" className="cline-ui-activity__icon">
 				{status === "running" ? (
 					<span aria-hidden="true" className="cline-ui-spinner" />
 				) : (
