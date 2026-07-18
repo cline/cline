@@ -1,24 +1,6 @@
 name: ui-publish
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "sdk/packages/ui/**"
-      - "apps/examples/desktop-app/package.json"
-      - "apps/examples/desktop-app/webview/app/globals.css"
-      - "apps/examples/desktop-app/webview/components/views/chat/**"
-      - ".github/workflows/ui-publish.yml"
-  push:
-    branches:
-      - main
-    paths:
-      - "sdk/packages/ui/**"
-      - "apps/examples/desktop-app/package.json"
-      - "apps/examples/desktop-app/webview/app/globals.css"
-      - "apps/examples/desktop-app/webview/components/views/chat/**"
-      - ".github/workflows/ui-publish.yml"
   workflow_dispatch:
     inputs:
       npm_tag:
@@ -38,8 +20,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   quality:
@@ -98,7 +80,6 @@ jobs:
         run: bun sdk/packages/ui/scripts/smoke-package.ts "$UI_PACKAGE_ARCHIVE"
 
       - name: Upload publish artifact
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: ui-npm-package

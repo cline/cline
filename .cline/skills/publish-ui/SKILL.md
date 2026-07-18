@@ -19,8 +19,9 @@ Release `@cline/ui` independently from the Cline SDK runtime packages.
   version intended for `latest` under the preview tag because npm versions
   cannot be republished.
 - There is no UI Git tag, GitHub release, schedule, or Slack announcement.
-- PRs and pushes run UI quality checks but never publish. Publishing requires a
-  manual workflow dispatch from `main` with `confirm_publish=publish`.
+- The workflow runs only by manual dispatch. Every release attempt runs the UI
+  quality checks before publishing and requires `confirm_publish=publish` from
+  `main`.
 - The publish job and npm trust relationship use the protected `Publish`
   environment.
 - Every npm publication needs a new semver version; npm versions are immutable.
