@@ -443,10 +443,19 @@ export function buildRunCommandsDescription(
  * exposing a single generic shell-tool factory for host integrations. Pass
  * config.shell (matching the executor's shell) so the syntax guidance in the
  * tool description matches the shell that actually runs the commands.
+ *
+ * config.shell may be a provider function instead of a string. The runtime
+ * reads `description` when building each model request, so a provider is
+ * consulted at that boundary: a shell change made while the model is
+ * generating does not affect the request in flight, and the next request
+ * names the new shell. The provider must return the shell the executor will
+ * use for tool calls issued by that next request.
  */
 export function createShellTool(
 	executor: ShellExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs" | "shell"> = {},
+	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> & {
+		shell?: string | (() => string);
+	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const timeoutSource =
@@ -455,11 +464,17 @@ export function createShellTool(
 			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 	const isWindows = process.platform === "win32";
-	const shell = config.shell ?? getDefaultShell(process.platform);
+	const configShell = config.shell;
+	const resolveShell =
+		typeof configShell === "function"
+			? configShell
+			: () => configShell ?? getDefaultShell(process.platform);
+	const describe = () =>
+		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows);
 
-	return createTool<unknown, ToolOperationResult[]>({
+	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
-		description: buildRunCommandsDescription(getShellKind(shell), isWindows),
+		description: describe(),
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false,
@@ -478,6 +493,17 @@ export function createShellTool(
 			});
 		},
 	});
+
+	if (typeof configShell === "function") {
+		// The runtime rebuilds tool definitions from this property for every
+		// model request, so a getter re-derives the description at exactly the
+		// send-to-model boundary. AgentTool consumers only read `description`.
+		Object.defineProperty(tool, "description", {
+			get: describe,
+			enumerable: true,
+		});
+	}
+	return tool;
 }
 
 /**

@@ -260,6 +260,19 @@ describe("executeForeground", () => {
 		expect(result).toBe("hello")
 	})
 
+	it("passes the caller's terminal profile through to getOrCreateTerminal", async () => {
+		const process = createFakeTerminalProcess({ lines: ["ok"] })
+		const getOrCreateTerminal = vi.fn(async () => ({ terminal: { show: () => {} } }) as never)
+		const terminalManager = {
+			getOrCreateTerminal,
+			runCommand: () => process,
+		} as unknown as VscodeTerminalManager
+
+		await executeForeground("echo ok", "/workspace", terminalManager, 1000, undefined, undefined, "wsl-bash")
+
+		expect(getOrCreateTerminal).toHaveBeenCalledWith("/workspace", "wsl-bash")
+	})
+
 	it("throws CommandExitError with the exit code on non-zero exit", async () => {
 		const terminalManager = createFakeTerminalManager(
 			createFakeTerminalProcess({ lines: ["boom"], completionDetails: { exitCode: 127 } }),

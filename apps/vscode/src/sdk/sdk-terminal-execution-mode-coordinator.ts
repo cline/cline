@@ -36,18 +36,6 @@ export class SdkTerminalExecutionModeCoordinator {
 		this.requestRebuild(`Terminal execution mode changed: ${previous} -> ${next}`)
 	}
 
-	/**
-	 * The terminal profile selects the shell, and the run_commands tool
-	 * description names that shell, so a profile change requires the same
-	 * session rebuild as an execution mode change.
-	 */
-	handleTerminalProfileChanged(previous: string | undefined, next: string): void {
-		if ((previous || "default") === (next || "default")) {
-			return
-		}
-		this.requestRebuild(`Terminal profile changed: ${previous ?? "default"} -> ${next}`)
-	}
-
 	private requestRebuild(reason: string): void {
 		Logger.log(`[SdkController] ${reason}`)
 

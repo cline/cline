@@ -527,6 +527,23 @@ describe("run_commands tool description", () => {
 		});
 		expect(cmdTool.description).toContain("Commands run through cmd.exe");
 	});
+
+	it("re-derives the description on each read when config.shell is a provider", () => {
+		let shell = "/bin/bash";
+		const tool = createShellTool(async () => "ok", {
+			shell: () => shell,
+		});
+		expect(tool.description).not.toContain("PowerShell");
+
+		shell = "powershell.exe";
+		expect(tool.description).toContain("Commands run through PowerShell");
+
+		// The property must survive the shallow copy the runtime performs when
+		// building AgentToolDefinitions for a model request.
+		shell = "cmd.exe";
+		const definition = { ...tool };
+		expect(definition.description).toContain("Commands run through cmd.exe");
+	});
 });
 
 describe("default run_commands tool", () => {
