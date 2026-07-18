@@ -158,12 +158,19 @@ describe("toAiSdkMessages", () => {
 			content: [
 				{
 					type: "reasoning",
+					text: "plan",
 					providerOptions: {
 						openai: {
 							itemId: "rs_reasoning",
 							reasoningEncryptedContent: "encrypted",
 						},
 					},
+				},
+				{
+					type: "tool-call",
+					toolCallId: "fc_call",
+					toolName: "read_files",
+					input: { path: "/tmp/file" },
 				},
 			],
 		});
