@@ -14,10 +14,10 @@ export function AgentComposer({ actions, className, disabled, footer, loading = 
             return;
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            if (!submitDisabled && !loading && !running)
+            if (!disabled && !submitDisabled && !loading && !running)
                 onSubmit();
         }
     }
-    return (_jsxs("div", { className: cx("cline-ui-composer", className), children: [_jsx("textarea", { "aria-label": textareaProps["aria-label"] ?? "Message the agent", className: "cline-ui-composer__input", disabled: disabled || loading, onChange: (event) => onValueChange(event.target.value), onKeyDown: handleKeyDown, placeholder: placeholder, rows: 3, value: value, ...textareaProps }), _jsxs("div", { className: "cline-ui-composer__toolbar", children: [_jsx("div", { className: "cline-ui-composer__actions", children: actions }), running ? (_jsx(Button, { "aria-label": "Stop the current run", iconOnly: true, onClick: onStop, size: "sm", variant: "secondary", children: _jsx(StopIcon, {}) })) : (_jsx(Button, { "aria-label": submitLabel, disabled: submitDisabled, iconOnly: true, loading: loading, onClick: onSubmit, size: "sm", variant: "primary", children: loading ? null : _jsx(ArrowIcon, {}) }))] }), footer ? (_jsx("div", { className: "cline-ui-composer__footer", children: footer })) : null] }));
+    return (_jsxs("div", { className: cx("cline-ui-composer", className), children: [_jsx("textarea", { "aria-label": textareaProps["aria-label"] ?? "Message the agent", className: "cline-ui-composer__input", disabled: disabled || loading, onChange: (event) => onValueChange(event.target.value), onKeyDown: handleKeyDown, placeholder: placeholder, rows: 3, value: value, ...textareaProps }), _jsxs("div", { className: "cline-ui-composer__toolbar", children: [_jsx("div", { className: "cline-ui-composer__actions", children: actions }), running ? (_jsx(Button, { "aria-label": "Stop the current run", disabled: disabled || !onStop, iconOnly: true, onClick: onStop, size: "sm", variant: "secondary", children: _jsx(StopIcon, {}) })) : (_jsx(Button, { "aria-label": submitLabel, disabled: disabled || submitDisabled, iconOnly: true, loading: loading, onClick: onSubmit, size: "sm", variant: "primary", children: loading ? null : _jsx(ArrowIcon, {}) }))] }), footer ? (_jsx("div", { className: "cline-ui-composer__footer", children: footer })) : null] }));
 }
 //# sourceMappingURL=agent-composer.js.map

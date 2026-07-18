@@ -9,6 +9,14 @@ const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const themeDir = join(packageRoot, "theme");
 const read = (name: string) => readFileSync(join(themeDir, name), "utf8");
 
+function declarations(source: string, selector: string): string[] {
+	return block(source.replace(/\/\*[\s\S]*?\*\//g, ""), selector)
+		.split(";")
+		.map((declaration) => declaration.trim().replace(/\s+/g, " "))
+		.filter(Boolean)
+		.sort();
+}
+
 const semanticTokens = [
 	"background",
 	"foreground",
@@ -174,6 +182,17 @@ describe("@cline/ui theme contract", () => {
 		}
 	});
 
+	it("keeps scoped tokens synchronized with the root theme", () => {
+		const tokens = read("tokens.css");
+		const scoped = read("scoped-tokens.css");
+		expect(declarations(scoped, ".cline-ui-theme")).toEqual(
+			declarations(tokens, ":root"),
+		);
+		expect(
+			declarations(scoped, ".dark .cline-ui-theme,\n.cline-ui-theme.dark"),
+		).toEqual(declarations(tokens, ".dark"));
+	});
+
 	it("provides composable Tailwind and optional base entry points", () => {
 		const theme = read("theme.css");
 		const base = read("base.css");
@@ -217,6 +236,7 @@ describe("@cline/ui theme contract", () => {
 		for (const subpath of [
 			"./components.css",
 			"./theme/index.css",
+			"./theme/scoped-tokens.css",
 			"./theme/tokens.css",
 			"./theme/theme.css",
 			"./theme/base.css",

@@ -83,8 +83,7 @@ export function SearchCombobox({
 					<Command className="cline-ui-combobox__command" label={ariaLabel}>
 						<Command.Input
 							aria-label={`Search ${ariaLabel.toLowerCase()}`}
-							autoFocus
-							className="cline-ui-combobox__search"
+								className="cline-ui-combobox__search"
 							placeholder={searchPlaceholder}
 						/>
 						<Command.List className="cline-ui-combobox__list">

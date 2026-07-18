@@ -19,6 +19,7 @@
 		},
 		"./components.css": "./components.css",
 		"./theme/index.css": "./theme/index.css",
+		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
 		"./theme/base.css": "./theme/base.css",

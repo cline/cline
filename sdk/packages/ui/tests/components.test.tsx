@@ -62,6 +62,23 @@ describe("@cline/ui agent components", () => {
 		expect(onStop).toHaveBeenCalledOnce();
 	});
 
+	it("disables every composer action when the composer is disabled", () => {
+		const onSubmit = vi.fn();
+		render(
+			<AgentComposer
+				disabled
+				onSubmit={onSubmit}
+				onValueChange={vi.fn()}
+				value="Build the feature"
+			/>,
+		);
+
+		const submit = screen.getByRole("button", { name: "Send message" });
+		expect((submit as HTMLButtonElement).disabled).toBe(true);
+		fireEvent.click(submit);
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("selects a searchable option", () => {
 		const onValueChange = vi.fn();
 		render(
@@ -95,6 +112,14 @@ describe("@cline/ui agent components", () => {
 		fireEvent.click(trigger);
 		expect(trigger.getAttribute("aria-expanded")).toBe("true");
 		expect(screen.getByText("npm test")).toBeTruthy();
+	});
+
+	it("renders activity without details as status text instead of a button", () => {
+		render(<AgentActivity label="Checking repository" />);
+		expect(
+			screen.queryByRole("button", { name: "Checking repository" }),
+		).toBeNull();
+		expect(screen.getByText("Checking repository")).toBeTruthy();
 	});
 
 	it("routes approval decisions without owning transport", () => {
@@ -167,5 +192,20 @@ describe("@cline/ui agent components", () => {
 			</Button>,
 		);
 		expect(screen.getByRole("link", { name: "Connect GitHub" })).toBeTruthy();
+	});
+
+	it("prevents disabled slot links from navigating or firing handlers", () => {
+		const onClick = vi.fn();
+		render(
+			<Button asChild disabled>
+				<a href="/integrations" onClick={onClick}>
+					Connect GitHub
+				</a>
+			</Button>,
+		);
+		const link = screen.getByRole("link", { name: "Connect GitHub" });
+		expect(link.getAttribute("aria-disabled")).toBe("true");
+		fireEvent.click(link);
+		expect(onClick).not.toHaveBeenCalled();
 	});
 });

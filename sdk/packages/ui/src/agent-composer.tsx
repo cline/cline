@@ -71,7 +71,7 @@ export function AgentComposer({
 		if (event.defaultPrevented) return;
 		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault();
-			if (!submitDisabled && !loading && !running) onSubmit();
+			if (!disabled && !submitDisabled && !loading && !running) onSubmit();
 		}
 	}
 
@@ -93,6 +93,7 @@ export function AgentComposer({
 				{running ? (
 					<Button
 						aria-label="Stop the current run"
+						disabled={disabled || !onStop}
 						iconOnly
 						onClick={onStop}
 						size="sm"
@@ -103,7 +104,7 @@ export function AgentComposer({
 				) : (
 					<Button
 						aria-label={submitLabel}
-						disabled={submitDisabled}
+						disabled={disabled || submitDisabled}
 						iconOnly
 						loading={loading}
 						onClick={onSubmit}

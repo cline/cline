@@ -13,6 +13,18 @@ Import the component stylesheet once in a consumer shell, after the theme:
 @import "@cline/ui/components.css";
 ```
 
+Hosts that must preserve an existing application theme should use the scoped
+entry point and add `cline-ui-theme` to the shared surface root:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components.css";
+```
+
+```tsx
+<AgentSurface className="cline-ui-theme">…</AgentSurface>
+```
+
 Then import product-neutral primitives from the package root:
 
 ```tsx
@@ -37,6 +49,7 @@ variables so importing it cannot restyle unrelated product surfaces.
 | Import | Contents | Requires Tailwind |
 | --- | --- | --- |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only; no native `color-scheme` policy | No |
+| `@cline/ui/theme/scoped-tokens.css` | The same custom properties scoped to `.cline-ui-theme` | No |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Yes |
 | `@cline/ui/theme/base.css` | Optional base, Markdown, scrollbar, selection, and cursor styles; import after tokens and theme | Yes |
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Yes |

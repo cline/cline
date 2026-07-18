@@ -25,6 +25,7 @@
 	font-weight: var(--font-weight-medium);
 	white-space: nowrap;
 	cursor: pointer;
+	touch-action: manipulation;
 	transition:
 		background-color 140ms ease,
 		border-color 140ms ease,
@@ -40,6 +41,7 @@
 }
 
 .cline-ui-button:disabled,
+.cline-ui-button[aria-disabled="true"],
 .cline-ui-combobox__trigger:disabled,
 .cline-ui-quick-actions__item:disabled {
 	cursor: not-allowed;
@@ -91,7 +93,7 @@
 	color: var(--primary-foreground);
 }
 
-.cline-ui-button--primary:hover:not(:disabled) {
+.cline-ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) {
 	background: color-mix(in oklab, var(--primary) 88%, var(--foreground));
 }
 
@@ -101,8 +103,8 @@
 	color: var(--foreground);
 }
 
-.cline-ui-button--secondary:hover:not(:disabled),
-.cline-ui-button--ghost:hover:not(:disabled) {
+.cline-ui-button--secondary:hover:not(:disabled):not([aria-disabled="true"]),
+.cline-ui-button--ghost:hover:not(:disabled):not([aria-disabled="true"]) {
 	background: var(--accent);
 	color: var(--accent-foreground);
 }
@@ -222,6 +224,7 @@
 	font-weight: var(--font-weight-medium);
 	padding: 0 0.625rem;
 	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .cline-ui-combobox__trigger:hover:not(:disabled) {
@@ -504,6 +507,7 @@
 	font-family: var(--font-sans);
 	padding: 1rem;
 	animation: cline-ui-dialog-in 160ms ease-out;
+	overscroll-behavior: contain;
 }
 
 .cline-ui-dialog__title {
@@ -606,6 +610,7 @@
 	padding: 0.75rem 0.875rem;
 	text-align: left;
 	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .cline-ui-quick-actions__item:last-child {
@@ -823,9 +828,15 @@
 	.cline-ui-aurora__current,
 	.cline-ui-aurora__horizon,
 	.cline-ui-aurora__star,
+	.cline-ui-dialog__content,
+	.cline-ui-dialog__overlay,
 	.cline-ui-session-status--running .cline-ui-session-status__dot {
 		animation: none;
 		will-change: auto;
+	}
+
+	.cline-ui-spinner {
+		animation: none;
 	}
 }
 

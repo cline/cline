@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
-import type { ButtonHTMLAttributes } from "react";
-import { forwardRef } from "react";
+import type { ButtonHTMLAttributes, MouseEvent, ReactElement } from "react";
+import { Children, cloneElement, forwardRef } from "react";
 import { cx } from "./utils.js";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -20,6 +20,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			disabled,
 			iconOnly = false,
 			loading = false,
+			onClick,
 			size = "md",
 			type = "button",
 			variant = "secondary",
@@ -35,14 +36,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			className,
 		);
 		if (asChild) {
+			const inactive = disabled || loading;
+			const child = Children.only(children) as ReactElement<{
+				onClick?: unknown;
+			}>;
 			return (
 				<Slot
 					aria-busy={loading || undefined}
+					aria-disabled={inactive || undefined}
 					className={classNames}
+					onClick={(event: MouseEvent<HTMLElement>) => {
+						if (inactive) {
+							event.preventDefault();
+							event.stopPropagation();
+							return;
+						}
+						onClick?.(event as MouseEvent<HTMLButtonElement>);
+					}}
 					ref={ref}
 					{...props}
 				>
-					{children}
+					{inactive ? cloneElement(child, { onClick: undefined }) : child}
 				</Slot>
 			);
 		}
@@ -51,6 +65,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 				aria-busy={loading || undefined}
 				className={classNames}
 				disabled={disabled || loading}
+				onClick={onClick}
 				ref={ref}
 				type={type}
 				{...props}
