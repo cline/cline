@@ -8,11 +8,25 @@ import { z } from "zod";
 import type { CliLoggerAdapter } from "../logging/adapter";
 
 const ConnectorAuthorizationDecisionSchema = z.object({
-	action: z.enum(["allow", "deny"]).default("allow"),
+	action: z.enum(["allow", "deny"]),
 	message: z.string().optional(),
 	reason: z.string().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
 });
+
+const AUTHORIZATION_HOOK_FAILURE: ConnectorAuthorizationDecision = {
+	action: "deny",
+	message: "Authorization check failed. Please try again later.",
+	reason: "authorization_hook_failed",
+};
+
+export interface ConnectorHookDependencies {
+	runSubprocessEvent: typeof runSubprocessEvent;
+}
+
+const DEFAULT_CONNECTOR_HOOK_DEPENDENCIES: ConnectorHookDependencies = {
+	runSubprocessEvent,
+};
 
 export async function dispatchConnectorHook(
 	command: string | undefined,
@@ -71,6 +85,7 @@ export async function authorizeConnectorEvent(
 		request: ConnectorAuthorizationRequest;
 	},
 	logger: CliLoggerAdapter,
+	dependencies: ConnectorHookDependencies = DEFAULT_CONNECTOR_HOOK_DEPENDENCIES,
 ): Promise<ConnectorAuthorizationDecision> {
 	const trimmed = command?.trim();
 	if (!trimmed) {
@@ -79,7 +94,7 @@ export async function authorizeConnectorEvent(
 
 	try {
 		const shell = process.env.SHELL?.trim() || "sh";
-		const result = await runSubprocessEvent(
+		const result = await dependencies.runSubprocessEvent(
 			{
 				adapter: input.adapter,
 				botUserName: input.botUserName,
@@ -107,30 +122,31 @@ export async function authorizeConnectorEvent(
 			},
 		);
 
-		const parsed = ConnectorAuthorizationDecisionSchema.safeParse(
-			result?.parsedJson,
-		);
-		if (parsed.success) {
-			return parsed.data;
-		}
-		if ((result?.exitCode ?? 0) !== 0) {
-			logger.core.log("Connector authorization hook exited non-zero", {
+		if (!result || result.exitCode !== 0) {
+			logger.core.log("Connector authorization hook failed closed", {
 				severity: "warn",
 				adapter: input.adapter,
 				event: "session.authorize",
 				code: result?.exitCode,
+				timedOut: result?.timedOut,
 				stderr: result?.stderr.trim() || undefined,
 			});
+			return { ...AUTHORIZATION_HOOK_FAILURE };
 		}
-		if (result?.parseError || result?.stdout.trim()) {
-			logger.core.log("Connector authorization hook returned invalid control", {
-				severity: "warn",
-				adapter: input.adapter,
-				event: "session.authorize",
-				parseError: result?.parseError,
-				stdout: result?.stdout.trim() || undefined,
-			});
+
+		const parsed = ConnectorAuthorizationDecisionSchema.safeParse(
+			result.parsedJson,
+		);
+		if (parsed.success) {
+			return parsed.data;
 		}
+		logger.core.log("Connector authorization hook returned invalid control", {
+			severity: "warn",
+			adapter: input.adapter,
+			event: "session.authorize",
+			parseError: result.parseError,
+			stdout: result.stdout.trim() || undefined,
+		});
 	} catch (error) {
 		logger.core.log("Connector authorization hook dispatch failed", {
 			severity: "warn",
@@ -139,5 +155,5 @@ export async function authorizeConnectorEvent(
 			error,
 		});
 	}
-	return { action: "allow" };
+	return { ...AUTHORIZATION_HOOK_FAILURE };
 }

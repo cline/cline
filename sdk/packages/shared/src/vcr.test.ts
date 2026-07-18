@@ -49,6 +49,8 @@ describe("VCR request body contracts", () => {
 				model: "test-model",
 				api_key: "secret",
 				accessToken: "oauth-secret",
+				privateKey: "private-key-secret",
+				sessionSecret: "session-secret",
 				z: 2,
 				a: 1,
 			}),
@@ -60,7 +62,7 @@ describe("VCR request body contracts", () => {
 		expect(recordings).toHaveLength(1);
 		expect(recordings[0]).not.toHaveProperty("body");
 		expect(recordings[0]?.requestBody).toBe(
-			'{"a":1,"accessToken":"REDACTED","api_key":"REDACTED","model":"test-model","z":2}',
+			'{"a":1,"accessToken":"REDACTED","api_key":"REDACTED","model":"test-model","privateKey":"REDACTED","sessionSecret":"REDACTED","z":2}',
 		);
 	});
 

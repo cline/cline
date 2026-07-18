@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSkillsArgs } from "./skill";
+import { buildSkillsArgs, resolveNpxInvocation } from "./skill";
 
 describe("buildSkillsArgs", () => {
 	it("runs the skills package through npx with -y", () => {
@@ -84,5 +84,64 @@ describe("buildSkillsArgs", () => {
 
 	it("forwards an empty arg list unchanged", () => {
 		expect(buildSkillsArgs([])).toEqual(["-y", "skills@latest"]);
+	});
+});
+
+describe("resolveNpxInvocation", () => {
+	it("keeps forwarded arguments out of a shell on non-Windows platforms", () => {
+		expect(
+			resolveNpxInvocation(
+				["-y", "skills@latest", "add", "repo; touch /tmp/pwned"],
+				{
+					platform: "linux",
+				},
+			),
+		).toEqual({
+			command: "npx",
+			args: ["-y", "skills@latest", "add", "repo; touch /tmp/pwned"],
+		});
+	});
+
+	it("runs npm's npx CLI through node.exe on Windows", () => {
+		const nodePath = "C:\\Program Files\\nodejs\\node.exe";
+		const npxCliPath =
+			"C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js";
+		const existingFiles = new Set([nodePath, npxCliPath]);
+		const injectedArg = "owner/repo & echo INJECTED";
+
+		expect(
+			resolveNpxInvocation(["-y", "skills@latest", "add", injectedArg], {
+				platform: "win32",
+				env: { Path: '"C:\\Program Files\\nodejs";C:\\Tools' },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => existingFiles.has(path),
+			}),
+		).toEqual({
+			command: nodePath,
+			args: [npxCliPath, "-y", "skills@latest", "add", injectedArg],
+		});
+	});
+
+	it("uses a native npx.exe shim on Windows when one is available", () => {
+		const npxPath = "C:\\Tools\\npx.exe";
+		expect(
+			resolveNpxInvocation(["--version"], {
+				platform: "win32",
+				env: { Path: "C:\\Tools" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => path === npxPath,
+			}),
+		).toEqual({ command: npxPath, args: ["--version"] });
+	});
+
+	it("fails safely when Windows only exposes an unsafe command shim", () => {
+		expect(
+			resolveNpxInvocation(["list"], {
+				platform: "win32",
+				env: { Path: "C:\\Tools" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => path === "C:\\Tools\\npx.cmd",
+			}),
+		).toBeUndefined();
 	});
 });

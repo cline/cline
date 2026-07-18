@@ -1,4 +1,6 @@
 import { type SpawnOptions, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { win32 } from "node:path";
 
 export interface SkillCommandIo {
 	writeln: (text?: string) => void;
@@ -31,6 +33,117 @@ const SKILLS_SUBCOMMAND_ALIASES = new Map([
 	["install", "add"],
 	["uninstall", "remove"],
 ]);
+
+export interface NpxInvocation {
+	command: string;
+	args: string[];
+}
+
+interface ResolveNpxInvocationOptions {
+	platform?: NodeJS.Platform;
+	env?: NodeJS.ProcessEnv;
+	execPath?: string;
+	fileExists?: (path: string) => boolean;
+}
+
+function normalizeWindowsPathEntry(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+function uniqueWindowsPaths(values: readonly string[]): string[] {
+	const seen = new Set<string>();
+	const result: string[] = [];
+	for (const value of values) {
+		const normalized = normalizeWindowsPathEntry(value);
+		if (!normalized) continue;
+		const key = normalized.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		result.push(normalized);
+	}
+	return result;
+}
+
+/**
+ * Resolve a shell-free npx invocation.
+ *
+ * Windows cannot execute the usual `npx.cmd` launcher directly with spawn(),
+ * while enabling `shell` would concatenate untrusted arguments into a command
+ * string. Prefer an executable npx shim when available, otherwise run npm's
+ * npx-cli.js with node.exe so every user argument remains a distinct argv item.
+ */
+export function resolveNpxInvocation(
+	npxArgs: readonly string[],
+	options: ResolveNpxInvocationOptions = {},
+): NpxInvocation | undefined {
+	const platform = options.platform ?? process.platform;
+	if (platform !== "win32") {
+		return { command: "npx", args: [...npxArgs] };
+	}
+
+	const env = options.env ?? process.env;
+	const execPath = options.execPath ?? process.execPath;
+	const fileExists = options.fileExists ?? existsSync;
+	const pathEntries = (env.Path ?? env.PATH ?? "").split(";");
+	const execDirectory =
+		win32.basename(execPath).toLowerCase() === "node.exe"
+			? win32.dirname(execPath)
+			: undefined;
+	const directories = uniqueWindowsPaths([
+		...(execDirectory ? [execDirectory] : []),
+		...pathEntries,
+	]);
+	const nodeCandidates = uniqueWindowsPaths([
+		...(execDirectory ? [execPath] : []),
+		...directories.map((directory) => win32.join(directory, "node.exe")),
+	]);
+	const nodePath = nodeCandidates.find(fileExists);
+
+	const npmExecPath = env.npm_execpath?.trim();
+	if (
+		nodePath &&
+		npmExecPath &&
+		win32.basename(npmExecPath).toLowerCase() === "npm-cli.js"
+	) {
+		const npxCliPath = win32.join(win32.dirname(npmExecPath), "npx-cli.js");
+		if (fileExists(npxCliPath)) {
+			return {
+				command: nodePath,
+				args: [npxCliPath, ...npxArgs],
+			};
+		}
+	}
+
+	// Preserve PATH order: a safe launcher next to an earlier PATH entry wins
+	// over a different launcher found in a later directory.
+	for (const directory of directories) {
+		const executable = win32.join(directory, "npx.exe");
+		if (fileExists(executable)) {
+			return { command: executable, args: [...npxArgs] };
+		}
+		if (nodePath) {
+			const npxCliPath = win32.join(
+				directory,
+				"node_modules",
+				"npm",
+				"bin",
+				"npx-cli.js",
+			);
+			if (fileExists(npxCliPath)) {
+				return {
+					command: nodePath,
+					args: [npxCliPath, ...npxArgs],
+				};
+			}
+		}
+	}
+
+	return undefined;
+}
 
 function hasAgentFlag(args: readonly string[]): boolean {
 	return args.some(
@@ -117,17 +230,24 @@ export async function runSkillCommand(
 	io: SkillCommandIo,
 ): Promise<number> {
 	const args = buildSkillsArgs(userArgs);
-	const isWindows = process.platform === "win32";
+	const invocation = resolveNpxInvocation(args);
+	if (!invocation) {
+		io.writeErr(
+			'npx was not found. Install Node.js (which includes npx) to use "cline skill".',
+		);
+		return 1;
+	}
 	const options: SpawnOptions = {
 		stdio: "inherit",
 		env: process.env,
 		// Prevent a console window from flashing on Windows.
 		windowsHide: true,
-		...(isWindows ? { shell: true } : {}),
+		// Never route forwarded skill arguments through a command shell.
+		shell: false,
 	};
 
 	return new Promise<number>((resolve) => {
-		const child = spawn("npx", args, options);
+		const child = spawn(invocation.command, invocation.args, options);
 
 		const forward = (signal: NodeJS.Signals) => {
 			child.kill(signal);

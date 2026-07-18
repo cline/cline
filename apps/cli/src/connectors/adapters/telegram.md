@@ -84,7 +84,7 @@ You can also pass the user ID directly:
 cline connect telegram -k "$TELEGRAM_BOT_TOKEN" --allowed-user-id 12345
 ```
 
-You can also pass a manual `--hook-command` that returns `{"action":"deny"}` for unauthorized `session.authorize` events. If neither access option is configured, messages are allowed.
+You can also pass a manual `--hook-command` that returns an explicit `{"action":"allow"}` or `{"action":"deny"}` decision for every `session.authorize` event. When a hook is configured, a non-zero exit, execution failure, missing action, or invalid response is denied. If neither access option is configured, messages are allowed.
 
 ## Message Delivery
 

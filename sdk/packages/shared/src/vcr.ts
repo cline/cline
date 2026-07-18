@@ -91,6 +91,9 @@ const REDACT_KEYS_EXACT = new Set([
 	"api_key",
 	"authorization",
 	"password",
+	"privatekey",
+	"private_key",
+	"private-key",
 	"secret",
 	"token",
 	// PII
