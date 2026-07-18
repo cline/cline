@@ -83,6 +83,27 @@ describe("createVscodeRunCommandsTool", () => {
 		})
 
 		expect(tool.name).toBe("run_commands")
+		expect(tool.description).toContain("Commands run through cmd.exe")
+	})
+
+	it("re-derives the description from the current profile on each read", () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+		mocks.existsSync.mockReturnValue(true)
+		mocks.getGlobalSettingsKey.mockReturnValue("cmd")
+
+		const tool = createVscodeRunCommandsTool({
+			cwd: "C:\\workspace",
+			getTerminalManager: () => {
+				throw new Error("Terminal manager should not be created during tool construction")
+			},
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+		})
+		expect(tool.description).toContain("Commands run through cmd.exe")
+
+		// A profile change takes effect at the next description read (the
+		// model-request boundary), without a session rebuild.
+		mocks.getGlobalSettingsKey.mockReturnValue("powershell-7")
+		expect(tool.description).toContain("Commands run through PowerShell")
 	})
 })
 
