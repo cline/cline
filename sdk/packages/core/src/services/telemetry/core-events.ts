@@ -1,7 +1,9 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureTaskLifecycleEventInput,
 	captureAgentUnexpectedReasoningTokens,
+	captureTaskLifecycleEvent,
 	type ITelemetryService,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
@@ -121,7 +123,9 @@ export interface RunCommandsTimeoutTelemetryProperties {
 
 export {
 	captureAgentUnexpectedReasoningTokens,
+	captureTaskLifecycleEvent,
 	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureTaskLifecycleEventInput,
 };
 
 export interface WorkspaceInitializedProperties {

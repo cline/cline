@@ -1419,6 +1419,50 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
+	it("does not emit provider request telemetry when cancelled during beforeModel hooks", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		let resolveHookStarted: (() => void) | undefined;
+		const hookStarted = new Promise<void>((resolve) => {
+			resolveHookStarted = resolve;
+		});
+		let resolveHook: (() => void) | undefined;
+		const hookCanFinish = new Promise<void>((resolve) => {
+			resolveHook = resolve;
+		});
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "should not happen" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			sessionId: "session-1",
+			telemetry,
+			hooks: {
+				beforeModel: async () => {
+					resolveHookStarted?.();
+					await hookCanFinish;
+				},
+			},
+		});
+
+		const run = runtime.run("Hi");
+		await hookStarted;
+		runtime.abort("user cancelled during hook");
+		resolveHook?.();
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		expect(model.requests).toHaveLength(0);
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_CANCELLED_EVENT,
+		]);
+	});
+
 	it("stops a run from beforeModel hooks and returns an aborted result", async () => {
 		const model = new ScriptedModel([
 			() => [

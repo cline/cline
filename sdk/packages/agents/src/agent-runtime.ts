@@ -852,12 +852,14 @@ export class AgentRuntime {
 		}
 
 		request = await this.prepareTurnForModelRequest(request);
+		this.throwIfAborted();
 
 		for (const hook of this.hooks.beforeModel) {
 			const result = (await hook({
 				snapshot: this.snapshot(),
 				request,
 			})) as AgentBeforeModelResult | undefined;
+			this.throwIfAborted();
 			this.applyStopControl(result);
 			if (result?.messages) {
 				request = { ...request, messages: cloneMessages(result.messages) };
@@ -887,6 +889,7 @@ export class AgentRuntime {
 			...summarizeModelRequest(request),
 		});
 
+		this.throwIfAborted();
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
 			durationMs: getTaskLifecycleDurationMs(),
 			phase: "provider_request_started",

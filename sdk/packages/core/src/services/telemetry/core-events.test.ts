@@ -6,6 +6,7 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -18,6 +19,7 @@ import {
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
 	captureTelemetryOptOut,
+	captureTaskLifecycleEvent,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -108,6 +110,10 @@ describe("CORE_TELEMETRY_EVENTS", () => {
 			TASK_PROVIDER_STREAM_FAILED_EVENT,
 		);
 		expect(CORE_TELEMETRY_EVENTS.TASK.CANCELLED).toBe(TASK_CANCELLED_EVENT);
+	});
+
+	test("re-exports the task lifecycle telemetry helper", () => {
+		expect(captureTaskLifecycleEvent).toBe(captureSharedTaskLifecycleEvent);
 	});
 });
 
