@@ -1518,4 +1518,46 @@ describe("HubServerTransport boundaries", () => {
 			},
 		});
 	});
+
+	it("projects notices with teammate provenance intact", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamAgentId: "investigator",
+				teamRole: "teammate",
+				event: {
+					type: "notice",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
+					noticeType: "status",
+					displayRole: "status",
+					message: "auto-compacted",
+					metadata: { kind: "auto_compaction", phase: "completed" },
+				},
+			},
+		});
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			event: "session.notice",
+			sessionId: "session-1",
+			payload: {
+				agent: {
+					kind: "teammate",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
+					teamAgentId: "investigator",
+					teamRole: "teammate",
+				},
+			},
+		});
+	});
 });

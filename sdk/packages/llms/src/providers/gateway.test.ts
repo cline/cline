@@ -8,14 +8,14 @@ import {
 import { access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentMessage, AgentModelEvent } from "@cline/shared";
+import {
+	type AgentMessage,
+	type AgentModelEvent,
+	estimateRequestInputTokens,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
-import {
-	createGateway,
-	estimateRequestInputTokens,
-	resolveGatewayRequestMaxTokens,
-} from "./gateway";
+import { createGateway, resolveGatewayRequestMaxTokens } from "./gateway";
 
 const streamTextSpy = vi.fn();
 const openaiCompatibleFactorySpy = vi.fn();

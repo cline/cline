@@ -43,7 +43,7 @@ describe("auth/cline getValidClineCredentials", () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
 		const current = createCredentials({
 			expires: 101_000,
-			metadata: { provider: "google", sessionStartedAt: 12_345 },
+			metadata: { provider: "google", sessionStartedAtMs: 12_345 },
 		});
 		const fetchMock = vi.fn(
 			async () =>
@@ -77,14 +77,14 @@ describe("auth/cline getValidClineCredentials", () => {
 			email: "new@example.com",
 			metadata: {
 				provider: "google",
-				sessionStartedAt: 12_345,
+				sessionStartedAtMs: 12_345,
 				tokenType: "Bearer",
 			},
 		});
 		nowSpy.mockRestore();
 	});
 
-	it("does not add sessionStartedAt when refreshing credentials that do not already have it", async () => {
+	it("does not add sessionStartedAtMs when refreshing credentials that do not already have it", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
 		const current = createCredentials({
 			expires: 101_000,
@@ -119,7 +119,7 @@ describe("auth/cline getValidClineCredentials", () => {
 			provider: "google",
 			tokenType: "Bearer",
 		});
-		expect(result?.metadata).not.toHaveProperty("sessionStartedAt");
+		expect(result?.metadata).not.toHaveProperty("sessionStartedAtMs");
 		nowSpy.mockRestore();
 	});
 
@@ -320,7 +320,7 @@ describe("auth/cline loginClineOAuth", () => {
 			accountId: "acct-1",
 			email: "user@example.com",
 			metadata: {
-				sessionStartedAt: 200_000,
+				sessionStartedAtMs: 200_000,
 				tokenType: "Bearer",
 			},
 		});

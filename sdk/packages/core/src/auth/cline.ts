@@ -391,7 +391,7 @@ async function registerWorkOSTokens(
 	return toClineCredentials(
 		requireClineTokenResponse(json, "Invalid token exchange response"),
 		provider ?? options.provider,
-		{ metadata: { sessionStartedAt: Date.now() } },
+		{ metadata: { sessionStartedAtMs: Date.now() } },
 	);
 }
 
@@ -437,7 +437,7 @@ async function exchangeAuthorizationCode(
 	return toClineCredentials(
 		requireClineTokenResponse(json, "Invalid token exchange response"),
 		provider ?? options.provider,
-		{ metadata: { sessionStartedAt: Date.now() } },
+		{ metadata: { sessionStartedAtMs: Date.now() } },
 	);
 }
 

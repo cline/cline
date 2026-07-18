@@ -23,6 +23,7 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/refreshGroqModels.test.ts",
 		],
 		environment: "node",
+		setupFiles: ["./src/test/vitest-setup.ts"],
 		// Several suites lazily `await import()` their subject inside the first test
 		// (needed so vi.mock factories apply first). That import pulls in heavy
 		// workspace packages (@cline/core/@cline/llms/@cline/shared), and on loaded

@@ -3,13 +3,18 @@ import * as vscode from "vscode"
 
 export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
 export const WINDOWS_POWERSHELL_LEGACY_PATH = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+// WSL Bash is reached through the wsl.exe launcher, not the guest-side /bin/bash
+// path (which does not exist on the Windows host). wsl.exe runs the command in
+// the default distro and translates the Windows working directory to its
+// /mnt/<drive> mount automatically. getShellArgs() appends the `bash -c` form.
+export const WINDOWS_WSL_PATH = "C:\\Windows\\System32\\wsl.exe"
 
 const SHELL_PATHS = {
 	// Windows paths
 	POWERSHELL_7: WINDOWS_POWERSHELL_7_PATH,
 	POWERSHELL_LEGACY: WINDOWS_POWERSHELL_LEGACY_PATH,
 	CMD: "C:\\Windows\\System32\\cmd.exe",
-	WSL_BASH: "/bin/bash",
+	WSL_BASH: WINDOWS_WSL_PATH,
 	GIT_BASH: "C:\\Program Files\\Git\\bin\\bash.exe",
 	// Unix paths
 	MAC_DEFAULT: "/bin/zsh",
@@ -100,7 +105,8 @@ function getWindowsShellFromVSCode(): string | null {
 		if (profile?.path) {
 			// If there's an explicit PowerShell path, return that
 			return profile.path
-		} else if (profile?.source === "PowerShell") {
+		}
+		if (profile?.source === "PowerShell") {
 			// If the profile is sourced from PowerShell, assume the newest
 			return SHELL_PATHS.POWERSHELL_7
 		}

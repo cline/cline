@@ -202,7 +202,7 @@ function createTestOAuthCredentials(): OAuthCredentials {
 		email: "oauth@example.com",
 		metadata: {
 			provider: "workos",
-			sessionStartedAt: 1_700_000_000_000,
+			sessionStartedAtMs: 1_700_000_000_000,
 			tokenType: "Bearer",
 			userInfo: { email: "oauth@example.com" },
 		},
@@ -394,7 +394,7 @@ describe("AuthService", () => {
 			const persisted = mockProviderSettings.get("cline") as { auth?: { metadata?: Record<string, unknown> } }
 			expect(persisted.auth?.metadata).toMatchObject({
 				provider: "workos",
-				sessionStartedAt: 1_700_000_000_000,
+				sessionStartedAtMs: 1_700_000_000_000,
 				tokenType: "Bearer",
 				userInfo: { email: "oauth@example.com" },
 			})
@@ -472,7 +472,7 @@ describe("AuthService", () => {
 					accountId: "user-123",
 					metadata: {
 						provider: "workos",
-						sessionStartedAt: 1_700_000_000_000,
+						sessionStartedAtMs: 1_700_000_000_000,
 						tokenType: "Bearer",
 					},
 				},
@@ -485,7 +485,7 @@ describe("AuthService", () => {
 				email: "test@example.com",
 				metadata: {
 					provider: undefined,
-					sessionStartedAt: 1_700_000_000_000,
+					sessionStartedAtMs: 1_700_000_000_000,
 					tokenType: "Bearer",
 				},
 			})
@@ -495,7 +495,7 @@ describe("AuthService", () => {
 			const persisted = mockProviderSettings.get("cline") as { auth?: { metadata?: Record<string, unknown> } }
 			expect(persisted.auth?.metadata).toMatchObject({
 				provider: "workos",
-				sessionStartedAt: 1_700_000_000_000,
+				sessionStartedAtMs: 1_700_000_000_000,
 				tokenType: "Bearer",
 			})
 		})

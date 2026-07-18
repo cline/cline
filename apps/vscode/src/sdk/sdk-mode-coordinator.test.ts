@@ -79,6 +79,7 @@ describe("SdkModeCoordinator", () => {
 			mode: "plan",
 		})
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
+			expectedSession: activeSession,
 			startInput: { prompt: "start" },
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "modeChange",
@@ -469,6 +470,101 @@ describe("SdkModeCoordinator", () => {
 		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 	})
+
+	describe("mode switch notices", () => {
+		it("records a notice for a manual toggle and consumes it exactly once", async () => {
+			const activeSession = makeActiveSession()
+			const task = makeTask("old-session")
+			const { coordinator } = makeCoordinator({ activeSession, task, mode: "act" })
+
+			await coordinator.togglePlanActMode("plan")
+
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toEqual({ from: "act", to: "plan" })
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
+		})
+
+		it("makes the notice available before the auto-continue send fires", async () => {
+			const activeSession = makeActiveSession()
+			const task = makeTask("old-session")
+			const { coordinator, options } = makeCoordinator({
+				activeSession,
+				task,
+				mode: "plan",
+				turnPhase: "awaiting_followup",
+			})
+			// Mirror the real wiring: SdkSessionLifecycle.fireAndForgetSend
+			// consumes the notice at send time, so the continuation message of a
+			// user-initiated toggle carries it.
+			const consumedAtSend: unknown[] = []
+			;(options.sessions.fireAndForgetSend as ReturnType<typeof vi.fn>).mockImplementation(
+				(_host: unknown, sessionId: string) => {
+					consumedAtSend.push(coordinator.consumeModeSwitchNotice(sessionId))
+				},
+			)
+
+			await coordinator.togglePlanActMode("act", { message: "go ahead", images: [], files: [] })
+
+			expect(consumedAtSend).toEqual([{ from: "plan", to: "act" }])
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
+		})
+
+		it("does not record a notice for a switch_to_act_mode-initiated change", async () => {
+			// Matches the CLI: the tool result and canned continuation prompt
+			// already announce the switch, so no <mode_notice> is stamped.
+			const activeSession = makeActiveSession()
+			const task = makeTask("old-session")
+			const { coordinator } = makeCoordinator({ activeSession, task, mode: "plan" })
+
+			coordinator.queueSwitchToActMode()
+			await coordinator.applyPendingModeChange()
+
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
+		})
+
+		it("cancels a round trip that returns to the mode the model last saw", async () => {
+			const activeSession = makeActiveSession()
+			const task = makeTask("old-session")
+			const { coordinator } = makeCoordinator({ activeSession, task, mode: "act" })
+
+			await coordinator.togglePlanActMode("plan")
+			await coordinator.togglePlanActMode("act")
+
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
+		})
+
+		it("keeps the notice pending for its session when another session sends first", async () => {
+			const activeSession = makeActiveSession()
+			const task = makeTask("old-session")
+			const { coordinator } = makeCoordinator({ activeSession, task, mode: "act" })
+
+			await coordinator.togglePlanActMode("plan")
+
+			// A send to a different task/session must neither receive nor clear
+			// the notice; mode is global, so the recorded session's transcript
+			// still deserves it.
+			expect(coordinator.consumeModeSwitchNotice("some-other-task")).toBeNull()
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toEqual({ from: "act", to: "plan" })
+		})
+
+		it("records no notice when the rebuild fails before the session is replaced", async () => {
+			const activeSession = makeActiveSession()
+			const task = makeTask("old-session")
+			const { coordinator, options } = makeCoordinator({ activeSession, task, mode: "act" })
+			options.loadInitialMessages.mockRejectedValueOnce(new Error("disk read failed"))
+
+			await coordinator.togglePlanActMode("plan")
+
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
+		})
+
+		it("records no notice when toggling without an active session", async () => {
+			const { coordinator } = makeCoordinator({ mode: "act" })
+
+			await coordinator.togglePlanActMode("plan")
+
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
+		})
+	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
@@ -519,6 +615,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resolveContextMentions: vi.fn(async (text: string) => text),
 		onAutoContinueStarting: vi.fn(),
 		onAutoContinueFailed: vi.fn(),
+		rebuilds: {
+			runExclusive: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+		},
 	} as unknown as SdkModeCoordinatorOptions & {
 		stateManager: StateManager & {
 			getGlobalSettingsKey: ReturnType<typeof vi.fn>

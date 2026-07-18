@@ -1,4 +1,8 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
+import {
+	formatCompactionDividerLabel,
+	parseCompactionNoticeMetadata,
+} from "../tui/utils/compaction-status";
 import { formatCliErrorMessage } from "./cline-pass-errors";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
@@ -23,6 +27,24 @@ const HOOK = "⎿ ";
 const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 
 export function resolveStatusNoticeLabel(
+	event: AgentEvent,
+): string | undefined {
+	if (event.type !== "notice" || event.displayRole !== "status") {
+		return undefined;
+	}
+	const compaction = parseCompactionNoticeMetadata(event.metadata);
+	if (compaction) {
+		return formatCompactionDividerLabel({ kind: "compaction", ...compaction });
+	}
+	return resolveNonCompactionStatusLabel(event);
+}
+
+/**
+ * Label for a status notice already known not to be a compaction notice.
+ * Callers that have parsed the compaction metadata themselves use this to
+ * avoid re-parsing.
+ */
+export function resolveNonCompactionStatusLabel(
 	event: AgentEvent,
 ): string | undefined {
 	if (event.type !== "notice" || event.displayRole !== "status") {
