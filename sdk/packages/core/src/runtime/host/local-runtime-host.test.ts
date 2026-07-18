@@ -5163,6 +5163,362 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	// Prior conversation history that seeds `persistedMessages`, so the pre-turn
+	// baseline that overflow recovery compacts is non-empty (the #9660 case is a
+	// long conversation, not a single first-turn prompt).
+	const overflowHistory: MessageWithMetadata[] = [
+		{ role: "user", content: [{ type: "text", text: "a".repeat(4000) }] },
+		{ role: "assistant", content: [{ type: "text", text: "b".repeat(4000) }] },
+		{ role: "user", content: [{ type: "text", text: "c".repeat(4000) }] },
+		{ role: "assistant", content: [{ type: "text", text: "d".repeat(4000) }] },
+	];
+
+	it("compacts and retries once when a turn fails with a context-overflow error", async () => {
+		const sessionId = "sess-overflow-retry";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-overflow-retry.json",
+				messagesPath: "/tmp/messages-overflow-retry.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults: vi.fn(),
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		const run = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new Error("prompt is too long: 228307 tokens > 200000 maximum"),
+			)
+			.mockResolvedValueOnce(
+				createResult({
+					text: "recovered",
+					messages: [
+						{ role: "user", content: [{ type: "text", text: "hello" }] },
+						{
+							role: "assistant",
+							content: [{ type: "text", text: "recovered" }],
+						},
+					],
+				}),
+			);
+		const restore = vi.fn();
+		// Deterministic compaction: keep only the final message so the assertion
+		// on "transcript shrank" doesn't depend on the basic strategy's cut math.
+		const compact = vi.fn().mockImplementation((context) => ({
+			messages: context.messages.slice(-1),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: run,
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore,
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue(overflowHistory),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					// Misconfigured: window claims 1M but the API rejects at 200k, so
+					// proactive compaction never fires — the #9660 repro condition.
+					providerConfig: {
+						providerId: "mock-provider",
+						modelId: "mock-model",
+						modelInfo: {
+							id: "mock-model",
+							contextWindow: 1_000_000,
+							maxInputTokens: 1_000_000,
+						},
+					} as never,
+					compaction: { enabled: true, strategy: "basic", compact },
+				}),
+				interactive: true,
+				initialMessages: overflowHistory,
+			}),
+		);
+		const result = await manager.runTurn({ sessionId, prompt: "hello" });
+
+		expect(result?.text).toBe("recovered");
+		expect(run).toHaveBeenCalledTimes(2);
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(restore).toHaveBeenCalledTimes(1);
+		// Recovery compacts the pre-turn baseline (not the post-failure transcript)
+		// and restores it, so the retried run re-appends the prompt exactly once.
+		const restored = restore.mock.calls[0]?.[0] as unknown[];
+		expect(restored.length).toBe(1);
+		expect(restored.length).toBeLessThan(overflowHistory.length);
+	});
+
+	it("does not retry a context overflow more than once (no infinite loop)", async () => {
+		const sessionId = "sess-overflow-noloop";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-overflow-noloop.json",
+				messagesPath: "/tmp/messages-overflow-noloop.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults: vi.fn(),
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		const overflow = new Error(
+			"prompt is too long: 228307 tokens > 200000 maximum",
+		);
+		// Overflow on BOTH the initial run and the post-compaction retry.
+		const run = vi.fn().mockRejectedValue(overflow);
+		const restore = vi.fn();
+		const compact = vi.fn().mockImplementation((context) => ({
+			messages: context.messages.slice(-1),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: run,
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore,
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue(overflowHistory),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: { enabled: true, strategy: "basic", compact },
+				}),
+				interactive: true,
+				initialMessages: overflowHistory,
+			}),
+		);
+		await expect(
+			manager.runTurn({ sessionId, prompt: "hello" }),
+		).rejects.toThrow(/prompt is too long/);
+		// One initial attempt + exactly one compaction-triggered retry = 2 runs.
+		expect(run).toHaveBeenCalledTimes(2);
+		expect(compact).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not compact or retry when a turn fails with a non-overflow error", async () => {
+		const sessionId = "sess-overflow-passthrough";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-overflow-passthrough.json",
+				messagesPath: "/tmp/messages-overflow-passthrough.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults: vi.fn(),
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		// A generic (non-overflow, non-auth) failure must pass straight through the
+		// overflow wrapper without triggering compaction or a retry.
+		const run = vi
+			.fn()
+			.mockRejectedValue(new Error("500 Internal Server Error"));
+		const restore = vi.fn();
+		const compact = vi.fn().mockImplementation((context) => ({
+			messages: context.messages.slice(-1),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: run,
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore,
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue(overflowHistory),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: { enabled: true, strategy: "basic", compact },
+				}),
+				interactive: true,
+				initialMessages: overflowHistory,
+			}),
+		);
+		await expect(
+			manager.runTurn({ sessionId, prompt: "hello" }),
+		).rejects.toThrow(/500 Internal Server Error/);
+		expect(run).toHaveBeenCalledTimes(1);
+		expect(compact).not.toHaveBeenCalled();
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("targets the real limit parsed from the overflow error when compacting", async () => {
+		const sessionId = "sess-overflow-ratio";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-overflow-ratio.json",
+				messagesPath: "/tmp/messages-overflow-ratio.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults: vi.fn(),
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		const run = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new Error("prompt is too long: 228307 tokens > 200000 maximum"),
+			)
+			.mockResolvedValueOnce(createResult({ text: "recovered" }));
+		// Capture the compaction budget the manual ratio produced. The forced ratio
+		// is 0.7 * realLimit / currentTokens, so messageTargetTokens ≈ 0.7 * 200000
+		// (unless capped by messageTriggerTokens) — independently derivable from the
+		// parsed limit, not recomputed from the production formula.
+		let capturedMessageTargetTokens = -1;
+		const compact = vi.fn().mockImplementation((context) => {
+			capturedMessageTargetTokens = context.budget.messages.targetTokens;
+			return { messages: context.messages.slice(-1) };
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: run,
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore: vi.fn(),
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue(overflowHistory),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerConfig: {
+						providerId: "mock-provider",
+						modelId: "mock-model",
+						modelInfo: {
+							id: "mock-model",
+							contextWindow: 1_000_000,
+							maxInputTokens: 1_000_000,
+						},
+					} as never,
+					compaction: { enabled: true, strategy: "basic", compact },
+				}),
+				interactive: true,
+				initialMessages: overflowHistory,
+			}),
+		);
+		await manager.runTurn({ sessionId, prompt: "hello" });
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		// The manual target must be driven UNDER the real 200000 limit, well below
+		// the misconfigured 1M window — proving the parsed-limit ratio took effect.
+		expect(capturedMessageTargetTokens).toBeGreaterThan(0);
+		expect(capturedMessageTargetTokens).toBeLessThanOrEqual(200000 * 0.7);
+	});
+
 	it("auto-continues when async teammate runs complete after lead turn", async () => {
 		const sessionId = "sess-team-auto-continue";
 		const manifest = createManifest(sessionId);

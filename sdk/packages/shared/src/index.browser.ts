@@ -433,5 +433,10 @@ export * from "./session/workspace";
 export * from "./team";
 export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
+export {
+	CONTEXT_WINDOW_ERROR_PATTERNS,
+	isContextWindowExceededError,
+	parseContextWindowLimitFromError,
+} from "./types/context-window";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";
