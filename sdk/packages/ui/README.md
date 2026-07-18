@@ -166,12 +166,7 @@ SDK release, GitHub releases, or Slack announcements.
 Maintainers use the repository's `publish-ui` skill for the initial bootstrap
 and later releases.
 
-Pin the currently released version in production applications:
-
-```bash
-bun add --exact @cline/ui
-```
-
-Commit the consumer lockfile and update deliberately. The package is ESM and
-its React components target browser applications. A complete Tailwind theme
-also requires Tailwind v4 and the two font packages shown above.
+The install command above pins the resolved release. Commit the consumer
+lockfile and update deliberately. The package is ESM and its React components
+target browser applications. A complete Tailwind theme also requires Tailwind
+v4 and the two font packages shown above.

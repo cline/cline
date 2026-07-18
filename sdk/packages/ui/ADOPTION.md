@@ -91,13 +91,7 @@ manifest and lockfile.
 ## Install from npm in another repository
 
 After the initial release is available, install the latest production UI
-release:
-
-```bash
-bun add --exact @cline/ui
-```
-
-Production applications can pin an exact version:
+release. The `--exact` flag records the resolved version instead of a range:
 
 ```bash
 bun add --exact @cline/ui
@@ -119,8 +113,8 @@ Applications already on React 18.3 can retain that compatible version.
 Tokens-only consumers do not need React or Tailwind.
 
 Commit the consuming repository's lockfile so builds continue using the same
-resolved version. Use the package manager's normal update command when the team
-intentionally wants a newer release:
+resolved version. Use the package manager's update command when the team
+intentionally wants to move to a newer release:
 
 ```bash
 bun update @cline/ui
