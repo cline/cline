@@ -1108,6 +1108,15 @@ export class SessionRuntime {
 				);
 				const isError =
 					resultPart?.type === "tool-result" && resultPart.isError === true;
+				if (!isError && resultPart?.type === "tool-result") {
+					this.loopTracker.observeSuccessfulOutcome(
+						{
+							name: event.toolCall.toolName,
+							input: event.toolCall.input,
+						},
+						resultPart.output,
+					);
+				}
 				const errorText = isError
 					? formatToolResultError(
 							resultPart?.type === "tool-result"
