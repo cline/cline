@@ -1,11 +1,33 @@
 import { CommandExitError } from "@cline/core"
 import { EventEmitter } from "events"
 import * as fs from "fs"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import * as vscode from "vscode"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { TerminalCompletionDetails } from "@/integrations/terminal/types"
 import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
-import { executeForeground, formatCommandForTerminal, PROCEED_LOG_MAX_BYTES } from "./vscode-run-commands-tool"
+import {
+	createVscodeRunCommandsTool,
+	executeForeground,
+	formatCommandForTerminal,
+	PROCEED_LOG_MAX_BYTES,
+} from "./vscode-run-commands-tool"
+
+const mocks = vi.hoisted(() => ({
+	existsSync: vi.fn<(path: fs.PathLike) => boolean>(),
+	getGlobalSettingsKey: vi.fn(() => "default"),
+}))
+
+vi.mock("fs", async (importOriginal) => ({
+	...(await importOriginal<typeof import("fs")>()),
+	existsSync: mocks.existsSync,
+}))
+
+vi.mock("@/core/storage/StateManager", () => ({
+	StateManager: {
+		get: () => ({ getGlobalSettingsKey: mocks.getGlobalSettingsKey }),
+	},
+}))
 
 // The real telemetry proxy lazily initializes TelemetryService, which requires
 // a HostProvider that unit tests don't set up.
@@ -16,6 +38,74 @@ vi.mock("@services/telemetry", () => ({
 		captureTerminalExecution: () => {},
 	},
 }))
+
+const originalPlatform = process.platform
+const originalEnv = { ...process.env }
+const originalGetConfiguration = vscode.workspace.getConfiguration
+
+afterEach(() => {
+	Object.defineProperty(process, "platform", { value: originalPlatform })
+	process.env = { ...originalEnv }
+	vscode.workspace.getConfiguration = originalGetConfiguration
+	mocks.existsSync.mockReset()
+	mocks.getGlobalSettingsKey.mockReset()
+	mocks.getGlobalSettingsKey.mockReturnValue("default")
+})
+
+describe("createVscodeRunCommandsTool", () => {
+	it("constructs a cmd tool from the stock array-valued Command Prompt profile", () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+		process.env.windir = "C:\\Windows"
+		mocks.existsSync.mockImplementation((candidate) => candidate === "C:\\Windows\\System32\\cmd.exe")
+		vscode.workspace.getConfiguration = () =>
+			({
+				get: (key: string) => {
+					if (key === "defaultProfile.windows") {
+						return "Command Prompt"
+					}
+					if (key === "profiles.windows") {
+						return {
+							"Command Prompt": {
+								path: [`\${env:windir}\\Sysnative\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+							},
+						}
+					}
+					return undefined
+				},
+			}) as never
+
+		const tool = createVscodeRunCommandsTool({
+			cwd: "C:\\workspace",
+			getTerminalManager: () => {
+				throw new Error("Terminal manager should not be created during tool construction")
+			},
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+		})
+
+		expect(tool.name).toBe("run_commands")
+		expect(tool.description).toContain("Commands run through cmd.exe")
+	})
+
+	it("re-derives the description from the current profile on each read", () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+		mocks.existsSync.mockReturnValue(true)
+		mocks.getGlobalSettingsKey.mockReturnValue("cmd")
+
+		const tool = createVscodeRunCommandsTool({
+			cwd: "C:\\workspace",
+			getTerminalManager: () => {
+				throw new Error("Terminal manager should not be created during tool construction")
+			},
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+		})
+		expect(tool.description).toContain("Commands run through cmd.exe")
+
+		// A profile change takes effect at the next description read (the
+		// model-request boundary), without a session rebuild.
+		mocks.getGlobalSettingsKey.mockReturnValue("powershell-7")
+		expect(tool.description).toContain("Commands run through PowerShell")
+	})
+})
 
 /**
  * Minimal fake of the process object returned by VscodeTerminalManager.runCommand():
@@ -189,6 +279,19 @@ describe("executeForeground", () => {
 		const result = await executeForeground("echo hello", "/workspace", terminalManager, 1000)
 
 		expect(result).toBe("hello")
+	})
+
+	it("passes the caller's terminal profile through to getOrCreateTerminal", async () => {
+		const process = createFakeTerminalProcess({ lines: ["ok"] })
+		const getOrCreateTerminal = vi.fn(async () => ({ terminal: { show: () => {} } }) as never)
+		const terminalManager = {
+			getOrCreateTerminal,
+			runCommand: () => process,
+		} as unknown as VscodeTerminalManager
+
+		await executeForeground("echo ok", "/workspace", terminalManager, 1000, undefined, undefined, "wsl-bash")
+
+		expect(getOrCreateTerminal).toHaveBeenCalledWith("/workspace", "wsl-bash")
 	})
 
 	it("throws CommandExitError with the exit code on non-zero exit", async () => {

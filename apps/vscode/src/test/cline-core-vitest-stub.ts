@@ -101,6 +101,10 @@ export function createShellExecutor() {
 	return async () => ""
 }
 
+// The real createShellTool, so tests exercise the actual description
+// building and shell classification (getShellKind) rather than a stub that
+// would have to duplicate those invariants.
+export { createShellTool } from "../../../../sdk/packages/core/src/extensions/tools/definitions"
 // Real (dependency-light) edit-executor implementations, re-exported from the sdk source so
 // the diff-edit coordinator and its tests exercise the actual content/parse semantics. These
 // modules only pull in node:fs/node:path and the patch parser — not the heavy core runtime.
@@ -113,13 +117,6 @@ export { PatchActionType } from "../../../../sdk/packages/core/src/extensions/to
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/types"
-
-export function createShellTool(execute: unknown) {
-	return {
-		name: "run_commands",
-		execute,
-	}
-}
 
 export interface SessionHistoryRecord {
 	id: string
