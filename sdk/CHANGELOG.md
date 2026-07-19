@@ -1,5 +1,16 @@
 # Cline SDK Changelog
 
+## 0.0.65
+
+- Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size
+- Added Kimi K3 to the bundled ClinePass model fallback
+- Runs now retry once after refreshing expired OAuth credentials
+- Team runs: the spawn tool is no longer exposed to teammate agents
+- Team runs: errored teammate runs now report as failed instead of completed
+- Improved shell-command parsing to fix a Windows shell mismatch
+- New `@cline/ui` agent chat components with Storybook and npm packaging
+- Updated the bundled model catalog
+
 ## 0.0.64
 
 - Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models)
