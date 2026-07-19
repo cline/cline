@@ -636,13 +636,28 @@ function getModelInfoKey(providerId: ProviderId, mode: Mode): (keyof ApiConfigur
 	return keys ? modePair(mode, keys.plan, keys.act) : undefined
 }
 
-function syncedModes(mode: Mode): Mode[] {
-	return StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting") ? [mode] : ["plan", "act"]
+/**
+ * Determine which modes should be updated together based on the
+ * `planActSeparateModelsSetting` flag. When true, only the current mode is
+ * updated; when false (sync), both plan and act modes are updated together.
+ *
+ * @param mode - The active mode being written.
+ * @param separateModels - The effective value of `planActSeparateModelsSetting`;
+ *   if undefined, the flag is read from StateManager for backward compat.
+ */
+function syncedModes(mode: Mode, separateModels?: boolean): Mode[] {
+	const effective = separateModels ?? StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")
+	return effective ? [mode] : ["plan", "act"]
 }
 
-function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: ResolvedModelSelection): void {
+function writeSelectionToState(
+	providerId: ProviderId,
+	mode: Mode,
+	selection: ResolvedModelSelection,
+	separateModels?: boolean,
+): void {
 	const updates: Partial<Record<SettingsKey, unknown>> = {}
-	for (const targetMode of syncedModes(mode)) {
+	for (const targetMode of syncedModes(mode, separateModels)) {
 		updates[getModelIdKey(providerId, targetMode)] = selection.modelId
 		const modelInfoKey = getModelInfoKey(providerId, targetMode)
 		if (modelInfoKey) {

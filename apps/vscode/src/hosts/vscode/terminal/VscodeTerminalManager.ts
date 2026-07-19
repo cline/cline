@@ -6,12 +6,30 @@ import {
 	TerminalInfo as ITerminalInfo,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
+import { isRefactoringEnabled } from "@/shared/services/feature-flags/refactoring-flags"
 import { Logger } from "@/shared/services/Logger"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
 const CWD_COMMAND_TIMEOUT_MS = 5000
 const CWD_STATE_TIMEOUT_MS = 1000
+
+/**
+ * Maximum time (ms) a terminal can stay busy before its flag is auto-released.
+ * Prevents terminal-starvation deadlock when a terminal's completion promise
+ * is never settled (e.g. user closes the terminal, task interrupted mid-write).
+ * Guarded by the `terminalBusyTimeout` feature flag.
+ */
+const BUSY_TIMEOUT_MS = 300_000 // 5 minutes
+
+/**
+ * Maximum number of tracked terminals before the least-recently-used is
+ * evicted. Prevent unbounded terminal-ID accumulation when many tasks are
+ * created without cleanup.
+ * Guarded by the `terminalBusyTimeout` feature flag (same flag — both deal
+ * with terminal lifecycle hygiene).
+ */
+const MAX_TERMINALS = 50
 
 /*
 TerminalManager:
@@ -203,9 +221,26 @@ export class VscodeTerminalManager {
 		const process = new VscodeTerminalProcess()
 		this.processes.set(vscodeTerminalInfo.id, process)
 
+		// Busy timeout guard: if the process never completes (e.g. terminal
+		// closed externally, task interrupted mid-execution), auto-release the
+		// busy flag after BUSY_TIMEOUT_MS so the terminal can be reused.
+		// Guarded by the `terminalBusyTimeout` feature flag.
+		let busyTimeout: ReturnType<typeof setTimeout> | undefined
+		if (isRefactoringEnabled("terminalBusyTimeout")) {
+			busyTimeout = setTimeout(() => {
+				if (vscodeTerminalInfo.busy) {
+					Logger.warn(
+						`[TerminalManager] Busy timeout elapsed (${BUSY_TIMEOUT_MS}ms) for terminal ${vscodeTerminalInfo.id}, auto-releasing busy flag`,
+					)
+					vscodeTerminalInfo.busy = false
+				}
+			}, BUSY_TIMEOUT_MS)
+		}
+
 		process.once("completed", () => {
 			Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} completed, setting busy to false`)
 			vscodeTerminalInfo.busy = false
+			if (busyTimeout) clearTimeout(busyTimeout)
 		})
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
@@ -348,6 +383,23 @@ export class VscodeTerminalManager {
 		}
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
+		if (isRefactoringEnabled("terminalBusyTimeout")) {
+			// Enforce max terminals: evict LRA (least-recently-active) terminals
+			// when pool exceeds MAX_TERMINALS. Prevents unbounded accumulation
+			// on long-running VSCode instances with many task sessions.
+			const allTerminals = TerminalRegistry.getAllTerminals()
+			if (allTerminals.length >= MAX_TERMINALS) {
+				const sorted = [...allTerminals].sort((a, b) => a.lastActive - b.lastActive)
+				const evicted = sorted.slice(0, allTerminals.length - MAX_TERMINALS + 1)
+				for (const t of evicted) {
+					Logger.warn(`[TerminalManager] Evicting LRA terminal ${t.id} (max ${MAX_TERMINALS} reached)`)
+					TerminalRegistry.removeTerminal(t.id)
+					this.terminalIds.delete(t.id)
+					this.processes.delete(t.id)
+				}
+			}
+		}
+
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
 		this.terminalIds.add(newTerminalInfo.id)
 		// Cast to ITerminalInfo for interface compatibility

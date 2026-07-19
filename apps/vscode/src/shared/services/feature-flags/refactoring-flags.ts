@@ -40,12 +40,30 @@ export interface RefactoringFlags {
 	 * Risk: False positives on slow networks causing unnecessary reconnects.
 	 */
 	sseHeartbeat: boolean
+
+	/**
+	 * Enable terminal busy timeout (auto-release busy flag after 5 min).
+	 * When disabled, busy terminals must be freed explicitly (legacy behavior).
+	 * Risk: False timeout on long-running commands that exceed 5 min with no output.
+	 */
+	terminalBusyTimeout: boolean
+
+	/**
+	 * Enable message truncation for the initial state push.
+	 * When enabled, only the first N messages are sent in `getStateToPostToWebview()`,
+	 * reducing initial payload size for long conversations. The full message set is
+	 * still available through the webview's lazy-load protocol.
+	 * Risk: Initial render may show incomplete conversation if lazy-load fails.
+	 */
+	messageTruncation: boolean
 }
 
 const DEFAULT_REFACTORING_FLAGS: RefactoringFlags = {
 	deltaStatePush: false,
 	jsonlStorage: false,
 	sseHeartbeat: false,
+	terminalBusyTimeout: false,
+	messageTruncation: false,
 }
 
 // ─── Runtime State ──────────────────────────────────────────────────────────
@@ -121,7 +139,10 @@ function parseEnvFlags(envValue: string | undefined): Partial<RefactoringFlags> 
 	if (!envValue || !envValue.trim()) return null
 
 	const flags: Partial<RefactoringFlags> = {}
-	const pairs = envValue.split(",").map((p) => p.trim()).filter(Boolean)
+	const pairs = envValue
+		.split(",")
+		.map((p) => p.trim())
+		.filter(Boolean)
 
 	for (const pair of pairs) {
 		const eqIdx = pair.indexOf("=")
