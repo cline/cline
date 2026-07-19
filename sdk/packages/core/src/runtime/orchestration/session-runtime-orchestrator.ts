@@ -53,7 +53,10 @@ import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
-import { captureMistakeLimitReached } from "../../services/telemetry/core-events";
+import {
+	captureAuthRunRetry,
+	captureMistakeLimitReached,
+} from "../../services/telemetry/core-events";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
 	getMessageBuilderOptionsFromEnv,
@@ -725,7 +728,11 @@ export class SessionRuntime {
 		if (!refreshed) {
 			return result;
 		}
-		return this.executeRunInternal({ isContinue: true });
+		const retryResult = await this.executeRunInternal({ isContinue: true });
+		captureAuthRunRetry(this.telemetry, this.config.providerId, {
+			recovered: retryResult.finishReason !== "error",
+		});
+		return retryResult;
 	}
 
 	private async executeRunInternal(input: {

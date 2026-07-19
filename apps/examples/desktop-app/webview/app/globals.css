@@ -3,6 +3,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@cline/ui/theme/index.css";
+@import "@cline/ui/components/agent-chat.css";
 
 @source "../../node_modules/streamdown/dist";
 

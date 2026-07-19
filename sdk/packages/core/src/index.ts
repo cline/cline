@@ -112,6 +112,7 @@ export {
 	parseUserCommandEnvelope,
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
+	stripUtf8Bom,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {
