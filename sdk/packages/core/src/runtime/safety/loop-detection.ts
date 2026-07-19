@@ -125,6 +125,13 @@ const DEFAULT_CONFIG: LoopDetectionConfig = {
 export class LoopDetectionTracker {
 	private readonly config: LoopDetectionConfig;
 	private readonly state: LoopDetectionState = createLoopDetectionState();
+	private lastSuccessfulOutcome:
+		| {
+				toolName: string;
+				toolSignature: string;
+				outputSignature: string;
+		  }
+		| undefined;
 
 	constructor(config?: Partial<LoopDetectionConfig>) {
 		this.config = {
@@ -156,7 +163,34 @@ export class LoopDetectionTracker {
 		return { kind: "ok" };
 	}
 
+	/**
+	 * Record the result of a successful call so repeated status checks can be
+	 * distinguished from a stalled loop. When the same call produces different
+	 * output, it has observed progress and the consecutive-call counter resets.
+	 * Identical calls with identical output continue accumulating normally.
+	 */
+	observeSuccessfulOutcome(call: LoopDetectionCall, output: unknown): void {
+		const toolSignature = toolCallSignature(call.input);
+		const outputSignature = toolCallSignature(output);
+		const previous = this.lastSuccessfulOutcome;
+
+		if (
+			previous?.toolName === call.name &&
+			previous.toolSignature === toolSignature &&
+			previous.outputSignature !== outputSignature
+		) {
+			resetLoopDetectionState(this.state);
+		}
+
+		this.lastSuccessfulOutcome = {
+			toolName: call.name,
+			toolSignature,
+			outputSignature,
+		};
+	}
+
 	reset(): void {
 		resetLoopDetectionState(this.state);
+		this.lastSuccessfulOutcome = undefined;
 	}
 }
