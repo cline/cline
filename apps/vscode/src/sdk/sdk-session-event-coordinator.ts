@@ -11,6 +11,7 @@ import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailu
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
+import type { DeltaPayload } from "./state-post-debouncer"
 import type { TaskProxy } from "./task-proxy"
 
 function normalizeModelId(modelId: string): string {
@@ -26,6 +27,13 @@ export interface SdkSessionEventCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
+	/**
+	 * Fire-and-forget incremental delta push. When provided, the coordinator
+	 * sends deltas for high-frequency message-level updates instead of always
+	 * triggering a full state rebuild. The next full `postStateToWebview()`
+	 * always carries ground truth, so dropped deltas are eventually reconciled.
+	 */
+	postDeltaToWebview?: (delta: DeltaPayload) => void
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	isClineFreeModel?: () => Promise<boolean>
@@ -92,6 +100,23 @@ export class SdkSessionEventCoordinator {
 
 		if (result.messages.length > 0) {
 			this.options.messages.appendAndEmit(result.messages, event)
+
+			// Ship incremental deltas for each new message so the webview can
+			// render them immediately without waiting for a full state rebuild.
+			// This is the high-frequency streaming path: messages come in one at
+			// a time during agent turns, and full state posts are debounced to
+			// the trailing edge. Deltas fill the gap for instant UI feedback.
+			//
+			// Fire-and-forget: errors are logged by StatePostDebouncer/sendDelta.
+			// The next full `postStateToWebview()` call below carries ground truth.
+			if (this.options.postDeltaToWebview) {
+				for (const message of result.messages) {
+					this.options.postDeltaToWebview({
+						type: "append_message",
+						message: message as unknown,
+					})
+				}
+			}
 		}
 
 		if (activeSession) {

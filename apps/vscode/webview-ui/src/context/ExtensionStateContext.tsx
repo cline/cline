@@ -410,6 +410,67 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 	}, [])
 
+	/**
+	 * Track the last applied state version so we can detect gaps in delta
+	 * messages and request a full-sync fallback from the backend.
+	 */
+	const lastStateVersionRef = useRef(0)
+
+	/**
+	 * Request a full state snapshot from the backend via the streaming subscription.
+	 * This is the self-healing fallback when the webview detects a gap in deltas.
+	 */
+	const requestFullSync = useCallback(() => {
+		stateSubscriptionRef.current?.()
+		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
+			onResponse: (response: any) => {
+				if (response.stateJson) {
+					try {
+						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						setState((prevState) => {
+							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+							const shouldUpdateAutoApproval = incomingVersion > currentVersion
+							replicaRef.current = reducerApplyStateSnapshot(
+								replicaRef.current,
+								stateData.clineMessages ?? [],
+								stateData.epoch ?? 0,
+								stateData.stateVersion ?? 0,
+								stateData.turnState,
+							)
+							stateData.clineMessages = replicaRef.current.messages
+							stateData.turnState = replicaRef.current.turnState
+							const newState = {
+								...stateData,
+								autoApprovalSettings: shouldUpdateAutoApproval
+									? stateData.autoApprovalSettings
+									: prevState.autoApprovalSettings,
+							}
+							if (!newState.welcomeViewCompleted && !showWelcome) {
+								setShowWelcome(true)
+								setOnboardingModels(newState.onboardingModels)
+							} else if (newState.welcomeViewCompleted) {
+								setShowWelcome(false)
+								setOnboardingModels(undefined)
+							}
+							setDidHydrateState(true)
+							lastStateVersionRef.current = newState.stateVersion ?? 0
+							return newState
+						})
+					} catch (error) {
+						console.error("Error parsing state JSON during full sync:", error)
+					}
+				}
+			},
+			onError: (error: any) => {
+				console.error("Error in full sync state subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Full sync state subscription completed")
+			},
+		})
+	}, [showWelcome])
+
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 
@@ -447,9 +508,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response: any) => {
+				// CHANNEL 1: Full state snapshot (ground truth — replaces everything)
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						const incomingStateVersion = stateData.stateVersion ?? 0
+
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -458,20 +522,16 @@ export const ExtensionStateContextProvider: React.FC<{
 
 							// Route the snapshot's transcript through the convergent-replica reducer:
 							// merge by ts/seq within the same epoch (never truncate), replace on a
-							// newer epoch, ignore stale/older snapshots. Unstamped (classic/legacy)
-							// state defaults to epoch 0 / version 0, which merges.
+							// newer epoch, ignore stale/older snapshots.
 							replicaRef.current = reducerApplyStateSnapshot(
 								replicaRef.current,
 								stateData.clineMessages ?? [],
 								stateData.epoch ?? 0,
-								stateData.stateVersion ?? 0,
+								incomingStateVersion,
 								stateData.turnState,
 							)
 							stateData.clineMessages = replicaRef.current.messages
-							// Use the seq-gated turnState from the replica, NOT the raw snapshot's, so a
-							// late/stale snapshot carrying an older phase (e.g. "idle") cannot revert a
-							// newer phase (e.g. "streaming") and hide the Cancel button. Falls back to
-							// undefined for classic/legacy state.
+							// Use the seq-gated turnState from the replica, NOT the raw snapshot's.
 							stateData.turnState = replicaRef.current.turnState
 
 							const newState = {
@@ -491,15 +551,78 @@ export const ExtensionStateContextProvider: React.FC<{
 							}
 
 							setDidHydrateState(true)
+							lastStateVersionRef.current = incomingStateVersion
 
 							return newState
 						})
 					} catch (error) {
 						console.error("Error parsing state JSON:", error)
-						console.log("[DEBUG] ERR getting state", error)
 					}
+					return
 				}
-				console.log('[DEBUG] ended "got subscribed state"')
+
+				// CHANNEL 2: State delta (incremental update — patch only changed fields)
+				// The backend sends `{ type, payload, version }` where payload is the StateDelta
+				// from state-post-debouncer: `{ type: "append_message", message, version }` or
+				// `{ type: "update_message", messageId, patch, version }`.
+				if (response.deltaJson) {
+					try {
+						const raw = JSON.parse(response.deltaJson)
+						const deltaVersion = raw.version ?? 0
+
+						// Self-healing: if we missed a delta (gap in version), request full sync
+						if (lastStateVersionRef.current > 0 && deltaVersion > lastStateVersionRef.current + 1) {
+							console.warn(
+								`[StateDelta] Gap detected: last=${lastStateVersionRef.current}, delta=${deltaVersion}. Requesting full sync.`,
+							)
+							requestFullSync()
+							return
+						}
+
+						if (deltaVersion > 0) {
+							lastStateVersionRef.current = deltaVersion
+						}
+
+						setState((prevState) => {
+							const inner = raw.payload
+							switch (raw.type) {
+								case "append_message":
+									if (inner?.message) {
+										replicaRef.current = reducerApplyMessage(replicaRef.current, inner.message)
+									}
+									return {
+										...prevState,
+										clineMessages: replicaRef.current.messages,
+									}
+
+								case "update_message":
+									// Extract messageId (ts) and patch from the inner delta
+									if (inner?.messageId) {
+										const patchMessage = { ts: inner.messageId, ...inner.patch }
+										replicaRef.current = reducerApplyMessage(replicaRef.current, patchMessage as any)
+									}
+									return {
+										...prevState,
+										clineMessages: replicaRef.current.messages,
+									}
+
+								case "replace_all":
+									return {
+										...prevState,
+										...inner,
+										clineMessages: prevState.clineMessages,
+									}
+
+								default:
+									console.warn("[StateDelta] Unknown delta type:", raw.type)
+									return prevState
+							}
+						})
+					} catch (error) {
+						console.error("Error processing state delta:", error)
+					}
+					return
+				}
 			},
 			onError: (error: any) => {
 				console.error("Error in state subscription:", error)
@@ -514,7 +637,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{},
 			{
 				onResponse: () => {
-					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
 					navigateToMarketplace()
 				},
 				onError: (error: any) => {
@@ -528,7 +650,6 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		marketplaceButtonUnsubscribeRef.current = UiServiceClient.subscribeToMarketplaceButtonClicked(EmptyRequest.create({}), {
 			onResponse: () => {
-				console.log("[DEBUG] Received marketplaceButtonClicked event from gRPC stream")
 				navigateToMarketplace()
 			},
 			onError: (error: any) => {
@@ -545,7 +666,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{
 				onResponse: () => {
 					// When history button is clicked, navigate to history view
-					console.log("[DEBUG] Received history button clicked event from gRPC stream")
 					navigateToHistory()
 				},
 				onError: (error: any) => {
@@ -563,7 +683,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{
 				onResponse: () => {
 					// When chat button is clicked, navigate to chat
-					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
 					navigateToChat()
 				},
 				onError: (error: any) => {
@@ -576,7 +695,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to MCP servers updates
 		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
 			onResponse: (response: any) => {
-				console.log("[DEBUG] Received MCP servers update from gRPC stream")
 				if (response.mcpServers) {
 					setMcpServers(convertProtoMcpServersToMcpServers(response.mcpServers))
 				}
@@ -651,9 +769,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			onError: (error: any) => {
 				console.error("Error in partialMessage subscription:", error)
 			},
-			onComplete: () => {
-				console.log("[DEBUG] partialMessage subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		// Subscribe to OpenRouter models updates
@@ -688,19 +804,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Initialize webview using gRPC
-		UiServiceClient.initializeWebview(EmptyRequest.create({}))
-			.then(() => {
-				console.log("[DEBUG] Webview initialization completed via gRPC")
-			})
-			.catch((error) => {
-				console.error("Failed to initialize webview via gRPC:", error)
-			})
+		UiServiceClient.initializeWebview(EmptyRequest.create({})).catch((error) => {
+			console.error("Failed to initialize webview via gRPC:", error)
+		})
 
 		// Set up account button clicked subscription
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
 			onResponse: () => {
 				// When account button is clicked, navigate to account view
-				console.log("[DEBUG] Received account button clicked event from gRPC stream")
 				navigateToAccount()
 			},
 			onError: (error: any) => {

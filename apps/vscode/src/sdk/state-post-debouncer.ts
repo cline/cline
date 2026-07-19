@@ -25,6 +25,15 @@ export type StateDelta =
 	| { type: "update_message"; messageId: string; patch: Record<string, unknown>; version: number }
 	| { type: "replace_all"; messages: unknown[]; version: number }
 
+/**
+ * Variant of `StateDelta` without the `version` field, used by callers
+ * that let the debouncer auto-stamp the monotonically increasing version.
+ */
+export type DeltaPayload =
+	| { type: "append_message"; message: unknown }
+	| { type: "update_message"; messageId: string; patch: Record<string, unknown> }
+	| { type: "replace_all"; messages: unknown[] }
+
 export interface StatePostDebouncerOptions {
 	/** Trailing debounce window: bursts of post() calls within this window collapse into one flush. */
 	debounceMs: number
@@ -73,7 +82,7 @@ export class StatePostDebouncer {
 	 * The next full `post()` / `flush()` always carries the ground truth,
 	 * so a dropped delta is eventually reconciled.
 	 */
-	postDelta(delta: Omit<StateDelta, "version">): void {
+	postDelta(delta: DeltaPayload): void {
 		if (this.disposed || !this.options.sendDelta) return
 
 		const versioned: StateDelta = { ...delta, version: ++this.deltaVersion } as StateDelta

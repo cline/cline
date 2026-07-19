@@ -100,7 +100,7 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
-import { StatePostDebouncer } from "./state-post-debouncer"
+import { type DeltaPayload, StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
@@ -593,6 +593,7 @@ export class Controller {
 			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
+			postDeltaToWebview: (delta) => this.postDeltaToWebview(delta),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
@@ -1922,6 +1923,26 @@ export class Controller {
 			return Promise.resolve()
 		}
 		return this.statePostDebouncer.post()
+	}
+
+	/**
+	 * Send an incremental state delta to the webview without a full state rebuild.
+	 *
+	 * This is the preferred path for high-frequency updates (streaming messages,
+	 * partial message updates) because it only ships the changed data rather than
+	 * serializing and pushing the entire ExtensionState.
+	 *
+	 * Fire-and-forget: errors are logged but not propagated to callers.
+	 * The next full `postStateToWebview()` always carries ground truth, so a
+	 * dropped delta is eventually reconciled.
+	 *
+	 * @param delta The delta payload (type + payload, version is auto-stamped).
+	 */
+	postDeltaToWebview(delta: DeltaPayload): void {
+		if (this.isDisposed) {
+			return
+		}
+		this.statePostDebouncer.postDelta(delta)
 	}
 
 	/** Build the current ExtensionState and push it to the webview immediately. */

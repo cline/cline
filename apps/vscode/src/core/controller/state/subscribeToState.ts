@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
 import { telemetryService } from "@/services/telemetry"
 import { ExtensionState } from "@/shared/ExtensionMessage"
@@ -99,6 +99,15 @@ export interface StateDeltaMessage {
  * This is lighter-weight than sendStateUpdate() because it ships only
  * the changed fields instead of the full ExtensionState.
  *
+ * The delta is sent in the `deltaJson` field of the State proto message,
+ * NOT `stateJson`. The webview's ExtensionStateContext checks `deltaJson`
+ * first:
+ * - If present, it applies the delta through the convergent-replica reducer
+ *   (messageReducer.ts) and updates only the changed parts of its state.
+ * - If `stateJson` is also present in the same message, it is treated as
+ *   the ground-truth full snapshot and the delta is ignored.
+ * - If neither is present, the message is a heartbeat and skipped.
+ *
  * Fire-and-forget: errors are logged but not propagated. The next full
  * snapshot always carries ground truth.
  */
@@ -114,11 +123,36 @@ export async function sendStateDelta(delta: StateDeltaMessage): Promise<void> {
 	for (const responseStream of activeStateSubscriptions) {
 		responseStream(
 			{
-				stateJson: deltaJson,
+				stateJson: "", // sentinel: webview checks deltaJson first when present
+				deltaJson,
 			},
 			false,
 		).catch((error) => {
 			Logger.error("Error sending state delta:", error)
+			activeStateSubscriptions.delete(responseStream)
+		})
+	}
+}
+
+/**
+ * Handle a full-sync request from the webview.
+ *
+ * The webview calls this when it detects a version-hash mismatch or a
+ * gap in delta messages (self-healing protocol). The backend responds by
+ * sending the full current state snapshot through the subscription stream.
+ */
+export async function requestFullSync(controller: Controller, _request: StringRequest): Promise<void> {
+	const state = await controller.getStateToPostToWebview()
+	const stateJson = JSON.stringify(state)
+
+	for (const responseStream of activeStateSubscriptions) {
+		responseStream(
+			{
+				stateJson,
+			},
+			false,
+		).catch((error) => {
+			Logger.error("Error sending full sync state:", error)
 			activeStateSubscriptions.delete(responseStream)
 		})
 	}

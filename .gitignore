@@ -92,3 +92,11 @@ apps/examples/desktop-app/webview/.next
 
 # Next.js generated type shim (churns between dev and build)
 apps/examples/desktop-app/webview/next-env.d.ts
+
+# Architecture analysis / refactoring reports (not for upstream)
+docs/*-report.md
+docs/*-report-v*.md
+docs/*-analysis.md
+docs/*-analysis-v*.md
+docs/reports/
+docs/message-queue-implementation.md
