@@ -7,6 +7,7 @@ import { toSessionRecord } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionManifestSchema } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
+import { sanitizeSessionToken } from "../../session/models/session-graph";
 import type {
 	SessionHistoryMetadata,
 	SessionHistoryRecord,
@@ -154,7 +155,7 @@ async function listManifestHistoryRows(
 		);
 	const rows = await Promise.all(
 		candidateEntries.map(async ({ entry }) => {
-			const sessionId = entry.name.trim();
+			const sessionId = sanitizeSessionToken(entry.name.trim());
 			if (!sessionId) {
 				return undefined;
 			}
@@ -467,7 +468,7 @@ export async function listSessionHistory(
 async function readManifestMessagesPath(
 	sessionId: string,
 ): Promise<string | undefined> {
-	const target = sessionId.trim();
+	const target = sanitizeSessionToken(sessionId.trim());
 	if (!target) {
 		return undefined;
 	}

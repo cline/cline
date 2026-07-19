@@ -647,8 +647,9 @@ export class SqliteCronStore {
 		}
 		if (options.tags && options.tags.length > 0) {
 			for (const tag of options.tags) {
-				where.push("tags_json LIKE ?");
-				params.push(`%"${tag.trim()}"%`);
+				where.push("tags_json LIKE ? ESCAPE '\\'");
+				const escapedTag = tag.trim().replace(/%/g, "\\%").replace(/_/g, "\\_");
+				params.push(`%"${escapedTag}"%`);
 			}
 		}
 		const limit = Math.max(1, Math.floor(options.limit ?? 200));
