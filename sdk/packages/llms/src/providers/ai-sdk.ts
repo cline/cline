@@ -65,6 +65,12 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
+// AI SDK retries only errors explicitly marked retryable by provider adapters
+// and respects Retry-After while remaining abortable. Five retries cover a full
+// minute of the default 2/4/8/16/32-second backoff without retrying ordinary
+// client errors or continuing indefinitely.
+export const PROVIDER_MAX_RETRIES = 5;
+
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -1212,6 +1218,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: messages as never,
+					maxRetries: PROVIDER_MAX_RETRIES,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					abortSignal: request.signal,
