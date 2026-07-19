@@ -1,11 +1,12 @@
+import { accessSync, constants as fsConstants } from "node:fs";
+import { createRequire } from "node:module";
+import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
 // Keep this import static so the VS Code extension bundle includes the SAP
 // provider. Hiding it behind a computed dynamic import leaves the published
 // extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
 // runtime, but VSIX packaging uses the bundled extension output.
 import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider";
-import { createClaudeCode } from "ai-sdk-provider-claude-code";
-import { createCodexExec } from "ai-sdk-provider-codex-cli";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
@@ -24,10 +25,94 @@ function readOptions(
 	return (config.options as Record<string, unknown> | undefined) ?? {};
 }
 
+function findExecutableOnPath(name: string): string | undefined {
+	const extensions =
+		process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+		if (!dir) continue;
+		for (const ext of extensions) {
+			const candidate = join(dir, `${name}${ext}`);
+			try {
+				accessSync(candidate, fsConstants.X_OK);
+				return candidate;
+			} catch {
+				// not here; keep looking
+			}
+		}
+	}
+	return undefined;
+}
+
+// The agent SDK spawns a `claude` executable shipped in per-platform optional
+// packages (@anthropic-ai/claude-agent-sdk-<platform>-<arch>[-musl]). Those
+// are no longer installed by default (~250MB), so resolve an explicit path:
+// the bundled platform binary when present, otherwise a user-installed
+// Claude Code from PATH. The SDK's own resolution cannot be relied on here:
+// inside a Bun-compiled binary it anchors on the virtual bunfs, where
+// node_modules lookups never see packages on disk.
+function resolveClaudeExecutable(): string | undefined {
+	const suffixes =
+		process.platform === "linux"
+			? [
+					`${process.platform}-${process.arch}`,
+					`${process.platform}-${process.arch}-musl`,
+				]
+			: [`${process.platform}-${process.arch}`];
+	const executableName = process.platform === "win32" ? "claude.exe" : "claude";
+	// Anchor on the real executable location first so resolution works from
+	// compiled binaries; fall back to this module's location for plain node.
+	const anchors = [
+		join(dirname(process.execPath), "noop.js"),
+		import.meta.url,
+	];
+	for (const anchor of anchors) {
+		for (const suffix of suffixes) {
+			try {
+				const manifest = createRequire(anchor).resolve(
+					`@anthropic-ai/claude-agent-sdk-${suffix}/package.json`,
+				);
+				const executable = join(dirname(manifest), executableName);
+				accessSync(executable, fsConstants.X_OK);
+				return executable;
+			} catch {
+				// keep looking
+			}
+		}
+	}
+	return findExecutableOnPath("claude");
+}
+
 export async function createClaudeCodeProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
-	const provider = createClaudeCode(readOptions(config));
+	// Dynamic import is intentional: ai-sdk-provider-claude-code is an
+	// optional peer dependency so default installs skip its ~250MB
+	// @anthropic-ai/claude-agent-sdk platform binary. It also runs
+	// createClaudeCode() at module scope, so loading lazily contains that
+	// side effect to actual Claude Code usage.
+	let createClaudeCode: typeof import("ai-sdk-provider-claude-code").createClaudeCode;
+	try {
+		({ createClaudeCode } = await import("ai-sdk-provider-claude-code"));
+	} catch (error) {
+		throw new Error(
+			"The Claude Code provider requires the optional 'ai-sdk-provider-claude-code' package. " +
+				"Install it alongside @cline/llms to use this provider.",
+			{ cause: error },
+		);
+	}
+	const options = readOptions(config);
+	const defaultSettings =
+		(options.defaultSettings as Record<string, unknown> | undefined) ?? {};
+	if (defaultSettings.pathToClaudeCodeExecutable === undefined) {
+		const executable = resolveClaudeExecutable();
+		if (executable !== undefined) {
+			options.defaultSettings = {
+				...defaultSettings,
+				pathToClaudeCodeExecutable: executable,
+			};
+		}
+	}
+	const provider = createClaudeCode(options);
 	return {
 		model: (modelId) => provider(modelId),
 	};
@@ -36,6 +121,20 @@ export async function createClaudeCodeProviderModule(
 export async function createOpenAICodexProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
+	// Dynamic import is intentional: ai-sdk-provider-codex-cli is an optional
+	// peer dependency so default installs skip its ~105MB @openai/codex
+	// optional dependency. The provider itself degrades gracefully when the
+	// bundled binary is absent (npx -y @openai/codex, then `codex` on PATH).
+	let createCodexExec: typeof import("ai-sdk-provider-codex-cli").createCodexExec;
+	try {
+		({ createCodexExec } = await import("ai-sdk-provider-codex-cli"));
+	} catch (error) {
+		throw new Error(
+			"The OpenAI Codex provider requires the optional 'ai-sdk-provider-codex-cli' package. " +
+				"Install it alongside @cline/llms to use this provider.",
+			{ cause: error },
+		);
+	}
 	const provider = createCodexExec(readOptions(config));
 	return {
 		model: (modelId) => provider(modelId),
