@@ -68,7 +68,15 @@ export const AuthSettingsSchema = z.object({
 
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
 
-const ReasoningLevelSchema = z.enum(["none", "low", "medium", "high", "xhigh"]);
+const ReasoningLevelSchema = z.enum([
+	"none",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+]);
 
 export const ReasoningSettingsSchema = z.object({
 	enabled: z.boolean().optional(),

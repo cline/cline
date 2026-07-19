@@ -1,4 +1,4 @@
-import { isClineProvider } from "@cline/shared";
+import { type GatewayReasoningEffort, isClineProvider } from "@cline/shared";
 import {
 	isDeepSeekFamily,
 	isGemini3Model,
@@ -127,10 +127,28 @@ function buildReasoningPatchForProvider(
 }
 
 const GEMINI_25_THINKING_BUDGET_BY_EFFORT = {
+	minimal: 128,
 	low: 1_024,
 	medium: 8_192,
 	high: 24_576,
+	xhigh: 24_576,
+	max: 24_576,
 } as const;
+
+function toGemini3ThinkingLevel(
+	effort: GatewayReasoningEffort,
+): "minimal" | "low" | "medium" | "high" {
+	switch (effort) {
+		case "minimal":
+		case "low":
+		case "medium":
+		case "high":
+			return effort;
+		case "xhigh":
+		case "max":
+			return "high";
+	}
+}
 
 function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 	| {
@@ -155,7 +173,7 @@ function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 			return undefined;
 		}
 		return {
-			thinkingLevel: reasoning.effort,
+			thinkingLevel: toGemini3ThinkingLevel(reasoning.effort),
 			includeThoughts: true,
 		};
 	}

@@ -4,6 +4,7 @@ import type {
 	GatewayProviderContext,
 	GatewayProviderManifest,
 	GatewayProviderMetadata,
+	GatewayReasoningEffort,
 	GatewayStreamRequest,
 } from "@cline/shared";
 import {
@@ -17,10 +18,29 @@ import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
 const ANTHROPIC_REASONING_EFFORT_BUDGET_RATIOS: Record<string, number> = {
+	minimal: 0.1,
 	low: 0.2,
 	medium: 0.5,
 	high: 0.8,
+	xhigh: 0.95,
+	max: 1,
 };
+
+export function toAnthropicAdaptiveEffort(
+	effort: GatewayReasoningEffort,
+): "low" | "medium" | "high" | "max" {
+	switch (effort) {
+		case "minimal":
+		case "low":
+			return "low";
+		case "medium":
+		case "high":
+			return effort;
+		case "xhigh":
+		case "max":
+			return "max";
+	}
+}
 
 export type AnthropicReasoningRequestPolicy =
 	| { kind: "none" }
@@ -436,7 +456,7 @@ export function buildAnthropicProviderOptions(
 
 	return {
 		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort
-			? { effort: request.reasoning.effort }
+			? { effort: toAnthropicAdaptiveEffort(request.reasoning.effort) }
 			: {}),
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
@@ -520,7 +540,7 @@ export function buildAnthropicCompatibleReasoningOptions(
 		reasoning.enabled = true;
 	}
 	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
-		reasoning.effort = request.reasoning.effort;
+		reasoning.effort = toAnthropicAdaptiveEffort(request.reasoning.effort);
 	}
 	if (typeof request.reasoning?.budgetTokens === "number") {
 		reasoning.max_tokens = request.reasoning.budgetTokens;
@@ -587,6 +607,11 @@ export function buildGatewayReasoningOptions(
 		// reasoning. Remove once routed providers normalize disabled reasoning
 		// consistently, or replace with a systematic model policy.
 		!modelRejectsDisabledReasoning(request.modelId);
+	const effort = request.reasoning?.effort
+		? policy.kind === "anthropic-adaptive"
+			? toAnthropicAdaptiveEffort(request.reasoning.effort)
+			: request.reasoning.effort
+		: undefined;
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
@@ -595,9 +620,7 @@ export function buildGatewayReasoningOptions(
 				: request.reasoning?.effort
 					? { enabled: true }
 					: {}),
-		...(request.reasoning?.effort && policy.kind !== "anthropic-manual"
-			? { effort: request.reasoning.effort }
-			: {}),
+		...(effort && policy.kind !== "anthropic-manual" ? { effort } : {}),
 	};
 
 	if (typeof budgetTokens === "number" && budgetTokens >= 0) {

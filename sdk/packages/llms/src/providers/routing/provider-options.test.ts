@@ -598,6 +598,25 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
+			name: "openrouter preserves exact maximum reasoning effort",
+			request: {
+				providerId: "openrouter",
+				modelId: "moonshotai/reasoning-model",
+				reasoning: { effort: "max" },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "max" } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
 			name: "openrouter reasoning enabled-only -> reasoning.enabled",
 			request: {
 				providerId: "openrouter",

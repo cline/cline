@@ -359,10 +359,12 @@ function resolveReasoning(
 		.find(Boolean);
 	const effort =
 		rawEffort === "none" ||
+		rawEffort === "minimal" ||
 		rawEffort === "low" ||
 		rawEffort === "medium" ||
 		rawEffort === "high" ||
-		rawEffort === "xhigh"
+		rawEffort === "xhigh" ||
+		rawEffort === "max"
 			? rawEffort
 			: undefined;
 	const normalizedBudget =

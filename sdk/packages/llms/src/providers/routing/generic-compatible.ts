@@ -12,6 +12,7 @@ import {
 	resolveAnthropicReasoningRequestPolicy,
 	resolveReasoningRoute,
 	shouldApplyPromptCache,
+	toAnthropicAdaptiveEffort,
 } from "./anthropic-compatible";
 import type {
 	AiSdkProviderOptionsTarget,
@@ -81,10 +82,10 @@ function buildCompatibleEffortOptions(options: {
 		typeof resolveAnthropicReasoningRequestPolicy
 	>["kind"];
 }): Record<string, unknown> {
-	const effort = options.reasoning?.effort;
+	const rawEffort = options.reasoning?.effort;
 	if (
 		options.suppressions.genericEffort ||
-		!effort ||
+		!rawEffort ||
 		options.reasoning?.enabled === false ||
 		options.suppressEffortOptions
 	) {
@@ -96,6 +97,9 @@ function buildCompatibleEffortOptions(options: {
 	if (!allowEffort) {
 		return {};
 	}
+	const effort = options.usesAnthropicReasoningRoute
+		? toAnthropicAdaptiveEffort(rawEffort)
+		: rawEffort;
 	return {
 		effort,
 		reasoningEffort: effort,

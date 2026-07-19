@@ -402,6 +402,40 @@ describe("createGatewayApiHandler.createMessage", () => {
 		);
 	});
 
+	it("preserves maximum reasoning effort on OpenRouter requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "reasoning-model",
+			apiKey: "test-key",
+			thinking: true,
+			reasoningEffort: "max",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { effort: "max" },
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {

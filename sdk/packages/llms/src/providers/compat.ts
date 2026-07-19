@@ -431,14 +431,7 @@ function buildGatewayRequest(
 			config.thinkingBudgetTokens !== undefined
 				? {
 						enabled: config.thinking,
-						effort:
-							config.reasoningEffort === "xhigh"
-								? "high"
-								: config.reasoningEffort === "low" ||
-										config.reasoningEffort === "medium" ||
-										config.reasoningEffort === "high"
-									? config.reasoningEffort
-									: undefined,
+						effort: config.reasoningEffort,
 						budgetTokens: config.thinkingBudgetTokens,
 					}
 				: undefined,

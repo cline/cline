@@ -292,7 +292,7 @@ export interface SaveProviderSettingsActionRequest {
 	// Reasoning/thinking configuration
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "none" | "low" | "medium" | "high" | "xhigh";
+		effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 		budgetTokens?: number;
 	};
 	// AWS/Bedrock configuration
