@@ -4253,6 +4253,30 @@ export const GENERATED_PROVIDER_MODELS: {
 				family: "glm",
 				description: "Best open weights model",
 			},
+			"cline-pass/kimi-k3": {
+				name: "Kimi K3",
+				id: "cline-pass/kimi-k3",
+				contextWindow: 1048576,
+				maxInputTokens: 1048576,
+				maxTokens: 1048576,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 3,
+					output: 15,
+					cacheRead: 0.3,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-07-16",
+				family: "kimi-k3",
+				description:
+					"Leading open weights model (reliability might be unstable and will consume usage faster than others)",
+			},
 			"cline-pass/deepseek-v4-pro": {
 				name: "DeepSeek V4 Pro",
 				id: "cline-pass/deepseek-v4-pro",
