@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 3.0.46
+
+- Fixed out-of-credits detection so the CLI reliably recognizes the Cline API's real `insufficient_credits` (402) error and shows the "add credits" card instead of a generic error
+
 ## 3.0.45
 
 - Smaller install: the Claude Code and Codex providers are now optional and loaded on demand, cutting `npm i -g cline` from ~640MB to ~285MB (from SDK v0.0.65)
