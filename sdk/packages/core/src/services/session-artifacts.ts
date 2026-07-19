@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import {
 	parseSubSessionId,
 	parseTeamTaskSubSessionId,
+	sanitizeSessionToken,
 } from "../session/models/session-graph";
 
 export function nowIso(): string {
@@ -61,7 +62,7 @@ export class SessionArtifacts {
 	constructor(private readonly ensureSessionsDir: () => string) {}
 
 	public sessionArtifactsDir(sessionId: string): string {
-		return join(this.ensureSessionsDir(), sessionId);
+		return join(this.ensureSessionsDir(), sanitizeSessionToken(sessionId));
 	}
 
 	public ensureSessionArtifactsDir(sessionId: string): string {
@@ -73,24 +74,27 @@ export class SessionArtifacts {
 	}
 
 	public sessionMessagesPath(sessionId: string): string {
+		const sanitized = sanitizeSessionToken(sessionId);
 		return join(
 			this.sessionArtifactsDir(sessionId),
-			`${sessionId}.messages.json`,
+			`${sanitized}.messages.json`,
 		);
 	}
 
 	public sessionCompactionPath(sessionId: string): string {
+		const sanitized = sanitizeSessionToken(sessionId);
 		return join(
 			this.sessionArtifactsDir(sessionId),
-			`${sessionId}.compaction.json`,
+			`${sanitized}.compaction.json`,
 		);
 	}
 
 	public sessionManifestPath(sessionId: string, ensureDir = false): string {
+		const sanitized = sanitizeSessionToken(sessionId);
 		const base = ensureDir
 			? this.ensureSessionArtifactsDir(sessionId)
 			: this.sessionArtifactsDir(sessionId);
-		return join(base, `${sessionId}.json`);
+		return join(base, `${sanitized}.json`);
 	}
 
 	public removeSessionDirIfEmpty(sessionId: string): void {

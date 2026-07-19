@@ -134,6 +134,7 @@ import {
 	readPersistedMessagesFile,
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
+import { sanitizeSessionToken } from "../../session/models/session-graph";
 
 const MAX_SCAN_LIMIT = 5000;
 
@@ -291,7 +292,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sid,
 					messages,
 					systemPrompt,
-				);
+				).catch((error) => {
+					configWithProvider.logger?.error?.(
+						"Failed to persist session messages",
+						{ sessionId: sid, error },
+					);
+				});
 			},
 			enqueuePendingPrompt: (sid, entry) =>
 				this.pendingPromptsController.enqueue(sid, entry),
@@ -329,7 +335,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
-		const sessionId = requestedSessionId || createSessionId();
+		const rawSessionId = requestedSessionId || createSessionId();
+		const sessionId = sanitizeSessionToken(rawSessionId);
 		const startInput: StartSessionInput =
 			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
@@ -454,10 +461,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionId,
 					event,
 					pluginEventFallbackAutomation,
-				);
+				).catch((error) => {
+					configWithProvider.logger?.error?.(
+						"Failed to handle plugin event",
+						{ sessionId, error },
+					);
+				});
 			},
 			onTeamEvent: (event: TeamEvent) => {
-				void this.eventBridge.handleTeamEvent(sessionId, event);
+				void this.eventBridge.handleTeamEvent(sessionId, event).catch(
+					(error) => {
+						configWithProvider.logger?.error?.(
+							"Failed to handle team event",
+							{ sessionId, error },
+						);
+					},
+				);
 				bootstrap.config.onTeamEvent?.(event);
 			},
 			createSpawnTool: () =>
@@ -921,7 +940,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 				return result;
 			}
 			queueMicrotask(() => {
-				void this.pendingPromptsController.drain(input.sessionId);
+				void this.pendingPromptsController.drain(input.sessionId).catch(
+					(error) => {
+						session.config.logger?.error?.(
+							"Failed to drain pending prompts",
+							{ sessionId: input.sessionId, error },
+						);
+					},
+				);
 			});
 			return result;
 		} catch (error) {
@@ -1029,12 +1055,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (active) {
 			return toActiveSessionRecord(active);
 		}
+		const sanitized = sanitizeSessionToken(sessionId);
+		if (sanitized !== sessionId) {
+			const activeSanitized = this.sessions.get(sanitized);
+			if (activeSanitized) {
+				return toActiveSessionRecord(activeSanitized);
+			}
+		}
 		const target = sessionId.trim();
 		if (!target) return undefined;
 		const row = await this.getRow(target);
 		if (row) return toSessionRecord(row);
+		if (sanitized !== target) {
+			const sanitizedRow = await this.getRow(sanitized);
+			if (sanitizedRow) return toSessionRecord(sanitizedRow);
+		}
 		const manifest = await this.readManifest(target);
-		return manifest ? manifestToSessionRecord(manifest) : undefined;
+		if (manifest) return manifestToSessionRecord(manifest);
+		if (sanitized !== target) {
+			const sanitizedManifest = await this.readManifest(sanitized);
+			if (sanitizedManifest) return manifestToSessionRecord(sanitizedManifest);
+		}
+		return undefined;
 	}
 
 	async listSessions(limit = 200): Promise<SessionRecord[]> {
@@ -2219,7 +2261,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private emitStatus(sessionId: string, status: string): void {
-		void this.emitSessionSnapshot(sessionId);
+		void this.emitSessionSnapshot(sessionId).catch(() => {});
 		this.emit({
 			type: "status",
 			payload: { sessionId, status },

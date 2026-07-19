@@ -82,7 +82,7 @@ export function createSessionSubAgentLifecycleCallbacks(
 				"handleSubAgentStart",
 				rootSessionId,
 				context,
-			);
+			).catch(() => {});
 		},
 		onSubAgentEnd: (context) => {
 			const teamRuntime = deps.getSession(rootSessionId)?.runtime.teamRuntime;
@@ -113,7 +113,7 @@ export function createSessionSubAgentLifecycleCallbacks(
 				"handleSubAgentEnd",
 				rootSessionId,
 				context,
-			);
+			).catch(() => {});
 		},
 	};
 }

@@ -288,7 +288,7 @@ export class PendingPromptsController {
 			return;
 		}
 		queueMicrotask(() => {
-			void this.drain(sessionId);
+			void this.drain(sessionId).catch(() => {});
 		});
 	}
 
@@ -328,7 +328,7 @@ export class PendingPromptsController {
 				session.status !== "cancelled"
 			) {
 				queueMicrotask(() => {
-					void this.drain(sessionId);
+					void this.drain(sessionId).catch(() => {});
 				});
 			}
 		}
