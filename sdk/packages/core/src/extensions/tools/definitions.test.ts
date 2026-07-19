@@ -571,6 +571,14 @@ describe("default run_commands tool", () => {
 			.filter((event) => event.event === "sdk.tool_timeout");
 	}
 
+	it("warns against broad process matching that can kill the harness", () => {
+		const tool = createShellTool(async () => "ok");
+
+		expect(tool.description).toContain("capture its PID or process group");
+		expect(tool.description).toContain("pkill -f");
+		expect(tool.description).toContain("parent command line");
+	});
+
 	it("reads telemetry from the internal metadata key", () => {
 		const telemetry = createTelemetryStub();
 
