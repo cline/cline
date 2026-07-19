@@ -1,5 +1,14 @@
 # Cline CLI Changelog
 
+## 3.0.45
+
+- Smaller install: the Claude Code and Codex providers are now optional and loaded on demand, cutting `npm i -g cline` from ~640MB to ~285MB (from SDK v0.0.65)
+- Kimi K3 is now available as a ClinePass model (from SDK v0.0.65)
+- Runs now retry once after refreshing expired OAuth credentials (from SDK v0.0.65)
+- Team runs: the spawn tool is no longer exposed to teammates, and errored teammate runs now report as failed instead of completed (from SDK v0.0.65)
+- Hub status output now includes version numbers
+- Updated the bundled model catalog (from SDK v0.0.65)
+
 ## 3.0.44
 
 - Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models) (from SDK v0.0.64)
