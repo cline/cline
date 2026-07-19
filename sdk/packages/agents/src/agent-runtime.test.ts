@@ -69,6 +69,50 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("fails a turn that hits the model output token limit before completion", async () => {
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, logger });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		expect(model.requests).toHaveLength(1);
+		expect(result.messages).toHaveLength(2);
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "reasoning", text: "thinking..." }],
+		});
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agent loop caught error",
+			expect.objectContaining({
+				severity: "error",
+				status: "failed",
+				errorMessage: expect.stringContaining("maximum output token limit"),
+				iteration: 1,
+				assistantContentPartCount: 1,
+			}),
+		);
+		expect(logger.error).toHaveBeenCalledWith(
+			"Agent run failed",
+			expect.objectContaining({
+				error: expect.objectContaining({
+					message: expect.stringContaining("maximum output token limit"),
+				}),
+			}),
+		);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
@@ -1725,6 +1769,14 @@ describe("AgentRuntime", () => {
 
 		expect(result.status).toBe("failed");
 		expect(events).toContain("run-failed");
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agent loop caught error",
+			expect.objectContaining({
+				severity: "error",
+				status: "failed",
+				errorMessage: "model failed",
+			}),
+		);
 		expect(logger.error).toHaveBeenCalled();
 		expect(telemetry.capture).toHaveBeenCalled();
 	});

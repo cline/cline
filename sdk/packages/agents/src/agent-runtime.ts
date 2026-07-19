@@ -34,6 +34,9 @@ import {
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
+const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
+	"Model reached the maximum output token limit before completing the turn";
+
 // Local `createUID` helper. The clinee source imports this from
 // `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
 // sdk-re's shared package does not expose it yet. Inlining here keeps
@@ -645,6 +648,9 @@ export class AgentRuntime {
 					finishReason,
 				});
 
+				if (finishReason === "max-tokens" && toolCalls.length === 0) {
+					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+				}
 				if (finishReason === "error" && toolCalls.length === 0) {
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
@@ -718,23 +724,33 @@ export class AgentRuntime {
 			const normalized =
 				error instanceof Error ? error : new Error(String(error));
 			const isControlledStop = normalized instanceof ControlledStopError;
-			const status =
-				this.abortController.signal.aborted || isControlledStop
-					? "aborted"
-					: "failed";
+			const isAborted = this.abortController.signal.aborted || isControlledStop;
+			const status = isAborted ? "aborted" : "failed";
 			this.state.status = status;
 			this.state.lastError = normalized.message;
+			const lastAssistantMessage = this.findLastAssistantMessage();
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
 				agentRole: this.state.agentRole,
 				runId: this.state.runId ?? createUID("run"),
 				status,
 				iterations: this.state.iteration,
-				outputText: textFromMessage(this.findLastAssistantMessage()),
+				outputText: textFromMessage(lastAssistantMessage),
 				messages: cloneMessages(this.state.messages),
 				usage: cloneUsage(this.state.usage),
 				error: status === "failed" ? normalized : undefined,
 			};
+			this.config.logger?.log?.("Agent loop caught error", {
+				severity: status === "failed" ? "error" : "warn",
+				agentId: this.state.agentId,
+				agentRole: this.state.agentRole,
+				runId: result.runId,
+				status,
+				iteration: this.state.iteration,
+				errorName: normalized.name,
+				errorMessage: normalized.message,
+				assistantContentPartCount: lastAssistantMessage?.content.length ?? 0,
+			});
 			await this.callAfterRunHooks(result);
 			if (status === "failed") {
 				await this.emit({

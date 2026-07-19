@@ -9,6 +9,7 @@ import {
 } from "@cline/core";
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
+import { version as cliVersion } from "../../package.json";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
@@ -134,6 +135,8 @@ export function createHubCommand(
 					pid: health?.pid,
 					startedAt: health?.startedAt,
 					uptime,
+					cliVersion,
+					coreVersion: health?.coreVersion ?? discovery?.coreVersion,
 				}),
 			);
 		}),

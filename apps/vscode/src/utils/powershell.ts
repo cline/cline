@@ -1,6 +1,6 @@
 import * as childProcess from "child_process"
 import { Logger } from "@/shared/services/Logger"
-import { WINDOWS_POWERSHELL_7_PATH, WINDOWS_POWERSHELL_LEGACY_PATH } from "./shell"
+import { getWindowsPwshInstallPaths, WINDOWS_POWERSHELL_LEGACY_PATH } from "./shell"
 
 const POWERSHELL_PROBE_TIMEOUT_MS = 1200
 
@@ -16,14 +16,7 @@ export function getFallbackWindowsPowerShellPath(): string {
 }
 
 export function getWindowsPowerShellCandidates(): string[] {
-	const programFiles = process.env.ProgramW6432 || process.env.ProgramFiles || "C:\\Program Files"
-
-	const envAbsoluteCandidates = [
-		`${programFiles}\\PowerShell\\7\\pwsh.exe`,
-		`${programFiles}\\PowerShell\\6\\pwsh.exe`,
-		WINDOWS_POWERSHELL_7_PATH,
-		WINDOWS_POWERSHELL_LEGACY_PATH,
-	]
+	const envAbsoluteCandidates = [...getWindowsPwshInstallPaths(), WINDOWS_POWERSHELL_LEGACY_PATH]
 
 	const commandNameFallbacks = ["pwsh.exe", "pwsh", "powershell.exe", "powershell"]
 
