@@ -309,3 +309,62 @@ describe("loadIndividualSubscriptionPlans", () => {
 		expect(result).toEqual(plans);
 	});
 });
+
+describe("isClineAccountCreditsErrorMessage", () => {
+	it("matches the raw insufficient_credits JSON payload from the Cline API 402", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				'{"code":"insufficient_credits","current_balance":-0.14,"message":"Not enough credits available"}',
+			),
+		).toBe(true);
+	});
+
+	it("matches the insufficient_credits payload wrapped in an error prefix", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				'Error: {"code":"insufficient_credits","current_balance":0,"message":"Not enough credits available"}',
+			),
+		).toBe(true);
+	});
+
+	it("matches the plain human-readable Cline API message", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage("Not enough credits available"),
+		).toBe(true);
+	});
+
+	it("matches the legacy insufficient balance phrasing", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				"Insufficient balance. Your Cline credits balance is $0.00.",
+			),
+		).toBe(true);
+	});
+
+	it("does not match unrelated errors", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(isClineAccountCreditsErrorMessage("Payment Required")).toBe(false);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				"Your credit balance is too low to access the Anthropic API.",
+			),
+		).toBe(false);
+		expect(
+			isClineAccountCreditsErrorMessage("insufficient balance on gateway"),
+		).toBe(false);
+	});
+});

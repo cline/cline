@@ -9,6 +9,7 @@ import {
 	type ProviderCapability,
 	type ProviderConfigField,
 } from "@cline/shared";
+import { GENERATED_PROVIDER_MODELS } from "../catalog/catalog.generated";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import {
 	isCanonicalModelIdForAliasRules,
@@ -307,7 +308,13 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	const generatedModelList = Object.keys(generatedModels(providerId));
+	// Use the catalog's authored order, not release-date order. The cline-pass
+	// block mirrors the recommended-models endpoint, which lists the intended
+	// default subscription model first — the newest model is not necessarily a
+	// safe default.
+	const generatedModelList = Object.keys(
+		GENERATED_PROVIDER_MODELS.providers[providerId] ?? {},
+	);
 	if (!generatedModelList.length) {
 		return "";
 	}
