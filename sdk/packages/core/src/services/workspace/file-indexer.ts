@@ -247,11 +247,14 @@ class FileIndexWorkerClient {
 	requestIndex(cwd: string): Promise<string[] | null> {
 		const requestId = ++this.nextRequestId;
 		const result = new Promise<string[] | null>((resolve, reject) => {
+			// Keep the timeout referenced. A foreground caller may be awaiting this
+			// request while the worker itself is unref'ed; if both were unref'ed,
+			// Node/Bun could exit successfully before either the worker response or
+			// fallback timeout settles the promise.
 			const timeout = setTimeout(() => {
 				this.pending.delete(requestId);
 				resolve(null);
 			}, WORKER_INDEX_REQUEST_TIMEOUT_MS);
-			timeout.unref();
 			this.pending.set(requestId, {
 				resolve: (files) => {
 					clearTimeout(timeout);
