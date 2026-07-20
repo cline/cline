@@ -706,7 +706,7 @@ export function ChatInputBar({
 													value={editingQueuedPromptValue}
 												/>
 											) : (
-												<div className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-foreground">
+												<div className="line-clamp-2 whitespace-pre-wrap wrap-break-word text-xs text-foreground">
 													{item.prompt}
 												</div>
 											)}
@@ -1097,7 +1097,7 @@ export function ChatInputBar({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="h-7 min-w-[5.75rem] gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-2"
+							className="h-7 min-w-23 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-2"
 							size="sm"
 							title={
 								modelSupportsReasoning === false
