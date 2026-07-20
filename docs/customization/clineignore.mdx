@@ -119,7 +119,7 @@ To keep context manageable, scope your tasks tightly.
 
 ## Restricting File Access with a Plugin
 
-While `.clineignore` is being phased out, you can achieve a stronger, enforced restriction on **file reads and edits** using the [Block Ignored File Access](/sdk/plugin-examples#block-ignored-file-access) plugin example.
+While `.clineignore` is being phased out, you can achieve a stronger, enforced restriction on **file reads and edits** using the [Block Ignored File Access](https://docs.cline.bot/sdk/plugin-examples#block-ignored-file-access) plugin example.
 
 Unlike `.clineignore` (a context filter that can still be bypassed via `@` mentions or shell commands), this plugin uses a `beforeTool` runtime hook to actively **block** tool calls: when `read_files`, `editor`, or `apply_patch` targets a file ignored by your workspace `.gitignore`, the hook returns `{ skip: true }` and the tool records a policy error instead of accessing the file.
 
