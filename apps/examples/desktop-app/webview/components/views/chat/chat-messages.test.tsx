@@ -90,4 +90,82 @@ describe("ChatMessages tool disclosures", () => {
 			"workspace selector",
 		);
 	});
+
+	it("groups consecutive tool calls and combines matching activity totals", async () => {
+		const tools: ChatMessage[] = [
+			{
+				id: "read",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["one.ts", "two.ts"] },
+					result: {},
+				}),
+				createdAt: 1,
+			},
+			...["one.ts", "two.ts", "three.ts", "four.ts"].map(
+				(path, index): ChatMessage => ({
+					id: `edit-${index}`,
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "editor",
+						input: { path, old_text: "before", new_text: "after" },
+						result: {},
+					}),
+					createdAt: index + 2,
+				}),
+			),
+		];
+
+		await renderMessages(tools);
+
+		expect(container.textContent).toContain("Read 2 files. Edited 4 files");
+		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
+	});
+
+	it("starts a new tool group after non-tool content", async () => {
+		const tool = (id: string, createdAt: number): ChatMessage => ({
+			id,
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: [`${id}.ts`] },
+				result: {},
+			}),
+			createdAt,
+		});
+
+		await renderMessages([
+			tool("first", 1),
+			{
+				id: "assistant",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Between tools",
+				createdAt: 2,
+			},
+			tool("second", 3),
+		]);
+
+		expect(container.textContent?.match(/Read 1 file/g)).toHaveLength(2);
+	});
+
+	it("renders configured subagent tools as agent activity", async () => {
+		await renderMessages([
+			{
+				id: "configured-subagent",
+				sessionId: "session-1",
+				role: "tool",
+				content: "not-json",
+				createdAt: 1,
+				meta: { toolName: "subagent_subagent" },
+			},
+		]);
+
+		expect(container.textContent).toContain("Spawned agent");
+		expect(container.textContent).not.toContain("subagent_subagent");
+	});
 });
