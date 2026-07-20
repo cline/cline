@@ -5,25 +5,14 @@ description: "Control which files and directories Cline can access in your proje
 ---
 
 <Warning>
-  **The `.clineignore` feature will be deprecated soon.**
+  **`.clineignore` will be deprecated soon.**
 
-  `.clineignore` helps reduce automatic context, but it is not a reliable access-control boundary. Ignored files can still be read when referenced explicitly with `@` mentions or accessed through shell commands, so we're moving away from it as a supported feature.
-
+  `.clineignore` filters what Cline loads automatically, but it is not a security or access-control boundary — ignored files can still be read via explicit `@` mentions or shell commands. We're moving away from it as a supported feature.
 </Warning>
-
-## Deprecation
-
-`.clineignore` will be deprecated soon. The rationale:
-
-- **Ignore rules are context filters, not security controls.** `.clineignore` only filters what Cline loads automatically; however, it is hard and nearly impossible to prevent agent access to matching files. Ignored files can still be read through explicit `@` mentions or shell commands, and `.clineignore` should not be treated as a security or access-control boundary.
-
-To keep context manageable, scope your tasks tightly.
 
 ## Restricting File Access with a Plugin
 
-While `.clineignore` is being phased out, you can achieve a stronger, enforced restriction on **file reads and edits** using the [Block Ignored File Access](https://docs.cline.bot/sdk/plugin-examples#block-ignored-file-access) plugin example.
-
-Unlike `.clineignore` (a context filter that can still be bypassed via `@` mentions or shell commands), this plugin uses a `beforeTool` runtime hook to actively **block** tool calls: when `read_files`, `editor`, or `apply_patch` targets a file ignored by your workspace `.gitignore`, the hook returns `{ skip: true }` and the tool records a policy error instead of accessing the file.
+While `.clineignore` is being phased out, you can get a stronger, enforced restriction on **file reads and edits** with the [Block Ignored File Access](https://docs.cline.bot/sdk/plugin-examples#block-ignored-file-access) Cline plugin example. Unlike `.clineignore`, it uses a `beforeTool` runtime hook to actively **block** tool calls: when `read_files`, `editor`, or `apply_patch` targets a file ignored by your workspace's `.gitignore` file. 
 
 Install it into your project with:
 
@@ -133,7 +122,7 @@ When Cline scans your project to build context, it checks each file path against
 - Automatic context gathering during conversations
 - Search results when Cline looks for relevant code
 
-You can still reference ignored files explicitly using [@ mentions](/core-workflows/working-with-files). If you type `@/node_modules/some-package/index.js`, Cline will read that specific file even though `node_modules/` is in your `.clineignore`. The ignore rules control automatic loading, not explicit access.
+As noted above, explicit [@ mentions](/core-workflows/working-with-files) still bypass these rules — for example, `@/node_modules/some-package/index.js` reads that file even though `node_modules/` is ignored. Ignore rules control automatic loading, not explicit access.
 
 <Note>
 `.clineignore` is separate from `.gitignore`. Files tracked by Git but irrelevant to Cline (like large test fixtures or data files) should go in `.clineignore` even if they're not in `.gitignore`.
@@ -141,7 +130,6 @@ You can still reference ignored files explicitly using [@ mentions](/core-workfl
 
 ## Tips
 
-- Add `.clineignore` early in your project. It's easier to start with broad exclusions and narrow them than to debug why context is bloated later.
 - Check your token usage in the task header after adding a `.clineignore`. The difference is often dramatic.
 - If Cline seems to be missing context about a file, check whether it's being excluded by your ignore patterns.
 - For monorepos or multi-root workspaces, each workspace root can have its own `.clineignore`. See [Multi-Root Workspaces](/features/multiroot-workspace) for details.
