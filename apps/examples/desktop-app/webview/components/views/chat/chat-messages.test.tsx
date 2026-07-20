@@ -125,6 +125,48 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
 	});
 
+	it("preserves interleaved tool activity order", async () => {
+		const read = (
+			id: string,
+			path: string,
+			createdAt: number,
+		): ChatMessage => ({
+			id,
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: [path] },
+				result: {},
+			}),
+			createdAt,
+		});
+
+		await renderMessages([
+			read("read-before", "before.ts", 1),
+			{
+				id: "edit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: {
+						path: "change.ts",
+						old_text: "before",
+						new_text: "after",
+					},
+					result: {},
+				}),
+				createdAt: 2,
+			},
+			read("read-after", "after.ts", 3),
+		]);
+
+		expect(container.textContent).toContain(
+			"Read 1 file. Edited 1 file. Read 1 file",
+		);
+	});
+
 	it("starts a new tool group after non-tool content", async () => {
 		const tool = (id: string, createdAt: number): ChatMessage => ({
 			id,

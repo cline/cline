@@ -1305,39 +1305,48 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 		return presentations[0]?.summary.label ?? "Tool";
 	}
 
-	const segments: Array<{
-		label?: string;
-		aggregate?: NonNullable<ToolSummary["aggregate"]> & {
-			inProgress: boolean;
-		};
-	}> = [];
-	const aggregates = new Map<
-		string,
-		NonNullable<ToolSummary["aggregate"]> & { inProgress: boolean }
-	>();
+	type Segment =
+		| { type: "label"; label: string }
+		| {
+				type: "aggregate";
+				aggregate: NonNullable<ToolSummary["aggregate"]> & {
+					inProgress: boolean;
+				};
+		  };
+	const segments: Segment[] = [];
 	for (const presentation of presentations) {
 		const aggregate = presentation.summary.aggregate;
 		if (!aggregate) {
-			segments.push({ label: presentation.summary.label });
+			segments.push({ type: "label", label: presentation.summary.label });
 			continue;
 		}
-		const existing = aggregates.get(aggregate.key);
-		if (existing) {
-			existing.count += aggregate.count;
-			existing.inProgress ||= presentation.inProgress;
+
+		const previous = segments.at(-1);
+		if (
+			previous?.type === "aggregate" &&
+			previous.aggregate.key === aggregate.key
+		) {
+			segments[segments.length - 1] = {
+				type: "aggregate",
+				aggregate: {
+					...previous.aggregate,
+					count: previous.aggregate.count + aggregate.count,
+					inProgress: previous.aggregate.inProgress || presentation.inProgress,
+				},
+			};
 			continue;
 		}
-		const grouped = {
-			...aggregate,
-			inProgress: presentation.inProgress,
-		};
-		aggregates.set(aggregate.key, grouped);
-		segments.push({ aggregate: grouped });
+
+		segments.push({
+			type: "aggregate",
+			aggregate: { ...aggregate, inProgress: presentation.inProgress },
+		});
 	}
 
 	return segments
-		.map(({ label, aggregate }) => {
-			if (!aggregate) return label ?? "Tool";
+		.map((segment) => {
+			if (segment.type === "label") return segment.label;
+			const { aggregate } = segment;
 			const verb = aggregate.inProgress
 				? aggregate.progressVerb
 				: aggregate.completedVerb;
