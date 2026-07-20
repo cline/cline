@@ -21,32 +21,45 @@ describe("hub server fetch wiring", () => {
 	it("forwards HubWebSocketServerOptions.fetch into the internal LocalRuntimeHost", async () => {
 		localRuntimeHostMock.mockClear();
 		const { HubServerTransport } = (await import(".")) as unknown as {
-			HubServerTransport: new (options: unknown) => unknown;
+			HubServerTransport: new (
+				options: unknown,
+			) => {
+				stop(): Promise<void>;
+			};
 		};
 
 		const customFetch = (async () => new Response()) as unknown as typeof fetch;
 
-		new HubServerTransport({
+		const transport = new HubServerTransport({
 			runtimeHandlers: {
 				startSession: vi.fn(),
 				sendSession: vi.fn(),
 				abortSession: vi.fn(),
 				stopSession: vi.fn(),
 			},
+			scheduleOptions: { dbPath: ":memory:" },
 			fetch: customFetch,
 		});
 
-		expect(localRuntimeHostMock).toHaveBeenCalledTimes(1);
-		const constructorArgs = localRuntimeHostMock.mock.calls[0]?.[0] as {
-			fetch?: typeof fetch;
-		};
-		expect(constructorArgs.fetch).toBe(customFetch);
+		try {
+			expect(localRuntimeHostMock).toHaveBeenCalledTimes(1);
+			const constructorArgs = localRuntimeHostMock.mock.calls[0]?.[0] as {
+				fetch?: typeof fetch;
+			};
+			expect(constructorArgs.fetch).toBe(customFetch);
+		} finally {
+			await transport.stop();
+		}
 	});
 
 	it("does not construct a default LocalRuntimeHost when sessionHost is supplied", async () => {
 		localRuntimeHostMock.mockClear();
 		const { HubServerTransport } = (await import(".")) as unknown as {
-			HubServerTransport: new (options: unknown) => unknown;
+			HubServerTransport: new (
+				options: unknown,
+			) => {
+				stop(): Promise<void>;
+			};
 		};
 
 		const suppliedHost = {
@@ -55,7 +68,7 @@ describe("hub server fetch wiring", () => {
 			runtimeAddress: undefined,
 		};
 
-		new HubServerTransport({
+		const transport = new HubServerTransport({
 			sessionHost: suppliedHost,
 			runtimeHandlers: {
 				startSession: vi.fn(),
@@ -63,10 +76,15 @@ describe("hub server fetch wiring", () => {
 				abortSession: vi.fn(),
 				stopSession: vi.fn(),
 			},
+			scheduleOptions: { dbPath: ":memory:" },
 			fetch: (async () => new Response()) as unknown as typeof fetch,
 		});
 
-		expect(localRuntimeHostMock).not.toHaveBeenCalled();
+		try {
+			expect(localRuntimeHostMock).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
 	});
 
 	it("forwards createLocalHubScheduleRuntimeHandlers fetch into its internal LocalRuntimeHost", async () => {
