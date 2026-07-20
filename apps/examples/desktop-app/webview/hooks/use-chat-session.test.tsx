@@ -53,6 +53,100 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("asks the user to select a workspace before submitting", async () => {
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				workspaceRoot: "",
+				cwd: "",
+			}));
+		});
+		invokeMock.mockClear();
+
+		await act(async () => current.sendPrompt("Start the task"));
+
+		expect(current.error).toBe("Select a workspace before trying again.");
+		expect(current.messages.at(-1)).toMatchObject({
+			role: "error",
+			content: "Select a workspace before trying again.",
+		});
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"chat_session_command",
+			expect.anything(),
+		);
+	});
+
+	it("replaces raw workspace manifest errors with actionable copy", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			}
+			if (command === "chat_session_command") {
+				throw new Error(
+					'[{"origin":"string","code":"too_small","path":["workspaces","/","hint"],"message":"Too small: expected string to have >=1 characters"}]',
+				);
+			}
+			return [];
+		});
+
+		await act(async () => current.start(current.config));
+
+		expect(current.error).toBe("Select a workspace before trying again.");
+		expect(current.messages.at(-1)?.content).toBe(
+			"Select a workspace before trying again.",
+		);
+	});
+
+	it.each([
+		{
+			finishReason: "completed",
+			expected:
+				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
+		},
+		{
+			finishReason: "error",
+			expected: "Select a workspace before trying again.",
+		},
+	])("handles schema-like assistant text for $finishReason responses", async ({
+		finishReason,
+		expected,
+	}) => {
+		const schemaLikeText =
+			'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]';
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId ?? "session-test" };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: schemaLikeText, finishReason },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Explain this validation error"));
+
+		expect(
+			current.messages.findLast((message) => message.role === "assistant")
+				?.content,
+		).toBe(expected);
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {
