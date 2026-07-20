@@ -1545,6 +1545,64 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(JSON.stringify(result[2].content)).toContain("NEW CONTENT");
 	});
 
+	it("rewrites outdated reads whose query is a JSON object string", () => {
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 0 });
+		const readUse = (id: string) => ({
+			role: "assistant" as const,
+			content: [
+				{
+					type: "tool_use" as const,
+					id,
+					name: "read_files",
+					input: {
+						files: [{ path: "/tmp/a.txt", start_line: 3, end_line: 5 }],
+					},
+				},
+			],
+		});
+		const readResult = (id: string, content: string) => ({
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: id,
+					name: "read_files",
+					content,
+				},
+			],
+		});
+		const messages: Message[] = [
+			readUse("call_1"),
+			readResult(
+				"call_1",
+				JSON.stringify([
+					{
+						query: '{"path":"/tmp/a.txt","start_line":3,"end_line":5}',
+						result: "OLD RANGE",
+						success: true,
+					},
+				]),
+			),
+			readUse("call_2"),
+			readResult(
+				"call_2",
+				JSON.stringify([
+					{
+						query: '{"path":"/tmp/a.txt","start_line":3,"end_line":5}',
+						result: "NEW RANGE",
+						success: true,
+					},
+				]),
+			),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serializedOld = JSON.stringify(result[1].content);
+		expect(serializedOld).toContain("[outdated - see the latest file content]");
+		expect(serializedOld).not.toContain("OLD RANGE");
+		expect(JSON.stringify(result[3].content)).toContain("NEW RANGE");
+	});
+
 	it("truncates unsupported document data blocks nested in structured results", () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 100,

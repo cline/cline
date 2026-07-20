@@ -1379,7 +1379,7 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
-				query: "/tmp/example.ts:3-5",
+				query: '{"path":"/tmp/example.ts","start_line":3,"end_line":5}',
 				result: "selected lines",
 				success: true,
 			},
@@ -1494,6 +1494,108 @@ describe("default read_files tool", () => {
 		);
 	});
 
+	it("accepts filePath/file_path aliases and echoes canonical keys in results", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		// The exact drift observed in the wild: camelCase key on each entry.
+		const camelResult = await tool.execute(
+			{
+				files: [
+					{ filePath: "/tmp/client.go", start_line: 1, end_line: 200 },
+					{ filePath: "/tmp/service.go" },
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		const snakeResult = await tool.execute(
+			{ files: [{ file_path: "/tmp/queries.go", start_line: 2 }] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+			},
+		);
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/client.go", start_line: 1, end_line: 200 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/service.go" },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/queries.go", start_line: 2 },
+			expect.objectContaining({ iteration: 2 }),
+		);
+		expect(camelResult).toEqual([
+			{
+				query: '{"path":"/tmp/client.go","start_line":1,"end_line":200}',
+				result: "content:/tmp/client.go",
+				success: true,
+			},
+			{
+				query: '{"path":"/tmp/service.go"}',
+				result: "content:/tmp/service.go",
+				success: true,
+			},
+		]);
+		expect(snakeResult).toEqual([
+			{
+				query: '{"path":"/tmp/queries.go","start_line":2}',
+				result: "content:/tmp/queries.go",
+				success: true,
+			},
+		]);
+	});
+
+	it("accepts path-key aliases on bare and paths-keyed entries", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute({ filePath: "/tmp/bare.ts", end_line: 9 } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+		await tool.execute(
+			{ paths: [{ file_path: "/tmp/listed.ts" }, "/tmp/plain.ts"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+			},
+		);
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/bare.ts", end_line: 9 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/listed.ts" },
+			expect.objectContaining({ iteration: 2 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/plain.ts" },
+			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
 	it("folds orphan range entries into the preceding file entry", async () => {
 		const execute = vi.fn(
 			async (request: { path: string }) => `content:${request.path}`,
@@ -1521,6 +1623,19 @@ describe("default read_files tool", () => {
 				iteration: 2,
 			},
 		);
+		await tool.execute(
+			{
+				files: [
+					{ filePath: "/tmp/aliased.ts" },
+					{ start_line: 3, end_line: 7 },
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 3,
+			},
+		);
 
 		expect(execute).toHaveBeenNthCalledWith(
 			1,
@@ -1536,6 +1651,11 @@ describe("default read_files tool", () => {
 			3,
 			{ path: "/tmp/b.ts" },
 			expect.objectContaining({ iteration: 2 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			4,
+			{ path: "/tmp/aliased.ts", start_line: 3, end_line: 7 },
+			expect.objectContaining({ iteration: 3 }),
 		);
 	});
 
@@ -1577,7 +1697,7 @@ describe("default read_files tool", () => {
 		expect(execute).not.toHaveBeenCalled();
 	});
 
-	it("rejects invalid union inputs before calling the executor", async () => {
+	it("rejects invalid union inputs with a canonical-shape hint before calling the executor", async () => {
 		const execute = vi.fn(async () => "should not run");
 		const tool = createReadFilesTool(execute);
 
@@ -1587,7 +1707,9 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow(
+			/Expected input like: \{"files": \[\{"path": "\/absolute\/path\/to\/file\.ts", "start_line": 1, "end_line": 100\}\]\}/,
+		);
 
 		expect(execute).not.toHaveBeenCalled();
 	});
@@ -1615,7 +1737,7 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
-				query: "/tmp/example.ts",
+				query: '{"path":"/tmp/example.ts"}',
 				result: "full file",
 				success: true,
 			},
@@ -1667,19 +1789,19 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
-				query: "/tmp/valid-a.ts:1-2",
+				query: '{"path":"/tmp/valid-a.ts","start_line":1,"end_line":2}',
 				result: "content for /tmp/valid-a.ts",
 				success: true,
 			},
 			{
-				query: "/tmp/reversed.ts:5-3",
+				query: '{"path":"/tmp/reversed.ts","start_line":5,"end_line":3}',
 				result: "",
 				error:
 					"Invalid file range: start_line must be less than or equal to end_line (received start_line: 5, end_line: 3)",
 				success: false,
 			},
 			{
-				query: "/tmp/valid-b.ts",
+				query: '{"path":"/tmp/valid-b.ts"}',
 				result: "content for /tmp/valid-b.ts",
 				success: true,
 			},

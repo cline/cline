@@ -938,6 +938,22 @@ function asStringArray(value: unknown): string[] {
 	);
 }
 
+// read_files result queries are JSON object strings ({"path":...,"start_line":...});
+// render them as a compact path:start-end label instead of raw JSON.
+function formatReadQueryLabel(query: string): string {
+	if (!query.startsWith("{")) return query;
+	try {
+		const parsed = asRecord(JSON.parse(query));
+		if (typeof parsed?.path !== "string") return query;
+		const start = parsed.start_line;
+		const end = parsed.end_line;
+		if (start == null && end == null) return parsed.path;
+		return `${parsed.path}:${start ?? 1}-${end ?? "EOF"}`;
+	} catch {
+		return query;
+	}
+}
+
 /**
  * read_files accepts many input shapes: { files: [{ path }] }, { files: path },
  * { file_paths: [...] }, { paths: [...] }, a bare request, an array, or a string.
@@ -1153,10 +1169,9 @@ function buildToolSummary(
 		return { label: detail, details: [] };
 	}
 
+	const rawQuery = asRecord(result)?.query;
 	const query =
-		typeof asRecord(result)?.query === "string"
-			? (asRecord(result)?.query as string)
-			: "";
+		typeof rawQuery === "string" ? formatReadQueryLabel(rawQuery) : "";
 	const fallback =
 		query || (inProgress ? `Running ${toolName}` : toolName) || "Tool";
 	return { label: fallback, details: [fallback] };

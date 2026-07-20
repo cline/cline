@@ -58,14 +58,22 @@ export function withTimeout<T>(
 	]);
 }
 
+/**
+ * Echo a read request into a result's `query` field as a JSON object string
+ * (e.g. `{"path":"/a/b.ts","start_line":3,"end_line":5}`). Restating the
+ * request under its canonical input keys keeps every successful result
+ * reinforcing the exact shape the model must emit on its next call, unlike
+ * the previous fused `path:start-end` format which taught an invalid one.
+ */
 export function formatReadFileQuery(request: ReadFileRequest): string {
-	const { path, start_line, end_line } = request;
-	if (start_line == null && end_line == null) {
-		return path;
+	const echo: Record<string, string | number> = { path: request.path };
+	if (request.start_line != null) {
+		echo.start_line = request.start_line;
 	}
-	const start = start_line ?? 1;
-	const end = end_line ?? "EOF";
-	return `${path}:${start}-${end}`;
+	if (request.end_line != null) {
+		echo.end_line = request.end_line;
+	}
+	return JSON.stringify(echo);
 }
 
 export function getReadFileRangeError(request: ReadFileRequest): string | null {
@@ -78,6 +86,13 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 }
 
 const READ_RANGE_KEYS = new Set(["start_line", "end_line"]);
+
+/** Path keys accepted on read entries; aliases are normalized to `path` during validation. */
+const READ_PATH_KEYS = ["path", "file_path", "filePath"] as const;
+
+function hasReadPathKey(value: object): boolean {
+	return READ_PATH_KEYS.some((key) => key in value);
+}
 
 function isOrphanReadRangeEntry(
 	value: unknown,
@@ -102,7 +117,7 @@ function coalesceOrphanReadRangeEntries(entries: unknown[]): unknown[] {
 				previous !== null &&
 				typeof previous === "object" &&
 				!Array.isArray(previous) &&
-				"path" in previous &&
+				hasReadPathKey(previous) &&
 				Object.keys(entry).every((key) => !(key in previous))
 			) {
 				coalesced[coalesced.length - 1] = { ...previous, ...entry };

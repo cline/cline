@@ -263,6 +263,9 @@ export function createReadFilesTool(
 			const validate = validateWithZod(
 				ReadFilesInputUnionSchema,
 				coalesceOrphanReadRanges(input),
+				{
+					hint: 'Expected input like: {"files": [{"path": "/absolute/path/to/file.ts", "start_line": 1, "end_line": 100}]} — each entry needs "path"; "start_line"/"end_line" are optional',
+				},
 			);
 			let requests: ReadFileRequest[];
 			if (typeof validate === "string") {
@@ -296,10 +299,13 @@ export function createReadFilesTool(
 
 			return Promise.all(
 				requests.map(async (request): Promise<ToolOperationResult> => {
+					// The query echoes the request under its canonical input keys
+					// so results keep reinforcing the shape the model must emit.
+					const query = formatReadFileQuery(request);
 					const rangeError = getReadFileRangeError(request);
 					if (rangeError) {
 						return {
-							query: formatReadFileQuery(request),
+							query,
 							result: "",
 							error: `Invalid file range: ${rangeError}`,
 							success: false,
@@ -313,14 +319,14 @@ export function createReadFilesTool(
 							`File read timed out after ${timeoutMs}ms`,
 						);
 						return {
-							query: formatReadFileQuery(request),
+							query,
 							result: content,
 							success: true,
 						};
 					} catch (error) {
 						const msg = formatError(error);
 						return {
-							query: formatReadFileQuery(request),
+							query,
 							result: "",
 							error: `Error reading file: ${msg}`,
 							success: false,
