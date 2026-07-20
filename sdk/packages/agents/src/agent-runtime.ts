@@ -33,6 +33,7 @@ import {
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
+import { TextDeltaToolCallParser } from "./text-delta-tool-call-parser";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
@@ -414,6 +415,10 @@ export class AgentRuntime {
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	// Per-stream parser that splits text-delta chunks into either prose or
+	// synthetic tool-call events when the model emits inline XML like
+	// `<invoke name="...">...</invoke>` (see cline/cline#9848).
+	private toolCallParser: TextDeltaToolCallParser | undefined;
 
 	constructor(config: AgentRuntimeConfig) {
 		const resolved = resolveRuntimeConfig(config);
@@ -872,28 +877,57 @@ export class AgentRuntime {
 		let finishReason: AgentModelFinishReason = "stop";
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
+		this.toolCallParser = new TextDeltaToolCallParser(() => createUID("tool"));
 
 		for await (const event of stream) {
 			this.throwIfAborted();
 			switch (event.type) {
 				case "text-delta": {
-					accumulatedText += event.text;
-					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "text") {
-						last.part.text += event.text;
-					} else {
-						sequence.push({
-							type: "part",
-							part: { type: "text", text: event.text },
-						});
+					const parsed = this.toolCallParser.consume(event.text);
+					for (const piece of parsed) {
+						if (piece.kind === "text") {
+							accumulatedText += piece.text;
+							const last = sequence.at(-1);
+							if (last?.type === "part" && last.part.type === "text") {
+								last.part.text += piece.text;
+							} else {
+								sequence.push({
+									type: "part",
+									part: { type: "text", text: piece.text },
+								});
+							}
+							await this.emit({
+								type: "assistant-text-delta",
+								snapshot: this.snapshot(),
+								iteration: this.state.iteration,
+								text: piece.text,
+								accumulatedText,
+							});
+						} else {
+							// Recovered from inline XML. Synthesize a
+							// tool-call-delta that flows through the existing
+							// assembly + sequence machinery below.
+							const key = piece.toolCallId;
+							let assembly = toolAssemblies.get(key);
+							if (!assembly) {
+								assembly = {
+									toolCallId: piece.toolCallId,
+									toolName: piece.toolName,
+									inputText: "",
+									inputValue: piece.input,
+								};
+								toolAssemblies.set(key, assembly);
+								sequence.push({ type: "tool", key });
+							} else {
+								if (piece.toolName) {
+									assembly.toolName = piece.toolName;
+								}
+								if (piece.input && Object.keys(piece.input).length > 0) {
+									assembly.inputValue = piece.input;
+								}
+							}
+						}
 					}
-					await this.emit({
-						type: "assistant-text-delta",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						text: event.text,
-						accumulatedText,
-					});
 					break;
 				}
 				case "reasoning-delta": {
@@ -975,6 +1009,47 @@ export class AgentRuntime {
 					break;
 				}
 			}
+		}
+
+		// Flush any remaining buffered text in the XML tool-call parser.
+		// Inlined XML blocks that never produced a complete
+		// <invoke>...</invoke> become ordinary text here.
+		if (this.toolCallParser) {
+			for (const piece of this.toolCallParser.flush()) {
+				if (piece.kind === "text") {
+					accumulatedText += piece.text;
+					const last = sequence.at(-1);
+					if (last?.type === "part" && last.part.type === "text") {
+						last.part.text += piece.text;
+					} else {
+						sequence.push({
+							type: "part",
+							part: { type: "text", text: piece.text },
+						});
+					}
+					await this.emit({
+						type: "assistant-text-delta",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						text: piece.text,
+						accumulatedText,
+					});
+				} else {
+					const key = piece.toolCallId;
+					let assembly = toolAssemblies.get(key);
+					if (!assembly) {
+						assembly = {
+							toolCallId: piece.toolCallId,
+							toolName: piece.toolName,
+							inputText: "",
+							inputValue: piece.input,
+						};
+						toolAssemblies.set(key, assembly);
+						sequence.push({ type: "tool", key });
+					}
+				}
+			}
+			this.toolCallParser = undefined;
 		}
 
 		for (const item of sequence) {
