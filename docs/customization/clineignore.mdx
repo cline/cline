@@ -1,13 +1,13 @@
 ---
-title: ".clineignore"
-sidebarTitle: ".clineignore"
+title: ".clineignore (deprecate soon)"
+sidebarTitle: ".clineignore (deprecate soon)"
 description: "Control which files and directories Cline can access in your project. This feature will be deprecated soon."
 ---
 
 <Warning>
   **The `.clineignore` feature will be deprecated soon.**
 
-  Reliable enforcement of ignore rules isn't possible as the model capability evolves — agents can get around them, for example by reading ignored files through explicit `@` mentions or shell commands. Because `.clineignore` can only reduce noise, not actually restrict access, we're moving away from it as a supported feature.
+  `.clineignore` helps reduce automatic context, but it is not a reliable access-control boundary. Ignored files can still be read when referenced explicitly with `@` mentions or accessed through shell commands, so we're moving away from it as a supported feature.
 
 </Warning>
 
@@ -113,7 +113,7 @@ You can still reference ignored files explicitly using [@ mentions](/core-workfl
 
 `.clineignore` will be deprecated soon. The rationale:
 
-- **Enforcement is extremely difficult as agent capability evolves.** Ignore rules only filter what Cline loads automatically — they can't actually restrict access. An agent can read any ignored file through an explicit `@` mention or a shell command, so `.clineignore` cannot serve as a security or access-control boundary.
+- **Ignore rules are context filters, not security controls.** `.clineignore` only filters what Cline loads automatically; it does not prevent access to matching files. Ignored files can still be read through explicit `@` mentions or shell commands, so `.clineignore` should not be treated as a security or access-control boundary.
 
 To keep context manageable, scope your tasks tightly and use [Auto-Compact](/features/auto-compact) for long-running work.
 
