@@ -1245,9 +1245,11 @@ export function useChatSession() {
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
-				const resolvedAssistantText = userFacingMessage(
-					assistantText || fallbackAssistantTurn.text,
-				);
+				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
+				const resolvedAssistantText =
+					result?.finishReason === "error"
+						? userFacingMessage(rawAssistantText)
+						: rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
