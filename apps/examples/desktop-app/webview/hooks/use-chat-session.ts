@@ -70,12 +70,29 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"stopping",
 ]);
 
+const WORKSPACE_SELECTION_REQUIRED_MESSAGE =
+	"Select a workspace before trying again.";
+
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
 // ---------------------------------------------------------------------------
 
+function userFacingMessage(message: string): string {
+	const normalized = message.toLowerCase();
+	const isWorkspaceManifestValidationError =
+		normalized.includes("workspaces") &&
+		(normalized.includes("too_small") ||
+			normalized.includes("expected string to have >=1"));
+	const isMissingWorkspaceConfig = normalized.includes(
+		"config.cwd or config.workspaceroot is required",
+	);
+	return isWorkspaceManifestValidationError || isMissingWorkspaceConfig
+		? WORKSPACE_SELECTION_REQUIRED_MESSAGE
+		: message;
+}
+
 function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
+	return userFacingMessage(err instanceof Error ? err.message : String(err));
 }
 
 function makeErrorChatMessage(
@@ -96,6 +113,9 @@ function validateConfig(
 ):
 	| { parsed: ChatSessionConfig; error: null }
 	| { parsed: null; error: string } {
+	if (!config.workspaceRoot.trim()) {
+		return { parsed: null, error: WORKSPACE_SELECTION_REQUIRED_MESSAGE };
+	}
 	const runtimeConfig = normalizeRuntimeConfig(config);
 	const result = ChatSessionConfigSchema.safeParse(runtimeConfig);
 	if (!result.success) {
@@ -1225,8 +1245,9 @@ export function useChatSession() {
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
-				const resolvedAssistantText =
-					assistantText || fallbackAssistantTurn.text;
+				const resolvedAssistantText = userFacingMessage(
+					assistantText || fallbackAssistantTurn.text,
+				);
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1380,7 +1401,9 @@ export function useChatSession() {
 						addMessage(
 							makeErrorChatMessage(
 								activeSessionId,
-								toolError?.trim() ||
+								(toolError?.trim()
+									? userFacingMessage(toolError.trim())
+									: undefined) ||
 									"Runtime turn failed before an assistant response was produced.",
 							),
 						);

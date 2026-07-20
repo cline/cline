@@ -874,11 +874,9 @@ function ThreadItem({
 	pendingAction: "rename" | "fork" | "delete" | null;
 	unread: boolean;
 }) {
-	const tokenLabel = formatTokenCount(thread.inputTokens, thread.outputTokens);
-	const costLabel = formatCostUsd(thread.totalCostUsd);
 	const title = normalizeTitle(thread.title);
+	const overviewTitle = getSessionOverviewTitle(thread.title);
 	const pending = pendingAction !== null;
-	const workspacePath = thread.workspacePath || thread.codebase;
 	const statusDotClass = pending
 		? "bg-yellow-400"
 		: thread.status === "running"
@@ -886,20 +884,7 @@ function ThreadItem({
 			: unread
 				? "bg-blue-500"
 				: "";
-	const infoItems: Array<[string, string | null | undefined, string?]> = [
-		["ID", thread.id],
-		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
-			workspacePath || undefined,
-		],
-		["Status", thread.status],
-		["Updated", thread.time],
-		["Provider", thread.provider],
-		["Model", thread.model],
-		["Tokens", tokenLabel],
-		["Cost", costLabel],
-	].filter((item): item is [string, string, string?] => Boolean(item[1]));
+	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
 		return (
@@ -966,7 +951,9 @@ function ThreadItem({
 					sideOffset={8}
 				>
 					<div className="min-w-0 space-y-2">
-						<div className="truncate text-sm font-medium">{title}</div>
+						<div className="wrap-break-word text-sm font-medium">
+							{overviewTitle}
+						</div>
 						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
@@ -990,6 +977,34 @@ function ThreadItem({
 				pendingAction={pendingAction}
 			/>
 		</ContextMenu>
+	);
+}
+
+export function getSessionOverviewTitle(title: string): string {
+	const firstLine = title.split(/\r?\n/, 1)[0] ?? "";
+	return normalizeTitle(firstLine);
+}
+
+export function getSessionOverviewItems(
+	thread: SessionThread,
+): Array<[string, string, string?]> {
+	const workspacePath = thread.workspacePath || thread.codebase;
+	const items: Array<[string, string | null | undefined, string?]> = [
+		[
+			"Workspace",
+			workspaceDisplayName(workspacePath),
+			workspacePath || undefined,
+		],
+		["Git branch", thread.gitBranch],
+		["Provider", thread.provider],
+		["Model", thread.model],
+		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
+		["Cost", formatCostUsd(thread.totalCostUsd)],
+		["ID", thread.id],
+		["Updated", thread.time],
+	];
+	return items.filter((item): item is [string, string, string?] =>
+		Boolean(item[1]),
 	);
 }
 
