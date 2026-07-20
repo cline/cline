@@ -20,6 +20,60 @@
 	}
 }
 
+/* Hero heading cycling verb (components/views/chat/welcome-chat.tsx) */
+@keyframes hero-word-in {
+	0% {
+		opacity: 0;
+		transform: translateY(0.42em);
+		filter: blur(6px);
+	}
+	60% {
+		filter: blur(0);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+		filter: blur(0);
+	}
+}
+
+.hero-word-char {
+	display: inline-block;
+	white-space: pre;
+	/* Solid fallback so the word is never invisible if text clipping is unsupported. */
+	color: var(--brand-violet);
+	animation: hero-word-in 0.5s cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+
+/*
+ * Gradient fill per character. The clip lives on each animated span (not a
+ * shared parent) because WebKit — used by the Tauri webview on macOS — drops
+ * the parent's background when a child paints on its own transform/filter
+ * layer, which would leave the animating letters blank. The -webkit- prefixes
+ * are required by WebKit; @supports keeps the solid fallback above otherwise.
+ */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+	.hero-word-char {
+		background-image: linear-gradient(
+			135deg,
+			var(--brand-periwinkle),
+			var(--brand-violet) 55%,
+			var(--brand-magenta)
+		);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hero-word-char {
+		/* biome-ignore lint/complexity/noImportantStyles: reduced motion must override inline animation delay */
+		animation: none !important;
+	}
+}
+
 /* Aurora background (components/ui/aurora-bg.tsx) */
 @keyframes aurora-drift {
 	0% {

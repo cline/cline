@@ -46,6 +46,7 @@ import type {
 import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
+	registerHostHomeDirectory,
 } from "@/lib/workspace-paths";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
@@ -475,6 +476,9 @@ export function useChatSession() {
 			const ctx = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
 			);
+			if (ctx.homeDir) {
+				registerHostHomeDirectory(ctx.homeDir);
+			}
 			const rememberedWorkspace =
 				readWorkspaceSelectionFromWindow().lastWorkspace;
 			const validation = rememberedWorkspace
