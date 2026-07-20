@@ -702,20 +702,21 @@ function MessageBubble({
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
+	const displayContent = formatChatMessageContent(
+		message.role,
+		message.content,
+	);
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&
 		!isStreaming &&
 		!isError &&
+		Boolean(displayContent.trim()) &&
 		Boolean(onCopyRawText || onForkSession);
 	const shouldRenderUserActions =
 		isUser && Boolean(onCopyRawText || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
 	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
 
-	const displayContent = formatChatMessageContent(
-		message.role,
-		message.content,
-	);
 	const reasoningContent = message.reasoning?.trim() || "";
 
 	return (
@@ -1239,8 +1240,13 @@ function buildToolSummary(
 		typeof asRecord(result)?.query === "string"
 			? (asRecord(result)?.query as string)
 			: "";
+	const displayToolName = normalized.startsWith("subagent_")
+		? "spawn_agent"
+		: toolName;
 	const fallback =
-		query || (inProgress ? `Running ${toolName}` : toolName) || "Tool";
+		query ||
+		(inProgress ? `Running ${displayToolName}` : displayToolName) ||
+		"Tool";
 	return { label: fallback, details: [fallback] };
 }
 

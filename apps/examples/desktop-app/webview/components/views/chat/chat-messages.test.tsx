@@ -153,19 +153,54 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent?.match(/Read 1 file/g)).toHaveLength(2);
 	});
 
-	it("renders configured subagent tools as agent activity", async () => {
+	it("normalizes payload-backed configured subagent names", async () => {
 		await renderMessages([
 			{
-				id: "configured-subagent",
+				id: "commands",
 				sessionId: "session-1",
 				role: "tool",
-				content: "not-json",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["bun test", "bun run typecheck"] },
+					result: {},
+				}),
 				createdAt: 1,
-				meta: { toolName: "subagent_subagent" },
+			},
+			...[2, 3, 4].map(
+				(createdAt): ChatMessage => ({
+					id: `configured-subagent-${createdAt}`,
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "subagent_subagent",
+						input: { prompt: "Investigate" },
+						result: { text: "Done" },
+					}),
+					createdAt,
+				}),
+			),
+		]);
+
+		expect(container.textContent).toContain(
+			"Ran 2 commands. spawn_agent. spawn_agent. spawn_agent",
+		);
+		expect(container.textContent).not.toContain("subagent_subagent");
+	});
+
+	it("does not render assistant actions without text content", async () => {
+		await renderMessages([
+			{
+				id: "reasoning-only",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "Internal reasoning",
+				createdAt: 1,
 			},
 		]);
 
-		expect(container.textContent).toContain("Spawned agent");
-		expect(container.textContent).not.toContain("subagent_subagent");
+		expect(
+			container.querySelector('button[aria-label="Copy assistant message"]'),
+		).toBeNull();
 	});
 });
