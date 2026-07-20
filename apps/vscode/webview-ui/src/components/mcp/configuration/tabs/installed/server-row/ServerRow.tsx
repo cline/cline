@@ -27,7 +27,7 @@ import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
-import { mcpEndpointUrlsMatch } from "./remote-server-url"
+import { getRemoteMcpServerManagement } from "./remote-server-management"
 
 // constant JSX.Elements
 const TimeoutOptions = [
@@ -60,23 +60,11 @@ const ServerRow = ({
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [isRestarting, setIsRestarting] = useState(false)
 
-	// Check if user is managed by remote config and if this server is remote-managed.
-	// Remote MCP servers from enterprise config are always URL-based (SSE/HTTP).
-	// stdio-based local servers are never in remoteMCPServers, so URL matching is sufficient.
-	const isRemoteManagedServer = (() => {
-		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers
-		if (!remoteMCPServers || remoteMCPServers.length === 0) {
-			return false
-		}
-		try {
-			const serverConfig = JSON.parse(server.config)
-			return remoteMCPServers.some((remoteServer: { url: string }) =>
-				mcpEndpointUrlsMatch(serverConfig.url, remoteServer.url),
-			)
-		} catch {
-			return false
-		}
-	})()
+	const { isRemoteManagedServer, isAlwaysEnabled } = getRemoteMcpServerManagement(
+		server.name,
+		server.config,
+		remoteConfigSettings?.remoteMCPServers ?? [],
+	)
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -186,26 +174,6 @@ const ServerRow = ({
 			})
 	}
 
-	// Helper to extract server URL from config
-	const getServerUrl = (server: McpServer): string | null => {
-		try {
-			const config = JSON.parse(server.config)
-			return config.url || null
-		} catch {
-			return null
-		}
-	}
-
-	// Check if this server is always-enabled via remote config
-	const isAlwaysEnabled = (() => {
-		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers || []
-		const serverUrl = getServerUrl(server)
-		if (!serverUrl) return false
-
-		const remoteServer = remoteMCPServers.find((remote) => mcpEndpointUrlsMatch(remote.url, serverUrl))
-		return remoteServer?.alwaysEnabled === true
-	})()
-
 	return (
 		<div className="mb-2.5">
 			<div
@@ -241,7 +209,7 @@ const ServerRow = ({
 						<RefreshCcwIcon />
 					</Button>
 				)}
-				{!server.error && hasTrashIcon && (
+				{!server.error && hasTrashIcon && !isRemoteManagedServer && (
 					<Button
 						disabled={isDeleting}
 						onClick={(e) => {

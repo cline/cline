@@ -238,12 +238,29 @@ function ensurePrivateSettingsDirectory(directoryPath: string): void {
 	hardenExistingSettingsDirectory(directoryPath);
 }
 
+function warnPermissionRepairFailure(
+	targetPath: string,
+	mode: number,
+	error: unknown,
+): void {
+	const fsError = error as NodeJS.ErrnoException;
+	if (fsError?.code === "ENOENT") {
+		return;
+	}
+	const details =
+		fsError?.code ?? (error instanceof Error ? error.message : String(error));
+	process.emitWarning(
+		`Unable to set MCP settings permissions ${mode.toString(8)} on ${targetPath}: ${details}`,
+		{ code: "CLINE_MCP_SETTINGS_PERMISSION_REPAIR_FAILED" },
+	);
+}
+
 function hardenExistingSettingsDirectory(directoryPath: string): void {
 	if (process.platform !== "win32") {
 		try {
 			chmodSync(directoryPath, 0o700);
-		} catch {
-			// Best effort: keep working on filesystems without POSIX permissions.
+		} catch (error) {
+			warnPermissionRepairFailure(directoryPath, 0o700, error);
 		}
 	}
 }
@@ -254,8 +271,8 @@ function hardenExistingSettingsFile(filePath: string): void {
 	}
 	try {
 		chmodSync(filePath, 0o600);
-	} catch {
-		// Best effort: reads and writes should still work on unusual filesystems.
+	} catch (error) {
+		warnPermissionRepairFailure(filePath, 0o600, error);
 	}
 }
 

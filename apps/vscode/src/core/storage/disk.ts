@@ -131,12 +131,26 @@ export async function ensureAgentSkillsDirectoryExists(options: { isGlobal: bool
 	return agentSkillsDir
 }
 
+async function repairPrivatePermissions(targetPath: string, mode: number): Promise<void> {
+	if (process.platform === "win32") {
+		return
+	}
+	try {
+		await fs.chmod(targetPath, mode)
+	} catch (error) {
+		const fsError = error as NodeJS.ErrnoException
+		if (fsError?.code === "ENOENT") {
+			return
+		}
+		const details = fsError?.code ?? (error instanceof Error ? error.message : String(error))
+		Logger.warn(`[mcp-settings] Unable to set permissions ${mode.toString(8)} on ${targetPath}: ${details}`)
+	}
+}
+
 export async function ensureSettingsDirectoryExists(): Promise<string> {
 	const settingsDir = path.resolve(HostProvider.get().globalStorageFsPath, "settings")
 	await fs.mkdir(settingsDir, { recursive: true, mode: 0o700 })
-	if (process.platform !== "win32") {
-		await fs.chmod(settingsDir, 0o700).catch(() => {})
-	}
+	await repairPrivatePermissions(settingsDir, 0o700)
 	return settingsDir
 }
 
@@ -147,9 +161,7 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
  */
 export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
 	await fs.mkdir(settingsDirectoryPath, { recursive: true, mode: 0o700 })
-	if (process.platform !== "win32") {
-		await fs.chmod(settingsDirectoryPath, 0o700).catch(() => {})
-	}
+	await repairPrivatePermissions(settingsDirectoryPath, 0o700)
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
 	const tempPath = `${mcpSettingsFilePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
 	try {
@@ -168,9 +180,7 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 	} finally {
 		await fs.unlink(tempPath).catch(() => {})
 	}
-	if (process.platform !== "win32") {
-		await fs.chmod(mcpSettingsFilePath, 0o600).catch(() => {})
-	}
+	await repairPrivatePermissions(mcpSettingsFilePath, 0o600)
 	return mcpSettingsFilePath
 }
 

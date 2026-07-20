@@ -71,10 +71,19 @@ function ensurePrivateSettingsDirectory(directoryPath: string): void {
 	if (process.platform !== "win32") {
 		try {
 			chmodSync(directoryPath, 0o700)
-		} catch {
-			// Best effort: keep working on filesystems without POSIX permissions.
+		} catch (error) {
+			warnPermissionRepairFailure(directoryPath, 0o700, error)
 		}
 	}
+}
+
+function warnPermissionRepairFailure(targetPath: string, mode: number, error: unknown): void {
+	const fsError = error as NodeJS.ErrnoException
+	if (fsError?.code === "ENOENT") {
+		return
+	}
+	const details = fsError?.code ?? (error instanceof Error ? error.message : String(error))
+	Logger.warn(`[mcp-settings] Unable to set permissions ${mode.toString(8)} on ${targetPath}: ${details}`)
 }
 
 function hardenExistingSettingsFile(settingsPath: string): void {
@@ -83,8 +92,8 @@ function hardenExistingSettingsFile(settingsPath: string): void {
 	}
 	try {
 		chmodSync(settingsPath, 0o600)
-	} catch {
-		// Best effort: keep working on filesystems without POSIX permissions.
+	} catch (error) {
+		warnPermissionRepairFailure(settingsPath, 0o600, error)
 	}
 }
 

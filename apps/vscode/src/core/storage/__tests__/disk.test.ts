@@ -6,6 +6,7 @@ import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 // bun loads real ESM, so sinon cannot stub the `@utils/fs` namespace export
@@ -318,5 +319,17 @@ describe("disk - atomic writes", () => {
 			const directoryMode = (await fs.stat(created)).mode & 0o777
 			directoryMode.should.equal(0o700)
 		}
+	})
+
+	it.skipIf(process.platform === "win32")("warns and continues when permission repair fails", async () => {
+		const warn = sandbox.stub(Logger, "warn")
+		const permissionError = Object.assign(new Error("permission denied"), { code: "EACCES" })
+		sandbox.stub(fs, "chmod").rejects(permissionError)
+
+		const created = await ensureSettingsDirectoryExists()
+
+		created.should.equal(path.join(testGlobalStorageDir, "settings"))
+		warn.calledOnce.should.equal(true)
+		warn.firstCall.args[0].should.match(/Unable to set permissions 700.*EACCES/)
 	})
 })

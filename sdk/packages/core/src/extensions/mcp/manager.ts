@@ -27,6 +27,14 @@ function nowMs(): number {
 	return Date.now();
 }
 
+function sanitizeMcpError(error: unknown): Error {
+	return new Error(
+		sanitizeMcpDiagnosticText(
+			error instanceof Error ? error.message : String(error),
+		),
+	);
+}
+
 function cloneTools(
 	tools: readonly McpToolDescriptor[],
 ): readonly McpToolDescriptor[] {
@@ -142,27 +150,35 @@ export class InMemoryMcpManager implements McpManager {
 		serverName: string,
 	): Promise<readonly McpToolDescriptor[]> {
 		return this.runExclusive(serverName, async () => {
-			const state = this.requireServer(serverName);
-			const client = await this.ensureConnectedClient(state);
-			const tools = await client.listTools();
-			const cloned = cloneTools(tools);
-			state.toolCache = cloned;
-			state.toolCacheUpdatedAt = nowMs();
-			state.updatedAt = nowMs();
-			return cloned;
+			try {
+				const state = this.requireServer(serverName);
+				const client = await this.ensureConnectedClient(state);
+				const tools = await client.listTools();
+				const cloned = cloneTools(tools);
+				state.toolCache = cloned;
+				state.toolCacheUpdatedAt = nowMs();
+				state.updatedAt = nowMs();
+				return cloned;
+			} catch (error) {
+				throw sanitizeMcpError(error);
+			}
 		});
 	}
 
 	async callTool(request: McpToolCallRequest): Promise<McpToolCallResult> {
 		return this.runExclusive(request.serverName, async () => {
-			const state = this.requireServer(request.serverName);
-			const client = await this.ensureConnectedClient(state);
-			state.updatedAt = nowMs();
-			return client.callTool({
-				name: request.toolName,
-				arguments: request.arguments,
-				context: request.context,
-			});
+			try {
+				const state = this.requireServer(request.serverName);
+				const client = await this.ensureConnectedClient(state);
+				state.updatedAt = nowMs();
+				return await client.callTool({
+					name: request.toolName,
+					arguments: request.arguments,
+					context: request.context,
+				});
+			} catch (error) {
+				throw sanitizeMcpError(error);
+			}
 		});
 	}
 
@@ -206,11 +222,10 @@ export class InMemoryMcpManager implements McpManager {
 			state.updatedAt = nowMs();
 		} catch (error) {
 			state.status = "disconnected";
-			state.lastError = sanitizeMcpDiagnosticText(
-				error instanceof Error ? error.message : String(error),
-			);
+			const sanitizedError = sanitizeMcpError(error);
+			state.lastError = sanitizedError.message;
 			state.updatedAt = nowMs();
-			throw error;
+			throw sanitizedError;
 		}
 	}
 
@@ -223,6 +238,8 @@ export class InMemoryMcpManager implements McpManager {
 
 		try {
 			await state.client.disconnect();
+		} catch (error) {
+			throw sanitizeMcpError(error);
 		} finally {
 			state.status = "disconnected";
 			state.updatedAt = nowMs();
