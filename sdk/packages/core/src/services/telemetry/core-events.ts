@@ -49,6 +49,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
 		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
+		AUTH_RUN_RETRY: "user.auth_run_retry",
 		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
@@ -288,6 +289,23 @@ export function captureAuthRefreshSoftFailure(
 		errorCode: details?.errorCode,
 		errorName: details?.errorName,
 		tokenExpired: details?.tokenExpired,
+	});
+}
+
+/**
+ * Fires when a run failed with an auth-like error, credentials were
+ * refreshed, and the run was retried once. `recovered: true` means the retry
+ * completed — a run that would previously have surfaced a raw provider 401
+ * (e.g. a teammate stranded on a spawn-time token snapshot past its TTL).
+ */
+export function captureAuthRunRetry(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: { recovered?: boolean },
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_RUN_RETRY, {
+		provider,
+		recovered: details?.recovered,
 	});
 }
 

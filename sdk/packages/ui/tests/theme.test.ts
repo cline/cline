@@ -235,6 +235,7 @@ describe("@cline/ui theme contract", () => {
 		) as { exports?: Record<string, string> };
 		for (const subpath of [
 			"./components.css",
+			"./components/agent-chat.css",
 			"./theme/index.css",
 			"./theme/scoped-tokens.css",
 			"./theme/tokens.css",

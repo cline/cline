@@ -1,11 +1,15 @@
 {
-	"extends": "./tsconfig.json",
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"declaration": true,
+		"declarationMap": true,
+		"jsx": "react-jsx",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"noEmit": false,
-		"outDir": "dist",
-		"rootDir": "src",
+		"outDir": "dist/components",
+		"rootDir": "components",
 		"types": ["react", "react-dom"]
 	},
-	"include": ["src/**/*.ts", "src/**/*.tsx"],
-	"exclude": ["tests"]
+	"include": ["components/**/*.ts", "components/**/*.tsx"],
+	"exclude": ["components/**/*.stories.ts", "components/**/*.stories.tsx"]
 }

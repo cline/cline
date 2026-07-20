@@ -1,14 +1,17 @@
 {
 	"name": "@cline/ui",
-	"version": "0.0.0",
-	"description": "Shared Cline web theme and UI foundations",
+	"version": "0.1.0",
+	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
 		"directory": "sdk/packages/ui"
 	},
-	"private": true,
+	"private": false,
 	"internal": true,
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -18,6 +21,11 @@
 			"import": "./dist/index.js"
 		},
 		"./components.css": "./components.css",
+		"./components/agent-chat": {
+			"types": "./dist/components/agent-chat/index.d.ts",
+			"import": "./dist/components/agent-chat/index.js"
+		},
+		"./components/agent-chat.css": "./components/agent-chat/agent-chat.css",
 		"./theme/index.css": "./theme/index.css",
 		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
 		"./theme/tokens.css": "./theme/tokens.css",
@@ -27,16 +35,33 @@
 	},
 	"files": [
 		"components.css",
+		"components/agent-chat/agent-chat.css",
+		"components/agent-chat/index.tsx",
 		"dist",
 		"theme",
+		"ADOPTION.md",
 		"README.md"
 	],
 	"sideEffects": [
 		"./components.css",
+		"./components/**/*.css",
 		"./theme/*.css"
 	],
+	"keywords": [
+		"cline",
+		"ui",
+		"design-system",
+		"react",
+		"tailwindcss",
+		"agent-chat"
+	],
+	"license": "Apache-2.0",
 	"scripts": {
-		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
+		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json && bun tsc -p tsconfig.primitives.json",
+		"prepack": "bun run build",
+		"storybook": "storybook dev",
+		"build-storybook": "storybook build --output-dir tmp/storybook-static",
+		"test:package": "bun run build && bun scripts/smoke-package.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
 		"test": "vitest run --config vitest.config.ts"
 	},
@@ -48,22 +73,38 @@
 		"cmdk": "1.1.1"
 	},
 	"peerDependencies": {
-		"react": ">=19.0.0 <20.0.0",
-		"react-dom": ">=19.0.0 <20.0.0",
+		"react": ">=18.3.0 <20",
+		"react-dom": ">=18.3.0 <20",
 		"tailwindcss": ">=4.0.0 <5"
 	},
 	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"react-dom": {
+			"optional": true
+		},
 		"tailwindcss": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@fontsource-variable/schibsted-grotesk": "^5.2.8",
+		"@fontsource/azeret-mono": "^5.2.9",
+		"@storybook/addon-a11y": "^9.1.17",
+		"@storybook/addon-docs": "^9.1.17",
+		"@storybook/react-vite": "^9.1.6",
+		"@tailwindcss/vite": "^4.2.0",
 		"@testing-library/react": "^16.2.0",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
 		"jsdom": "^26.0.0",
 		"react": "19.2.4",
 		"react-dom": "19.2.4",
-		"typescript": "^5.9.3"
+		"storybook": "^9.1.17",
+		"tailwindcss": "^4.2.0",
+		"typescript": "5.9.3",
+		"vite": "^7.1.11",
+		"vitest": "^4.0.18"
 	}
 }
