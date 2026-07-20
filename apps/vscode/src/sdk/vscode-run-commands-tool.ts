@@ -165,9 +165,10 @@ export async function executeForeground(
 	maxOutputChars: number,
 	abortSignal?: AbortSignal,
 	foregroundCommands?: SdkForegroundCommandCoordinator,
+	terminalProfileId?: string,
 ): Promise<string> {
 	const terminalCommand = formatCommandForTerminal(command)
-	const terminalInfo = await terminalManager.getOrCreateTerminal(cwd)
+	const terminalInfo = await terminalManager.getOrCreateTerminal(cwd, terminalProfileId)
 	terminalInfo.terminal.show()
 
 	const process = terminalManager.runCommand(terminalInfo, terminalCommand)
@@ -290,25 +291,55 @@ export async function executeForeground(
 // ---------------------------------------------------------------------------
 
 /**
+ * The shell selected by the user's terminal profile setting at one moment:
+ * the profile ID for foreground terminal creation and the shell executable
+ * it resolves to for background spawning and description building.
+ */
+interface ShellSnapshot {
+	profileId: string
+	shell: string
+}
+
+/** Resolves the shell the user's terminal profile setting selects right now. */
+function takeShellSnapshot(): ShellSnapshot {
+	// The setting is typed string, but guard empty values the same way the
+	// settings handlers do (they skip persisting "" but older stores may hold one).
+	const profileId = StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") || "default"
+	return { profileId, shell: getShellForProfile(profileId) }
+}
+
+/**
  * Creates the custom `run_commands` tool for the VSCode extension.
  *
  * This tool suppresses and replaces the SDK's built-in `run_commands` tool.
- * The terminal execution mode is captured when the session's tool set is built.
- * Switching modes rebuilds the active SDK session so the tool timeout and
- * execution mode stay aligned.
+ * The terminal execution mode is captured when the session's tool set is
+ * built; switching modes rebuilds the active SDK session so the tool timeout
+ * and execution path follow it.
+ *
+ * The shell is snapshotted each time the runtime reads the tool description,
+ * which happens when a model request is built. Tool calls produced by that
+ * request execute with the same snapshot, so changing the terminal profile
+ * while the model is generating does not change the shell under commands the
+ * model has already planned: the new shell is named in the next request (the
+ * one carrying these tool results) and used by the commands it produces.
  */
 export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): AgentTool {
-	return createShellTool(createVscodeShellExecutor(options), {
+	const state = { snapshot: takeShellSnapshot() }
+	return createShellTool(createVscodeShellExecutor(options, state), {
 		cwd: options.cwd,
 		bashTimeoutMs: options.bashTimeoutMs,
+		shell: () => {
+			state.snapshot = takeShellSnapshot()
+			return state.snapshot.shell
+		},
 	})
 }
 
-function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): ShellExecutor {
+function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state: { snapshot: ShellSnapshot }): ShellExecutor {
 	const { cwd, getTerminalManager } = options
 	const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
 
-	// Lazy-init background executor — recreated when the user's shell profile changes.
+	// Lazy-init background executor — recreated when the snapshotted shell changes.
 	let bgExecutor: ShellExecutor | undefined
 	let bgExecutorShell: string | undefined
 
@@ -318,12 +349,12 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 	return async (command, commandCwd, context): Promise<string> => {
 		Logger.log(`[VscodeRunCommands] Executing command in ${executionMode} mode`)
 
-		if (executionMode === "backgroundExec") {
-			// Background path — use SDK's createShellExecutor
-			// Resolve shell from the user's terminal profile setting
-			const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"
-			const shell = getShellForProfile(profileId)
+		// Execute with the shell named in the model request that produced this
+		// tool call, not the setting's current value (see createVscodeRunCommandsTool).
+		const { profileId, shell } = state.snapshot
 
+		if (executionMode === "backgroundExec") {
+			// Background path — use SDK's createShellExecutor.
 			// Recreate the executor if the shell has changed
 			if (!bgExecutor || bgExecutorShell !== shell) {
 				bgExecutorShell = shell
@@ -365,6 +396,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 			MAX_COMMAND_OUTPUT_CHARS,
 			context.signal,
 			options.foregroundCommands,
+			profileId,
 		)
 	}
 }

@@ -221,7 +221,12 @@ export {
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
-export { getDefaultShell, getShellArgs } from "./parse/shell";
+export {
+	getDefaultShell,
+	getShellArgs,
+	getShellKind,
+	type ShellKind,
+} from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,
