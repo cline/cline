@@ -21,12 +21,16 @@ import {
 	truncateCommandOutput,
 } from "@cline/core"
 import type { AgentTool } from "@cline/shared"
-import { telemetryService } from "@services/telemetry"
+import { TerminalUserInterventionAction, telemetryService } from "@services/telemetry"
+import { ClineTempManager } from "@services/temp"
+import * as fs from "fs"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { MAX_UNRETRIEVED_LINES } from "@/integrations/terminal/constants"
+import type { ITerminalProcess } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
+import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +42,14 @@ type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 /** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
 export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 
+/**
+ * Cap on the "Proceed While Running" log file. A detached devserver can log
+ * for days; once the cap is hit we stop appending and note the truncation.
+ * ClineTempManager's periodic cleanup (age + total-size caps) is the backstop
+ * for the files themselves.
+ */
+export const PROCEED_LOG_MAX_BYTES = 10 * 1024 * 1024
+
 /** Options for creating the VSCode run_commands tool. */
 export interface VscodeRunCommandsToolOptions {
 	/** Workspace root directory. */
@@ -48,6 +60,14 @@ export interface VscodeRunCommandsToolOptions {
 	bashTimeoutMs?: number
 	/** Terminal execution mode captured when this session's tool set is built. */
 	vscodeTerminalExecutionMode?: VscodeTerminalExecutionMode
+	/**
+	 * Registry of in-flight foreground executions, owned by SdkController.
+	 * When provided, each foreground command can be detached via the
+	 * "Proceed While Running" button. Foreground-only: background (SDK
+	 * child_process) executions cannot be detached — their abort signal
+	 * kills the process tree.
+	 */
+	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +94,69 @@ export function formatCommandForTerminal(command: ShellCommand): string {
 	return [command.command, ...(command.args ?? [])].map(quoteShellArg).join(" ")
 }
 
+/**
+ * Stream the rest of a detached command's output to a log file: write the
+ * lines buffered so far, then append each further 'line' event until
+ * 'completed'. The write volume is capped at PROCEED_LOG_MAX_BYTES; the
+ * stream is always closed by the 'completed' event, which the terminal
+ * process emits on every exit path (command end, Ctrl+C, terminal closed,
+ * markerless fallback).
+ */
+function beginLogCapture(process: ITerminalProcess, terminalCommand: string, existingLines: string[]): string {
+	const logFilePath = ClineTempManager.createTempFilePath("proceed-while-running")
+	const stream = fs.createWriteStream(logFilePath, { flags: "a" })
+	const sizeCapMessage = `[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached; further output is not logged.]`
+	stream.on("error", (error) => {
+		Logger.error(`[VscodeRunCommands] Failed writing proceed-while-running log ${logFilePath}:`, error)
+	})
+
+	let bytesWritten = 0
+	const tryWriteLine = (line: string): boolean => {
+		const chunk = `${line}\n`
+		const chunkBytes = Buffer.byteLength(chunk)
+		if (bytesWritten + chunkBytes > PROCEED_LOG_MAX_BYTES) {
+			return false
+		}
+		bytesWritten += chunkBytes
+		stream.write(chunk)
+		return true
+	}
+
+	let sizeCapReached = !tryWriteLine(`[Running command: ${terminalCommand}]`)
+	for (const line of existingLines) {
+		if (!tryWriteLine(line)) {
+			sizeCapReached = true
+			break
+		}
+	}
+
+	const onLine = (line: string): void => {
+		// Check the cap before writing: a single huge line (e.g. a dumped
+		// binary blob or minified bundle) must not blow past the cap.
+		if (!tryWriteLine(line)) {
+			tryWriteLine(sizeCapMessage)
+			process.removeListener("line", onLine)
+		}
+	}
+	if (sizeCapReached) {
+		tryWriteLine(sizeCapMessage)
+	} else {
+		process.on("line", onLine)
+	}
+	process.once("completed", (details) => {
+		process.removeListener("line", onLine)
+		const exitCode = details?.exitCode
+		tryWriteLine(
+			exitCode !== undefined && exitCode !== null
+				? `[Command completed with exit code ${exitCode}]`
+				: "[Command completed]",
+		)
+		stream.end()
+	})
+
+	return logFilePath
+}
+
 /** Exported for direct unit testing of the CommandExitError/terminalClosed mapping. */
 export async function executeForeground(
 	command: ShellCommand,
@@ -81,9 +164,11 @@ export async function executeForeground(
 	terminalManager: VscodeTerminalManager,
 	maxOutputChars: number,
 	abortSignal?: AbortSignal,
+	foregroundCommands?: SdkForegroundCommandCoordinator,
+	terminalProfileId?: string,
 ): Promise<string> {
 	const terminalCommand = formatCommandForTerminal(command)
-	const terminalInfo = await terminalManager.getOrCreateTerminal(cwd)
+	const terminalInfo = await terminalManager.getOrCreateTerminal(cwd, terminalProfileId)
 	terminalInfo.terminal.show()
 
 	const process = terminalManager.runCommand(terminalInfo, terminalCommand)
@@ -100,7 +185,7 @@ export async function executeForeground(
 	// truncateCommandOutput's own head/tail strategy below — since build/test
 	// failures usually appear at the end of output.
 	const maxBufferedLines = MAX_UNRETRIEVED_LINES
-	process.on("line", (line: string) => {
+	const bufferLine = (line: string): void => {
 		if (outputLines.length < maxBufferedLines) {
 			outputLines.push(line)
 		} else {
@@ -108,7 +193,8 @@ export async function executeForeground(
 			outputLines.push(line)
 			droppedLines++
 		}
-	})
+	}
+	process.on("line", bufferLine)
 
 	// Handle abort signal
 	if (abortSignal) {
@@ -121,8 +207,33 @@ export async function executeForeground(
 		process.once("continue", cleanupAbortListener)
 	}
 
-	// Wait for completion
-	await process
+	// "Proceed While Running": register a per-invocation handle so the user
+	// can detach this command. Detaching redirects the remaining output to a
+	// log file and resolves the awaited promise; the command keeps running in
+	// the user's terminal (and the terminal stays busy until it completes).
+	let detachedLogFilePath: string | undefined
+	const unregister = foregroundCommands?.register({
+		detach: () => {
+			if (detachedLogFilePath !== undefined) {
+				return
+			}
+			detachedLogFilePath = beginLogCapture(process, terminalCommand, outputLines)
+			telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
+			// detach() flushes any partial line (reaching both bufferLine and
+			// the log) before resolving the awaited promise. After that the
+			// partial output is final: stop buffering so the remaining
+			// (log-only) output doesn't mutate outputLines while it's read.
+			process.detach()
+			process.removeListener("line", bufferLine)
+		},
+	})
+
+	try {
+		// Wait for completion (or detach, which also resolves the promise)
+		await process
+	} finally {
+		unregister?.()
+	}
 	if (abortSignal?.aborted) {
 		throw new Error("Command execution aborted")
 	}
@@ -134,6 +245,14 @@ export async function executeForeground(
 	const output = truncateCommandOutput(bufferedOutput.trim(), {
 		maxChars: maxOutputChars,
 	})
+
+	if (detachedLogFilePath !== undefined) {
+		return [
+			"The user chose to proceed while the command is still running in their terminal.",
+			`This is partial output; further output is being redirected to this file, which you can read to check progress: ${detachedLogFilePath}`,
+			output.length > 0 ? `Output so far:\n${output}` : "No output so far.",
+		].join("\n")
+	}
 
 	const completionDetails = process.getCompletionDetails?.()
 
@@ -172,25 +291,55 @@ export async function executeForeground(
 // ---------------------------------------------------------------------------
 
 /**
+ * The shell selected by the user's terminal profile setting at one moment:
+ * the profile ID for foreground terminal creation and the shell executable
+ * it resolves to for background spawning and description building.
+ */
+interface ShellSnapshot {
+	profileId: string
+	shell: string
+}
+
+/** Resolves the shell the user's terminal profile setting selects right now. */
+function takeShellSnapshot(): ShellSnapshot {
+	// The setting is typed string, but guard empty values the same way the
+	// settings handlers do (they skip persisting "" but older stores may hold one).
+	const profileId = StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") || "default"
+	return { profileId, shell: getShellForProfile(profileId) }
+}
+
+/**
  * Creates the custom `run_commands` tool for the VSCode extension.
  *
  * This tool suppresses and replaces the SDK's built-in `run_commands` tool.
- * The terminal execution mode is captured when the session's tool set is built.
- * Switching modes rebuilds the active SDK session so the tool timeout and
- * execution mode stay aligned.
+ * The terminal execution mode is captured when the session's tool set is
+ * built; switching modes rebuilds the active SDK session so the tool timeout
+ * and execution path follow it.
+ *
+ * The shell is snapshotted each time the runtime reads the tool description,
+ * which happens when a model request is built. Tool calls produced by that
+ * request execute with the same snapshot, so changing the terminal profile
+ * while the model is generating does not change the shell under commands the
+ * model has already planned: the new shell is named in the next request (the
+ * one carrying these tool results) and used by the commands it produces.
  */
 export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): AgentTool {
-	return createShellTool(createVscodeShellExecutor(options), {
+	const state = { snapshot: takeShellSnapshot() }
+	return createShellTool(createVscodeShellExecutor(options, state), {
 		cwd: options.cwd,
 		bashTimeoutMs: options.bashTimeoutMs,
+		shell: () => {
+			state.snapshot = takeShellSnapshot()
+			return state.snapshot.shell
+		},
 	})
 }
 
-function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): ShellExecutor {
+function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state: { snapshot: ShellSnapshot }): ShellExecutor {
 	const { cwd, getTerminalManager } = options
 	const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
 
-	// Lazy-init background executor — recreated when the user's shell profile changes.
+	// Lazy-init background executor — recreated when the snapshotted shell changes.
 	let bgExecutor: ShellExecutor | undefined
 	let bgExecutorShell: string | undefined
 
@@ -200,12 +349,12 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 	return async (command, commandCwd, context): Promise<string> => {
 		Logger.log(`[VscodeRunCommands] Executing command in ${executionMode} mode`)
 
-		if (executionMode === "backgroundExec") {
-			// Background path — use SDK's createShellExecutor
-			// Resolve shell from the user's terminal profile setting
-			const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"
-			const shell = getShellForProfile(profileId)
+		// Execute with the shell named in the model request that produced this
+		// tool call, not the setting's current value (see createVscodeRunCommandsTool).
+		const { profileId, shell } = state.snapshot
 
+		if (executionMode === "backgroundExec") {
+			// Background path — use SDK's createShellExecutor.
 			// Recreate the executor if the shell has changed
 			if (!bgExecutor || bgExecutorShell !== shell) {
 				bgExecutorShell = shell
@@ -240,6 +389,14 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 		if (!terminalManager) {
 			terminalManager = getTerminalManager()
 		}
-		return await executeForeground(command, commandCwd || cwd, terminalManager, MAX_COMMAND_OUTPUT_CHARS, context.signal)
+		return await executeForeground(
+			command,
+			commandCwd || cwd,
+			terminalManager,
+			MAX_COMMAND_OUTPUT_CHARS,
+			context.signal,
+			options.foregroundCommands,
+			profileId,
+		)
 	}
 }

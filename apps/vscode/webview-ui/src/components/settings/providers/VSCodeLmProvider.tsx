@@ -1,4 +1,3 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { parseVsCodeLmModelSelector, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
@@ -66,8 +65,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 		void commitSelection(currentMode, {
 			providerId: "vscode-lm",
 			modelId,
-			modelInfo: {
-				...openAiModelInfoSafeDefaults,
+			overrides: {
 				name: [selector.vendor, selector.family].filter(Boolean).join(" - ") || modelId,
 			},
 		}).catch((err) => console.error("Failed to commit VS Code LM model selection:", err))

@@ -1,18 +1,12 @@
 "use client";
 
-import { Check, FolderOpen } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { cn } from "@/lib/utils";
+import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 interface QuickAction {
 	id: string;
@@ -21,178 +15,178 @@ interface QuickAction {
 	prompt: string;
 }
 
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
-}
-function toWorkspaceName(path: string): string {
-	const trimmed = path.trim().replace(/[\\/]+$/, "");
-	if (!trimmed) return "workspace";
-	const parts = trimmed.split(/[\\/]/);
-	return parts[parts.length - 1] || "workspace";
-}
+const HERO_VERBS = ["build", "create", "fix", "know"] as const;
+const HERO_CYCLE_MS = 2600;
 
-function formatWorkspaceLabel(workspacePath: string): string {
-	const trimmed = workspacePath.trim();
-	if (!trimmed) return workspacePath;
-	const unixHome = trimmed.match(/^\/Users\/[^/]+\/(.*)$/);
-	if (unixHome) return unixHome[1] ? `~/${unixHome[1]}` : "~";
-	const linuxHome = trimmed.match(/^\/home\/[^/]+\/(.*)$/);
-	if (linuxHome) return linuxHome[1] ? `~/${linuxHome[1]}` : "~";
-	const windowsHome = trimmed.match(/^[A-Za-z]:\\Users\\[^\\]+\\(.*)$/);
-	if (windowsHome) {
-		const tail = windowsHome[1]?.replaceAll("\\", "/") || "";
-		return tail ? `~/${tail}` : "~";
-	}
-	return workspacePath;
+const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
+	{
+		id: "review-changes",
+		label: "Review changes",
+		description: "Review the current changes and call out anything risky.",
+		prompt: "Review the current changes and call out anything risky.",
+	},
+	{
+		id: "check-build",
+		label: "Check for build errors",
+		description: "Run the relevant checks and help me fix any failures.",
+		prompt: "Check this project for build errors and help me fix any failures.",
+	},
+];
+
+function HeroHeading() {
+	const [verbIndex, setVerbIndex] = useState(0);
+
+	useEffect(() => {
+		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+		if (media.matches) return;
+		const interval = setInterval(() => {
+			setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
+		}, HERO_CYCLE_MS);
+		return () => clearInterval(interval);
+	}, []);
+
+	const verb = HERO_VERBS[verbIndex];
+
+	return (
+		<h1
+			id="hero-header"
+			className="text-balance text-left text-[clamp(2rem,3vw,2.6rem)] font-semibold leading-[1.12] tracking-tight text-foreground"
+		>
+			<span className="sr-only">What would you like to build?</span>
+			<span aria-hidden="true">
+				What would you like to{" "}
+				{/* key remounts the word each cycle so the chars re-trigger their entrance */}
+				<span key={verb}>
+					{verb.split("").map((char, index) => (
+						<span
+							className="hero-word-char"
+							// biome-ignore lint/suspicious/noArrayIndexKey: the word remounts via the parent key each cycle, so char position is a stable, non-reordering identity
+							key={`${verb}-${index}`}
+							style={{ animationDelay: `${index * 45}ms` }}
+						>
+							{char}
+						</span>
+					))}
+				</span>
+				?
+			</span>
+		</h1>
+	);
 }
 
 export function WelcomeScreen({
+	active,
+	body,
+	composer,
+	onStartChat,
 	quickActions,
+	gitBranch,
+	onListGitBranches,
+	onSwitchGitBranch,
 }: {
-	provider: string;
-	model: string;
+	active: boolean;
+	body: ReactNode;
+	composer: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: QuickAction[];
+	gitBranch: string;
+	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
+	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
-	const { workspaceRoot, workspaces, refreshWorkspaces, switchWorkspace } =
-		useWorkspace();
-	const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
-	const availableWorkspaces = useMemo(() => {
-		const next = new Map<string, string>();
-		const register = (path: string) => {
-			const trimmed = path.trim();
-			if (!trimmed) {
-				return;
-			}
-			next.set(normalizeWorkspacePath(trimmed), trimmed);
-		};
-		register(workspaceRoot);
-		for (const workspacePath of workspaces) {
-			register(workspacePath);
-		}
-		return [...next.values()];
-	}, [workspaceRoot, workspaces]);
+	const {
+		workspaceRoot,
+		workspaces,
+		refreshWorkspaces,
+		switchWorkspace,
+		pickWorkspaceDirectory,
+	} = useWorkspace();
+	const actions =
+		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
 
 	useEffect(() => {
-		void refreshWorkspaces();
-	}, [refreshWorkspaces]);
-
-	const handleSelectWorkspace = useCallback(
-		async (path: string) => {
-			if (
-				normalizeWorkspacePath(path) ===
-					normalizeWorkspacePath(workspaceRoot) ||
-				switchingWorkspace
-			)
-				return;
-			setSwitchingWorkspace(true);
-			await switchWorkspace(path);
-			setSwitchingWorkspace(false);
-		},
-		[workspaceRoot, switchWorkspace, switchingWorkspace],
-	);
-
-	const handleQuickAction = (action: QuickAction) => {
-		// TODO: wire up quick action prompt to chat input
-		void action;
-	};
+		if (active) void refreshWorkspaces();
+	}, [active, refreshWorkspaces]);
 
 	return (
-		<div className="flex flex-1 flex-col items-center overflow-hidden bg-background">
-			<AuroraBackground />
-			<div className="relative z-10 flex w-full max-w-3xl flex-1 flex-col items-center px-6 py-12">
-				<div className="mb-8 flex flex-col items-center">
-					<h1 className="text-balance text-center text-3xl font-bold tracking-tight text-foreground">
-						What can I do for you?
-					</h1>
-					<p className="mt-2 text-balance text-center text-muted-foreground">
-						Let's explore, edit, and ship code together!
-					</p>
-				</div>
+		<div
+			className={cn(
+				active
+					? "relative h-full min-h-0 overflow-hidden bg-background"
+					: "contents",
+			)}
+		>
+			{active ? <AuroraBackground /> : null}
+			<div
+				className={cn(
+					active
+						? "relative z-10 h-full w-full overflow-x-hidden overflow-y-auto"
+						: "contents",
+				)}
+			>
+				<div
+					className={cn(
+						active
+							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
+							: "contents",
+					)}
+				>
+					{active ? (
+						<>
+							<HeroHeading />
 
-				{/* Workspace selector */}
-				<div className="mb-8 w-full max-w-md">
-					<Label className="mb-2 block text-xs font-medium text-muted-foreground">
-						Workspace
-					</Label>
-					<Command className="rounded-xl border border-border bg-card">
-						<CommandInput placeholder="Search workspaces..." />
-						<CommandList>
-							<CommandEmpty>No workspaces found.</CommandEmpty>
-							<CommandGroup>
-								{availableWorkspaces.map((wsPath) => {
-									const isActive =
-										normalizeWorkspacePath(wsPath) ===
-										normalizeWorkspacePath(workspaceRoot);
-									return (
-										<CommandItem
-											key={wsPath}
-											value={wsPath}
-											onSelect={() => {
-												void handleSelectWorkspace(wsPath);
-											}}
-											disabled={switchingWorkspace}
-											className="gap-3 py-2.5"
-										>
-											<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
-												<FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-											</div>
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2">
-													<p className="truncate text-sm font-medium text-foreground">
-														{toWorkspaceName(wsPath)}
-													</p>
-													{isActive && (
-														<span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-															Active
-														</span>
-													)}
-												</div>
-												<p className="truncate text-xs text-muted-foreground">
-													{formatWorkspaceLabel(wsPath)}
-												</p>
-											</div>
-											{isActive && (
-												<Check className="ml-auto h-4 w-4 text-primary" />
-											)}
-										</CommandItem>
-									);
-								})}
-							</CommandGroup>
-						</CommandList>
-					</Command>
-				</div>
+							<div className="mt-11 flex min-w-0 items-center">
+								<WelcomeWorkspaceControls
+									currentBranch={gitBranch}
+									onListGitBranches={onListGitBranches}
+									onPickWorkspaceDirectory={pickWorkspaceDirectory}
+									onRefreshWorkspaces={refreshWorkspaces}
+									onSwitchGitBranch={onSwitchGitBranch}
+									onSwitchWorkspace={switchWorkspace}
+									workspaceRoot={workspaceRoot}
+									workspaces={workspaces}
+								/>
+							</div>
+						</>
+					) : null}
 
-				{/* Quick actions */}
-				<div className="mb-8 w-full">
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-						{quickActions?.map((action) => {
-							return (
-								<button
-									type="button"
-									key={action.id}
-									onClick={() => handleQuickAction(action)}
-									className="group flex flex-col items-start gap-2 rounded-xl border border-border bg-card/50 p-4 text-left transition-all hover:border-primary/30 hover:bg-card"
-								>
-									<div>
-										<p className="text-sm font-medium text-foreground">
-											{action.label}
-										</p>
-										<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-											{action.description}
-										</p>
-									</div>
-								</button>
-							);
-						})}
+					<div
+						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						key="conversation-body"
+					>
+						{body}
 					</div>
+
+					<div
+						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
+						key="persistent-composer"
+					>
+						{composer}
+					</div>
+
+					{active ? (
+						<div className="mt-11 w-full divide-y divide-border/80 overflow-hidden rounded-xl border border-border/60 bg-background/95 px-2 shadow-sm">
+							{actions.map((action) => (
+								<button
+									className="group flex w-full items-center justify-between gap-5 px-3 py-3 text-left transition-colors hover:bg-background/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+									key={action.id}
+									onClick={() => onStartChat(action.prompt)}
+									type="button"
+								>
+									<span className="min-w-0">
+										<span className="block text-[15px] font-medium text-foreground">
+											{action.label}
+										</span>
+										<span className="mt-0.5 block truncate text-sm text-muted-foreground">
+											{action.description}
+										</span>
+									</span>
+									<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+										<ArrowRight className="size-3" />
+									</span>
+								</button>
+							))}
+						</div>
+					) : null}
 				</div>
 			</div>
 		</div>

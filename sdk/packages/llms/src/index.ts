@@ -29,6 +29,7 @@ export {
 	registerProvider,
 	resetRegistry,
 	sortModelsByReleaseDate,
+	unregisterModel,
 	unregisterProvider,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
@@ -64,8 +65,8 @@ export {
 	createHandler,
 	createHandlerAsync,
 	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
@@ -79,6 +80,7 @@ export {
 	isClinePassLimitMessage,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 	registerAsyncHandler,
 	registerHandler,
 } from "./providers";

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -17,17 +18,6 @@ function formatWorkspacePath(path: string): string {
 		return tail ? `~/${tail}` : "~";
 	}
 	return path;
-}
-
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
 }
 
 export function WorkspaceSelector({
@@ -181,7 +171,20 @@ export function WorkspaceSelector({
 		b.toLowerCase().includes(search.toLowerCase()),
 	);
 
-	const filteredWorkspaces = workspaces.filter((w) =>
+	// The catalog excludes non-project paths (home, Desktop, ~/.cline), but an
+	// explicitly opened workspace must stay visible while it is active.
+	const availableWorkspaces = useMemo(() => {
+		const byNormalizedPath = new Map<string, string>();
+		const register = (path: string) => {
+			const trimmed = path.trim();
+			if (trimmed) byNormalizedPath.set(normalizeWorkspacePath(trimmed), trimmed);
+		};
+		register(workspaceRoot);
+		for (const path of workspaces) register(path);
+		return [...byNormalizedPath.values()];
+	}, [workspaceRoot, workspaces]);
+
+	const filteredWorkspaces = availableWorkspaces.filter((w) =>
 		w.toLowerCase().includes(search.toLowerCase()),
 	);
 
@@ -215,6 +218,7 @@ export function WorkspaceSelector({
 						variant="ghost"
 						aria-label="Close menu"
 						className="fixed inset-0 z-40 cursor-default h-auto rounded-none opacity-0"
+						data-cursor="default"
 						onClick={() => {
 							setOpen(false);
 							setShowWorkspacePathInput(false);

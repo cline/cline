@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultShell, getShellArgs } from "./shell";
+import { getDefaultShell, getShellArgs, getShellKind } from "./shell";
 
 describe("shell helpers", () => {
 	it("selects PowerShell on Windows and bash elsewhere", () => {
@@ -50,8 +50,30 @@ describe("shell helpers", () => {
 			"-c",
 			"ls | head -5",
 		]);
+		expect(getShellArgs("C:\\Windows\\System32\\wsl.exe", "echo hi")).toEqual([
+			"bash",
+			"-c",
+			"echo hi",
+		]);
+	});
+
+	it("classifies shells into kinds consistent with their spawn args", () => {
+		expect(getShellKind("powershell")).toBe("powershell");
+		expect(getShellKind("C:\\Program Files\\PowerShell\\7\\pwsh.exe")).toBe(
+			"powershell",
+		);
 		expect(
-			getShellArgs("C:\\Windows\\System32\\wsl.exe", "echo hi"),
-		).toEqual(["bash", "-c", "echo hi"]);
+			getShellKind(
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			),
+		).toBe("powershell");
+		expect(getShellKind("cmd.exe")).toBe("cmd");
+		expect(getShellKind("C:\\Windows\\System32\\cmd.exe")).toBe("cmd");
+		expect(getShellKind("C:\\Windows\\System32\\wsl.exe")).toBe("wsl");
+		expect(getShellKind("/bin/bash")).toBe("posix");
+		expect(getShellKind("/bin/zsh")).toBe("posix");
+		expect(getShellKind("C:\\Program Files\\Git\\bin\\bash.exe")).toBe(
+			"posix",
+		);
 	});
 });

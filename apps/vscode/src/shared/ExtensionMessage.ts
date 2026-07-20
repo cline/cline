@@ -93,6 +93,11 @@ export interface ExtensionState {
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
+	/**
+	 * True while a foreground (VS Code terminal) command is awaited by a
+	 * run_commands tool call. Drives the "Proceed While Running" button.
+	 */
+	foregroundCommandRunning?: boolean
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string

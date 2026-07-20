@@ -88,6 +88,9 @@ const esbuildProblemMatcherPlugin = {
 const buildEnvVars = {
 	"import.meta.url": "_importMetaUrl",
 	"process.env.IS_STANDALONE": JSON.stringify(standalone ? "true" : "false"),
+	// Always inline these values so ordinary builds cannot be mislabeled by a
+	// user's runtime environment. Only the combined rollout workflow sets them.
+	"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(process.env.CLINE_ROLLOUT_VARIANT || ""),
 }
 
 if (production) {

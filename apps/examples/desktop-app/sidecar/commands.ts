@@ -1,5 +1,12 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+} from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
@@ -28,6 +35,7 @@ import {
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	resolvePluginConfigSearchPaths,
@@ -44,6 +52,8 @@ import {
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import packageJson from "../package.json";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -176,6 +186,31 @@ function removePathIfExists(
 		recursive: options?.recursive === true,
 	});
 	return true;
+}
+
+// Cline access tokens expire between app launches, so account requests must
+// resolve through the refresh-aware OAuth manager instead of reading the
+// persisted token directly. A single shared instance keeps concurrent account
+// requests single-flight; the refresh token is single-use, so parallel
+// refreshes would invalidate each other.
+let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
+
+async function resolveFreshClineAuthToken(
+	manager: ProviderSettingsManager,
+): Promise<string | undefined> {
+	try {
+		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
+		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
+			providerId: "cline",
+		});
+		if (resolution?.apiKey) {
+			return resolution.apiKey;
+		}
+	} catch {
+		// Fall back to the persisted token; the account request surfaces the
+		// auth failure to the caller.
+	}
+	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
 }
 
 async function listSessionsFromSidecarManager(
@@ -552,7 +587,7 @@ async function listUserInstructionConfigs(
 					const ext = extname(entry.name).toLowerCase();
 					if (ext !== ".yml" && ext !== ".yaml") continue;
 					const filePath = join(directory, entry.name);
-					const raw = readFileSync(filePath, "utf8");
+					const raw = readFileSyncStrippingUtf8Bom(filePath);
 					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 					const fm = fmMatch?.[1] ?? "";
 					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);
@@ -750,7 +785,13 @@ export async function handleCommand(
 
 	// ── Process context ───────────────────────────────────────────────
 	if (command === "get_process_context") {
-		return { workspaceRoot: ctx.workspaceRoot, cwd: ctx.workspaceRoot };
+		return {
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+			homeDir: homedir(),
+			platform: process.platform,
+			appVersion: packageJson.version,
+		};
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
@@ -947,7 +988,7 @@ export async function handleCommand(
 		const accountService = new ClineAccountService({
 			apiBaseUrl:
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => resolveLocalClineAuthToken(settings),
+			getAuthToken: async () => resolveFreshClineAuthToken(manager),
 		});
 		return await executeClineAccountAction(
 			args as ClineAccountActionRequest,
@@ -1163,10 +1204,13 @@ export async function handleCommand(
 
 	// ── Git operations ─────────────────────────────────────────────────
 	if (command === "get_git_branch") {
-		const branches = listGitBranches(
-			ctx,
-			typeof args?.cwd === "string" ? args.cwd : undefined,
-		);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const branches = listGitBranches(ctx, cwd);
+		const { prewarmWorkspaceMetadata } = await import("./chat-session");
+		prewarmWorkspaceMetadata(cwd);
 		return { branch: branches.current };
 	}
 	if (command === "list_git_branches") {
@@ -1179,11 +1223,14 @@ export async function handleCommand(
 		const cwd = typeof args?.cwd === "string" ? args.cwd : undefined;
 		const branch = String(args?.branch ?? "").trim();
 		if (!branch) throw new Error("branch is required");
+		const targetCwd = cwd?.trim() || ctx.workspaceRoot;
 		execFileSync("git", ["checkout", branch], {
-			cwd: cwd?.trim() || ctx.workspaceRoot,
+			cwd: targetCwd,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "pipe"],
 		});
+		const { refreshWorkspaceMetadata } = await import("./chat-session");
+		refreshWorkspaceMetadata(targetCwd);
 		return { branch };
 	}
 
@@ -1252,6 +1299,15 @@ export async function handleCommand(
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────
+	if (command === "validate_workspace_directory") {
+		const workspacePath = String(args?.path ?? "").trim();
+		if (!workspacePath) return { valid: false };
+		try {
+			return { valid: statSync(workspacePath).isDirectory() };
+		} catch {
+			return { valid: false };
+		}
+	}
 	if (command === "pick_workspace_directory") {
 		return pickWorkspaceDirectory();
 	}

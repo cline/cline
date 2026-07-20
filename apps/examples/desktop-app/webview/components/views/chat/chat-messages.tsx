@@ -1,12 +1,27 @@
 "use client";
 
 import {
+	Message as AgentMessage,
+	Conversation,
+	ConversationContent,
+	ConversationScrollButton,
+	ConversationViewport,
+	MessageAction,
+	MessageActions,
+	MessageContent,
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+	ToolActivity,
+	ToolActivityCode,
+	ToolActivityContent,
+	ToolActivityDetails,
+	ToolActivityTrigger,
+} from "@cline/ui/components/agent-chat";
+import {
 	AlertCircle,
 	Bot,
-	BrainIcon,
 	Check,
-	ChevronDown,
-	ChevronRight,
 	Clock3,
 	Copy,
 	FileEdit,
@@ -20,22 +35,14 @@ import {
 	SquareTerminalIcon,
 	UndoIcon,
 } from "lucide-react";
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
-import { normalizeTitle } from "../../utils";
-import { WelcomeScreen } from "./welcome-chat";
+import { formatChatMessageContent } from "./message-content";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -46,8 +53,6 @@ type ChatMessagesProps = {
 		| "connected"
 		| "unavailable";
 	isSessionSwitching?: boolean;
-	provider: string;
-	model: string;
 	messages: ChatMessage[];
 	error: string | null;
 	streamingMessageId?: string | null;
@@ -61,7 +66,6 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
-	onStartChat?: (prompt: string) => void;
 };
 
 type ToolApprovalRequestItem = {
@@ -89,16 +93,12 @@ type AskQuestionRequestItem = {
 };
 
 const IS_DEBUG = process.env.NODE_ENV === "test";
-const STICKY_BOTTOM_THRESHOLD_PX = 24;
-const SCROLL_TO_BOTTOM_BUTTON_THRESHOLD_PX = 120;
 
 function ChatMessagesImpl({
-	sessionId: _sessionId,
+	sessionId,
 	status,
 	chatTransportState = "connecting",
 	isSessionSwitching = false,
-	provider,
-	model,
 	messages,
 	error,
 	streamingMessageId = null,
@@ -109,10 +109,7 @@ function ChatMessagesImpl({
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
 	onForkSession,
-	onStartChat,
 }: ChatMessagesProps) {
-	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-	const shouldStickToBottomRef = useRef(true);
 	const hasMessages = messages.length > 0;
 	const lastErrorMessage = [...messages]
 		.reverse()
@@ -120,7 +117,6 @@ function ChatMessagesImpl({
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
-	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 	const [toolApprovalActions, setToolApprovalActions] = useState<
 		Record<string, "approving" | "rejecting">
 	>({});
@@ -145,23 +141,6 @@ function ChatMessagesImpl({
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 
-	const getViewport = useCallback(() => {
-		return scrollAreaRef.current;
-	}, []);
-
-	const scrollToBottom = useCallback(
-		(behavior: ScrollBehavior = "smooth") => {
-			const viewport = getViewport();
-			if (!viewport) {
-				return;
-			}
-			shouldStickToBottomRef.current = true;
-			viewport.scrollTo({ top: viewport.scrollHeight, behavior });
-			setShowScrollToBottom((prev) => (prev ? false : prev));
-		},
-		[getViewport],
-	);
-
 	useEffect(() => {
 		if (!isSessionSwitching) {
 			setShowSwitchTransition((prev) => (prev ? false : prev));
@@ -174,39 +153,6 @@ function ChatMessagesImpl({
 			window.clearTimeout(timer);
 		};
 	}, [isSessionSwitching]);
-
-	useEffect(() => {
-		const viewport = getViewport();
-		if (!viewport) {
-			return;
-		}
-
-		const updateScrollToBottomVisibility = () => {
-			const distanceFromBottom =
-				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-			shouldStickToBottomRef.current =
-				distanceFromBottom <= STICKY_BOTTOM_THRESHOLD_PX;
-			const shouldShow =
-				distanceFromBottom > SCROLL_TO_BOTTOM_BUTTON_THRESHOLD_PX;
-			setShowScrollToBottom((prev) =>
-				prev === shouldShow ? prev : shouldShow,
-			);
-		};
-
-		updateScrollToBottomVisibility();
-		viewport.addEventListener("scroll", updateScrollToBottomVisibility);
-
-		return () => {
-			viewport.removeEventListener("scroll", updateScrollToBottomVisibility);
-		};
-	}, [getViewport]);
-
-	useLayoutEffect(() => {
-		if (!shouldStickToBottomRef.current) {
-			return;
-		}
-		scrollToBottom("auto");
-	}, [scrollToBottom]);
 
 	useEffect(() => {
 		const activeRequestIds = new Set(
@@ -371,21 +317,22 @@ function ChatMessagesImpl({
 	);
 
 	return (
-		<div className="relative h-full min-h-0 min-w-0">
-			<div
-				className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
-				ref={scrollAreaRef}
+		<Conversation
+			className="h-full min-h-0 min-w-0"
+			key={sessionId ?? "new-chat"}
+		>
+			<ConversationViewport
+				aria-label="Agent conversation"
+				className="h-full min-h-0 min-w-0"
 			>
-				<div className="relative mx-auto w-full h-full min-w-0 max-w-full overflow-x-hidden px-6 py-6">
-					{showIdleDetails ? (
-						<WelcomeScreen
-							provider={provider}
-							model={model}
-							onStartChat={onStartChat ?? (() => {})}
-							quickActions={[]}
-						/>
-					) : (
-						<div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
+				<ConversationContent
+					className={cn(
+						"relative mx-auto min-h-full w-full min-w-0 max-w-full overflow-x-hidden",
+						showIdleDetails ? "p-0" : "px-6 py-6",
+					)}
+				>
+					{showIdleDetails ? null : (
+						<div className="flex min-h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -492,21 +439,10 @@ function ChatMessagesImpl({
 							{error}
 						</div>
 					) : null}
-				</div>
-			</div>
-			{showScrollToBottom ? (
-				<Button
-					className="absolute bottom-4 right-4 z-20 size-9 rounded-full shadow-sm"
-					onClick={() => scrollToBottom("smooth")}
-					size="icon"
-					type="button"
-					variant="secondary"
-				>
-					<ChevronDown className="size-4" />
-					<span className="sr-only">Scroll to bottom</span>
-				</Button>
-			) : null}
-		</div>
+				</ConversationContent>
+			</ConversationViewport>
+			<ConversationScrollButton />
+		</Conversation>
 	);
 }
 
@@ -741,218 +677,138 @@ function MessageBubble({
 		isUser && Boolean(onCopyRawText || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
 	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
-	const hiddenActionButtonsClassName =
-		"pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
 	if (message.role === "tool") {
 		return <ToolMessageBlock message={message} />;
 	}
 
-	const normalizedContent = normalizeTitle(message.content);
+	const displayContent = formatChatMessageContent(
+		message.role,
+		message.content,
+	);
 	const reasoningContent = message.reasoning?.trim() || "";
 
 	return (
-		<div
-			className={cn(
-				"flex min-w-0",
-				isUser ? "justify-end" : "w-full justify-start",
-			)}
-		>
-			<div
-				className={cn(
-					"group max-w-full min-w-0 wrap-break-word text-sm",
-					isUser && "flex max-w-[50%] flex-col items-end gap-1",
-					!isUser && "flex flex-col items-start gap-2 overflow-hidden",
-					!isUser && !isError && "text-foreground",
-					isError &&
-						"bg-destructive/10 border border-destructive/40 text-destructive",
-				)}
-			>
-				<div
-					className={cn(
-						"max-w-full min-w-0 space-y-2 overflow-hidden wrap-break-word",
-						isUser && "rounded-sm bg-card p-2 text-foreground/80",
-					)}
-				>
-					{isStreaming && message.role === "assistant" ? (
-						<>
-							{reasoningContent || message.reasoningRedacted ? (
-								<ReasoningBlock
-									content={reasoningContent}
-									redacted={message.reasoningRedacted === true}
-								/>
-							) : null}
-							<div className="whitespace-pre-wrap wrap-break-word leading-relaxed">
-								{normalizedContent || " "}
-							</div>
-						</>
-					) : (
-						<>
-							{reasoningContent || message.reasoningRedacted ? (
-								<ReasoningBlock
-									content={reasoningContent}
-									redacted={message.reasoningRedacted === true}
-								/>
-							) : null}
+		<AgentMessage from={message.role}>
+			<MessageContent className="space-y-2 wrap-break-word">
+				{reasoningContent || message.reasoningRedacted ? (
+					<ReasoningBlock
+						content={reasoningContent}
+						redacted={message.reasoningRedacted === true}
+						streaming={isStreaming}
+					/>
+				) : null}
 
-							<div className="my-1 ml-3 min-w-0 max-w-full overflow-x-hidden wrap-break-word **:max-w-full [&_code]:whitespace-pre-wrap [&_code]:wrap-break-word [&_pre]:overflow-x-hidden [&_pre]:whitespace-pre-wrap [&_pre]:wrap-break-word">
-								<MemoizedMarkdown
-									content={normalizedContent || " "}
-									id={message.id}
-								/>
-							</div>
-						</>
-					)}
+				<div className="my-1 min-w-0 max-w-full wrap-break-word">
+					<MemoizedMarkdown
+						content={displayContent || " "}
+						streaming={isStreaming && message.role === "assistant"}
+					/>
 				</div>
-				{shouldRenderUserActions ? (
-					<div className="space-y-1">
-						<div className="flex h-6 items-center justify-end">
-							<div
-								className={cn(
-									"flex items-center justify-end gap-2",
-									keepUserActionsVisible
-										? "pointer-events-auto opacity-100"
-										: hiddenActionButtonsClassName,
-								)}
+			</MessageContent>
+
+			{shouldRenderUserActions ? (
+				<>
+					<MessageActions visible={keepUserActionsVisible}>
+						{onCopyRawText ? (
+							<MessageAction
+								label={wasCopied ? "Copied user message" : "Copy user message"}
+								onClick={onCopyRawText}
+								title={wasCopied ? "Copied" : "Copy message"}
 							>
-								{onCopyRawText ? (
-									<Button
-										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-										aria-label={
-											wasCopied ? "Copied user message" : "Copy user message"
-										}
-										onClick={onCopyRawText}
-										size="sm"
-										title={wasCopied ? "Copied" : "Copy message"}
-										type="button"
-										variant="ghost"
-									>
-										{wasCopied ? (
-											<Check className="h-3.5 w-3.5" />
-										) : (
-											<Copy className="h-3.5 w-3.5" />
-										)}
-									</Button>
-								) : null}
-								{checkpoint ? (
-									<Button
-										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-										aria-label="Restore checkpoint"
-										disabled={restoreDisabled || restorePending}
-										onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
-										size="sm"
-										title="Restore checkpoint"
-										type="button"
-										variant="ghost"
-									>
-										{restorePending ? (
-											<Loader2 className="h-3.5 w-3.5 animate-spin" />
-										) : (
-											<UndoIcon className="h-3.5 w-3.5" />
-										)}
-									</Button>
-								) : null}
-							</div>
-						</div>
-						{restoreError ? (
-							<div className="text-right text-xs text-destructive">
-								{restoreError}
-							</div>
+								{wasCopied ? (
+									<Check className="h-3.5 w-3.5" />
+								) : (
+									<Copy className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
 						) : null}
-					</div>
-				) : null}
-				{shouldRenderAssistantActions ? (
-					<div className="flex h-6 items-center hidden">
-						<div
-							className={cn(
-								"flex items-center gap-0",
-								keepAssistantActionsVisible
-									? "pointer-events-auto opacity-100"
-									: hiddenActionButtonsClassName,
-							)}
-						>
-							{onCopyRawText ? (
-								<Button
-									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-									aria-label={
-										wasCopied
-											? "Copied assistant message"
-											: "Copy assistant message"
-									}
-									onClick={onCopyRawText}
-									size="sm"
-									title={wasCopied ? "Copied" : "Copy raw assistant output"}
-									type="button"
-									variant="ghost"
-								>
-									{wasCopied ? (
-										<Check className="h-3 w-3" />
-									) : (
-										<Copy className="h-3 w-3" />
-									)}
-								</Button>
-							) : null}
-							{onForkSession ? (
-								<Button
-									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-									aria-label="Fork session"
-									disabled={forkPending}
-									onClick={onForkSession}
-									size="sm"
-									title="Fork session - copy full message history into a new session"
-									type="button"
-									variant="ghost"
-								>
-									{forkPending ? (
-										<Loader2 className="h-3 w-3 animate-spin" />
-									) : (
-										<SplitIcon className="h-3 w-3" />
-									)}
-								</Button>
-							) : null}
-							{forkError ? (
-								<span className="text-[11px] text-destructive">
-									{forkError}
-								</span>
-							) : null}
+						{checkpoint ? (
+							<MessageAction
+								disabled={restoreDisabled || restorePending}
+								label="Restore checkpoint"
+								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+								title="Restore checkpoint"
+							>
+								{restorePending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<UndoIcon className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
+						) : null}
+					</MessageActions>
+					{restoreError ? (
+						<div className="text-right text-xs text-destructive">
+							{restoreError}
 						</div>
-					</div>
-				) : null}
-			</div>
-		</div>
+					) : null}
+				</>
+			) : null}
+
+			{shouldRenderAssistantActions ? (
+				<MessageActions visible={keepAssistantActionsVisible}>
+					{onCopyRawText ? (
+						<MessageAction
+							label={
+								wasCopied
+									? "Copied assistant message"
+									: "Copy assistant message"
+							}
+							onClick={onCopyRawText}
+							title={wasCopied ? "Copied" : "Copy raw assistant output"}
+						>
+							{wasCopied ? (
+								<Check className="h-3 w-3" />
+							) : (
+								<Copy className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{onForkSession ? (
+						<MessageAction
+							disabled={forkPending}
+							label="Fork session"
+							onClick={onForkSession}
+							title="Fork session - copy full message history into a new session"
+						>
+							{forkPending ? (
+								<Loader2 className="h-3 w-3 animate-spin" />
+							) : (
+								<SplitIcon className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{forkError ? (
+						<span className="text-[11px] text-destructive">{forkError}</span>
+					) : null}
+				</MessageActions>
+			) : null}
+		</AgentMessage>
 	);
 }
 
 function ReasoningBlock({
 	content,
 	redacted,
+	streaming = false,
 }: {
 	content: string;
 	redacted: boolean;
+	streaming?: boolean;
 }) {
-	const [expanded, setExpanded] = useState(false);
 	const displayContent = content || (redacted ? "[redacted]" : "");
 	if (!displayContent) {
 		return null;
 	}
 
 	return (
-		<div className="my-2">
-			<Button
-				className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-foreground/70 hover:bg-transparent hover:text-foreground dark:hover:bg-transparent dark:hover:text-foreground"
-				onClick={() => setExpanded((current) => !current)}
-				type="button"
-				variant="ghost"
-			>
-				<BrainIcon className="size-4" />
-				Thinking
-			</Button>
-			{expanded ? (
-				<div className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
-					{displayContent}
-				</div>
-			) : null}
-		</div>
+		<Reasoning isStreaming={streaming}>
+			<ReasoningTrigger />
+			<ReasoningContent>
+				<MemoizedMarkdown content={displayContent} streaming={streaming} />
+			</ReasoningContent>
+		</Reasoning>
 	);
 }
 
@@ -1333,7 +1189,6 @@ function buildToolSummaryFromMeta(
 }
 
 function ToolMessageBlock({ message }: { message: ChatMessage }) {
-	const [expanded, setExpanded] = useState(false);
 	const payload = parseToolPayload(message.content);
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
 	const hookEventName = message.meta?.hookEventName;
@@ -1367,80 +1222,48 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		details.length > 0 || Boolean(inputPreview || resultPreview);
 
 	return (
-		<div className="my-2 flex w-full min-w-0 justify-start">
-			<div
-				className={cn("min-w-0 max-w-full overflow-hidden rounded-xl text-sm")}
-			>
-				<Button
-					className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80 dark:hover:bg-transparent dark:hover:text-primary/80"
-					onClick={() => setExpanded((current) => !current)}
-					type="button"
-					variant="ghost"
-				>
-					{payload?.isError ? (
+		<ToolActivity expandable={hasExpandedSections}>
+			<ToolActivityTrigger
+				additions={summary.diff?.additions}
+				deletions={summary.diff?.deletions}
+				icon={
+					payload?.isError ? (
 						<AlertCircle className="size-4 text-destructive/80" />
 					) : (
 						<Icon className="size-4" />
-					)}
-					<span className="min-w-0 wrap-break-word">{summary.label}</span>
-					{summary.diff ? (
-						<span className="shrink-0 font-mono text-xs">
-							<span className="text-chart-2">+{summary.diff.additions}</span>{" "}
-							<span className="text-destructive">
-								-{summary.diff.deletions}
-							</span>
-						</span>
-					) : null}
-					{hasExpandedSections ? (
-						<span className="shrink-0 text-muted-foreground">
-							{expanded ? (
-								<ChevronDown className="size-4" />
-							) : (
-								<ChevronRight className="size-4" />
-							)}
-						</span>
-					) : null}
-				</Button>
-				{expanded ? (
-					<div className="mt-1.5 min-w-0 max-w-full overflow-x-hidden pl-8 text-sm text-muted-foreground">
-						{hasExpandedSections ? (
-							<div className="space-y-1">
-								{details.map((detail) => (
-									<div
-										className="wrap-break-word"
-										key={`${message.id}_${detail}`}
-									>
-										{detail}
-									</div>
-								))}
-							</div>
-						) : null}
-						{inputPreview ? (
-							<div className="space-y-1">
-								<div className="text-xxs uppercase tracking-wide text-muted-foreground/80">
-									Input
-								</div>
-								<pre className="max-h-52 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">
-									{inputPreview}
-								</pre>
-							</div>
-						) : null}
-						{resultPreview ? (
-							payload?.isError ? (
-								<div className="mt-1">
-									<span className="text-destructive">{resultPreview}</span>
-								</div>
-							) : (
-								<div className="space-y-1">
-									<pre className="max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">
-										{resultPreview}
-									</pre>
-								</div>
-							)
-						) : null}
+					)
+				}
+				label={summary.label}
+				status={payload?.isError ? "error" : inProgress ? "running" : "success"}
+			/>
+			<ToolActivityContent>
+				{details.length > 0 ? (
+					<ToolActivityDetails>
+						{details.map((detail) => (
+							<div key={`${message.id}_${detail}`}>{detail}</div>
+						))}
+					</ToolActivityDetails>
+				) : null}
+				{inputPreview ? (
+					<div className="space-y-1">
+						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+							Input
+						</div>
+						<ToolActivityCode className="text-sm">
+							{inputPreview}
+						</ToolActivityCode>
 					</div>
 				) : null}
-			</div>
-		</div>
+				{resultPreview ? (
+					payload?.isError ? (
+						<div className="mt-1 text-destructive">{resultPreview}</div>
+					) : (
+						<ToolActivityCode className="max-h-64 text-sm">
+							{resultPreview}
+						</ToolActivityCode>
+					)
+				) : null}
+			</ToolActivityContent>
+		</ToolActivity>
 	);
 }

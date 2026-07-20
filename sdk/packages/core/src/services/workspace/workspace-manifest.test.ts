@@ -3,7 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import simpleGit from "simple-git";
 import { afterEach, describe, expect, test } from "vitest";
-import { generateWorkspaceInfoWithDiagnostics } from "./workspace-manifest";
+import {
+	generateWorkspaceInfoWithDiagnostics,
+	hasCurrentSessionGitMetadata,
+	readGitWorkspaceState,
+	readSessionGitMetadata,
+	withSessionGitMetadata,
+} from "./workspace-manifest";
 
 const tempDirs: string[] = [];
 
@@ -17,6 +23,77 @@ afterEach(async () => {
 	await Promise.all(
 		tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
 	);
+});
+
+describe("readGitWorkspaceState", () => {
+	test("prefers origin and returns the current branch", async () => {
+		const dir = await createTempDir();
+		const git = simpleGit({ baseDir: dir });
+		await git.init();
+		await git.addConfig("user.email", "test@example.com");
+		await git.addConfig("user.name", "Test");
+		await git.commit("initial", ["--allow-empty"]);
+		await git.addRemote("backup", "https://example.com/backup.git");
+		await git.addRemote("origin", "git@github.com:cline/cline.git");
+
+		await expect(readGitWorkspaceState(dir)).resolves.toEqual({
+			url: "git@github.com:cline/cline.git",
+			branch: (await git.branch()).current,
+		});
+	});
+
+	test("returns no fields outside a git repository", async () => {
+		await expect(readGitWorkspaceState(await createTempDir())).resolves.toEqual(
+			{},
+		);
+	});
+});
+
+describe("session git metadata", () => {
+	test("reads normalized git metadata", () => {
+		expect(
+			readSessionGitMetadata({
+				git: { url: " https://example.com/repo.git ", branch: " main " },
+			}),
+		).toEqual({
+			url: "https://example.com/repo.git",
+			branch: "main",
+		});
+		expect(readSessionGitMetadata({ git: "invalid" })).toEqual({});
+	});
+
+	test("merges git state without replacing sibling metadata", () => {
+		expect(
+			withSessionGitMetadata(
+				{
+					title: "Session title",
+					checkpoint: { latest: { ref: "abc" } },
+					git: { url: "old", commit: "preserved" },
+				},
+				{ url: "new", branch: "feature" },
+			),
+		).toEqual({
+			title: "Session title",
+			checkpoint: { latest: { ref: "abc" } },
+			git: { url: "new", branch: "feature", commit: "preserved" },
+		});
+	});
+
+	test("detects current state and removes git for non-git workspaces", () => {
+		const metadata = {
+			title: "Session title",
+			git: { url: "https://example.com/repo.git", branch: "main" },
+		};
+		expect(
+			hasCurrentSessionGitMetadata(metadata, {
+				url: "https://example.com/repo.git",
+				branch: "main",
+			}),
+		).toBe(true);
+		expect(withSessionGitMetadata(metadata, {})).toEqual({
+			title: "Session title",
+		});
+	});
 });
 
 describe("generateWorkspaceInfoWithDiagnostics", () => {

@@ -2,181 +2,10 @@
 @import "@fontsource/azeret-mono/latin.css";
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@cline/ui/theme/index.css";
+@import "@cline/ui/components/agent-chat.css";
 
-@custom-variant dark (&:is(.dark *));
-
-:root {
-	--font-desktop-sans: "Schibsted Grotesk Variable";
-	--font-desktop-mono: "Azeret Mono";
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.75 0.12 165);
-	--primary-foreground: oklch(0.962 0.018 272.314);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--destructive-foreground: oklch(0.985 0 0);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--radius: 0.5rem;
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.75 0.12 165);
-	--primary-foreground: oklch(0.962 0.018 272.314);
-	--secondary: oklch(0.274 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.585 0.233 277.117);
-	--sidebar-primary-foreground: oklch(0.962 0.018 272.314);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
-}
-
-@theme inline {
-	--font-sans: var(--font-desktop-sans), sans-serif;
-	--font-mono:
-		var(--font-desktop-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas,
-		"Liberation Mono", monospace;
-	--font-weight-normal: 480;
-	--font-weight-medium: 560;
-	--font-weight-semibold: 640;
-	--font-weight-bold: 640;
-	--text-step-1: 12px;
-	--text-step-1--line-height: 16px;
-	--text-step-1--letter-spacing: 0.0025em;
-	--text-step-2: 14px;
-	--text-step-2--line-height: 20px;
-	--text-step-2--letter-spacing: 0em;
-	--text-step-3: 16px;
-	--text-step-3--line-height: 24px;
-	--text-step-3--letter-spacing: 0em;
-	--text-step-4: 18px;
-	--text-step-4--line-height: 26px;
-	--text-step-4--letter-spacing: -0.0025em;
-	--text-step-5: 20px;
-	--text-step-5--line-height: 28px;
-	--text-step-5--letter-spacing: -0.005em;
-	--text-step-6: 24px;
-	--text-step-6--line-height: 30px;
-	--text-step-6--letter-spacing: -0.00625em;
-	--text-step-7: 28px;
-	--text-step-7--line-height: 36px;
-	--text-step-7--letter-spacing: -0.0075em;
-	--text-step-8: 35px;
-	--text-step-8--line-height: 40px;
-	--text-step-8--letter-spacing: -0.01em;
-	--text-step-9: 60px;
-	--text-step-9--line-height: 60px;
-	--text-step-9--letter-spacing: -0.025em;
-	--text-xs: var(--text-step-1);
-	--text-xs--line-height: var(--text-step-1--line-height);
-	--text-xs--letter-spacing: var(--text-step-1--letter-spacing);
-	--text-sm: var(--text-step-2);
-	--text-sm--line-height: var(--text-step-2--line-height);
-	--text-sm--letter-spacing: var(--text-step-2--letter-spacing);
-	--text-base: var(--text-step-3);
-	--text-base--line-height: var(--text-step-3--line-height);
-	--text-base--letter-spacing: var(--text-step-3--letter-spacing);
-	--text-lg: var(--text-step-4);
-	--text-lg--line-height: var(--text-step-4--line-height);
-	--text-lg--letter-spacing: var(--text-step-4--letter-spacing);
-	--text-xl: var(--text-step-5);
-	--text-xl--line-height: var(--text-step-5--line-height);
-	--text-xl--letter-spacing: var(--text-step-5--letter-spacing);
-	--text-2xl: var(--text-step-6);
-	--text-2xl--line-height: var(--text-step-6--line-height);
-	--text-2xl--letter-spacing: var(--text-step-6--letter-spacing);
-	--text-3xl: var(--text-step-7);
-	--text-3xl--line-height: var(--text-step-7--line-height);
-	--text-3xl--letter-spacing: var(--text-step-7--letter-spacing);
-	--text-4xl: var(--text-step-8);
-	--text-4xl--line-height: var(--text-step-8--line-height);
-	--text-4xl--letter-spacing: var(--text-step-8--letter-spacing);
-	--text-6xl: var(--text-step-9);
-	--text-6xl--line-height: var(--text-step-9--line-height);
-	--text-6xl--letter-spacing: var(--text-step-9--letter-spacing);
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-destructive-foreground: var(--destructive-foreground);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
-}
+@source "../../node_modules/streamdown/dist";
 
 @layer base {
 	html,
@@ -185,144 +14,124 @@
 		min-height: 100vh;
 		overflow: hidden;
 	}
+
 	#__next {
 		height: 100%;
 	}
-	* {
-		@apply border-border outline-ring/50;
+}
+
+/* Hero heading cycling verb (components/views/chat/welcome-chat.tsx) */
+@keyframes hero-word-in {
+	0% {
+		opacity: 0;
+		transform: translateY(0.42em);
+		filter: blur(6px);
 	}
-	body {
-		@apply m-0 bg-background text-base font-normal text-foreground;
+	60% {
+		filter: blur(0);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+		filter: blur(0);
 	}
 }
 
-@layer components {
-	.markdown {
-		@apply leading-relaxed;
-	}
-	.markdown * {
-		@apply text-sm leading-relaxed;
-	}
-	.markdown + .markdown {
-		@apply mt-2;
-	}
-	.markdown p {
-		@apply my-2 first:mt-0 last:mb-0;
-	}
-	.markdown a {
-		@apply underline;
-	}
-	.markdown blockquote {
-		@apply border-l-2 border-border pl-3;
-	}
-	.markdown code {
-		@apply space-y-1 rounded bg-muted px-1 py-0.5;
-	}
-	.markdown h1 {
-		@apply text-lg font-bold;
-	}
-	.markdown h2,
-	.markdown h3 {
-		@apply text-lg font-semibold;
-	}
-	.markdown ul {
-		@apply list-disc space-y-1;
-	}
-	.markdown ol {
-		@apply list-decimal space-y-1;
-	}
-	.markdown li {
-		@apply ml-5;
-	}
-	.markdown pre {
-		@apply space-y-1 overflow-x-auto rounded bg-muted p-3;
-	}
-	.markdown div {
-		@apply space-y-1;
+.hero-word-char {
+	display: inline-block;
+	white-space: pre;
+	/* Solid fallback so the word is never invisible if text clipping is unsupported. */
+	color: var(--brand-violet);
+	animation: hero-word-in 0.5s cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+
+/*
+ * Gradient fill per character. The clip lives on each animated span (not a
+ * shared parent) because WebKit — used by the Tauri webview on macOS — drops
+ * the parent's background when a child paints on its own transform/filter
+ * layer, which would leave the animating letters blank. The -webkit- prefixes
+ * are required by WebKit; @supports keeps the solid fallback above otherwise.
+ */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+	.hero-word-char {
+		background-image: linear-gradient(
+			135deg,
+			var(--brand-periwinkle),
+			var(--brand-violet) 55%,
+			var(--brand-magenta)
+		);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
 	}
 }
 
-/* Custom scrollbar for dark theme */
-::-webkit-scrollbar {
-	width: 6px;
-	height: 6px;
-}
-
-::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-	background: oklch(0.3 0.005 260);
-	border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-	background: oklch(0.4 0.005 260);
-}
-
-/* Selection color */
-::selection {
-	background: oklch(0.75 0.12 165 / 0.25);
+@media (prefers-reduced-motion: reduce) {
+	.hero-word-char {
+		/* biome-ignore lint/complexity/noImportantStyles: reduced motion must override inline animation delay */
+		animation: none !important;
+	}
 }
 
 /* Aurora background (components/ui/aurora-bg.tsx) */
 @keyframes aurora-drift {
-	0%,
-	100% {
-		transform: translate(0, 0) rotate(0deg) scale(1);
-	}
-	25% {
-		transform: translate(14%, -10%) rotate(18deg) scale(1.25);
-	}
-	50% {
-		transform: translate(-4%, 6%) rotate(-6deg) scale(1.05);
-	}
-	75% {
-		transform: translate(-12%, -4%) rotate(-16deg) scale(0.9);
-	}
-}
-
-/* Curtain ribbons: sway side-to-side while skewing and stretching, like an
-   aurora curtain rippling. Ribbons are bottom-anchored (transform-origin
-   bottom), so skew/scale fan out from the horizon. */
-@keyframes aurora-wave {
-	0%,
-	100% {
-		transform: translateX(0) skewX(0deg) scaleY(1);
-		opacity: 0.7;
-	}
-	20% {
-		transform: translateX(4%) skewX(8deg) scaleY(1.15);
-		opacity: 1;
-	}
-	45% {
-		transform: translateX(-3%) skewX(-10deg) scaleY(0.9);
-		opacity: 0.55;
-	}
-	70% {
-		transform: translateX(5%) skewX(12deg) scaleY(1.25);
-		opacity: 0.9;
-	}
-}
-
-/* Traveling wave: a 200%-wide striped sheet slides left by half its width,
-   looping seamlessly, while bobbing vertically — bands visibly roll across. */
-@keyframes aurora-flow {
 	0% {
-		transform: translateX(0) translateY(0) skewX(-6deg);
-	}
-	25% {
-		transform: translateX(-12.5%) translateY(-4%) skewX(4deg);
+		opacity: 0.55;
+		transform: translate3d(-8%, 5%, 0) rotate(-5deg) scale(0.94);
 	}
 	50% {
-		transform: translateX(-25%) translateY(2%) skewX(-3deg);
-	}
-	75% {
-		transform: translateX(-37.5%) translateY(-5%) skewX(6deg);
+		opacity: 0.92;
+		transform: translate3d(13%, -10%, 0) rotate(6deg) scale(1.11);
 	}
 	100% {
-		transform: translateX(-50%) translateY(0) skewX(-6deg);
+		opacity: 0.62;
+		transform: translate3d(-5%, -2%, 0) rotate(-3deg) scale(1.02);
+	}
+}
+
+@keyframes aurora-drift-reverse {
+	0% {
+		opacity: 0.62;
+		transform: translate3d(10%, -6%, 0) rotate(5deg) scale(1.08);
+	}
+	50% {
+		opacity: 0.9;
+		transform: translate3d(-12%, -12%, 0) rotate(-6deg) scale(0.96);
+	}
+	100% {
+		opacity: 0.58;
+		transform: translate3d(6%, 2%, 0) rotate(3deg) scale(1.04);
+	}
+}
+
+@keyframes aurora-horizon-breathe {
+	0% {
+		opacity: 0.48;
+		transform: translate3d(-3%, 9%, 0) scale(0.96, 0.84);
+	}
+	50% {
+		opacity: 0.88;
+		transform: translate3d(3%, -5%, 0) scale(1.08, 1.16);
+	}
+	100% {
+		opacity: 0.58;
+		transform: translate3d(-1%, 2%, 0) scale(1.02, 0.96);
+	}
+}
+
+@keyframes aurora-current-sweep {
+	0% {
+		opacity: 0.28;
+		transform: translate3d(-16%, 8%, 0) rotate(-8deg) scaleX(0.84);
+	}
+	50% {
+		opacity: 0.72;
+		transform: translate3d(17%, -8%, 0) rotate(4deg) scaleX(1.08);
+	}
+	100% {
+		opacity: 0.38;
+		transform: translate3d(28%, 4%, 0) rotate(-2deg) scaleX(0.94);
 	}
 }
 
@@ -330,8 +139,78 @@
 	0%,
 	100% {
 		opacity: 0.15;
+		transform: translate3d(0, 4px, 0) rotate(0deg) scale(0.78);
 	}
 	50% {
-		opacity: 1;
+		opacity: 0.78;
+		transform: translate3d(var(--aurora-star-x, 5px), -8px, 0) rotate(35deg)
+			scale(1.08);
+	}
+}
+
+.aurora-horizon {
+	animation: aurora-horizon-breathe 8s ease-in-out -3s infinite alternate;
+	transform-origin: center bottom;
+	will-change: opacity, transform;
+}
+
+.aurora-current {
+	animation-name: aurora-current-sweep;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+	will-change: opacity, transform;
+}
+
+.aurora-current-reverse {
+	animation-direction: alternate-reverse;
+}
+
+.aurora-motion {
+	animation-name: aurora-drift;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+}
+
+.aurora-motion-reverse {
+	animation-name: aurora-drift-reverse;
+}
+
+.aurora-star {
+	--aurora-star-x: 5px;
+	animation-name: aurora-twinkle;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+}
+
+.aurora-star:nth-of-type(2n) {
+	--aurora-star-x: -6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.aurora-current,
+	.aurora-horizon,
+	.aurora-motion,
+	.aurora-star {
+		/* biome-ignore lint/complexity/noImportantStyles: reduced motion must override inline animation timing */
+		animation: none !important;
+	}
+
+	.aurora-horizon {
+		opacity: 0.68;
+		transform: translate3d(0, -1%, 0) scale(1.05);
+	}
+
+	.aurora-current,
+	.aurora-motion {
+		opacity: 0.58;
+		transform: none;
+	}
+
+	.aurora-current,
+	.aurora-horizon,
+	.aurora-motion {
+		will-change: auto;
 	}
 }
