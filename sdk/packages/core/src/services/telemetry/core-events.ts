@@ -49,6 +49,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
 		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
+		AUTH_RUN_RETRY: "user.auth_run_retry",
 		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
@@ -63,6 +64,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		SKILL_USED: "task.skill_used",
 		DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		PROVIDER_API_ERROR: "task.provider_api_error",
+		MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
 		MENTION_SEARCH_RESULTS: "task.mention_search_results",
@@ -291,6 +293,23 @@ export function captureAuthRefreshSoftFailure(
 }
 
 /**
+ * Fires when a run failed with an auth-like error, credentials were
+ * refreshed, and the run was retried once. `recovered: true` means the retry
+ * completed — a run that would previously have surfaced a raw provider 401
+ * (e.g. a teammate stranded on a spawn-time token snapshot past its TTL).
+ */
+export function captureAuthRunRetry(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: { recovered?: boolean },
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_RUN_RETRY, {
+		provider,
+		recovered: details?.recovered,
+	});
+}
+
+/**
  * Fires when the user finishes configuring a "bring your own provider"
  * (API-key based) provider during onboarding or via settings.
  *
@@ -486,6 +505,28 @@ export function captureProviderApiError(
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR, {
 		...properties,
 		errorMessage: truncateErrorMessage(properties.errorMessage) ?? "unknown",
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * Records when the consecutive mistake limit is reached, right before the
+ * limit decision (host prompt / auto-stop) is resolved.
+ */
+export function captureMistakeLimitReached(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		model: string;
+		provider?: string;
+		/** What kind of mistake tripped the limit. */
+		reason: string;
+		consecutiveMistakes: number;
+		maxConsecutiveMistakes: number;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MISTAKE_LIMIT_REACHED, {
+		...properties,
 		timestamp: new Date().toISOString(),
 	});
 }

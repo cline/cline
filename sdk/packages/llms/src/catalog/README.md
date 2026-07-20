@@ -77,13 +77,16 @@ while generating the catalog. Conceptually:
 safeOutputTokens = min(
 	modelReportedMaxOutput,
 	contextWindow - estimatedPromptTokens - reserveTokens,
-	userConfiguredOutputCap,
+	userConfiguredOutputCap or productDefaultOutputCap,
 )
 ```
 
-The SDK gateway only sends an output token limit when the caller provides
-`request.options.maxTokens` or an equivalent host configuration. Catalog
-metadata does not become a request parameter by itself.
+The SDK gateway resolves an output token limit for the provider request. It uses
+`request.options.maxTokens` or an equivalent host configuration when present,
+otherwise it applies the product default output cap
+(`DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS`, currently 32000) when the model catalog has
+either an output limit or a context window. Provider modules are responsible for
+forwarding that limit only to wire API surfaces that support it.
 
 The exact request-limit policy belongs in the provider/gateway/core request
 path, not in generated catalog data.
@@ -161,5 +164,5 @@ and observable.
 - `catalog-live.test.ts`: tests catalog normalization behavior.
 - `catalog.generated.ts`: checked-in generated provider/model catalog.
 - `../../scripts/generate-models.ts`: writes generated catalog output.
-- `../providers/ai-sdk.ts`: passes `maxOutputTokens` into AI SDK.
+- `../providers/ai-sdk.ts`: conditionally passes `maxOutputTokens` into AI SDK.
 - `../providers/gateway.ts`: resolves per-request/default `maxTokens`.

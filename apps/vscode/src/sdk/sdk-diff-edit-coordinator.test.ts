@@ -454,13 +454,35 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(callOrder).toEqual(["close", "apply"])
 	})
 
-	it("applies patches without preview sessions directly", async () => {
+	it("shows a brief preview around auto-approved patches", async () => {
+		await writeFile("patched.ts", "line one\nline two\n")
+		const patch = ["*** Begin Patch", "*** Update File: patched.ts", "@@", "-line one", "+line ONE", "*** End Patch"].join(
+			"\n",
+		)
+
+		const result = await coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("tc9"))
+
+		expect(result).toBe("fallback apply_patch result")
+		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
+		expect(previews).toHaveLength(1)
+		expect(previews[0].opened).toMatchObject({
+			absolutePath: path.join(tempDir, "patched.ts"),
+			leftContent: "line one\nline two\n",
+			rightContent: "line ONE\nline two\n",
+		})
+		expect(previews[0].closed).toBe(1)
+	})
+
+	it("applies auto-approved patches without a preview when background edit is enabled", async () => {
+		backgroundEdit = true
 		const result = await coordinator.executeApplyPatchTool(
 			{ input: "*** Begin Patch\n*** End Patch" },
 			tempDir,
 			makeContext("tc9"),
 		)
+
 		expect(result).toBe("fallback apply_patch result")
 		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
+		expect(previews).toHaveLength(0)
 	})
 })

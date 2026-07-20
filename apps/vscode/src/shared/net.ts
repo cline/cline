@@ -61,8 +61,10 @@
  * JetBrains exports trusted certificates from the OS and writes them to a
  * temporary file, then configures node TLS by setting NODE_EXTRA_CA_CERTS.
  *
- * CLI users should set the NODE_EXTRA_CA_CERTS environment variable if
- * necessary, because node does not automatically use the OS' trusted certs.
+ * The CLI's npm wrapper (bin/cline) does the same automatically: it harvests
+ * the OS trust store and points the child's NODE_EXTRA_CA_CERTS at a managed
+ * bundle, because the Bun runtime does not read the OS store on its own. A
+ * user-set NODE_EXTRA_CA_CERTS is merged in rather than replaced.
  *
  * ## Limitations in JetBrains & CLI
  *

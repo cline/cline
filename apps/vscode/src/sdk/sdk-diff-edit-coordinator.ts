@@ -122,12 +122,32 @@ export class SdkDiffEditCoordinator {
 	}
 
 	/**
-	 * The `apply_patch` tool executor override: close the preview, then delegate the
-	 * whole patch application to the SDK's default executor.
+	 * The `apply_patch` tool executor override: manually-approved patches close their
+	 * approval preview before applying; auto-approved patches show a brief preview
+	 * around execution, matching the `editor` tool behavior.
 	 */
 	async executeApplyPatchTool(input: ApplyPatchInput, cwd: string, context: AgentToolContext): Promise<string> {
-		await this.discardPreview(context.toolCallId ?? "")
-		return this.fallbackApplyPatchExecutor(input, cwd, context)
+		const toolCallId = context.toolCallId ?? ""
+		const hadPreApprovalPreview = this.sessions.has(toolCallId)
+		try {
+			if (hadPreApprovalPreview) {
+				await this.discardPreview(toolCallId)
+			} else if (!this.options.isBackgroundEditEnabled()) {
+				try {
+					await this.openPatchPreview(toolCallId, input)
+				} catch (error) {
+					Logger.warn(`[SdkDiffEditCoordinator] Failed to show auto-approve patch preview: ${error}`)
+				}
+			}
+
+			const result = await this.fallbackApplyPatchExecutor(input, cwd, context)
+			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
+				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
+			}
+			return result
+		} finally {
+			await this.discardPreview(toolCallId)
+		}
 	}
 
 	/** Closes one preview (reject / abort / edit applied). Never throws; unknown ids are a no-op. */

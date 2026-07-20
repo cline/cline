@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.62",
+	"version": "0.0.65",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -41,6 +41,12 @@
 	"peerDependenciesMeta": {
 		"@aws-sdk/client-bedrock-runtime": {
 			"optional": true
+		},
+		"ai-sdk-provider-claude-code": {
+			"optional": true
+		},
+		"ai-sdk-provider-codex-cli": {
+			"optional": true
 		}
 	},
 	"dependencies": {
@@ -61,14 +67,18 @@
 		"@streamparser/json": "^0.0.21",
 		"ai": "^6.0.144",
 		"ai-sdk-ollama": "^3.8.8",
-		"ai-sdk-provider-claude-code": "^3.4.3",
-		"ai-sdk-provider-codex-cli": "^1.1.0",
 		"ai-sdk-provider-opencode-sdk": "^3.0.1",
 		"dify-ai-provider": "^1.1.0",
 		"nanoid": "^5.1.7",
 		"zod": "^4.3.6"
 	},
 	"peerDependencies": {
-		"@aws-sdk/client-bedrock-runtime": "^3.0.0"
+		"@aws-sdk/client-bedrock-runtime": "^3.0.0",
+		"ai-sdk-provider-claude-code": "^3.4.3",
+		"ai-sdk-provider-codex-cli": "^1.1.0"
+	},
+	"devDependencies": {
+		"ai-sdk-provider-claude-code": "^3.4.3",
+		"ai-sdk-provider-codex-cli": "^1.1.0"
 	}
 }
