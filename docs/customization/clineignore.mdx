@@ -1,8 +1,15 @@
 ---
 title: ".clineignore"
 sidebarTitle: ".clineignore"
-description: "Control which files and directories Cline can access in your project."
+description: "Control which files and directories Cline can access in your project. This feature will be deprecated soon."
 ---
+
+<Warning>
+  **The `.clineignore` feature will be deprecated soon.**
+
+  Reliable enforcement of ignore rules isn't possible as the model capability evolves — agents can get around them, for example by reading ignored files through explicit `@` mentions or shell commands. Because `.clineignore` can only reduce noise, not actually restrict access, we're moving away from it as a supported feature.
+
+</Warning>
 
 The `.clineignore` file tells Cline which files and directories to skip when analyzing your codebase. It works like `.gitignore`: create a file named `.clineignore` in your project root, add patterns for files you want excluded, and Cline will ignore them.
 
@@ -101,6 +108,14 @@ You can still reference ignored files explicitly using [@ mentions](/core-workfl
 - Check your token usage in the task header after adding a `.clineignore`. The difference is often dramatic.
 - If Cline seems to be missing context about a file, check whether it's being excluded by your ignore patterns.
 - For monorepos or multi-root workspaces, each workspace root can have its own `.clineignore`. See [Multi-Root Workspaces](/features/multiroot-workspace) for details.
+
+## Deprecation
+
+`.clineignore` will be deprecated soon. The rationale:
+
+- **Enforcement is extremely difficult as agent capability evolves.** Ignore rules only filter what Cline loads automatically — they can't actually restrict access. An agent can read any ignored file through an explicit `@` mention or a shell command, so `.clineignore` cannot serve as a security or access-control boundary.
+
+To keep context manageable, scope your tasks tightly and use [Auto-Compact](/features/auto-compact) for long-running work.
 
 ## Related
 
