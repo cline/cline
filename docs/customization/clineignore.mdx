@@ -113,9 +113,9 @@ You can still reference ignored files explicitly using [@ mentions](/core-workfl
 
 `.clineignore` will be deprecated soon. The rationale:
 
-- **Ignore rules are context filters, not security controls.** `.clineignore` only filters what Cline loads automatically; it does not prevent access to matching files. Ignored files can still be read through explicit `@` mentions or shell commands, so `.clineignore` should not be treated as a security or access-control boundary.
+- **Ignore rules are context filters, not security controls.** `.clineignore` only filters what Cline loads automatically; however, it is hard and nearly impossible to prevent agent access to matching files. Ignored files can still be read through explicit `@` mentions or shell commands, and `.clineignore` should not be treated as a security or access-control boundary.
 
-To keep context manageable, scope your tasks tightly and use [Auto-Compact](/features/auto-compact) for long-running work.
+To keep context manageable, scope your tasks tightly.
 
 ## Related
 
