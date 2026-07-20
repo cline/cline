@@ -71,6 +71,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/components.css` | Framework-neutral styles for the root product-control primitives | Theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | The same custom properties scoped to `.cline-ui-theme` | CSS |
+| `@cline/ui/theme/markdown.css` | Opt-in Markdown and Streamdown presentation without document-level base styles | Tailwind v4 |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
 | `@cline/ui/theme/base.css` | Optional document, Markdown, scrollbar, selection, and cursor styles | Tailwind v4 |
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
@@ -123,6 +124,13 @@ theme tokens:
 ```css
 @import "@cline/ui/theme/tokens.css";
 @import "@cline/ui/components/agent-chat.css";
+```
+
+Consumers rendering Streamdown or compatible Markdown can opt into the shared
+content treatment without importing document-level base styles:
+
+```css
+@import "@cline/ui/theme/markdown.css";
 ```
 
 Then import the React components:
@@ -192,7 +200,8 @@ ownership model settle.
 - Import `agent-chat.css` after theme tokens.
 - Override `:root` or `.dark` after package imports for deliberate product
   variations; do not rename the default semantic contract.
-- `base.css` is optional because it contains opinionated Markdown and global
+- `markdown.css` is optional and does not apply document-level styles.
+- `base.css` is optional because it composes Markdown with opinionated global
   interaction styles.
 - Shell layout, routes, provider/session state, and runtime behavior stay with
   each consumer.

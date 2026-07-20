@@ -27,6 +27,7 @@
 		},
 		"./components/agent-chat.css": "./components/agent-chat/agent-chat.css",
 		"./theme/index.css": "./theme/index.css",
+		"./theme/markdown.css": "./theme/markdown.css",
 		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",

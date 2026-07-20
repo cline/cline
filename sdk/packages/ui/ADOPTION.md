@@ -73,6 +73,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
+| Style Markdown without global base behavior | `@cline/ui/theme/markdown.css` | Tailwind v4 | No |
 | Compose shared product controls | `@cline/ui` plus `components.css` | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
 
@@ -205,6 +206,10 @@ owns document, Markdown, scrollbar, or cursor behavior:
 
 If the application later opts into shared base behavior, import
 `@cline/ui/theme/base.css` after `theme.css`.
+
+Applications that only want Cline's Markdown and Streamdown presentation can
+instead import `@cline/ui/theme/markdown.css`; it has no document, scrollbar,
+selection, or cursor rules.
 
 ## Option 3: framework-neutral tokens
 
@@ -474,6 +479,7 @@ erase product boundaries.
 - [ ] Import files in the documented order.
 - [ ] Import `components.css` when using root product controls.
 - [ ] Import `agent-chat.css` when using agent-chat primitives.
+- [ ] Import `markdown.css` when using the shared `.cline-markdown` treatment.
 - [ ] Install React 18.3 or 19 when using the React primitives.
 - [ ] Map product message/tool models at the package boundary.
 - [ ] Use the stable conversation identifier as the `Conversation` React `key`.
@@ -531,6 +537,7 @@ current product contracts should be compared before standardizing them.
 - [Tokens](./theme/tokens.css)
 - [Tailwind mappings](./theme/theme.css)
 - [Optional base styles](./theme/base.css)
+- [Opt-in Markdown styles](./theme/markdown.css)
 - [Complete theme](./theme/index.css)
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)

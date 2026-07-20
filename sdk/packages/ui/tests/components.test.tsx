@@ -97,11 +97,13 @@ describe("@cline/ui agent components", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "Repository" }));
-		expect(
-			screen.getByRole("combobox").closest(".cline-ui-theme"),
-		).toBeTruthy();
-		fireEvent.change(screen.getByRole("combobox"), {
+		const trigger = screen.getByRole("combobox", { name: "Repository" });
+		expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
+		fireEvent.click(trigger);
+		const search = document.querySelector(".cline-ui-combobox__search");
+		expect(search?.closest(".cline-ui-theme")).toBeTruthy();
+		if (!search) throw new Error("Search input was not rendered");
+		fireEvent.change(search, {
 			target: { value: "core-platform" },
 		});
 		fireEvent.click(screen.getByText("cline/core-platform"));
@@ -124,7 +126,9 @@ describe("@cline/ui agent components", () => {
 		expect(
 			screen.queryByRole("button", { name: "Checking repository" }),
 		).toBeNull();
-		expect(screen.getByText("Checking repository")).toBeTruthy();
+		const label = screen.getByText("Checking repository");
+		expect(label).toBeTruthy();
+		expect(label.closest(".cline-ui-activity__trigger--static")).toBeTruthy();
 	});
 
 	it("routes approval decisions without owning transport", () => {

@@ -34,6 +34,7 @@ const semanticTokens = [
 	"accent-foreground",
 	"destructive",
 	"destructive-foreground",
+	"success",
 	"border",
 	"input",
 	"ring",
@@ -79,6 +80,7 @@ const mappedColorTokens = [
 	"accent-foreground",
 	"destructive",
 	"destructive-foreground",
+	"success",
 	"border",
 	"input",
 	"ring",
@@ -196,6 +198,7 @@ describe("@cline/ui theme contract", () => {
 	it("provides composable Tailwind and optional base entry points", () => {
 		const theme = read("theme.css");
 		const base = read("base.css");
+		const markdown = read("markdown.css");
 		const index = read("index.css");
 
 		expect(theme).not.toContain("tokens.css");
@@ -219,7 +222,8 @@ describe("@cline/ui theme contract", () => {
 		for (const token of mappedColorTokens) {
 			expect(theme).toContain(`--color-${token}: var(--${token});`);
 		}
-		expect(base).toContain(":is(.markdown, .cline-markdown)");
+		expect(base).toContain('@import "./markdown.css";');
+		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
 		expect(base).toContain("--scrollbar-thumb");
 		expect(base).toContain("--selection-background");
 		expect(base).not.toContain("#__next");
@@ -237,6 +241,7 @@ describe("@cline/ui theme contract", () => {
 			"./components.css",
 			"./components/agent-chat.css",
 			"./theme/index.css",
+			"./theme/markdown.css",
 			"./theme/scoped-tokens.css",
 			"./theme/tokens.css",
 			"./theme/theme.css",

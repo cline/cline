@@ -1,3 +1,5 @@
+@import "./markdown.css";
+
 :root {
 	color-scheme: light;
 }
@@ -17,51 +19,6 @@
 
 	body {
 		@apply m-0 bg-background text-base font-normal text-foreground;
-	}
-}
-
-@layer components {
-	:is(.markdown, .cline-markdown) {
-		@apply min-w-0 max-w-full text-sm leading-relaxed;
-		overflow-wrap: anywhere;
-	}
-
-	:is(.markdown, .cline-markdown)
-		:is([data-streamdown="code-block"], [data-streamdown="table-wrapper"]) {
-		@apply max-w-full;
-	}
-
-	:is(.markdown, .cline-markdown) [data-streamdown="code-block"] {
-		@apply my-4 rounded-lg;
-	}
-
-	:is(.markdown, .cline-markdown) [data-streamdown="inline-code"] {
-		font-size: 0.9em;
-	}
-
-	:is(.markdown, .cline-markdown)
-		[data-streamdown="code-block"]
-		:is(pre, code) {
-		white-space: pre;
-		overflow-wrap: normal;
-		word-break: normal;
-	}
-
-	:is(.markdown, .cline-markdown) [data-streamdown="table-wrapper"] {
-		@apply my-4 overflow-x-auto rounded-lg border border-border;
-	}
-
-	:is(.markdown, .cline-markdown) [data-streamdown="table"] {
-		@apply min-w-full;
-	}
-
-	:is(.markdown, .cline-markdown) [data-streamdown="image"] {
-		background-color: white;
-		padding: 0.25rem;
-	}
-
-	:is(.markdown, .cline-markdown) [data-streamdown="blocked-image"] {
-		@apply my-2 inline-flex rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground;
 	}
 }
 

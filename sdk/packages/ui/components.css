@@ -361,6 +361,10 @@
 	cursor: default;
 }
 
+.cline-ui-activity__trigger--static {
+	cursor: default;
+}
+
 .cline-ui-activity__trigger:focus-visible {
 	outline: 2px solid var(--ring);
 	outline-offset: -2px;
@@ -377,7 +381,7 @@
 }
 
 .cline-ui-activity--success .cline-ui-activity__icon {
-	color: oklch(0.62 0.14 155);
+	color: var(--success);
 }
 
 .cline-ui-activity--error .cline-ui-activity__icon {
@@ -578,7 +582,7 @@
 }
 
 .cline-ui-session-status--success .cline-ui-session-status__dot {
-	background: oklch(0.62 0.14 155);
+	background: var(--success);
 }
 
 .cline-ui-session-status--error .cline-ui-session-status__dot {

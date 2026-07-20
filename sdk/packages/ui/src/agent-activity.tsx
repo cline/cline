@@ -73,7 +73,9 @@ export function AgentActivity({
 					{activityContents}
 				</Collapsible.Trigger>
 			) : (
-				<div className="cline-ui-activity__trigger">{activityContents}</div>
+				<div className="cline-ui-activity__trigger cline-ui-activity__trigger--static">
+					{activityContents}
+				</div>
 			)}
 			{content ? (
 				<Collapsible.Content className="cline-ui-activity__content">

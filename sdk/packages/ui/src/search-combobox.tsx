@@ -43,10 +43,12 @@ export function SearchCombobox({
 		<Popover.Root onOpenChange={setOpen} open={open}>
 			<Popover.Trigger asChild>
 				<button
+					aria-haspopup="listbox"
 					aria-label={ariaLabel}
 					aria-expanded={open}
 					className={cx("cline-ui-combobox__trigger", className)}
 					disabled={disabled || loading}
+					role="combobox"
 					type="button"
 				>
 					{loading ? (
@@ -74,16 +76,16 @@ export function SearchCombobox({
 				</button>
 			</Popover.Trigger>
 			<Popover.Portal>
-					<Popover.Content
-						align="start"
-						className="cline-ui-theme cline-ui-combobox__popover"
+				<Popover.Content
+					align="start"
+					className="cline-ui-theme cline-ui-combobox__popover"
 					collisionPadding={8}
 					sideOffset={6}
 				>
 					<Command className="cline-ui-combobox__command" label={ariaLabel}>
 						<Command.Input
 							aria-label={`Search ${ariaLabel.toLowerCase()}`}
-								className="cline-ui-combobox__search"
+							className="cline-ui-combobox__search"
 							placeholder={searchPlaceholder}
 						/>
 						<Command.List className="cline-ui-combobox__list">
