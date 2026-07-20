@@ -5,7 +5,7 @@ describe("MCP server proto conversion", () => {
 	it("projects only non-secret config fields for the webview", () => {
 		const config = JSON.stringify({
 			type: "streamableHttp",
-			url: "https://mcp.example.com/connect?api_key=url-secret#state-secret",
+			url: "https://mcp.example.com/session/path-secret-token?api_key=url-secret#state-secret",
 			timeout: 120,
 			remoteConfigured: true,
 			headers: { Authorization: "Bearer header-secret" },
@@ -27,8 +27,6 @@ describe("MCP server proto conversion", () => {
 		])
 
 		expect(JSON.parse(converted.config)).toEqual({
-			type: "streamableHttp",
-			url: "https://mcp.example.com/connect?[REDACTED]#[REDACTED]",
 			timeout: 120,
 			remoteConfigured: true,
 		})

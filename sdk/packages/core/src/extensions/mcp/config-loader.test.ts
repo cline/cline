@@ -118,6 +118,38 @@ describe("mcp config loader", () => {
 		},
 	);
 
+	it.skipIf(process.platform === "win32")(
+		"publishes and cleans the settings lock under a restrictive umask",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const settingsDir = join(tempRoot, "settings");
+			const filePath = join(settingsDir, "cline_mcp_settings.json");
+			const previousUmask = process.umask(0o777);
+
+			try {
+				updateMcpSettingsFileSync(filePath, (settings) => {
+					settings.mcpServers = {};
+				});
+			} finally {
+				process.umask(previousUmask);
+				if (existsSync(settingsDir)) {
+					for (const entry of readdirSync(settingsDir)) {
+						if (entry.includes(".lock.tmp.")) {
+							chmodSync(join(settingsDir, entry), 0o700);
+						}
+					}
+				}
+			}
+
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o700);
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
+			expect(
+				readdirSync(settingsDir).some((entry) => entry.includes(".lock.tmp.")),
+			).toBe(false);
+		},
+	);
+
 	it("loads and validates mcp server registrations from JSON", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -402,6 +434,7 @@ describe("mcp config loader", () => {
 									access_token: "old-token",
 									token_type: "Bearer",
 								},
+								lastError: "access_token=legacy-secret",
 								lastAuthenticatedAt: 123,
 							},
 						},
@@ -420,7 +453,7 @@ describe("mcp config loader", () => {
 				serverName: "linear",
 				oauthSupported: true,
 				oauthConfigured: true,
-				lastError: undefined,
+				lastError: "access_token=[REDACTED]",
 				lastAuthenticatedAt: 123,
 			},
 		]);

@@ -51,10 +51,17 @@ describe("updateMcpSettingsFile", () => {
 
 	it("creates a missing settings file inside the lock", async () => {
 		const missingPath = path.join(tempDir, "fresh", "cline_mcp_settings.json")
+		const previousUmask = process.platform === "win32" ? undefined : process.umask(0o777)
 
-		await updateMcpSettingsFile(missingPath, (settings) => {
-			settings.mcpServers = { alpha: { type: "stdio", command: "node" } }
-		})
+		try {
+			await updateMcpSettingsFile(missingPath, (settings) => {
+				settings.mcpServers = { alpha: { type: "stdio", command: "node" } }
+			})
+		} finally {
+			if (previousUmask !== undefined) {
+				process.umask(previousUmask)
+			}
+		}
 
 		const written = JSON.parse(await fs.readFile(missingPath, "utf-8"))
 		expect(Object.keys(written.mcpServers)).toEqual(["alpha"])

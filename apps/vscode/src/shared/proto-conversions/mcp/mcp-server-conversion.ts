@@ -24,21 +24,15 @@ function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {
 
 /**
  * The extension backend needs the complete MCP config to create and restart
- * transports, but the webview only reads URL, timeout, and remote-management
- * metadata. Project that minimal shape before crossing the webview boundary so
- * OAuth state, headers, environment variables, and secret-bearing arguments do
- * not become part of the frontend state.
+ * transports, but the webview only reads timeout and remote-management metadata.
+ * Project that minimal shape before crossing the webview boundary so transport
+ * details, OAuth state, headers, environment variables, and secret-bearing
+ * arguments do not become part of the frontend state.
  */
 export function projectMcpServerConfigForWebview(config: string): string {
 	try {
 		const parsed = JSON.parse(config) as Record<string, unknown>
-		const transport =
-			parsed.transport && typeof parsed.transport === "object" && !Array.isArray(parsed.transport)
-				? (parsed.transport as Record<string, unknown>)
-				: parsed
 		const projected = {
-			...(typeof transport.type === "string" ? { type: transport.type } : {}),
-			...(typeof transport.url === "string" ? { url: sanitizeMcpDiagnosticText(transport.url) } : {}),
 			...(typeof parsed.timeout === "number" ? { timeout: parsed.timeout } : {}),
 			...(typeof parsed.remoteConfigured === "boolean" ? { remoteConfigured: parsed.remoteConfigured } : {}),
 		}

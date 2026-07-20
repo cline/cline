@@ -129,19 +129,25 @@ function tryAcquireSettingsLock(lockDir: string, token: string): AcquiredSetting
 	ensurePrivateSettingsDirectory(path.dirname(lockDir))
 	const stagingDir = `${lockDir}.tmp.${token}`
 	rmSync(stagingDir, { recursive: true, force: true })
-	mkdirSync(stagingDir, { recursive: true, mode: 0o700 })
+	ensurePrivateSettingsDirectory(stagingDir)
 	const ownerFileName = `owner.${token}`
 	const stagingOwnerFile = path.join(stagingDir, ownerFileName)
-	writeFileSync(stagingOwnerFile, token, { encoding: "utf8", flag: "wx" })
+	let attemptedPublication = false
 	try {
+		writeFileSync(stagingOwnerFile, token, { encoding: "utf8", flag: "wx" })
+		attemptedPublication = true
 		renameSync(stagingDir, lockDir)
 		return { lockDir, ownerFile: path.join(lockDir, ownerFileName) }
 	} catch (error) {
-		rmSync(stagingDir, { recursive: true, force: true })
+		try {
+			rmSync(stagingDir, { recursive: true, force: true })
+		} catch {
+			// Preserve the original lock-publication error.
+		}
 		// On POSIX, renaming a directory over another populated directory may
 		// report either EEXIST or ENOTEMPTY. The winning writer can release the
 		// lock before existsSync runs, so classify the original error first.
-		if (isSettingsLockContentionError(error) || existsSync(lockDir)) {
+		if (attemptedPublication && (isSettingsLockContentionError(error) || existsSync(lockDir))) {
 			return undefined
 		}
 		throw error

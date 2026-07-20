@@ -10,6 +10,23 @@ describe("sanitizeMcpDiagnosticText", () => {
 		["password=hunter2", "password=[REDACTED]"],
 		["passwd: hunter2", "passwd: [REDACTED]"],
 		['"secret": "hidden"', '"secret": "[REDACTED]"'],
+		[
+			'{"password":"correct horse battery staple"}',
+			'{"password":"[REDACTED]"}',
+		],
+		["secret: top secret value", "secret: [REDACTED]"],
+		[
+			'Authorization: "Digest username=alice, response=deadbeef"',
+			'Authorization: "[REDACTED]"',
+		],
+		[
+			"Authorization: Digest username=alice, response=deadbeef",
+			"Authorization: [REDACTED]",
+		],
+		[
+			'{"Authorization":"Bearer header-secret","status":401}',
+			'{"Authorization":"[REDACTED]","status":401}',
+		],
 		["state=oauth-state", "state=[REDACTED]"],
 		["code: authorization-code", "code: [REDACTED]"],
 		["session_token=session-secret", "session_token=[REDACTED]"],

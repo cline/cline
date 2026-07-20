@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { BasicLogger } from "@cline/shared";
+import { sanitizeMcpDiagnosticText, type BasicLogger } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import type {
@@ -373,20 +373,29 @@ function tryAcquireSettingsLock(
 	ensurePrivateSettingsDirectory(dirname(lockDir));
 	const stagingDir = `${lockDir}.tmp.${token}`;
 	rmSync(stagingDir, { recursive: true, force: true });
-	mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
-	writeFileSync(join(stagingDir, `owner.${token}`), token, {
-		encoding: "utf8",
-		flag: "wx",
-	});
+	ensurePrivateSettingsDirectory(stagingDir);
+	let attemptedPublication = false;
 	try {
+		writeFileSync(join(stagingDir, `owner.${token}`), token, {
+			encoding: "utf8",
+			flag: "wx",
+		});
+		attemptedPublication = true;
 		renameSync(stagingDir, lockDir);
 		return { lockDir, ownerFile: join(lockDir, `owner.${token}`) };
 	} catch (error) {
-		rmSync(stagingDir, { recursive: true, force: true });
+		try {
+			rmSync(stagingDir, { recursive: true, force: true });
+		} catch {
+			// Preserve the original lock-publication error.
+		}
 		// On POSIX, renaming a directory over another populated directory may
 		// report either EEXIST or ENOTEMPTY. The winning writer can release the
 		// lock before existsSync runs, so classify the original error first.
-		if (isSettingsLockContentionError(error) || existsSync(lockDir)) {
+		if (
+			attemptedPublication &&
+			(isSettingsLockContentionError(error) || existsSync(lockDir))
+		) {
 			return undefined;
 		}
 		throw error;
@@ -872,7 +881,9 @@ export function listMcpServerOAuthStatuses(
 					oauthSupported &&
 					typeof accessToken === "string" &&
 					accessToken.trim().length > 0,
-				lastError: registration.oauth?.lastError,
+				lastError: registration.oauth?.lastError
+					? sanitizeMcpDiagnosticText(registration.oauth.lastError)
+					: undefined,
 				lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
 			};
 		})
