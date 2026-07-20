@@ -117,6 +117,27 @@ You can still reference ignored files explicitly using [@ mentions](/core-workfl
 
 To keep context manageable, scope your tasks tightly.
 
+## Restricting File Access with a Plugin
+
+While `.clineignore` is being phased out, you can achieve a stronger, enforced restriction on **file reads and edits** using the [Block Ignored File Access](/sdk/plugin-examples#block-ignored-file-access) plugin example.
+
+Unlike `.clineignore` (a context filter that can still be bypassed via `@` mentions or shell commands), this plugin uses a `beforeTool` runtime hook to actively **block** tool calls: when `read_files`, `editor`, or `apply_patch` targets a file ignored by your workspace `.gitignore`, the hook returns `{ skip: true }` and the tool records a policy error instead of accessing the file.
+
+Install it into your project with:
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
+```
+
+<Note>
+This plugin covers only part of what `.clineignore` did:
+- It **guards file reads/edits** (`read_files`, `editor`, `apply_patch`) — it does **not** filter `search_files`/`list_files` results or guard shell commands, so it is not a full context-reduction tool.
+- It reads your **`.gitignore`** (not a separate `.clineignore`) and requires a Git repository.
+- Plugins run on the Cline **SDK, CLI, and Kanban**. Support in the VS Code and JetBrains extensions arrives as they migrate onto the SDK.
+
+See [Plugins](/customization/plugins) for installation details and scopes.
+</Note>
+
 ## Related
 
 - [Cline Rules](/customization/cline-rules) - Define persistent instructions for Cline
