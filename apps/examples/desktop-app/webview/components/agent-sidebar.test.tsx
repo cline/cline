@@ -3,7 +3,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentSidebar } from "@/components/agent-sidebar";
+import {
+	AgentSidebar,
+	getSessionOverviewItems,
+	getSessionOverviewTitle,
+} from "@/components/agent-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AccountProvider } from "@/contexts/account-context";
 import type {
@@ -108,6 +112,42 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("builds the hover overview with branch and secondary metadata last", () => {
+		const thread = {
+			...makeThread("cline", 5),
+			gitBranch: "bee/session-overview",
+			inputTokens: 3_000_000,
+			outputTokens: 9_000,
+			totalCostUsd: 3.06,
+		};
+
+		expect(getSessionOverviewItems(thread)).toEqual([
+			["Workspace", "cline", "/projects/cline"],
+			["Git branch", "bee/session-overview"],
+			["Provider", "cline"],
+			["Model", "test-model"],
+			["Tokens", "3009k"],
+			["Cost", "$3.06"],
+			["ID", "cline-5"],
+			["Updated", "5m"],
+		]);
+		expect(getSessionOverviewItems(makeThread("cline", 5))).not.toContainEqual([
+			"Git branch",
+			expect.anything(),
+		]);
+		expect(
+			getSessionOverviewItems(thread).some(([label]) => label === "Status"),
+		).toBe(false);
+	});
+
+	it("shows the full first line of the session title", () => {
+		const firstLine =
+			"This is a complete session title that is intentionally longer than seventy characters for the hover overview";
+		expect(getSessionOverviewTitle(`${firstLine}\nSecond line`)).toBe(
+			firstLine,
+		);
+	});
+
 	it("defaults to time and keeps project expansion scoped to one project", async () => {
 		const threads = [
 			...Array.from({ length: 12 }, (_, index) =>
@@ -132,8 +172,10 @@ describe("AgentSidebar session organization", () => {
 						isHomeActive
 						onHome={vi.fn()}
 						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
+						settingsSection="General"
 						view="chat"
 					/>
 				</SidebarProvider>,
