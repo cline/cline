@@ -26,10 +26,24 @@ export function ConfirmDialog({
 	title,
 }: ConfirmDialogProps) {
 	return (
-		<Dialog.Root onOpenChange={onOpenChange} open={open}>
+		<Dialog.Root
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen && loading) return;
+				onOpenChange(nextOpen);
+			}}
+			open={open}
+		>
 			<Dialog.Portal>
 				<Dialog.Overlay className="cline-ui-theme cline-ui-dialog__overlay" />
-				<Dialog.Content className="cline-ui-theme cline-ui-dialog__content">
+				<Dialog.Content
+					className="cline-ui-theme cline-ui-dialog__content"
+					onEscapeKeyDown={(event) => {
+						if (loading) event.preventDefault();
+					}}
+					onInteractOutside={(event) => {
+						if (loading) event.preventDefault();
+					}}
+				>
 					<Dialog.Title className="cline-ui-dialog__title">
 						{title}
 					</Dialog.Title>

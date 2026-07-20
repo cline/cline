@@ -1,5 +1,10 @@
 import { Slot } from "@radix-ui/react-slot";
-import type { ButtonHTMLAttributes, MouseEvent, ReactElement } from "react";
+import type {
+	ButtonHTMLAttributes,
+	MouseEvent,
+	ReactElement,
+	ReactNode,
+} from "react";
 import { Children, cloneElement, forwardRef } from "react";
 import { cx } from "./utils.js";
 
@@ -22,6 +27,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			loading = false,
 			onClick,
 			size = "md",
+			tabIndex,
 			type = "button",
 			variant = "secondary",
 			...props
@@ -38,13 +44,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 		if (asChild) {
 			const inactive = disabled || loading;
 			const child = Children.only(children) as ReactElement<{
+				children?: ReactNode;
 				onClick?: unknown;
 			}>;
+			const slottedChild = cloneElement(
+				child,
+				inactive ? { onClick: undefined } : undefined,
+				loading ? (
+					<>
+						<span aria-hidden="true" className="cline-ui-spinner" />
+						{child.props.children}
+					</>
+				) : (
+					child.props.children
+				),
+			);
 			return (
 				<Slot
 					aria-busy={loading || undefined}
 					aria-disabled={inactive || undefined}
 					className={classNames}
+					tabIndex={inactive ? -1 : tabIndex}
 					onClick={(event: MouseEvent<HTMLElement>) => {
 						if (inactive) {
 							event.preventDefault();
@@ -56,7 +76,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 					ref={ref}
 					{...props}
 				>
-					{inactive ? cloneElement(child, { onClick: undefined }) : child}
+					{slottedChild}
 				</Slot>
 			);
 		}
@@ -67,6 +87,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 				disabled={disabled || loading}
 				onClick={onClick}
 				ref={ref}
+				tabIndex={tabIndex}
 				type={type}
 				{...props}
 			>

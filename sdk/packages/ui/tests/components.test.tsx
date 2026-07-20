@@ -166,6 +166,34 @@ describe("@cline/ui agent components", () => {
 		).toBe(true);
 	});
 
+	it("keeps a loading confirmation dialog open during dismissal attempts", () => {
+		const onOpenChange = vi.fn();
+		const { rerender } = render(
+			<ConfirmDialog
+				loading
+				onConfirm={vi.fn()}
+				onOpenChange={onOpenChange}
+				open
+				title="Delete session?"
+			/>,
+		);
+
+		fireEvent.keyDown(document, { key: "Escape" });
+		expect(onOpenChange).not.toHaveBeenCalled();
+		expect(screen.getByRole("dialog")).toBeTruthy();
+
+		rerender(
+			<ConfirmDialog
+				onConfirm={vi.fn()}
+				onOpenChange={onOpenChange}
+				open
+				title="Delete session?"
+			/>,
+		);
+		fireEvent.keyDown(document, { key: "Escape" });
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
 	it("provides composable surface, status, button, and quick actions", () => {
 		const onSelect = vi.fn();
 		render(
@@ -213,7 +241,21 @@ describe("@cline/ui agent components", () => {
 		);
 		const link = screen.getByRole("link", { name: "Connect GitHub" });
 		expect(link.getAttribute("aria-disabled")).toBe("true");
+		expect(link.getAttribute("tabindex")).toBe("-1");
 		fireEvent.click(link);
 		expect(onClick).not.toHaveBeenCalled();
+	});
+
+	it("shows progress and removes slot links from tab order while loading", () => {
+		render(
+			<Button asChild loading>
+				<a href="/integrations">Connecting GitHub</a>
+			</Button>,
+		);
+
+		const link = screen.getByRole("link", { name: "Connecting GitHub" });
+		expect(link.getAttribute("aria-busy")).toBe("true");
+		expect(link.getAttribute("tabindex")).toBe("-1");
+		expect(link.querySelector(".cline-ui-spinner")).toBeTruthy();
 	});
 });
