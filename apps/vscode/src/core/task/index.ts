@@ -2827,6 +2827,16 @@ export class Task {
 			this.taskState.consecutiveMistakeCount >=
 			this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
 		) {
+			telemetryService.captureMistakeLimitReached({
+				ulid: this.ulid,
+				model: model.id,
+				provider: providerId,
+				consecutiveMistakes: this.taskState.consecutiveMistakeCount,
+				maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey(
+					"maxConsecutiveMistakes",
+				),
+				yoloMode: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			});
 			// In yolo mode, don't wait for user input - fail the task
 			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 				const errorMessage =
