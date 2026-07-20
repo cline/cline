@@ -37,6 +37,7 @@ import {
   AgentActivity,
   AgentApprovalCard,
   AgentComposer,
+  AgentHeroHeading,
   AgentQuickActions,
   AgentSurface,
   SearchCombobox,

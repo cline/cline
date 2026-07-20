@@ -46,6 +46,7 @@ export interface AgentComposerProps
 	running?: boolean;
 	submitDisabled?: boolean;
 	submitLabel?: string;
+	variant?: "conversation" | "welcome";
 	value: string;
 }
 
@@ -63,6 +64,7 @@ export function AgentComposer({
 	running = false,
 	submitDisabled = false,
 	submitLabel = "Send message",
+	variant = "conversation",
 	value,
 	...textareaProps
 }: AgentComposerProps) {
@@ -76,7 +78,13 @@ export function AgentComposer({
 	}
 
 	return (
-		<div className={cx("cline-ui-composer", className)}>
+		<div
+			className={cx(
+				"cline-ui-composer",
+				`cline-ui-composer--${variant}`,
+				className,
+			)}
+		>
 			<textarea
 				aria-label={textareaProps["aria-label"] ?? "Message the agent"}
 				className="cline-ui-composer__input"
@@ -84,7 +92,7 @@ export function AgentComposer({
 				onChange={(event) => onValueChange(event.target.value)}
 				onKeyDown={handleKeyDown}
 				placeholder={placeholder}
-				rows={3}
+				rows={textareaProps.rows ?? (variant === "welcome" ? 2 : 1)}
 				value={value}
 				{...textareaProps}
 			/>

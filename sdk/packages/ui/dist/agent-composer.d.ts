@@ -10,7 +10,8 @@ export interface AgentComposerProps extends Omit<TextareaHTMLAttributes<HTMLText
     running?: boolean;
     submitDisabled?: boolean;
     submitLabel?: string;
+    variant?: "conversation" | "welcome";
     value: string;
 }
-export declare function AgentComposer({ actions, className, disabled, footer, loading, onKeyDown, onStop, onSubmit, onValueChange, placeholder, running, submitDisabled, submitLabel, value, ...textareaProps }: AgentComposerProps): import("react/jsx-runtime").JSX.Element;
+export declare function AgentComposer({ actions, className, disabled, footer, loading, onKeyDown, onStop, onSubmit, onValueChange, placeholder, running, submitDisabled, submitLabel, variant, value, ...textareaProps }: AgentComposerProps): import("react/jsx-runtime").JSX.Element;
 //# sourceMappingURL=agent-composer.d.ts.map

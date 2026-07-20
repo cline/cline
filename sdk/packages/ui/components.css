@@ -12,6 +12,55 @@
 	line-height: var(--text-sm--line-height);
 }
 
+.cline-ui-sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.cline-ui-hero-heading {
+	margin: 0;
+	color: var(--foreground);
+	font-size: clamp(2rem, 3vw, 2.6rem);
+	font-weight: var(--font-weight-semibold);
+	letter-spacing: -0.025em;
+	line-height: 1.12;
+	text-align: left;
+	text-wrap: balance;
+}
+
+.cline-ui-hero-heading__word {
+	white-space: nowrap;
+}
+
+.cline-ui-hero-heading__character {
+	display: inline-block;
+	white-space: pre;
+	color: var(--brand-violet);
+	animation: cline-ui-hero-word-in 500ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+	.cline-ui-hero-heading__character {
+		background-image: linear-gradient(
+			135deg,
+			var(--brand-periwinkle),
+			var(--brand-violet) 55%,
+			var(--brand-magenta)
+		);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+	}
+}
+
 .cline-ui-button {
 	display: inline-flex;
 	min-width: 0;
@@ -158,7 +207,7 @@
 .cline-ui-composer__input {
 	display: block;
 	width: 100%;
-	min-height: 6rem;
+	min-height: 2.5rem;
 	max-height: 16rem;
 	box-sizing: border-box;
 	resize: none;
@@ -170,6 +219,16 @@
 	font-size: var(--text-sm);
 	line-height: var(--text-sm--line-height);
 	padding: 1rem 1rem 0.5rem;
+}
+
+.cline-ui-composer--welcome .cline-ui-composer__input {
+	min-height: 6rem;
+}
+
+.cline-ui-composer--conversation {
+	border-radius: var(--radius-lg);
+	box-shadow: none;
+	backdrop-filter: none;
 }
 
 .cline-ui-composer__input::placeholder {
@@ -769,6 +828,22 @@
 	}
 }
 
+@keyframes cline-ui-hero-word-in {
+	0% {
+		opacity: 0;
+		transform: translateY(0.42em);
+		filter: blur(6px);
+	}
+	60% {
+		filter: blur(0);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+		filter: blur(0);
+	}
+}
+
 @keyframes cline-ui-pulse {
 	50% {
 		opacity: 0.45;
@@ -821,6 +896,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.cline-ui-hero-heading__character {
+		animation: none;
+	}
+
 	.cline-ui-activity__chevron,
 	.cline-ui-button,
 	.cline-ui-composer,
@@ -845,7 +924,7 @@
 }
 
 @media (max-width: 640px) {
-	.cline-ui-composer__input {
+	.cline-ui-composer--welcome .cline-ui-composer__input {
 		min-height: 5.25rem;
 	}
 

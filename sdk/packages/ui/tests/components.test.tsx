@@ -6,6 +6,7 @@ import {
 	AgentActivity,
 	AgentApprovalCard,
 	AgentComposer,
+	AgentHeroHeading,
 	AgentQuickActions,
 	AgentSurface,
 	Button,
@@ -26,6 +27,16 @@ Element.prototype.scrollIntoView = vi.fn();
 afterEach(cleanup);
 
 describe("@cline/ui agent components", () => {
+	it("exposes a stable accessible welcome heading", () => {
+		const { container } = render(<AgentHeroHeading verbs={["build", "fix"]} />);
+		expect(
+			screen.getByRole("heading", { name: "What would you like to build?" }),
+		).toBeTruthy();
+		expect(
+			container.querySelector(".cline-ui-hero-heading__word")?.textContent,
+		).toBe("build");
+	});
+
 	it("submits the composer with Enter while preserving Shift + Enter", () => {
 		const onSubmit = vi.fn();
 		render(

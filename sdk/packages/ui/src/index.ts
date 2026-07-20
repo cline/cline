@@ -8,6 +8,10 @@ export {
 	type AgentApprovalCardProps,
 } from "./agent-approval-card.js";
 export { AgentComposer, type AgentComposerProps } from "./agent-composer.js";
+export {
+	AgentHeroHeading,
+	type AgentHeroHeadingProps,
+} from "./agent-hero-heading.js";
 export { AgentSurface } from "./agent-surface.js";
 export { AgentAurora, type AgentAuroraProps } from "./aurora.js";
 export { Button, type ButtonProps } from "./button.js";

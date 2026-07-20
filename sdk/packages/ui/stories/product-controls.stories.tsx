@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
 	AgentActivity,
 	AgentComposer,
+	AgentHeroHeading,
 	AgentQuickActions,
 	AgentSurface,
 	SearchCombobox,
@@ -41,12 +42,7 @@ export const StartingWorkflow = () => {
 		<div className="mx-auto max-w-3xl p-8">
 			<AgentSurface>
 				<div className="mb-6 flex items-center justify-between">
-					<div>
-						<h1 className="text-xl font-semibold">Start an agent</h1>
-						<p className="text-sm text-muted-foreground">
-							Choose a repository and describe the work.
-						</p>
-					</div>
+					<AgentHeroHeading />
 					<SessionStatus label="Ready" tone="success" />
 				</div>
 				<SearchCombobox
@@ -59,6 +55,7 @@ export const StartingWorkflow = () => {
 					<AgentComposer
 						onSubmit={() => undefined}
 						onValueChange={setPrompt}
+						variant="welcome"
 						value={prompt}
 					/>
 				</div>

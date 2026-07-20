@@ -96,13 +96,20 @@ Then place the shared surface inside the scoped theme root and keep product
 data, routing, and transport in the consuming application:
 
 ```tsx
-import { AgentComposer, AgentSurface, SessionStatus } from "@cline/ui";
+import {
+  AgentComposer,
+  AgentHeroHeading,
+  AgentSurface,
+  SessionStatus,
+} from "@cline/ui";
 
 <AgentSurface className="cline-ui-theme">
+  <AgentHeroHeading />
   <SessionStatus label="Ready" tone="ready" />
   <AgentComposer
     onSubmit={startSession}
     onValueChange={setPrompt}
+    variant="welcome"
     value={prompt}
   />
 </AgentSurface>;
