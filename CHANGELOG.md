@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.10]
+
+### Added
+
+- Add telemetry to track when Cline reaches the consecutive mistake limit.
+
 ## [4.0.9]
 
 ### Added
