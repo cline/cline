@@ -1838,17 +1838,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 		) => Record<string, unknown> | undefined,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId);
+		if (!session?.artifacts) {
+			return;
+		}
+		// Prefer mergeSessionMetadata: unlike updateSession, it re-applies
+		// `resolveMetadata` against the freshly-read row on every OCC retry
+		// attempt, so a concurrent metadata write (e.g. a checkpoint write
+		// racing a usage/cost write for the same turn) can't be silently
+		// discarded by whichever write wins the retry. Falls back to the
+		// old read-once-then-write behavior for backends that don't
+		// implement it (e.g. test doubles).
+		const merged = await this.invokeOptionalValue<{
+			updated?: boolean;
+			metadata?: Record<string, unknown>;
+		}>("mergeSessionMetadata", sessionId, resolveMetadata);
+		if (merged !== undefined) {
+			if (merged.updated === false) {
+				return;
+			}
+			session.sessionMetadata = merged.metadata;
+			session.artifacts.manifest.metadata = merged.metadata;
+			return;
+		}
 		const currentManifest =
 			(await this.invokeOptionalValue<SessionManifest>(
 				"readSessionManifest",
 				sessionId,
-			)) ?? session?.artifacts?.manifest;
+			)) ?? session.artifacts.manifest;
 		const metadata = resolveMetadata(
 			currentManifest?.metadata as Record<string, unknown> | undefined,
 		);
-		if (!session?.artifacts) {
-			return;
-		}
 		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
 			"updateSession",
 			{

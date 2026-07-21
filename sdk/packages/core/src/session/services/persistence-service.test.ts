@@ -14,6 +14,8 @@ import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
 import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
+import type { SessionPersistenceAdapter } from "./persistence-service";
+import { UnifiedSessionPersistenceService } from "./persistence-service";
 
 const require = createRequire(import.meta.url);
 const sqliteAvailable = (() => {
@@ -535,6 +537,88 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		const [row] = await service.listSessions(10);
 		expect(row?.metadata).toMatchObject({ title: "first saved prompt" });
+	});
+
+	it("mergeSessionMetadata re-applies the resolver against fresh state on every OCC retry", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "merge-metadata-race-"));
+		tempDirs.push(sessionsDir);
+
+		let statusLock = 0;
+		let metadata: Record<string, unknown> | undefined = { existing: "value" };
+		let updateSessionCalls = 0;
+
+		const fakeAdapter: SessionPersistenceAdapter = {
+			ensureSessionsDir: () => sessionsDir,
+			upsertSession: async () => {},
+			getSession: async (sessionId) => ({
+				sessionId,
+				source: "cli",
+				pid: 1,
+				startedAt: "2026-01-01T00:00:00.000Z",
+				endedAt: null,
+				exitCode: null,
+				status: "running",
+				statusLock,
+				interactive: true,
+				provider: "mock",
+				model: "mock",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				teamName: null,
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				parentSessionId: null,
+				parentAgentId: null,
+				agentId: null,
+				conversationId: null,
+				isSubagent: false,
+				prompt: null,
+				metadata,
+				hookPath: "",
+				messagesPath: null,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+			listSessions: async () => [],
+			updateSession: async (input) => {
+				updateSessionCalls += 1;
+				if (updateSessionCalls === 1) {
+					// Simulate a concurrent writer (e.g. a usage/cost update for
+					// the same turn) committing between our read and our write.
+					statusLock += 1;
+					metadata = { ...metadata, concurrentWrite: true };
+					return { updated: false, statusLock };
+				}
+				if (input.expectedStatusLock !== statusLock) {
+					return { updated: false, statusLock };
+				}
+				statusLock += 1;
+				metadata = (input.metadata ?? undefined) as
+					| Record<string, unknown>
+					| undefined;
+				return { updated: true, statusLock };
+			},
+			deleteSession: async () => true,
+			enqueueSpawnRequest: async () => {},
+			claimSpawnRequest: async () => undefined,
+		};
+
+		const service = new UnifiedSessionPersistenceService(fakeAdapter);
+
+		const result = await service.mergeSessionMetadata("sess-race", (current) => ({
+			...(current ?? {}),
+			ourCheckpoint: "run-1",
+		}));
+
+		expect(updateSessionCalls).toBe(2);
+		expect(result).toEqual({
+			updated: true,
+			metadata: {
+				existing: "value",
+				concurrentWrite: true,
+				ourCheckpoint: "run-1",
+			},
+		});
 	});
 
 	sqliteIt(
