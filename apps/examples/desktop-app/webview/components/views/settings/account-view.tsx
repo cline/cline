@@ -48,12 +48,14 @@ function normalizeAccountViewError(error: unknown): Error {
 }
 
 function isAccountAuthError(message: string): boolean {
+	// Only definitive signed-out signals belong here: matching broader
+	// substrings like "auth token" or "unauthorized" turns transient refresh
+	// failures and org-permission errors into a sign-in card with no retry.
 	const normalized = message.toLowerCase();
 	return (
 		normalized.includes("no cline account auth token found") ||
 		normalized.includes("requires re-authentication") ||
-		normalized.includes("auth token") ||
-		normalized.includes("unauthorized")
+		normalized.includes("failed with status 401")
 	);
 }
 

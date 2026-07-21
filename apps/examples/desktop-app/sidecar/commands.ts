@@ -85,13 +85,17 @@ import type {
 	SidecarContext,
 } from "./types";
 
-function openUrlInDefaultBrowser(url: string): void {
+function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
+	// On Windows the URL must not pass through cmd.exe: `cmd /c start <url>`
+	// re-parses metacharacters (&, ^, |) that are valid inside http(s) URLs,
+	// turning a crafted URL into command execution. rundll32 hands the URL
+	// straight to the protocol handler with no shell parsing.
 	const spawned =
 		platform === "darwin"
 			? spawn("open", [url], { stdio: "ignore", detached: true })
 			: platform === "win32"
-				? spawn("cmd", ["/c", "start", "", url], {
+				? spawn("rundll32", ["url.dll,FileProtocolHandler", url], {
 						stdio: "ignore",
 						detached: true,
 					})
@@ -101,8 +105,15 @@ function openUrlInDefaultBrowser(url: string): void {
 					});
 	// A missing opener binary emits an async "error" event; without a listener
 	// it becomes an uncaught exception that kills the sidecar.
-	spawned.on("error", () => {});
-	spawned.unref();
+	return new Promise((resolve, reject) => {
+		spawned.once("error", (error) => {
+			reject(new Error(`could not open browser: ${error.message}`));
+		});
+		spawned.once("spawn", () => {
+			spawned.unref();
+			resolve();
+		});
+	});
 }
 
 function readProviderSettingsUpdate(
@@ -1011,7 +1022,7 @@ export async function handleCommand(
 		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
 			throw new Error("only http(s) urls can be opened externally");
 		}
-		openUrlInDefaultBrowser(parsed.toString());
+		await openUrlInDefaultBrowser(parsed.toString());
 		return { opened: true };
 	}
 
@@ -1099,7 +1110,13 @@ export async function handleCommand(
 		const saved = await loginAndSaveLocalProviderOAuthCredentials(
 			manager,
 			providerId,
-			openUrlInDefaultBrowser,
+			(url) => {
+				// The OAuth helper's openUrl callback is fire-and-forget; surface
+				// opener failures in the log instead of an unhandled rejection.
+				openUrlInDefaultBrowser(url).catch((error) => {
+					console.warn(`[sidecar] ${error instanceof Error ? error.message : error}`);
+				});
+			},
 		);
 		if (saved.provider !== providerId) {
 			markLocalProviderEnabled(manager, providerId, { tokenSource: "oauth" });
