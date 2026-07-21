@@ -6,6 +6,7 @@ import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
+	type BasicLogger,
 	captureSdkError,
 	createSessionId,
 	type ITelemetryService,
@@ -209,6 +210,7 @@ export interface LocalRuntimeHostOptions {
 	providerSettingsManager?: ProviderSettingsManager;
 	oauthTokenManager?: RuntimeOAuthTokenManager;
 	telemetry?: ITelemetryService;
+	logger?: BasicLogger;
 	/**
 	 * Default custom `fetch` implementation threaded into every
 	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
@@ -229,6 +231,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
+	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
@@ -266,6 +269,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				telemetry: options.telemetry,
 			});
 		this.defaultTelemetry = options.telemetry;
+		this.defaultLogger = options.logger;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
 
@@ -438,6 +442,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
+			defaultLogger: this.defaultLogger,
 			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultFetch: this.defaultFetch,
