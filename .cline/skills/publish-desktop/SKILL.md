@@ -92,7 +92,7 @@ gh run list --workflow=desktop-publish.yml --limit=1 --json url,status,conclusio
 
 The workflow builds both architectures in parallel (aarch64 native, x86_64 cross-compiled), signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs updater artifacts with the Tauri updater key, creates the GitHub release, refreshes `desktop-latest/latest.json`, and posts to Slack. Notarization typically adds 2–10 minutes.
 
-Required repo secrets (see the app README's "Release automation" section for the setup walkthrough): `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY`, `APPLE_API_KEY_CONTENT`, `APPLE_API_ISSUER`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+If the workflow fails on missing credentials, see "Repo secrets (one-time setup)" below.
 
 9. Verify the update feed after the run succeeds.
 
@@ -105,3 +105,23 @@ The `version` field must be the new release and both `darwin-aarch64` and `darwi
 10. Final response.
 
 Report: version, tag, changelog updated, commit hash, what was pushed, workflow URL, and the feed verification result.
+
+## Repo secrets (one-time setup)
+
+The workflow needs these repository secrets. The Apple ones come from the same
+Apple Developer account used for manual signing (see the app README's "macOS
+signing & notarization" section for how to obtain them):
+
+| Secret | Value |
+| --- | --- |
+| `APPLE_CERTIFICATE` | Base64 of the **Developer ID Application** identity exported from Keychain Access as `.p12` (must include the private key): `base64 -i certificate.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | The password chosen when exporting the `.p12` |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: <Team Name> (<TEAMID>)` — from `security find-identity -v -p codesigning` |
+| `APPLE_API_KEY` | App Store Connect API **Key ID** (notarization) |
+| `APPLE_API_KEY_CONTENT` | Contents of the `AuthKey_<KEYID>.p8` file |
+| `APPLE_API_ISSUER` | App Store Connect **Issuer ID** (UUID from Users and Access → Integrations) |
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of the Tauri updater private key (`tauri signer generate`). If this key is ever lost, shipped apps can no longer verify updates — guard it. |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for that key |
+
+The Slack + telemetry secrets (`SLACK_RELEASE_BOT_TOKEN`, `TELEMETRY_SERVICE_API_KEY`,
+OTEL settings) are shared with the CLI publish workflow and already configured.
