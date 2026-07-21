@@ -10,7 +10,14 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
@@ -24,8 +31,30 @@ type DiffViewProps = {
 	onClose: () => void;
 };
 
+type EditorOption = {
+	id: string;
+	label: string;
+};
+
 export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+	const [editors, setEditors] = useState<EditorOption[]>([]);
+
+	useEffect(() => {
+		let cancelled = false;
+		desktopClient
+			.invoke<EditorOption[]>("list_available_editors")
+			.then((list) => {
+				if (!cancelled && Array.isArray(list)) setEditors(list);
+			})
+			.catch(() => {
+				// Older sidecars don't support the command; the menu still
+				// offers the system default opener.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const _totals = useMemo(
 		() =>
@@ -88,6 +117,7 @@ export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 							<DiffFileSection
 								collapsed={collapsedFiles.has(file.path)}
 								cwd={cwd}
+								editors={editors}
 								file={file}
 								key={file.path}
 								onToggle={() => toggleFileCollapse(file.path)}
@@ -104,11 +134,13 @@ function DiffFileSection({
 	file,
 	collapsed,
 	cwd,
+	editors,
 	onToggle,
 }: {
 	file: SessionFileDiff;
 	collapsed: boolean;
 	cwd?: string;
+	editors: EditorOption[];
 	onToggle: () => void;
 }) {
 	const [copied, setCopied] = useState(false);
@@ -136,32 +168,36 @@ function DiffFileSection({
 		}
 	}, [resolvedPath]);
 
-	const handleOpenInEditor = useCallback(async () => {
-		setOpening(true);
-		try {
-			await desktopClient.invoke("open_file_in_editor", {
-				path: file.path,
-				...(cwd?.trim() ? { cwd } : {}),
-			});
-		} catch (error) {
-			toast({
-				variant: "destructive",
-				title: "Could not open file",
-				description:
-					error instanceof Error
-						? error.message
-						: "The file could not be opened in an editor.",
-			});
-		} finally {
-			setOpening(false);
-		}
-	}, [file.path, cwd]);
+	const handleOpenInEditor = useCallback(
+		async (editor?: string) => {
+			setOpening(true);
+			try {
+				await desktopClient.invoke("open_file_in_editor", {
+					path: file.path,
+					...(cwd?.trim() ? { cwd } : {}),
+					...(editor ? { editor } : {}),
+				});
+			} catch (error) {
+				toast({
+					variant: "destructive",
+					title: "Could not open file",
+					description:
+						error instanceof Error
+							? error.message
+							: "The file could not be opened in an editor.",
+				});
+			} finally {
+				setOpening(false);
+			}
+		},
+		[file.path, cwd],
+	);
 
 	return (
 		<div className="border-b border-border">
 			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-accent/50 transition-colors">
 				<button
-					className="flex min-w-0 flex-1 items-center gap-2 text-left"
+					className="flex min-w-0 shrink items-center gap-2 text-left"
 					onClick={onToggle}
 					type="button"
 				>
@@ -170,7 +206,7 @@ function DiffFileSection({
 					) : (
 						<ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					)}
-					<span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+					<span className="min-w-0 truncate font-mono text-xs text-foreground">
 						{file.path}
 					</span>
 				</button>
@@ -190,16 +226,44 @@ function DiffFileSection({
 						<Copy className="h-3.5 w-3.5" />
 					)}
 				</button>
+				{/* Invisible flex spacer that keeps the dead space between the
+				    path and the right-aligned actions clickable as a toggle. */}
 				<button
-					aria-label={`Open ${file.path} in editor`}
-					className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50"
-					disabled={opening}
-					onClick={() => void handleOpenInEditor()}
-					title="Open in editor"
+					aria-hidden
+					className="h-6 min-w-0 flex-1 cursor-pointer"
+					onClick={onToggle}
+					tabIndex={-1}
 					type="button"
-				>
-					<ExternalLink className="h-3.5 w-3.5" />
-				</button>
+				/>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							aria-label={`Open ${file.path} in editor`}
+							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-accent data-[state=open]:text-foreground"
+							disabled={opening}
+							title="Open in editor"
+							type="button"
+						>
+							<ExternalLink className="h-3.5 w-3.5" />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="w-52">
+						{editors.map((editor) => (
+							<DropdownMenuItem
+								key={editor.id}
+								onSelect={() => void handleOpenInEditor(editor.id)}
+							>
+								Open in {editor.label}
+							</DropdownMenuItem>
+						))}
+						{editors.length > 0 && <DropdownMenuSeparator />}
+						<DropdownMenuItem
+							onSelect={() => void handleOpenInEditor("default")}
+						>
+							Open with system default
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 				<span className="shrink-0 font-mono text-[11px] text-primary">
 					+{file.additions}
 				</span>

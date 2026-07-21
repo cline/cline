@@ -751,17 +751,23 @@ function openFileInEditor(filePath: string): void {
 	child.unref();
 }
 
-const CODE_EDITOR_CLIS = ["code", "cursor", "windsurf", "zed", "subl"];
 // The macOS app shell launches the sidecar with a minimal GUI PATH
 // (/usr/bin:/bin:...), so editor CLIs installed under /usr/local/bin or
-// /opt/homebrew/bin are often not resolvable. `open -a` finds the app
-// bundle regardless of PATH.
-const MACOS_CODE_EDITOR_APPS = [
-	"Visual Studio Code",
-	"Cursor",
-	"Windsurf",
-	"Zed",
-	"Sublime Text",
+// /opt/homebrew/bin are often not resolvable. `macApp` lets `open -a`
+// find the app bundle regardless of PATH.
+interface CodeEditorDefinition {
+	id: string;
+	label: string;
+	cli: string;
+	macApp: string;
+}
+
+const CODE_EDITOR_CATALOG: readonly CodeEditorDefinition[] = [
+	{ id: "vscode", label: "VS Code", cli: "code", macApp: "Visual Studio Code" },
+	{ id: "cursor", label: "Cursor", cli: "cursor", macApp: "Cursor" },
+	{ id: "windsurf", label: "Windsurf", cli: "windsurf", macApp: "Windsurf" },
+	{ id: "zed", label: "Zed", cli: "zed", macApp: "Zed" },
+	{ id: "sublime", label: "Sublime Text", cli: "subl", macApp: "Sublime Text" },
 ];
 
 function findExecutableOnPath(name: string): string | null {
@@ -782,8 +788,63 @@ function findExecutableOnPath(name: string): string | null {
 // could smuggle a second command must never reach it.
 const WINDOWS_CMD_UNSAFE_PATTERN = /[&|^<>%!"\r\n]/;
 
+function isMacAppInstalled(app: string): boolean {
+	return (
+		existsSync(`/Applications/${app}.app`) ||
+		existsSync(join(homedir(), "Applications", `${app}.app`))
+	);
+}
+
+/** Editors the current machine can actually launch, in catalog order. */
+function listAvailableCodeEditors(): Array<{ id: string; label: string }> {
+	return CODE_EDITOR_CATALOG.filter(
+		(editor) =>
+			findExecutableOnPath(editor.cli) !== null ||
+			(process.platform === "darwin" && isMacAppInstalled(editor.macApp)),
+	).map(({ id, label }) => ({ id, label }));
+}
+
+/** Launches `executable filePath` detached; false if the CLI is unusable. */
+function launchEditorCli(executable: string, filePath: string): boolean {
+	// Windows `where` resolves editor CLIs to .cmd/.bat shims, which
+	// spawn() cannot launch directly — route those through cmd.exe.
+	const isWindowsShim =
+		process.platform === "win32" && /\.(cmd|bat)$/i.test(executable);
+	if (isWindowsShim && WINDOWS_CMD_UNSAFE_PATTERN.test(executable)) {
+		return false;
+	}
+	const child = isWindowsShim
+		? spawn("cmd", ["/c", executable, filePath], {
+				stdio: "ignore",
+				detached: true,
+			})
+		: spawn(executable, [filePath], {
+				stdio: "ignore",
+				detached: true,
+			});
+	// Spawn failures surface as async error events; without a listener
+	// they crash the sidecar. Fall back to the OS default opener so the
+	// click still opens the file.
+	child.once("error", () => {
+		openFileInEditor(filePath);
+	});
+	child.unref();
+	return true;
+}
+
+function launchMacApp(app: string, filePath: string): boolean {
+	try {
+		execFileSync("open", ["-a", app, filePath], {
+			stdio: ["ignore", "ignore", "ignore"],
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 /** Returns the launcher that handled the file, for logging/UI feedback. */
-function openFileInCodeEditor(filePath: string): string {
+function openFileInCodeEditor(filePath: string, editorId?: string): string {
 	if (
 		process.platform === "win32" &&
 		WINDOWS_CMD_UNSAFE_PATTERN.test(filePath)
@@ -792,41 +853,35 @@ function openFileInCodeEditor(filePath: string): string {
 			"File path contains characters that cannot be passed safely to the Windows shell",
 		);
 	}
-	for (const cli of CODE_EDITOR_CLIS) {
-		const executable = findExecutableOnPath(cli);
-		if (!executable) continue;
-		// Windows `where` resolves editor CLIs to .cmd/.bat shims, which
-		// spawn() cannot launch directly — route those through cmd.exe.
-		const isWindowsShim =
-			process.platform === "win32" && /\.(cmd|bat)$/i.test(executable);
-		if (isWindowsShim && WINDOWS_CMD_UNSAFE_PATTERN.test(executable)) continue;
-		const child = isWindowsShim
-			? spawn("cmd", ["/c", executable, filePath], {
-					stdio: "ignore",
-					detached: true,
-				})
-			: spawn(executable, [filePath], {
-					stdio: "ignore",
-					detached: true,
-				});
-		// Spawn failures surface as async error events; without a listener
-		// they crash the sidecar. Fall back to the OS default opener so the
-		// click still opens the file.
-		child.once("error", () => {
-			openFileInEditor(filePath);
-		});
-		child.unref();
-		return cli;
+	if (editorId && editorId !== "default") {
+		const editor = CODE_EDITOR_CATALOG.find((entry) => entry.id === editorId);
+		if (!editor) {
+			throw new Error(`Unknown editor: ${editorId}`);
+		}
+		const executable = findExecutableOnPath(editor.cli);
+		if (executable && launchEditorCli(executable, filePath)) {
+			return editor.label;
+		}
+		if (
+			process.platform === "darwin" &&
+			launchMacApp(editor.macApp, filePath)
+		) {
+			return editor.label;
+		}
+		throw new Error(`${editor.label} is not available on this machine`);
 	}
-	if (process.platform === "darwin") {
-		for (const app of MACOS_CODE_EDITOR_APPS) {
-			try {
-				execFileSync("open", ["-a", app, filePath], {
-					stdio: ["ignore", "ignore", "ignore"],
-				});
-				return app;
-			} catch {
-				// App bundle not installed; try the next editor.
+	if (!editorId) {
+		for (const editor of CODE_EDITOR_CATALOG) {
+			const executable = findExecutableOnPath(editor.cli);
+			if (executable && launchEditorCli(executable, filePath)) {
+				return editor.cli;
+			}
+		}
+		if (process.platform === "darwin") {
+			for (const editor of CODE_EDITOR_CATALOG) {
+				if (launchMacApp(editor.macApp, filePath)) {
+					return editor.macApp;
+				}
 			}
 		}
 	}
@@ -1401,6 +1456,9 @@ export async function handleCommand(
 		openFileInEditor(path);
 		return path;
 	}
+	if (command === "list_available_editors") {
+		return listAvailableCodeEditors();
+	}
 	if (command === "open_file_in_editor") {
 		const rawPath = String(args?.path ?? "").trim();
 		if (!rawPath) throw new Error("path is required");
@@ -1412,7 +1470,11 @@ export async function handleCommand(
 		if (!existsSync(filePath)) {
 			throw new Error(`File not found: ${filePath}`);
 		}
-		const editor = openFileInCodeEditor(filePath);
+		const requestedEditor =
+			typeof args?.editor === "string" && args.editor.trim()
+				? args.editor.trim()
+				: undefined;
+		const editor = openFileInCodeEditor(filePath, requestedEditor);
 		return { path: filePath, editor };
 	}
 

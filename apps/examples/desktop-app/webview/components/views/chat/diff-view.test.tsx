@@ -7,7 +7,11 @@ import type { SessionFileDiff } from "@/lib/session-diff";
 import { DiffView } from "./diff-view";
 
 const { invokeMock } = vi.hoisted(() => ({
-	invokeMock: vi.fn(async () => ({ path: "/repo/docs/a.mdx", editor: "code" })),
+	invokeMock: vi.fn(async (command: string) =>
+		command === "list_available_editors"
+			? [{ id: "vscode", label: "VS Code" }]
+			: { path: "/repo/docs/a.mdx", editor: "VS Code" },
+	),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -20,6 +24,20 @@ let writeText: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	// jsdom lacks the layout/pointer APIs the Radix dropdown menu touches.
+	if (!("ResizeObserver" in globalThis)) {
+		Object.assign(globalThis, {
+			ResizeObserver: class {
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		});
+	}
+	Element.prototype.scrollIntoView ??= () => {};
+	Element.prototype.hasPointerCapture ??= () => false;
+	Element.prototype.setPointerCapture ??= () => {};
+	Element.prototype.releasePointerCapture ??= () => {};
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -46,12 +64,33 @@ async function click(element: Element): Promise<void> {
 	});
 }
 
+// Radix dropdown triggers open on pointerdown, not click.
+async function pointerDown(element: Element): Promise<void> {
+	await act(async () => {
+		element.dispatchEvent(
+			new MouseEvent("pointerdown", {
+				bubbles: true,
+				cancelable: true,
+				button: 0,
+			}),
+		);
+		await Promise.resolve();
+	});
+}
+
 function buttonWithLabel(label: string): HTMLButtonElement {
 	const button = container.querySelector<HTMLButtonElement>(
 		`button[aria-label="${label}"]`,
 	);
 	expect(button).not.toBeNull();
 	return button as HTMLButtonElement;
+}
+
+// Menu items render in a portal attached to document.body.
+function menuItems(): HTMLElement[] {
+	return Array.from(
+		document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+	);
 }
 
 const FILE_DIFF: SessionFileDiff = {
@@ -78,7 +117,7 @@ describe("DiffView file actions", () => {
 		expect(writeText).toHaveBeenCalledWith("/Users/renee/cline/docs/a.mdx");
 	});
 
-	it("opens the file in an editor through the desktop backend", async () => {
+	it("opens the file in a chosen editor through the desktop backend", async () => {
 		await act(async () => {
 			root.render(
 				<DiffView
@@ -89,11 +128,45 @@ describe("DiffView file actions", () => {
 			);
 		});
 
-		await click(buttonWithLabel("Open docs/a.mdx in editor"));
+		await pointerDown(buttonWithLabel("Open docs/a.mdx in editor"));
+
+		const labels = menuItems().map((item) => item.textContent);
+		expect(labels).toEqual(["Open in VS Code", "Open with system default"]);
+
+		const vscodeItem = menuItems().find(
+			(item) => item.textContent === "Open in VS Code",
+		);
+		await click(vscodeItem as Element);
 
 		expect(invokeMock).toHaveBeenCalledWith("open_file_in_editor", {
 			path: "docs/a.mdx",
 			cwd: "/Users/renee/cline",
+			editor: "vscode",
+		});
+	});
+
+	it("still offers the system default opener when editor detection fails", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_available_editors") {
+				throw new Error("unsupported desktop command");
+			}
+			return { path: "/repo/docs/a.mdx", editor: "system default" };
+		});
+
+		await act(async () => {
+			root.render(<DiffView fileDiffs={[FILE_DIFF]} onClose={vi.fn()} />);
+		});
+
+		await pointerDown(buttonWithLabel("Open docs/a.mdx in editor"));
+
+		const labels = menuItems().map((item) => item.textContent);
+		expect(labels).toEqual(["Open with system default"]);
+
+		await click(menuItems()[0] as Element);
+
+		expect(invokeMock).toHaveBeenCalledWith("open_file_in_editor", {
+			path: "docs/a.mdx",
+			editor: "default",
 		});
 	});
 
