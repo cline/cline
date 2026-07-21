@@ -777,8 +777,21 @@ function findExecutableOnPath(name: string): string | null {
 	}
 }
 
+// cmd.exe re-parses metacharacters inside arguments even when quoted (the
+// reason Node refuses to spawn .cmd files without a shell), so strings that
+// could smuggle a second command must never reach it.
+const WINDOWS_CMD_UNSAFE_PATTERN = /[&|^<>%!"\r\n]/;
+
 /** Returns the launcher that handled the file, for logging/UI feedback. */
 function openFileInCodeEditor(filePath: string): string {
+	if (
+		process.platform === "win32" &&
+		WINDOWS_CMD_UNSAFE_PATTERN.test(filePath)
+	) {
+		throw new Error(
+			"File path contains characters that cannot be passed safely to the Windows shell",
+		);
+	}
 	for (const cli of CODE_EDITOR_CLIS) {
 		const executable = findExecutableOnPath(cli);
 		if (!executable) continue;
@@ -786,6 +799,7 @@ function openFileInCodeEditor(filePath: string): string {
 		// spawn() cannot launch directly — route those through cmd.exe.
 		const isWindowsShim =
 			process.platform === "win32" && /\.(cmd|bat)$/i.test(executable);
+		if (isWindowsShim && WINDOWS_CMD_UNSAFE_PATTERN.test(executable)) continue;
 		const child = isWindowsShim
 			? spawn("cmd", ["/c", executable, filePath], {
 					stdio: "ignore",
