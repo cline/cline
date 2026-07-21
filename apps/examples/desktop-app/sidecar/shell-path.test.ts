@@ -8,6 +8,7 @@ import {
 	extractMarkedPath,
 	mergePaths,
 	resolveLoginShellPath,
+	shellInvocationArgs,
 } from "./shell-path";
 
 const MARKER_START = "__CLINE_SIDECAR_PATH_START__";
@@ -15,10 +16,18 @@ const MARKER_END = "__CLINE_SIDECAR_PATH_END__";
 
 let tempDirs: string[] = [];
 
-function writeFakeShell(script: string): string {
+/**
+ * Fake login shell: a /bin/sh script invoked as `fake-shell -i -l -c <cmd>`,
+ * so the command to run arrives as $4. The default body mimics a login shell
+ * whose profile prepends Homebrew before running the command.
+ */
+function writeFakeShell(
+	script = 'PATH="/opt/homebrew/bin:/usr/bin"; eval "$4"',
+	name = "fake-shell",
+): string {
 	const dir = mkdtempSync(join(tmpdir(), "cline-shell-path-"));
 	tempDirs.push(dir);
-	const shellPath = join(dir, "fake-shell");
+	const shellPath = join(dir, name);
 	writeFileSync(shellPath, `#!/bin/sh\n${script}\n`);
 	chmodSync(shellPath, 0o755);
 	return shellPath;
@@ -74,13 +83,44 @@ describe("defaultShellFor", () => {
 	});
 });
 
+describe("shellInvocationArgs", () => {
+	it("uses separate login+interactive flags for posix-style shells", () => {
+		expect(shellInvocationArgs("/bin/zsh", "cmd")).toEqual([
+			"-i",
+			"-l",
+			"-c",
+			"cmd",
+		]);
+		expect(shellInvocationArgs("/opt/homebrew/bin/fish", "cmd")).toEqual([
+			"-i",
+			"-l",
+			"-c",
+			"cmd",
+		]);
+	});
+
+	it("uses only -c for csh-family shells (-l must be the sole flag there)", () => {
+		expect(shellInvocationArgs("/bin/tcsh", "cmd")).toEqual(["-c", "cmd"]);
+		expect(shellInvocationArgs("/bin/csh", "cmd")).toEqual(["-c", "cmd"]);
+	});
+});
+
 describe("resolveLoginShellPath", () => {
 	it("captures PATH from the shell", async () => {
-		// The fake shell ignores the -ilc flags and evaluates the command
-		// with a controlled PATH, mimicking a login shell whose profile
-		// prepends Homebrew.
+		const shell = writeFakeShell();
+		await expect(resolveLoginShellPath(shell)).resolves.toBe(
+			"/opt/homebrew/bin:/usr/bin",
+		);
+	});
+
+	it("reads PATH from the environment, not the shell's own expansion", async () => {
+		// Mimics fish: its "$PATH" expansion would space-join the entries,
+		// but the printf runs inside /bin/sh, which reads the exported
+		// colon-delimited PATH env var — so the shell's expansion rules
+		// never apply. This fake shell never evals the command text; it
+		// only exports PATH and runs the command via sh, like fish would.
 		const shell = writeFakeShell(
-			'PATH="/opt/homebrew/bin:/usr/bin"; eval "$2"',
+			'PATH="/opt/homebrew/bin:/usr/bin"; export PATH; /bin/sh -c "$4"',
 		);
 		await expect(resolveLoginShellPath(shell)).resolves.toBe(
 			"/opt/homebrew/bin:/usr/bin",
@@ -102,29 +142,62 @@ describe("resolveLoginShellPath", () => {
 		const shell = writeFakeShell("sleep 60");
 		await expect(resolveLoginShellPath(shell, 200)).resolves.toBeUndefined();
 	});
+
+	it("invokes csh-family shells without login/interactive flags", async () => {
+		// A csh stand-in that rejects any first flag other than -c.
+		const shell = writeFakeShell(
+			'[ "$1" = "-c" ] || exit 64; PATH="/opt/homebrew/bin:/usr/bin"; eval "$2"',
+			"tcsh",
+		);
+		await expect(resolveLoginShellPath(shell)).resolves.toBe(
+			"/opt/homebrew/bin:/usr/bin",
+		);
+	});
 });
 
 describe("ensureLoginShellPath", () => {
 	it("merges the login shell PATH into env.PATH", async () => {
-		const shell = writeFakeShell(
-			'PATH="/opt/homebrew/bin:/usr/bin"; eval "$2"',
-		);
+		const shell = writeFakeShell();
 		const env: NodeJS.ProcessEnv = {
 			SHELL: shell,
 			PATH: "/usr/bin:/bin",
 		};
 		const result = await ensureLoginShellPath({ platform: "darwin", env });
-		expect(result.status).toBe("applied");
+		expect(result).toEqual({
+			status: "applied",
+			pathEntries: 3,
+			shell,
+		});
 		expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin:/bin");
 	});
 
-	it("leaves PATH untouched when resolution fails", async () => {
+	it("falls back to the default shell when $SHELL can't resolve", async () => {
+		const fallbackShell = writeFakeShell();
 		const env: NodeJS.ProcessEnv = {
 			SHELL: "/nonexistent/shell",
 			PATH: "/usr/bin",
 		};
-		const result = await ensureLoginShellPath({ platform: "darwin", env });
-		expect(result.status).toBe("failed");
+		const result = await ensureLoginShellPath({
+			platform: "darwin",
+			env,
+			fallbackShell,
+		});
+		expect(result.status).toBe("applied");
+		expect(result).toMatchObject({ shell: fallbackShell });
+		expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
+	});
+
+	it("leaves PATH untouched when every shell fails", async () => {
+		const env: NodeJS.ProcessEnv = {
+			SHELL: "/nonexistent/shell",
+			PATH: "/usr/bin",
+		};
+		const result = await ensureLoginShellPath({
+			platform: "darwin",
+			env,
+			fallbackShell: "/nonexistent/other-shell",
+		});
+		expect(result).toEqual({ status: "failed", shell: "/nonexistent/shell" });
 		expect(env.PATH).toBe("/usr/bin");
 	});
 
@@ -142,6 +215,13 @@ describe("ensureLoginShellPath", () => {
 		const result = await ensureLoginShellPath({ platform: "darwin", env });
 		expect(result.status).toBe("skipped");
 		expect(env.PATH).toBe("/usr/bin");
+	});
+
+	it("never exposes the resolved PATH in its result", async () => {
+		const shell = writeFakeShell();
+		const env: NodeJS.ProcessEnv = { SHELL: shell, PATH: "/usr/bin" };
+		const result = await ensureLoginShellPath({ platform: "darwin", env });
+		expect(JSON.stringify(result)).not.toContain("/opt/homebrew/bin");
 	});
 
 	it("resolves against a real shell end to end", async () => {

@@ -39,18 +39,17 @@ async function main() {
 		throw new Error("sidecar must be run with Bun");
 	}
 
+	// When launched from Finder/the Dock the app inherits launchd's minimal
+	// PATH, so agent-spawned processes can't find shell-profile-installed
+	// tools like `gh`. Kick resolution off first so it overlaps the rest of
+	// startup, but await it before the session manager exists — that's what
+	// spawns children (agent sessions, MCP servers, scheduled runs).
+	const shellPathPromise = ensureLoginShellPath();
+
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
 	setHomeDirIfUnset(homedir());
 	const observability = createDesktopObservability();
 	activeObservability = observability;
-
-	// When launched from Finder/the Dock the app inherits launchd's minimal
-	// PATH, so agent-spawned processes can't find shell-profile-installed
-	// tools like `gh`. Patch PATH from the login shell before anything that
-	// spawns children (agent sessions, MCP servers) is created.
-	const shellPathResult = await ensureLoginShellPath();
-	observability.logger.log("Login shell PATH resolution", shellPathResult);
-
 	const ctx = createSidecarContext(workspaceRoot, observability);
 	observability.logger.log("Desktop sidecar starting", {
 		workspaceRoot,
@@ -58,6 +57,10 @@ async function main() {
 	});
 
 	prewarmWorkspaceMetadata(workspaceRoot);
+	observability.logger.log(
+		"Login shell PATH resolution",
+		await shellPathPromise,
+	);
 	await initializeSessionManager(ctx);
 
 	let shuttingDown = false;

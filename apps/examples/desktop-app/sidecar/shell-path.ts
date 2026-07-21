@@ -13,11 +13,25 @@
  */
 
 import { spawn } from "node:child_process";
-import { delimiter } from "node:path";
+import { basename, delimiter } from "node:path";
 
 const PATH_MARKER_START = "__CLINE_SIDECAR_PATH_START__";
 const PATH_MARKER_END = "__CLINE_SIDECAR_PATH_END__";
-const SHELL_TIMEOUT_MS = 5_000;
+
+/**
+ * Kept well under the Tauri shell's 5s endpoint-readiness poll: this
+ * resolution overlaps sidecar startup but is awaited before the server
+ * starts, so a pathological shell profile must not eat the whole window.
+ */
+const SHELL_TIMEOUT_MS = 2_000;
+
+/**
+ * The command every shell is asked to run. $PATH expansion happens inside
+ * POSIX sh — not the user's shell — so shells with different expansion rules
+ * (fish would space-join "$PATH") still produce a colon-delimited value; sh
+ * reads the PATH environment variable the login shell exported.
+ */
+const PRINT_PATH_COMMAND = `/bin/sh -c 'printf "%s%s%s" "${PATH_MARKER_START}" "$PATH" "${PATH_MARKER_END}"'`;
 
 /**
  * Escape hatch: set CLINE_SIDECAR_SKIP_SHELL_PATH=1 to leave PATH untouched
@@ -27,6 +41,20 @@ const SKIP_ENV_VAR = "CLINE_SIDECAR_SKIP_SHELL_PATH";
 
 export function defaultShellFor(platform: NodeJS.Platform): string {
 	return platform === "darwin" ? "/bin/zsh" : "/bin/bash";
+}
+
+/**
+ * Flags to make a shell source its profiles and run a command. csh/tcsh
+ * accept -l only as the sole flag and always source ~/.tcshrc, so they get
+ * plain -c; everything else gets login (-l, ~/.zprofile — Homebrew's
+ * shellenv) plus interactive (-i, ~/.zshrc — nvm-style version managers).
+ */
+export function shellInvocationArgs(shell: string, command: string): string[] {
+	const kind = basename(shell);
+	if (kind === "csh" || kind === "tcsh") {
+		return ["-c", command];
+	}
+	return ["-i", "-l", "-c", command];
 }
 
 /**
@@ -70,7 +98,7 @@ export function mergePaths(shellPath: string, currentPath: string): string {
 }
 
 /**
- * Run the user's shell as a login+interactive shell and capture its PATH.
+ * Run the user's shell with its profiles sourced and capture its PATH.
  * Resolves to undefined on any failure (missing shell, timeout, profile
  * error) — callers should treat that as "keep the current PATH".
  */
@@ -79,18 +107,10 @@ export function resolveLoginShellPath(
 	timeoutMs = SHELL_TIMEOUT_MS,
 ): Promise<string | undefined> {
 	return new Promise((resolve) => {
-		// -l sources login profiles (~/.zprofile, where Homebrew installs its
-		// shellenv hook); -i sources interactive rc files (~/.zshrc, where
-		// version managers like nvm typically live). The markers isolate the
-		// PATH value from anything those profiles print.
-		const child = spawn(
-			shell,
-			[
-				"-ilc",
-				`printf '%s%s%s' '${PATH_MARKER_START}' "$PATH" '${PATH_MARKER_END}'`,
-			],
-			{ stdio: ["ignore", "pipe", "ignore"], detached: true },
-		);
+		const child = spawn(shell, shellInvocationArgs(shell, PRINT_PATH_COMMAND), {
+			stdio: ["ignore", "pipe", "ignore"],
+			detached: true,
+		});
 
 		let output = "";
 		let settled = false;
@@ -123,17 +143,23 @@ export function resolveLoginShellPath(
 }
 
 /**
- * Resolve the login shell's PATH and merge it into process.env.PATH.
+ * Resolve the login shell's PATH and merge it into process.env.PATH. If the
+ * user's $SHELL can't produce a PATH (exotic shell, broken profile), retry
+ * once with the platform default shell before giving up.
+ *
  * No-op on Windows (the GUI PATH comes from the registry there) and when
  * CLINE_SIDECAR_SKIP_SHELL_PATH is set. Failures are reported via the
- * returned status but never block startup.
+ * returned status but never block startup. The result never contains the
+ * resolved PATH itself so it is safe to log verbatim.
  */
 export async function ensureLoginShellPath(options?: {
 	platform?: NodeJS.Platform;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
+	/** Test seam: overrides the platform-default fallback shell. */
+	fallbackShell?: string;
 }): Promise<
-	| { status: "applied"; path: string; shell: string }
+	| { status: "applied"; pathEntries: number; shell: string }
 	| { status: "skipped"; reason: string }
 	| { status: "failed"; shell: string }
 > {
@@ -147,13 +173,31 @@ export async function ensureLoginShellPath(options?: {
 		return { status: "skipped", reason: SKIP_ENV_VAR };
 	}
 
-	const shell = env.SHELL?.trim() || defaultShellFor(platform);
-	const shellPath = await resolveLoginShellPath(shell, options?.timeoutMs);
-	if (!shellPath) {
-		return { status: "failed", shell };
-	}
+	const userShell = env.SHELL?.trim() || defaultShellFor(platform);
+	const fallbackShell = options?.fallbackShell ?? defaultShellFor(platform);
+	const baseTimeoutMs = options?.timeoutMs ?? SHELL_TIMEOUT_MS;
+	// The fallback gets half the budget so the combined worst case stays
+	// bounded even when both shells hang (see SHELL_TIMEOUT_MS).
+	const attempts: Array<[shell: string, timeoutMs: number]> =
+		userShell === fallbackShell
+			? [[userShell, baseTimeoutMs]]
+			: [
+					[userShell, baseTimeoutMs],
+					[fallbackShell, baseTimeoutMs / 2],
+				];
 
-	const merged = mergePaths(shellPath, env.PATH ?? "");
-	env.PATH = merged;
-	return { status: "applied", path: merged, shell };
+	for (const [shell, timeoutMs] of attempts) {
+		const shellPath = await resolveLoginShellPath(shell, timeoutMs);
+		if (!shellPath) {
+			continue;
+		}
+		const merged = mergePaths(shellPath, env.PATH ?? "");
+		env.PATH = merged;
+		return {
+			status: "applied",
+			pathEntries: merged.split(delimiter).length,
+			shell,
+		};
+	}
+	return { status: "failed", shell: userShell };
 }
