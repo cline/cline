@@ -533,7 +533,11 @@ fn get_desktop_backend_endpoint(
     context: State<'_, AppContext>,
 ) -> Result<String, String> {
     ensure_desktop_backend_started(backend_state.inner(), context.inner())?;
-    for _ in 0..50 {
+    // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
+    // see sidecar/shell-path.ts) plus session-manager init, whose duration
+    // varies by machine. Poll well past that combined worst case; the loop
+    // returns as soon as the ready line arrives, so only failure waits long.
+    for _ in 0..150 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
             .lock()

@@ -9,7 +9,7 @@ import {
 	loginShellFor,
 	mergePaths,
 	resolveLoginShellPath,
-	shellInvocationArgs,
+	shellInvocation,
 } from "./shell-path";
 
 const MARKER_START = "__CLINE_SIDECAR_PATH_START__";
@@ -95,25 +95,25 @@ describe("loginShellFor", () => {
 	});
 });
 
-describe("shellInvocationArgs", () => {
+describe("shellInvocation", () => {
 	it("uses separate login+interactive flags for posix-style shells", () => {
-		expect(shellInvocationArgs("/bin/zsh", "cmd")).toEqual([
-			"-i",
-			"-l",
-			"-c",
-			"cmd",
-		]);
-		expect(shellInvocationArgs("/opt/homebrew/bin/fish", "cmd")).toEqual([
-			"-i",
-			"-l",
-			"-c",
-			"cmd",
-		]);
+		expect(shellInvocation("/bin/zsh", "cmd")).toEqual({
+			args: ["-i", "-l", "-c", "cmd"],
+		});
+		expect(shellInvocation("/opt/homebrew/bin/fish", "cmd")).toEqual({
+			args: ["-i", "-l", "-c", "cmd"],
+		});
 	});
 
-	it("uses only -c for csh-family shells (-l must be the sole flag there)", () => {
-		expect(shellInvocationArgs("/bin/tcsh", "cmd")).toEqual(["-c", "cmd"]);
-		expect(shellInvocationArgs("/bin/csh", "cmd")).toEqual(["-c", "cmd"]);
+	it("marks csh-family shells as login via argv0 (-l must be their sole flag)", () => {
+		expect(shellInvocation("/bin/tcsh", "cmd")).toEqual({
+			args: ["-c", "cmd"],
+			argv0: "-tcsh",
+		});
+		expect(shellInvocation("/bin/csh", "cmd")).toEqual({
+			args: ["-c", "cmd"],
+			argv0: "-csh",
+		});
 	});
 });
 

@@ -67,18 +67,32 @@ export function loginShellFor(
 	return env.SHELL?.trim() || defaultShellFor(platform);
 }
 
+export interface ShellInvocation {
+	args: string[];
+	/**
+	 * argv[0] the shell should see. A leading dash is the historical "you
+	 * are a login shell" signal, used where -l can't be passed as a flag.
+	 */
+	argv0?: string;
+}
+
 /**
- * Flags to make a shell source its profiles and run a command. csh/tcsh
- * accept -l only as the sole flag and always source ~/.tcshrc, so they get
- * plain -c; everything else gets login (-l, ~/.zprofile — Homebrew's
- * shellenv) plus interactive (-i, ~/.zshrc — nvm-style version managers).
+ * How to invoke a shell so it sources its profiles and runs a command.
+ * csh/tcsh accept -l only as the sole flag, so they're marked login via the
+ * argv[0] dash convention instead (sources ~/.login on top of the always-read
+ * ~/.cshrc//.tcshrc); everything else gets login (-l, ~/.zprofile —
+ * Homebrew's shellenv) plus interactive (-i, ~/.zshrc — nvm-style version
+ * managers) as separate flags.
  */
-export function shellInvocationArgs(shell: string, command: string): string[] {
+export function shellInvocation(
+	shell: string,
+	command: string,
+): ShellInvocation {
 	const kind = basename(shell);
 	if (kind === "csh" || kind === "tcsh") {
-		return ["-c", command];
+		return { args: ["-c", command], argv0: `-${kind}` };
 	}
-	return ["-i", "-l", "-c", command];
+	return { args: ["-i", "-l", "-c", command] };
 }
 
 /**
@@ -131,7 +145,9 @@ export function resolveLoginShellPath(
 	timeoutMs = SHELL_TIMEOUT_MS,
 ): Promise<string | undefined> {
 	return new Promise((resolve) => {
-		const child = spawn(shell, shellInvocationArgs(shell, PRINT_PATH_COMMAND), {
+		const invocation = shellInvocation(shell, PRINT_PATH_COMMAND);
+		const child = spawn(shell, invocation.args, {
+			argv0: invocation.argv0,
 			stdio: ["ignore", "pipe", "ignore"],
 			detached: true,
 		});
