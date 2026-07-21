@@ -48,7 +48,7 @@ jobs:
                   bun run types
 
             - name: Verify committed UI build
-              run: git diff --exit-code -- sdk/packages/ui/dist
+              run: test -z "$(git status --porcelain --untracked-files=all -- sdk/packages/ui/dist)"
 
             - name: Lint & Format
               run: bun run lint

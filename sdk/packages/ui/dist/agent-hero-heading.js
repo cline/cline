@@ -9,14 +9,35 @@ export function AgentHeroHeading({ className, cycleMs = 2600, verbs = DEFAULT_VE
     useEffect(() => {
         if (availableVerbs.length <= 1)
             return;
-        const reduceMotion = typeof window.matchMedia === "function" &&
-            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if (reduceMotion)
+        if (typeof window.matchMedia !== "function")
             return;
-        const interval = window.setInterval(() => {
-            setVerbIndex((current) => (current + 1) % availableVerbs.length);
-        }, cycleMs);
-        return () => window.clearInterval(interval);
+        const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+        let interval;
+        const stopCycling = () => {
+            if (interval === undefined)
+                return;
+            window.clearInterval(interval);
+            interval = undefined;
+        };
+        const startCycling = () => {
+            if (motionPreference.matches || interval !== undefined)
+                return;
+            interval = window.setInterval(() => {
+                setVerbIndex((current) => (current + 1) % availableVerbs.length);
+            }, cycleMs);
+        };
+        const handleMotionPreference = () => {
+            if (motionPreference.matches)
+                stopCycling();
+            else
+                startCycling();
+        };
+        startCycling();
+        motionPreference.addEventListener("change", handleMotionPreference);
+        return () => {
+            motionPreference.removeEventListener("change", handleMotionPreference);
+            stopCycling();
+        };
     }, [availableVerbs.length, cycleMs]);
     const verb = availableVerbs[verbIndex % availableVerbs.length] ?? "build";
     return (_jsxs("h1", { className: cx("cline-ui-hero-heading", className), children: [_jsx("span", { className: "cline-ui-sr-only", children: "What would you like to build?" }), _jsxs("span", { "aria-hidden": "true", children: ["What would you like to", " ", _jsx("span", { className: "cline-ui-hero-heading__word", children: verb.split("").map((character, index) => (_jsx("span", { className: "cline-ui-hero-heading__character", style: { animationDelay: `${index * 45}ms` }, children: character }, `${verb}-${index}`))) }, verb), "?"] })] }));

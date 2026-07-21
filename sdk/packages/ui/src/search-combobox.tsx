@@ -1,7 +1,7 @@
 import * as Popover from "@radix-ui/react-popover";
 import { Command } from "cmdk";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { cx } from "./utils.js";
 
 export interface SearchComboboxOption {
@@ -37,12 +37,14 @@ export function SearchCombobox({
 	value,
 }: SearchComboboxProps) {
 	const [open, setOpen] = useState(false);
+	const popoverId = useId();
 	const selected = options.find((option) => option.value === value);
 
 	return (
 		<Popover.Root onOpenChange={setOpen} open={open}>
 			<Popover.Trigger asChild>
 				<button
+					aria-controls={popoverId}
 					aria-haspopup="listbox"
 					aria-label={ariaLabel}
 					aria-expanded={open}
@@ -80,6 +82,7 @@ export function SearchCombobox({
 					align="start"
 					className="cline-ui-theme cline-ui-combobox__popover"
 					collisionPadding={8}
+					id={popoverId}
 					sideOffset={6}
 				>
 					<Command className="cline-ui-combobox__command" label={ariaLabel}>

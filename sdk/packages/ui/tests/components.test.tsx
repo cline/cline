@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+	act,
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	AgentActivity,
@@ -24,7 +30,11 @@ class TestResizeObserver implements ResizeObserver {
 globalThis.ResizeObserver = TestResizeObserver;
 Element.prototype.scrollIntoView = vi.fn();
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.useRealTimers();
+	vi.unstubAllGlobals();
+});
 
 describe("@cline/ui agent components", () => {
 	it("exposes a stable accessible welcome heading", () => {
@@ -35,6 +45,46 @@ describe("@cline/ui agent components", () => {
 		expect(
 			container.querySelector(".cline-ui-hero-heading__word")?.textContent,
 		).toBe("build");
+	});
+
+	it("responds when reduced-motion preference changes", () => {
+		vi.useFakeTimers();
+		let reduceMotion = false;
+		let onPreferenceChange: ((event: MediaQueryListEvent) => void) | undefined;
+		vi.stubGlobal(
+			"matchMedia",
+			vi.fn(() => ({
+				addEventListener: (
+					_event: string,
+					listener: (event: MediaQueryListEvent) => void,
+				) => {
+					onPreferenceChange = listener;
+				},
+				dispatchEvent: vi.fn(),
+				get matches() {
+					return reduceMotion;
+				},
+				media: "(prefers-reduced-motion: reduce)",
+				onchange: null,
+				removeEventListener: vi.fn(),
+			})),
+		);
+		const { container } = render(
+			<AgentHeroHeading cycleMs={100} verbs={["build", "fix", "know"]} />,
+		);
+		const currentVerb = () =>
+			container.querySelector(".cline-ui-hero-heading__word")?.textContent;
+
+		act(() => vi.advanceTimersByTime(100));
+		expect(currentVerb()).toBe("fix");
+		reduceMotion = true;
+		act(() => onPreferenceChange?.({ matches: true } as MediaQueryListEvent));
+		act(() => vi.advanceTimersByTime(200));
+		expect(currentVerb()).toBe("fix");
+		reduceMotion = false;
+		act(() => onPreferenceChange?.({ matches: false } as MediaQueryListEvent));
+		act(() => vi.advanceTimersByTime(100));
+		expect(currentVerb()).toBe("know");
 	});
 
 	it("submits the composer with Enter while preserving Shift + Enter", () => {
@@ -112,6 +162,8 @@ describe("@cline/ui agent components", () => {
 		expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
 		fireEvent.click(trigger);
 		const search = document.querySelector(".cline-ui-combobox__search");
+		const popover = document.querySelector(".cline-ui-combobox__popover");
+		expect(trigger.getAttribute("aria-controls")).toBe(popover?.id);
 		expect(search?.closest(".cline-ui-theme")).toBeTruthy();
 		if (!search) throw new Error("Search input was not rendered");
 		fireEvent.change(search, {
@@ -121,6 +173,11 @@ describe("@cline/ui agent components", () => {
 		expect(onValueChange).toHaveBeenCalledWith(
 			"https://github.com/cline/core-platform",
 		);
+		fireEvent.click(trigger);
+		const reopenedSearch = document.querySelector(
+			".cline-ui-combobox__search",
+		) as HTMLInputElement | null;
+		expect(reopenedSearch?.value).toBe("");
 	});
 
 	it("exposes activity details through an accessible disclosure", () => {
@@ -234,6 +291,13 @@ describe("@cline/ui agent components", () => {
 		expect(onSelect).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "review" }),
 		);
+	});
+
+	it("supports an accessible dot-only session status", () => {
+		render(<SessionStatus label="Running" showLabel={false} tone="running" />);
+		const status = screen.getByRole("status", { name: "Running" });
+		expect(status).toBeTruthy();
+		expect(screen.getByText("Running").classList).toContain("cline-ui-sr-only");
 	});
 
 	it("composes link buttons through a single slot child", () => {

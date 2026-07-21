@@ -20,14 +20,33 @@ export function AgentHeroHeading({
 
 	useEffect(() => {
 		if (availableVerbs.length <= 1) return;
-		const reduceMotion =
-			typeof window.matchMedia === "function" &&
-			window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-		if (reduceMotion) return;
-		const interval = window.setInterval(() => {
-			setVerbIndex((current) => (current + 1) % availableVerbs.length);
-		}, cycleMs);
-		return () => window.clearInterval(interval);
+		if (typeof window.matchMedia !== "function") return;
+		const motionPreference = window.matchMedia(
+			"(prefers-reduced-motion: reduce)",
+		);
+		let interval: number | undefined;
+		const stopCycling = () => {
+			if (interval === undefined) return;
+			window.clearInterval(interval);
+			interval = undefined;
+		};
+		const startCycling = () => {
+			if (motionPreference.matches || interval !== undefined) return;
+			interval = window.setInterval(() => {
+				setVerbIndex((current) => (current + 1) % availableVerbs.length);
+			}, cycleMs);
+		};
+		const handleMotionPreference = () => {
+			if (motionPreference.matches) stopCycling();
+			else startCycling();
+		};
+
+		startCycling();
+		motionPreference.addEventListener("change", handleMotionPreference);
+		return () => {
+			motionPreference.removeEventListener("change", handleMotionPreference);
+			stopCycling();
+		};
 	}, [availableVerbs.length, cycleMs]);
 
 	const verb = availableVerbs[verbIndex % availableVerbs.length] ?? "build";

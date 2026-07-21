@@ -39,6 +39,7 @@
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
 		"dist",
+		"src",
 		"theme",
 		"ADOPTION.md",
 		"README.md"

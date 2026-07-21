@@ -9,8 +9,23 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
-const importCheck =
-	'import { AgentComposer, AgentSurface } from "@cline/ui"; import { Conversation, Message } from "@cline/ui/components/agent-chat"; const controlsCss = import.meta.resolve("@cline/ui/components.css"); const chatCss = import.meta.resolve("@cline/ui/components/agent-chat.css"); const markdownCss = import.meta.resolve("@cline/ui/theme/markdown.css"); const tokens = import.meta.resolve("@cline/ui/theme/tokens.css"); const scopedTokens = import.meta.resolve("@cline/ui/theme/scoped-tokens.css"); if (!AgentComposer || !AgentSurface || !Conversation || !Message || !controlsCss || !chatCss || !markdownCss || !tokens || !scopedTokens) process.exit(1);';
+const importCheck = `
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { AgentComposer, AgentSurface } from "@cline/ui";
+import { Conversation, Message } from "@cline/ui/components/agent-chat";
+const controlsCss = import.meta.resolve("@cline/ui/components.css");
+const chatCss = import.meta.resolve("@cline/ui/components/agent-chat.css");
+const markdownCss = import.meta.resolve("@cline/ui/theme/markdown.css");
+const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
+const scopedTokens = import.meta.resolve("@cline/ui/theme/scoped-tokens.css");
+if (!AgentComposer || !AgentSurface || !Conversation || !Message || !controlsCss || !chatCss || !markdownCss || !tokens || !scopedTokens) process.exit(1);
+const entry = fileURLToPath(import.meta.resolve("@cline/ui"));
+const sourceMapPath = \`\${entry}.map\`;
+const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
+if (!sourceMap.sources.every((source) => existsSync(resolve(dirname(sourceMapPath), source)))) process.exit(1);
+`;
 
 async function run(command: string[], cwd: string): Promise<void> {
 	const child = Bun.spawn(command, {

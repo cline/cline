@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { OutputHTMLAttributes } from "react";
 import { cx } from "./utils.js";
 
 export type SessionStatusTone =
@@ -8,19 +8,23 @@ export type SessionStatusTone =
 	| "success"
 	| "error";
 
-export interface SessionStatusProps extends HTMLAttributes<HTMLSpanElement> {
+export interface SessionStatusProps
+	extends OutputHTMLAttributes<HTMLOutputElement> {
 	label: string;
+	showLabel?: boolean;
 	tone?: SessionStatusTone;
 }
 
 export function SessionStatus({
 	className,
 	label,
+	showLabel = true,
 	tone = "neutral",
 	...props
 }: SessionStatusProps) {
 	return (
-		<span
+		<output
+			aria-label={label}
 			className={cx(
 				"cline-ui-session-status",
 				`cline-ui-session-status--${tone}`,
@@ -29,7 +33,9 @@ export function SessionStatus({
 			{...props}
 		>
 			<span aria-hidden="true" className="cline-ui-session-status__dot" />
-			{label}
-		</span>
+			<span className={showLabel ? undefined : "cline-ui-sr-only"}>
+				{label}
+			</span>
+		</output>
 	);
 }

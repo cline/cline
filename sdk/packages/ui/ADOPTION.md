@@ -105,7 +105,7 @@ import {
 
 <AgentSurface className="cline-ui-theme">
   <AgentHeroHeading />
-  <SessionStatus label="Ready" tone="ready" />
+  <SessionStatus label="Ready" tone="success" />
   <AgentComposer
     onSubmit={startSession}
     onValueChange={setPrompt}
