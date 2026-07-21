@@ -103,7 +103,10 @@ class ClineOAuthTokenError extends Error {
 	public readonly errorCode?: string;
 	public readonly requestId?: string;
 
-	constructor(message: string, opts?: { status?: number; errorCode?: string, requestId?: string }) {
+	constructor(
+		message: string,
+		opts?: { status?: number; errorCode?: string; requestId?: string },
+	) {
 		super(message);
 		this.name = "ClineOAuthTokenError";
 		this.status = opts?.status;
@@ -387,7 +390,11 @@ async function registerWorkOSTokens(
 		const details = parseOAuthError(text);
 		throw new ClineOAuthTokenError(
 			`Token registration failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code, requestId: response.headers.get("x-request-id") ?? "none" },
+			{
+				status: response.status,
+				errorCode: details.code,
+				requestId: response.headers.get("x-request-id") ?? "none",
+			},
 		);
 	}
 
@@ -433,7 +440,11 @@ async function exchangeAuthorizationCode(
 		const details = parseOAuthError(text);
 		throw new ClineOAuthTokenError(
 			`Token exchange failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code, requestId: response.headers.get("x-request-id") ?? "none" },
+			{
+				status: response.status,
+				errorCode: details.code,
+				requestId: response.headers.get("x-request-id") ?? "none",
+			},
 		);
 	}
 
@@ -724,6 +735,8 @@ export async function getValidClineCredentials(
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
+			requestId:
+				error instanceof ClineOAuthTokenError ? error.requestId : undefined,
 			errorName: error instanceof Error ? error.name : undefined,
 		};
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
@@ -734,7 +747,11 @@ export async function getValidClineCredentials(
 				providerOptions.telemetry,
 				providerOptions.provider ?? "cline",
 				"invalid_grant",
-				{ status: error.status, errorCode: error.errorCode },
+				{
+					status: error.status,
+					errorCode: error.errorCode,
+					requestId: error.requestId,
+				},
 			);
 			return null;
 		}

@@ -135,7 +135,10 @@ describe("auth/cline getValidClineCredentials", () => {
 					}),
 					{
 						status: 401,
-						headers: { "Content-Type": "application/json" },
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-invalid-grant",
+						},
 					},
 				),
 		) as unknown as typeof fetch;
@@ -153,6 +156,7 @@ describe("auth/cline getValidClineCredentials", () => {
 					reason: "invalid_grant",
 					status: 401,
 					errorCode: "invalid_grant",
+					requestId: "req-invalid-grant",
 				}),
 			}),
 		);
@@ -171,7 +175,10 @@ describe("auth/cline getValidClineCredentials", () => {
 					}),
 					{
 						status: 500,
-						headers: { "Content-Type": "application/json" },
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-soft-failure-valid",
+						},
 					},
 				),
 		) as unknown as typeof fetch;
@@ -191,6 +198,7 @@ describe("auth/cline getValidClineCredentials", () => {
 				event: "user.auth_refresh_soft_failure",
 				properties: expect.objectContaining({
 					status: 500,
+					requestId: "req-soft-failure-valid",
 					tokenExpired: false,
 				}),
 			}),
@@ -212,7 +220,10 @@ describe("auth/cline getValidClineCredentials", () => {
 					}),
 					{
 						status: 500,
-						headers: { "Content-Type": "application/json" },
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-soft-failure-expired",
+						},
 					},
 				),
 		) as unknown as typeof fetch;
@@ -231,6 +242,7 @@ describe("auth/cline getValidClineCredentials", () => {
 				event: "user.auth_refresh_soft_failure",
 				properties: expect.objectContaining({
 					status: 500,
+					requestId: "req-soft-failure-expired",
 					tokenExpired: true,
 				}),
 			}),
