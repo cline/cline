@@ -7,6 +7,7 @@ import type {
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
+import type { DesktopRuntimeInfo } from "../shared/desktop-runtime-info";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -107,6 +108,7 @@ export type SidecarContext = {
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
 	hubServer: HubServer | null;
+	runtimeInfo: DesktopRuntimeInfo;
 	workspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

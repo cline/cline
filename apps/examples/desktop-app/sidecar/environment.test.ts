@@ -8,21 +8,22 @@ afterEach(() => {
 });
 
 describe("initializeDesktopEnvironment", () => {
-	it.each(["darwin", "linux"] as const)(
-		"loads the user shell PATH on %s",
-		(platform) => {
-			process.env.PATH = "/usr/bin:/bin";
-			const resolvePath = vi.fn(() => {
-				process.env.PATH = "/opt/homebrew/bin:/usr/bin:/bin";
-			});
+	it.each([
+		"darwin",
+		"linux",
+	] as const)("loads the user shell PATH on %s", (platform) => {
+		process.env.PATH = "/usr/bin:/bin";
+		const resolvePath = vi.fn(() => {
+			process.env.PATH = "/opt/homebrew/bin:/usr/bin:/bin";
+		});
 
-			expect(initializeDesktopEnvironment(platform, resolvePath)).toEqual({
-				pathChanged: true,
-			});
-			expect(resolvePath).toHaveBeenCalledOnce();
-			expect(process.env.PATH).toContain("/opt/homebrew/bin");
-		},
-	);
+		expect(initializeDesktopEnvironment(platform, resolvePath)).toEqual({
+			pathChanged: true,
+			pathSource: "shell",
+		});
+		expect(resolvePath).toHaveBeenCalledOnce();
+		expect(process.env.PATH).toContain("/opt/homebrew/bin");
+	});
 
 	it("keeps the inherited Windows PATH", () => {
 		process.env.PATH = "C:\\Windows\\System32";
@@ -30,6 +31,7 @@ describe("initializeDesktopEnvironment", () => {
 
 		expect(initializeDesktopEnvironment("win32", resolvePath)).toEqual({
 			pathChanged: false,
+			pathSource: "inherited",
 		});
 		expect(resolvePath).not.toHaveBeenCalled();
 		expect(process.env.PATH).toBe("C:\\Windows\\System32");
@@ -44,6 +46,7 @@ describe("initializeDesktopEnvironment", () => {
 
 		expect(initializeDesktopEnvironment("darwin", resolvePath)).toEqual({
 			pathChanged: false,
+			pathSource: "inherited",
 			error: "shell startup failed",
 		});
 		expect(process.env.PATH).toBe("/usr/bin:/bin");

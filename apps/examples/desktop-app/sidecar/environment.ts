@@ -2,6 +2,7 @@ import fixPath from "fix-path";
 
 export interface DesktopEnvironmentInitialization {
 	pathChanged: boolean;
+	pathSource: "shell" | "inherited";
 	error?: string;
 }
 
@@ -19,13 +20,16 @@ export function initializeDesktopEnvironment(
 	resolvePath: FixPath = fixPath,
 ): DesktopEnvironmentInitialization {
 	if (platform === "win32") {
-		return { pathChanged: false };
+		return { pathChanged: false, pathSource: "inherited" };
 	}
 
 	const originalPath = process.env.PATH;
 	try {
 		resolvePath();
-		return { pathChanged: process.env.PATH !== originalPath };
+		return {
+			pathChanged: process.env.PATH !== originalPath,
+			pathSource: "shell",
+		};
 	} catch (error) {
 		// Shell startup files are user-controlled and may fail. Preserve the
 		// inherited environment so a PATH resolution failure cannot prevent the
@@ -37,6 +41,7 @@ export function initializeDesktopEnvironment(
 		}
 		return {
 			pathChanged: false,
+			pathSource: "inherited",
 			error: error instanceof Error ? error.message : String(error),
 		};
 	}

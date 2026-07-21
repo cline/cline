@@ -674,7 +674,10 @@ export function RoutineSchedulesContent() {
 		setEditingSchedule(null);
 		setErrorMessage(null);
 		setCreateFormError(null);
-		let context: ProcessContext = { workspaceRoot: "", cwd: "" };
+		let context: Pick<ProcessContext, "workspaceRoot" | "cwd"> = {
+			workspaceRoot: "",
+			cwd: "",
+		};
 		try {
 			context = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",

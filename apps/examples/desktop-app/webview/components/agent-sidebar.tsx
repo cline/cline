@@ -76,6 +76,7 @@ import {
 	type SettingsSection,
 } from "@/components/views/settings/settings-view";
 import { useAccount } from "@/contexts/account-context";
+import type { ProcessContext } from "@/hooks/chat-session/types";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -219,26 +220,24 @@ export function AgentSidebar({
 	const [projectVisibleCounts, setProjectVisibleCounts] = useState<
 		Record<string, number>
 	>({});
-	const [appVersion, setAppVersion] = useState<string | null>(null);
+	const [runtimeInfo, setRuntimeInfo] = useState<
+		ProcessContext["runtimeInfo"] | null
+	>(null);
 
-	const loadAppVersion = useCallback(async () => {
+	const loadRuntimeInfo = useCallback(async () => {
 		try {
-			const context = await desktopClient.invoke<{ appVersion?: unknown }>(
+			const context = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
 			);
-			const version =
-				typeof context?.appVersion === "string"
-					? context.appVersion.trim()
-					: "";
-			setAppVersion(version || null);
+			setRuntimeInfo(context.runtimeInfo);
 		} catch {
-			// Leave the version hidden; an older sidecar build has no appVersion.
+			// Leave runtime details hidden when desktop context is unavailable.
 		}
 	}, []);
 
 	useEffect(() => {
-		void loadAppVersion();
-	}, [loadAppVersion]);
+		void loadRuntimeInfo();
+	}, [loadRuntimeInfo]);
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -482,8 +481,8 @@ export function AgentSidebar({
 				>
 					<Popover
 						onOpenChange={(open) => {
-							if (open && !appVersion) {
-								void loadAppVersion();
+							if (open && !runtimeInfo) {
+								void loadRuntimeInfo();
 							}
 						}}
 					>
@@ -498,11 +497,28 @@ export function AgentSidebar({
 								<ClineLogo className="h-6 w-6" />
 							</button>
 						</PopoverTrigger>
-						<PopoverContent align="start" className="w-52 p-3" side="bottom">
-							<p className="text-sm font-medium">Cline Code</p>
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								{appVersion ? `Version ${appVersion}` : "Version unavailable"}
+						<PopoverContent align="start" className="w-64 p-3" side="bottom">
+							<p className="text-sm font-medium">
+								{runtimeInfo?.app.name ?? "Cline Code"}
 							</p>
+							<p className="mt-0.5 text-xs text-muted-foreground">
+								{runtimeInfo
+									? `Version ${runtimeInfo.app.version}`
+									: "Version unavailable"}
+							</p>
+							{runtimeInfo ? (
+								<div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+									<p>
+										Core {runtimeInfo.sdk.coreVersion} · Bun{" "}
+										{runtimeInfo.runtime.version}
+									</p>
+									<p>
+										{runtimeInfo.os.name} {runtimeInfo.os.release} ·{" "}
+										{runtimeInfo.os.arch}
+									</p>
+									<p>PATH: {runtimeInfo.environment.pathSource}</p>
+								</div>
+							) : null}
 						</PopoverContent>
 					</Popover>
 				</div>

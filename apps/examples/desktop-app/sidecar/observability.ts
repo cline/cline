@@ -1,4 +1,3 @@
-import * as os from "node:os";
 import {
 	captureExtensionActivated,
 	createClineTelemetryServiceConfig,
@@ -8,7 +7,7 @@ import {
 	ProviderSettingsManager,
 	setSdkLogger,
 } from "@cline/core";
-import { version } from "../package.json";
+import type { DesktopRuntimeInfo } from "../shared/desktop-runtime-info";
 import {
 	createDesktopLoggerAdapter,
 	type DesktopLoggerAdapter,
@@ -20,7 +19,9 @@ export interface DesktopObservability {
 	dispose(): Promise<void>;
 }
 
-export function createDesktopObservability(): DesktopObservability {
+export function createDesktopObservability(
+	runtimeInfo: DesktopRuntimeInfo,
+): DesktopObservability {
 	const loggerAdapter = createDesktopLoggerAdapter();
 	const logger = loggerAdapter.core;
 	setSdkLogger(logger);
@@ -28,12 +29,12 @@ export function createDesktopObservability(): DesktopObservability {
 	const telemetryHandle = createConfiguredTelemetryHandle({
 		...createClineTelemetryServiceConfig({
 			metadata: {
-				extension_version: version,
+				extension_version: runtimeInfo.app.version,
 				cline_type: "desktop",
-				platform: "Cline Code",
-				platform_version: process.version,
-				os_type: os.platform(),
-				os_version: os.version(),
+				platform: runtimeInfo.app.name,
+				platform_version: runtimeInfo.app.version,
+				os_type: runtimeInfo.os.platform,
+				os_version: runtimeInfo.os.version,
 			},
 		}),
 		logger,

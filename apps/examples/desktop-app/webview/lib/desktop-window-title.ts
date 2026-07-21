@@ -23,11 +23,12 @@ export async function syncDesktopWindowTitle(): Promise<void> {
 		const ctx = await desktopClient.invoke<ProcessContext>(
 			"get_process_context",
 		);
-		if (!ctx.appVersion?.trim()) {
+		const appVersion = ctx.runtimeInfo.app.version.trim();
+		if (!appVersion) {
 			return;
 		}
 		const { getCurrentWindow } = await import("@tauri-apps/api/window");
-		await getCurrentWindow().setTitle(buildDesktopWindowTitle(ctx.appVersion));
+		await getCurrentWindow().setTitle(buildDesktopWindowTitle(appVersion));
 	} catch {
 		// Keep the default static title if the sidecar or window API is unavailable.
 	}

@@ -59,7 +59,9 @@ describe("desktop window title", () => {
 		invoke.mockResolvedValue({
 			workspaceRoot: "",
 			cwd: "",
-			appVersion: "1.2.3",
+			runtimeInfo: {
+				app: { name: "Cline Code", version: "1.2.3" },
+			},
 		});
 
 		const { syncDesktopWindowTitle, DEFAULT_DESKTOP_WINDOW_TITLE } =
@@ -75,7 +77,11 @@ describe("desktop window title", () => {
 	it("leaves the title alone when the version is missing or the sidecar call fails", async () => {
 		// biome-ignore lint/suspicious/noExplicitAny: test-only global shim for the Tauri bridge marker
 		(window as any).__TAURI_INTERNALS__ = {};
-		invoke.mockResolvedValue({ workspaceRoot: "", cwd: "" });
+		invoke.mockResolvedValue({
+			workspaceRoot: "",
+			cwd: "",
+			runtimeInfo: { app: { name: "Cline Code", version: "" } },
+		});
 
 		const { syncDesktopWindowTitle } = await importFresh();
 		await syncDesktopWindowTitle();
