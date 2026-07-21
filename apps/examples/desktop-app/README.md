@@ -25,7 +25,55 @@ Tailwind adapter and shared base styles without depending on the desktop
 runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
 desktop integration notes.
 
-## Shareable Desktop Packages
+## Releases & Auto-Updates
+
+Desktop releases are built, signed, notarized, and published by the
+`desktop-publish` GitHub workflow — see `.github/workflows/desktop-publish.yml`
+and the `publish-desktop` skill (`.claude/skills/publish-desktop/SKILL.md`) for
+the step-by-step release flow. In short: bump the version in `package.json` +
+`src-tauri/tauri.conf.json`, update `CHANGELOG.md`, push a `desktop-vX.Y.Z`
+tag, and dispatch the workflow. It produces signed DMGs for Apple Silicon and
+Intel, uploads them to the `desktop-vX.Y.Z` GitHub release, and refreshes the
+auto-update feed.
+
+Installed apps update themselves via the Tauri updater plugin:
+
+- On launch (and every 2 hours) the app fetches
+  `https://github.com/cline/cline/releases/download/desktop-latest/latest.json`
+  — a rolling release whose `latest.json` asset always points at the newest
+  `desktop-vX.Y.Z` assets. Never delete the `desktop-latest` release or tag.
+- If a newer version exists, the app downloads and installs it in the
+  background, then shows a "Restart now" toast. Ignoring the toast is fine:
+  the staged update takes effect on the next launch.
+- Update packages (`.app.tar.gz`) are verified against the minisign public key
+  in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). If the private
+  key is ever lost, shipped apps can no longer verify new updates — users
+  would have to re-download the DMG — so guard the key.
+- Updater artifacts are only produced in CI (`tauri.release.conf.json` enables
+  `bundle.createUpdaterArtifacts`), so local packaging keeps working without
+  the updater signing key.
+
+### GitHub Actions secrets
+
+The workflow needs these repository secrets. The Apple ones come from the same
+Apple Developer account used for manual signing (see the manual section below
+for background):
+
+| Secret | Value |
+| --- | --- |
+| `APPLE_CERTIFICATE` | Base64 of the **Developer ID Application** identity exported from Keychain Access as `.p12` (must include the private key): `base64 -i certificate.p12 | pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | The password chosen when exporting the `.p12` |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: <Team Name> (<TEAMID>)` — from `security find-identity -v -p codesigning` |
+| `APPLE_API_KEY` | App Store Connect API **Key ID** (notarization) |
+| `APPLE_API_KEY_CONTENT` | Contents of the `AuthKey_<KEYID>.p8` file |
+| `APPLE_API_ISSUER` | App Store Connect **Issuer ID** (UUID from Users and Access → Integrations) |
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of the Tauri updater private key (`tauri signer generate`) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for that key |
+
+The Slack + telemetry secrets (`SLACK_RELEASE_BOT_TOKEN`, `TELEMETRY_SERVICE_API_KEY`,
+OTEL settings) are shared with the CLI publish workflow and already configured.
+
+## Shareable Desktop Packages (manual fallback)
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:
 
