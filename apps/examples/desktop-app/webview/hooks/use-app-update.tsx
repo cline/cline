@@ -13,6 +13,10 @@ export type AppUpdateStatus = {
 
 const POLL_INTERVAL_MS = 30_000;
 
+// Module-scoped so a page remount does not re-toast an update the user
+// already dismissed while the Rust side still reports it as "ready".
+let notifiedVersion: string | null = null;
+
 /**
  * Watches the Tauri shell's auto-updater. Updates are checked, downloaded, and
  * installed in the background by the Rust side; once one is staged this hook
@@ -28,7 +32,6 @@ export function useAppUpdate() {
 		}
 
 		let cancelled = false;
-		let notifiedVersion: string | null = null;
 
 		const poll = async () => {
 			let status: AppUpdateStatus;

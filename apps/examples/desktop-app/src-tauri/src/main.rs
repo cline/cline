@@ -150,7 +150,11 @@ impl DesktopBackendState {
 
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
-                for _ in 0..30 {
+                // The sidecar bounds its own graceful shutdown with
+                // SHUTDOWN_TIMEOUT_MS (5s in sidecar/index.ts) and then exits
+                // itself; wait past that window before escalating to kill so
+                // an active session can finish persisting.
+                for _ in 0..70 {
                     match child.try_wait() {
                         Ok(Some(_)) => break,
                         Ok(None) => thread::sleep(Duration::from_millis(100)),
