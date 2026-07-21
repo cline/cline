@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	AppWindow,
 	Check,
 	ChevronDown,
 	ChevronRight,
@@ -15,6 +16,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -24,6 +26,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import type { SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
+import { EditorIcon } from "./editor-icons";
 
 type DiffViewProps = {
 	fileDiffs: SessionFileDiff[];
@@ -248,19 +251,22 @@ function DiffFileSection({
 						</button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" className="w-52">
+						<DropdownMenuLabel>Open in</DropdownMenuLabel>
 						{editors.map((editor) => (
 							<DropdownMenuItem
 								key={editor.id}
 								onSelect={() => void handleOpenInEditor(editor.id)}
 							>
-								Open in {editor.label}
+								<EditorIcon editorId={editor.id} />
+								{editor.label}
 							</DropdownMenuItem>
 						))}
 						{editors.length > 0 && <DropdownMenuSeparator />}
 						<DropdownMenuItem
 							onSelect={() => void handleOpenInEditor("default")}
 						>
-							Open with system default
+							<AppWindow aria-hidden />
+							System default
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>

@@ -753,21 +753,45 @@ function openFileInEditor(filePath: string): void {
 
 // The macOS app shell launches the sidecar with a minimal GUI PATH
 // (/usr/bin:/bin:...), so editor CLIs installed under /usr/local/bin or
-// /opt/homebrew/bin are often not resolvable. `macApp` lets `open -a`
+// /opt/homebrew/bin are often not resolvable. `macApps` lets `open -a`
 // find the app bundle regardless of PATH.
 interface CodeEditorDefinition {
 	id: string;
 	label: string;
 	cli: string;
-	macApp: string;
+	macApps: string[];
 }
 
+// Order doubles as the auto-open preference when no editor is requested.
 const CODE_EDITOR_CATALOG: readonly CodeEditorDefinition[] = [
-	{ id: "vscode", label: "VS Code", cli: "code", macApp: "Visual Studio Code" },
-	{ id: "cursor", label: "Cursor", cli: "cursor", macApp: "Cursor" },
-	{ id: "windsurf", label: "Windsurf", cli: "windsurf", macApp: "Windsurf" },
-	{ id: "zed", label: "Zed", cli: "zed", macApp: "Zed" },
-	{ id: "sublime", label: "Sublime Text", cli: "subl", macApp: "Sublime Text" },
+	{
+		id: "vscode",
+		label: "VS Code",
+		cli: "code",
+		macApps: ["Visual Studio Code"],
+	},
+	{ id: "cursor", label: "Cursor", cli: "cursor", macApps: ["Cursor"] },
+	{ id: "windsurf", label: "Windsurf", cli: "windsurf", macApps: ["Windsurf"] },
+	{ id: "zed", label: "Zed", cli: "zed", macApps: ["Zed"] },
+	{
+		id: "vscode-insiders",
+		label: "VS Code Insiders",
+		cli: "code-insiders",
+		macApps: ["Visual Studio Code - Insiders"],
+	},
+	{
+		id: "sublime",
+		label: "Sublime Text",
+		cli: "subl",
+		macApps: ["Sublime Text"],
+	},
+	{
+		id: "intellijidea",
+		label: "IntelliJ IDEA",
+		cli: "idea",
+		macApps: ["IntelliJ IDEA", "IntelliJ IDEA CE"],
+	},
+	{ id: "xcode", label: "Xcode", cli: "xed", macApps: ["Xcode"] },
 ];
 
 function findExecutableOnPath(name: string): string | null {
@@ -800,7 +824,7 @@ function listAvailableCodeEditors(): Array<{ id: string; label: string }> {
 	return CODE_EDITOR_CATALOG.filter(
 		(editor) =>
 			findExecutableOnPath(editor.cli) !== null ||
-			(process.platform === "darwin" && isMacAppInstalled(editor.macApp)),
+			(process.platform === "darwin" && editor.macApps.some(isMacAppInstalled)),
 	).map(({ id, label }) => ({ id, label }));
 }
 
@@ -864,7 +888,7 @@ function openFileInCodeEditor(filePath: string, editorId?: string): string {
 		}
 		if (
 			process.platform === "darwin" &&
-			launchMacApp(editor.macApp, filePath)
+			editor.macApps.some((app) => launchMacApp(app, filePath))
 		) {
 			return editor.label;
 		}
@@ -879,8 +903,11 @@ function openFileInCodeEditor(filePath: string, editorId?: string): string {
 		}
 		if (process.platform === "darwin") {
 			for (const editor of CODE_EDITOR_CATALOG) {
-				if (launchMacApp(editor.macApp, filePath)) {
-					return editor.macApp;
+				const app = editor.macApps.find((candidate) =>
+					launchMacApp(candidate, filePath),
+				);
+				if (app) {
+					return app;
 				}
 			}
 		}

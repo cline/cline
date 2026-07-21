@@ -131,10 +131,10 @@ describe("DiffView file actions", () => {
 		await pointerDown(buttonWithLabel("Open docs/a.mdx in editor"));
 
 		const labels = menuItems().map((item) => item.textContent);
-		expect(labels).toEqual(["Open in VS Code", "Open with system default"]);
+		expect(labels).toEqual(["VS Code", "System default"]);
 
 		const vscodeItem = menuItems().find(
-			(item) => item.textContent === "Open in VS Code",
+			(item) => item.textContent === "VS Code",
 		);
 		await click(vscodeItem as Element);
 
@@ -160,7 +160,7 @@ describe("DiffView file actions", () => {
 		await pointerDown(buttonWithLabel("Open docs/a.mdx in editor"));
 
 		const labels = menuItems().map((item) => item.textContent);
-		expect(labels).toEqual(["Open with system default"]);
+		expect(labels).toEqual(["System default"]);
 
 		await click(menuItems()[0] as Element);
 
