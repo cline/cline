@@ -106,6 +106,8 @@ export function isTauriAvailable(): boolean {
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
+	"get_update_status",
+	"restart_to_apply_update",
 ]);
 
 class DesktopClient {

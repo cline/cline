@@ -9,11 +9,117 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use tauri::{Manager, RunEvent, State};
+use tauri_plugin_updater::UpdaterExt;
+
+const UPDATE_INITIAL_DELAY: Duration = Duration::from_secs(10);
+const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
 
 #[derive(Clone)]
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateStatus {
+    state: String,
+    version: Option<String>,
+    error: Option<String>,
+}
+
+impl Default for UpdateStatus {
+    fn default() -> Self {
+        Self {
+            state: "idle".to_string(),
+            version: None,
+            error: None,
+        }
+    }
+}
+
+#[derive(Default)]
+struct UpdateState {
+    status: Mutex<UpdateStatus>,
+}
+
+impl UpdateState {
+    fn set(&self, state: &str, version: Option<String>, error: Option<String>) {
+        if let Ok(mut guard) = self.status.lock() {
+            *guard = UpdateStatus {
+                state: state.to_string(),
+                version,
+                error,
+            };
+        }
+    }
+
+    fn snapshot(&self) -> UpdateStatus {
+        self.status
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
+    fn ready_version(&self) -> Option<String> {
+        self.status.lock().ok().and_then(|guard| {
+            if guard.state == "ready" {
+                guard.version.clone()
+            } else {
+                None
+            }
+        })
+    }
+}
+
+async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
+    // An update that already finished downloading only needs a restart; keep
+    // reporting "ready" instead of flipping back to transient states unless a
+    // newer version shows up.
+    let ready_version = state.ready_version();
+    if ready_version.is_none() {
+        state.set("checking", None, None);
+    }
+
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(error) => {
+            state.set("error", None, Some(error.to_string()));
+            return;
+        }
+    };
+
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let version = update.version.clone();
+            if ready_version.as_deref() == Some(version.as_str()) {
+                return;
+            }
+            state.set("downloading", Some(version.clone()), None);
+            match update.download_and_install(|_, _| {}, || {}).await {
+                Ok(()) => state.set("ready", Some(version), None),
+                Err(error) => state.set("error", Some(version), Some(error.to_string())),
+            }
+        }
+        Ok(None) => {
+            if ready_version.is_none() {
+                state.set("idle", None, None);
+            }
+        }
+        Err(error) => {
+            if ready_version.is_none() {
+                state.set("error", None, Some(error.to_string()));
+            }
+        }
+    }
+}
+
+async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
+    tokio::time::sleep(UPDATE_INITIAL_DELAY).await;
+    loop {
+        check_and_install_update(&app, &state).await;
+        tokio::time::sleep(UPDATE_CHECK_INTERVAL).await;
+    }
 }
 
 #[derive(Default)]
@@ -453,6 +559,22 @@ fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
 }
 
 #[tauri::command]
+fn get_update_status(update_state: State<'_, Arc<UpdateState>>) -> UpdateStatus {
+    update_state.snapshot()
+}
+
+#[tauri::command]
+fn restart_to_apply_update(
+    app: tauri::AppHandle,
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+) {
+    // restart() never returns, so the run-loop Exit handler does not get a
+    // chance to stop the sidecar; shut it down explicitly first.
+    backend_state.stop();
+    app.restart();
+}
+
+#[tauri::command]
 fn open_mcp_settings_file() -> Result<String, String> {
     let settings_path = resolve_mcp_settings_path()?;
     if !settings_path.exists() {
@@ -485,13 +607,24 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
         .manage(app_context)
+        .manage(Arc::new(UpdateState::default()))
         .setup(|app| {
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
             if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
                 eprintln!("[desktop-backend] startup failed: {error}");
+            }
+            // Dev builds are not installed app bundles, so there is nothing the
+            // updater could meaningfully check or replace.
+            if !cfg!(debug_assertions) {
+                let update_state = app.state::<Arc<UpdateState>>().inner().clone();
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    run_update_loop(app_handle, update_state).await;
+                });
             }
             thread::spawn(move || loop {
                 thread::sleep(Duration::from_secs(5));
@@ -507,7 +640,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
             pick_workspace_directory,
-            open_mcp_settings_file
+            open_mcp_settings_file,
+            get_update_status,
+            restart_to_apply_update
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
