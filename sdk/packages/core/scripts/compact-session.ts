@@ -29,7 +29,8 @@ Options:
 	  --strategy <strategy>       basic, agentic, or both (default: both)
 	  --provider <provider-id>    Required for agentic compaction
 	  --model <model-id>          Required for agentic compaction
-  --api-key-env <name>        Environment variable containing the API key
+	  --api-key-env <name>        Environment variable containing the API key
+	                              (agentic compaction only)
   --base-url <url>            Custom provider base URL
   --max-input-tokens <count>  Summarizer input limit (default: 128000)
   --max-output-tokens <count> Summarizer output limit (default: 1024)
@@ -40,8 +41,9 @@ Options:
 	                              before the file extension.
 
 The directory must contain messages.json or exactly one *.messages.json file.
-Provider API key defaults: ANTHROPIC_API_KEY, CLINE_API_KEY, OPENAI_API_KEY,
-GOOGLE_API_KEY, or MISTRAL_API_KEY, according to --provider.`);
+For agentic compaction, provider API key defaults are ANTHROPIC_API_KEY,
+CLINE_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, or MISTRAL_API_KEY, according
+to --provider.`);
 	process.exit(1);
 }
 
@@ -197,9 +199,11 @@ const preserveRecentTokens = nonNegativeInteger(
 	"--preserve-recent-tokens",
 	0,
 );
-const apiKeyEnvironment =
-	values["api-key-env"] ??
-	(providerId ? PROVIDER_API_KEY_ENV[providerId] : undefined);
+const needsProviderCredentials = strategies.includes("agentic");
+const apiKeyEnvironment = needsProviderCredentials
+	? (values["api-key-env"] ??
+		(providerId ? PROVIDER_API_KEY_ENV[providerId] : undefined))
+	: undefined;
 const apiKey = apiKeyEnvironment ? process.env[apiKeyEnvironment] : undefined;
 if (apiKeyEnvironment && !apiKey)
 	throw new Error(`Missing API key in ${apiKeyEnvironment}`);
