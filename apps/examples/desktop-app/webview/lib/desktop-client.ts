@@ -99,7 +99,7 @@ const RECONNECT_MAX_DELAY_MS = 4_000;
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
 // In sidecar/web mode these commands are handled by the sidecar over WebSocket.
-function isTauriAvailable(): boolean {
+export function isTauriAvailable(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 

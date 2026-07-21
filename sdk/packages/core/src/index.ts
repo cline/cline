@@ -461,6 +461,11 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
+export {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,

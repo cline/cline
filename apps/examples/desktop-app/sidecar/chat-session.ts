@@ -412,9 +412,10 @@ async function handleStart(
 	// the frontend call the separate "send" action to dispatch the prompt.
 	// This avoids a double-execution bug where start() would run the turn AND
 	// the subsequent manager.send() fire-and-forget would run it again.
-	console.error(
-		`[sidecar:handleStart] calling manager.start provider=${coreConfig.providerId} model=${coreConfig.modelId}`,
-	);
+	ctx.logger?.log("Starting desktop chat session", {
+		providerId: String(coreConfig.providerId ?? ""),
+		modelId: String(coreConfig.modelId ?? ""),
+	});
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
 		source: SessionSource.DESKTOP,
@@ -425,7 +426,7 @@ async function handleStart(
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
-	console.error(`[sidecar:handleStart] session started sessionId=${sessionId}`);
+	ctx.logger?.log("Desktop chat session started", { sessionId });
 	const session = createLiveSession(request.config, {
 		messages: initialMessages,
 		prompt: initialMessages
@@ -570,18 +571,22 @@ async function handleSend(
 		session.status = "running";
 	}
 	try {
-		console.error(
-			`[sidecar:handleSend] calling manager.send sessionId=${sessionId} prompt=${prompt.slice(0, 80)}`,
-		);
+		ctx.logger?.debug("Sending desktop chat prompt", {
+			sessionId,
+			promptLength: prompt.length,
+			delivery,
+		});
 		const result = await manager.send({
 			sessionId,
 			prompt,
 			delivery,
 			userImages: request.attachments?.userImages,
 		});
-		console.error(
-			`[sidecar:handleSend] manager.send resolved sessionId=${sessionId} finishReason=${result?.finishReason} textLen=${result?.text?.length ?? 0}`,
-		);
+		ctx.logger?.log("Desktop chat prompt completed", {
+			sessionId,
+			finishReason: result?.finishReason,
+			textLength: result?.text?.length ?? 0,
+		});
 		if (session) {
 			session.busy = false;
 			session.status = "idle";
@@ -602,9 +607,7 @@ async function handleSend(
 				: undefined,
 		};
 	} catch (error) {
-		console.error(
-			`[sidecar:handleSend] manager.send THREW sessionId=${sessionId} error=${error instanceof Error ? error.message : String(error)}`,
-		);
+		ctx.logger?.error?.("Desktop chat prompt failed", { sessionId, error });
 		if (session) {
 			session.busy = false;
 			session.status = "error";
