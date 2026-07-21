@@ -5,11 +5,11 @@ import { dirname } from "node:path";
 import {
 	type AgentToolContext,
 	ClineCore,
-	createLocalHubScheduleRuntimeHandlers,
 	type CoreSessionEvent,
+	createLocalHubScheduleRuntimeHandlers,
 	NodeHubClient,
-	resolveHubOwnerContext,
 	type RuntimeCapabilities,
+	resolveHubOwnerContext,
 	setHomeDirIfUnset,
 	startHubWebSocketServer,
 	type ToolApprovalRequest,
@@ -383,6 +383,7 @@ function handleCoreSessionEvent(
 export function createSidecarContext(workspaceRoot: string): SidecarContext {
 	return {
 		liveSessions: new Map(),
+		sessionConfigUpdateTails: new Map(),
 		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),

@@ -519,6 +519,302 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 
+	it("restarts an idle session with its transcript and compaction state", async () => {
+		const sessionId = "sess-provider-restart";
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "first question" },
+			{ role: "assistant", content: "first answer" },
+		];
+		const compactionState = createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: sessionId,
+		});
+		let persistedManifest: SessionManifest = {
+			...createManifest(sessionId),
+			interactive: true,
+			status: "idle",
+			metadata: {
+				title: "Keep me",
+				lineage: { parentSessionId: "parent-session" },
+			},
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			readSessionManifest: vi.fn(() => ({ ...persistedManifest })),
+			readSessionCompactionState: vi.fn().mockResolvedValue(compactionState),
+			writeSessionManifest: vi.fn(
+				(_path: string, manifest: SessionManifest) => {
+					persistedManifest = { ...manifest };
+				},
+			),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const firstAgent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue(messages),
+			getAgentId: vi.fn().mockReturnValue("agent-before-restart"),
+			getConversationId: vi.fn().mockReturnValue(sessionId),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const secondAgent = {
+			...firstAgent,
+			getAgentId: vi.fn().mockReturnValue("agent-after-restart"),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi
+			.fn()
+			.mockReturnValueOnce(firstAgent as never)
+			.mockReturnValueOnce(secondAgent as never);
+		const runtimeShutdown = vi.fn().mockResolvedValue(undefined);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: runtimeShutdown,
+				}),
+			},
+			createAgent,
+		});
+		const events: Array<{ type: string }> = [];
+		manager.subscribe((event) => events.push(event));
+		const compaction = {
+			enabled: true,
+			strategy: "basic" as const,
+			compact: vi.fn(),
+		};
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, compaction }),
+				initialMessages: messages,
+				initialCompactionState: compactionState,
+				interactive: true,
+			}),
+		);
+		const restarted = await manager.restartSession({
+			sessionId,
+			...normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+					compaction,
+				}),
+				interactive: true,
+				sessionMetadata: { mode: "act", replacement: true },
+			}),
+		});
+
+		expect(firstAgent.shutdown).toHaveBeenCalledWith("session_restart");
+		expect(createAgent).toHaveBeenCalledTimes(2);
+		expect(createAgent.mock.calls[1]?.[0]).toMatchObject({
+			providerId: "openai-codex",
+			modelId: "gpt-5.3-codex",
+			initialMessages: messages,
+		});
+		expect(await manager.readSessionCompactionState(sessionId)).toMatchObject({
+			conversation_id: sessionId,
+			messages: compactionState.messages,
+		});
+		expect(restarted.manifest).toMatchObject({
+			session_id: sessionId,
+			provider: "openai-codex",
+			model: "gpt-5.3-codex",
+			metadata: {
+				title: "Keep me",
+				lineage: { parentSessionId: "parent-session" },
+			},
+		});
+		expect((await manager.getSession(sessionId))?.metadata).toMatchObject({
+			title: "Keep me",
+			lineage: { parentSessionId: "parent-session" },
+			mode: "act",
+			replacement: true,
+		});
+		expect(events).not.toContainEqual(
+			expect.objectContaining({ type: "ended" }),
+		);
+
+		secondAgent.canStartRun.mockReturnValue(false);
+		await expect(
+			manager.restartSession({
+				sessionId,
+				...normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			}),
+		).rejects.toThrow(`Session ${sessionId} must be idle before restart`);
+		expect(secondAgent.shutdown).not.toHaveBeenCalled();
+	});
+
+	it("waits for an earlier restart before running the next turn", async () => {
+		const sessionId = "sess-restart-before-send";
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "first question" },
+			{ role: "assistant", content: "first answer" },
+		];
+		let persistedManifest: SessionManifest = {
+			...createManifest(sessionId),
+			interactive: true,
+			status: "idle",
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			readSessionManifest: vi.fn(() => ({ ...persistedManifest })),
+			readSessionCompactionState: vi.fn().mockResolvedValue(undefined),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(
+				(_path: string, manifest: SessionManifest) => {
+					persistedManifest = { ...manifest };
+				},
+			),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const oldAgent = {
+			run: vi.fn().mockResolvedValue(createResult({ messages })),
+			continue: vi.fn().mockResolvedValue(createResult({ messages })),
+			getMessages: vi.fn().mockReturnValue(messages),
+			getAgentId: vi.fn().mockReturnValue("agent-before-restart"),
+			getConversationId: vi.fn().mockReturnValue(sessionId),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const replacementAgent = {
+			...oldAgent,
+			run: vi.fn().mockResolvedValue(createResult({ messages })),
+			continue: vi.fn().mockResolvedValue(createResult({ messages })),
+			getAgentId: vi.fn().mockReturnValue("agent-after-restart"),
+			updateConnection: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const finalAgent = {
+			...replacementAgent,
+			run: vi.fn().mockResolvedValue(createResult({ messages })),
+			continue: vi.fn().mockResolvedValue(createResult({ messages })),
+			getAgentId: vi.fn().mockReturnValue("agent-after-second-restart"),
+			updateConnection: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi
+			.fn()
+			.mockReturnValueOnce(oldAgent as never)
+			.mockReturnValueOnce(replacementAgent as never)
+			.mockReturnValue(finalAgent as never);
+		const oldRuntime = {
+			tools: [],
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const replacementRuntime = {
+			tools: [],
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		let releaseReplacementRuntime: (() => void) | undefined;
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockResolvedValueOnce(oldRuntime)
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							releaseReplacementRuntime = () => resolve(replacementRuntime);
+						}),
+				)
+				.mockResolvedValue(replacementRuntime),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				initialMessages: messages,
+				interactive: true,
+			}),
+		);
+		const restart = manager.restartSession({
+			sessionId,
+			...normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+				}),
+				interactive: true,
+			}),
+		});
+		const send = manager.runTurn({ sessionId, prompt: "second question" });
+		await vi.waitFor(() => {
+			expect(releaseReplacementRuntime).toBeTypeOf("function");
+		});
+		expect(oldAgent.run).not.toHaveBeenCalled();
+		expect(replacementAgent.run).not.toHaveBeenCalled();
+		expect(replacementAgent.continue).not.toHaveBeenCalled();
+
+		releaseReplacementRuntime?.();
+		await restart;
+		await send;
+
+		expect(oldAgent.run).not.toHaveBeenCalled();
+		expect(oldAgent.continue).not.toHaveBeenCalled();
+		expect(replacementAgent.continue).toHaveBeenCalledTimes(1);
+
+		let releaseActiveTurn: (() => void) | undefined;
+		replacementAgent.continue.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					releaseActiveTurn = () => resolve(createResult({ messages }));
+				}),
+		);
+		const activeTurn = manager.runTurn({
+			sessionId,
+			prompt: "third question",
+		});
+		await vi.waitFor(() => {
+			expect(releaseActiveTurn).toBeTypeOf("function");
+		});
+		const secondRestart = manager.restartSession({
+			sessionId,
+			...normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerId: "provider-after-turn",
+					modelId: "model-after-turn",
+				}),
+				interactive: true,
+			}),
+		});
+		await Promise.resolve();
+		expect(createAgent).toHaveBeenCalledTimes(2);
+		expect(replacementAgent.shutdown).not.toHaveBeenCalled();
+
+		releaseActiveTurn?.();
+		await activeTurn;
+		await secondRestart;
+		expect(createAgent).toHaveBeenCalledTimes(3);
+		expect(replacementAgent.shutdown).toHaveBeenCalledWith("session_restart");
+	});
+
 	it("persists thinking budget token connection updates", async () => {
 		const sessionId = "sess-thinking-budget-update";
 		const manifest = createManifest(sessionId);

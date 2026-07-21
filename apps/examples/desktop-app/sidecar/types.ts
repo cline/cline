@@ -98,6 +98,7 @@ export type SidecarWebSocketClient = {
 
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
+	sessionConfigUpdateTails: Map<string, Promise<void>>;
 	streamIndices: Map<string, number>;
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;

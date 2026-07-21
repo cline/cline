@@ -1333,16 +1333,18 @@ export function useChatSession() {
 					});
 				}
 
-				try {
-					const historyMessages = await desktopClient.invoke<ChatMessage[]>(
-						"read_session_messages",
-						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
-					);
-					if (historyMessages.length > 0) {
-						setMessages(historyMessages);
+				if (result?.finishReason !== "error") {
+					try {
+						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
+							"read_session_messages",
+							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
+						);
+						if (historyMessages.length > 0) {
+							setMessages(historyMessages);
+						}
+					} catch {
+						// Keep optimistic state if canonical hydration fails.
 					}
-				} catch {
-					// Keep optimistic state if canonical hydration fails.
 				}
 
 				// Token / cost bookkeeping

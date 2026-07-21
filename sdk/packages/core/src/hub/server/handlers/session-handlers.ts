@@ -7,8 +7,10 @@ import type {
 import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
 import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
+	RestartSessionInput,
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
+	StartSessionInput,
 } from "../../../runtime/host/runtime-host";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
@@ -126,7 +128,7 @@ function stripServerOwnedSessionMetadata(
 	return sanitized;
 }
 
-function authorizeSessionCompactionAccess(input: {
+function authorizeSessionOwner(input: {
 	sessionId: string;
 	ctx: HubTransportContext;
 	clientId: string;
@@ -150,28 +152,25 @@ function authorizeSessionCompactionAccess(input: {
 	return undefined;
 }
 
-export async function handleSessionCreate(
-	ctx: HubTransportContext,
-	envelope: HubCommandEnvelope,
-	requestToolApproval: (
-		request: ToolApprovalRequest,
-	) => Promise<{ approved: boolean; reason?: string }>,
-): Promise<HubReplyEnvelope> {
-	const startedAt = performance.now();
-	const baseLogContext = {
-		command: envelope.command,
-		requestId: envelope.requestId,
-		clientId: envelope.clientId,
-		sessionId: envelope.sessionId,
-	};
-	logHubMessage("info", "session.create.begin", baseLogContext);
+function readSessionLifecyclePayload(envelope: HubCommandEnvelope): {
+	payload: Record<string, unknown>;
+	metadata: Record<string, unknown>;
+	sessionConfig: Partial<RuntimeSessionConfig> | undefined;
+	runtimeOptions: Record<string, unknown>;
+	initialCompactionState: ReturnType<typeof parseSessionCompactionState>;
+	modelSelection: Record<string, unknown>;
+	workspaceRoot: string;
+} {
 	const payload =
 		envelope.payload && typeof envelope.payload === "object"
-			? envelope.payload
+			? (envelope.payload as Record<string, unknown>)
 			: {};
 	const metadata =
 		payload.metadata && typeof payload.metadata === "object"
-			? JSON.parse(JSON.stringify(payload.metadata))
+			? (JSON.parse(JSON.stringify(payload.metadata)) as Record<
+					string,
+					unknown
+				>)
 			: {};
 	const sessionConfig =
 		payload.sessionConfig && typeof payload.sessionConfig === "object"
@@ -211,73 +210,51 @@ export async function handleSessionCreate(
 			: typeof payload.cwd === "string" && payload.cwd.trim()
 				? payload.cwd.trim()
 				: "";
-	if (!workspaceRoot) {
-		logHubMessage("warn", "session.create.invalid", {
-			...baseLogContext,
-			reason: "missing_workspace_root",
-		});
-		return errorReply(
-			envelope,
-			"invalid_session_create",
-			"session.create requires workspaceRoot or cwd",
-		);
-	}
-	const clientId = envelope.clientId?.trim() || "hub-client";
-	const clientContributions = parseHubClientContributions(
-		runtimeOptions.clientContributions,
-	);
-	logHubMessage("info", "session.create.contributions_parsed", {
-		...baseLogContext,
-		clientId,
-		workspaceRoot,
-		cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
-		contributionCount: clientContributions.length,
-	});
-	const requestedSessionId =
-		typeof sessionConfig?.sessionId === "string"
-			? sessionConfig.sessionId.trim()
-			: "";
-	const sessionId = requestedSessionId || createSessionId();
-	const configExtensions = parseRuntimeConfigExtensions(
-		runtimeOptions.configExtensions,
-	);
-	logHubMessage("info", "session.create.runtime_build.begin", {
-		...baseLogContext,
-		sessionId,
-		configExtensionCount: configExtensions?.length ?? 0,
-	});
-	const clientContributionRuntime = createHubClientContributionRuntime({
-		sessionId,
-		targetClientId: clientId,
-		contributions: clientContributions,
+	return {
+		payload,
+		metadata,
 		sessionConfig,
-		requestCapability: ctx.requestCapability,
-	});
-	logHubMessage("info", "session.create.start_session.begin", {
-		...baseLogContext,
+		runtimeOptions,
+		initialCompactionState,
+		modelSelection,
+		workspaceRoot,
+	};
+}
+
+function buildSessionLifecycleStartInput(input: {
+	payload: Record<string, unknown>;
+	metadata: Record<string, unknown>;
+	sessionConfig: Partial<RuntimeSessionConfig> | undefined;
+	runtimeOptions: Record<string, unknown>;
+	initialCompactionState: ReturnType<typeof parseSessionCompactionState>;
+	modelSelection: Record<string, unknown>;
+	workspaceRoot: string;
+	sessionId: string;
+	configExtensions: ReturnType<typeof parseRuntimeConfigExtensions>;
+	clientContributionRuntime: ReturnType<
+		typeof createHubClientContributionRuntime
+	>;
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>;
+}): StartSessionInput {
+	const {
+		payload,
+		metadata,
+		sessionConfig,
+		runtimeOptions,
+		initialCompactionState,
+		modelSelection,
+		workspaceRoot,
 		sessionId,
-		provider:
-			sessionConfig?.providerId ??
-			(typeof modelSelection.provider === "string"
-				? modelSelection.provider
-				: typeof metadata.provider === "string"
-					? metadata.provider
-					: "hub"),
-		model:
-			sessionConfig?.modelId ??
-			(typeof modelSelection.model === "string"
-				? modelSelection.model
-				: typeof metadata.model === "string"
-					? metadata.model
-					: "hub"),
-	});
-	const started = await ctx.sessionHost.startSession({
+		configExtensions,
+		clientContributionRuntime,
+		requestToolApproval,
+	} = input;
+	return {
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
-		sessionMetadata:
-			Object.keys(metadata as Record<string, unknown>).length > 0
-				? (metadata as Record<string, unknown>)
-				: undefined,
+		sessionMetadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 		initialMessages: Array.isArray(payload.initialMessages)
 			? (payload.initialMessages as never[])
 			: undefined,
@@ -363,7 +340,108 @@ export async function handleSessionCreate(
 				: runtimeOptions.autoApproveTools === true
 					? { "*": { autoApprove: true } }
 					: undefined,
+	};
+}
+
+export async function handleSessionCreate(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	const startedAt = performance.now();
+	const baseLogContext = {
+		command: envelope.command,
+		requestId: envelope.requestId,
+		clientId: envelope.clientId,
+		sessionId: envelope.sessionId,
+	};
+	logHubMessage("info", "session.create.begin", baseLogContext);
+	const {
+		payload,
+		metadata,
+		sessionConfig,
+		runtimeOptions,
+		initialCompactionState,
+		modelSelection,
+		workspaceRoot,
+	} = readSessionLifecyclePayload(envelope);
+	if (!workspaceRoot) {
+		logHubMessage("warn", "session.create.invalid", {
+			...baseLogContext,
+			reason: "missing_workspace_root",
+		});
+		return errorReply(
+			envelope,
+			"invalid_session_create",
+			"session.create requires workspaceRoot or cwd",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const clientContributions = parseHubClientContributions(
+		runtimeOptions.clientContributions,
+	);
+	logHubMessage("info", "session.create.contributions_parsed", {
+		...baseLogContext,
+		clientId,
+		workspaceRoot,
+		cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+		contributionCount: clientContributions.length,
 	});
+	const requestedSessionId =
+		typeof sessionConfig?.sessionId === "string"
+			? sessionConfig.sessionId.trim()
+			: "";
+	const sessionId = requestedSessionId || createSessionId();
+	const configExtensions = parseRuntimeConfigExtensions(
+		runtimeOptions.configExtensions,
+	);
+	logHubMessage("info", "session.create.runtime_build.begin", {
+		...baseLogContext,
+		sessionId,
+		configExtensionCount: configExtensions?.length ?? 0,
+	});
+	const clientContributionRuntime = createHubClientContributionRuntime({
+		sessionId,
+		targetClientId: clientId,
+		contributions: clientContributions,
+		sessionConfig,
+		requestCapability: ctx.requestCapability,
+	});
+	logHubMessage("info", "session.create.start_session.begin", {
+		...baseLogContext,
+		sessionId,
+		provider:
+			sessionConfig?.providerId ??
+			(typeof modelSelection.provider === "string"
+				? modelSelection.provider
+				: typeof metadata.provider === "string"
+					? metadata.provider
+					: "hub"),
+		model:
+			sessionConfig?.modelId ??
+			(typeof modelSelection.model === "string"
+				? modelSelection.model
+				: typeof metadata.model === "string"
+					? metadata.model
+					: "hub"),
+	});
+	const started = await ctx.sessionHost.startSession(
+		buildSessionLifecycleStartInput({
+			payload,
+			metadata,
+			sessionConfig,
+			runtimeOptions,
+			initialCompactionState,
+			modelSelection,
+			workspaceRoot,
+			sessionId,
+			configExtensions,
+			clientContributionRuntime,
+			requestToolApproval,
+		}),
+	);
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
 		sessionId: started.sessionId,
@@ -402,6 +480,105 @@ export async function handleSessionCreate(
 		sessionId: started.sessionId,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
+	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
+}
+
+export async function handleSessionRestart(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_restart",
+			"session.restart requires a session id",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const unauthorized = authorizeSessionOwner({
+		sessionId,
+		ctx,
+		clientId,
+		envelope,
+	});
+	if (unauthorized) {
+		return unauthorized;
+	}
+	if (typeof ctx.sessionHost.restartSession !== "function") {
+		return errorReply(
+			envelope,
+			"session_restart_unsupported",
+			"The session runtime does not support restart",
+		);
+	}
+
+	const lifecycle = readSessionLifecyclePayload(envelope);
+	if (!lifecycle.workspaceRoot) {
+		return errorReply(
+			envelope,
+			"invalid_session_restart",
+			"session.restart requires workspaceRoot or cwd",
+		);
+	}
+	const clientContributions = parseHubClientContributions(
+		lifecycle.runtimeOptions.clientContributions,
+	);
+	const configExtensions = parseRuntimeConfigExtensions(
+		lifecycle.runtimeOptions.configExtensions,
+	);
+	const clientContributionRuntime = createHubClientContributionRuntime({
+		sessionId,
+		targetClientId: clientId,
+		contributions: clientContributions,
+		sessionConfig: lifecycle.sessionConfig,
+		requestCapability: ctx.requestCapability,
+	});
+	const startInput = buildSessionLifecycleStartInput({
+		...lifecycle,
+		sessionId,
+		configExtensions,
+		clientContributionRuntime,
+		requestToolApproval,
+	});
+	const {
+		prompt: _prompt,
+		userImages: _userImages,
+		userFiles: _userFiles,
+		initialMessages: _initialMessages,
+		initialCompactionState: _initialCompactionState,
+		...restartInput
+	} = startInput;
+	const restarted = await ctx.sessionHost.restartSession({
+		...restartInput,
+		sessionId,
+		config: { ...restartInput.config, sessionId },
+	} satisfies RestartSessionInput);
+	if (restarted.sessionId !== sessionId) {
+		throw new Error(
+			`Session restart returned ${restarted.sessionId}; expected ${sessionId}`,
+		);
+	}
+
+	ensureSessionState(ctx, sessionId, clientId, "creator", {
+		interactive: lifecycle.metadata.interactive !== false,
+	});
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, sessionId),
+		readCoreSessionSnapshot(ctx, sessionId),
+	]);
+	if (session) {
+		ctx.publish(
+			ctx.buildEvent(
+				"session.updated",
+				{ session, ...(snapshot ? { snapshot } : {}) },
+				sessionId,
+			),
+		);
+	}
 	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
 }
 
@@ -830,7 +1007,7 @@ export async function handleSessionCompactionGet(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
-	const unauthorized = authorizeSessionCompactionAccess({
+	const unauthorized = authorizeSessionOwner({
 		sessionId,
 		ctx,
 		clientId,
@@ -939,7 +1116,7 @@ export async function handleSessionCompactionUpdate(
 			`Unknown session: ${sessionId}`,
 		);
 	}
-	const unauthorized = authorizeSessionCompactionAccess({
+	const unauthorized = authorizeSessionOwner({
 		sessionId,
 		ctx,
 		clientId,

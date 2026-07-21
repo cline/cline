@@ -12,7 +12,11 @@ import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { CoreSessionService } from "../../session/services/session-service";
 import { LocalRuntimeHost } from "./local-runtime-host";
-import type { RuntimeHost, RuntimeHostMode } from "./runtime-host";
+import type {
+	RuntimeHost,
+	RuntimeHostMode,
+	SessionRestartRuntimeService,
+} from "./runtime-host";
 
 function resolveConfiguredBackendMode(
 	options: ClineCoreOptions,
@@ -135,7 +139,7 @@ export async function resolveSessionBackend(
 
 export async function createRuntimeHost(
 	options: ClineCoreOptions,
-): Promise<RuntimeHost> {
+): Promise<RuntimeHost & SessionRestartRuntimeService> {
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);

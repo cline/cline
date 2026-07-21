@@ -132,6 +132,18 @@ export interface ClineCoreStartInput
 	localRuntime?: LocalRuntimeStartOptions;
 }
 
+export interface ClineCoreRestartInput
+	extends Omit<
+		ClineCoreStartInput,
+		| "prompt"
+		| "userImages"
+		| "userFiles"
+		| "initialMessages"
+		| "initialCompactionState"
+	> {
+	sessionId: string;
+}
+
 export interface RestoreOptions {
 	/**
 	 * Restore the message history by starting a new session fork trimmed to

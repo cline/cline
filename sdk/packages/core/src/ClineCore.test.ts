@@ -215,6 +215,78 @@ describe("ClineCore", () => {
 		expect(listeners).toHaveLength(1);
 	});
 
+	it("re-prepares a full config and replaces the active bootstrap on restart", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async () => createStartResult("session-restart")),
+			restartSession: vi.fn(async (input: StartSessionInput) => {
+				expect(input.config).toMatchObject({
+					sessionId: "session-restart",
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+					systemPrompt: "prepared restart",
+				});
+				expect(input).not.toHaveProperty("prompt");
+				expect(input).not.toHaveProperty("initialMessages");
+				return createStartResult("session-restart");
+			}),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => ({ sessionId: "session-restart" })),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const initialDispose = vi.fn();
+		const restartedDispose = vi.fn();
+		let prepareCount = 0;
+		const core = await ClineCore.create({
+			prepare: async () => {
+				const dispose =
+					prepareCount++ === 0 ? initialDispose : restartedDispose;
+				return {
+					applyToStartSessionInput: (input) => ({
+						...input,
+						config: {
+							...input.config,
+							systemPrompt:
+								input.config.providerId === "openai-codex"
+									? "prepared restart"
+									: input.config.systemPrompt,
+						},
+					}),
+					dispose,
+				};
+			},
+		});
+
+		await core.start({ ...createStartInput(), interactive: true });
+		const restarted = await core.restart({
+			sessionId: "session-restart",
+			config: {
+				...createStartInput().config,
+				providerId: "openai-codex",
+				modelId: "gpt-5.3-codex",
+			},
+			interactive: true,
+		});
+
+		expect(restarted.sessionId).toBe("session-restart");
+		expect(host.restartSession).toHaveBeenCalledTimes(1);
+		expect(initialDispose).toHaveBeenCalledTimes(1);
+		expect(restartedDispose).not.toHaveBeenCalled();
+
+		await core.dispose();
+		expect(restartedDispose).toHaveBeenCalledTimes(1);
+	});
+
 	it("disposes active session bootstraps when the session ends", async () => {
 		let listener:
 			| ((event: { type: string; payload: { sessionId: string } }) => void)

@@ -1,6 +1,7 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	type RestartSessionInput,
 	SessionNotFoundError,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -771,6 +772,116 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		await expect(answerPromise).resolves.toBe("Use hub");
+	});
+
+	it("allows only the capability owner to restart a hub session", async () => {
+		const restartSession = vi.fn(
+			async (input: RestartSessionInput): Promise<StartSessionResult> => ({
+				sessionId: input.sessionId,
+				manifest: {
+					version: 1,
+					session_id: input.sessionId,
+					source: "desktop",
+					pid: 1,
+					started_at: new Date(0).toISOString(),
+					status: "running",
+					interactive: true,
+					provider: input.config.providerId,
+					model: input.config.modelId,
+					cwd: "/tmp/project",
+					workspace_root: "/tmp/project",
+					enable_tools: true,
+					enable_spawn: false,
+					enable_teams: false,
+				},
+				manifestPath: "",
+				messagesPath: "",
+			}),
+		);
+		const transport = createTransport({ sessionHost: { restartSession } });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+
+		const payload = {
+			workspaceRoot: "/tmp/project",
+			cwd: "/tmp/project",
+			sessionConfig: {
+				sessionId: "session-1",
+				providerId: "openai-codex",
+				modelId: "gpt-5.3-codex",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				systemPrompt: "system",
+			},
+			metadata: { source: "desktop", interactive: true },
+		};
+		const denied = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-restart-denied",
+			command: "session.restart",
+			clientId: "viewer-client",
+			sessionId: "session-1",
+			payload,
+		});
+		expect(denied).toMatchObject({
+			ok: false,
+			error: { code: "session_wrong_client" },
+		});
+		expect(restartSession).not.toHaveBeenCalled();
+
+		const allowed = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-restart-allowed",
+			command: "session.restart",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload,
+		});
+		expect(allowed.ok).toBe(true);
+		expect(restartSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "session-1",
+				interactive: true,
+				config: expect.objectContaining({
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+				}),
+			}),
+		);
+		const restartInput = restartSession.mock.calls[0]?.[0];
+		expect(restartInput).not.toHaveProperty("initialMessages");
+		expect(restartInput).not.toHaveProperty("initialCompactionState");
+	});
+
+	it("does not let an attached participant claim an ownerless session restart", async () => {
+		const restartSession = vi.fn();
+		const transport = createTransport({ sessionHost: { restartSession } });
+		const ctx = getContext(transport);
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-ownerless-restart",
+			command: "session.restart",
+			clientId: "viewer-client",
+			sessionId: "session-1",
+			payload: {
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+				sessionConfig: {
+					sessionId: "session-1",
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+				},
+			},
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "session_wrong_client" },
+		});
+		expect(restartSession).not.toHaveBeenCalled();
 	});
 
 	it("rejects capability responses from non-owner clients", async () => {

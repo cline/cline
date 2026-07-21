@@ -153,6 +153,291 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("restarts the same hub session with a full replacement config", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const now = Date.now();
+		commandMock
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: {
+					session: {
+						sessionId: "sess-1",
+						status: "idle",
+						createdAt: now,
+						updatedAt: now,
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+					},
+				},
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: {
+					session: {
+						sessionId: "sess-1",
+						status: "idle",
+						createdAt: now,
+						updatedAt: now,
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+					},
+				},
+			});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({ config: createConfig(), interactive: true });
+		const subscriptionCountBeforeRestart = subscribeMock.mock.calls.length;
+		const restarted = await host.restartSession({
+			sessionId: "sess-1",
+			config: {
+				...createConfig(),
+				sessionId: "sess-1",
+				providerId: "openai-codex",
+				modelId: "gpt-5.3-codex",
+				systemPrompt: "new system",
+			},
+			interactive: true,
+		});
+
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"session.restart",
+			expect.objectContaining({
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+				sessionConfig: expect.objectContaining({
+					sessionId: "sess-1",
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+					systemPrompt: "new system",
+				}),
+				metadata: expect.objectContaining({
+					provider: "openai-codex",
+					model: "gpt-5.3-codex",
+					interactive: true,
+				}),
+			}),
+			"sess-1",
+			{ timeoutMs: null },
+		);
+		expect(subscribeMock).toHaveBeenCalledTimes(subscriptionCountBeforeRestart);
+		expect(restarted.manifest).toMatchObject({
+			session_id: "sess-1",
+			provider: "openai-codex",
+			model: "gpt-5.3-codex",
+		});
+	});
+
+	it("restores the prior hub registration when restart fails", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: {
+					session: {
+						sessionId: "sess-1",
+						status: "idle",
+						createdAt: Date.now(),
+						updatedAt: Date.now(),
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+					},
+				},
+			})
+			.mockRejectedValueOnce(new Error("restart failed"));
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: createConfig(),
+			interactive: true,
+			localRuntime: {
+				compaction: { compact: vi.fn() },
+			},
+		});
+		const internals = host as unknown as {
+			sessionCapabilities: Map<string, unknown>;
+			sessionClientContributionHandlers: Map<string, unknown>;
+		};
+		const previousCapabilities = internals.sessionCapabilities.get("sess-1");
+		const previousHandlers =
+			internals.sessionClientContributionHandlers.get("sess-1");
+		const unsubscribeCountBeforeRestart = unsubscribe.mock.calls.length;
+
+		await expect(
+			host.restartSession({
+				sessionId: "sess-1",
+				config: {
+					...createConfig(),
+					sessionId: "sess-1",
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+				},
+				interactive: true,
+				capabilities: { requestToolApproval: vi.fn() },
+				localRuntime: {
+					compaction: { compact: vi.fn() },
+				},
+			}),
+		).rejects.toThrow("restart failed");
+
+		expect(internals.sessionCapabilities.get("sess-1")).toBe(
+			previousCapabilities,
+		);
+		expect(internals.sessionClientContributionHandlers.get("sess-1")).toBe(
+			previousHandlers,
+		);
+		expect(unsubscribe).toHaveBeenCalledTimes(unsubscribeCountBeforeRestart);
+	});
+
+	it("serializes restart handler registration for the same session", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const sessionReply = () => ({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "idle",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		let resolveFirstRestart:
+			| ((reply: ReturnType<typeof sessionReply>) => void)
+			| undefined;
+		commandMock
+			.mockResolvedValueOnce(sessionReply())
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveFirstRestart = resolve;
+					}),
+			)
+			.mockResolvedValueOnce(sessionReply());
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			interactive: true,
+			localRuntime: { compaction: { compact: vi.fn() } },
+		});
+		const internals = host as unknown as {
+			sessionClientContributionHandlers: Map<string, unknown>;
+		};
+		const firstRestart = host.restartSession({
+			sessionId: "sess-1",
+			config: {
+				...createConfig(),
+				sessionId: "sess-1",
+				providerId: "provider-a",
+				modelId: "model-a",
+			},
+			interactive: true,
+			localRuntime: { compaction: { compact: vi.fn() } },
+		});
+		await vi.waitFor(() => {
+			expect(commandMock).toHaveBeenCalledTimes(2);
+		});
+		const firstHandlers =
+			internals.sessionClientContributionHandlers.get("sess-1");
+		const secondRestart = host.restartSession({
+			sessionId: "sess-1",
+			config: {
+				...createConfig(),
+				sessionId: "sess-1",
+				providerId: "provider-b",
+				modelId: "model-b",
+			},
+			interactive: true,
+			localRuntime: { compaction: { compact: vi.fn() } },
+		});
+		await Promise.resolve();
+
+		expect(commandMock).toHaveBeenCalledTimes(2);
+		expect(internals.sessionClientContributionHandlers.get("sess-1")).toBe(
+			firstHandlers,
+		);
+
+		resolveFirstRestart?.(sessionReply());
+		await firstRestart;
+		await secondRestart;
+		expect(commandMock).toHaveBeenCalledTimes(3);
+		expect(commandMock.mock.calls[1]?.[1]).toMatchObject({
+			sessionConfig: { providerId: "provider-a", modelId: "model-a" },
+		});
+		expect(commandMock.mock.calls[2]?.[1]).toMatchObject({
+			sessionConfig: { providerId: "provider-b", modelId: "model-b" },
+		});
+		expect(internals.sessionClientContributionHandlers.get("sess-1")).not.toBe(
+			firstHandlers,
+		);
+	});
+
+	it("waits for an in-flight hub turn before issuing restart", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const sessionReply = {
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "idle",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		};
+		let finishTurn: (() => void) | undefined;
+		commandMock
+			.mockResolvedValueOnce(sessionReply)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishTurn = () => resolve({ ok: true, payload: {} });
+					}),
+			)
+			.mockResolvedValueOnce(sessionReply);
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			interactive: true,
+		});
+		const turn = host.runTurn({ sessionId: "sess-1", prompt: "hello" });
+		await vi.waitFor(() => {
+			expect(finishTurn).toBeTypeOf("function");
+		});
+		const restart = host.restartSession({
+			sessionId: "sess-1",
+			config: {
+				...createConfig(),
+				sessionId: "sess-1",
+				providerId: "openai-codex",
+				modelId: "gpt-5.3-codex",
+			},
+			interactive: true,
+		});
+		await Promise.resolve();
+		expect(commandMock).toHaveBeenCalledTimes(2);
+
+		finishTurn?.();
+		await turn;
+		await restart;
+		expect(commandMock).toHaveBeenCalledTimes(3);
+		expect(commandMock.mock.calls.map(([command]) => command)).toEqual([
+			"session.create",
+			"run.start",
+			"session.restart",
+		]);
+	});
+
 	it("restarts an idle local hub and retries session.create after startup timeout", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		const timeoutError = Object.assign(new Error("session.create timed out"), {

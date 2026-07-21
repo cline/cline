@@ -31,6 +31,7 @@ import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
+	RestartSessionInput,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -38,6 +39,7 @@ import type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionConnectionUpdate,
+	SessionRestartRuntimeService,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -355,6 +357,45 @@ function buildClientContributionRegistration(
 	}
 
 	return registration;
+}
+
+function buildSessionLifecyclePayload(
+	input: StartSessionInput,
+	sessionId: string,
+	clientContributions: ClientContributionRegistration,
+): Record<string, unknown> {
+	return {
+		workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
+		cwd: input.config.cwd,
+		sessionConfig: toJsonRecord(buildCommandSessionConfig(input, sessionId)),
+		metadata: {
+			...(input.sessionMetadata ?? {}),
+			source: input.source ?? SessionSource.CORE,
+			provider: input.config.providerId,
+			model: input.config.modelId,
+			enableTools: input.config.enableTools,
+			enableSpawn: input.config.enableSpawnAgent,
+			enableTeams: input.config.enableAgentTeams,
+			teamName: input.config.teamName,
+			prompt: input.prompt,
+			interactive: input.interactive === true,
+		},
+		runtimeOptions: {
+			...(clientContributions.manifest.length > 0
+				? { clientContributions: clientContributions.manifest }
+				: {}),
+			...(input.localRuntime?.configExtensions
+				? { configExtensions: input.localRuntime.configExtensions }
+				: {}),
+		},
+		toolPolicies: toJsonRecord(
+			input.toolPolicies as Record<string, unknown> | undefined,
+		),
+		initialMessages: input.initialMessages,
+		...(input.initialCompactionState
+			? { initialCompactionState: input.initialCompactionState }
+			: {}),
+	};
 }
 
 function messageFromUnknown(value: unknown): string | undefined {
@@ -720,7 +761,9 @@ function buildManifestFromSnapshot(
 	});
 }
 
-export class HubRuntimeHost implements RuntimeHost {
+export class HubRuntimeHost
+	implements RuntimeHost, SessionRestartRuntimeService
+{
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
 	private client: NodeHubClient;
@@ -733,6 +776,11 @@ export class HubRuntimeHost implements RuntimeHost {
 		Map<string, ClientContributionHandler>
 	>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
+	private readonly sessionRestartTails = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
+	private readonly activeSessionTurns = new Map<string, Set<Promise<void>>>();
 	private readonly pendingApprovalToolCallIds = new Set<string>();
 	private readonly agentDoneEmittedForCurrentRunBySession = new Set<string>();
 	private readonly activeCapabilityAbortControllers = new Map<
@@ -834,40 +882,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
 		const sendCreateCommand = () =>
-			this.client.command("session.create", {
-				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
-				cwd: input.config.cwd,
-				sessionConfig: toJsonRecord(
-					buildCommandSessionConfig(input, plannedSessionId),
+			this.client.command(
+				"session.create",
+				buildSessionLifecyclePayload(
+					input,
+					plannedSessionId,
+					clientContributions,
 				),
-				metadata: {
-					...(input.sessionMetadata ?? {}),
-					source: input.source ?? SessionSource.CORE,
-					provider: input.config.providerId,
-					model: input.config.modelId,
-					enableTools: input.config.enableTools,
-					enableSpawn: input.config.enableSpawnAgent,
-					enableTeams: input.config.enableAgentTeams,
-					teamName: input.config.teamName,
-					prompt: input.prompt,
-					interactive: input.interactive === true,
-				},
-				runtimeOptions: {
-					...(clientContributions.manifest.length > 0
-						? { clientContributions: clientContributions.manifest }
-						: {}),
-					...(input.localRuntime?.configExtensions
-						? { configExtensions: input.localRuntime.configExtensions }
-						: {}),
-				},
-				toolPolicies: toJsonRecord(
-					input.toolPolicies as Record<string, unknown> | undefined,
-				),
-				initialMessages: input.initialMessages,
-				...(input.initialCompactionState
-					? { initialCompactionState: input.initialCompactionState }
-					: {}),
-			});
+			);
 		this.registerPlannedSession(
 			plannedSessionId,
 			capabilities,
@@ -919,6 +941,116 @@ export class HubRuntimeHost implements RuntimeHost {
 			messagesPath: "",
 			result: undefined,
 		};
+	}
+
+	async restartSession(
+		input: RestartSessionInput,
+	): Promise<StartSessionResult> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const previousRestart = this.sessionRestartTails.get(sessionId);
+		const restart = (previousRestart ?? Promise.resolve(undefined))
+			.catch(() => undefined)
+			.then(async () => {
+				const activeTurns = [...(this.activeSessionTurns.get(sessionId) ?? [])];
+				if (activeTurns.length > 0) {
+					await Promise.all(activeTurns);
+				}
+				return await this.restartSessionNow(input, sessionId);
+			});
+		this.sessionRestartTails.set(sessionId, restart);
+		return restart.finally(() => {
+			if (this.sessionRestartTails.get(sessionId) === restart) {
+				this.sessionRestartTails.delete(sessionId);
+			}
+		});
+	}
+
+	private async restartSessionNow(
+		input: RestartSessionInput,
+		sessionId: string,
+	): Promise<StartSessionResult> {
+		const { sessionId: _sessionId, ...restartInput } = input;
+		const startInput: StartSessionInput = {
+			...restartInput,
+			config: { ...restartInput.config, sessionId },
+		};
+		const capabilities = this.resolveCapabilities(startInput);
+		const clientContributions = buildClientContributionRegistration(
+			startInput.localRuntime,
+			capabilities,
+		);
+		const previousCapabilities = this.sessionCapabilities.get(sessionId);
+		const previousContributionHandlers =
+			this.sessionClientContributionHandlers.get(sessionId);
+		const hadSubscription = this.sessionSubscriptions.has(sessionId);
+
+		this.sessionCapabilities.set(sessionId, capabilities);
+		if (clientContributions.handlers.size > 0) {
+			this.sessionClientContributionHandlers.set(
+				sessionId,
+				clientContributions.handlers,
+			);
+		} else {
+			this.sessionClientContributionHandlers.delete(sessionId);
+		}
+		this.ensureSessionSubscription(sessionId);
+
+		try {
+			const reply = await this.client.command(
+				"session.restart",
+				buildSessionLifecyclePayload(
+					startInput,
+					sessionId,
+					clientContributions,
+				),
+				sessionId,
+				{ timeoutMs: null },
+			);
+			if (reply.ok === false) {
+				throw new Error(hubReplyErrorMessage(reply, "session.restart"));
+			}
+			const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
+			const session = reply.payload?.session as HubSessionRecord | undefined;
+			const restartedSessionId = (
+				snapshot?.sessionId ?? session?.sessionId
+			)?.trim();
+			if (restartedSessionId !== sessionId) {
+				throw new Error(
+					`Hub runtime returned session ${restartedSessionId || "<missing>"}; expected ${sessionId}`,
+				);
+			}
+			this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
+			return {
+				sessionId,
+				manifest: snapshot
+					? buildManifestFromSnapshot(snapshot, startInput)
+					: buildManifest(sessionId, startInput, session),
+				manifestPath: "",
+				messagesPath: "",
+				result: undefined,
+			};
+		} catch (error) {
+			if (previousCapabilities) {
+				this.sessionCapabilities.set(sessionId, previousCapabilities);
+			} else {
+				this.sessionCapabilities.delete(sessionId);
+			}
+			if (previousContributionHandlers) {
+				this.sessionClientContributionHandlers.set(
+					sessionId,
+					previousContributionHandlers,
+				);
+			} else {
+				this.sessionClientContributionHandlers.delete(sessionId);
+			}
+			if (!hadSubscription) {
+				this.disposeSessionSubscription(sessionId);
+			}
+			throw error;
+		}
 	}
 
 	async restoreSession(
@@ -1102,34 +1234,55 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
-		this.ensureSessionSubscription(input.sessionId);
-		const reply = await this.client.command(
-			"run.start",
-			{
-				sessionId: input.sessionId,
-				input: input.prompt,
-				mode: input.mode,
-				attachments:
-					(input.userImages?.length ?? 0) > 0 ||
-					(input.userFiles?.length ?? 0) > 0
-						? {
-								...(input.userImages?.length
-									? { userImages: input.userImages }
-									: {}),
-								...(input.userFiles?.length
-									? {
-											userFiles: input.userFiles,
-										}
-									: {}),
-							}
-						: undefined,
-				delivery: input.delivery,
-				timeoutMs: input.timeoutMs,
-			},
-			input.sessionId,
-			{ timeoutMs: null },
-		);
-		return reply.payload?.result as AgentResult | undefined;
+		for (;;) {
+			const pendingRestart = this.sessionRestartTails.get(input.sessionId);
+			if (!pendingRestart) break;
+			await pendingRestart;
+		}
+		let finishTurn!: () => void;
+		const turnFinished = new Promise<void>((resolve) => {
+			finishTurn = resolve;
+		});
+		const activeTurns =
+			this.activeSessionTurns.get(input.sessionId) ?? new Set<Promise<void>>();
+		activeTurns.add(turnFinished);
+		this.activeSessionTurns.set(input.sessionId, activeTurns);
+		try {
+			this.ensureSessionSubscription(input.sessionId);
+			const reply = await this.client.command(
+				"run.start",
+				{
+					sessionId: input.sessionId,
+					input: input.prompt,
+					mode: input.mode,
+					attachments:
+						(input.userImages?.length ?? 0) > 0 ||
+						(input.userFiles?.length ?? 0) > 0
+							? {
+									...(input.userImages?.length
+										? { userImages: input.userImages }
+										: {}),
+									...(input.userFiles?.length
+										? {
+												userFiles: input.userFiles,
+											}
+										: {}),
+								}
+							: undefined,
+					delivery: input.delivery,
+					timeoutMs: input.timeoutMs,
+				},
+				input.sessionId,
+				{ timeoutMs: null },
+			);
+			return reply.payload?.result as AgentResult | undefined;
+		} finally {
+			finishTurn();
+			activeTurns.delete(turnFinished);
+			if (activeTurns.size === 0) {
+				this.activeSessionTurns.delete(input.sessionId);
+			}
+		}
 	}
 
 	private async requestPendingPromptsList(

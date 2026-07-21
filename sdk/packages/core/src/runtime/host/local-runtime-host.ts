@@ -116,6 +116,7 @@ import {
 import { loadUserFileContent } from "./local/user-files";
 import type {
 	PendingPromptsServiceApi,
+	RestartSessionInput,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -123,6 +124,7 @@ import type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionConnectionUpdate,
+	SessionRestartRuntimeService,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -217,7 +219,9 @@ export interface LocalRuntimeHostOptions {
 	fetch?: typeof fetch;
 }
 
-export class LocalRuntimeHost implements RuntimeHost {
+export class LocalRuntimeHost
+	implements RuntimeHost, SessionRestartRuntimeService
+{
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly sessionService: SessionBackend;
@@ -232,6 +236,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly sessionRestartTails = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
+	private readonly activeSessionTurns = new Map<string, Set<Promise<void>>>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -850,6 +859,72 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 	}
 
+	async restartSession(
+		input: RestartSessionInput,
+	): Promise<StartSessionResult> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const previousRestart = this.sessionRestartTails.get(sessionId);
+		const restart = (previousRestart ?? Promise.resolve(undefined))
+			.catch(() => undefined)
+			.then(async () => {
+				const activeTurns = [...(this.activeSessionTurns.get(sessionId) ?? [])];
+				if (activeTurns.length > 0) {
+					await Promise.all(activeTurns);
+				}
+				return await this.restartSessionNow(input, sessionId);
+			});
+		this.sessionRestartTails.set(sessionId, restart);
+		return restart.finally(() => {
+			if (this.sessionRestartTails.get(sessionId) === restart) {
+				this.sessionRestartTails.delete(sessionId);
+			}
+		});
+	}
+
+	private async restartSessionNow(
+		input: RestartSessionInput,
+		sessionId: string,
+	): Promise<StartSessionResult> {
+		const session = this.getSessionOrThrow(sessionId);
+		if (
+			!session.agent.canStartRun() ||
+			hasPendingTeamRunWork(session) ||
+			session.pendingPrompts.length > 0
+		) {
+			throw new Error(`Session ${sessionId} must be idle before restart`);
+		}
+
+		const messages = session.agent.getMessages();
+		const compactionState = await this.readSessionCompactionState(sessionId);
+		const sessionMetadata = {
+			...(session.sessionMetadata ?? {}),
+			...(input.sessionMetadata ?? {}),
+		};
+		await this.releaseSessionRuntime(session, "session_restart");
+
+		const { sessionId: _sessionId, ...startInput } = input;
+		const result = await this.startSession({
+			...startInput,
+			config: { ...startInput.config, sessionId },
+			sessionMetadata:
+				Object.keys(sessionMetadata).length > 0 ? sessionMetadata : undefined,
+			initialMessages: messages,
+			...(compactionState ? { initialCompactionState: compactionState } : {}),
+		});
+		const restarted = this.getSessionOrThrow(sessionId);
+		await this.updateSessionConnection(sessionId, {
+			providerId: restarted.config.providerId,
+			modelId: restarted.config.modelId,
+		});
+		return {
+			...result,
+			manifest: restarted.artifacts?.manifest ?? result.manifest,
+		};
+	}
+
 	async restoreSession(
 		input: RestoreSessionInput,
 	): Promise<RestoreSessionResult> {
@@ -877,6 +952,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
+		for (;;) {
+			const pendingRestart = this.sessionRestartTails.get(input.sessionId);
+			if (!pendingRestart) break;
+			await pendingRestart;
+		}
+		let finishTurn!: () => void;
+		const turnFinished = new Promise<void>((resolve) => {
+			finishTurn = resolve;
+		});
+		const activeTurns =
+			this.activeSessionTurns.get(input.sessionId) ?? new Set<Promise<void>>();
+		activeTurns.add(turnFinished);
+		this.activeSessionTurns.set(input.sessionId, activeTurns);
+		try {
+			return await this.runTurnNow(input);
+		} finally {
+			finishTurn();
+			activeTurns.delete(turnFinished);
+			if (activeTurns.size === 0) {
+				this.activeSessionTurns.delete(input.sessionId);
+			}
+		}
+	}
+
+	private async runTurnNow(
+		input: SendSessionInput,
+	): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
 		const canStartRun = session.agent.canStartRun();
 		const delivery =

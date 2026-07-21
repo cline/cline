@@ -246,8 +246,8 @@ export function buildSessionConnectionUpdate(
 ): SessionConnectionUpdate {
 	// Coerce the untrusted webview JSON (snake_case aliases, blank strings)
 	// into typed fields; the thinking/reasoning transition rules live in the
-	// shared @cline/core builder.
-	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	// shared @cline/core builder. Provider identity is intentionally excluded:
+	// changing it requires a complete runtime restart.
 	const modelId = String(config.model ?? config.modelId ?? "").trim();
 	const rawApiKey =
 		typeof config.apiKey === "string"
@@ -262,7 +262,6 @@ export function buildSessionConnectionUpdate(
 		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
 	);
 	return buildConnectionUpdate({
-		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
 		...(rawApiKey ? { apiKey: rawApiKey } : {}),
 		...(baseUrl ? { baseUrl } : {}),
@@ -290,6 +289,56 @@ export function shouldUpdateSessionConnection(
 	return !isDeepStrictEqual(
 		buildSessionConnectionUpdate(currentConfig),
 		buildSessionConnectionUpdate(nextConfig),
+	);
+}
+
+function readAliasedId(
+	config: JsonRecord,
+	canonicalKey: "provider" | "model",
+	legacyKey: "providerId" | "modelId",
+): string {
+	for (const value of [config[canonicalKey], config[legacyKey]]) {
+		if (typeof value === "string" && value.trim().length > 0) {
+			return value.trim();
+		}
+	}
+	return "";
+}
+
+function readProviderId(config: JsonRecord): string {
+	return readAliasedId(config, "provider", "providerId");
+}
+
+function readModelId(config: JsonRecord): string {
+	return readAliasedId(config, "model", "modelId");
+}
+
+function mergeSessionConfig(
+	currentConfig: JsonRecord,
+	updates: JsonRecord,
+): JsonRecord {
+	const merged = { ...currentConfig, ...updates };
+	const providerId = readProviderId(updates) || readProviderId(currentConfig);
+	const modelId = readModelId(updates) || readModelId(currentConfig);
+	delete merged.providerId;
+	delete merged.modelId;
+	return {
+		...merged,
+		...(providerId ? { provider: providerId } : {}),
+		...(modelId ? { model: modelId } : {}),
+	};
+}
+
+export function shouldRestartSessionForProviderChange(
+	currentConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): boolean {
+	const currentProviderId = readProviderId(currentConfig);
+	const nextProviderId = readProviderId(nextConfig);
+	return (
+		currentProviderId.length > 0 &&
+		nextProviderId.length > 0 &&
+		currentProviderId !== nextProviderId
 	);
 }
 
@@ -378,6 +427,80 @@ function applyPendingPrompts(
 function getSessionManager(ctx: SidecarContext): ClineCore {
 	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
 	return ctx.sessionManager;
+}
+
+async function restartSessionForProviderChange(
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+): Promise<void> {
+	const systemPrompt = await resolveSystemPrompt(config);
+	const coreConfig = buildCoreSessionConfig({
+		...config,
+		sessionId,
+		systemPrompt,
+	});
+	const restarted = await manager.restart({
+		sessionId,
+		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
+		source: SessionSource.DESKTOP,
+		interactive: true,
+		toolPolicies: resolveToolPolicies(config),
+	});
+	if (restarted.sessionId !== sessionId) {
+		throw new Error(
+			`Session restart returned ${restarted.sessionId}; expected ${sessionId}`,
+		);
+	}
+}
+
+async function applySendSessionConfig(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+): Promise<void> {
+	const previousUpdate =
+		ctx.sessionConfigUpdateTails.get(sessionId) ?? Promise.resolve();
+	const update = previousUpdate
+		.catch(() => {})
+		.then(async () => {
+			// Re-read after the preceding update. Two prompts submitted while the
+			// provider is rebuilding must not both attempt the same restart.
+			const session = ctx.liveSessions.get(sessionId);
+			const nextConfig = session
+				? mergeSessionConfig(session.config, config)
+				: config;
+			if (
+				session &&
+				shouldRestartSessionForProviderChange(session.config, nextConfig)
+			) {
+				await restartSessionForProviderChange(manager, sessionId, nextConfig);
+				// A Hub-attached session now has a ClineCore event subscription from
+				// restart. Disable its raw relay so this turn is not emitted twice.
+				session.attachedViaHub = false;
+			} else if (
+				!session ||
+				session.attachedViaHub ||
+				shouldUpdateSessionConnection(session.config, nextConfig)
+			) {
+				await manager.updateSessionConnection(
+					sessionId,
+					buildSessionConnectionUpdate(nextConfig),
+				);
+			}
+			if (session) {
+				session.config = nextConfig;
+			}
+		});
+	ctx.sessionConfigUpdateTails.set(sessionId, update);
+	try {
+		await update;
+	} finally {
+		if (ctx.sessionConfigUpdateTails.get(sessionId) === update) {
+			ctx.sessionConfigUpdateTails.delete(sessionId);
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -519,19 +642,10 @@ async function handleSend(
 	const prompt = request.prompt?.trim();
 	if (!prompt) throw new Error("prompt is required");
 	const manager = getSessionManager(ctx);
-	const session = ctx.liveSessions.get(sessionId);
+	let session = ctx.liveSessions.get(sessionId);
 	if (request.config) {
-		if (
-			!session ||
-			session.attachedViaHub ||
-			shouldUpdateSessionConnection(session.config, request.config)
-		) {
-			const connectionUpdate = buildSessionConnectionUpdate(request.config);
-			await manager.updateSessionConnection(sessionId, connectionUpdate);
-		}
-		if (session) {
-			session.config = { ...session.config, ...request.config };
-		}
+		await applySendSessionConfig(ctx, manager, sessionId, request.config);
+		session = ctx.liveSessions.get(sessionId);
 	}
 
 	// Determine effective delivery mode.

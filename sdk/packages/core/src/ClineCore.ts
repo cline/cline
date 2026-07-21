@@ -21,6 +21,7 @@ import type {
 	ClineCoreAutomationOptions,
 	ClineCoreListHistoryOptions,
 	ClineCoreOptions,
+	ClineCoreRestartInput,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
 	CompareCheckpointInput,
@@ -37,10 +38,12 @@ import { listSessionHistory } from "./runtime/host/history";
 import { createRuntimeHost } from "./runtime/host/host";
 import type {
 	PendingPromptsServiceApi,
+	RestartSessionInput,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
 	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
+	SessionRestartRuntimeService,
 	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
@@ -68,6 +71,7 @@ export type {
 	ClineCoreAutomationOptions,
 	ClineCoreListHistoryOptions,
 	ClineCoreOptions,
+	ClineCoreRestartInput,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
 	CompareCheckpointInput,
@@ -99,7 +103,7 @@ export class ClineCore {
 	readonly settings: ClineCoreSettingsApi;
 	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
-	private readonly host: RuntimeHost;
+	private readonly host: RuntimeHost & SessionRestartRuntimeService;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly capabilities: RuntimeCapabilities | undefined;
 	private readonly logger: BasicLogger | undefined;
@@ -113,7 +117,7 @@ export class ClineCore {
 	private readonly unsubscribeBootstrapCleanup: () => void;
 
 	private constructor(
-		host: RuntimeHost,
+		host: RuntimeHost & SessionRestartRuntimeService,
 		clientName: string | undefined,
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
@@ -319,6 +323,81 @@ export class ClineCore {
 			return result;
 		} catch (error) {
 			await Promise.resolve(bootstrap?.dispose?.());
+			throw error;
+		}
+	}
+
+	/**
+	 * Replaces an idle session runtime with a fully prepared configuration while
+	 * retaining the session id, transcript, and compaction state.
+	 */
+	async restart(input: ClineCoreRestartInput): Promise<StartSessionResult> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const { sessionId: _sessionId, ...startInput } = input;
+		const clineCoreInput: ClineCoreStartInput = {
+			...startInput,
+			config: { ...startInput.config, sessionId },
+		};
+		const bootstrap = await this.prepare?.(clineCoreInput);
+		try {
+			const preparedInput = bootstrap
+				? await bootstrap.applyToStartSessionInput(clineCoreInput)
+				: clineCoreInput;
+			const normalizedInput = normalizeClineCoreStartInput(preparedInput, {
+				defaultCapabilities: this.capabilities,
+				withExtensionContext: (context) =>
+					createClineCoreAutomationExtensionContext({
+						automationService: this.automationService,
+						automation: this.automation,
+						context,
+						clientName: this.clientName,
+						distinctId: this.distinctId,
+						logger: this.logger,
+						telemetry: this.telemetry,
+					}),
+			});
+			const {
+				prompt: _prompt,
+				userImages: _userImages,
+				userFiles: _userFiles,
+				initialMessages: _initialMessages,
+				initialCompactionState: _initialCompactionState,
+				...restartInput
+			} = normalizedInput;
+			const result = await this.host.restartSession({
+				...restartInput,
+				sessionId,
+				config: { ...restartInput.config, sessionId },
+			} satisfies RestartSessionInput);
+
+			const previousBootstrap = this.activeSessionBootstraps.get(sessionId);
+			if (bootstrap) {
+				this.activeSessionBootstraps.set(sessionId, bootstrap);
+			} else {
+				this.activeSessionBootstraps.delete(sessionId);
+			}
+			if (previousBootstrap && previousBootstrap !== bootstrap) {
+				await Promise.resolve(previousBootstrap.dispose?.()).catch((error) => {
+					this.logger?.log("Previous session bootstrap cleanup failed", {
+						severity: "warn",
+						sessionId,
+						error,
+					});
+				});
+			}
+			return result;
+		} catch (error) {
+			await Promise.resolve(bootstrap?.dispose?.()).catch(() => undefined);
+			try {
+				if (!(await this.host.getSession(sessionId))) {
+					await this.disposeSessionBootstrap(sessionId);
+				}
+			} catch {
+				// Preserve the restart failure when session lookup or cleanup also fails.
+			}
 			throw error;
 		}
 	}

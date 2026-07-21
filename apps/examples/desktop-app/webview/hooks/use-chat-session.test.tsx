@@ -147,6 +147,56 @@ describe("useChatSession", () => {
 		).toBe(expected);
 	});
 
+	it("preserves a failed assistant response when canonical history omits it", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId ?? "session-test" };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: {
+								text: "OpenAI Codex request failed",
+								finishReason: "error",
+							},
+						};
+					}
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "persisted-user",
+							sessionId: "session-test",
+							role: "user",
+							content: "Continue with OpenAI Codex",
+							createdAt: 1,
+						},
+					];
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Continue with OpenAI Codex"));
+
+		expect(
+			current.messages.findLast((message) => message.role === "assistant")
+				?.content,
+		).toBe("OpenAI Codex request failed");
+		expect(current.status).toBe("failed");
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

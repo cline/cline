@@ -119,6 +119,18 @@ export interface StartSessionInput {
 	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
 }
 
+export interface RestartSessionInput
+	extends Omit<
+		StartSessionInput,
+		| "prompt"
+		| "userImages"
+		| "userFiles"
+		| "initialMessages"
+		| "initialCompactionState"
+	> {
+	sessionId: string;
+}
+
 export function splitCoreSessionConfig(config: CoreSessionConfig): {
 	config: RuntimeSessionConfig;
 	localRuntime?: LocalRuntimeStartOptions;
@@ -268,6 +280,10 @@ export interface SessionConnectionRuntimeService {
 		sessionId: string,
 		updates: SessionConnectionUpdate,
 	): Promise<void>;
+}
+
+export interface SessionRestartRuntimeService {
+	restartSession(input: RestartSessionInput): Promise<StartSessionResult>;
 }
 
 export interface RuntimeHostSubscribeOptions {

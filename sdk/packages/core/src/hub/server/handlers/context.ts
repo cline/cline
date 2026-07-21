@@ -13,6 +13,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
+	SessionRestartRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
 import {
@@ -56,7 +57,8 @@ export interface HubTransportContext {
 		Partial<
 			PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
-				SessionConnectionRuntimeService
+				SessionConnectionRuntimeService &
+				SessionRestartRuntimeService
 		>;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
