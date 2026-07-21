@@ -11,7 +11,7 @@ import {
 	Trash2,
 	Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -369,16 +369,21 @@ export function RoutineSchedulesContent() {
 	const [triggeringScheduleIds, setTriggeringScheduleIds] = useState<
 		ReadonlySet<string>
 	>(new Set());
-	const setScheduleBusy = (scheduleId: string, busy: boolean) => {
-		setBusyScheduleIds((previous) => {
-			const next = new Set(previous);
-			if (busy) {
-				next.add(scheduleId);
-			} else {
-				next.delete(scheduleId);
-			}
-			return next;
-		});
+	// Ref mirrors busyScheduleIds so a second click on the same row is
+	// rejected synchronously — two rapid clicks can both fire before React
+	// re-renders the disabled state, and state alone can't distinguish them.
+	const busyScheduleIdsRef = useRef<Set<string>>(new Set());
+	const beginScheduleAction = (scheduleId: string): boolean => {
+		if (busyScheduleIdsRef.current.has(scheduleId)) {
+			return false;
+		}
+		busyScheduleIdsRef.current.add(scheduleId);
+		setBusyScheduleIds(new Set(busyScheduleIdsRef.current));
+		return true;
+	};
+	const endScheduleAction = (scheduleId: string) => {
+		busyScheduleIdsRef.current.delete(scheduleId);
+		setBusyScheduleIds(new Set(busyScheduleIdsRef.current));
 	};
 	const setScheduleTriggering = (scheduleId: string, triggering: boolean) => {
 		setTriggeringScheduleIds((previous) => {
@@ -650,7 +655,9 @@ export function RoutineSchedulesContent() {
 		schedule: RoutineSchedule,
 		enabled: boolean,
 	) => {
-		setScheduleBusy(schedule.scheduleId, true);
+		if (!beginScheduleAction(schedule.scheduleId)) {
+			return;
+		}
 		setErrorMessage(null);
 		try {
 			if (enabled) {
@@ -667,12 +674,14 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setScheduleBusy(schedule.scheduleId, false);
+			endScheduleAction(schedule.scheduleId);
 		}
 	};
 
 	const triggerSchedule = async (schedule: RoutineSchedule) => {
-		setScheduleBusy(schedule.scheduleId, true);
+		if (!beginScheduleAction(schedule.scheduleId)) {
+			return;
+		}
 		setScheduleTriggering(schedule.scheduleId, true);
 		setErrorMessage(null);
 		try {
@@ -696,13 +705,15 @@ export function RoutineSchedulesContent() {
 				variant: "destructive",
 			});
 		} finally {
-			setScheduleBusy(schedule.scheduleId, false);
+			endScheduleAction(schedule.scheduleId);
 			setScheduleTriggering(schedule.scheduleId, false);
 		}
 	};
 
 	const deleteSchedule = async (scheduleId: string) => {
-		setScheduleBusy(scheduleId, true);
+		if (!beginScheduleAction(scheduleId)) {
+			return;
+		}
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("delete_routine_schedule", {
@@ -714,7 +725,7 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setScheduleBusy(scheduleId, false);
+			endScheduleAction(scheduleId);
 		}
 	};
 
