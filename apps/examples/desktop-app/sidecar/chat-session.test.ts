@@ -1,9 +1,13 @@
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
 	hasProviderChanged,
+	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
@@ -103,6 +107,25 @@ describe("hasProviderChanged", () => {
 			),
 		).toBe(false);
 	});
+
+	it("honors a providerId-only update when the stored config uses provider", () => {
+		const current = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+		};
+		const update = {
+			providerId: "openai-codex",
+			modelId: "gpt-5.3-codex",
+		};
+
+		expect(hasProviderChanged(current, update)).toBe(true);
+		expect(mergeSessionConfig(current, update)).toMatchObject({
+			provider: "openai-codex",
+			providerId: "openai-codex",
+			model: "gpt-5.3-codex",
+			modelId: "gpt-5.3-codex",
+		});
+	});
 });
 
 describe("first-send connection updates", () => {
@@ -130,7 +153,7 @@ describe("first-send connection updates", () => {
 		const readSessionCompactionState = vi.fn(async () => undefined);
 		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
-		const start = vi.fn(async () => ({ sessionId }));
+		const start = vi.fn(async (_input?: unknown) => ({ sessionId }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -146,6 +169,8 @@ describe("first-send connection updates", () => {
 					},
 				],
 			]),
+			streamIndices: new Map(),
+			wsClients: new Set(),
 			sessionManager: {
 				readMessages,
 				readSessionCompactionState,
@@ -245,6 +270,104 @@ describe("first-send connection updates", () => {
 		expect(start.mock.invocationCallOrder[0]).toBeLessThan(
 			send.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+
+	it("blocks a concurrent send throughout provider-switch preparation", async () => {
+		let resolveMessages:
+			| ((messages: Array<{ role: string; content: string }>) => void)
+			| undefined;
+		const messages = new Promise<Array<{ role: string; content: string }>>(
+			(resolve) => {
+				resolveMessages = resolve;
+			},
+		);
+		const { ctx, readMessages, sessionId } = createContext();
+		readMessages.mockImplementationOnce(async () => await messages);
+
+		const switching = handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "continue with Codex",
+			config: {
+				...baseConfig,
+				provider: "openai-codex",
+				model: "gpt-5.3-codex",
+			},
+		});
+		await vi.waitFor(() => expect(readMessages).toHaveBeenCalledOnce());
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "racing prompt",
+				config: { ...baseConfig },
+			}),
+		).rejects.toThrow("A provider switch is already in progress");
+
+		resolveMessages?.([
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "first response" },
+		]);
+		await switching;
+	});
+
+	it("restores the previous provider runtime when replacement startup fails", async () => {
+		const { ctx, send, sessionId, start, stop } = createContext();
+		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
+		const testKanbanDataDir = join(
+			tmpdir(),
+			`cline-provider-rollback-${process.pid}`,
+		);
+		process.env.CLINE_KANBAN_DATA_DIR = testKanbanDataDir;
+		start
+			.mockRejectedValueOnce(new Error("Codex bootstrap failed"))
+			.mockResolvedValueOnce({ sessionId });
+
+		try {
+			const result = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue with Codex",
+				config: {
+					...baseConfig,
+					provider: "openai-codex",
+					model: "gpt-5.3-codex",
+				},
+			})) as { result?: { finishReason?: string; text?: string } };
+
+			expect(stop).toHaveBeenCalledOnce();
+			expect(start).toHaveBeenCalledTimes(2);
+			expect(start.mock.calls[1]?.[0]).toEqual(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						providerId: "cline",
+						modelId: "anthropic/claude-sonnet-4.6",
+						sessionId,
+					}),
+				}),
+			);
+			expect(send).not.toHaveBeenCalled();
+			expect(result.result).toEqual({
+				finishReason: "error",
+				text: "Codex bootstrap failed",
+			});
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue with Cline",
+				config: { ...baseConfig },
+			});
+			expect(send).toHaveBeenCalledOnce();
+		} finally {
+			if (previousKanbanDataDir === undefined) {
+				delete process.env.CLINE_KANBAN_DATA_DIR;
+			} else {
+				process.env.CLINE_KANBAN_DATA_DIR = previousKanbanDataDir;
+			}
+			rmSync(testKanbanDataDir, { recursive: true, force: true });
+		}
 	});
 
 	it("refreshes hub-attached sessions even when the cached config matches", async () => {

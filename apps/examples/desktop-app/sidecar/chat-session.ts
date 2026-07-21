@@ -8,6 +8,7 @@ import {
 	type CoreSessionConfig,
 	createSessionCompactionState,
 	projectSessionCompactionState,
+	type SessionCompactionState,
 	type SessionPendingPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
@@ -298,13 +299,52 @@ export function shouldUpdateSessionConnection(
 	);
 }
 
+function readAliasedString(
+	config: JsonRecord,
+	primaryKey: string,
+	aliasKey: string,
+): string | undefined {
+	for (const key of [primaryKey, aliasKey]) {
+		if (!Object.hasOwn(config, key)) continue;
+		const value = String(config[key] ?? "").trim();
+		return value || undefined;
+	}
+	return undefined;
+}
+
+export function mergeSessionConfig(
+	currentConfig: JsonRecord,
+	updates: JsonRecord,
+): JsonRecord {
+	const providerId =
+		readAliasedString(updates, "provider", "providerId") ??
+		readAliasedString(currentConfig, "provider", "providerId");
+	const modelId =
+		readAliasedString(updates, "model", "modelId") ??
+		readAliasedString(currentConfig, "model", "modelId");
+	return {
+		...currentConfig,
+		...updates,
+		...(providerId ? { provider: providerId, providerId } : {}),
+		...(modelId ? { model: modelId, modelId } : {}),
+	};
+}
+
 export function hasProviderChanged(
 	currentConfig: JsonRecord,
 	nextConfig: JsonRecord,
 ): boolean {
-	const readProviderId = (config: JsonRecord) =>
-		String(config.provider ?? config.providerId ?? "").trim();
-	return readProviderId(currentConfig) !== readProviderId(nextConfig);
+	const currentProviderId = readAliasedString(
+		currentConfig,
+		"provider",
+		"providerId",
+	);
+	const nextProviderId = readAliasedString(
+		nextConfig,
+		"provider",
+		"providerId",
+	);
+	return nextProviderId !== undefined && currentProviderId !== nextProviderId;
 }
 
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
@@ -525,6 +565,109 @@ async function handleAttach(
 	};
 }
 
+async function startRebuiltSession(
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+	systemPrompt: string,
+	messages: Message[],
+	compactionState: SessionCompactionState | undefined,
+): Promise<void> {
+	const projectedMessages = compactionState
+		? projectSessionCompactionState(compactionState, messages)
+		: undefined;
+	const restarted = await manager.start({
+		...splitCoreSessionConfig(
+			buildCoreSessionConfig({
+				...config,
+				sessionId,
+				systemPrompt,
+			}) as unknown as CoreSessionConfig,
+		),
+		source: SessionSource.DESKTOP,
+		interactive: true,
+		initialMessages: messages,
+		...(projectedMessages
+			? {
+					initialCompactionState: createSessionCompactionState({
+						sourceMessages: messages,
+						compactedMessages: projectedMessages,
+						systemPrompt: compactionState?.system_prompt,
+					}),
+				}
+			: {}),
+		toolPolicies: resolveToolPolicies(config),
+	});
+	if (restarted.sessionId !== sessionId) {
+		throw new Error(
+			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
+		);
+	}
+}
+
+async function rebuildSessionForProviderChange(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	previousConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): Promise<void> {
+	const [messages, compactionState, previousSystemPrompt, nextSystemPrompt] =
+		await Promise.all([
+			manager.readMessages(sessionId),
+			manager.readSessionCompactionState(sessionId).catch((error) => {
+				ctx.logger?.log?.("Failed to read desktop session compaction state", {
+					sessionId,
+					error,
+					severity: "warn",
+				});
+				return undefined;
+			}),
+			resolveSystemPrompt(previousConfig),
+			resolveSystemPrompt(nextConfig),
+		]);
+
+	await manager.stop(sessionId);
+	try {
+		await startRebuiltSession(
+			manager,
+			sessionId,
+			nextConfig,
+			nextSystemPrompt,
+			messages,
+			compactionState,
+		);
+	} catch (replacementError) {
+		try {
+			await startRebuiltSession(
+				manager,
+				sessionId,
+				previousConfig,
+				previousSystemPrompt,
+				messages,
+				compactionState,
+			);
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(previousConfig),
+			);
+		} catch (rollbackError) {
+			throw new AggregateError(
+				[replacementError, rollbackError],
+				"Provider switch and rollback both failed",
+			);
+		}
+		throw replacementError;
+	}
+
+	// Reusing a session id preserves its existing manifest. Refresh the
+	// connection label after the rebuilt runtime is live.
+	await manager.updateSessionConnection(
+		sessionId,
+		buildSessionConnectionUpdate(nextConfig),
+	);
+}
+
 async function handleSend(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -535,119 +678,80 @@ async function handleSend(
 	if (!prompt) throw new Error("prompt is required");
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
-	if (request.config) {
-		const nextConfig = session
-			? { ...session.config, ...request.config, sessionId }
-			: request.config;
-		const providerChanged = Boolean(
-			session && hasProviderChanged(session.config, nextConfig),
-		);
-		if (providerChanged) {
-			if (session?.busy) {
-				throw new Error("Cannot switch providers while a turn is running");
-			}
-			const [messages, compactionState] = await Promise.all([
-				manager.readMessages(sessionId),
-				manager.readSessionCompactionState(sessionId).catch((error) => {
-					ctx.logger?.log?.("Failed to read desktop session compaction state", {
-						sessionId,
-						error,
-						severity: "warn",
-					});
-					return undefined;
-				}),
-			]);
-			const projectedMessages = compactionState
-				? projectSessionCompactionState(compactionState, messages)
-				: undefined;
-			const systemPrompt = await resolveSystemPrompt(nextConfig);
-			await manager.stop(sessionId);
-			const restarted = await manager.start({
-				...splitCoreSessionConfig(
-					buildCoreSessionConfig({
-						...nextConfig,
-						systemPrompt,
-					}) as unknown as CoreSessionConfig,
-				),
-				source: SessionSource.DESKTOP,
-				interactive: true,
-				initialMessages: messages,
-				...(projectedMessages
-					? {
-							initialCompactionState: createSessionCompactionState({
-								sourceMessages: messages,
-								compactedMessages: projectedMessages,
-								systemPrompt: compactionState?.system_prompt,
-							}),
-						}
-					: {}),
-				toolPolicies: resolveToolPolicies(nextConfig),
-			});
-			if (restarted.sessionId !== sessionId) {
-				throw new Error(
-					`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
-				);
-			}
-			// Reusing a session id preserves its existing manifest. Refresh the
-			// connection label after the rebuilt runtime is live.
-			await manager.updateSessionConnection(
-				sessionId,
-				buildSessionConnectionUpdate(nextConfig),
-			);
-		} else if (
-			!session ||
-			session.attachedViaHub ||
-			shouldUpdateSessionConnection(session.config, nextConfig)
-		) {
-			await manager.updateSessionConnection(
-				sessionId,
-				buildSessionConnectionUpdate(nextConfig),
-			);
-		}
-		if (session) {
-			session.config = nextConfig;
-			if (providerChanged) {
-				session.attachedViaHub = false;
-			}
-		}
+	if (session?.transitioningProvider) {
+		throw new Error("A provider switch is already in progress");
 	}
-
-	// Determine effective delivery mode.
-	// When the session is busy and no explicit delivery was requested, queue it
-	// via Core so that Core's own pending-prompts mechanism handles draining.
-	// This avoids a sidecar-only local queue that never calls manager.send().
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
 	}
-
-	if (delivery === "queue") {
-		if (session) {
-			session.prompt = prompt;
-		}
-		// Delegate queuing to Core — it will drain the prompt once the current
-		// turn finishes and emit pending_prompts / pending_prompt_submitted events.
-		await manager.send({
-			sessionId,
-			prompt,
-			delivery: "queue",
-			userImages: request.attachments?.userImages,
-		});
-		const prompts = await manager.pendingPrompts.list({ sessionId });
-		return {
-			sessionId,
-			ok: true,
-			queued: true,
-			promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
-		};
+	const nextConfig = request.config
+		? mergeSessionConfig(session?.config ?? {}, request.config)
+		: undefined;
+	const providerChanged = Boolean(
+		session &&
+			request.config &&
+			hasProviderChanged(session.config, request.config),
+	);
+	if (providerChanged && session?.busy) {
+		throw new Error("Cannot switch providers while a turn is running");
 	}
-
-	if (session) {
+	const ownsBusyState = Boolean(
+		session && delivery !== "queue" && delivery !== "steer",
+	);
+	if (session && ownsBusyState) {
 		session.prompt = prompt;
 		session.busy = true;
 		session.status = "running";
+		session.transitioningProvider = providerChanged;
 	}
 	try {
+		if (request.config && nextConfig) {
+			if (providerChanged && session) {
+				await rebuildSessionForProviderChange(
+					ctx,
+					manager,
+					sessionId,
+					session.config,
+					nextConfig,
+				);
+			} else if (
+				!session ||
+				session.attachedViaHub ||
+				shouldUpdateSessionConnection(session.config, nextConfig)
+			) {
+				await manager.updateSessionConnection(
+					sessionId,
+					buildSessionConnectionUpdate(nextConfig),
+				);
+			}
+			if (session) {
+				session.config = nextConfig;
+				if (providerChanged) {
+					session.attachedViaHub = false;
+				}
+			}
+		}
+
+		if (delivery === "queue") {
+			if (session) {
+				session.prompt = prompt;
+			}
+			await manager.send({
+				sessionId,
+				prompt,
+				delivery: "queue",
+				userImages: request.attachments?.userImages,
+			});
+			const prompts = await manager.pendingPrompts.list({ sessionId });
+			return {
+				sessionId,
+				ok: true,
+				queued: true,
+				promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+			};
+		}
+
 		ctx.logger?.debug("Sending desktop chat prompt", {
 			sessionId,
 			promptLength: prompt.length,
@@ -664,8 +768,7 @@ async function handleSend(
 			finishReason: result?.finishReason,
 			textLength: result?.text?.length ?? 0,
 		});
-		if (session) {
-			session.busy = false;
+		if (session && ownsBusyState) {
 			session.status = "idle";
 			if (result?.messages) session.messages = result.messages as unknown[];
 		}
@@ -685,8 +788,7 @@ async function handleSend(
 		};
 	} catch (error) {
 		ctx.logger?.error?.("Desktop chat prompt failed", { sessionId, error });
-		if (session) {
-			session.busy = false;
+		if (session && ownsBusyState) {
 			session.status = "error";
 		}
 		emitChunk(
@@ -706,6 +808,11 @@ async function handleSend(
 				text: error instanceof Error ? error.message : String(error),
 			},
 		};
+	} finally {
+		if (session && ownsBusyState) {
+			session.busy = false;
+			session.transitioningProvider = false;
+		}
 	}
 }
 
