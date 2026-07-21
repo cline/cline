@@ -746,6 +746,8 @@ function openFileInEditor(filePath: string): void {
 	const cmdArgs =
 		platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
 	const child = spawn(cmd, cmdArgs, { stdio: "ignore", detached: true });
+	// An unhandled child error event would crash the sidecar process.
+	child.once("error", () => {});
 	child.unref();
 }
 
@@ -780,9 +782,24 @@ function openFileInCodeEditor(filePath: string): string {
 	for (const cli of CODE_EDITOR_CLIS) {
 		const executable = findExecutableOnPath(cli);
 		if (!executable) continue;
-		const child = spawn(executable, [filePath], {
-			stdio: "ignore",
-			detached: true,
+		// Windows `where` resolves editor CLIs to .cmd/.bat shims, which
+		// spawn() cannot launch directly — route those through cmd.exe.
+		const isWindowsShim =
+			process.platform === "win32" && /\.(cmd|bat)$/i.test(executable);
+		const child = isWindowsShim
+			? spawn("cmd", ["/c", executable, filePath], {
+					stdio: "ignore",
+					detached: true,
+				})
+			: spawn(executable, [filePath], {
+					stdio: "ignore",
+					detached: true,
+				});
+		// Spawn failures surface as async error events; without a listener
+		// they crash the sidecar. Fall back to the OS default opener so the
+		// click still opens the file.
+		child.once("error", () => {
+			openFileInEditor(filePath);
 		});
 		child.unref();
 		return cli;
