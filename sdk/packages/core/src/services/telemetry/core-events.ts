@@ -243,10 +243,12 @@ export function captureAuthFailed(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	errorMessage?: string,
+	details?: { requestId?: string },
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_FAILED, {
 		provider,
 		errorMessage: truncateErrorMessage(errorMessage),
+		...(details?.requestId ? { request_id: details.requestId } : {}),
 	});
 }
 
@@ -261,7 +263,7 @@ export function captureAuthLoggedOut(
 		reason,
 		status: details?.status,
 		errorCode: details?.errorCode,
-		requestId: details?.requestId,
+		...(details?.requestId ? { request_id: details.requestId } : {}),
 	});
 }
 
@@ -288,7 +290,7 @@ export function captureAuthRefreshSoftFailure(
 		provider,
 		status: details?.status,
 		errorCode: details?.errorCode,
-		requestId: details?.requestId,
+		...(details?.requestId ? { request_id: details.requestId } : {}),
 		errorName: details?.errorName,
 		tokenExpired: details?.tokenExpired,
 	});

@@ -252,7 +252,11 @@ async function requestWorkOSDeviceAuthorization(
 	if (!response.ok) {
 		throw new ClineOAuthTokenError(
 			`Device authorization failed: ${response.status}${json.error_description ? ` - ${json.error_description}` : ""}`,
-			{ status: response.status, errorCode: json.error },
+			{
+				status: response.status,
+				errorCode: json.error,
+				requestId: response.headers.get("x-request-id") ?? undefined,
+			},
 		);
 	}
 	if (!json.device_code || !json.user_code || !json.verification_uri) {
@@ -338,7 +342,7 @@ async function pollWorkOSTokens(options: {
 					{
 						status: response.status,
 						errorCode: payload.error,
-						requestId: response.headers.get("x-request-id") ?? "none",
+						requestId: response.headers.get("x-request-id") ?? undefined,
 					},
 				);
 			}
@@ -348,7 +352,7 @@ async function pollWorkOSTokens(options: {
 					{
 						status: response.status,
 						errorCode: payload.error,
-						requestId: response.headers.get("x-request-id") ?? "none",
+						requestId: response.headers.get("x-request-id") ?? undefined,
 					},
 				);
 			}
@@ -393,7 +397,7 @@ async function registerWorkOSTokens(
 			{
 				status: response.status,
 				errorCode: details.code,
-				requestId: response.headers.get("x-request-id") ?? "none",
+				requestId: response.headers.get("x-request-id") ?? undefined,
 			},
 		);
 	}
@@ -443,7 +447,7 @@ async function exchangeAuthorizationCode(
 			{
 				status: response.status,
 				errorCode: details.code,
-				requestId: response.headers.get("x-request-id") ?? "none",
+				requestId: response.headers.get("x-request-id") ?? undefined,
 			},
 		);
 	}
@@ -567,6 +571,10 @@ export async function loginClineOAuth(
 			options.telemetry,
 			options.provider ?? "cline",
 			error instanceof Error ? error.message : String(error),
+			{
+				requestId:
+					error instanceof ClineOAuthTokenError ? error.requestId : undefined,
+			},
 		);
 		throw error;
 	} finally {
@@ -633,6 +641,10 @@ export async function completeClineDeviceAuth(options: {
 			options.telemetry,
 			providerName,
 			error instanceof Error ? error.message : String(error),
+			{
+				requestId:
+					error instanceof ClineOAuthTokenError ? error.requestId : undefined,
+			},
 		);
 		throw error;
 	}
@@ -667,9 +679,9 @@ export async function refreshClineToken(
 	if (!response.ok) {
 		const text = await response.text().catch(() => "");
 		const details = parseOAuthError(text);
-		const requestId = response.headers.get("x-request-id") ?? "none";
+		const requestId = response.headers.get("x-request-id") ?? undefined;
 		sdkDebug(
-			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"} requestId=${requestId}`,
+			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"} requestId=${requestId ?? "none"}`,
 		);
 		throw new ClineOAuthTokenError(
 			`Token refresh failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
