@@ -139,6 +139,18 @@ function ChatMessagesImpl({
 		.find((message) => message.role === "error");
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+	// Core reports "running" as soon as the turn is dispatched, well before the
+	// first streamed chunk arrives, so keep the thinking indicator up until the
+	// model produces output (or something else needs the user's attention).
+	const lastConversationMessage = [...messages]
+		.reverse()
+		.find((message) => message.role !== "status");
+	const isAwaitingFirstOutput =
+		status === "running" &&
+		!streamingMessageId &&
+		lastConversationMessage?.role === "user" &&
+		pendingToolApprovals.length === 0 &&
+		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
 	const [toolApprovalActions, setToolApprovalActions] = useState<
 		Record<string, "approving" | "rejecting">
@@ -452,7 +464,8 @@ function ChatMessagesImpl({
 							</div>
 						)
 					) : null}
-					{status === "starting" && !isSessionSwitching ? (
+					{(status === "starting" || isAwaitingFirstOutput) &&
+					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
 							Thinking...
