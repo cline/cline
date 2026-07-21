@@ -10,7 +10,6 @@ import {
 	Filter,
 	FolderTree,
 	GitFork,
-	Home,
 	Loader2,
 	MessageSquare,
 	PanelLeftOpen,
@@ -64,6 +63,11 @@ import {
 	HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
@@ -71,11 +75,13 @@ import {
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "@/components/views/settings/settings-view";
+import { useAccount } from "@/contexts/account-context";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
@@ -172,6 +178,14 @@ export function AgentSidebar({
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
+	const { user, activeOrganization } = useAccount();
+	const { displayName, email } = user || {};
+	const username = displayName?.split(" ")?.[0] || email?.split("@")?.[0];
+	const accountName = username?.trim() || "Cline Desktop";
+	const accountScope = user
+		? (activeOrganization?.name ?? "Personal")
+		: undefined;
+	const accountInitial = accountName.charAt(0).toUpperCase();
 	const {
 		deleteThread: deleteHistoryThread,
 		forkThread: forkHistoryThread,
@@ -205,6 +219,26 @@ export function AgentSidebar({
 	const [projectVisibleCounts, setProjectVisibleCounts] = useState<
 		Record<string, number>
 	>({});
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+
+	const loadAppVersion = useCallback(async () => {
+		try {
+			const context = await desktopClient.invoke<{ appVersion?: unknown }>(
+				"get_process_context",
+			);
+			const version =
+				typeof context?.appVersion === "string"
+					? context.appVersion.trim()
+					: "";
+			setAppVersion(version || null);
+		} catch {
+			// Leave the version hidden; an older sidecar build has no appVersion.
+		}
+	}, []);
+
+	useEffect(() => {
+		void loadAppVersion();
+	}, [loadAppVersion]);
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -446,14 +480,31 @@ export function AgentSidebar({
 						isCollapsed && "justify-center px-0",
 					)}
 				>
-					<button
-						aria-label="Cline home"
-						className="rounded-md p-1 text-sidebar-foreground transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-						onClick={openHome}
-						type="button"
+					<Popover
+						onOpenChange={(open) => {
+							if (open && !appVersion) {
+								void loadAppVersion();
+							}
+						}}
 					>
-						<ClineLogo className="h-6 w-6" />
-					</button>
+						<PopoverTrigger asChild>
+							<button
+								aria-label="Cline home"
+								className="flex items-center gap-2 rounded-md p-1 text-sidebar-foreground transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								type="button"
+								onClick={openHome}
+								title="Home"
+							>
+								<ClineLogo className="h-6 w-6" />
+							</button>
+						</PopoverTrigger>
+						<PopoverContent align="start" className="w-52 p-3" side="bottom">
+							<p className="text-sm font-medium">Cline Code</p>
+							<p className="mt-0.5 text-xs text-muted-foreground">
+								{appVersion ? `Version ${appVersion}` : "Version unavailable"}
+							</p>
+						</PopoverContent>
+					</Popover>
 				</div>
 
 				<div className={cn("shrink-0 px-3", isCollapsed && "px-1.5")}>
@@ -465,13 +516,13 @@ export function AgentSidebar({
 								"bg-sidebar-accent text-sidebar-accent-foreground",
 							isCollapsed && "mx-auto size-9 justify-center px-0",
 						)}
-						aria-label="Home"
+						aria-label="New Session"
 						onClick={openHome}
-						title="Home"
+						title="New Session"
 						variant="sidebarItem"
 					>
-						<Home className="size-4" />
-						{!isCollapsed ? "Home" : null}
+						<Plus className="size-4" />
+						{!isCollapsed ? "New Session" : null}
 					</Button>
 				</div>
 
@@ -542,17 +593,6 @@ export function AgentSidebar({
 									</Button>
 									{sortMenu}
 									{filterMenu}
-									<Button
-										aria-label="New session"
-										className="m-0! size-8 p-0! text-muted-foreground hover:text-sidebar-foreground"
-										onClick={openNewThread}
-										size="icon"
-										title="New session"
-										type="button"
-										variant="ghost"
-									>
-										<Plus className="size-4" />
-									</Button>
 								</div>
 							</div>
 							{searchOpen ? (
@@ -679,36 +719,47 @@ export function AgentSidebar({
 				)}
 
 				<div className="shrink-0 border-t border-sidebar-border/70 px-2 py-3">
-					<Button
-						aria-label="Settings"
-						type="button"
-						variant="sidebarItem"
-						className={cn(
-							"min-w-0 justify-start",
-							view === "settings" &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							isCollapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						onClick={openSettings}
-						title="Settings"
-					>
-						<Settings className="size-4" />
-						{!isCollapsed ? "Settings" : null}
-					</Button>
+					{view !== "settings" && (
+						<Button
+							aria-label="Settings"
+							type="button"
+							variant="sidebarItem"
+							className={cn(
+								"min-w-0 justify-start",
+								isCollapsed && "mx-auto size-9 justify-center px-0",
+							)}
+							onClick={openSettings}
+							title="Settings"
+						>
+							<Settings className="size-4" />
+							{!isCollapsed ? "Settings" : null}
+						</Button>
+					)}
 					{!isCollapsed ? (
-						<div className="mt-2 flex items-center gap-2 rounded-md px-3 py-2 text-sidebar-foreground">
-							<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-								C
-							</span>
-							<span className="min-w-0">
+						<button
+							aria-label="Account settings"
+							className={cn(
+								"flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+								view === "settings" &&
+									settingsSection === "Account" &&
+									"bg-sidebar-accent text-sidebar-accent-foreground",
+							)}
+							onClick={() => openSettingsSection("Account")}
+							title={user?.email || undefined}
+							type="button"
+						>
+							<span className="min-w-0 flex gap-2 items-center">
+								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+									{accountInitial}
+								</span>
 								<span className="block truncate text-sm font-medium">
-									Cline Desktop
-								</span>
-								<span className="block text-[11px] text-muted-foreground">
-									Local
+									{accountName}
+									<span className="pl-1 truncate text-[11px] text-muted-foreground">
+										{accountScope}
+									</span>
 								</span>
 							</span>
-						</div>
+						</button>
 					) : null}
 				</div>
 			</div>
@@ -823,11 +874,9 @@ function ThreadItem({
 	pendingAction: "rename" | "fork" | "delete" | null;
 	unread: boolean;
 }) {
-	const tokenLabel = formatTokenCount(thread.inputTokens, thread.outputTokens);
-	const costLabel = formatCostUsd(thread.totalCostUsd);
 	const title = normalizeTitle(thread.title);
+	const overviewTitle = getSessionOverviewTitle(thread.title);
 	const pending = pendingAction !== null;
-	const workspacePath = thread.workspacePath || thread.codebase;
 	const statusDotClass = pending
 		? "bg-yellow-400"
 		: thread.status === "running"
@@ -835,20 +884,7 @@ function ThreadItem({
 			: unread
 				? "bg-blue-500"
 				: "";
-	const infoItems: Array<[string, string | null | undefined, string?]> = [
-		["ID", thread.id],
-		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
-			workspacePath || undefined,
-		],
-		["Status", thread.status],
-		["Updated", thread.time],
-		["Provider", thread.provider],
-		["Model", thread.model],
-		["Tokens", tokenLabel],
-		["Cost", costLabel],
-	].filter((item): item is [string, string, string?] => Boolean(item[1]));
+	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
 		return (
@@ -881,7 +917,7 @@ function ThreadItem({
 					<HoverCardTrigger asChild>
 						<button
 							className={cn(
-								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md px-2 text-left text-sm font-normal transition-colors",
+								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal transition-colors",
 								isActive
 									? "bg-sidebar-accent text-sidebar-accent-foreground"
 									: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50",
@@ -915,7 +951,9 @@ function ThreadItem({
 					sideOffset={8}
 				>
 					<div className="min-w-0 space-y-2">
-						<div className="truncate text-sm font-medium">{title}</div>
+						<div className="wrap-break-word text-sm font-medium">
+							{overviewTitle}
+						</div>
 						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
@@ -939,6 +977,34 @@ function ThreadItem({
 				pendingAction={pendingAction}
 			/>
 		</ContextMenu>
+	);
+}
+
+export function getSessionOverviewTitle(title: string): string {
+	const firstLine = title.split(/\r?\n/, 1)[0] ?? "";
+	return normalizeTitle(firstLine);
+}
+
+export function getSessionOverviewItems(
+	thread: SessionThread,
+): Array<[string, string, string?]> {
+	const workspacePath = thread.workspacePath || thread.codebase;
+	const items: Array<[string, string | null | undefined, string?]> = [
+		[
+			"Workspace",
+			workspaceDisplayName(workspacePath),
+			workspacePath || undefined,
+		],
+		["Git branch", thread.gitBranch],
+		["Provider", thread.provider],
+		["Model", thread.model],
+		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
+		["Cost", formatCostUsd(thread.totalCostUsd)],
+		["ID", thread.id],
+		["Updated", thread.time],
+	];
+	return items.filter((item): item is [string, string, string?] =>
+		Boolean(item[1]),
 	);
 }
 

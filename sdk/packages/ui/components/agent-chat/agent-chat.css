@@ -141,7 +141,10 @@
 	}
 
 	.cline-chat-message:hover > .cline-chat-message-actions,
-	.cline-chat-message:focus-within > .cline-chat-message-actions,
+	.cline-chat-message:has(
+			> .cline-chat-message-actions .cline-chat-message-action:focus-visible
+		)
+		> .cline-chat-message-actions,
 	.cline-chat-message-actions[data-visible="true"] {
 		pointer-events: auto;
 		opacity: 1;

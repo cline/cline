@@ -143,7 +143,7 @@ export function startServer(
 }
 
 export function createFetchHandler(
-	_ctx: SidecarContext,
+	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
 ) {
 	return async (req: Request, server: SidecarServer) => {
@@ -199,11 +199,7 @@ export function createFetchHandler(
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
-						process.stderr.write(
-							`sidecar shutdown failed: ${
-								error instanceof Error ? error.message : String(error)
-							}\n`,
-						);
+						ctx.logger?.error?.("Desktop sidecar shutdown failed", { error });
 					})
 					.finally(() => process.exit(0));
 			});

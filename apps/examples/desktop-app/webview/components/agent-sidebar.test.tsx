@@ -3,12 +3,20 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentSidebar } from "@/components/agent-sidebar";
+import {
+	AgentSidebar,
+	getSessionOverviewItems,
+	getSessionOverviewTitle,
+} from "@/components/agent-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { AccountProvider } from "@/contexts/account-context";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -78,6 +86,9 @@ function sessionIsVisible(title: string): boolean {
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	window.localStorage.clear();
+	invoke.mockReset();
+	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
 	Object.defineProperty(window, "matchMedia", {
 		configurable: true,
 		value: vi.fn(() => ({
@@ -101,6 +112,42 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("builds the hover overview with branch and secondary metadata last", () => {
+		const thread = {
+			...makeThread("cline", 5),
+			gitBranch: "bee/session-overview",
+			inputTokens: 3_000_000,
+			outputTokens: 9_000,
+			totalCostUsd: 3.06,
+		};
+
+		expect(getSessionOverviewItems(thread)).toEqual([
+			["Workspace", "cline", "/projects/cline"],
+			["Git branch", "bee/session-overview"],
+			["Provider", "cline"],
+			["Model", "test-model"],
+			["Tokens", "3009k"],
+			["Cost", "$3.06"],
+			["ID", "cline-5"],
+			["Updated", "5m"],
+		]);
+		expect(getSessionOverviewItems(makeThread("cline", 5))).not.toContainEqual([
+			"Git branch",
+			expect.anything(),
+		]);
+		expect(
+			getSessionOverviewItems(thread).some(([label]) => label === "Status"),
+		).toBe(false);
+	});
+
+	it("shows the full first line of the session title", () => {
+		const firstLine =
+			"This is a complete session title that is intentionally longer than seventy characters for the hover overview";
+		expect(getSessionOverviewTitle(`${firstLine}\nSecond line`)).toBe(
+			firstLine,
+		);
+	});
+
 	it("defaults to time and keeps project expansion scoped to one project", async () => {
 		const threads = [
 			...Array.from({ length: 12 }, (_, index) =>
@@ -125,8 +172,10 @@ describe("AgentSidebar session organization", () => {
 						isHomeActive
 						onHome={vi.fn()}
 						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
+						settingsSection="General"
 						view="chat"
 					/>
 				</SidebarProvider>,
@@ -172,5 +221,155 @@ describe("AgentSidebar session organization", () => {
 
 		await click(buttonWithText("Load older projects"));
 		expect(loadOlderSessions).toHaveBeenCalledOnce();
+	});
+
+	it("shows the signed-in account and active organization in the footer", async () => {
+		invoke.mockResolvedValue({
+			id: "user-1",
+			email: "beatrix@cline.bot",
+			displayName: "Beatrix",
+			photoUrl: "",
+			createdAt: "2024-01-01T00:00:00Z",
+			updatedAt: "2024-01-01T00:00:00Z",
+			organizations: [
+				{
+					active: true,
+					memberId: "member-1",
+					name: "Cline Bot Inc",
+					organizationId: "org-1",
+					roles: ["admin"],
+				},
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							isHomeActive
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Beatrix");
+			expect(container.textContent).toContain("Cline Bot Inc");
+		});
+		expect(container.textContent).not.toContain("Cline Desktop");
+		expect(container.textContent).not.toContain("Local");
+	});
+
+	it("opens the Account settings section when the footer account row is clicked", async () => {
+		const setView = vi.fn();
+		const onSettingsSectionChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							isHomeActive
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={onSettingsSectionChange}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={setView}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const accountButton = container.querySelector(
+			'[aria-label="Account settings"]',
+		);
+		expect(accountButton).not.toBeNull();
+		await click(accountButton as Element);
+
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
+		expect(setView).toHaveBeenCalledWith("settings");
+	});
+
+	it("shows the desktop app version in a popover when the Cline logo is clicked", async () => {
+		const onHome = vi.fn();
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { appVersion: "1.2.3" };
+			}
+			throw new Error("No Cline account auth token found");
+		});
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							isHomeActive
+							onHome={onHome}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const logoButton = container.querySelector('[aria-label="Cline home"]');
+		expect(logoButton).not.toBeNull();
+		expect(document.body.textContent).not.toContain("Version 1.2.3");
+
+		await click(logoButton as Element);
+
+		await vi.waitFor(() => {
+			expect(document.body.textContent).toContain("Version 1.2.3");
+		});
+		expect(onHome).toHaveBeenCalled();
+		expect(invoke).toHaveBeenCalledWith("get_process_context");
+	});
+
+	it("falls back to a signed-out footer without account data", async () => {
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							isHomeActive
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Cline Desktop");
+		});
+		expect(container.textContent).not.toContain("Local");
 	});
 });

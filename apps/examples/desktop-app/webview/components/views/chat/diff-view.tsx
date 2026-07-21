@@ -40,8 +40,8 @@ export function DiffView({ fileDiffs, onClose }: DiffViewProps) {
 	};
 
 	return (
-		<div className="flex flex-1 flex-col overflow-hidden">
-			<div className="flex h-10 items-center justify-between border-b border-border bg-card px-4">
+		<div className="flex h-full min-h-0 flex-col overflow-hidden">
+			<div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card px-4">
 				<div className="flex items-center gap-3">
 					<span className="text-xs font-medium text-foreground">
 						Uncommitted changes
@@ -64,7 +64,7 @@ export function DiffView({ fileDiffs, onClose }: DiffViewProps) {
 				</div>
 			</div>
 
-			<ScrollArea className="flex-1">
+			<ScrollArea className="min-h-0 flex-1">
 				{fileDiffs.length === 0 ? (
 					<div className="flex h-full items-center justify-center px-4 py-16 text-sm text-muted-foreground">
 						No file changes in this session yet.
