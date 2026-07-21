@@ -876,9 +876,7 @@ export async function handleCommand(
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
-		console.error(
-			`[sidecar:delete] request command=${command} sessionId=${sessionId}`,
-		);
+		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
@@ -956,14 +954,16 @@ export async function handleCommand(
 			}
 		}
 		if (!deleted && deleteError) {
-			console.error(
-				`[sidecar:delete] failed sessionId=${sessionId} error=${deleteError.message}`,
-			);
+			ctx.logger?.error?.("Failed to delete desktop chat session", {
+				sessionId,
+				error: deleteError,
+			});
 			throw deleteError;
 		}
-		console.error(
-			`[sidecar:delete] result sessionId=${sessionId} deleted=${deleted}`,
-		);
+		ctx.logger?.log("Desktop chat session delete completed", {
+			sessionId,
+			deleted,
+		});
 		if (deleted) {
 			broadcastEvent(ctx, "session_deleted", {
 				sessionId,
