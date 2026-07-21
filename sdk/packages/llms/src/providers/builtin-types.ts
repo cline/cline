@@ -22,6 +22,7 @@ export type ProviderFamily =
 	| "openai-codex"
 	| "opencode"
 	| "dify"
+	| "ollama"
 	| "sap-ai-core";
 
 export interface BuiltinSpec {

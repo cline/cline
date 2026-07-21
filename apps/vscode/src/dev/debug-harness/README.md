@@ -15,8 +15,9 @@ Designed to be driven from an agentic loop via `curl` commands.
 ## Quick Start
 
 ```bash
-# Terminal 1: Start the debug harness server
-bun src/dev/debug-harness/server.ts --auto-launch --skip-build
+# Terminal 1: Start the debug harness server.
+# Run with node, NOT bun — Playwright's Electron launch times out under bun.
+node src/dev/debug-harness/server.ts --auto-launch --skip-build
 
 # Terminal 2: Interact via curl
 curl localhost:19229/api -d '{"method":"status"}'
@@ -27,7 +28,7 @@ curl localhost:19229/api -d '{"method":"ui.screenshot"}'
 ## Server Options
 
 ```
-bun src/dev/debug-harness/server.ts [options]
+node src/dev/debug-harness/server.ts [options]
 
 Options:
   --skip-build        Skip building extension/webview (use existing dist/)
@@ -42,7 +43,7 @@ Options:
 ```bash
 # This builds protos, extension (unminified+sourcemaps), webview (unminified+sourcemaps),
 # downloads VSCode, launches it, and connects CDP to the extension host.
-bun src/dev/debug-harness/server.ts --auto-launch
+node src/dev/debug-harness/server.ts --auto-launch
 ```
 
 ## Data Isolation

@@ -1,17 +1,40 @@
 name: ext-vscode-publish-nightly
 
+# Publishes saoudrizwan.cline-nightly as the COMBINED A/B VSIX: the rollout
+# loader plus two complete extension bundles — `next/` from this ref's
+# apps/vscode (SDK-based) and `legacy/` from the legacy-extension branch.
+# Cohort selection happens at runtime via PostHog flags; see
+# apps/vscode-rollout/README.md for the design and rollout runbook.
+#
+# The stable-identity equivalent of this pipeline is ext-vscode-ab-package.yml
+# (manual dispatch, publishes claude-dev). Shared logic lives in
+# apps/vscode-rollout/scripts (nightlify/gen-manifest/stitch/smoke) so both
+# workflows stay thin. The single-bundle nightly path this replaced
+# (apps/vscode/scripts/publish-nightly.mjs) remains for manual feature-branch
+# pre-release publishes.
+
 on:
   schedule:
     # Every day at 4:00 AM PST (12:00 UTC)
     - cron: "0 12 * * *"
   workflow_dispatch:
+    inputs:
+      legacy-ref:
+        description: "Ref to build the legacy bundle from"
+        required: false
+        default: "legacy-extension"
+        type: string
+      dry-run:
+        description: "Build and upload the .vsix artifact without publishing or tagging"
+        required: false
+        default: false
+        type: boolean
 
-run-name: "Publish Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
+run-name: "Publish Combined Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
 
-# Prevent concurrent publish runs on the same branch. The nightly publish script
-# generates the extension version from a seconds-resolution timestamp, so parallel
-# runs on the same ref can collide on the same version and cause publish failures
-# or inconsistent tagging. Runs on different branches proceed independently.
+# Prevent concurrent publish runs on the same branch: the version is generated
+# from a seconds-resolution timestamp, so parallel runs on the same ref can
+# collide on the same version and cause publish failures or inconsistent tagging.
 concurrency:
   group: ext-vscode-publish-nightly-${{ github.ref }}
   cancel-in-progress: false
@@ -20,7 +43,7 @@ permissions: {}
 
 jobs:
   test:
-    if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
+    if: github.repository == 'cline/cline'
     permissions:
       contents: read
       pull-requests: read
@@ -30,60 +53,79 @@ jobs:
     needs: test
     permissions:
       contents: write
-    name: Publish Cline (Nightly) Extension
-    if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
+    name: Publish Cline (Nightly) Combined Extension
+    # Defense in depth: only protected main may enter the publishing environment.
+    # This `if` is advisory because a dispatched branch runs its own copy of this
+    # file; the enforced gate is the PublishNightly environment's deployment-branch
+    # policy, which must also allow only main.
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: PublishNightly
-    # The VS Code extension's package.json and lockfiles live under apps/vscode/
-    # (the repo root has no package.json). Mirror ext-vscode-test.yml so install
-    # and publish steps run in the correct workspace.
-    defaults:
-      run:
-        working-directory: apps/vscode
 
     steps:
-      - name: Checkout selected branch
+      - name: Checkout next (SDK) source
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+          path: next-src
           lfs: true
           persist-credentials: false
 
-      - name: Show build source
-        working-directory: ${{ github.workspace }}
+      - name: Checkout legacy source
+        uses: actions/checkout@v4
+        with:
+          # NOTE: inputs are empty strings on `schedule` events, so the ||
+          # fallback (not the input's declared default) is what the cron uses.
+          ref: ${{ inputs.legacy-ref || 'legacy-extension' }}
+          path: legacy-src
+          lfs: true
+          persist-credentials: false
+
+      - name: Show build sources
+        env:
+          # Routed through env rather than interpolated into the script body so
+          # a crafted dispatch input can't inject shell (hygiene: dispatchers
+          # need write access anyway, but keep the pattern clean).
+          LEGACY_REF: ${{ inputs.legacy-ref || 'legacy-extension' }}
         run: |
-          echo "Building ref: $GITHUB_REF"
-          echo "Building sha: $GITHUB_SHA"
-          git --no-pager log -1 --oneline
+          echo "next:   $(git -C next-src rev-parse HEAD)"
+          echo "legacy: $(git -C legacy-src rev-parse HEAD) ($LEGACY_REF)"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
 
-      # Node is still REQUIRED in the publish job (not just for install): the publish
-      # scripts run as `node ./scripts/publish-*.mjs` and shell out to `npx ovsx`.
-      # setup-bun does not provide a Node runtime, so keep setup-node here.
-      # Pinned to Node 22 because newer LTS (Node 24 / npm 11) can make vsce's
-      # `npm list` dependency detection fail with ELSPROBLEMS during packaging.
+      # Node is required beyond install: the rollout scripts run under node and
+      # publishing shells out to vsce/ovsx. Pinned to Node 22 because newer LTS
+      # (Node 24 / npm 11) can make vsce's dependency detection fail.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # Single root install resolves the whole bun workspace at once (replaces the
-      # per-package `npm ci` steps for apps/vscode + webview-ui).
-      - name: Install workspace dependencies
-        working-directory: ${{ github.workspace }}
+      # ONE version for the next bundle, the legacy bundle, and the union
+      # manifest: gen-manifest hard-fails if the bundle identities diverge.
+      # Same scheme as the standalone nightly: <major>.<minor>.<unix-seconds>
+      # from next's base version, so it keeps outranking earlier nightlies.
+      - name: Compute nightly version
+        id: version
+        run: |
+          BASE=$(node -p "require('./next-src/apps/vscode/package.json').version")
+          VERSION="$(echo "$BASE" | cut -d. -f1,2).$(date +%s)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Combined nightly version: $VERSION (base $BASE)"
+
+      - name: Install next workspace dependencies
+        working-directory: next-src
         run: bun install --frozen-lockfile
 
-      # @cline/* are local workspace symlinks to source packages; build dist/ before
-      # packaging/publishing the extension.
       - name: Build SDK packages
-        working-directory: ${{ github.workspace }}
+        working-directory: next-src
         run: bun run build:sdk
 
       - name: Assert better-sqlite3 native binary present
+        working-directory: next-src/apps/vscode
         run: |
           NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
           if [ ! -f "$NODE_FILE" ]; then
@@ -93,20 +135,24 @@ jobs:
           fi
           echo "Found better-sqlite3 native binary: $NODE_FILE"
 
-      # vsce is now a workspace devDependency (on node_modules/.bin), but ovsx is not
-      # vendored and the publish script invokes it via `npx ovsx`, so install ovsx
-      # globally here (npm is available via setup-node). vsce is installed globally
-      # too to preserve the script's existing PATH expectations.
-      - name: Install Publishing Tools
-        run: npm install -g @vscode/vsce ovsx
+      # Rewrite each bundle's package.json to the cline-nightly identity BEFORE
+      # its build (runtime command/config IDs derive from the manifest) and
+      # AFTER dependency install (workspace self-links key off the original
+      # package name).
+      - name: Nightlify next bundle manifest
+        working-directory: next-src/apps/vscode-rollout
+        run: node scripts/nightlify.mjs --dir "$GITHUB_WORKSPACE/next-src/apps/vscode" --version "${{ steps.version.outputs.version }}"
 
-      - name: Publish Nightly Extension
+      - name: Build next bundle
+        working-directory: next-src/apps/vscode
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          CLINE_ENVIRONMENT: production
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
-          CLINE_ENVIRONMENT: production
+          # Inlined by esbuild: attributes every telemetry event with
+          # extension_variant and unlocks the bundle's authoritative
+          # extension.rollout.bundle_activated capture. Rollout builds only.
+          CLINE_ROLLOUT_VARIANT: next
           # OpenTelemetry production defaults (can be overridden at runtime)
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
@@ -114,12 +160,129 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-        # The script itself runs under `node ./scripts/publish-nightly.mjs`; bun run
-        # just launches it. Node + npm (for `npx ovsx`) are provided by setup-node above.
-        run: bun run publish:marketplace:nightly
+        run: bun run package
+
+      - name: Install legacy dependencies
+        working-directory: legacy-src
+        run: |
+          npm --prefix apps/vscode install --include=optional
+          npm --prefix apps/vscode/webview-ui install --include=optional
+
+      - name: Nightlify legacy bundle manifest
+        working-directory: next-src/apps/vscode-rollout
+        run: node scripts/nightlify.mjs --dir "$GITHUB_WORKSPACE/legacy-src/apps/vscode" --version "${{ steps.version.outputs.version }}"
+
+      - name: Build legacy bundle
+        working-directory: legacy-src/apps/vscode
+        env:
+          CLINE_ENVIRONMENT: production
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ROLLOUT_VARIANT: legacy
+          # Legacy's esbuild inlines these too (its own publish workflow passes
+          # them) — omitting them here would ship the legacy bundle with the
+          # OTel pipeline dead, unlike what legacy users get today.
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        run: npm run package
+
+      - name: Build loader and run rollout tests
+        working-directory: next-src/apps/vscode-rollout
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+        run: |
+          bun run typecheck
+          bun run test
+          bun run build:production
+
+      - name: Stitch combined VSIX staging
+        working-directory: next-src/apps/vscode-rollout
+        run: |
+          node scripts/stitch.mjs \
+            --next "$GITHUB_WORKSPACE/next-src/apps/vscode" \
+            --legacy "$GITHUB_WORKSPACE/legacy-src/apps/vscode" \
+            --loader dist/extension.js \
+            --version "${{ steps.version.outputs.version }}" \
+            --out "$GITHUB_WORKSPACE/staging"
+
+      - name: Smoke-test loader against staging
+        working-directory: next-src/apps/vscode-rollout
+        run: node scripts/smoke-loader.mjs "$GITHUB_WORKSPACE/staging"
+
+      # The nightly identity must have fully propagated (nightlify -> both
+      # bundle manifests -> union manifest) or we'd publish over the stable
+      # extension ID. The bundle sub-manifest checks guard the version
+      # stamping: the About tab and telemetry extension_version read those.
+      - name: Assert nightly manifest identity
+        working-directory: staging
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node -e '
+            const assert = require("node:assert");
+            const expected = process.env.EXPECTED_VERSION;
+            const pkg = require("./package.json");
+            assert.equal(pkg.name, "cline-nightly", `unexpected name ${pkg.name}`);
+            assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
+            assert.equal(pkg.version, expected, `unexpected union version ${pkg.version}`);
+            for (const bundle of ["next", "legacy"]) {
+              const sub = require(`./${bundle}/package.json`);
+              assert.equal(sub.name, "cline-nightly", `unexpected ${bundle} bundle name ${sub.name}`);
+              assert.equal(sub.version, expected, `unexpected ${bundle} bundle version ${sub.version}`);
+            }
+            console.log(`nightly identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version} (bundle identities aligned)`);
+          '
+
+      - name: Install Publishing Tools
+        run: npm install -g @vscode/vsce ovsx
+
+      - name: Package VSIX
+        working-directory: staging
+        # Preserve the narrowly scoped VSCE `sendgrid` scanner exemption used by
+        # both standalone bundle workflows. No SendGrid credential is intentionally
+        # supplied here; inspect the reported artifact before widening the exemption.
+        run: vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-nightly-${{ steps.version.outputs.version }}.vsix"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cline-nightly-${{ steps.version.outputs.version }}
+          path: staging/cline-nightly-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
+
+      # The job is main-only; step-level dry-run gating still permits a build-only
+      # rehearsal without publishing or tagging.
+      - name: Publish to VS Code Marketplace and Open VSX
+        if: github.ref == 'refs/heads/main' && inputs.dry-run != true
+        working-directory: staging
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [[ -z "$VSCE_PAT" ]]; then
+            echo "Error: VSCE_PAT is required to publish."
+            exit 1
+          fi
+          vsce publish --no-dependencies --packagePath "cline-nightly-${{ steps.version.outputs.version }}.vsix"
+          if [[ -n "$OVSX_PAT" ]]; then
+            npx ovsx publish --packagePath "cline-nightly-${{ steps.version.outputs.version }}.vsix" --pat "$OVSX_PAT"
+          else
+            echo "WARNING: OVSX_PAT not set; skipping Open VSX publish."
+          fi
 
       - name: Tag published commit
-        working-directory: ${{ github.workspace }}
+        if: github.ref == 'refs/heads/main' && inputs.dry-run != true
+        # Best-effort bookkeeping: the default GITHUB_TOKEN cannot create a ref
+        # whose commit modifies workflow files (no workflows permission exists
+        # for it), so this step fails whenever HEAD touched .github/workflows.
+        # The publish already succeeded by this point — don't mark the run red;
+        # push the tag manually with user credentials when it matters.
+        continue-on-error: true
+        working-directory: next-src
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -127,10 +290,11 @@ jobs:
           SHORT_SHA=$(git rev-parse --short=12 HEAD)
           TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
           TAG="nightly-${SAFE_REF}-${TIMESTAMP}-${SHORT_SHA}"
+          LEGACY_SHA=$(git -C "$GITHUB_WORKSPACE/legacy-src" rev-parse HEAD)
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Cline Nightly published from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
+          git tag -a "$TAG" -m "Cline Nightly (combined A/B) published from ${GITHUB_REF_NAME} at ${GITHUB_SHA} (legacy bundle: ${LEGACY_SHA})"
           # Use an explicit HTTPS remote with GH_TOKEN because checkout was run with
           # persist-credentials: false, so actions/checkout did not persist a git credential helper.
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"

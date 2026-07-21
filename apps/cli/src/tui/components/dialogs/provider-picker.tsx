@@ -37,7 +37,10 @@ import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
 } from "../searchable-list";
-import { buildClinePassSubscriptionPageUrl } from "./provider-picker-helpers";
+import {
+	buildClinePassSubscriptionPageUrl,
+	saveManualProviderApiKey,
+} from "./provider-picker-helpers";
 
 interface ProviderItem {
 	id: string;
@@ -724,13 +727,27 @@ export function CodexCliStatusContent(
 	);
 }
 
+/**
+ * Resolves `true` on successful login, `"use_api_key"` when the user opts
+ * into manual API key entry (only offered with `allowApiKeyFallback`).
+ */
+export type OAuthLoginResult = boolean | "use_api_key";
+
 export function OAuthLoginContent(
-	props: ChoiceContext<boolean> & {
+	props: ChoiceContext<OAuthLoginResult> & {
 		providerId: string;
 		providerName: string;
+		allowApiKeyFallback?: boolean;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerId, providerName } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerId,
+		providerName,
+		allowApiKeyFallback,
+	} = props;
 	const [mode, setMode] = useState<"browser" | "device">(
 		providerId === "cline" ? "device" : "browser",
 	);
@@ -863,8 +880,18 @@ export function OAuthLoginContent(
 		if (key.name === "escape") {
 			cancelAuthAttempt();
 			dismiss();
+			return;
+		}
+		if (key.name === "k" && allowApiKeyFallback) {
+			cancelAuthAttempt();
+			resolve("use_api_key");
 		}
 	}, dialogId);
+
+	const escapeHint = allowApiKeyFallback
+		? "K to enter an API key instead, Esc to cancel"
+		: "Esc to cancel";
+	const escapeHintColor = allowApiKeyFallback ? "white" : "gray";
 
 	if (mode === "device") {
 		return (
@@ -892,8 +919,8 @@ export function OAuthLoginContent(
 
 				{deviceError && <text fg="red">{deviceError}</text>}
 
-				<text fg="gray">
-					<em>Esc to cancel</em>
+				<text fg={escapeHintColor}>
+					<em>{escapeHint}</em>
 				</text>
 			</box>
 		);
@@ -915,8 +942,83 @@ export function OAuthLoginContent(
 
 			{error && <text fg="red">{error}</text>}
 
+			<text fg={escapeHintColor}>
+				<em>{escapeHint}</em>
+			</text>
+		</box>
+	);
+}
+
+/**
+ * Manual API key entry for OAuth-capable providers — the escape hatch for
+ * when OAuth login isn't working. Saving clears any stored OAuth tokens so
+ * the manual key takes effect (see saveManualProviderApiKey).
+ */
+export function OAuthApiKeyInputContent(
+	props: ChoiceContext<boolean> & {
+		providerId: string;
+		providerName: string;
+		providerSettingsManager: ProviderSettingsManager;
+	},
+) {
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerId,
+		providerName,
+		providerSettingsManager,
+	} = props;
+	const [value, setValue] = useState("");
+
+	const submit = () => {
+		const apiKey = value.trim();
+		if (!apiKey) return;
+		saveManualProviderApiKey(providerSettingsManager, providerId, apiKey);
+		resolve(true);
+	};
+
+	useDialogKeyboard((key) => {
+		if (key.name === "escape") {
+			dismiss();
+			return;
+		}
+		if (key.name === "return") {
+			submit();
+		}
+	}, dialogId);
+
+	return (
+		<box flexDirection="column" paddingX={1} gap={1}>
+			<text fg={palette.act}>
+				<strong>{providerName}</strong>
+			</text>
+
 			<text fg="gray">
-				<em>Esc to cancel</em>
+				Use an API key from your Cline dashboard instead of OAuth login. This
+				replaces any saved login tokens.
+			</text>
+
+			<box flexDirection="column">
+				<text fg="gray">API key</text>
+				<box
+					border
+					borderStyle="rounded"
+					borderColor={palette.act}
+					paddingX={1}
+				>
+					<input
+						value={value}
+						onInput={setValue}
+						placeholder="Paste your API key"
+						flexGrow={1}
+						focused
+					/>
+				</box>
+			</box>
+
+			<text fg="gray">
+				<em>Enter to save, Esc to go back</em>
 			</text>
 		</box>
 	);

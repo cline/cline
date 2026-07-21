@@ -105,11 +105,6 @@ describe("ClineModelPicker", () => {
 		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "cline",
 			modelId: "cline-next",
-			modelInfo: {
-				name: "Cline Next",
-				supportsPromptCache: true,
-				contextWindow: 128_000,
-			},
 		})
 	})
 

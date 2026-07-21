@@ -57,6 +57,7 @@ describe("buildModelOptions", () => {
 			reasoningEffort: "high",
 			thinkingBudgetTokens: 1024,
 			maxTokensPerTurn: 4096,
+			temperature: 0.2,
 			apiTimeoutMs: 60_000,
 		});
 		expect(buildModelOptions(config)).toEqual({
@@ -64,6 +65,7 @@ describe("buildModelOptions", () => {
 			reasoningEffort: "high",
 			thinkingBudgetTokens: 1024,
 			maxTokensPerTurn: 4096,
+			temperature: 0.2,
 			apiTimeoutMs: 60_000,
 		});
 	});

@@ -14,7 +14,7 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
-	it("normalizes provider specs for current built-ins and extra OpenAI-compatible providers", () => {
+	it("normalizes only allowlisted current built-ins and OpenAI-compatible providers", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
 				id: "openai",
@@ -93,12 +93,8 @@ describe("models-dev-catalog", () => {
 			defaultModelId: "poolside/laguna-m.1",
 			defaults: { baseUrl: "https://inference.poolside.ai/v1" },
 		});
-		expect(providerSpecs["extra-router"]).toMatchObject({
-			id: "extra-router",
-			family: "openai-compatible",
-			modelsProviderId: "extra-router",
-			defaultModelId: "extra-model",
-		});
+		expect(providerSpecs["extra-router"]).toBeUndefined();
+		expect(providerModels["extra-router"]).toBeUndefined();
 		expect(providerSpecs.cohere).toBeUndefined();
 		expect(providerModels.cohere).toBeUndefined();
 	});

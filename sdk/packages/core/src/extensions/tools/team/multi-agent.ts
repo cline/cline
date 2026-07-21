@@ -1218,6 +1218,13 @@ export class AgentTeamsRuntime {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
+			// Model-stream failures surface as results with finishReason
+			// "error" rather than throws; route them through the failure
+			// path so the run is reported as failed (and retried when
+			// maxRetries allows) instead of masquerading as completed.
+			if (result.finishReason === "error") {
+				throw new Error(result.text || "Teammate run failed");
+			}
 			run.status = "completed";
 			run.result = result;
 			run.endedAt = new Date();

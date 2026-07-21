@@ -1,4 +1,5 @@
 import {
+	MODELS_DEV_ALLOWED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
 } from "../providers/provider-keys";
@@ -132,14 +133,24 @@ function getSelectedModelsDevProviders(
 	for (const [sourceProviderKey, source] of Object.entries(payload).sort(
 		([a], [b]) => a.localeCompare(b),
 	)) {
-		const targetProviderId = selectedTargetProviderId(sourceProviderKey, source);
-		if (!targetProviderId || usedProviderIds.has(targetProviderId)) {
+		const targetProviderId = selectedTargetProviderId(
+			sourceProviderKey,
+			source,
+		);
+		if (
+			!targetProviderId ||
+			!MODELS_DEV_ALLOWED_PROVIDER_IDS.has(targetProviderId) ||
+			usedProviderIds.has(targetProviderId)
+		) {
 			continue;
 		}
 
 		const isCurrentBuiltinProvider =
 			MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS.has(sourceProviderKey);
-		if (!isCurrentBuiltinProvider && !isOpenAICompatibleModelsDevProvider(source)) {
+		if (
+			!isCurrentBuiltinProvider &&
+			!isOpenAICompatibleModelsDevProvider(source)
+		) {
 			continue;
 		}
 
@@ -295,9 +306,9 @@ function toProviderCapabilities(
 		return undefined;
 	}
 
-	const capabilities = new Set<NonNullable<ModelsDevGeneratedProviderSpec["capabilities"]>[number]>([
-		"tools",
-	]);
+	const capabilities = new Set<
+		NonNullable<ModelsDevGeneratedProviderSpec["capabilities"]>[number]
+	>(["tools"]);
 	for (const model of Object.values(models)) {
 		if (model.capabilities?.includes("reasoning")) {
 			capabilities.add("reasoning");
@@ -312,8 +323,10 @@ function toProviderCapabilities(
 
 export function normalizeModelsDevProviderSpecs(
 	payload: ModelsDevPayload,
-	providerModels: Record<string, Record<string, ModelInfo>> =
-		normalizeModelsDevProviderModels(payload),
+	providerModels: Record<
+		string,
+		Record<string, ModelInfo>
+	> = normalizeModelsDevProviderModels(payload),
 ): Record<string, ModelsDevGeneratedProviderSpec> {
 	const providerSpecs: Record<string, ModelsDevGeneratedProviderSpec> = {};
 

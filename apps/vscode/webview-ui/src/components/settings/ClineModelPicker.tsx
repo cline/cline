@@ -218,7 +218,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		void commitSelection(currentMode, {
 			providerId: "cline",
 			modelId: newModelId,
-			modelInfo,
 		}).catch((err) => console.error("Failed to commit Cline model selection:", err))
 
 		void handleModeFieldsChange(

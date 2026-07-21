@@ -34,15 +34,20 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
-	type SessionHookEvent,
 	EMPTY_DIFF_SUMMARY,
 	type SessionDiffSummary,
 	type SessionFileDiff,
+	type SessionHookEvent,
 } from "@/lib/session-diff";
 import type {
 	SessionHistoryItem,
 	SessionHistoryStatus,
 } from "@/lib/session-history";
+import {
+	normalizeWorkspacePath,
+	readWorkspaceSelectionFromWindow,
+	registerHostHomeDirectory,
+} from "@/lib/workspace-paths";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 
@@ -65,12 +70,29 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"stopping",
 ]);
 
+const WORKSPACE_SELECTION_REQUIRED_MESSAGE =
+	"Select a workspace before trying again.";
+
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
 // ---------------------------------------------------------------------------
 
+function userFacingMessage(message: string): string {
+	const normalized = message.toLowerCase();
+	const isWorkspaceManifestValidationError =
+		normalized.includes("workspaces") &&
+		(normalized.includes("too_small") ||
+			normalized.includes("expected string to have >=1"));
+	const isMissingWorkspaceConfig = normalized.includes(
+		"config.cwd or config.workspaceroot is required",
+	);
+	return isWorkspaceManifestValidationError || isMissingWorkspaceConfig
+		? WORKSPACE_SELECTION_REQUIRED_MESSAGE
+		: message;
+}
+
 function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
+	return userFacingMessage(err instanceof Error ? err.message : String(err));
 }
 
 function makeErrorChatMessage(
@@ -91,6 +113,9 @@ function validateConfig(
 ):
 	| { parsed: ChatSessionConfig; error: null }
 	| { parsed: null; error: string } {
+	if (!config.workspaceRoot.trim()) {
+		return { parsed: null, error: WORKSPACE_SELECTION_REQUIRED_MESSAGE };
+	}
 	const runtimeConfig = normalizeRuntimeConfig(config);
 	const result = ChatSessionConfigSchema.safeParse(runtimeConfig);
 	if (!result.success) {
@@ -240,6 +265,9 @@ export function useChatSession() {
 		null,
 	);
 	const hydrationRequestIdRef = useRef(0);
+	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
+	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
+	const activePromptSubmissionsRef = useRef(0);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -468,11 +496,36 @@ export function useChatSession() {
 			const ctx = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
 			);
-			setConfig((prev) => ({
-				...prev,
-				workspaceRoot: ctx.workspaceRoot || ctx.cwd,
-				cwd: ctx.workspaceRoot || ctx.cwd,
-			}));
+			if (ctx.homeDir) {
+				registerHostHomeDirectory(ctx.homeDir);
+			}
+			const rememberedWorkspace =
+				readWorkspaceSelectionFromWindow().lastWorkspace;
+			const validation = rememberedWorkspace
+				? await desktopClient
+						.invoke<{ valid?: boolean }>("validate_workspace_directory", {
+							path: rememberedWorkspace,
+						})
+						.catch(() => ({ valid: false }))
+				: { valid: false };
+			setConfig((prev) => {
+				const currentWorkspace = (prev.workspaceRoot || prev.cwd || "").trim();
+				const selectionChangedWhileLoading = Boolean(
+					currentWorkspace &&
+						normalizeWorkspacePath(currentWorkspace) !==
+							normalizeWorkspacePath(rememberedWorkspace),
+				);
+				const workspace = selectionChangedWhileLoading
+					? currentWorkspace
+					: validation.valid === true
+						? rememberedWorkspace
+						: ctx.workspaceRoot || ctx.cwd;
+				return {
+					...prev,
+					workspaceRoot: workspace,
+					cwd: workspace,
+				};
+			});
 		} catch {
 			// Ignore in non-Tauri mode.
 		}
@@ -914,7 +967,10 @@ export function useChatSession() {
 	// ---- Shared: start a new session via RPC ----
 
 	const startSession = useCallback(
-		async (validatedConfig: ChatSessionConfig): Promise<string> => {
+		async (
+			validatedConfig: ChatSessionConfig,
+			options: { preserveStatus?: boolean } = {},
+		): Promise<string> => {
 			const payload = await postSession({
 				action: "start",
 				config: validatedConfig,
@@ -925,7 +981,9 @@ export function useChatSession() {
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
 			// actually dispatched.
-			setStatus("idle");
+			if (!options.preserveStatus) {
+				setStatus("idle");
+			}
 			setConfig(validatedConfig);
 			setHydratedHistorySessionId(null);
 			return id;
@@ -987,7 +1045,8 @@ export function useChatSession() {
 			setIsHydratingSession(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
-			let activeSessionId = sessionId;
+			const pendingSessionStart = sessionStartPromiseRef.current;
+			let activeSessionId = sessionId ?? activeSessionIdRef.current;
 
 			const validation = validateConfig(config);
 			if (!validation.parsed) {
@@ -995,51 +1054,67 @@ export function useChatSession() {
 				return;
 			}
 			const parsed = validation.parsed;
-
-			if (activeSessionId && hydratedHistorySessionId === activeSessionId) {
-				try {
-					activeSessionId = await startSession({
-						...parsed,
-						sessionId: activeSessionId,
-					});
-				} catch (err) {
-					setErrorState(errorMessage(err), activeSessionId);
-					return;
+			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
+			activePromptSubmissionsRef.current += 1;
+			let promptSubmissionFinished = false;
+			const finishPromptSubmission = () => {
+				if (promptSubmissionFinished) return;
+				promptSubmissionFinished = true;
+				activePromptSubmissionsRef.current = Math.max(
+					0,
+					activePromptSubmissionsRef.current - 1,
+				);
+			};
+			const precedingPromptDispatch = promptDispatchTailRef.current;
+			let resolvePromptDispatch: (() => void) | undefined;
+			const ownPromptDispatch = new Promise<void>((resolve) => {
+				resolvePromptDispatch = resolve;
+			});
+			const promptDispatchTail = precedingPromptDispatch.then(
+				() => ownPromptDispatch,
+			);
+			promptDispatchTailRef.current = promptDispatchTail;
+			let promptDispatchReleased = false;
+			const releasePromptDispatch = () => {
+				if (promptDispatchReleased) return;
+				promptDispatchReleased = true;
+				resolvePromptDispatch?.();
+			};
+			void promptDispatchTail.then(() => {
+				if (promptDispatchTailRef.current === promptDispatchTail) {
+					promptDispatchTailRef.current = Promise.resolve();
 				}
-			}
-
-			if (!activeSessionId) {
-				try {
-					activeSessionId = await startSession(parsed);
-				} catch (err) {
-					setErrorState(errorMessage(err));
-					return;
-				}
-			}
-
+			});
 			const now = Date.now();
-			const shouldQueue = Boolean(activeSessionId) && BUSY_STATUSES.has(status);
-			const serializedAttachments = await serializeAttachments(attachedFiles);
-			const hasAttachments =
-				serializedAttachments.userImages.length > 0 ||
-				serializedAttachments.userFiles.length > 0;
-
-			const userLabel = hasAttachments
-				? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}]`
-				: trimmed;
+			const serializedAttachmentsTask = serializeAttachments(
+				attachedFiles,
+			).then(
+				(attachments) => ({ ok: true as const, attachments }),
+				(error: unknown) => ({ ok: false as const, error }),
+			);
+			const userLabel =
+				attachedFiles.length > 0
+					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}]`
+					: trimmed;
+			const shouldQueue =
+				Boolean(activeSessionId) &&
+				(hasEarlierPromptSubmission ||
+					Boolean(pendingSessionStart) ||
+					BUSY_STATUSES.has(status));
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
+			const plannedSessionId = activeSessionId ?? makeId("session");
 
 			if (!shouldQueue) {
 				addMessage({
 					id: makeId("user"),
-					sessionId: activeSessionId,
+					sessionId: plannedSessionId,
 					role: "user",
 					content: userLabel,
 					createdAt: now,
 				});
-				activeSessionIdRef.current = activeSessionId;
+				activeSessionIdRef.current = plannedSessionId;
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
@@ -1054,8 +1129,90 @@ export function useChatSession() {
 					},
 				]);
 			}
+
+			let sendTask: ReturnType<typeof postSession> | null = null;
 			try {
-				const payload = await postSession({
+				if (pendingSessionStart) {
+					try {
+						activeSessionId = await pendingSessionStart;
+					} catch (err) {
+						if (optimisticQueuedPromptId) {
+							setPromptsInQueue((prev) =>
+								prev.filter((item) => item.id !== optimisticQueuedPromptId),
+							);
+						}
+						setErrorState(errorMessage(err), activeSessionId);
+						finishPromptSubmission();
+						return;
+					}
+				} else if (
+					activeSessionId &&
+					hydratedHistorySessionId === activeSessionId
+				) {
+					const startPromise = startSession(
+						{
+							...parsed,
+							sessionId: activeSessionId,
+						},
+						{ preserveStatus: true },
+					);
+					sessionStartPromiseRef.current = startPromise;
+					try {
+						activeSessionId = await startPromise;
+					} catch (err) {
+						setErrorState(errorMessage(err), activeSessionId);
+						finishPromptSubmission();
+						return;
+					} finally {
+						if (sessionStartPromiseRef.current === startPromise) {
+							sessionStartPromiseRef.current = null;
+						}
+					}
+				}
+
+				if (!activeSessionId) {
+					const startPromise = startSession(
+						{
+							...parsed,
+							sessionId: plannedSessionId,
+						},
+						{ preserveStatus: true },
+					);
+					sessionStartPromiseRef.current = startPromise;
+					try {
+						activeSessionId = await startPromise;
+					} catch (err) {
+						if (activeSessionIdRef.current === plannedSessionId) {
+							activeSessionIdRef.current = null;
+						}
+						setErrorState(errorMessage(err));
+						finishPromptSubmission();
+						return;
+					} finally {
+						if (sessionStartPromiseRef.current === startPromise) {
+							sessionStartPromiseRef.current = null;
+						}
+					}
+				}
+				const serializedAttachmentsResult = await serializedAttachmentsTask;
+				if (!serializedAttachmentsResult.ok) {
+					setErrorState(
+						errorMessage(serializedAttachmentsResult.error),
+						activeSessionId,
+					);
+					finishPromptSubmission();
+					return;
+				}
+				const serializedAttachments = serializedAttachmentsResult.attachments;
+				const hasAttachments =
+					serializedAttachments.userImages.length > 0 ||
+					serializedAttachments.userFiles.length > 0;
+				if (!shouldQueue) {
+					activeSessionIdRef.current = activeSessionId;
+					setStatus("starting");
+				}
+				await precedingPromptDispatch;
+				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
 					prompt: trimmed,
@@ -1063,6 +1220,15 @@ export function useChatSession() {
 					config: parsed,
 					attachments: hasAttachments ? serializedAttachments : undefined,
 				});
+			} finally {
+				releasePromptDispatch();
+			}
+			if (!sendTask) {
+				finishPromptSubmission();
+				return;
+			}
+			try {
+				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
@@ -1079,8 +1245,11 @@ export function useChatSession() {
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
+				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
 				const resolvedAssistantText =
-					assistantText || fallbackAssistantTurn.text;
+					result?.finishReason === "error"
+						? userFacingMessage(rawAssistantText)
+						: rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1234,7 +1403,9 @@ export function useChatSession() {
 						addMessage(
 							makeErrorChatMessage(
 								activeSessionId,
-								toolError?.trim() ||
+								(toolError?.trim()
+									? userFacingMessage(toolError.trim())
+									: undefined) ||
 									"Runtime turn failed before an assistant response was produced.",
 							),
 						);
@@ -1266,6 +1437,7 @@ export function useChatSession() {
 					setActiveAssistantMessageId(null);
 					clearLiveToolRefs();
 				}
+				finishPromptSubmission();
 			}
 		},
 		[
@@ -1431,6 +1603,7 @@ export function useChatSession() {
 			sessionId: undefined,
 		}));
 		activeSessionIdRef.current = null;
+		sessionStartPromiseRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);

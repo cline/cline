@@ -281,13 +281,13 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections 
 										{" "}
 										<VSCodeLink
 											className="inline"
-											style={{ fontSize: "inherit" }}
 											onClick={(e) => {
 												e.stopPropagation()
 												UiServiceClient.openUrl(
 													StringRequest.create({ value: option.learnMoreUrl }),
 												).catch((err) => console.error("Failed to open learn more link:", err))
-											}}>
+											}}
+											style={{ fontSize: "inherit" }}>
 											Learn more
 										</VSCodeLink>
 									</>
@@ -471,12 +471,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						commitSelection("plan", {
 							providerId: "cline",
 							modelId: selectedModelId,
-							modelInfo: selectedModelInfo,
 						}),
 						commitSelection("act", {
 							providerId: "cline",
 							modelId: selectedModelId,
-							modelInfo: selectedModelInfo,
 						}),
 					])
 

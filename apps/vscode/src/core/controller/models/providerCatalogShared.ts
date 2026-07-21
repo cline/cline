@@ -3,12 +3,14 @@ import type {
 	EffectiveProviderConfig,
 	Mode,
 	ModelSelection,
+	ModelSelectionOverrides,
 	ProviderCatalog,
 	ProviderConfigPatch,
 	ProviderConfigStore,
 	ProviderId,
 	ProviderListing,
 	ProviderModelsResult,
+	ResolvedModelSelection,
 } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import {
@@ -17,13 +19,15 @@ import {
 	CommitModelSelectionRequest,
 	CommittedModelSelection,
 	GcpProviderConfig,
+	ModelOverrides as ModelOverridesProto,
 	OpenRouterModelInfo,
 	ProviderConfigResponse,
 	ProviderListing as ProviderListingProto,
 	ProviderModelsResponse,
 	WriteProviderConfigPatch,
 } from "@/shared/proto/cline/models"
-import { fromProtobufModelInfo, toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
+import { fromProtobufModelOverrides, toProtobufModelOverrides } from "@/shared/proto-conversions/models/modelOverrides"
+import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
 import type { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 
 export interface ProviderCatalogController {
@@ -94,7 +98,11 @@ function toProtobufModels(models: ReadonlyMap<string, ModelInfo>): Record<string
 	return result
 }
 
-function toCommittedModelSelectionProto(selection: ModelSelection | undefined): CommittedModelSelection | undefined {
+function toModelOverridesProto(overrides: ModelSelectionOverrides | undefined): ModelOverridesProto | undefined {
+	return overrides ? toProtobufModelOverrides(overrides) : undefined
+}
+
+function toCommittedModelSelectionProto(selection: ResolvedModelSelection | undefined): CommittedModelSelection | undefined {
 	if (!selection) {
 		return undefined
 	}
@@ -102,6 +110,7 @@ function toCommittedModelSelectionProto(selection: ModelSelection | undefined): 
 		providerId: selection.providerId,
 		modelId: selection.modelId,
 		modelInfo: toProtobufModelInfo(selection.modelInfo),
+		overrides: toModelOverridesProto(selection.overrides),
 	})
 }
 
@@ -199,6 +208,7 @@ export function toRedactedProviderConfigResponse(
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
 		aws: toRedactedAwsProviderConfigProto(config.aws),
 		gcp: toRedactedGcpProviderConfigProto(config.gcp),
+		contextWindow: config.contextWindow,
 	})
 }
 
@@ -218,6 +228,10 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
+		// A zero context window over the wire means "clear the setting".
+		...(protoPatch.contextWindow !== undefined
+			? { contextWindow: protoPatch.contextWindow > 0 ? protoPatch.contextWindow : null }
+			: {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {
 					auth: {
@@ -241,17 +255,18 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 	}
 }
 
+function toSelectionOverrides(overrides: ModelOverridesProto | undefined): ModelSelectionOverrides | undefined {
+	return fromProtobufModelOverrides(overrides)
+}
+
 export function toModelSelection(request: CommitModelSelectionRequest, providerId: ProviderId): ModelSelection {
 	const modelId = request.modelId.trim()
 	if (!modelId) {
 		throw new Error("model_id is required")
 	}
-	if (!request.modelInfo) {
-		throw new Error("model_info is required")
-	}
 	return {
 		providerId,
 		modelId,
-		modelInfo: fromProtobufModelInfo(request.modelInfo),
+		overrides: toSelectionOverrides(request.overrides),
 	}
 }

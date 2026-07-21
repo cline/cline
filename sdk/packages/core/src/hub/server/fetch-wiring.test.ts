@@ -18,6 +18,30 @@ vi.mock("../../runtime/host/local-runtime-host", () => ({
 }));
 
 describe("hub server fetch wiring", () => {
+	it("forwards observability into the internal LocalRuntimeHost", async () => {
+		localRuntimeHostMock.mockClear();
+		const { HubServerTransport } = (await import(".")) as unknown as {
+			HubServerTransport: new (options: unknown) => unknown;
+		};
+		const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
+		const telemetry = { capture: vi.fn() };
+
+		new HubServerTransport({
+			runtimeHandlers: {
+				startSession: vi.fn(),
+				sendSession: vi.fn(),
+				abortSession: vi.fn(),
+				stopSession: vi.fn(),
+			},
+			logger,
+			telemetry,
+		});
+
+		expect(localRuntimeHostMock).toHaveBeenCalledWith(
+			expect.objectContaining({ logger, telemetry }),
+		);
+	});
+
 	it("forwards HubWebSocketServerOptions.fetch into the internal LocalRuntimeHost", async () => {
 		localRuntimeHostMock.mockClear();
 		const { HubServerTransport } = (await import(".")) as unknown as {

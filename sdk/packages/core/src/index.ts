@@ -9,8 +9,9 @@ export {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
-	getClineOrgIndividualInferenceSubscriptionMessage,
+	extractClinePassLimitMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
@@ -111,6 +112,7 @@ export {
 	parseUserCommandEnvelope,
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
+	stripUtf8Bom,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {
@@ -131,9 +133,9 @@ export {
 	isClineAccountActionRequest,
 	type ProviderActionExecutor,
 	RpcClineAccountService,
+	type UserCurrentPlan,
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
-	type UserCurrentPlan,
 } from "./account";
 export {
 	createOAuthClientCallbacks,
@@ -302,7 +304,10 @@ export {
 	type McpServerTransportConfig,
 	type McpSettingsFile,
 	type McpSettingsLockOptions,
+	McpSettingsLockTimeoutError,
 	type McpSettingsMutator,
+	McpSettingsMutatorPurityError,
+	McpSettingsUpdateSkippedError,
 	type McpSseTransportConfig,
 	type McpStdioTransportConfig,
 	type McpStreamableHttpTransportConfig,
@@ -321,9 +326,6 @@ export {
 	updateMcpServerOAuthStateAsync,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsLockTimeoutError,
-	McpSettingsMutatorPurityError,
-	McpSettingsUpdateSkippedError,
 } from "./extensions/mcp";
 export {
 	type AgentTask,
@@ -401,6 +403,11 @@ export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
+	hashSecret,
+	sdkDebug,
+	setSdkLogger,
+} from "./logging/early-logger";
+export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	type PreparedRemoteConfigCoreIntegration,
@@ -412,6 +419,11 @@ export {
 } from "./remote-config/integration";
 export type { RuntimeCapabilities } from "./runtime/capabilities";
 export { normalizeRuntimeCapabilities } from "./runtime/capabilities";
+export type {
+	ConnectionUpdate,
+	ConnectionUpdateInput,
+} from "./runtime/config/connection-update";
+export { buildConnectionUpdate } from "./runtime/config/connection-update";
 export { listSessionHistoryFromBackend } from "./runtime/host/history";
 export type { SessionBackend } from "./runtime/host/host";
 export {
@@ -449,6 +461,11 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
+export {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
@@ -474,7 +491,10 @@ export {
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
-export type { GlobalSettings } from "./services/global-settings";
+export type {
+	GlobalCompactionStrategy,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
@@ -496,16 +516,6 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { GlobalCompactionStrategy } from "./services/global-settings";
-export type {
-	McpInstallOptions,
-	McpInstallResult,
-} from "./services/mcp-install";
-export {
-	buildMcpInstallTransport,
-	installMcpServer,
-	parseMcpInstallArgs,
-} from "./services/mcp-install";
 export type {
 	MarketplaceActionResult,
 	MarketplaceEntryInput,
@@ -526,6 +536,15 @@ export {
 	uninstallMarketplacePlugin,
 	uninstallMarketplaceSkill,
 } from "./services/marketplace";
+export type {
+	McpInstallOptions,
+	McpInstallResult,
+} from "./services/mcp-install";
+export {
+	buildMcpInstallTransport,
+	installMcpServer,
+	parseMcpInstallArgs,
+} from "./services/mcp-install";
 export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
@@ -563,6 +582,15 @@ export type {
 	PluginUninstallResult,
 } from "./services/plugin-uninstall";
 export { uninstallPlugin } from "./services/plugin-uninstall";
+export {
+	ensureCustomProvidersLoadedSync,
+	readModelsFileSync,
+	resolveModelsRegistryPath,
+	type StoredModelEntry,
+	type StoredProviderEntry,
+	syncStoredProviderRegistration,
+	writeModelsFileSync,
+} from "./services/providers/local-provider-registry";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
@@ -629,6 +657,7 @@ export {
 	captureMentionFailed,
 	captureMentionSearchResults,
 	captureMentionUsed,
+	captureMistakeLimitReached,
 	captureModeSwitch,
 	captureProviderApiError,
 	captureProviderConfigured,
@@ -687,11 +716,11 @@ export {
 } from "./services/workspace/workspace-manifest";
 export {
 	buildCheckpointWorkspaceDiff,
-	compareCheckpointToWorkspace,
-	createCheckpointComparePlan,
 	type CheckpointComparePlan,
 	type CheckpointContentDiff,
 	type CheckpointWorkspaceCompareResult,
+	compareCheckpointToWorkspace,
+	createCheckpointComparePlan,
 } from "./session/checkpoint-diff";
 export {
 	findCheckpointForRun,
@@ -769,15 +798,21 @@ export {
 } from "./extensions/context/compaction";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
+	type ApplyPatchExecutor,
+	type ApplyPatchInput,
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
+	CommandExitError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
+	computePatchChanges,
+	createApplyPatchExecutor,
 	createBuiltinTools,
 	createDefaultExecutors,
 	createDefaultShellExecutor,
 	createDefaultTools,
 	createDefaultToolsWithPreset,
+	createEditorExecutor,
 	createShellExecutor,
 	createShellTool,
 	createToolPoliciesWithPreset,
@@ -785,23 +820,28 @@ export {
 	type DefaultToolName,
 	DefaultToolNames,
 	type DefaultToolsConfig,
+	type EditFileInput,
+	type EditorExecutor,
+	type EditorExecutorOptions,
 	getCoreAcpToolNames,
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
 	MAX_COMMAND_OUTPUT_CHARS,
+	PatchActionType,
+	type PatchFileChange,
 	resolveCoreSelectedToolIds,
+	type ShellExecutor,
+	type ShellExecutorOptions,
 	type StructuredCommandInput,
 	StructuredCommandInputSchema,
 	TEAM_TOOL_NAMES,
-	truncateCommandOutput,
 	type ToolCatalogEntry,
 	type ToolExecutors,
-	type ShellExecutor,
-	type ShellExecutorOptions,
 	type ToolPolicyPresetName,
 	type ToolPresetName,
 	ToolPresets,
+	truncateCommandOutput,
 } from "./extensions/tools";
 export {
 	type ClineRecommendedModel,

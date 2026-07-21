@@ -1,8 +1,10 @@
+import { resolveProviderRequestHeaders } from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentEvent,
 	AgentHooks,
 	AgentTool,
+	BasicLogger,
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
@@ -10,12 +12,8 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import {
-	buildClineClientRequestHeaders,
-	hasRuntimeConfigExtension,
-} from "@cline/shared";
+import { hasRuntimeConfigExtension } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
-import { decodeJwtPayload } from "../auth/utils";
 import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -54,6 +52,7 @@ import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
+import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
 import { emitWorkspaceLifecycleTelemetry } from "./workspace/workspace-telemetry";
 
@@ -134,56 +133,6 @@ function countSeededRootRuns(
 	return count;
 }
 
-function buildOpenAICodexHeaders(input: {
-	sessionId: string;
-	configHeaders: CoreSessionConfig["headers"];
-	storedHeaders: ProviderSettings["headers"];
-	accountId?: string;
-	accessToken?: string;
-}): Record<string, string> | undefined {
-	const headers: Record<string, string> = {
-		...(input.storedHeaders ?? {}),
-		...(input.configHeaders ?? {}),
-	};
-	const resolvedAccountId =
-		input.accountId?.trim() || deriveOpenAICodexAccountId(input.accessToken);
-	headers.originator = "cline";
-	headers.session_id = input.sessionId;
-	headers["User-Agent"] = `Cline/${process.env.npm_package_version || "1.0.0"}`;
-	if (resolvedAccountId) {
-		headers["ChatGPT-Account-Id"] = resolvedAccountId;
-	}
-	return headers;
-}
-
-function deriveOpenAICodexAccountId(
-	accessToken: string | undefined,
-): string | undefined {
-	const trimmed = accessToken?.trim();
-	if (!trimmed) {
-		return undefined;
-	}
-	const payload = decodeJwtPayload(trimmed) as {
-		"https://api.openai.com/auth"?: { chatgpt_account_id?: string };
-		organizations?: Array<{ id?: string }>;
-		chatgpt_account_id?: string;
-	} | null;
-	const authAccountId =
-		payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
-	if (typeof authAccountId === "string" && authAccountId.length > 0) {
-		return authAccountId;
-	}
-	const orgAccountId = payload?.organizations?.[0]?.id;
-	if (typeof orgAccountId === "string" && orgAccountId.length > 0) {
-		return orgAccountId;
-	}
-	const rootAccountId = payload?.chatgpt_account_id;
-	if (typeof rootAccountId === "string" && rootAccountId.length > 0) {
-		return rootAccountId;
-	}
-	return undefined;
-}
-
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
@@ -204,44 +153,42 @@ function buildProviderConfig(
 		config.providerConfig?.providerId === config.providerId
 			? config.providerConfig
 			: undefined;
-	const clineClientHeaders = buildClineClientRequestHeaders({
+	const resolvedHeaders = resolveProviderRequestHeaders({
 		providerId: config.providerId,
 		sessionId,
 		source,
 		defaultSource: SessionSource.CLI,
-		clientName: config.extensionContext?.client?.name,
-		clientVersion: config.extensionContext?.client?.version,
-		clientVersionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
-		platform: config.extensionContext?.client?.platform,
-		platformVersion: config.extensionContext?.client?.platformVersion,
-		isMultiRoot: config.extensionContext?.client?.isMultiRoot,
+		client: {
+			name: config.extensionContext?.client?.name,
+			version: config.extensionContext?.client?.version,
+			versionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
+			platform: config.extensionContext?.client?.platform,
+			platformVersion: config.extensionContext?.client?.platformVersion,
+			isMultiRoot: config.extensionContext?.client?.isMultiRoot,
+		},
 		coreVersion: corePackageVersion,
+		openAiCodex: {
+			accountId: sessionProviderConfig?.accountId ?? stored?.auth?.accountId,
+			accessToken:
+				sessionProviderConfig?.accessToken ??
+				config.apiKey ??
+				stored?.auth?.accessToken ??
+				stored?.apiKey,
+			userAgentVersion: process.env.npm_package_version,
+		},
+		headers: {
+			stored: stored?.headers,
+			config: config.headers,
+			session: sessionProviderConfig?.headers,
+		},
 	});
-	// TODO: (bee) Move header resolution logic into @cline/llms
-	const resolvedHeaders =
-		config.providerId === "openai-codex"
-			? buildOpenAICodexHeaders({
-					sessionId,
-					configHeaders: config.headers,
-					storedHeaders: stored?.headers,
-					accountId: stored?.auth?.accountId,
-					accessToken:
-						config.apiKey ?? stored?.auth?.accessToken ?? stored?.apiKey,
-				})
-			: clineClientHeaders
-				? {
-						...(stored?.headers ?? {}),
-						...(config.headers ?? {}),
-						...clineClientHeaders,
-					}
-				: (config.headers ?? stored?.headers);
 	const settings: ProviderSettings = {
 		...(stored ?? {}),
 		provider: config.providerId,
 		model: config.modelId,
 		apiKey: config.apiKey ?? stored?.apiKey,
 		baseUrl: config.baseUrl ?? stored?.baseUrl,
-		headers: resolvedHeaders,
+		headers: undefined,
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 		modelCatalog,
 	};
@@ -249,12 +196,8 @@ function buildProviderConfig(
 		...toProviderConfig(settings),
 		...(sessionProviderConfig ?? {}),
 	};
-	if (clineClientHeaders) {
-		providerConfig.headers = {
-			...(resolvedHeaders ?? {}),
-			...(sessionProviderConfig?.headers ?? {}),
-			...clineClientHeaders,
-		};
+	if (resolvedHeaders) {
+		providerConfig.headers = resolvedHeaders;
 	}
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
@@ -278,6 +221,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	sessionId: string;
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
+	defaultLogger?: BasicLogger;
 	defaultCapabilities?: RuntimeCapabilities;
 	defaultToolPolicies?: AgentConfig["toolPolicies"];
 	/**
@@ -306,6 +250,7 @@ export interface LocalRuntimeBootstrap {
 	workspaceMetadata: string;
 	/** Structured git + path metadata generated alongside workspaceMetadata. */
 	workspaceInfo: WorkspaceInfo;
+	gitState: GitWorkspaceState;
 	extensions: AgentConfig["extensions"];
 	hooks: AgentHooks | undefined;
 	toolPolicies: AgentConfig["toolPolicies"];
@@ -324,6 +269,7 @@ export async function prepareLocalRuntimeBootstrap(
 		sessionId,
 		providerSettingsManager,
 		defaultTelemetry,
+		defaultLogger,
 		defaultCapabilities,
 		defaultToolPolicies,
 		defaultFetch,
@@ -351,8 +297,14 @@ export async function prepareLocalRuntimeBootstrap(
 	// Generate workspace + git metadata once, early, so it can be forwarded to
 	// hooks and extensions. The serialized string goes into CoreSessionConfig
 	// as workspaceMetadata; the structured object is kept as workspaceInfo.
-	const { workspaceInfo, workspaceMetadata, durationMs, vcsType, initError } =
-		await buildWorkspaceMetadataWithInfo(workspacePath);
+	const {
+		workspaceInfo,
+		workspaceMetadata,
+		gitState,
+		durationMs,
+		vcsType,
+		initError,
+	} = await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
@@ -364,7 +316,10 @@ export async function prepareLocalRuntimeBootstrap(
 			...(configuredExtensionContext?.session ?? {}),
 			sessionId,
 		},
-		logger: configuredExtensionContext?.logger ?? localConfig?.logger,
+		logger:
+			configuredExtensionContext?.logger ??
+			localConfig?.logger ??
+			defaultLogger,
 		telemetry:
 			configuredExtensionContext?.telemetry ??
 			localConfig?.telemetry ??
@@ -449,6 +404,7 @@ export async function prepareLocalRuntimeBootstrap(
 		extensions,
 		extensionContext,
 		telemetry: extensionContext.telemetry,
+		logger: extensionContext.logger,
 	};
 	const providerConfig = buildProviderConfig(
 		baseConfig,
@@ -500,6 +456,7 @@ export async function prepareLocalRuntimeBootstrap(
 		providerConfig,
 		workspaceMetadata,
 		workspaceInfo,
+		gitState,
 		extensions,
 		hooks,
 		toolPolicies,

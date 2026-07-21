@@ -9,6 +9,7 @@ import {
 	type ProviderCapability,
 	type ProviderConfigField,
 } from "@cline/shared";
+import { GENERATED_PROVIDER_MODELS } from "../catalog/catalog.generated";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import {
 	isCanonicalModelIdForAliasRules,
@@ -31,6 +32,7 @@ import {
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { filterOpenAICodexModels } from "./openai-codex-models";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	ANTHROPIC_ROUTING_METADATA,
@@ -38,7 +40,6 @@ import {
 } from "./routing/anthropic-compatible";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./routing/minimax-thinking";
-import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
@@ -54,6 +55,15 @@ const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
 		metadataKey: "sessionId",
 	},
 };
+
+/**
+ * Context window requested from Ollama when neither the resolved model nor
+ * the user's configuration supplies one. Matches the pre-SDK-migration
+ * handler default; deliberately larger than Ollama's 4096 server default,
+ * which cannot fit Cline's agentic prompts. Single source of truth — the
+ * vendor, the VS Code session factory, and the settings UI all import this.
+ */
+export const OLLAMA_DEFAULT_CONTEXT_WINDOW = 32768;
 
 export type { BuiltinSpec, ProviderFamily } from "./builtin-types";
 
@@ -290,11 +300,7 @@ function mergeBuiltinSpec(
 		defaults: mergeDefaults(base?.defaults, override.defaults),
 	};
 
-	if (
-		!merged.name ||
-		!merged.description ||
-		!merged.family
-	) {
+	if (!merged.name || !merged.description || !merged.family) {
 		throw new Error(
 			`Builtin provider "${override.id}" is missing required provider metadata.`,
 		);
@@ -327,7 +333,13 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	const generatedModelList = Object.keys(generatedModels(providerId));
+	// Use the catalog's authored order, not release-date order. The cline-pass
+	// block mirrors the recommended-models endpoint, which lists the intended
+	// default subscription model first — the newest model is not necessarily a
+	// safe default.
+	const generatedModelList = Object.keys(
+		GENERATED_PROVIDER_MODELS.providers[providerId] ?? {},
+	);
 	if (!generatedModelList.length) {
 		return "";
 	}
@@ -503,6 +515,7 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 		case "openai-codex":
 		case "opencode":
 		case "dify":
+		case "ollama":
 		case "sap-ai-core":
 			return "ai-sdk-community";
 		default:
@@ -952,12 +965,18 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		id: "ollama",
 		name: "Ollama",
 		description: "Ollama Cloud and local LLM hosting",
-		family: "openai-compatible",
+		// Routed to the native Ollama API vendor (`vendors/ollama.ts`), not the
+		// OpenAI-compatible `/v1` endpoint: `/v1` ignores `options.num_ctx`, so
+		// models would always load with Ollama's 4096-token server default.
+		family: "ollama",
 		popular: 25,
+		capabilities: ["tools"],
 		defaultModelId: "",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
+		// Local Ollama models are discovered dynamically; do not inherit the
+		// generated Ollama Cloud catalog when merging the models.dev spec.
 		modelsFactory: () => ({}),
-		defaults: { baseUrl: "http://localhost:11434/v1" },
+		defaults: { baseUrl: "http://localhost:11434" },
 		modelsSourceUrl: "http://localhost:11434/api/tags",
 	},
 	{

@@ -4,6 +4,7 @@ import { sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import {
 	BunRuntime,
+	SIDECAR_HOST,
 	SIDECAR_MODE,
 	SIDECAR_PORT,
 	type SidecarContext,
@@ -15,12 +16,20 @@ type SidecarServer = {
 	upgrade(req: Request): boolean;
 };
 
+// Comma-separated extra origins (e.g. a dev server on a nonstandard port when
+// the sidecar runs inside a container). Origin validation itself stays on.
+const EXTRA_TRUSTED_ORIGINS = (process.env.CLINE_SIDECAR_TRUSTED_ORIGINS ?? "")
+	.split(",")
+	.map((origin) => origin.trim())
+	.filter(Boolean);
+
 const TRUSTED_BROWSER_ORIGINS = new Set([
 	"tauri://localhost",
 	"http://tauri.localhost",
 	"https://tauri.localhost",
 	"http://localhost:3125",
 	"http://127.0.0.1:3125",
+	...EXTRA_TRUSTED_ORIGINS,
 ]);
 
 const JSON_HEADERS = {
@@ -115,7 +124,7 @@ export function startServer(
 	for (const candidate of candidates) {
 		try {
 			server = BunRuntime.serve({
-				hostname: "127.0.0.1",
+				hostname: SIDECAR_HOST,
 				port: candidate,
 				fetch: createFetchHandler(ctx, onShutdown),
 				websocket: createWebSocketHandler(ctx),
@@ -134,7 +143,7 @@ export function startServer(
 }
 
 export function createFetchHandler(
-	_ctx: SidecarContext,
+	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
 ) {
 	return async (req: Request, server: SidecarServer) => {
@@ -190,11 +199,7 @@ export function createFetchHandler(
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
-						process.stderr.write(
-							`sidecar shutdown failed: ${
-								error instanceof Error ? error.message : String(error)
-							}\n`,
-						);
+						ctx.logger?.error?.("Desktop sidecar shutdown failed", { error });
 					})
 					.finally(() => process.exit(0));
 			});

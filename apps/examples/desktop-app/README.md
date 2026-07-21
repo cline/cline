@@ -16,6 +16,15 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Web Visual System
+
+The framework-neutral color, typography, radius, and navigation contract lives
+in the internal [`@cline/ui`](../../../sdk/packages/ui/README.md) workspace
+package. Other Cline web surfaces can take only its tokens or opt into the
+Tailwind adapter and shared base styles without depending on the desktop
+runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
+desktop integration notes.
+
 ## Shareable Desktop Packages
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:
@@ -98,6 +107,21 @@ Desktop transport envelope:
 - `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
 - `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
 - Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../../sdk/packages/core/docs/messages-contract-v1.md).
+
+## Sidecar observability
+
+The desktop sidecar sends SDK telemetry through the same configured OpenTelemetry
+pipeline used by the CLI and writes structured runtime logs to
+`~/.cline/data/logs/code.log` by default. Telemetry continues to honor the global
+opt-out setting exposed in the desktop settings UI. The sidecar truncates stale
+logs and rotates the active file before it exceeds 50 MiB.
+
+Logging can be configured with the same environment variables as the CLI:
+
+- `CLINE_LOG_ENABLED=0` disables file logging.
+- `CLINE_LOG_LEVEL` sets the Pino level (for example, `debug` or `warn`).
+- `CLINE_LOG_PATH` overrides the log destination.
+- `CLINE_LOG_NAME` overrides the logger name.
 
 ## Troubleshooting
 
