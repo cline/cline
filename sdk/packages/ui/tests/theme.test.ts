@@ -238,6 +238,7 @@ describe("@cline/ui theme contract", () => {
 			readFileSync(join(packageRoot, "package.json"), "utf8"),
 		) as { exports?: Record<string, string> };
 		for (const subpath of [
+			"./components.css",
 			"./components/agent-chat.css",
 			"./theme/index.css",
 			"./theme/markdown.css",
