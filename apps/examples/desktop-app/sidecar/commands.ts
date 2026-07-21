@@ -104,14 +104,28 @@ function openUrlInDefaultBrowser(url: string): Promise<void> {
 						detached: true,
 					});
 	// A missing opener binary emits an async "error" event; without a listener
-	// it becomes an uncaught exception that kills the sidecar.
+	// it becomes an uncaught exception that kills the sidecar. Launchers hand
+	// off to the browser and exit quickly, so a fast non-zero exit means the
+	// handoff failed (xdg-open exits 3 when no handler is available; rundll32
+	// exits 0 even on failure, so Windows stays best-effort). If the launcher
+	// is still running after the grace window, assume the handoff worked
+	// rather than blocking on a launcher that lingers.
 	return new Promise((resolve, reject) => {
-		spawned.once("error", (error) => {
-			reject(new Error(`could not open browser: ${error.message}`));
-		});
+		const graceTimer = setTimeout(resolve, 2_000);
 		spawned.once("spawn", () => {
 			spawned.unref();
-			resolve();
+		});
+		spawned.once("error", (error) => {
+			clearTimeout(graceTimer);
+			reject(new Error(`could not open browser: ${error.message}`));
+		});
+		spawned.once("exit", (code) => {
+			clearTimeout(graceTimer);
+			if (code === 0 || code === null) {
+				resolve();
+			} else {
+				reject(new Error(`browser opener exited with code ${code}`));
+			}
 		});
 	});
 }
