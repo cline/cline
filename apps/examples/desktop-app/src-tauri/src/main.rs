@@ -122,6 +122,9 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
     }
 }
 
+/// Lock order: `process` may be held while acquiring `ws_endpoint`, never
+/// the reverse. Anything that touches both (including stop()) must either
+/// nest in that order or take them strictly sequentially.
 #[derive(Default)]
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
