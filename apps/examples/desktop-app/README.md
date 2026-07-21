@@ -113,7 +113,8 @@ Desktop transport envelope:
 The desktop sidecar sends SDK telemetry through the same configured OpenTelemetry
 pipeline used by the CLI and writes structured runtime logs to
 `~/.cline/data/logs/code.log` by default. Telemetry continues to honor the global
-opt-out setting exposed in the desktop settings UI.
+opt-out setting exposed in the desktop settings UI. The sidecar truncates stale
+logs and rotates the active file before it exceeds 50 MiB.
 
 Logging can be configured with the same environment variables as the CLI:
 
