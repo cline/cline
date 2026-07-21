@@ -434,17 +434,20 @@ async function handleRoutineScheduleCommand(
 	};
 	try {
 		if (command === "list_routine_schedules") {
-			const [schedules, activeExecutions, upcomingRuns] = await Promise.all([
-				clientCommand("schedule.list", {
-					limit: toPositiveInt(args?.limit) ?? 200,
-				}),
-				clientCommand("schedule.active"),
-				clientCommand("schedule.upcoming", { limit: 30 }),
-			]);
+			const [schedules, activeExecutions, upcomingRuns, lastExecutions] =
+				await Promise.all([
+					clientCommand("schedule.list", {
+						limit: toPositiveInt(args?.limit) ?? 200,
+					}),
+					clientCommand("schedule.active"),
+					clientCommand("schedule.upcoming", { limit: 30 }),
+					clientCommand("schedule.list_executions", { limit: 50 }),
+				]);
 			return {
 				schedules: schedules.schedules ?? [],
 				activeExecutions: activeExecutions.executions ?? [],
 				upcomingRuns: upcomingRuns.runs ?? [],
+				lastExecutions: lastExecutions.executions ?? [],
 			};
 		}
 		if (command === "create_routine_schedule") {
@@ -493,7 +496,13 @@ async function handleRoutineScheduleCommand(
 			return { schedule: reply.schedule ?? null };
 		}
 		if (command === "trigger_routine_schedule") {
-			const reply = await clientCommand("schedule.trigger", { scheduleId });
+			// wait: false queues the run and returns immediately; the default
+			// path blocks until the whole agent run finishes, which outlives the
+			// webview's request timeout.
+			const reply = await clientCommand("schedule.trigger", {
+				scheduleId,
+				wait: false,
+			});
 			return { execution: reply.execution ?? null };
 		}
 		if (command === "delete_routine_schedule") {
