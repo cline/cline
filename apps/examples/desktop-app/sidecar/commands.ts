@@ -218,13 +218,16 @@ function mcpTransportIdentity(record: JsonRecord): string {
 	const type = String(
 		transport?.type ?? record.transportType ?? record.type ?? "stdio",
 	).trim();
+	// Core's config-loader maps the legacy "http" transport alias to
+	// streamableHttp; treat them as the same endpoint here too.
+	const normalizedType = type === "http" ? "streamableHttp" : type;
 	const url =
 		typeof transport?.url === "string"
 			? transport.url
 			: typeof record.url === "string"
 				? record.url
 				: "";
-	return `${type}\u0000${url}`;
+	return `${normalizedType}\u0000${url}`;
 }
 
 function writeMcpServersMap(servers: JsonRecord): void {
