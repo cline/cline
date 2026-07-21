@@ -48,6 +48,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
+import {
+	type MarketplaceLocalInstalledItem,
+	MarketplaceView,
+} from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
@@ -435,6 +439,117 @@ export function McpServersContent() {
 		}));
 	};
 
+	const renderServerActions = (server: McpServer) => {
+		const isBusy = busyServerName === server.name;
+		return (
+			<div className="flex items-center gap-1">
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Edit ${server.name}`}
+					onClick={() => openEditDialog(server)}
+					disabled={isBusy}
+				>
+					<Pencil className="h-3.5 w-3.5" />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Delete ${server.name}`}
+					onClick={() => setDeleteTarget(server)}
+					disabled={isBusy}
+				>
+					<Trash2 className="h-3.5 w-3.5" />
+				</Button>
+				<Switch
+					checked={!server.disabled}
+					onCheckedChange={(enabled) => toggleServer(server, !enabled)}
+					disabled={isBusy}
+					aria-label={`Enable ${server.name}`}
+				/>
+			</div>
+		);
+	};
+
+	const renderServerDetails = (server: McpServer) => (
+		<div className="flex flex-col gap-1 text-xs text-muted-foreground">
+			{server.command && (
+				<p>
+					<span className="text-muted-foreground/70">Command:</span>{" "}
+					{server.command}
+				</p>
+			)}
+			{server.args && server.args.length > 0 && (
+				<p>
+					<span className="text-muted-foreground/70">Args:</span>{" "}
+					{server.args.join(", ")}
+				</p>
+			)}
+			{server.cwd && (
+				<p>
+					<span className="text-muted-foreground/70">CWD:</span> {server.cwd}
+				</p>
+			)}
+			{server.url && (
+				<p>
+					<span className="text-muted-foreground/70">URL:</span> {server.url}
+				</p>
+			)}
+			{server.env && Object.keys(server.env).length > 0 && (
+				<p>
+					<span className="text-muted-foreground/70">Env:</span>{" "}
+					{stringifyRedactedKeyValuePairs(server.env)}
+				</p>
+			)}
+			{server.headers && Object.keys(server.headers).length > 0 && (
+				<p>
+					<span className="text-muted-foreground/70">Headers:</span>{" "}
+					{stringifyKeyValuePairs(server.headers)}
+				</p>
+			)}
+		</div>
+	);
+
+	const renderServerCard = (server: McpServer) => (
+		<div
+			key={server.name}
+			className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
+		>
+			<div className="flex items-center gap-3">
+				<Circle
+					className={cn(
+						"h-2.5 w-2.5 shrink-0",
+						server.disabled
+							? "fill-muted-foreground/40 text-muted-foreground/40"
+							: "fill-primary text-primary",
+					)}
+				/>
+				<h3 className="text-sm font-semibold text-foreground">{server.name}</h3>
+				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
+				</span>
+				<div className="flex-1" />
+				{renderServerActions(server)}
+			</div>
+			<div className="mt-2.5 ml-5.5">{renderServerDetails(server)}</div>
+		</div>
+	);
+
+	const installedItems = sortedServers.map(
+		(server): MarketplaceLocalInstalledItem => ({
+			key: server.name,
+			matchValues: [server.name],
+			render: () => renderServerCard(server),
+			renderMatchedBadges: () => (
+				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
+				</span>
+			),
+			renderMatchedControls: () => renderServerActions(server),
+			renderMatchedDetails: () => renderServerDetails(server),
+		}),
+	);
+
 	return (
 		<PageFrame>
 			<PageHeader
@@ -489,113 +604,12 @@ export function McpServersContent() {
 				</div>
 			)}
 
-			{isLoading ? (
-				<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-					Loading MCP servers...
-				</div>
-			) : sortedServers.length === 0 ? (
-				<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-					No MCP servers configured.
-				</div>
-			) : (
-				<div className="flex flex-col gap-3">
-					{sortedServers.map((server) => {
-						const isBusy = busyServerName === server.name;
-						return (
-							<div
-								key={server.name}
-								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
-							>
-								<div className="flex items-center gap-3">
-									<Circle
-										className={cn(
-											"h-2.5 w-2.5 shrink-0",
-											server.disabled
-												? "fill-muted-foreground/40 text-muted-foreground/40"
-												: "fill-primary text-primary",
-										)}
-									/>
-									<h3 className="text-sm font-semibold text-foreground">
-										{server.name}
-									</h3>
-									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-										{TRANSPORT_TYPE_LABELS[server.transportType] ??
-											server.transportType}
-									</span>
-									<div className="flex-1" />
-									<div className="flex items-center gap-1">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Edit ${server.name}`}
-											onClick={() => openEditDialog(server)}
-											disabled={isBusy}
-										>
-											<Pencil className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Delete ${server.name}`}
-											onClick={() => setDeleteTarget(server)}
-											disabled={isBusy}
-										>
-											<Trash2 className="h-3.5 w-3.5" />
-										</Button>
-										<Switch
-											checked={!server.disabled}
-											onCheckedChange={(enabled) =>
-												toggleServer(server, !enabled)
-											}
-											disabled={isBusy}
-											aria-label={`Enable ${server.name}`}
-										/>
-									</div>
-								</div>
-
-								<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
-									{server.command && (
-										<p>
-											<span className="text-muted-foreground/70">Command:</span>{" "}
-											{server.command}
-										</p>
-									)}
-									{server.args && server.args.length > 0 && (
-										<p>
-											<span className="text-muted-foreground/70">Args:</span>{" "}
-											{server.args.join(", ")}
-										</p>
-									)}
-									{server.cwd && (
-										<p>
-											<span className="text-muted-foreground/70">CWD:</span>{" "}
-											{server.cwd}
-										</p>
-									)}
-									{server.url && (
-										<p>
-											<span className="text-muted-foreground/70">URL:</span>{" "}
-											{server.url}
-										</p>
-									)}
-									{server.env && Object.keys(server.env).length > 0 && (
-										<p>
-											<span className="text-muted-foreground/70">Env:</span>{" "}
-											{stringifyRedactedKeyValuePairs(server.env)}
-										</p>
-									)}
-									{server.headers && Object.keys(server.headers).length > 0 && (
-										<p>
-											<span className="text-muted-foreground/70">Headers:</span>{" "}
-											{stringifyKeyValuePairs(server.headers)}
-										</p>
-									)}
-								</div>
-							</div>
-						);
-					})}
-				</div>
-			)}
+			<MarketplaceView
+				chrome="embedded"
+				installedItems={installedItems}
+				onInstalledItemsChanged={() => refreshServers()}
+				primitive="mcp"
+			/>
 			<Dialog
 				open={editorOpen}
 				onOpenChange={(open) => {

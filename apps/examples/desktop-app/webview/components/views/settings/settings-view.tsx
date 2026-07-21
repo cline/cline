@@ -33,7 +33,6 @@ import { toSettingsPatch } from "./settings-patch";
 export const SETTINGS_SECTIONS = [
 	"General",
 	"Models",
-	"MCP Servers",
 	"Channels",
 	"Schedules",
 	"Account",
@@ -411,14 +410,12 @@ export function SettingsView({
 	const content =
 		activeNav === "Models" ? (
 			providerContent
-		) : activeNav === "MCP Servers" ? (
-			<McpServersContent />
 		) : activeNav === "Plugins" ? (
 			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
 		) : activeNav === "Skills" ? (
 			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
 		) : activeNav === "MCP" ? (
-			<CustomizationSectionView catalogPrimitive="mcp" section="MCP" />
+			<McpServersContent />
 		) : activeNav === "Hooks" ? (
 			<CustomizationSectionView section="Hooks" />
 		) : activeNav === "Rules" ? (

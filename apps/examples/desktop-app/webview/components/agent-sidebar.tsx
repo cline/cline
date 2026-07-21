@@ -102,7 +102,6 @@ type SidebarSortMode = "time" | "project";
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
-	"MCP Servers": Server,
 	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
