@@ -70,7 +70,9 @@
 	},
 	"dependencies": {
 		"@radix-ui/react-dialog": "1.1.15",
-		"@radix-ui/react-slot": "1.2.4"
+		"@radix-ui/react-popover": "1.1.15",
+		"@radix-ui/react-slot": "1.2.4",
+		"cmdk": "1.1.1"
 	},
 	"peerDependencies": {
 		"react": ">=18.3.0 <20",
