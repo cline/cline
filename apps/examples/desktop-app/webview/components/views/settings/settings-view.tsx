@@ -17,7 +17,7 @@ import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { CustomizationSectionView, RulesView } from "./extensions-view";
+import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
@@ -33,15 +33,25 @@ import { toSettingsPatch } from "./settings-patch";
 export const SETTINGS_SECTIONS = [
 	"General",
 	"Models",
-	"MCP Servers",
-	"MCP Marketplace",
-	"Customizations",
 	"Channels",
 	"Schedules",
 	"Account",
 ] as const;
 
-export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+// Mirrors the Cline Hub dashboard's Customizations nav group.
+export const CUSTOMIZATION_SECTIONS = [
+	"Plugins",
+	"Skills",
+	"MCP",
+	"Hooks",
+	"Rules",
+	"Agents",
+	"Tools",
+] as const;
+
+export type SettingsSection =
+	| (typeof SETTINGS_SECTIONS)[number]
+	| (typeof CUSTOMIZATION_SECTIONS)[number];
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
@@ -400,12 +410,20 @@ export function SettingsView({
 	const content =
 		activeNav === "Models" ? (
 			providerContent
-		) : activeNav === "MCP Servers" ? (
+		) : activeNav === "Plugins" ? (
+			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
+		) : activeNav === "Skills" ? (
+			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
+		) : activeNav === "MCP" ? (
 			<McpServersContent />
-		) : activeNav === "MCP Marketplace" ? (
-			<CustomizationSectionView catalogPrimitive="mcp" section="MCP" />
-		) : activeNav === "Customizations" ? (
-			<RulesView />
+		) : activeNav === "Hooks" ? (
+			<CustomizationSectionView section="Hooks" />
+		) : activeNav === "Rules" ? (
+			<CustomizationSectionView section="Rules" />
+		) : activeNav === "Agents" ? (
+			<CustomizationSectionView section="Agents" />
+		) : activeNav === "Tools" ? (
+			<CustomizationSectionView section="Tools" />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (

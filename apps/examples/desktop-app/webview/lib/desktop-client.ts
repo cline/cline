@@ -99,13 +99,15 @@ const RECONNECT_MAX_DELAY_MS = 4_000;
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
 // In sidecar/web mode these commands are handled by the sidecar over WebSocket.
-function isTauriAvailable(): boolean {
+export function isTauriAvailable(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
+	"get_update_status",
+	"restart_to_apply_update",
 ]);
 
 class DesktopClient {
@@ -342,3 +344,18 @@ class DesktopClient {
 }
 
 export const desktopClient = new DesktopClient();
+
+/**
+ * Open a URL in the user's default browser. Inside the Tauri shell,
+ * `target="_blank"` anchors are silently dropped (no window opener is
+ * configured), so external links must be routed through the sidecar, which
+ * runs on the host and can spawn the platform opener. In plain web mode the
+ * browser handles it directly.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+	if (isTauriAvailable()) {
+		await desktopClient.invoke("open_external_url", { url });
+		return;
+	}
+	window.open(url, "_blank", "noopener,noreferrer");
+}

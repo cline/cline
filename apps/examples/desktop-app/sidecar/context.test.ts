@@ -118,6 +118,35 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("wires the desktop logger and telemetry through the client and embedded hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const telemetry = { capture: vi.fn() };
+		const ctx = createSidecarContext("/workspace/project", {
+			logger,
+			telemetry: telemetry as never,
+		});
+
+		await initializeSessionManager(ctx);
+
+		expect(startHubWebSocketServerMock).toHaveBeenCalledWith(
+			expect.objectContaining({ logger, telemetry }),
+		);
+		expect(createCoreMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				clientName: "cline-code",
+				logger,
+				telemetry,
+			}),
+		);
+	});
+
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

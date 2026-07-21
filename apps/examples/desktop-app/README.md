@@ -25,7 +25,21 @@ Tailwind adapter and shared base styles without depending on the desktop
 runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
 desktop integration notes.
 
-## Shareable Desktop Packages
+## Releases & Auto-Updates
+
+Releases are built, signed, notarized, and published by the `desktop-publish`
+GitHub workflow. The step-by-step flow (version bumps, changelog, tag, repo
+secrets) lives in the `publish-desktop` skill
+(`.cline/skills/publish-desktop/SKILL.md`).
+
+Installed apps auto-update via the Tauri updater: they poll the rolling
+`desktop-latest` release's `latest.json` on launch and every 2 hours, install
+updates in the background, and prompt for a restart. Two things must never be
+lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
+apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
+shipped apps can't verify new updates).
+
+## Shareable Desktop Packages (manual fallback)
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:
 
@@ -107,6 +121,21 @@ Desktop transport envelope:
 - `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
 - `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
 - Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../../sdk/packages/core/docs/messages-contract-v1.md).
+
+## Sidecar observability
+
+The desktop sidecar sends SDK telemetry through the same configured OpenTelemetry
+pipeline used by the CLI and writes structured runtime logs to
+`~/.cline/data/logs/code.log` by default. Telemetry continues to honor the global
+opt-out setting exposed in the desktop settings UI. The sidecar truncates stale
+logs and rotates the active file before it exceeds 50 MiB.
+
+Logging can be configured with the same environment variables as the CLI:
+
+- `CLINE_LOG_ENABLED=0` disables file logging.
+- `CLINE_LOG_LEVEL` sets the Pino level (for example, `debug` or `warn`).
+- `CLINE_LOG_PATH` overrides the log destination.
+- `CLINE_LOG_NAME` overrides the logger name.
 
 ## Troubleshooting
 

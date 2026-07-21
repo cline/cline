@@ -1,4 +1,5 @@
 import {
+	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
 } from "@cline/shared";
@@ -74,6 +75,17 @@ type ClineTokenResponse = {
 
 type HeaderMap = Record<string, string>;
 type HeaderInput = HeaderMap | (() => Promise<HeaderMap> | HeaderMap);
+
+type AuthTokenTelemetryClaims = {
+	sessionId?: string;
+};
+
+type AuthCredentialTelemetryProperties = {
+	sessionDurationMs?: number;
+};
+
+type AuthTelemetryDetails = AuthTokenTelemetryClaims &
+	AuthCredentialTelemetryProperties;
 
 export interface ClineOAuthProviderOptions {
 	apiBaseUrl: string;
@@ -176,6 +188,48 @@ function toSeconds(value: unknown, fallback: number): number {
 		return fallback;
 	}
 	return Math.floor(value);
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+	return (typeof value === "string" && value.trim()) || undefined;
+}
+
+function getAuthTokenTelemetryClaims(token: string): AuthTokenTelemetryClaims {
+	const payload = decodeJwtPayload(token);
+	if (!payload) {
+		return {};
+	}
+
+	return {
+		sessionId: asNonEmptyString(payload.sid),
+	};
+}
+
+function getAuthCredentialTelemetryProperties(
+	credentials: ClineOAuthCredentials,
+): AuthCredentialTelemetryProperties {
+	const authProperties: AuthCredentialTelemetryProperties = {};
+
+	const sessionStartedAtMs = credentials.metadata?.sessionStartedAtMs;
+
+	if (
+		typeof sessionStartedAtMs === "number" &&
+		Number.isFinite(sessionStartedAtMs) &&
+		sessionStartedAtMs > 0
+	) {
+		authProperties.sessionDurationMs = Date.now() - sessionStartedAtMs;
+	}
+
+	return authProperties;
+}
+
+function getAuthTelemetryDetails(
+	credentials: ClineOAuthCredentials,
+): AuthTelemetryDetails {
+	return {
+		...getAuthTokenTelemetryClaims(credentials.access),
+		...getAuthCredentialTelemetryProperties(credentials),
+	};
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -559,7 +613,11 @@ export async function loginClineOAuth(
 			);
 		}
 
-		captureAuthSucceeded(options.telemetry, options.provider ?? "cline");
+		captureAuthSucceeded(
+			options.telemetry,
+			options.provider ?? "cline",
+			getAuthTelemetryDetails(credentials),
+		);
 		identifyAccount(options.telemetry, {
 			id: credentials.accountId,
 			email: credentials.email,
@@ -629,7 +687,11 @@ export async function completeClineDeviceAuth(options: {
 			},
 			options.provider,
 		);
-		captureAuthSucceeded(options.telemetry, providerName);
+		captureAuthSucceeded(
+			options.telemetry,
+			providerName,
+			getAuthTelemetryDetails(credentials),
+		);
 		identifyAccount(options.telemetry, {
 			id: credentials.accountId,
 			email: credentials.email,
@@ -743,12 +805,14 @@ export async function getValidClineCredentials(
 	try {
 		return await refreshClineToken(currentCredentials, providerOptions);
 	} catch (error) {
+		const authTelemetryDetails = getAuthTelemetryDetails(currentCredentials);
 		const failureDetails = {
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
-			requestId:
+			request_id:
 				error instanceof ClineOAuthTokenError ? error.requestId : undefined,
+			...authTelemetryDetails,
 			errorName: error instanceof Error ? error.name : undefined,
 		};
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
@@ -762,7 +826,8 @@ export async function getValidClineCredentials(
 				{
 					status: error.status,
 					errorCode: error.errorCode,
-					requestId: error.requestId,
+					request_id: error.requestId,
+					...authTelemetryDetails,
 				},
 			);
 			return null;

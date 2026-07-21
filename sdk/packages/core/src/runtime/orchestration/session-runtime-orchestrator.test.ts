@@ -2397,3 +2397,90 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Auth retry
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime auth retry", () => {
+	const authFailure: Partial<AgentRunResult> = {
+		status: "failed",
+		error: new Error(
+			"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
+		),
+	};
+
+	/** Runtime factory that scripts each successive AgentRuntime build. */
+	function withSequencedRuntimes(scripts: FakeAgentRuntimeScript[]): {
+		deps: SessionRuntimeOrchestratorDeps;
+		createdCount: () => number;
+	} {
+		let created = 0;
+		const deps: SessionRuntimeOrchestratorDeps = {
+			createAgentRuntimeImpl: () => {
+				const script = scripts[Math.min(created, scripts.length - 1)];
+				created += 1;
+				return makeFakeAgentRuntime(script).runtime;
+			},
+		};
+		return { deps, createdCount: () => created };
+	}
+
+	it("retries once with refreshed credentials when a run fails with an auth error", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as AgentConfig["telemetry"];
+		const { deps, createdCount } = withSequencedRuntimes([
+			{ result: authFailure },
+			{ result: { outputText: "recovered" } },
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({ onAuthError, telemetry }),
+			deps,
+		);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(2);
+		expect(result.finishReason).toBe("completed");
+		expect(result.text).toBe("recovered");
+		expect(capture).toHaveBeenCalledWith({
+			event: "user.auth_run_retry",
+			properties: { provider: "anthropic", recovered: true },
+		});
+	});
+
+	it("returns the failed result when the host cannot refresh credentials", async () => {
+		const onAuthError = vi.fn(async () => false);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{ result: authFailure },
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
+	});
+
+	it("does not invoke onAuthError for non-auth failures", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{
+				result: {
+					status: "failed",
+					error: new Error("Model stream failed"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).not.toHaveBeenCalled();
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
+	});
+});

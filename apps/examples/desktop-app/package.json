@@ -3,9 +3,12 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
+		"build:ui": "bun -F @cline/ui build",
+		"predev:web": "bun run build:ui",
 		"dev:web": "next dev webview -p 3125 --turbo",
 		"dev:sidecar": "bun run sidecar/index.ts",
 		"dev": "tauri dev",
+		"prebuild": "bun run build:ui",
 		"build": "bun run bun.mts",
 		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
@@ -16,7 +19,10 @@
 		"package:desktop:windows": "bun run scripts/package-desktop.ts --platform windows",
 		"package:desktop:linux": "bun run scripts/package-desktop.ts --platform linux",
 		"start": "next start webview",
+		"pretypecheck": "bun run build:ui",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
+		"pretest:chat-ui": "bun run build:ui",
+		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx --config vitest.config.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
@@ -70,6 +76,7 @@
 		"lucide-react": "^0.564.0",
 		"next": "16.2.6",
 		"next-themes": "^0.4.6",
+		"pino": "^10.3.1",
 		"radix-ui": "^1.4.3",
 		"react": "19.2.4",
 		"react-day-picker": "9.13.2",
