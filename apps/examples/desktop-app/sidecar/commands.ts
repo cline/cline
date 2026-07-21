@@ -157,8 +157,13 @@ function readMcpServersResponse(): JsonRecord {
 			record.transport && typeof record.transport === "object"
 				? (record.transport as JsonRecord)
 				: undefined;
+		const rawTransportType =
+			transport?.type ?? record.transportType ?? record.type;
 		const transportType = String(
-			transport?.type ?? record.transportType ?? record.type ?? "stdio",
+			rawTransportType ??
+				(typeof transport?.url === "string" || typeof record.url === "string"
+					? "sse"
+					: "stdio"),
 		).trim();
 		return {
 			name,
@@ -215,18 +220,18 @@ function mcpTransportIdentity(record: JsonRecord): string {
 		record.transport && typeof record.transport === "object"
 			? (record.transport as JsonRecord)
 			: undefined;
-	const type = String(
-		transport?.type ?? record.transportType ?? record.type ?? "stdio",
-	).trim();
-	// Core's config-loader maps the legacy "http" transport alias to
-	// streamableHttp; treat them as the same endpoint here too.
-	const normalizedType = type === "http" ? "streamableHttp" : type;
 	const url =
 		typeof transport?.url === "string"
 			? transport.url
 			: typeof record.url === "string"
 				? record.url
 				: "";
+	// Core's config-loader defaults a URL-based legacy record with no explicit
+	// type to SSE and maps the legacy "http" alias to streamableHttp; mirror
+	// both so an unchanged endpoint keeps the same identity.
+	const rawType = transport?.type ?? record.transportType ?? record.type;
+	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
+	const normalizedType = type === "http" ? "streamableHttp" : type;
 	return `${normalizedType}\u0000${url}`;
 }
 
