@@ -9,6 +9,7 @@ import {
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
+import { ensureLoginShellPath } from "./shell-path";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -42,6 +43,14 @@ async function main() {
 	setHomeDirIfUnset(homedir());
 	const observability = createDesktopObservability();
 	activeObservability = observability;
+
+	// When launched from Finder/the Dock the app inherits launchd's minimal
+	// PATH, so agent-spawned processes can't find shell-profile-installed
+	// tools like `gh`. Patch PATH from the login shell before anything that
+	// spawns children (agent sessions, MCP servers) is created.
+	const shellPathResult = await ensureLoginShellPath();
+	observability.logger.log("Login shell PATH resolution", shellPathResult);
+
 	const ctx = createSidecarContext(workspaceRoot, observability);
 	observability.logger.log("Desktop sidecar starting", {
 		workspaceRoot,
