@@ -85,6 +85,26 @@ import type {
 	SidecarContext,
 } from "./types";
 
+function openUrlInDefaultBrowser(url: string): void {
+	const platform = process.platform;
+	const spawned =
+		platform === "darwin"
+			? spawn("open", [url], { stdio: "ignore", detached: true })
+			: platform === "win32"
+				? spawn("cmd", ["/c", "start", "", url], {
+						stdio: "ignore",
+						detached: true,
+					})
+				: spawn("xdg-open", [url], {
+						stdio: "ignore",
+						detached: true,
+					});
+	// A missing opener binary emits an async "error" event; without a listener
+	// it becomes an uncaught exception that kills the sidecar.
+	spawned.on("error", () => {});
+	spawned.unref();
+}
+
 function readProviderSettingsUpdate(
 	args: Record<string, unknown> | undefined,
 ): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
@@ -979,6 +999,22 @@ export async function handleCommand(
 		return await searchWorkspaceFiles(ctx, args);
 	}
 
+	// ── External links ─────────────────────────────────────────────────
+	if (command === "open_external_url") {
+		const rawUrl = String(args?.url ?? "").trim();
+		let parsed: URL;
+		try {
+			parsed = new URL(rawUrl);
+		} catch {
+			throw new Error(`invalid url: ${rawUrl}`);
+		}
+		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+			throw new Error("only http(s) urls can be opened externally");
+		}
+		openUrlInDefaultBrowser(parsed.toString());
+		return { opened: true };
+	}
+
 	// ── Cline account ──────────────────────────────────────────────────
 	if (command === "cline_account") {
 		const operation = String(args?.operation ?? "").trim();
@@ -1063,22 +1099,7 @@ export async function handleCommand(
 		const saved = await loginAndSaveLocalProviderOAuthCredentials(
 			manager,
 			providerId,
-			(url) => {
-				const platform = process.platform;
-				const spawned =
-					platform === "darwin"
-						? spawn("open", [url], { stdio: "ignore", detached: true })
-						: platform === "win32"
-							? spawn("cmd", ["/c", "start", "", url], {
-									stdio: "ignore",
-									detached: true,
-								})
-							: spawn("xdg-open", [url], {
-									stdio: "ignore",
-									detached: true,
-								});
-				spawned.unref();
-			},
+			openUrlInDefaultBrowser,
 		);
 		if (saved.provider !== providerId) {
 			markLocalProviderEnabled(manager, providerId, { tokenSource: "oauth" });
