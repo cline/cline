@@ -346,43 +346,7 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-fn ensure_desktop_backend_started(
-    state: &Arc<DesktopBackendState>,
-    context: &AppContext,
-) -> Result<(), String> {
-    if state.is_shutting_down() {
-        return Ok(());
-    }
-
-    {
-        let mut process_guard = state
-            .process
-            .lock()
-            .map_err(|_| "failed to lock desktop backend process state")?;
-        if let Some(existing) = process_guard.as_mut() {
-            match existing.try_wait() {
-                Ok(None) => {
-                    if state
-                        .ws_endpoint
-                        .lock()
-                        .ok()
-                        .and_then(|value| value.as_ref().cloned())
-                        .map(|value| !value.trim().is_empty())
-                        .unwrap_or(false)
-                    {
-                        return Ok(());
-                    }
-                }
-                Ok(Some(_)) | Err(_) => {
-                    *process_guard = None;
-                    if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
-                        *endpoint_guard = None;
-                    }
-                }
-            }
-        }
-    }
-
+fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         let mut command = Command::new(binary_path);
         command.current_dir(&context.workspace_root);
@@ -401,12 +365,54 @@ fn ensure_desktop_backend_started(
         ));
     };
 
-    let mut child = command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))?;
+        .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))
+}
+
+fn ensure_desktop_backend_started(
+    state: &Arc<DesktopBackendState>,
+    context: &AppContext,
+) -> Result<(), String> {
+    ensure_desktop_backend_started_with(state, || spawn_desktop_backend_process(context))
+}
+
+fn ensure_desktop_backend_started_with(
+    state: &Arc<DesktopBackendState>,
+    spawn_backend: impl FnOnce() -> Result<Child, String>,
+) -> Result<(), String> {
+    if state.is_shutting_down() {
+        return Ok(());
+    }
+
+    // Hold the process lock for the entire check-and-spawn so concurrent
+    // callers (setup, the health-check loop, endpoint fetches from the
+    // webview) serialize: the second caller blocks here, then sees the live
+    // child and returns instead of spawning a duplicate.
+    let mut process_guard = state
+        .process
+        .lock()
+        .map_err(|_| "failed to lock desktop backend process state")?;
+    if let Some(existing) = process_guard.as_mut() {
+        match existing.try_wait() {
+            // A live child owns startup even while its endpoint is still
+            // pending (login-shell PATH resolution plus session-manager init
+            // take a few seconds). Spawning again here would orphan it and
+            // race on the port.
+            Ok(None) => return Ok(()),
+            Ok(Some(_)) | Err(_) => {
+                *process_guard = None;
+                if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
+                    *endpoint_guard = None;
+                }
+            }
+        }
+    }
+
+    let mut child = spawn_backend()?;
 
     let stdout = child
         .stdout
@@ -417,6 +423,7 @@ fn ensure_desktop_backend_started(
         .take()
         .ok_or_else(|| "failed to capture desktop backend stderr".to_string())?;
 
+    let child_pid = child.id();
     let state_for_stdout = state.clone();
     thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
@@ -445,8 +452,19 @@ fn ensure_desktop_backend_started(
             }
             eprintln!("[desktop-backend] {trimmed}");
         }
-        if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
-            *endpoint_guard = None;
+        // Only clear the endpoint if this thread's child is still the one
+        // being tracked — a late EOF from a replaced child must not wipe the
+        // endpoint its successor already published.
+        let owns_tracked_child = state_for_stdout
+            .process
+            .lock()
+            .ok()
+            .map(|guard| guard.as_ref().map(|child| child.id()) == Some(child_pid))
+            .unwrap_or(false);
+        if owns_tracked_child {
+            if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
+                *endpoint_guard = None;
+            }
         }
     });
 
@@ -462,10 +480,6 @@ fn ensure_desktop_backend_started(
         }
     });
 
-    let mut process_guard = state
-        .process
-        .lock()
-        .map_err(|_| "failed to lock desktop backend process state")?;
     *process_guard = Some(child);
     Ok(())
 }
@@ -537,6 +551,8 @@ fn get_desktop_backend_endpoint(
     // see sidecar/shell-path.ts) plus session-manager init, whose duration
     // varies by machine. Poll well past that combined worst case; the loop
     // returns as soon as the ready line arrives, so only failure waits long.
+    // While pending this only waits — respawning is ensure's job, and it
+    // refuses to start a second sidecar while the first one is still alive.
     for _ in 0..150 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
@@ -546,6 +562,18 @@ fn get_desktop_backend_endpoint(
             .filter(|value| !value.trim().is_empty())
         {
             return Ok(endpoint);
+        }
+        let child_exited = backend_state
+            .process
+            .lock()
+            .ok()
+            .map(|mut guard| match guard.as_mut() {
+                Some(child) => !matches!(child.try_wait(), Ok(None)),
+                None => true,
+            })
+            .unwrap_or(false);
+        if child_exited {
+            return Err("desktop backend exited before publishing its endpoint".to_string());
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -663,4 +691,111 @@ fn main() {
             }
             _ => {}
         });
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A stand-in sidecar that stays alive without ever publishing a ready
+    /// line — the endpoint-pending startup window that used to trigger
+    /// duplicate spawns.
+    fn spawn_pending_sidecar() -> Result<Child, String> {
+        Command::new("sleep")
+            .arg("30")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn repeated_startup_checks_reuse_live_child_while_endpoint_pending() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = AtomicUsize::new(0);
+        for _ in 0..3 {
+            ensure_desktop_backend_started_with(&state, || {
+                spawn_count.fetch_add(1, Ordering::SeqCst);
+                spawn_pending_sidecar()
+            })
+            .expect("startup check should succeed");
+        }
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 1);
+        // Kill the fake sidecar directly so stop() doesn't wait out its
+        // graceful-exit window.
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn concurrent_startup_checks_spawn_exactly_one_child() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = Arc::new(AtomicUsize::new(0));
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let state = state.clone();
+                let spawn_count = spawn_count.clone();
+                thread::spawn(move || {
+                    ensure_desktop_backend_started_with(&state, || {
+                        spawn_count.fetch_add(1, Ordering::SeqCst);
+                        spawn_pending_sidecar()
+                    })
+                    .expect("startup check should succeed");
+                })
+            })
+            .collect();
+        for handle in handles {
+            handle.join().expect("startup thread should not panic");
+        }
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 1);
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn exited_child_is_replaced_on_next_startup_check() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = AtomicUsize::new(0);
+        let spawn_exiting = || {
+            spawn_count.fetch_add(1, Ordering::SeqCst);
+            Command::new("true")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| e.to_string())
+        };
+        ensure_desktop_backend_started_with(&state, || spawn_exiting())
+            .expect("startup check should succeed");
+        // Wait for the first child to exit so the next check sees a dead one.
+        for _ in 0..100 {
+            let exited = state
+                .process
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                })
+                .unwrap_or(false);
+            if exited {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        ensure_desktop_backend_started_with(&state, || spawn_exiting())
+            .expect("startup check should succeed");
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 2);
+        state.stop();
+    }
 }
