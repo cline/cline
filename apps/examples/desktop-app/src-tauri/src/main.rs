@@ -14,6 +14,18 @@ use tauri_plugin_updater::UpdaterExt;
 const UPDATE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
 
+// Test override for the periodic re-check cadence (the launch check always
+// runs after UPDATE_INITIAL_DELAY regardless). Only read when launched from a
+// shell, e.g.: CLINE_CODE_UPDATE_INTERVAL_SECS=300 ".../Cline Code.app/Contents/MacOS/cline-app"
+fn update_check_interval() -> Duration {
+    std::env::var("CLINE_CODE_UPDATE_INTERVAL_SECS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|secs| *secs > 0)
+        .map(Duration::from_secs)
+        .unwrap_or(UPDATE_CHECK_INTERVAL)
+}
+
 #[derive(Clone)]
 struct AppContext {
     launch_cwd: String,
@@ -115,10 +127,11 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
 }
 
 async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
+    let interval = update_check_interval();
     tokio::time::sleep(UPDATE_INITIAL_DELAY).await;
     loop {
         check_and_install_update(&app, &state).await;
-        tokio::time::sleep(UPDATE_CHECK_INTERVAL).await;
+        tokio::time::sleep(interval).await;
     }
 }
 
