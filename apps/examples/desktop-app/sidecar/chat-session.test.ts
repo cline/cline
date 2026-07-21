@@ -3,6 +3,7 @@ import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
+	hasProviderChanged,
 	prewarmWorkspaceMetadata,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
@@ -87,6 +88,23 @@ describe("shouldUpdateSessionConnection", () => {
 	});
 });
 
+describe("hasProviderChanged", () => {
+	it("distinguishes provider switches from model switches", () => {
+		expect(
+			hasProviderChanged(
+				{ provider: "cline", model: "anthropic/claude-sonnet-4.6" },
+				{ provider: "openai-codex", model: "gpt-5.3-codex" },
+			),
+		).toBe(true);
+		expect(
+			hasProviderChanged(
+				{ provider: "cline", model: "anthropic/claude-sonnet-4.6" },
+				{ provider: "cline", model: "openai/gpt-5.3-codex" },
+			),
+		).toBe(false);
+	});
+});
+
 describe("first-send connection updates", () => {
 	const baseConfig = {
 		provider: "cline",
@@ -105,7 +123,14 @@ describe("first-send connection updates", () => {
 			finishReason: "completed",
 			messages: [],
 		}));
+		const readMessages = vi.fn(async () => [
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "first response" },
+		]);
+		const readSessionCompactionState = vi.fn(async () => undefined);
+		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
+		const start = vi.fn(async () => ({ sessionId }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -121,9 +146,24 @@ describe("first-send connection updates", () => {
 					},
 				],
 			]),
-			sessionManager: { send, updateSessionConnection },
+			sessionManager: {
+				readMessages,
+				readSessionCompactionState,
+				send,
+				start,
+				stop,
+				updateSessionConnection,
+			},
 		} as unknown as SidecarContext;
-		return { ctx, send, sessionId, updateSessionConnection };
+		return {
+			ctx,
+			readMessages,
+			send,
+			sessionId,
+			start,
+			stop,
+			updateSessionConnection,
+		};
 	}
 
 	it("skips an identical update for a locally-created session", async () => {
@@ -154,6 +194,55 @@ describe("first-send connection updates", () => {
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
 		expect(updateSessionConnection.mock.invocationCallOrder[0]).toBeLessThan(
+			send.mock.invocationCallOrder[0] ?? 0,
+		);
+	});
+
+	it("rebuilds the same session with its transcript before a provider switch", async () => {
+		const {
+			ctx,
+			readMessages,
+			send,
+			sessionId,
+			start,
+			stop,
+			updateSessionConnection,
+		} = createContext();
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "continue with Codex",
+			config: {
+				...baseConfig,
+				provider: "openai-codex",
+				model: "gpt-5.3-codex",
+			},
+		});
+
+		expect(readMessages).toHaveBeenCalledWith(sessionId);
+		expect(stop).toHaveBeenCalledWith(sessionId);
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					providerId: "openai-codex",
+					modelId: "gpt-5.3-codex",
+					sessionId,
+				}),
+				initialMessages: [
+					{ role: "user", content: "first prompt" },
+					{ role: "assistant", content: "first response" },
+				],
+			}),
+		);
+		expect(updateSessionConnection).toHaveBeenCalledWith(sessionId, {
+			providerId: "openai-codex",
+			modelId: "gpt-5.3-codex",
+			thinking: true,
+			reasoningEffort: "high",
+			thinkingBudgetTokens: null,
+		});
+		expect(start.mock.invocationCallOrder[0]).toBeLessThan(
 			send.mock.invocationCallOrder[0] ?? 0,
 		);
 	});

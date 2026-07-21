@@ -6,6 +6,8 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type CoreSessionConfig,
+	createSessionCompactionState,
+	projectSessionCompactionState,
 	type SessionPendingPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
@@ -212,6 +214,9 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		modelId: config.model ?? config.modelId ?? "",
 		mode: config.mode ?? "act",
 		apiKey: config.apiKey ?? config.api_key ?? "",
+		baseUrl: config.baseUrl,
+		headers: config.headers,
+		providerConfig: config.providerConfig,
 		workspaceRoot: config.workspaceRoot ?? config.workspace_root ?? "",
 		cwd: config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
@@ -291,6 +296,15 @@ export function shouldUpdateSessionConnection(
 		buildSessionConnectionUpdate(currentConfig),
 		buildSessionConnectionUpdate(nextConfig),
 	);
+}
+
+export function hasProviderChanged(
+	currentConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): boolean {
+	const readProviderId = (config: JsonRecord) =>
+		String(config.provider ?? config.providerId ?? "").trim();
+	return readProviderId(currentConfig) !== readProviderId(nextConfig);
 }
 
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
@@ -522,16 +536,79 @@ async function handleSend(
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
 	if (request.config) {
-		if (
+		const nextConfig = session
+			? { ...session.config, ...request.config, sessionId }
+			: request.config;
+		const providerChanged = Boolean(
+			session && hasProviderChanged(session.config, nextConfig),
+		);
+		if (providerChanged) {
+			if (session?.busy) {
+				throw new Error("Cannot switch providers while a turn is running");
+			}
+			const [messages, compactionState] = await Promise.all([
+				manager.readMessages(sessionId),
+				manager.readSessionCompactionState(sessionId).catch((error) => {
+					ctx.logger?.log?.("Failed to read desktop session compaction state", {
+						sessionId,
+						error,
+						severity: "warn",
+					});
+					return undefined;
+				}),
+			]);
+			const projectedMessages = compactionState
+				? projectSessionCompactionState(compactionState, messages)
+				: undefined;
+			const systemPrompt = await resolveSystemPrompt(nextConfig);
+			await manager.stop(sessionId);
+			const restarted = await manager.start({
+				...splitCoreSessionConfig(
+					buildCoreSessionConfig({
+						...nextConfig,
+						systemPrompt,
+					}) as unknown as CoreSessionConfig,
+				),
+				source: SessionSource.DESKTOP,
+				interactive: true,
+				initialMessages: messages,
+				...(projectedMessages
+					? {
+							initialCompactionState: createSessionCompactionState({
+								sourceMessages: messages,
+								compactedMessages: projectedMessages,
+								systemPrompt: compactionState?.system_prompt,
+							}),
+						}
+					: {}),
+				toolPolicies: resolveToolPolicies(nextConfig),
+			});
+			if (restarted.sessionId !== sessionId) {
+				throw new Error(
+					`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
+				);
+			}
+			// Reusing a session id preserves its existing manifest. Refresh the
+			// connection label after the rebuilt runtime is live.
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(nextConfig),
+			);
+		} else if (
 			!session ||
 			session.attachedViaHub ||
-			shouldUpdateSessionConnection(session.config, request.config)
+			shouldUpdateSessionConnection(session.config, nextConfig)
 		) {
-			const connectionUpdate = buildSessionConnectionUpdate(request.config);
-			await manager.updateSessionConnection(sessionId, connectionUpdate);
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(nextConfig),
+			);
 		}
 		if (session) {
-			session.config = { ...session.config, ...request.config };
+			session.config = nextConfig;
+			if (providerChanged) {
+				session.attachedViaHub = false;
+			}
 		}
 	}
 
