@@ -80,7 +80,7 @@ export interface ShellInvocation {
  * How to invoke a shell so it sources its profiles and runs a command.
  * csh/tcsh accept -l only as the sole flag, so they're marked login via the
  * argv[0] dash convention instead (sources ~/.login on top of the always-read
- * ~/.cshrc//.tcshrc); everything else gets login (-l, ~/.zprofile —
+ * ~/.cshrc or ~/.tcshrc); everything else gets login (-l, ~/.zprofile —
  * Homebrew's shellenv) plus interactive (-i, ~/.zshrc — nvm-style version
  * managers) as separate flags.
  */
@@ -119,20 +119,13 @@ export function extractMarkedPath(output: string): string | undefined {
  * the launching environment aren't lost). Duplicates are dropped.
  */
 export function mergePaths(shellPath: string, currentPath: string): string {
-	const seen = new Set<string>();
-	const merged: string[] = [];
-	for (const entry of [
+	const entries = [
 		...shellPath.split(delimiter),
 		...currentPath.split(delimiter),
-	]) {
-		const trimmed = entry.trim();
-		if (trimmed.length === 0 || seen.has(trimmed)) {
-			continue;
-		}
-		seen.add(trimmed);
-		merged.push(trimmed);
-	}
-	return merged.join(delimiter);
+	]
+		.map((entry) => entry.trim())
+		.filter((entry) => entry.length > 0);
+	return Array.from(new Set(entries)).join(delimiter);
 }
 
 /**
