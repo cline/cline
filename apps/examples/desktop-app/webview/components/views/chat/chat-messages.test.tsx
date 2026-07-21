@@ -262,13 +262,11 @@ describe("ChatMessages thinking indicator", () => {
 
 	it("shows while starting", async () => {
 		await renderMessages([userMessage], { status: "starting" });
-
 		expect(container.textContent).toContain("Thinking...");
 	});
 
 	it("keeps showing while running until the first assistant output arrives", async () => {
 		await renderMessages([userMessage], { status: "running" });
-
 		expect(container.textContent).toContain("Thinking...");
 	});
 
