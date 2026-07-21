@@ -86,7 +86,7 @@ export function messagesToAgentMessages(
 export function agentMessageToMessageWithMetadata(
 	message: AgentMessage,
 ): MessageWithMetadata {
-	const content = message.content
+	const content = normalizeAgentMessageParts(message.content)
 		.map(agentPartToContentBlock)
 		.filter((block): block is ContentBlock => block !== undefined);
 	return {
@@ -111,7 +111,7 @@ export function agentMessagesToMessages(
 ): Message[] {
 	const out: Message[] = [];
 	for (const message of messages) {
-		const content = message.content
+		const content = normalizeAgentMessageParts(message.content)
 			.map(agentPartToContentBlock)
 			.filter((block): block is ContentBlock => block !== undefined);
 		const role = message.role === "tool" ? "user" : message.role;
@@ -130,6 +130,19 @@ export function agentMessagesToMessages(
 		out.push({ role, content });
 	}
 	return out;
+}
+
+function normalizeAgentMessageParts(content: unknown): AgentMessagePart[] {
+	if (Array.isArray(content)) {
+		return content;
+	}
+	if (typeof content === "string") {
+		return content.trim().length > 0 ? [{ type: "text", text: content }] : [];
+	}
+	if (content && typeof content === "object" && "type" in content) {
+		return [content as AgentMessagePart];
+	}
+	return [];
 }
 
 function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
