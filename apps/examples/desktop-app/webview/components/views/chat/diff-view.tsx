@@ -1,17 +1,30 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Minus, Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+	Check,
+	ChevronDown,
+	ChevronRight,
+	Copy,
+	ExternalLink,
+	Minus,
+	Plus,
+	X,
+} from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "@/hooks/use-toast";
+import { desktopClient } from "@/lib/desktop-client";
 import type { SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
+import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
 
 type DiffViewProps = {
 	fileDiffs: SessionFileDiff[];
+	cwd?: string;
 	onClose: () => void;
 };
 
-export function DiffView({ fileDiffs, onClose }: DiffViewProps) {
+export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 
 	const _totals = useMemo(
@@ -74,6 +87,7 @@ export function DiffView({ fileDiffs, onClose }: DiffViewProps) {
 						{fileDiffs.map((file) => (
 							<DiffFileSection
 								collapsed={collapsedFiles.has(file.path)}
+								cwd={cwd}
 								file={file}
 								key={file.path}
 								onToggle={() => toggleFileCollapse(file.path)}
@@ -89,34 +103,110 @@ export function DiffView({ fileDiffs, onClose }: DiffViewProps) {
 function DiffFileSection({
 	file,
 	collapsed,
+	cwd,
 	onToggle,
 }: {
 	file: SessionFileDiff;
 	collapsed: boolean;
+	cwd?: string;
 	onToggle: () => void;
 }) {
+	const [copied, setCopied] = useState(false);
+	const [opening, setOpening] = useState(false);
+	const copyResetTimerRef = useRef<number | null>(null);
+	const resolvedPath = resolveWorkspaceFilePath(file.path, cwd);
+
+	const handleCopyPath = useCallback(async () => {
+		try {
+			await navigator.clipboard.writeText(resolvedPath);
+			setCopied(true);
+			if (copyResetTimerRef.current !== null) {
+				window.clearTimeout(copyResetTimerRef.current);
+			}
+			copyResetTimerRef.current = window.setTimeout(() => {
+				setCopied(false);
+				copyResetTimerRef.current = null;
+			}, 1600);
+		} catch {
+			toast({
+				variant: "destructive",
+				title: "Copy failed",
+				description: "The file path could not be copied to the clipboard.",
+			});
+		}
+	}, [resolvedPath]);
+
+	const handleOpenInEditor = useCallback(async () => {
+		setOpening(true);
+		try {
+			await desktopClient.invoke("open_file_in_editor", {
+				path: file.path,
+				...(cwd?.trim() ? { cwd } : {}),
+			});
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not open file",
+				description:
+					error instanceof Error
+						? error.message
+						: "The file could not be opened in an editor.",
+			});
+		} finally {
+			setOpening(false);
+		}
+	}, [file.path, cwd]);
+
 	return (
 		<div className="border-b border-border">
-			<button
-				className="flex w-full items-center gap-2 bg-card/80 px-4 py-2 text-left hover:bg-accent/50 transition-colors"
-				onClick={onToggle}
-				type="button"
-			>
-				{collapsed ? (
-					<ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-				) : (
-					<ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-				)}
-				<span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
-					{file.path}
-				</span>
+			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-accent/50 transition-colors">
+				<button
+					className="flex min-w-0 flex-1 items-center gap-2 text-left"
+					onClick={onToggle}
+					type="button"
+				>
+					{collapsed ? (
+						<ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+					) : (
+						<ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+					)}
+					<span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+						{file.path}
+					</span>
+				</button>
+				<button
+					aria-label={`Copy file path for ${file.path}`}
+					className={cn(
+						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
+						copied ? "opacity-100 text-primary" : "opacity-0",
+					)}
+					onClick={() => void handleCopyPath()}
+					title="Copy file path"
+					type="button"
+				>
+					{copied ? (
+						<Check className="h-3.5 w-3.5" />
+					) : (
+						<Copy className="h-3.5 w-3.5" />
+					)}
+				</button>
+				<button
+					aria-label={`Open ${file.path} in editor`}
+					className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+					disabled={opening}
+					onClick={() => void handleOpenInEditor()}
+					title="Open in editor"
+					type="button"
+				>
+					<ExternalLink className="h-3.5 w-3.5" />
+				</button>
 				<span className="shrink-0 font-mono text-[11px] text-primary">
 					+{file.additions}
 				</span>
 				<span className="shrink-0 font-mono text-[11px] text-destructive">
 					-{file.deletions}
 				</span>
-			</button>
+			</div>
 
 			{!collapsed && (
 				<div className="space-y-2 border-t border-border bg-card/40 px-4 py-3">

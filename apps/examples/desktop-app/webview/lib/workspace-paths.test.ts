@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	filterWorkspacePaths,
+	isAbsoluteFilePath,
 	isExcludedWorkspacePath,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	parseWorkspaceSelectionStorage,
 	registerHostHomeDirectory,
+	resolveWorkspaceFilePath,
 	workspacePathsFromSessions,
 } from "./workspace-paths";
 
@@ -18,6 +20,33 @@ describe("workspace paths", () => {
 			"c:\\users\\saoud\\cline",
 		);
 		expect(normalizeWorkspacePath("/")).toBe("/");
+	});
+
+	it("detects absolute file paths across platforms", () => {
+		expect(isAbsoluteFilePath("/Users/renee/cline/docs/a.mdx")).toBe(true);
+		expect(isAbsoluteFilePath("C:\\Users\\renee\\a.mdx")).toBe(true);
+		expect(isAbsoluteFilePath("C:/Users/renee/a.mdx")).toBe(true);
+		expect(isAbsoluteFilePath("\\\\server\\share\\a.mdx")).toBe(true);
+		expect(isAbsoluteFilePath("docs/a.mdx")).toBe(false);
+		expect(isAbsoluteFilePath("./docs/a.mdx")).toBe(false);
+	});
+
+	it("resolves relative diff paths against the session cwd", () => {
+		expect(resolveWorkspaceFilePath("docs/a.mdx", "/Users/renee/cline")).toBe(
+			"/Users/renee/cline/docs/a.mdx",
+		);
+		expect(
+			resolveWorkspaceFilePath("./docs/a.mdx", "/Users/renee/cline/"),
+		).toBe("/Users/renee/cline/docs/a.mdx");
+		expect(
+			resolveWorkspaceFilePath("/Users/renee/cline/docs/a.mdx", "/elsewhere"),
+		).toBe("/Users/renee/cline/docs/a.mdx");
+		expect(resolveWorkspaceFilePath("docs/a.mdx", undefined)).toBe(
+			"docs/a.mdx",
+		);
+		expect(resolveWorkspaceFilePath("docs\\a.mdx", "C:\\Users\\renee")).toBe(
+			"C:\\Users\\renee\\docs\\a.mdx",
+		);
 	});
 
 	it("retains known projects when discovery returns an incomplete subset", () => {
@@ -50,10 +79,10 @@ describe("workspace paths", () => {
 
 	it("keeps the first-seen order so earlier groups rank first", () => {
 		expect(
-			mergeWorkspacePaths(["/projects/zulu", "/projects/mike"], [
-				"/projects/alpha",
-				"/projects/zulu/",
-			]),
+			mergeWorkspacePaths(
+				["/projects/zulu", "/projects/mike"],
+				["/projects/alpha", "/projects/zulu/"],
+			),
 		).toEqual(["/projects/zulu", "/projects/mike", "/projects/alpha"]);
 	});
 

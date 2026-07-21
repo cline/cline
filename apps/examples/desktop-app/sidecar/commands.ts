@@ -7,7 +7,7 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
 	ProviderCapability,
@@ -749,6 +749,60 @@ function openFileInEditor(filePath: string): void {
 	child.unref();
 }
 
+const CODE_EDITOR_CLIS = ["code", "cursor", "windsurf", "zed", "subl"];
+// The macOS app shell launches the sidecar with a minimal GUI PATH
+// (/usr/bin:/bin:...), so editor CLIs installed under /usr/local/bin or
+// /opt/homebrew/bin are often not resolvable. `open -a` finds the app
+// bundle regardless of PATH.
+const MACOS_CODE_EDITOR_APPS = [
+	"Visual Studio Code",
+	"Cursor",
+	"Windsurf",
+	"Zed",
+	"Sublime Text",
+];
+
+function findExecutableOnPath(name: string): string | null {
+	try {
+		const locator = process.platform === "win32" ? "where" : "which";
+		const stdout = execFileSync(locator, [name], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+		return stdout.split("\n")[0]?.trim() || null;
+	} catch {
+		return null;
+	}
+}
+
+/** Returns the launcher that handled the file, for logging/UI feedback. */
+function openFileInCodeEditor(filePath: string): string {
+	for (const cli of CODE_EDITOR_CLIS) {
+		const executable = findExecutableOnPath(cli);
+		if (!executable) continue;
+		const child = spawn(executable, [filePath], {
+			stdio: "ignore",
+			detached: true,
+		});
+		child.unref();
+		return cli;
+	}
+	if (process.platform === "darwin") {
+		for (const app of MACOS_CODE_EDITOR_APPS) {
+			try {
+				execFileSync("open", ["-a", app, filePath], {
+					stdio: ["ignore", "ignore", "ignore"],
+				});
+				return app;
+			} catch {
+				// App bundle not installed; try the next editor.
+			}
+		}
+	}
+	openFileInEditor(filePath);
+	return "system default";
+}
+
 // ---------------------------------------------------------------------------
 // Main command router
 // ---------------------------------------------------------------------------
@@ -1315,6 +1369,20 @@ export async function handleCommand(
 		const path = ensureMcpSettingsFile();
 		openFileInEditor(path);
 		return path;
+	}
+	if (command === "open_file_in_editor") {
+		const rawPath = String(args?.path ?? "").trim();
+		if (!rawPath) throw new Error("path is required");
+		const baseDir =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const filePath = isAbsolute(rawPath) ? rawPath : join(baseDir, rawPath);
+		if (!existsSync(filePath)) {
+			throw new Error(`File not found: ${filePath}`);
+		}
+		const editor = openFileInCodeEditor(filePath);
+		return { path: filePath, editor };
 	}
 
 	throw new Error(`unsupported desktop command: ${command}`);
