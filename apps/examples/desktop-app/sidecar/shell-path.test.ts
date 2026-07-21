@@ -6,6 +6,7 @@ import {
 	defaultShellFor,
 	ensureLoginShellPath,
 	extractMarkedPath,
+	loginShellFor,
 	mergePaths,
 	resolveLoginShellPath,
 	shellInvocationArgs,
@@ -80,6 +81,17 @@ describe("defaultShellFor", () => {
 	it("uses zsh on macOS and bash elsewhere", () => {
 		expect(defaultShellFor("darwin")).toBe("/bin/zsh");
 		expect(defaultShellFor("linux")).toBe("/bin/bash");
+	});
+});
+
+describe("loginShellFor", () => {
+	it("returns the passwd-database shell when one exists", () => {
+		// The test runner's uid has a passwd entry, so $SHELL must lose.
+		const shell = loginShellFor(process.platform, {
+			SHELL: "/env/should-not-win",
+		});
+		expect(shell.startsWith("/")).toBe(true);
+		expect(shell).not.toBe("/env/should-not-win");
 	});
 });
 
@@ -158,11 +170,12 @@ describe("resolveLoginShellPath", () => {
 describe("ensureLoginShellPath", () => {
 	it("merges the login shell PATH into env.PATH", async () => {
 		const shell = writeFakeShell();
-		const env: NodeJS.ProcessEnv = {
-			SHELL: shell,
-			PATH: "/usr/bin:/bin",
-		};
-		const result = await ensureLoginShellPath({ platform: "darwin", env });
+		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin:/bin" };
+		const result = await ensureLoginShellPath({
+			platform: "darwin",
+			env,
+			userShell: shell,
+		});
 		expect(result).toEqual({
 			status: "applied",
 			pathEntries: 3,
@@ -173,13 +186,11 @@ describe("ensureLoginShellPath", () => {
 
 	it("falls back to the default shell when $SHELL can't resolve", async () => {
 		const fallbackShell = writeFakeShell();
-		const env: NodeJS.ProcessEnv = {
-			SHELL: "/nonexistent/shell",
-			PATH: "/usr/bin",
-		};
+		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
 		const result = await ensureLoginShellPath({
 			platform: "darwin",
 			env,
+			userShell: "/nonexistent/shell",
 			fallbackShell,
 		});
 		expect(result.status).toBe("applied");
@@ -188,13 +199,11 @@ describe("ensureLoginShellPath", () => {
 	});
 
 	it("leaves PATH untouched when every shell fails", async () => {
-		const env: NodeJS.ProcessEnv = {
-			SHELL: "/nonexistent/shell",
-			PATH: "/usr/bin",
-		};
+		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
 		const result = await ensureLoginShellPath({
 			platform: "darwin",
 			env,
+			userShell: "/nonexistent/shell",
 			fallbackShell: "/nonexistent/other-shell",
 		});
 		expect(result).toEqual({ status: "failed", shell: "/nonexistent/shell" });
@@ -219,14 +228,22 @@ describe("ensureLoginShellPath", () => {
 
 	it("never exposes the resolved PATH in its result", async () => {
 		const shell = writeFakeShell();
-		const env: NodeJS.ProcessEnv = { SHELL: shell, PATH: "/usr/bin" };
-		const result = await ensureLoginShellPath({ platform: "darwin", env });
+		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
+		const result = await ensureLoginShellPath({
+			platform: "darwin",
+			env,
+			userShell: shell,
+		});
 		expect(JSON.stringify(result)).not.toContain("/opt/homebrew/bin");
 	});
 
 	it("resolves against a real shell end to end", async () => {
-		const env: NodeJS.ProcessEnv = { SHELL: "/bin/sh", PATH: "/bin" };
-		const result = await ensureLoginShellPath({ platform: "linux", env });
+		const env: NodeJS.ProcessEnv = { PATH: "/bin" };
+		const result = await ensureLoginShellPath({
+			platform: "linux",
+			env,
+			userShell: "/bin/sh",
+		});
 		expect(result.status).toBe("applied");
 		expect(env.PATH).toContain("/bin");
 	});

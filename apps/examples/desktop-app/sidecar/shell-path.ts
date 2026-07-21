@@ -13,6 +13,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { userInfo } from "node:os";
 import { basename, delimiter } from "node:path";
 
 const PATH_MARKER_START = "__CLINE_SIDECAR_PATH_START__";
@@ -41,6 +42,29 @@ const SKIP_ENV_VAR = "CLINE_SIDECAR_SKIP_SHELL_PATH";
 
 export function defaultShellFor(platform: NodeJS.Platform): string {
 	return platform === "darwin" ? "/bin/zsh" : "/bin/bash";
+}
+
+/**
+ * The user's configured login shell. The account database is authoritative:
+ * a GUI-launched process has no parent shell, so $SHELL may be unset there.
+ * userInfo() reads getpwuid(), which on macOS goes through DirectoryServices
+ * — the same source `dscl . -read /Users/$USER UserShell` reports — and on
+ * Linux resolves via NSS (/etc/passwd et al.). $SHELL and the platform
+ * default are fallbacks for environments with no passwd entry.
+ */
+export function loginShellFor(
+	platform: NodeJS.Platform,
+	env: NodeJS.ProcessEnv,
+): string {
+	try {
+		const shell = userInfo().shell?.trim();
+		if (shell) {
+			return shell;
+		}
+	} catch {
+		// No passwd entry for the current uid (some containers) — fall through.
+	}
+	return env.SHELL?.trim() || defaultShellFor(platform);
 }
 
 /**
@@ -143,9 +167,10 @@ export function resolveLoginShellPath(
 }
 
 /**
- * Resolve the login shell's PATH and merge it into process.env.PATH. If the
- * user's $SHELL can't produce a PATH (exotic shell, broken profile), retry
- * once with the platform default shell before giving up.
+ * Resolve the login shell's PATH and merge it into process.env.PATH. The
+ * shell comes from the account database (see loginShellFor); if it can't
+ * produce a PATH (exotic shell, broken profile), retry once with the
+ * platform default shell before giving up.
  *
  * No-op on Windows (the GUI PATH comes from the registry there) and when
  * CLINE_SIDECAR_SKIP_SHELL_PATH is set. Failures are reported via the
@@ -156,6 +181,8 @@ export async function ensureLoginShellPath(options?: {
 	platform?: NodeJS.Platform;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
+	/** Test seam: overrides passwd/$SHELL discovery of the user's shell. */
+	userShell?: string;
 	/** Test seam: overrides the platform-default fallback shell. */
 	fallbackShell?: string;
 }): Promise<
@@ -173,7 +200,7 @@ export async function ensureLoginShellPath(options?: {
 		return { status: "skipped", reason: SKIP_ENV_VAR };
 	}
 
-	const userShell = env.SHELL?.trim() || defaultShellFor(platform);
+	const userShell = options?.userShell ?? loginShellFor(platform, env);
 	const fallbackShell = options?.fallbackShell ?? defaultShellFor(platform);
 	const baseTimeoutMs = options?.timeoutMs ?? SHELL_TIMEOUT_MS;
 	// The fallback gets half the budget so the combined worst case stays
