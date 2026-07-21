@@ -1280,6 +1280,118 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 	});
 
+	it("falls back to basic compaction when the agentic request fails", async () => {
+		const providerError = new Error("temporary summarizer failure");
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() => {
+				throw providerError;
+			}),
+		});
+		const log = vi.fn();
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: `Old answer ${"x".repeat(500)}` },
+			{ role: "user", content: "Older follow-up" },
+			{ role: "assistant", content: "Older response" },
+			{ role: "user", content: "Latest request" },
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: { debug: vi.fn(), log },
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(result?.messages).toBeDefined();
+		expect(result?.messages[0]?.metadata?.kind).not.toBe("compaction_summary");
+		expect(log).toHaveBeenCalledWith(
+			"Agentic compaction failed; falling back to basic compaction",
+			expect.objectContaining({
+				severity: "warn",
+				errorMessage: providerError.message,
+			}),
+		);
+	});
+
+	it("does not fall back to basic compaction when agentic compaction is cancelled", async () => {
+		const providerError = new Error("request stopped");
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() => {
+				throw providerError;
+			}),
+		});
+		const controller = new AbortController();
+		controller.abort();
+		const log = vi.fn();
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: `Old answer ${"x".repeat(500)}` },
+			{ role: "user", content: "Latest request" },
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: { debug: vi.fn(), log },
+		});
+
+		await expect(
+			prepareTurn?.({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				abortSignal: controller.signal,
+				systemPrompt: "You are helpful.",
+				tools: [],
+				messages,
+				apiMessages: messages,
+				model: {
+					id: "mock-model",
+					provider: "anthropic",
+					info: { id: "mock-model", maxInputTokens: 10 },
+				},
+			}),
+		).rejects.toBe(providerError);
+		expect(log).not.toHaveBeenCalledWith(
+			"Agentic compaction failed; falling back to basic compaction",
+			expect.anything(),
+		);
+	});
+
 	it("sends truncated text-block tool results to the agentic summarizer", async () => {
 		const createMessage = vi.fn(() =>
 			streamChunks([
