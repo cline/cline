@@ -14,7 +14,7 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
-	it("normalizes only allowlisted current built-ins and OpenAI-compatible providers", () => {
+	it("normalizes current built-ins and providers using supported AI SDK packages", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
 				id: "openai",
@@ -57,6 +57,16 @@ describe("models-dev-catalog", () => {
 					},
 				},
 			},
+			"extra-anthropic": {
+				id: "extra-anthropic",
+				name: "Extra Anthropic",
+				npm: "@ai-sdk/anthropic",
+				models: {
+					"claude-extra": {
+						tool_call: true,
+					},
+				},
+			},
 			cohere: {
 				id: "cohere",
 				name: "Cohere",
@@ -93,8 +103,18 @@ describe("models-dev-catalog", () => {
 			defaultModelId: "poolside/laguna-m.1",
 			defaults: { baseUrl: "https://inference.poolside.ai/v1" },
 		});
-		expect(providerSpecs["extra-router"]).toBeUndefined();
-		expect(providerModels["extra-router"]).toBeUndefined();
+		expect(providerSpecs["extra-router"]).toMatchObject({
+			id: "extra-router",
+			family: "openai-compatible",
+			modelsProviderId: "extra-router",
+			defaultModelId: "extra-model",
+		});
+		expect(providerSpecs["extra-anthropic"]).toMatchObject({
+			id: "extra-anthropic",
+			family: "anthropic",
+			modelsProviderId: "extra-anthropic",
+			defaultModelId: "claude-extra",
+		});
 		expect(providerSpecs.cohere).toBeUndefined();
 		expect(providerModels.cohere).toBeUndefined();
 	});

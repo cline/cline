@@ -1,5 +1,5 @@
 import {
-	MODELS_DEV_ALLOWED_PROVIDER_IDS,
+	MODELS_DEV_BLOCKED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
 } from "../providers/provider-keys";
@@ -77,7 +77,15 @@ interface SelectedModelsDevProvider {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
-const MODELS_DEV_OPENAI_COMPATIBLE_NPM = "@ai-sdk/openai-compatible";
+const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
+	"@ai-sdk/openai": "openai",
+	"@ai-sdk/openai-compatible": "openai-compatible",
+	"@ai-sdk/anthropic": "anthropic",
+	"@ai-sdk/google": "google",
+	"@ai-sdk/google-vertex": "vertex",
+	"@ai-sdk/amazon-bedrock": "bedrock",
+	"@ai-sdk/mistral": "mistral",
+} as const satisfies Record<string, ModelsDevGeneratedProviderSpec["family"]>;
 
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
@@ -103,10 +111,21 @@ export function sortModelsByReleaseDate(
 	);
 }
 
-function isOpenAICompatibleModelsDevProvider(
+function supportedAiSdkProviderFamily(
+	provider: ModelsDevProviderPayload,
+): ModelsDevGeneratedProviderSpec["family"] | undefined {
+	if (!provider.npm) {
+		return undefined;
+	}
+	return MODELS_DEV_AI_SDK_PROVIDER_FAMILIES[
+		provider.npm as keyof typeof MODELS_DEV_AI_SDK_PROVIDER_FAMILIES
+	];
+}
+
+function usesSupportedAiSdkProvider(
 	provider: ModelsDevProviderPayload,
 ): boolean {
-	return provider.npm === MODELS_DEV_OPENAI_COMPATIBLE_NPM;
+	return supportedAiSdkProviderFamily(provider) !== undefined;
 }
 
 function selectedTargetProviderId(
@@ -118,7 +137,7 @@ function selectedTargetProviderId(
 	if (mappedProviderId) {
 		return mappedProviderId;
 	}
-	if (isOpenAICompatibleModelsDevProvider(source)) {
+	if (usesSupportedAiSdkProvider(source)) {
 		return source.id || sourceProviderKey;
 	}
 	return undefined;
@@ -139,7 +158,7 @@ function getSelectedModelsDevProviders(
 		);
 		if (
 			!targetProviderId ||
-			!MODELS_DEV_ALLOWED_PROVIDER_IDS.has(targetProviderId) ||
+			MODELS_DEV_BLOCKED_PROVIDER_IDS.has(targetProviderId) ||
 			usedProviderIds.has(targetProviderId)
 		) {
 			continue;
@@ -147,10 +166,7 @@ function getSelectedModelsDevProviders(
 
 		const isCurrentBuiltinProvider =
 			MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS.has(sourceProviderKey);
-		if (
-			!isCurrentBuiltinProvider &&
-			!isOpenAICompatibleModelsDevProvider(source)
-		) {
+		if (!isCurrentBuiltinProvider && !usesSupportedAiSdkProvider(source)) {
 			continue;
 		}
 
@@ -273,22 +289,7 @@ export function normalizeModelsDevProviderModels(
 function toProviderFamily(
 	provider: ModelsDevProviderPayload,
 ): ModelsDevGeneratedProviderSpec["family"] {
-	switch (provider.npm) {
-		case "@ai-sdk/openai":
-			return "openai";
-		case "@ai-sdk/anthropic":
-			return "anthropic";
-		case "@ai-sdk/google":
-			return "google";
-		case "@ai-sdk/google-vertex":
-			return "vertex";
-		case "@ai-sdk/amazon-bedrock":
-			return "bedrock";
-		case "@ai-sdk/mistral":
-			return "mistral";
-		default:
-			return "openai-compatible";
-	}
+	return supportedAiSdkProviderFamily(provider) ?? "openai-compatible";
 }
 
 function normalizeBaseUrl(value: string | undefined): string | undefined {

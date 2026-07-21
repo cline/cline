@@ -1,4 +1,23 @@
-/** Maps provider identifiers across Cline legacy provider ids, models.dev keys, and runtime provider ids. */
+/**
+ * Relates the provider identifiers used at each stage of catalog generation and
+ * runtime provider selection:
+ *
+ * - `modelsDevKey` is the provider's key in the models.dev API payload.
+ * - `generatedProviderId` is Cline's canonical ID for the provider spec and
+ *   model catalog generated from that payload. Generation maps
+ *   `modelsDevKey -> generatedProviderId` so upstream names do not leak into
+ *   Cline's public provider IDs.
+ * - `runtimeProviderId` is the ID of a configured provider implementation that
+ *   should read models from that generated catalog.
+ *
+ * Generated and runtime IDs are separate because multiple runtime transports or
+ * authentication methods can share one catalog. For example, `openai-native`,
+ * `openai-codex`, and `openai-codex-cli` are distinct runtime providers, but all
+ * resolve to the `openai-native` catalog generated from models.dev's `openai`
+ * entry. `resolveProviderModelCatalogKeys` performs that runtime-to-catalog
+ * lookup. An omitted generated or runtime ID means that row participates only
+ * in the other applicable lookup.
+ */
 const PROVIDER_IDS_MAP: ReadonlyArray<{
 	modelsDevKey: string;
 	generatedProviderId?: string;
@@ -143,148 +162,11 @@ export const MODELS_DEV_PROVIDER_KEY_MAP = Object.fromEntries(
 );
 
 /**
- * Explicit allowlist for providers generated from models.dev.
- *
- * IDs use Cline's generated provider identifiers (after applying
- * MODELS_DEV_PROVIDER_KEY_MAP), so upstream additions remain excluded until
- * they are reviewed and added here.
+ * Providers that must remain excluded even when their models.dev entry uses a
+ * supported AI SDK package. IDs use Cline's generated provider identifiers
+ * after applying MODELS_DEV_PROVIDER_KEY_MAP.
  */
-export const MODELS_DEV_ALLOWED_PROVIDER_IDS: ReadonlySet<string> = new Set([
-	"302ai",
-	"abacus",
-	"abliteration-ai",
-	"aihubmix",
-	"alibaba",
-	"alibaba-cn",
-	"alibaba-coding-plan",
-	"alibaba-coding-plan-cn",
-	"alibaba-token-plan",
-	"alibaba-token-plan-cn",
-	"ambient",
-	"anthropic",
-	"anyapi",
-	"atomic-chat",
-	"auriko",
-	"bailing",
-	"baseten",
-	"bedrock",
-	"berget",
-	"cerebras",
-	"chutes",
-	"clarifai",
-	"claudinio",
-	"cloudferro-sherlock",
-	"cloudflare-workers-ai",
-	"cortecs",
-	"crof",
-	"databricks",
-	"deepseek",
-	"digitalocean",
-	"dinference",
-	"drun",
-	"evroc",
-	"fastrouter",
-	"fireworks",
-	"friendli",
-	"frogbot",
-	"gemini",
-	"github-copilot",
-	"github-models",
-	"gmicloud",
-	"groq",
-	"helicone",
-	"hpc-ai",
-	"huggingface",
-	"iflowcn",
-	"inception",
-	"inceptron",
-	"inference",
-	"io-net",
-	"jiekou",
-	"kenari",
-	"kilo",
-	"kuae-cloud-coding-plan",
-	"lilac",
-	"llama",
-	"llmgateway",
-	"llmtr",
-	"lmstudio",
-	"longcat",
-	"lucidquery",
-	"meganova",
-	"minimax",
-	"mistral",
-	"mixlayer",
-	"moark",
-	"modelscope",
-	"moonshot",
-	"moonshotai-cn",
-	"morph",
-	"nano-gpt",
-	"nearai",
-	"nebius",
-	"neon",
-	"neuralwatt",
-	"nova",
-	"novita-ai",
-	"nvidia",
-	"ollama",
-	"openai-native",
-	"opencode",
-	"opencode-go",
-	"openrouter",
-	"orcarouter",
-	"ovhcloud",
-	"poe",
-	"poolside",
-	"privatemode-ai",
-	"qihang-ai",
-	"qiniu-ai",
-	"regolo-ai",
-	"requesty",
-	"routing-run",
-	"sakana",
-	"sapaicore",
-	"sarvam",
-	"scaleway",
-	"siliconflow",
-	"siliconflow-cn",
-	"snowflake-cortex",
-	"stackit",
-	"stepfun",
-	"stepfun-ai",
-	"submodel",
-	"synthetic",
-	"tencent-coding-plan",
-	"tencent-token-plan",
-	"tencent-tokenhub",
-	"the-grid-ai",
-	"tinfoil",
-	"together",
-	"trustedrouter",
-	"umans-ai",
-	"umans-ai-coding-plan",
-	"upstage",
-	"v0",
-	"vercel-ai-gateway",
-	"vertex",
-	"vultr",
-	"wafer.ai",
-	"wandb",
-	"xai",
-	"xiaomi",
-	"xiaomi-token-plan-ams",
-	"xiaomi-token-plan-cn",
-	"xiaomi-token-plan-sgp",
-	"xpersona",
-	"zai",
-	"zai-coding-plan",
-	"zeldoc",
-	"zenifra",
-	"zenmux",
-	"zhipuai",
-	"zhipuai-coding-plan",
-]);
+export const MODELS_DEV_BLOCKED_PROVIDER_IDS: ReadonlySet<string> = new Set();
 
 export const MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS = new Set(
 	PROVIDER_IDS_MAP.map((entry) => entry.modelsDevKey),

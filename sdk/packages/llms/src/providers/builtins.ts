@@ -620,6 +620,11 @@ const clinePass = createClineLikeSpec({
 	},
 });
 
+/**
+ * Handwritten providers plus generated providers that require Cline-specific
+ * runtime or product policy. Providers fully described by models.dev must not
+ * be duplicated here.
+ */
 const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "openai-compatible",
@@ -666,15 +671,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.together.xyz/v1" },
 	},
 	{
-		id: "fireworks",
-		name: "Fireworks AI",
-		description: "High-performance inference platform",
-		family: "openai-compatible",
-		defaultModelId: "accounts/fireworks/models/kimi-k2p6",
-		apiKeyEnv: ["FIREWORKS_API_KEY"],
-		defaults: { baseUrl: "https://api.fireworks.ai/inference/v1" },
-	},
-	{
 		id: "groq",
 		name: "Groq",
 		description: "Ultra-fast LPU inference",
@@ -682,16 +678,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "moonshotai/kimi-k2-instruct-0905",
 		apiKeyEnv: ["GROQ_API_KEY"],
 		defaults: { baseUrl: "https://api.groq.com/openai/v1" },
-	},
-	{
-		id: "poolside",
-		name: "Poolside",
-		description: "OpenAI-compatible code intelligence models",
-		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
-		defaultModelId: "poolside/laguna-m.1",
-		apiKeyEnv: ["POOLSIDE_API_KEY"],
-		defaults: { baseUrl: "https://inference.poolside.ai/v1" },
 	},
 	{
 		id: "cerebras",
@@ -712,35 +698,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
-		id: "nebius",
-		name: "Nebius",
-		description: "European cloud AI infrastructure",
-		family: "openai-compatible",
-		defaultModelId: "nvidia/nemotron-3-super-120b-a12b",
-		apiKeyEnv: ["NEBIUS_API_KEY"],
-		defaults: { baseUrl: "https://api.studio.nebius.ai/v1" },
-	},
-	{
-		id: "baseten",
-		name: "Baseten",
-		description: "ML inference platform",
-		family: "openai-compatible",
-		apiKeyEnv: ["BASETEN_API_KEY"],
-		modelsProviderId: "baseten",
-		defaults: { baseUrl: "https://model-api.baseten.co/v1" },
-	},
-	{
-		id: "requesty",
-		name: "Requesty",
-		description: "AI router with multiple provider support",
-		family: "openai-compatible",
-		capabilities: ["reasoning"],
-		defaultModelId: "openai/gpt-5.4",
-		apiKeyEnv: ["REQUESTY_API_KEY"],
-		modelsProviderId: "requesty",
-		defaults: { baseUrl: "https://router.requesty.ai/v1" },
-	},
-	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
@@ -751,16 +708,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["LITELLM_API_KEY"],
 		defaults: { baseUrl: "http://localhost:4000/v1" },
-	},
-	{
-		id: "huggingface",
-		name: "Hugging Face",
-		description: "Hugging Face inference API",
-		family: "openai-compatible",
-		defaultModelId: "MiniMaxAI/MiniMax-M2.5",
-		apiKeyEnv: ["HF_TOKEN"],
-		modelsProviderId: "huggingface",
-		defaults: { baseUrl: "https://router.huggingface.co/v1" },
 	},
 	{
 		id: "vercel-ai-gateway",
@@ -888,51 +835,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: GLM_THINKING_ROUTING_METADATA,
 	},
 	{
-		id: "moonshot",
-		name: "Moonshot",
-		description: "Moonshot AI Studio models",
-		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
-		defaultModelId: "kimi-k2-0905-preview",
-		apiKeyEnv: ["MOONSHOT_API_KEY"],
-		modelsProviderId: "moonshot",
-		defaults: { baseUrl: "https://api.moonshot.ai/v1" },
-	},
-	{
-		id: "wandb",
-		name: "W&B by CoreWeave",
-		description: "Weights & Biases",
-		family: "openai-compatible",
-		capabilities: ["reasoning", "prompt-cache", "tools"],
-		defaultModelId: "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
-		apiKeyEnv: ["WANDB_API_KEY"],
-		modelsProviderId: "wandb",
-		defaults: { baseUrl: "https://api.inference.wandb.ai/v1" },
-	},
-	{
-		id: "xiaomi",
-		name: "Xiaomi",
-		description: "Xiaomi",
-		family: "openai-compatible",
-		capabilities: ["prompt-cache", "tools", "reasoning"],
-		defaultModelId: "mimo-v2.5",
-		apiKeyEnv: ["XIAOMI_API_KEY"],
-		modelsProviderId: "xiaomi",
-		defaults: { baseUrl: "https://api.xiaomimimo.com/v1" },
-	},
-	{
-		id: "tencent-tokenhub",
-		name: "Tencent TokenHub",
-		description: "Tencent TokenHub AI models",
-		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
-		defaultModelId: "hy3-preview",
-		apiKeyEnv: ["TENCENT_TOKENHUB_API_KEY"],
-		modelsProviderId: "tencent-tokenhub",
-		docsUrl: "https://cloud.tencent.com/document/product/1823/130050",
-		defaults: { baseUrl: "https://tokenhub.tencentmaas.com/v1" },
-	},
-	{
 		id: "kilo",
 		name: "Kilo Gateway",
 		description: "Kilo Gateway",
@@ -1017,7 +919,11 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 ];
 
-const CURRENT_BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
+/**
+ * Non-OpenAI-compatible runtime/product overrides. Keep generated catalog facts
+ * in providers.generated.ts and only retain Cline-owned behavior here.
+ */
+const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "openai-native",
 		name: "OpenAI",
@@ -1131,12 +1037,7 @@ const CURRENT_BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "mistral",
-		name: "Mistral",
-		description: "Mistral AI models via AI SDK provider",
-		family: "mistral",
-		capabilities: ["reasoning"],
-		defaultModelId: "mistral-medium-latest",
-		apiKeyEnv: ["MISTRAL_API_KEY"],
+		// models.dev does not currently publish Mistral's API base URL.
 		defaults: { baseUrl: "https://api.mistral.ai/v1" },
 	},
 	{
@@ -1188,7 +1089,7 @@ const CURRENT_BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 
 export const BUILTIN_SPECS: BuiltinSpec[] = mergeBuiltinSpecs(
 	GENERATED_PROVIDER_SPECS,
-	CURRENT_BUILTIN_SPEC_OVERRIDES,
+	BUILTIN_SPEC_OVERRIDES,
 );
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {

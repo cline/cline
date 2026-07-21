@@ -1,8 +1,8 @@
 import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS } from "./builtins";
-import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { getModelsForProvider, getProvider } from "./model-registry";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 
 function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
@@ -119,15 +119,40 @@ describe("built-in provider metadata", () => {
 			"qwen3.7-plus",
 		);
 
+		const generatedMistral = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "mistral",
+		);
+		expect(generatedMistral).toBeDefined();
 		await expect(getProvider("mistral")).resolves.toMatchObject({
 			id: "mistral",
 			baseUrl: "https://api.mistral.ai/v1",
-			defaultModelId: "mistral-medium-latest",
+			defaultModelId: generatedMistral?.defaultModelId,
 			client: "ai-sdk-community",
 		});
 		await expect(getModelsForProvider("mistral")).resolves.toHaveProperty(
-			"mistral-medium-latest",
+			generatedMistral?.defaultModelId ?? "",
 		);
+	});
+
+	it("uses generated specs directly when no runtime override is required", () => {
+		const generatedOnlyProviderIds = [
+			"fireworks",
+			"poolside",
+			"nebius",
+			"baseten",
+			"requesty",
+			"huggingface",
+			"moonshot",
+			"wandb",
+			"xiaomi",
+			"tencent-tokenhub",
+		] as const;
+
+		for (const providerId of generatedOnlyProviderIds) {
+			expect(BUILTIN_SPECS.find((spec) => spec.id === providerId)).toEqual(
+				GENERATED_PROVIDER_SPECS.find((spec) => spec.id === providerId),
+			);
+		}
 	});
 
 	it("marks popular providers with a provider capability and rank", async () => {

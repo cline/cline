@@ -12,6 +12,17 @@ import {
 	getProvider,
 	getProviderIds,
 } from "./model-registry";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
+
+function generatedProviderDefault(providerId: string): string {
+	const defaultModelId = GENERATED_PROVIDER_SPECS.find(
+		(spec) => spec.id === providerId,
+	)?.defaultModelId;
+	if (!defaultModelId) {
+		throw new Error(`Generated provider ${providerId} has no default model`);
+	}
+	return defaultModelId;
+}
 
 describe("provider-ids", () => {
 	it("keeps built-in provider ids aligned with model registry loaders", () => {
@@ -116,16 +127,17 @@ describe("provider-ids", () => {
 
 	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
 		expect(BUILT_IN_PROVIDER_IDS).toContain("poolside");
+		const defaultModelId = generatedProviderDefault("poolside");
 
 		await expect(getProvider("poolside")).resolves.toMatchObject({
 			id: "poolside",
 			name: "Poolside",
 			baseUrl: "https://inference.poolside.ai/v1",
-			defaultModelId: "poolside/laguna-m.1",
+			defaultModelId,
 			client: "openai-compatible",
 		});
 		const models = await getModelsForProvider("poolside");
-		expect(Object.hasOwn(models, "poolside/laguna-m.1")).toBe(true);
+		expect(Object.hasOwn(models, defaultModelId)).toBe(true);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "poolside",
@@ -152,15 +164,16 @@ describe("provider-ids", () => {
 	});
 
 	it("registers Xiaomi as an OpenAI-compatible built-in provider", async () => {
+		const defaultModelId = generatedProviderDefault("xiaomi");
 		await expect(getProvider("xiaomi")).resolves.toMatchObject({
 			id: "xiaomi",
 			baseUrl: "https://api.xiaomimimo.com/v1",
-			defaultModelId: "mimo-v2.5",
+			defaultModelId,
 			client: "openai-compatible",
 		});
 
 		await expect(getModelsForProvider("xiaomi")).resolves.toHaveProperty(
-			"mimo-v2.5",
+			defaultModelId,
 		);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
@@ -172,16 +185,17 @@ describe("provider-ids", () => {
 	});
 
 	it("registers Tencent TokenHub as an OpenAI-compatible built-in provider", async () => {
+		const defaultModelId = generatedProviderDefault("tencent-tokenhub");
 		await expect(getProvider("tencent-tokenhub")).resolves.toMatchObject({
 			id: "tencent-tokenhub",
 			baseUrl: "https://tokenhub.tencentmaas.com/v1",
-			defaultModelId: "hy3-preview",
+			defaultModelId,
 			client: "openai-compatible",
 		});
 
 		await expect(
 			getModelsForProvider("tencent-tokenhub"),
-		).resolves.toHaveProperty("hy3-preview");
+		).resolves.toHaveProperty(defaultModelId);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "tencent-tokenhub",
