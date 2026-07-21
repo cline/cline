@@ -205,6 +205,28 @@ function readMcpServersResponse(): JsonRecord {
 	return { settingsPath, hasSettingsFile: true, servers: entries };
 }
 
+/**
+ * Transport type + URL a server record actually points at, tolerating both
+ * the nested `transport` shape and legacy flat fields (mirrors
+ * readMcpServersResponse).
+ */
+function mcpTransportIdentity(record: JsonRecord): string {
+	const transport =
+		record.transport && typeof record.transport === "object"
+			? (record.transport as JsonRecord)
+			: undefined;
+	const type = String(
+		transport?.type ?? record.transportType ?? record.type ?? "stdio",
+	).trim();
+	const url =
+		typeof transport?.url === "string"
+			? transport.url
+			: typeof record.url === "string"
+				? record.url
+				: "";
+	return `${type}\u0000${url}`;
+}
+
 function writeMcpServersMap(servers: JsonRecord): void {
 	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
 		settings.mcpServers = servers;
@@ -1243,7 +1265,13 @@ export async function handleCommand(
 				if (upserted.metadata === undefined && record.metadata !== undefined) {
 					upserted.metadata = record.metadata;
 				}
-				if (record.oauth !== undefined) {
+				// OAuth tokens were issued for a specific endpoint; carrying them
+				// onto an edited transport or URL would send the old server's
+				// credentials to a different endpoint.
+				if (
+					record.oauth !== undefined &&
+					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
+				) {
 					upserted.oauth = record.oauth;
 				}
 			}
