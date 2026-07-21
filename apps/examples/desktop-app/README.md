@@ -25,7 +25,21 @@ Tailwind adapter and shared base styles without depending on the desktop
 runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
 desktop integration notes.
 
-## Shareable Desktop Packages
+## Releases & Auto-Updates
+
+Releases are built, signed, notarized, and published by the `desktop-publish`
+GitHub workflow. The step-by-step flow (version bumps, changelog, tag, repo
+secrets) lives in the `publish-desktop` skill
+(`.cline/skills/publish-desktop/SKILL.md`).
+
+Installed apps auto-update via the Tauri updater: they poll the rolling
+`desktop-latest` release's `latest.json` on launch and every 2 hours, install
+updates in the background, and prompt for a restart. Two things must never be
+lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
+apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
+shipped apps can't verify new updates).
+
+## Shareable Desktop Packages (manual fallback)
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:
 
