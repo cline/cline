@@ -1,4 +1,5 @@
 import {
+	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
 } from "@cline/shared";
@@ -14,7 +15,6 @@ import {
 import { startLocalOAuthServer } from "./server";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
 import {
-	decodeJwtPayload,
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,
 	parseOAuthError,
