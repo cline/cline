@@ -23,7 +23,10 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
-async function renderMessages(messages: ChatMessage[]) {
+async function renderMessages(
+	messages: ChatMessage[],
+	overrides: Partial<Parameters<typeof ChatMessages>[0]> = {},
+) {
 	await act(async () => {
 		root.render(
 			<ChatMessages
@@ -37,6 +40,7 @@ async function renderMessages(messages: ChatMessage[]) {
 				pendingToolApprovals={[]}
 				sessionId="session-1"
 				status="completed"
+				{...overrides}
 			/>,
 		);
 	});
@@ -244,5 +248,97 @@ describe("ChatMessages tool disclosures", () => {
 		expect(
 			container.querySelector('button[aria-label="Copy assistant message"]'),
 		).toBeNull();
+	});
+});
+
+describe("ChatMessages thinking indicator", () => {
+	const userMessage: ChatMessage = {
+		id: "user-1",
+		sessionId: "session-1",
+		role: "user",
+		content: "Hello",
+		createdAt: 1,
+	};
+
+	it("shows while starting", async () => {
+		await renderMessages([userMessage], { status: "starting" });
+		expect(container.textContent).toContain("Thinking...");
+	});
+
+	it("keeps showing while running until the first assistant output arrives", async () => {
+		await renderMessages([userMessage], { status: "running" });
+		expect(container.textContent).toContain("Thinking...");
+	});
+
+	it("ignores trailing status messages when deciding to show", async () => {
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "status-1",
+					sessionId: "session-1",
+					role: "status",
+					content: "Session started: session-1",
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+
+		expect(container.textContent).toContain("Thinking...");
+	});
+
+	it("hides once assistant output is streaming", async () => {
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "assistant-1",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Working on it",
+					createdAt: 2,
+				},
+			],
+			{ status: "running", streamingMessageId: "assistant-1" },
+		);
+
+		expect(container.textContent).not.toContain("Thinking...");
+	});
+
+	it("hides while a tool runs", async () => {
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "tool-1",
+					sessionId: "session-1",
+					role: "tool",
+					content: "not-json",
+					createdAt: 2,
+					meta: { toolName: "search" },
+				},
+			],
+			{ status: "running" },
+		);
+
+		expect(container.textContent).not.toContain("Thinking...");
+	});
+
+	it("hides while a tool approval is pending", async () => {
+		await renderMessages([userMessage], {
+			status: "running",
+			pendingToolApprovals: [
+				{
+					requestId: "req-1",
+					sessionId: "session-1",
+					createdAt: new Date(1).toISOString(),
+					toolCallId: "call-1",
+					toolName: "execute_command",
+				},
+			],
+		});
+
+		expect(container.textContent).not.toContain("Thinking...");
 	});
 });
