@@ -1232,10 +1232,25 @@ export async function handleCommand(
 		updateMcpSettingsFileSync(path, (settings) => {
 			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
 				{}) as JsonRecord;
+			// Preserve machine-managed fields the editor dialog doesn't expose:
+			// oauth tokens for remote servers and plugin-ownership metadata.
+			const sourceName =
+				previousName && servers[previousName] ? previousName : name;
+			const existing = servers[sourceName];
+			const upserted = { ...next };
+			if (existing && typeof existing === "object") {
+				const record = existing as JsonRecord;
+				if (upserted.metadata === undefined && record.metadata !== undefined) {
+					upserted.metadata = record.metadata;
+				}
+				if (record.oauth !== undefined) {
+					upserted.oauth = record.oauth;
+				}
+			}
 			if (previousName && previousName !== name) {
 				delete servers[previousName];
 			}
-			servers[name] = next;
+			servers[name] = upserted;
 			settings.mcpServers = servers;
 		});
 		return readMcpServersResponse();
