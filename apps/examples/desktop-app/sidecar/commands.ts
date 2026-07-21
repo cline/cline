@@ -157,8 +157,13 @@ function readMcpServersResponse(): JsonRecord {
 			record.transport && typeof record.transport === "object"
 				? (record.transport as JsonRecord)
 				: undefined;
+		const rawTransportType =
+			transport?.type ?? record.transportType ?? record.type;
 		const transportType = String(
-			transport?.type ?? record.transportType ?? record.type ?? "stdio",
+			rawTransportType ??
+				(typeof transport?.url === "string" || typeof record.url === "string"
+					? "sse"
+					: "stdio"),
 		).trim();
 		return {
 			name,
@@ -203,6 +208,31 @@ function readMcpServersResponse(): JsonRecord {
 		};
 	});
 	return { settingsPath, hasSettingsFile: true, servers: entries };
+}
+
+/**
+ * Transport type + URL a server record actually points at, tolerating both
+ * the nested `transport` shape and legacy flat fields (mirrors
+ * readMcpServersResponse).
+ */
+function mcpTransportIdentity(record: JsonRecord): string {
+	const transport =
+		record.transport && typeof record.transport === "object"
+			? (record.transport as JsonRecord)
+			: undefined;
+	const url =
+		typeof transport?.url === "string"
+			? transport.url
+			: typeof record.url === "string"
+				? record.url
+				: "";
+	// Core's config-loader defaults a URL-based legacy record with no explicit
+	// type to SSE and maps the legacy "http" alias to streamableHttp; mirror
+	// both so an unchanged endpoint keeps the same identity.
+	const rawType = transport?.type ?? record.transportType ?? record.type;
+	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
+	const normalizedType = type === "http" ? "streamableHttp" : type;
+	return `${normalizedType}\u0000${url}`;
 }
 
 function writeMcpServersMap(servers: JsonRecord): void {
@@ -1232,10 +1262,31 @@ export async function handleCommand(
 		updateMcpSettingsFileSync(path, (settings) => {
 			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
 				{}) as JsonRecord;
+			// Preserve machine-managed fields the editor dialog doesn't expose:
+			// oauth tokens for remote servers and plugin-ownership metadata.
+			const sourceName =
+				previousName && servers[previousName] ? previousName : name;
+			const existing = servers[sourceName];
+			const upserted = { ...next };
+			if (existing && typeof existing === "object") {
+				const record = existing as JsonRecord;
+				if (upserted.metadata === undefined && record.metadata !== undefined) {
+					upserted.metadata = record.metadata;
+				}
+				// OAuth tokens were issued for a specific endpoint; carrying them
+				// onto an edited transport or URL would send the old server's
+				// credentials to a different endpoint.
+				if (
+					record.oauth !== undefined &&
+					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
+				) {
+					upserted.oauth = record.oauth;
+				}
+			}
 			if (previousName && previousName !== name) {
 				delete servers[previousName];
 			}
-			servers[name] = next;
+			servers[name] = upserted;
 			settings.mcpServers = servers;
 		});
 		return readMcpServersResponse();
