@@ -1107,6 +1107,7 @@ function ChatThreadPane({
 					body={
 						showDiffView ? (
 							<DiffView
+								cwd={config.cwd || config.workspaceRoot}
 								fileDiffs={fileDiffs}
 								onClose={() => setShowDiffView(false)}
 							/>
