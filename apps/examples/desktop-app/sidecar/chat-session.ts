@@ -628,6 +628,7 @@ async function rebuildSessionForProviderChange(
 		]);
 
 	await manager.stop(sessionId);
+	let replacementStarted = false;
 	try {
 		await startRebuiltSession(
 			manager,
@@ -637,8 +638,19 @@ async function rebuildSessionForProviderChange(
 			messages,
 			compactionState,
 		);
+		replacementStarted = true;
+		// Reusing a session id preserves its existing manifest. Treat refreshing
+		// its connection label as part of the replacement transaction so a
+		// persistence failure cannot leave runtime and cached state diverged.
+		await manager.updateSessionConnection(
+			sessionId,
+			buildSessionConnectionUpdate(nextConfig),
+		);
 	} catch (replacementError) {
 		try {
+			if (replacementStarted) {
+				await manager.stop(sessionId);
+			}
 			await startRebuiltSession(
 				manager,
 				sessionId,
@@ -659,13 +671,6 @@ async function rebuildSessionForProviderChange(
 		}
 		throw replacementError;
 	}
-
-	// Reusing a session id preserves its existing manifest. Refresh the
-	// connection label after the rebuilt runtime is live.
-	await manager.updateSessionConnection(
-		sessionId,
-		buildSessionConnectionUpdate(nextConfig),
-	);
 }
 
 async function handleSend(
@@ -699,11 +704,15 @@ async function handleSend(
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
 	);
-	if (session && ownsBusyState) {
-		session.prompt = prompt;
-		session.busy = true;
-		session.status = "running";
-		session.transitioningProvider = providerChanged;
+	if (session) {
+		if (ownsBusyState) {
+			session.prompt = prompt;
+			session.busy = true;
+			session.status = "running";
+		}
+		if (providerChanged) {
+			session.transitioningProvider = true;
+		}
 	}
 	try {
 		if (request.config && nextConfig) {
@@ -809,9 +818,13 @@ async function handleSend(
 			},
 		};
 	} finally {
-		if (session && ownsBusyState) {
-			session.busy = false;
-			session.transitioningProvider = false;
+		if (session) {
+			if (ownsBusyState) {
+				session.busy = false;
+			}
+			if (providerChanged) {
+				session.transitioningProvider = false;
+			}
 		}
 	}
 }

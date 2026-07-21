@@ -178,6 +178,9 @@ describe("first-send connection updates", () => {
 				start,
 				stop,
 				updateSessionConnection,
+				pendingPrompts: {
+					list: vi.fn(async () => []),
+				},
 			},
 		} as unknown as SidecarContext;
 		return {
@@ -312,6 +315,50 @@ describe("first-send connection updates", () => {
 		await switching;
 	});
 
+	it.each([
+		"queue",
+		"steer",
+	] as const)("locks provider-switch preparation for explicit %s delivery", async (delivery) => {
+		let resolveMessages:
+			| ((messages: Array<{ role: string; content: string }>) => void)
+			| undefined;
+		const messages = new Promise<Array<{ role: string; content: string }>>(
+			(resolve) => {
+				resolveMessages = resolve;
+			},
+		);
+		const { ctx, readMessages, sessionId } = createContext();
+		readMessages.mockImplementationOnce(async () => await messages);
+
+		const switching = handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "queue this for Codex",
+			delivery,
+			config: {
+				...baseConfig,
+				provider: "openai-codex",
+				model: "gpt-5.3-codex",
+			},
+		});
+		await vi.waitFor(() => expect(readMessages).toHaveBeenCalledOnce());
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "racing prompt",
+				config: { ...baseConfig },
+			}),
+		).rejects.toThrow("A provider switch is already in progress");
+
+		resolveMessages?.([
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "first response" },
+		]);
+		await switching;
+	});
+
 	it("restores the previous provider runtime when replacement startup fails", async () => {
 		const { ctx, send, sessionId, start, stop } = createContext();
 		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
@@ -360,6 +407,74 @@ describe("first-send connection updates", () => {
 				config: { ...baseConfig },
 			});
 			expect(send).toHaveBeenCalledOnce();
+		} finally {
+			if (previousKanbanDataDir === undefined) {
+				delete process.env.CLINE_KANBAN_DATA_DIR;
+			} else {
+				process.env.CLINE_KANBAN_DATA_DIR = previousKanbanDataDir;
+			}
+			rmSync(testKanbanDataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("restores the previous provider when replacement label sync fails", async () => {
+		const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+			createContext();
+		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
+		const testKanbanDataDir = join(
+			tmpdir(),
+			`cline-provider-label-rollback-${process.pid}`,
+		);
+		process.env.CLINE_KANBAN_DATA_DIR = testKanbanDataDir;
+		try {
+			updateSessionConnection
+				.mockRejectedValueOnce(new Error("manifest write failed"))
+				.mockResolvedValueOnce(undefined);
+
+			const result = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue with Codex",
+				config: {
+					...baseConfig,
+					provider: "openai-codex",
+					model: "gpt-5.3-codex",
+				},
+			})) as { result?: { finishReason?: string; text?: string } };
+
+			expect(stop).toHaveBeenCalledTimes(2);
+			expect(start).toHaveBeenCalledTimes(2);
+			expect(start.mock.calls[1]?.[0]).toEqual(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						providerId: "cline",
+						modelId: "anthropic/claude-sonnet-4.6",
+						sessionId,
+					}),
+				}),
+			);
+			expect(updateSessionConnection).toHaveBeenNthCalledWith(2, sessionId, {
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: null,
+			});
+			expect(send).not.toHaveBeenCalled();
+			expect(result.result).toEqual({
+				finishReason: "error",
+				text: "manifest write failed",
+			});
+			expect(ctx.liveSessions.get(sessionId)?.config).toEqual(baseConfig);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue with Cline",
+				config: { ...baseConfig },
+			});
+			expect(send).toHaveBeenCalledOnce();
+			expect(start).toHaveBeenCalledTimes(2);
 		} finally {
 			if (previousKanbanDataDir === undefined) {
 				delete process.env.CLINE_KANBAN_DATA_DIR;
