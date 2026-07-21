@@ -47,6 +47,9 @@ jobs:
                   bun run -F @cline/cli build
                   bun run types
 
+            - name: Verify committed UI build
+              run: test -z "$(git status --porcelain --untracked-files=all -- sdk/packages/ui/dist)"
+
             - name: Lint & Format
               run: bun run lint
 

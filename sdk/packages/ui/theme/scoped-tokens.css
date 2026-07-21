@@ -1,20 +1,16 @@
 /*
- * Default Cline web theme.
- *
- * Keep this file framework-neutral: variable blocks only, with no Tailwind
- * directives, resets, font imports, or app-specific selectors.
+ * Opt-in Cline theme for hosts that must preserve their existing root theme.
+ * Keep these declarations synchronized with tokens.css; theme.test.ts enforces
+ * the contract.
  */
 
-:root {
-	/* Brand extensions for artwork; components should prefer semantic tokens. */
+.cline-ui-theme {
 	--brand-violet: oklch(0.55 0.22 293);
 	--primary-emphasis: oklch(0.45 0.23 293);
 	--brand-lilac: oklch(0.88 0.09 315);
 	--brand-magenta: oklch(0.75 0.15 330);
 	--brand-periwinkle: oklch(0.69 0.14 275);
 	--brand-cyan: oklch(0.87 0.07 210);
-
-	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Schibsted Grotesk Variable", sans-serif;
 	--font-mono:
 		"Azeret Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas,
@@ -50,13 +46,9 @@
 	--text-6xl: 60px;
 	--text-6xl--line-height: 60px;
 	--text-6xl--letter-spacing: -0.025em;
-
-	/* Global browser affordances. */
 	--scrollbar-thumb: oklch(0.72 0.01 285);
 	--scrollbar-thumb-hover: oklch(0.58 0.014 285);
 	--selection-background: oklch(0.7 0.16 293 / 22%);
-
-	/* Standard shadcn semantic surfaces. */
 	--background: oklch(0.992 0.003 285);
 	--foreground: oklch(0.21 0.012 285);
 	--card: oklch(1 0 0);
@@ -97,7 +89,8 @@
 	--sidebar-ring: oklch(0.61 0.18 293);
 }
 
-.dark {
+.dark .cline-ui-theme,
+.cline-ui-theme.dark {
 	--brand-violet: oklch(0.7 0.17 293);
 	--primary-emphasis: oklch(0.77 0.15 293);
 	--brand-lilac: oklch(0.68 0.13 315);

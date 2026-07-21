@@ -12,7 +12,9 @@ const base = readThemeFile("base.css");
 const index = readThemeFile("index.css");
 const manifest = JSON.parse(
 	readFileSync(join(packageRoot, "package.json"), "utf8"),
-) as { exports?: Record<string, string> };
+) as {
+	exports?: Record<string, string | { import?: string; types?: string }>;
+};
 
 const requiredTokens = [
 	"--background",
@@ -60,12 +62,25 @@ if (
 }
 for (const subpath of [
 	"./theme/index.css",
+	"./theme/markdown.css",
+	"./theme/scoped-tokens.css",
 	"./theme/tokens.css",
 	"./theme/theme.css",
 	"./theme/base.css",
 ]) {
-	const target = manifest.exports?.[subpath];
-	if (!target || !existsSync(join(packageRoot, target))) {
+	const exported = manifest.exports?.[subpath];
+	const targets =
+		typeof exported === "string"
+			? [exported]
+			: typeof exported === "object" && exported !== null
+				? Object.values(exported).filter(
+						(target): target is string => typeof target === "string",
+					)
+				: [];
+	if (
+		targets.length === 0 ||
+		targets.some((target) => !existsSync(join(packageRoot, target)))
+	) {
 		throw new Error(`package.json export ${subpath} is missing or invalid`);
 	}
 }
