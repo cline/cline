@@ -65,6 +65,7 @@
 		"@shikijs/themes": "^4.2.0",
 		"@streamdown/cjk": "^1.0.3",
 		"@tauri-apps/api": "^2.0.0",
+		"@tauri-apps/plugin-opener": "^2.5.4",
 		"@vercel/analytics": "1.6.1",
 		"autoprefixer": "^10.4.20",
 		"class-variance-authority": "^0.7.1",

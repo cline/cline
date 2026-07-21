@@ -485,6 +485,7 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(desktop_backend)
         .manage(app_context)
         .setup(|app| {

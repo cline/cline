@@ -20,10 +20,10 @@ import {
 	Receipt,
 	RefreshCw,
 } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { desktopClient } from "@/lib/desktop-client";
+import { handleExternalLinkClick } from "@/lib/external-links";
 import { cn } from "@/lib/utils";
 
 function normalizeAccountViewError(error: unknown): Error {
@@ -365,14 +365,15 @@ export function AccountView() {
 												Member since {formatDate(user.createdAt)}
 											</p>
 										</div>
-										<Link
+										<a
 											href="https://app.cline.bot/dashboard"
+											onClick={handleExternalLinkClick}
 											target="_blank"
 											rel="noopener noreferrer"
 											className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 										>
 											<ExternalLink className="h-4 w-4" />
-										</Link>
+										</a>
 									</div>
 								</div>
 
@@ -388,15 +389,16 @@ export function AccountView() {
 														: "Credits Balance"}
 												</h3>
 											</div>
-											<Link
+											<a
 												href="https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
+												onClick={handleExternalLinkClick}
 												target="_blank"
 												rel="noopener noreferrer"
 												className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 											>
 												<Plus className="h-3.5 w-3.5" />
 												Credit
-											</Link>
+											</a>
 										</div>
 										<div className="flex items-baseline gap-2">
 											<span className="text-3xl font-bold text-foreground">
@@ -421,15 +423,16 @@ export function AccountView() {
 												Organizations
 											</h3>
 										</div>
-										<Link
+										<a
 											href="https://app.cline.bot/onboarding?step=1"
+											onClick={handleExternalLinkClick}
 											target="_blank"
 											rel="noopener noreferrer"
 											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 										>
 											<Plus className="h-3.5 w-3.5" />
 											Create
-										</Link>
+										</a>
 									</div>
 									{organizations.length === 0 ? (
 										<p className="text-sm text-muted-foreground">
