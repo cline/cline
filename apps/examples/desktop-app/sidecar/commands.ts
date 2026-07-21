@@ -443,11 +443,48 @@ async function handleRoutineScheduleCommand(
 					clientCommand("schedule.upcoming", { limit: 30 }),
 					clientCommand("schedule.list_executions", { limit: 50 }),
 				]);
+			const scheduleRecords = (schedules.schedules ?? []) as JsonRecord[];
+			const executionRecords = (lastExecutions.executions ??
+				[]) as JsonRecord[];
+			// The bulk query returns the newest executions across ALL schedules,
+			// so a few chatty schedules can evict everyone else's latest run.
+			// Backfill the latest execution for schedules that have run
+			// (lastRunAt set) but fell out of that window.
+			const covered = new Set<string>();
+			for (const execution of executionRecords) {
+				if (typeof execution.scheduleId === "string") {
+					covered.add(execution.scheduleId);
+				}
+			}
+			const missing = scheduleRecords.filter(
+				(schedule) =>
+					typeof schedule.scheduleId === "string" &&
+					schedule.lastRunAt != null &&
+					!covered.has(schedule.scheduleId),
+			);
+			const concurrency = 8;
+			for (let index = 0; index < missing.length; index += concurrency) {
+				const chunk = missing.slice(index, index + concurrency);
+				const replies = await Promise.all(
+					chunk.map((schedule) =>
+						clientCommand("schedule.list_executions", {
+							scheduleId: schedule.scheduleId,
+							limit: 1,
+						}).catch(() => undefined),
+					),
+				);
+				for (const reply of replies) {
+					const executions = (reply?.executions ?? []) as JsonRecord[];
+					if (executions[0]) {
+						executionRecords.push(executions[0]);
+					}
+				}
+			}
 			return {
-				schedules: schedules.schedules ?? [],
+				schedules: scheduleRecords,
 				activeExecutions: activeExecutions.executions ?? [],
 				upcomingRuns: upcomingRuns.runs ?? [],
-				lastExecutions: lastExecutions.executions ?? [],
+				lastExecutions: executionRecords,
 			};
 		}
 		if (command === "create_routine_schedule") {

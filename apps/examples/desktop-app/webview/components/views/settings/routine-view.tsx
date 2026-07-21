@@ -361,10 +361,36 @@ export function RoutineSchedulesContent() {
 	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [busyScheduleId, setBusyScheduleId] = useState<string | null>(null);
-	const [triggeringScheduleId, setTriggeringScheduleId] = useState<
-		string | null
-	>(null);
+	// Sets rather than single ids: several rows can have in-flight actions at
+	// once, and one action finishing must not clear another row's busy state.
+	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
+		new Set(),
+	);
+	const [triggeringScheduleIds, setTriggeringScheduleIds] = useState<
+		ReadonlySet<string>
+	>(new Set());
+	const setScheduleBusy = (scheduleId: string, busy: boolean) => {
+		setBusyScheduleIds((previous) => {
+			const next = new Set(previous);
+			if (busy) {
+				next.add(scheduleId);
+			} else {
+				next.delete(scheduleId);
+			}
+			return next;
+		});
+	};
+	const setScheduleTriggering = (scheduleId: string, triggering: boolean) => {
+		setTriggeringScheduleIds((previous) => {
+			const next = new Set(previous);
+			if (triggering) {
+				next.add(scheduleId);
+			} else {
+				next.delete(scheduleId);
+			}
+			return next;
+		});
+	};
 	const [viewingSchedule, setViewingSchedule] =
 		useState<RoutineSchedule | null>(null);
 	const [schedulePendingDelete, setSchedulePendingDelete] =
@@ -624,7 +650,7 @@ export function RoutineSchedulesContent() {
 		schedule: RoutineSchedule,
 		enabled: boolean,
 	) => {
-		setBusyScheduleId(schedule.scheduleId);
+		setScheduleBusy(schedule.scheduleId, true);
 		setErrorMessage(null);
 		try {
 			if (enabled) {
@@ -641,13 +667,13 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setBusyScheduleId(null);
+			setScheduleBusy(schedule.scheduleId, false);
 		}
 	};
 
 	const triggerSchedule = async (schedule: RoutineSchedule) => {
-		setBusyScheduleId(schedule.scheduleId);
-		setTriggeringScheduleId(schedule.scheduleId);
+		setScheduleBusy(schedule.scheduleId, true);
+		setScheduleTriggering(schedule.scheduleId, true);
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("trigger_routine_schedule", {
@@ -670,13 +696,13 @@ export function RoutineSchedulesContent() {
 				variant: "destructive",
 			});
 		} finally {
-			setBusyScheduleId(null);
-			setTriggeringScheduleId(null);
+			setScheduleBusy(schedule.scheduleId, false);
+			setScheduleTriggering(schedule.scheduleId, false);
 		}
 	};
 
 	const deleteSchedule = async (scheduleId: string) => {
-		setBusyScheduleId(scheduleId);
+		setScheduleBusy(scheduleId, true);
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("delete_routine_schedule", {
@@ -688,7 +714,7 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setBusyScheduleId(null);
+			setScheduleBusy(scheduleId, false);
 		}
 	};
 
@@ -939,7 +965,7 @@ export function RoutineSchedulesContent() {
 			) : (
 				<div className="flex flex-col gap-3">
 					{sortedSchedules.map((schedule) => {
-						const isBusy = busyScheduleId === schedule.scheduleId;
+						const isBusy = busyScheduleIds.has(schedule.scheduleId);
 						const activeExecution = executionBySchedule.get(
 							schedule.scheduleId,
 						);
@@ -1010,7 +1036,7 @@ export function RoutineSchedulesContent() {
 													onClick={() => void triggerSchedule(schedule)}
 													disabled={isBusy}
 												>
-													{triggeringScheduleId === schedule.scheduleId ? (
+													{triggeringScheduleIds.has(schedule.scheduleId) ? (
 														<RefreshCw className="h-3.5 w-3.5 animate-spin" />
 													) : (
 														<Zap className="h-3.5 w-3.5" />
@@ -1232,7 +1258,7 @@ export function RoutineSchedulesContent() {
 						<AlertDialogCancel
 							disabled={
 								schedulePendingDelete
-									? busyScheduleId === schedulePendingDelete.scheduleId
+									? busyScheduleIds.has(schedulePendingDelete.scheduleId)
 									: false
 							}
 						>
@@ -1241,7 +1267,7 @@ export function RoutineSchedulesContent() {
 						<AlertDialogAction
 							disabled={
 								!schedulePendingDelete ||
-								busyScheduleId === schedulePendingDelete.scheduleId
+								busyScheduleIds.has(schedulePendingDelete.scheduleId)
 							}
 							onClick={() => {
 								if (schedulePendingDelete) {
