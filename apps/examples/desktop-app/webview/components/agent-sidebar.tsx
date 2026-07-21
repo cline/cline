@@ -1,12 +1,14 @@
 "use client";
 
 import {
+	Activity,
 	ArrowDownUp,
-	Blocks,
 	Bot,
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
+	Code,
+	FileText,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -15,14 +17,15 @@ import {
 	PanelLeftOpen,
 	Pencil,
 	Pin,
+	Plug,
 	Plus,
 	Radio,
 	Search,
 	Server,
 	Settings,
 	SlidersHorizontal,
-	Store,
 	Trash2,
+	Wrench,
 } from "lucide-react";
 import {
 	type ReactNode,
@@ -72,6 +75,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
 import {
+	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "@/components/views/settings/settings-view";
@@ -98,12 +102,16 @@ type SidebarSortMode = "time" | "project";
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
-	"MCP Servers": Server,
-	"MCP Marketplace": Store,
-	Customizations: Blocks,
 	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
+	Plugins: Plug,
+	Skills: Activity,
+	MCP: Server,
+	Hooks: Code,
+	Rules: FileText,
+	Agents: Bot,
+	Tools: Wrench,
 } satisfies Record<SettingsSection, typeof Settings>;
 
 function SettingsSectionNavigation({
@@ -115,6 +123,30 @@ function SettingsSectionNavigation({
 	collapsed: boolean;
 	onSelect: (section: SettingsSection) => void;
 }) {
+	const renderSectionButton = (section: SettingsSection) => {
+		const Icon = SETTINGS_SECTION_ICONS[section];
+		return (
+			<Button
+				aria-current={activeSection === section ? "page" : undefined}
+				aria-label={section}
+				className={cn(
+					"min-w-0 justify-start",
+					activeSection === section &&
+						"bg-sidebar-accent text-sidebar-accent-foreground",
+					collapsed && "mx-auto size-9 justify-center px-0",
+				)}
+				key={section}
+				onClick={() => onSelect(section)}
+				title={section}
+				type="button"
+				variant="sidebarItem"
+			>
+				<Icon className="size-4 shrink-0" />
+				{!collapsed ? <span className="truncate">{section}</span> : null}
+			</Button>
+		);
+	};
+
 	return (
 		<nav
 			aria-label="Settings sections"
@@ -128,29 +160,15 @@ function SettingsSectionNavigation({
 					Settings
 				</p>
 			) : null}
-			{SETTINGS_SECTIONS.map((section) => {
-				const Icon = SETTINGS_SECTION_ICONS[section];
-				return (
-					<Button
-						aria-current={activeSection === section ? "page" : undefined}
-						aria-label={section}
-						className={cn(
-							"min-w-0 justify-start",
-							activeSection === section &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							collapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						key={section}
-						onClick={() => onSelect(section)}
-						title={section}
-						type="button"
-						variant="sidebarItem"
-					>
-						<Icon className="size-4 shrink-0" />
-						{!collapsed ? <span className="truncate">{section}</span> : null}
-					</Button>
-				);
-			})}
+			{SETTINGS_SECTIONS.map(renderSectionButton)}
+			{!collapsed ? (
+				<p className="px-2 pb-2 pt-4 text-sm font-medium text-muted-foreground">
+					Customizations
+				</p>
+			) : (
+				<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
+			)}
+			{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
 		</nav>
 	);
 }
