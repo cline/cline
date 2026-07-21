@@ -342,3 +342,18 @@ class DesktopClient {
 }
 
 export const desktopClient = new DesktopClient();
+
+/**
+ * Open a URL in the user's default browser. Inside the Tauri shell,
+ * `target="_blank"` anchors are silently dropped (no window opener is
+ * configured), so external links must be routed through the sidecar, which
+ * runs on the host and can spawn the platform opener. In plain web mode the
+ * browser handles it directly.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+	if (isTauriAvailable()) {
+		await desktopClient.invoke("open_external_url", { url });
+		return;
+	}
+	window.open(url, "_blank", "noopener,noreferrer");
+}

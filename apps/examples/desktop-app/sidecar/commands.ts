@@ -85,6 +85,51 @@ import type {
 	SidecarContext,
 } from "./types";
 
+function openUrlInDefaultBrowser(url: string): Promise<void> {
+	const platform = process.platform;
+	// On Windows the URL must not pass through cmd.exe: `cmd /c start <url>`
+	// re-parses metacharacters (&, ^, |) that are valid inside http(s) URLs,
+	// turning a crafted URL into command execution. rundll32 hands the URL
+	// straight to the protocol handler with no shell parsing.
+	const spawned =
+		platform === "darwin"
+			? spawn("open", [url], { stdio: "ignore", detached: true })
+			: platform === "win32"
+				? spawn("rundll32", ["url.dll,FileProtocolHandler", url], {
+						stdio: "ignore",
+						detached: true,
+					})
+				: spawn("xdg-open", [url], {
+						stdio: "ignore",
+						detached: true,
+					});
+	// A missing opener binary emits an async "error" event; without a listener
+	// it becomes an uncaught exception that kills the sidecar. Launchers hand
+	// off to the browser and exit quickly, so a fast non-zero exit means the
+	// handoff failed (xdg-open exits 3 when no handler is available; rundll32
+	// exits 0 even on failure, so Windows stays best-effort). If the launcher
+	// is still running after the grace window, assume the handoff worked
+	// rather than blocking on a launcher that lingers.
+	return new Promise((resolve, reject) => {
+		const graceTimer = setTimeout(resolve, 2_000);
+		spawned.once("spawn", () => {
+			spawned.unref();
+		});
+		spawned.once("error", (error) => {
+			clearTimeout(graceTimer);
+			reject(new Error(`could not open browser: ${error.message}`));
+		});
+		spawned.once("exit", (code) => {
+			clearTimeout(graceTimer);
+			if (code === 0 || code === null) {
+				resolve();
+			} else {
+				reject(new Error(`browser opener exited with code ${code}`));
+			}
+		});
+	});
+}
+
 function readProviderSettingsUpdate(
 	args: Record<string, unknown> | undefined,
 ): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
@@ -112,8 +157,13 @@ function readMcpServersResponse(): JsonRecord {
 			record.transport && typeof record.transport === "object"
 				? (record.transport as JsonRecord)
 				: undefined;
+		const rawTransportType =
+			transport?.type ?? record.transportType ?? record.type;
 		const transportType = String(
-			transport?.type ?? record.transportType ?? record.type ?? "stdio",
+			rawTransportType ??
+				(typeof transport?.url === "string" || typeof record.url === "string"
+					? "sse"
+					: "stdio"),
 		).trim();
 		return {
 			name,
@@ -158,6 +208,31 @@ function readMcpServersResponse(): JsonRecord {
 		};
 	});
 	return { settingsPath, hasSettingsFile: true, servers: entries };
+}
+
+/**
+ * Transport type + URL a server record actually points at, tolerating both
+ * the nested `transport` shape and legacy flat fields (mirrors
+ * readMcpServersResponse).
+ */
+function mcpTransportIdentity(record: JsonRecord): string {
+	const transport =
+		record.transport && typeof record.transport === "object"
+			? (record.transport as JsonRecord)
+			: undefined;
+	const url =
+		typeof transport?.url === "string"
+			? transport.url
+			: typeof record.url === "string"
+				? record.url
+				: "";
+	// Core's config-loader defaults a URL-based legacy record with no explicit
+	// type to SSE and maps the legacy "http" alias to streamableHttp; mirror
+	// both so an unchanged endpoint keeps the same identity.
+	const rawType = transport?.type ?? record.transportType ?? record.type;
+	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
+	const normalizedType = type === "http" ? "streamableHttp" : type;
+	return `${normalizedType}\u0000${url}`;
 }
 
 function writeMcpServersMap(servers: JsonRecord): void {
@@ -1146,6 +1221,22 @@ export async function handleCommand(
 		return await searchWorkspaceFiles(ctx, args);
 	}
 
+	// ── External links ─────────────────────────────────────────────────
+	if (command === "open_external_url") {
+		const rawUrl = String(args?.url ?? "").trim();
+		let parsed: URL;
+		try {
+			parsed = new URL(rawUrl);
+		} catch {
+			throw new Error(`invalid url: ${rawUrl}`);
+		}
+		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+			throw new Error("only http(s) urls can be opened externally");
+		}
+		await openUrlInDefaultBrowser(parsed.toString());
+		return { opened: true };
+	}
+
 	// ── Cline account ──────────────────────────────────────────────────
 	if (command === "cline_account") {
 		const operation = String(args?.operation ?? "").trim();
@@ -1231,20 +1322,11 @@ export async function handleCommand(
 			manager,
 			providerId,
 			(url) => {
-				const platform = process.platform;
-				const spawned =
-					platform === "darwin"
-						? spawn("open", [url], { stdio: "ignore", detached: true })
-						: platform === "win32"
-							? spawn("cmd", ["/c", "start", "", url], {
-									stdio: "ignore",
-									detached: true,
-								})
-							: spawn("xdg-open", [url], {
-									stdio: "ignore",
-									detached: true,
-								});
-				spawned.unref();
+				// The OAuth helper's openUrl callback is fire-and-forget; surface
+				// opener failures in the log instead of an unhandled rejection.
+				openUrlInDefaultBrowser(url).catch((error) => {
+					console.warn(`[sidecar] ${error instanceof Error ? error.message : error}`);
+				});
 			},
 		);
 		if (saved.provider !== providerId) {
@@ -1347,10 +1429,31 @@ export async function handleCommand(
 		updateMcpSettingsFileSync(path, (settings) => {
 			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
 				{}) as JsonRecord;
+			// Preserve machine-managed fields the editor dialog doesn't expose:
+			// oauth tokens for remote servers and plugin-ownership metadata.
+			const sourceName =
+				previousName && servers[previousName] ? previousName : name;
+			const existing = servers[sourceName];
+			const upserted = { ...next };
+			if (existing && typeof existing === "object") {
+				const record = existing as JsonRecord;
+				if (upserted.metadata === undefined && record.metadata !== undefined) {
+					upserted.metadata = record.metadata;
+				}
+				// OAuth tokens were issued for a specific endpoint; carrying them
+				// onto an edited transport or URL would send the old server's
+				// credentials to a different endpoint.
+				if (
+					record.oauth !== undefined &&
+					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
+				) {
+					upserted.oauth = record.oauth;
+				}
+			}
 			if (previousName && previousName !== name) {
 				delete servers[previousName];
 			}
-			servers[name] = next;
+			servers[name] = upserted;
 			settings.mcpServers = servers;
 		});
 		return readMcpServersResponse();
