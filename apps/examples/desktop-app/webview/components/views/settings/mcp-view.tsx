@@ -1,6 +1,14 @@
 "use client";
 
-import { Circle, Minus, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+	ChevronRight,
+	Circle,
+	Minus,
+	Pencil,
+	Plus,
+	RefreshCw,
+	Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
@@ -14,6 +22,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -23,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
 	Select,
 	SelectContent,
@@ -37,6 +51,18 @@ import { cn } from "@/lib/utils";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
+
+type McpServerType = "local" | "remote";
+
+function serverTypeOf(transportType: McpTransportType): McpServerType {
+	return transportType === "stdio" ? "local" : "remote";
+}
+
+const TRANSPORT_TYPE_LABELS: Record<McpTransportType, string> = {
+	stdio: "Local · stdio",
+	sse: "Remote · SSE (legacy)",
+	streamableHttp: "Remote · Streamable HTTP",
+};
 
 interface McpServer {
 	name: string;
@@ -178,6 +204,7 @@ export function McpServersContent() {
 	const [formState, setFormState] = useState<McpServerFormState>(() =>
 		createServerFormState(),
 	);
+	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
 
@@ -287,7 +314,7 @@ export function McpServersContent() {
 		if (form.transportType === "stdio") {
 			const command = form.command.trim();
 			if (!command) {
-				throw new Error("Command is required for stdio transport.");
+				throw new Error("Command is required for local servers.");
 			}
 			const args = splitCsv(form.argsText);
 			return {
@@ -304,7 +331,7 @@ export function McpServersContent() {
 		}
 		const url = form.url.trim();
 		if (!url) {
-			throw new Error("URL is required for sse and streamableHttp transport.");
+			throw new Error("Server URL is required for remote servers.");
 		}
 		return {
 			name,
@@ -320,6 +347,7 @@ export function McpServersContent() {
 	const openCreateDialog = () => {
 		setEditorMode("create");
 		setFormState(createServerFormState());
+		setAdvancedOpen(false);
 		setFormErrorMessage(null);
 		setEditorOpen(true);
 	};
@@ -327,6 +355,9 @@ export function McpServersContent() {
 	const openEditDialog = (server: McpServer) => {
 		setEditorMode("edit");
 		setFormState(createServerFormState(server));
+		setAdvancedOpen(
+			Boolean(server.cwd?.trim()) || server.metadata !== undefined,
+		);
 		setFormErrorMessage(null);
 		setEditorOpen(true);
 	};
@@ -488,7 +519,8 @@ export function McpServersContent() {
 										{server.name}
 									</h3>
 									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-										{server.transportType}
+										{TRANSPORT_TYPE_LABELS[server.transportType] ??
+											server.transportType}
 									</span>
 									<div className="flex-1" />
 									<div className="flex items-center gap-1">
@@ -579,7 +611,9 @@ export function McpServersContent() {
 							{editorMode === "edit" ? "Edit MCP Server" : "Add MCP Server"}
 						</DialogTitle>
 						<DialogDescription>
-							Update the MCP server stored in{" "}
+							{editorMode === "edit"
+								? "Update the MCP server stored in "
+								: "The server is saved to "}
 							<code className="font-mono">
 								{settingsPath || "cline_mcp_settings.json"}
 							</code>
@@ -604,25 +638,60 @@ export function McpServersContent() {
 						</div>
 
 						<div className="grid gap-2">
-							<Label>Transport type</Label>
-							<Select
-								value={formState.transportType}
+							<Label>Server type</Label>
+							<RadioGroup
+								className="grid gap-2"
+								value={serverTypeOf(formState.transportType)}
 								onValueChange={(value) =>
 									setFormState((current) => ({
 										...current,
-										transportType: value as McpTransportType,
+										transportType:
+											value === "local"
+												? "stdio"
+												: serverTypeOf(current.transportType) === "remote"
+													? current.transportType
+													: "streamableHttp",
 									}))
 								}
 							>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select transport" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="stdio">stdio</SelectItem>
-									<SelectItem value="sse">sse</SelectItem>
-									<SelectItem value="streamableHttp">streamableHttp</SelectItem>
-								</SelectContent>
-							</Select>
+								<Label
+									htmlFor="mcp-server-type-local"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-accent/30"
+								>
+									<RadioGroupItem
+										className="mt-0.5"
+										id="mcp-server-type-local"
+										value="local"
+									/>
+									<span className="grid gap-0.5">
+										<span className="text-sm font-medium text-foreground">
+											Local
+										</span>
+										<span className="text-xs text-muted-foreground">
+											Runs a command on this machine (stdio). Recommended when
+											available.
+										</span>
+									</span>
+								</Label>
+								<Label
+									htmlFor="mcp-server-type-remote"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-accent/30"
+								>
+									<RadioGroupItem
+										className="mt-0.5"
+										id="mcp-server-type-remote"
+										value="remote"
+									/>
+									<span className="grid gap-0.5">
+										<span className="text-sm font-medium text-foreground">
+											Remote
+										</span>
+										<span className="text-xs text-muted-foreground">
+											Connects to a hosted server over HTTP by URL.
+										</span>
+									</span>
+								</Label>
+							</RadioGroup>
 						</div>
 
 						{formState.transportType === "stdio" ? (
@@ -653,20 +722,6 @@ export function McpServersContent() {
 											}))
 										}
 										placeholder="-y, @modelcontextprotocol/server-github"
-									/>
-								</div>
-								<div className="grid gap-2">
-									<Label htmlFor="mcp-cwd">Working directory</Label>
-									<Input
-										id="mcp-cwd"
-										value={formState.cwd}
-										onChange={(event) =>
-											setFormState((current) => ({
-												...current,
-												cwd: event.target.value,
-											}))
-										}
-										placeholder="/path/to/project"
 									/>
 								</div>
 								<div className="grid gap-2">
@@ -747,23 +802,83 @@ export function McpServersContent() {
 										placeholder="Authorization=Bearer token"
 									/>
 								</div>
+								<div className="grid gap-2">
+									<Label>Transport</Label>
+									<Select
+										value={formState.transportType}
+										onValueChange={(value) =>
+											setFormState((current) => ({
+												...current,
+												transportType: value as McpTransportType,
+											}))
+										}
+									>
+										<SelectTrigger className="w-full">
+											<SelectValue placeholder="Select transport" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="streamableHttp">
+												Streamable HTTP (recommended)
+											</SelectItem>
+											<SelectItem value="sse">SSE (legacy)</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
 							</>
 						)}
 
-						<div className="grid gap-2">
-							<Label htmlFor="mcp-metadata">Metadata JSON</Label>
-							<Textarea
-								id="mcp-metadata"
-								value={formState.metadataText}
-								onChange={(event) =>
-									setFormState((current) => ({
-										...current,
-										metadataText: event.target.value,
-									}))
-								}
-								placeholder='{"key":"value"}'
-							/>
-						</div>
+						<Collapsible
+							className="grid gap-3"
+							onOpenChange={setAdvancedOpen}
+							open={advancedOpen}
+						>
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									className="flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+								>
+									<ChevronRight
+										className={cn(
+											"h-3.5 w-3.5 transition-transform",
+											advancedOpen && "rotate-90",
+										)}
+									/>
+									Advanced
+								</button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="grid gap-4">
+								{formState.transportType === "stdio" && (
+									<div className="grid gap-2">
+										<Label htmlFor="mcp-cwd">Working directory</Label>
+										<Input
+											id="mcp-cwd"
+											value={formState.cwd}
+											onChange={(event) =>
+												setFormState((current) => ({
+													...current,
+													cwd: event.target.value,
+												}))
+											}
+											placeholder="/path/to/project"
+										/>
+									</div>
+								)}
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-metadata">Metadata JSON</Label>
+									<Textarea
+										id="mcp-metadata"
+										value={formState.metadataText}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												metadataText: event.target.value,
+											}))
+										}
+										placeholder='{"key":"value"}'
+									/>
+								</div>
+							</CollapsibleContent>
+						</Collapsible>
 
 						<div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
 							<div>
