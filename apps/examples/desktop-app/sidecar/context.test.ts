@@ -8,6 +8,9 @@ const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const resolveHubOwnerContextMock = vi.hoisted(() => vi.fn());
 const startHubWebSocketServerMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const hubClientDisposeMock = vi.hoisted(() => vi.fn());
+const coreDisposeMock = vi.hoisted(() => vi.fn());
+const hubServerCloseMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -31,7 +34,7 @@ vi.mock("@cline/core", async () => {
 			}
 			connect = connectMock;
 			subscribe = subscribeMock;
-			dispose = vi.fn();
+			dispose = hubClientDisposeMock;
 		},
 	};
 });
@@ -57,6 +60,9 @@ describe("Code sidecar runtime capabilities", () => {
 		resolveHubOwnerContextMock.mockReset();
 		startHubWebSocketServerMock.mockReset();
 		subscribeMock.mockReset();
+		hubClientDisposeMock.mockReset();
+		coreDisposeMock.mockReset();
+		hubServerCloseMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
 		resolveHubOwnerContextMock.mockReturnValue({
 			ownerId: "code-sidecar-test",
@@ -65,14 +71,56 @@ describe("Code sidecar runtime capabilities", () => {
 		startHubWebSocketServerMock.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "test-token",
-			close: vi.fn(),
+			close: hubServerCloseMock,
 		});
 		subscribeMock.mockReturnValue(() => {});
 		createCoreMock.mockResolvedValue({
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
 			subscribe: vi.fn(() => () => {}),
-			dispose: vi.fn(),
+			dispose: coreDisposeMock,
 		});
+	});
+
+	it("publishes each runtime bootstrap phase in order", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+
+		await initializeSessionManager(ctx);
+
+		const phases = readEvents(ctx)
+			.filter((item) => item.event.name === "bootstrap_status")
+			.map((item) => item.event.payload.phase);
+		expect(phases).toEqual([
+			"starting_hub",
+			"connecting_core",
+			"connecting_event_client",
+			"ready",
+		]);
+		expect(ctx.bootstrapStatus.phase).toBe("ready");
+	});
+
+	it("retains a bootstrap error for the webview and cleans partial resources", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		createCoreMock.mockRejectedValueOnce(new Error("core connection failed"));
+		const ctx = createSidecarContext("/workspace/project");
+
+		await expect(initializeSessionManager(ctx)).rejects.toThrow(
+			"core connection failed",
+		);
+
+		expect(ctx.bootstrapStatus).toMatchObject({
+			phase: "error",
+			failedPhase: "connecting_core",
+			message: "core connection failed",
+		});
+		expect(hubServerCloseMock).toHaveBeenCalledOnce();
+		expect(ctx.hubServer).toBeNull();
+		expect(ctx.sessionManager).toBeNull();
 	});
 
 	it("registers Code App capability factory with core", async () => {

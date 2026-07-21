@@ -4,7 +4,7 @@ import { prewarmWorkspaceMetadata } from "./chat-session";
 import {
 	createSidecarContext,
 	disposeSidecarContext,
-	initializeSessionManager,
+	startSessionManagerInitialization,
 } from "./context";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
@@ -49,7 +49,6 @@ async function main() {
 	});
 
 	prewarmWorkspaceMetadata(workspaceRoot);
-	await initializeSessionManager(ctx);
 
 	let shuttingDown = false;
 	let handlingFatalError = false;
@@ -101,7 +100,7 @@ async function main() {
 	});
 
 	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
-	observability.logger.log("Desktop sidecar ready", {
+	observability.logger.log("Desktop sidecar transport ready", {
 		port,
 		mode: SIDECAR_MODE,
 	});
@@ -119,6 +118,20 @@ async function main() {
 			mode: SIDECAR_MODE,
 		})}\n`,
 	);
+
+	try {
+		await startSessionManagerInitialization(ctx);
+		observability.logger.log("Desktop sidecar runtime ready", {
+			port,
+			mode: SIDECAR_MODE,
+		});
+	} catch (error) {
+		// Keep the transport alive so the webview can show the bootstrap error and
+		// request another initialization attempt.
+		observability.logger.error?.("Desktop sidecar runtime bootstrap failed", {
+			error,
+		});
+	}
 }
 
 main().catch(async (error) => {

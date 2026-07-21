@@ -7,6 +7,7 @@ import type {
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
+import type { DesktopBootstrapStatus } from "../webview/lib/desktop-transport";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -108,6 +109,9 @@ export type SidecarContext = {
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
 	hubServer: HubServer | null;
+	bootstrapStatus: DesktopBootstrapStatus;
+	bootstrapRevision: number;
+	bootstrapPromise: Promise<void> | null;
 	workspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

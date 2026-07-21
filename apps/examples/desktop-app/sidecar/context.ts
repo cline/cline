@@ -18,6 +18,7 @@ import {
 	type ToolApprovalResult,
 } from "@cline/core";
 import type { AgentEvent } from "@cline/shared";
+import type { DesktopBootstrapStatus } from "../webview/lib/desktop-transport";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -95,6 +96,20 @@ export function broadcastEvent(
 	payload: unknown,
 ): void {
 	sendEvent(ctx, name, payload);
+}
+
+export function setBootstrapStatus(
+	ctx: SidecarContext,
+	status: Omit<DesktopBootstrapStatus, "revision" | "updatedAt">,
+): DesktopBootstrapStatus {
+	const next = {
+		...status,
+		revision: ++ctx.bootstrapRevision,
+		updatedAt: new Date().toISOString(),
+	};
+	ctx.bootstrapStatus = next;
+	sendEvent(ctx, "bootstrap_status", next);
+	return next;
 }
 
 export function broadcastChunk(
@@ -398,6 +413,13 @@ export function createSidecarContext(
 		sessionManager: null,
 		hubClient: null,
 		hubServer: null,
+		bootstrapStatus: {
+			phase: "starting_sidecar",
+			revision: 0,
+			updatedAt: new Date().toISOString(),
+		},
+		bootstrapRevision: 0,
+		bootstrapPromise: null,
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
@@ -409,6 +431,14 @@ export async function disposeSidecarContext(
 	ctx: SidecarContext,
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
+	const bootstrapPromise = ctx.bootstrapPromise;
+	if (bootstrapPromise) {
+		await bootstrapPromise.catch(() => undefined);
+		if (ctx.bootstrapPromise === bootstrapPromise) {
+			ctx.bootstrapPromise = null;
+		}
+	}
+
 	const cleanup: Array<Promise<unknown>> = [];
 
 	ctx.unsubscribeSessionEvents?.();
@@ -701,56 +731,108 @@ export function handleHubLiveEvent(
 export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
-	setHomeDirIfUnset(homedir());
-	const hubServer = await startHubWebSocketServer({
-		port: 0,
-		owner: resolveHubOwnerContext(
-			`code-sidecar:${process.pid}:${randomUUID()}`,
-		),
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		logger: ctx.logger,
-		telemetry: ctx.telemetry,
-	});
-	const sessionManager = await ClineCore.create({
-		clientName: "cline-code",
-		backendMode: "hub",
-		capabilities: createSidecarRuntimeCapabilities(ctx),
-		logger: ctx.logger,
-		telemetry: ctx.telemetry,
-		hub: {
-			endpoint: hubServer.url,
-			authToken: hubServer.authToken,
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-			clientType: "code-sidecar",
-			displayName: "Code App sidecar",
-		},
-	});
-
-	// Subscribe to all session events and relay them to WS clients
-	const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
-		handleCoreSessionEvent(ctx, event);
-	});
-
-	const runtimeAddress = sessionManager.runtimeAddress?.trim();
-	let hubClient: NodeHubClient | null = null;
-	if (runtimeAddress) {
-		hubClient = new NodeHubClient({
-			url: runtimeAddress,
-			authToken: hubServer.authToken,
-			clientType: "code-sidecar-approvals",
-			displayName: "Code App approvals",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-		});
-		await hubClient.connect();
-		hubClient.subscribe((event) => {
-			handleHubLiveEvent(ctx, event);
-		});
+	if (ctx.sessionManager || ctx.hubClient || ctx.hubServer) {
+		throw new Error("Desktop runtime is already initialized");
 	}
 
-	ctx.sessionManager = sessionManager;
-	ctx.hubClient = hubClient;
-	ctx.hubServer = hubServer;
-	ctx.unsubscribeSessionEvents = unsubscribe;
+	try {
+		setHomeDirIfUnset(homedir());
+		setBootstrapStatus(ctx, { phase: "starting_hub" });
+		const hubServer = await startHubWebSocketServer({
+			port: 0,
+			owner: resolveHubOwnerContext(
+				`code-sidecar:${process.pid}:${randomUUID()}`,
+			),
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
+		ctx.hubServer = hubServer;
+
+		setBootstrapStatus(ctx, { phase: "connecting_core" });
+		const sessionManager = await ClineCore.create({
+			clientName: "cline-code",
+			backendMode: "hub",
+			capabilities: createSidecarRuntimeCapabilities(ctx),
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+			hub: {
+				endpoint: hubServer.url,
+				authToken: hubServer.authToken,
+				workspaceRoot: ctx.workspaceRoot,
+				cwd: ctx.workspaceRoot,
+				clientType: "code-sidecar",
+				displayName: "Code App sidecar",
+			},
+		});
+		ctx.sessionManager = sessionManager;
+
+		// Subscribe to all session events and relay them to WS clients.
+		ctx.unsubscribeSessionEvents = sessionManager.subscribe(
+			(event: CoreSessionEvent) => {
+				handleCoreSessionEvent(ctx, event);
+			},
+		);
+
+		const runtimeAddress = sessionManager.runtimeAddress?.trim();
+		if (runtimeAddress) {
+			setBootstrapStatus(ctx, { phase: "connecting_event_client" });
+			const hubClient = new NodeHubClient({
+				url: runtimeAddress,
+				authToken: hubServer.authToken,
+				clientType: "code-sidecar-approvals",
+				displayName: "Code App approvals",
+				workspaceRoot: ctx.workspaceRoot,
+				cwd: ctx.workspaceRoot,
+			});
+			ctx.hubClient = hubClient;
+			await hubClient.connect();
+			hubClient.subscribe((event) => {
+				handleHubLiveEvent(ctx, event);
+			});
+		}
+
+		setBootstrapStatus(ctx, { phase: "ready" });
+	} catch (error) {
+		const failedPhase =
+			ctx.bootstrapStatus.phase === "ready" ||
+			ctx.bootstrapStatus.phase === "error"
+				? "starting_hub"
+				: ctx.bootstrapStatus.phase;
+		ctx.unsubscribeSessionEvents?.();
+		ctx.unsubscribeSessionEvents = null;
+		const cleanup = [
+			ctx.hubClient?.dispose(),
+			ctx.sessionManager?.dispose("code_sidecar_bootstrap_failed"),
+			ctx.hubServer?.close(),
+		].filter((pending): pending is Promise<void> => Boolean(pending));
+		ctx.hubClient = null;
+		ctx.sessionManager = null;
+		ctx.hubServer = null;
+		await Promise.allSettled(cleanup);
+		const message = error instanceof Error ? error.message : String(error);
+		setBootstrapStatus(ctx, { phase: "error", failedPhase, message });
+		throw error;
+	}
+}
+
+export async function startSessionManagerInitialization(
+	ctx: SidecarContext,
+): Promise<void> {
+	if (ctx.bootstrapStatus.phase === "ready") {
+		return;
+	}
+	if (ctx.bootstrapPromise) {
+		return await ctx.bootstrapPromise;
+	}
+
+	const initialization = initializeSessionManager(ctx);
+	ctx.bootstrapPromise = initialization;
+	try {
+		await initialization;
+	} finally {
+		if (ctx.bootstrapPromise === initialization) {
+			ctx.bootstrapPromise = null;
+		}
+	}
 }
