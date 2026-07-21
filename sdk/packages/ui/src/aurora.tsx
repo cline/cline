@@ -51,10 +51,10 @@ export function AgentAurora({ className, starCount = 36 }: AgentAuroraProps) {
 			<div className="cline-ui-aurora__current cline-ui-aurora__current--right" />
 			<div className="cline-ui-aurora__blob cline-ui-aurora__blob--left" />
 			<div className="cline-ui-aurora__blob cline-ui-aurora__blob--right" />
-			{stars.map((star, index) => (
+			{stars.map((star) => (
 				<span
 					className="cline-ui-aurora__star"
-					key={`${star.left}-${star.top}-${index}`}
+					key={`${star.left}-${star.top}-${star.delay}-${star.duration}`}
 					style={{
 						animationDelay: star.delay,
 						animationDuration: star.duration,

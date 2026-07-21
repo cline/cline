@@ -23,7 +23,7 @@ export function AgentAurora({ className, starCount = 36 }) {
             top: `${100 - (1 - vertical * vertical) * 48}%`,
         };
     }), [starCount]);
-    return (_jsxs("div", { "aria-hidden": "true", className: cx("cline-ui-aurora", className), children: [_jsx("div", { className: "cline-ui-aurora__horizon" }), _jsx("div", { className: "cline-ui-aurora__current cline-ui-aurora__current--left" }), _jsx("div", { className: "cline-ui-aurora__current cline-ui-aurora__current--right" }), _jsx("div", { className: "cline-ui-aurora__blob cline-ui-aurora__blob--left" }), _jsx("div", { className: "cline-ui-aurora__blob cline-ui-aurora__blob--right" }), stars.map((star, index) => (_jsx("span", { className: "cline-ui-aurora__star", style: {
+    return (_jsxs("div", { "aria-hidden": "true", className: cx("cline-ui-aurora", className), children: [_jsx("div", { className: "cline-ui-aurora__horizon" }), _jsx("div", { className: "cline-ui-aurora__current cline-ui-aurora__current--left" }), _jsx("div", { className: "cline-ui-aurora__current cline-ui-aurora__current--right" }), _jsx("div", { className: "cline-ui-aurora__blob cline-ui-aurora__blob--left" }), _jsx("div", { className: "cline-ui-aurora__blob cline-ui-aurora__blob--right" }), stars.map((star) => (_jsx("span", { className: "cline-ui-aurora__star", style: {
                     animationDelay: star.delay,
                     animationDuration: star.duration,
                     height: star.size,
@@ -31,6 +31,6 @@ export function AgentAurora({ className, starCount = 36 }) {
                     opacity: star.opacity,
                     top: star.top,
                     width: star.size,
-                } }, `${star.left}-${star.top}-${index}`)))] }));
+                } }, `${star.left}-${star.top}-${star.delay}-${star.duration}`)))] }));
 }
 //# sourceMappingURL=aurora.js.map
