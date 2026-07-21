@@ -31,6 +31,15 @@ The first component surface provides:
 - Static or expandable tool activity with running, success, and error states
 - Empty-conversation presentation
 
+The root component surface adds reusable agent setup and interaction controls:
+
+- A scoped `AgentSurface` boundary for host-safe theme adoption
+- Welcome heading, aurora artwork, and quick actions
+- Controlled repository or model selection
+- Controlled prompt composition and stop affordance
+- Transport-neutral approval decisions
+- Shared buttons, confirmation dialogs, and session status
+
 Each application continues to own:
 
 - Runtime message and tool schemas
@@ -65,13 +74,15 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
+| Compose shared setup and interaction controls | `@cline/ui` plus `components.css` | No, if scoped tokens are imported | React 18.3 or 19 |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
 
 The package exports `base.css` separately for consumers that want its global,
 Markdown, scrollbar, selection, cursor, and native `color-scheme` behavior.
 
-There is no root JavaScript export and no `@cline/ui/theme` shorthand. Use the
-explicit paths documented here so dependencies remain visible.
+There is no `@cline/ui/theme` shorthand. Use the explicit theme paths documented
+here so dependencies remain visible. Root React controls are exported from
+`@cline/ui` and styled by `@cline/ui/components.css`.
 
 ## Install inside the Cline monorepo
 
@@ -480,9 +491,11 @@ Recommended sequence:
 6. Expand clean-consumer fixtures as supported frameworks are proven.
 7. Define the compatibility point at which the API can be treated as stable.
 
-Likely follow-up components should be driven by repeated needs. Approval cards,
-follow-up questions, attachments, and prompt composers are candidates, but their
-current product contracts should be compared before standardizing them.
+Likely follow-up components should be driven by repeated needs. Follow-up
+questions and attachments are candidates, but their current product contracts
+should be compared before standardizing them. Tool activity remains in the
+existing `@cline/ui/components/agent-chat` surface rather than being duplicated
+by the root controls.
 
 ## Useful references
 

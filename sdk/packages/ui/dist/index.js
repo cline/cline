@@ -1,3 +1,5 @@
+export { AgentApprovalCard, } from "./agent-approval-card.js";
+export { AgentComposer } from "./agent-composer.js";
 export { AgentHeroHeading, } from "./agent-hero-heading.js";
 export { AgentSurface } from "./agent-surface.js";
 export { AgentAurora } from "./aurora.js";

@@ -31,6 +31,8 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
 | `@cline/ui/theme/base.css` | Optional document, Markdown, scrollbar, selection, and cursor styles | Tailwind v4 |
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
+| `@cline/ui` | Host-safe agent setup, input, approval, and base control primitives | React 18.3 or 19 |
+| `@cline/ui/components.css` | Framework-neutral styles for root component primitives | Scoped theme tokens |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
 
@@ -115,6 +117,27 @@ a complete flex/min-height chain so its viewport can scroll.
 These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
+
+## Setup and interaction controls
+
+The package root exports shared setup, input, approval, and base controls. Wrap
+them in `AgentSurface`, which applies the scoped Cline theme, and import their
+styles once:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components.css";
+```
+
+```tsx
+import { AgentApprovalCard, AgentComposer, AgentSurface } from "@cline/ui";
+```
+
+`AgentComposer` and `AgentApprovalCard` are controlled presentation components.
+The consuming app owns draft state, submission, streaming, permission decisions,
+and transport. For transcript messages, reasoning, and tool execution, continue
+to use `@cline/ui/components/agent-chat`; do not create a second activity model in
+the root component surface.
 
 ## Storybook
 

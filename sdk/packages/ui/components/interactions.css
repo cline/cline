@@ -1,0 +1,161 @@
+.cline-ui-composer {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+	border: 1px solid color-mix(in oklab, var(--border) 84%, transparent);
+	border-radius: var(--radius-xl);
+	background: color-mix(in oklab, var(--background) 96%, transparent);
+	box-shadow:
+		0 1px 2px rgb(0 0 0 / 5%),
+		0 12px 32px rgb(0 0 0 / 5%);
+	backdrop-filter: blur(18px);
+	transition:
+		border-color 140ms ease,
+		box-shadow 140ms ease;
+}
+
+.cline-ui-composer:focus-within {
+	border-color: color-mix(in oklab, var(--ring) 65%, var(--border));
+	box-shadow:
+		0 0 0 3px color-mix(in oklab, var(--ring) 18%, transparent),
+		0 14px 36px rgb(0 0 0 / 7%);
+}
+
+.cline-ui-composer__input {
+	display: block;
+	width: 100%;
+	min-height: 2.5rem;
+	max-height: 16rem;
+	box-sizing: border-box;
+	resize: none;
+	border: 0;
+	outline: none;
+	background: transparent;
+	color: var(--foreground);
+	font: inherit;
+	font-size: var(--text-sm);
+	line-height: var(--text-sm--line-height);
+	padding: 1rem 1rem 0.5rem;
+}
+
+.cline-ui-composer--welcome .cline-ui-composer__input {
+	min-height: 6rem;
+}
+
+.cline-ui-composer--conversation {
+	border-radius: var(--radius-lg);
+	box-shadow: none;
+	backdrop-filter: none;
+}
+
+.cline-ui-composer__input::placeholder {
+	color: var(--muted-foreground);
+}
+
+.cline-ui-composer__toolbar {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.625rem;
+	padding: 0.375rem 0.625rem 0.625rem;
+}
+
+.cline-ui-composer__actions {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	align-items: center;
+	gap: 0.375rem;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.cline-ui-composer__actions::-webkit-scrollbar {
+	display: none;
+}
+
+.cline-ui-composer__footer {
+	border-top: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+	color: var(--muted-foreground);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	padding: 0.5rem 0.875rem;
+}
+
+.cline-ui-approval {
+	display: grid;
+	gap: 0.75rem;
+	border: 1px solid color-mix(in oklab, var(--primary) 40%, var(--border));
+	border-radius: var(--radius-lg);
+	background: color-mix(in oklab, var(--primary) 7%, var(--card));
+	padding: 0.875rem;
+}
+
+.cline-ui-approval__header {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.625rem;
+}
+
+.cline-ui-approval__mark {
+	display: inline-flex;
+	width: 1.5rem;
+	height: 1.5rem;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	background: color-mix(in oklab, var(--primary) 18%, transparent);
+	color: var(--primary);
+	font-weight: var(--font-weight-bold);
+}
+
+.cline-ui-approval h3,
+.cline-ui-approval p {
+	margin: 0;
+}
+
+.cline-ui-approval h3 {
+	font-size: var(--text-sm);
+	font-weight: var(--font-weight-semibold);
+}
+
+.cline-ui-approval p {
+	margin-top: 0.125rem;
+	color: var(--muted-foreground);
+	font-size: var(--text-xs);
+}
+
+.cline-ui-approval__detail {
+	max-height: 12rem;
+	overflow: auto;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	background: color-mix(in oklab, var(--background) 80%, transparent);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	line-height: 1.5;
+	padding: 0.625rem;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.cline-ui-approval__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-composer {
+		transition: none;
+	}
+}
+
+@media (max-width: 640px) {
+	.cline-ui-composer--welcome .cline-ui-composer__input {
+		min-height: 5.25rem;
+	}
+}
