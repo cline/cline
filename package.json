@@ -66,11 +66,14 @@
         "typescript": "^5.9.3"
     },
     "overrides": {
+        "@opentui/core": "0.4.3",
+        "@opentui/react": "0.4.3",
         "tar-fs": ">=3.1.1",
         "tar": "^7.5.2",
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
-        "protobufjs": "7.5.8",
+        "protobufjs": "7.6.5",
+        "mermaid": "11.16.0",
         "diff": "8.0.4",
         "@sap-cloud-sdk/connectivity": "4.6.0",
         "@sap-cloud-sdk/http-client": "4.6.0",
