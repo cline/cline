@@ -1,11 +1,11 @@
 import type { SessionHookEvent } from "@/lib/session-diff";
+import type { DesktopRuntimeInfo } from "../../../shared/desktop-runtime-info";
 
 export type ProcessContext = {
 	workspaceRoot: string;
 	cwd: string;
 	homeDir?: string;
-	platform?: string;
-	appVersion?: string;
+	runtimeInfo: DesktopRuntimeInfo;
 };
 
 export type AgentChunkEvent = {

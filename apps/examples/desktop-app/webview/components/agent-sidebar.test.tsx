@@ -308,7 +308,25 @@ describe("AgentSidebar session organization", () => {
 		const onHome = vi.fn();
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
-				return { appVersion: "1.2.3" };
+				return {
+					runtimeInfo: {
+						app: { name: "Cline Code", version: "1.2.3" },
+						sdk: { coreVersion: "4.5.6" },
+						runtime: {
+							name: "bun",
+							version: "1.3.4",
+							nodeVersion: "v24.0.0",
+						},
+						os: {
+							platform: "darwin",
+							name: "Darwin",
+							version: "Darwin Kernel Version 25",
+							release: "25.0.0",
+							arch: "arm64",
+						},
+						environment: { pathSource: "shell", pathChanged: true },
+					},
+				};
 			}
 			throw new Error("No Cline account auth token found");
 		});
@@ -341,6 +359,9 @@ describe("AgentSidebar session organization", () => {
 
 		await vi.waitFor(() => {
 			expect(document.body.textContent).toContain("Version 1.2.3");
+			expect(document.body.textContent).toContain("Core 4.5.6 · Bun 1.3.4");
+			expect(document.body.textContent).toContain("Darwin 25.0.0 · arm64");
+			expect(document.body.textContent).toContain("PATH: shell");
 		});
 		expect(onHome).toHaveBeenCalled();
 		expect(invoke).toHaveBeenCalledWith("get_process_context");

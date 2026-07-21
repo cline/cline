@@ -16,6 +16,23 @@ const logger = {
 	error: vi.fn(),
 };
 const telemetry = { capture: vi.fn() };
+const runtimeInfo = {
+	app: { name: "Cline Code" as const, version: "1.2.3" },
+	sdk: { coreVersion: "4.5.6" },
+	runtime: {
+		name: "bun" as const,
+		version: "1.3.4",
+		nodeVersion: "v24.0.0",
+	},
+	os: {
+		platform: "darwin",
+		name: "Darwin",
+		version: "Darwin Kernel Version 25",
+		release: "25.0.0",
+		arch: "arm64",
+	},
+	environment: { pathSource: "shell" as const, pathChanged: true },
+};
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -53,12 +70,16 @@ describe("desktop observability", () => {
 
 	it("configures desktop telemetry, identity, activation, and lifecycle", async () => {
 		const { createDesktopObservability } = await import("./observability");
-		const observability = createDesktopObservability();
+		const observability = createDesktopObservability(runtimeInfo);
 
 		expect(mocks.createClineTelemetryServiceConfig).toHaveBeenCalledWith({
 			metadata: expect.objectContaining({
 				cline_type: "desktop",
 				platform: "Cline Code",
+				platform_version: "1.2.3",
+				extension_version: "1.2.3",
+				os_type: "darwin",
+				os_version: "Darwin Kernel Version 25",
 			}),
 		});
 		expect(mocks.createConfiguredTelemetryHandle).toHaveBeenCalledWith(

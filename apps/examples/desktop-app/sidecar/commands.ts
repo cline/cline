@@ -53,7 +53,6 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import packageJson from "../package.json";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -789,8 +788,7 @@ export async function handleCommand(
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			homeDir: homedir(),
-			platform: process.platform,
-			appVersion: packageJson.version,
+			runtimeInfo: ctx.runtimeInfo,
 		};
 	}
 	if (command === "get_chat_ws_endpoint") {

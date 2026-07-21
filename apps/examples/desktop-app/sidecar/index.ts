@@ -6,8 +6,10 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import { initializeDesktopEnvironment } from "./environment";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
+import { createDesktopRuntimeInfo } from "./runtime-info";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
@@ -38,11 +40,26 @@ async function main() {
 		throw new Error("sidecar must be run with Bun");
 	}
 
+	const environment = initializeDesktopEnvironment();
+	const runtimeInfo = createDesktopRuntimeInfo(environment);
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
 	setHomeDirIfUnset(homedir());
-	const observability = createDesktopObservability();
+	const observability = createDesktopObservability(runtimeInfo);
 	activeObservability = observability;
-	const ctx = createSidecarContext(workspaceRoot, observability);
+	if (environment.error) {
+		observability.logger.log("Unable to resolve user shell PATH", {
+			error: environment.error,
+		});
+	} else {
+		observability.logger.debug("Desktop process PATH initialized", {
+			pathChanged: environment.pathChanged,
+			platform: process.platform,
+		});
+	}
+	const ctx = createSidecarContext(workspaceRoot, {
+		...observability,
+		runtimeInfo,
+	});
 	observability.logger.log("Desktop sidecar starting", {
 		workspaceRoot,
 		pid: process.pid,

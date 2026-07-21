@@ -2,6 +2,20 @@ import type { RuntimeCapabilities } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SidecarContext } from "./types";
 
+const runtimeInfo: SidecarContext["runtimeInfo"] = {
+	app: { name: "Cline Code", version: "1.2.3" },
+	sdk: { coreVersion: "4.5.6" },
+	runtime: { name: "bun", version: "1.3.4", nodeVersion: "v24.0.0" },
+	os: {
+		platform: "darwin",
+		name: "Darwin",
+		version: "Darwin Kernel Version 25",
+		release: "25.0.0",
+		arch: "arm64",
+	},
+	environment: { pathSource: "shell", pathChanged: true },
+};
+
 const createCoreMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.hoisted(() => vi.fn());
 const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
@@ -80,7 +94,7 @@ describe("Code sidecar runtime capabilities", () => {
 			"./context"
 		);
 
-		const ctx = createSidecarContext("/workspace/project");
+		const ctx = createSidecarContext("/workspace/project", { runtimeInfo });
 		await initializeSessionManager(ctx);
 
 		expect(startHubWebSocketServerMock).toHaveBeenCalledWith(
@@ -130,6 +144,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const telemetry = { capture: vi.fn() };
 		const ctx = createSidecarContext("/workspace/project", {
 			logger,
+			runtimeInfo,
 			telemetry: telemetry as never,
 		});
 
@@ -147,13 +162,26 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("returns the canonical runtime snapshot with process context", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project", { runtimeInfo });
+
+		await expect(handleCommand(ctx, "get_process_context")).resolves.toEqual({
+			workspaceRoot: "/workspace/project",
+			cwd: "/workspace/project",
+			homeDir: expect.any(String),
+			runtimeInfo,
+		});
+	});
+
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
 		);
 		const { handleCommand } = await import("./commands");
 
-		const ctx = createSidecarContext("/workspace/project");
+		const ctx = createSidecarContext("/workspace/project", { runtimeInfo });
 		ctx.wsClients.add({ send: vi.fn() });
 
 		await initializeSessionManager(ctx);
@@ -209,7 +237,7 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 		const { handleCommand } = await import("./commands");
 
-		const ctx = createSidecarContext("/workspace/project");
+		const ctx = createSidecarContext("/workspace/project", { runtimeInfo });
 		ctx.wsClients.add({ send: vi.fn() });
 
 		await initializeSessionManager(ctx);

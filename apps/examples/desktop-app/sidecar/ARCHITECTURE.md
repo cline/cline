@@ -5,6 +5,13 @@
 The sidecar is a single Bun process that handles the desktop backend runtime directly.
 
 It imports `@cline/core` directly and serves the Next.js frontend over HTTP + WebSocket.
+At startup it restores the user's shell `PATH` on macOS and Linux before creating
+the embedded Hub runtime, so GUI-launched sessions can discover the same command-line
+tools as the user's terminal. Windows keeps the user and system `PATH` inherited
+from the desktop shell. The same startup step creates one typed runtime-info
+snapshot containing app, Core SDK, Bun, operating-system, architecture, and PATH
+resolution metadata. The sidecar reuses that snapshot for telemetry and exposes
+it to the webview through `get_process_context`.
 
 ## Directory Structure
 

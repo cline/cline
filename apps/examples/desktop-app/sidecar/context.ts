@@ -384,10 +384,11 @@ function handleCoreSessionEvent(
 
 export function createSidecarContext(
 	workspaceRoot: string,
-	observability: {
+	options: {
+		runtimeInfo: SidecarContext["runtimeInfo"];
 		logger?: BasicLogger;
 		telemetry?: ITelemetryService;
-	} = {},
+	},
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
@@ -398,9 +399,10 @@ export function createSidecarContext(
 		sessionManager: null,
 		hubClient: null,
 		hubServer: null,
+		runtimeInfo: options.runtimeInfo,
 		workspaceRoot,
-		logger: observability.logger,
-		telemetry: observability.telemetry,
+		logger: options.logger,
+		telemetry: options.telemetry,
 		unsubscribeSessionEvents: null,
 	};
 }
