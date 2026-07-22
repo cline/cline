@@ -810,7 +810,7 @@ export async function getValidClineCredentials(
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
-			request_id:
+			requestId:
 				error instanceof ClineOAuthTokenError ? error.requestId : undefined,
 			...authTelemetryDetails,
 			errorName: error instanceof Error ? error.name : undefined,
@@ -826,7 +826,7 @@ export async function getValidClineCredentials(
 				{
 					status: error.status,
 					errorCode: error.errorCode,
-					request_id: error.requestId,
+					requestId: error.requestId,
 					...authTelemetryDetails,
 				},
 			);

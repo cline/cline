@@ -1,16 +1,18 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 	type ITelemetryService,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
 	CORE_TELEMETRY_EVENTS,
+	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
@@ -18,8 +20,8 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
-	captureTelemetryOptOut,
 	captureTaskLifecycleEvent,
+	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -114,6 +116,52 @@ describe("CORE_TELEMETRY_EVENTS", () => {
 
 	test("re-exports the task lifecycle telemetry helper", () => {
 		expect(captureTaskLifecycleEvent).toBe(captureSharedTaskLifecycleEvent);
+	});
+});
+
+describe("auth request ID telemetry", () => {
+	test("maps requestId for logout events and omits it when absent", () => {
+		const stub = createTelemetryStub();
+		captureAuthLoggedOut(stub.telemetry, "cline", "invalid_grant", {
+			status: 401,
+			requestId: "req-logout",
+		});
+		captureAuthLoggedOut(stub.telemetry, "cline", "invalid_grant", {
+			status: 401,
+		});
+
+		expect(captureCallAt(stub, 0).properties).toEqual({
+			provider: "cline",
+			reason: "invalid_grant",
+			status: 401,
+			request_id: "req-logout",
+		});
+		expect(captureCallAt(stub, 1).properties).toEqual({
+			provider: "cline",
+			reason: "invalid_grant",
+			status: 401,
+		});
+	});
+
+	test("maps requestId for soft failures and omits it when absent", () => {
+		const stub = createTelemetryStub();
+		captureAuthRefreshSoftFailure(stub.telemetry, "cline", {
+			status: 500,
+			requestId: "req-soft-failure",
+		});
+		captureAuthRefreshSoftFailure(stub.telemetry, "cline", {
+			status: 500,
+		});
+
+		expect(captureCallAt(stub, 0).properties).toEqual({
+			provider: "cline",
+			status: 500,
+			request_id: "req-soft-failure",
+		});
+		expect(captureCallAt(stub, 1).properties).toEqual({
+			provider: "cline",
+			status: 500,
+		});
 	});
 });
 
