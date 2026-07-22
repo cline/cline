@@ -1,0 +1,59 @@
+@layer components {
+	.cline-markdown {
+		min-width: 0;
+		max-width: 100%;
+		font-size: var(--text-sm);
+		line-height: 1.625;
+		letter-spacing: var(--text-sm--letter-spacing);
+		overflow-wrap: anywhere;
+	}
+
+	.cline-markdown
+		:is([data-streamdown="code-block"], [data-streamdown="table-wrapper"]) {
+		max-width: 100%;
+	}
+
+	.cline-markdown [data-streamdown="code-block"] {
+		margin-block: 1rem;
+		border-radius: var(--radius-lg);
+	}
+
+	.cline-markdown [data-streamdown="inline-code"] {
+		font-size: 0.9em;
+	}
+
+	.cline-markdown [data-streamdown="code-block"] :is(pre, code) {
+		white-space: pre;
+		overflow-wrap: normal;
+		word-break: normal;
+	}
+
+	.cline-markdown [data-streamdown="table-wrapper"] {
+		margin-block: 1rem;
+		overflow-x: auto;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+	}
+
+	.cline-markdown [data-streamdown="table"] {
+		min-width: 100%;
+	}
+
+	.cline-markdown [data-streamdown="image"] {
+		background-color: white;
+		padding: 0.25rem;
+	}
+
+	.cline-markdown [data-streamdown="blocked-image"] {
+		display: inline-flex;
+		margin-block: 0.5rem;
+		padding: 0.25rem 0.5rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background-color: color-mix(in oklab, var(--muted) 50%, transparent);
+		color: var(--muted-foreground);
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		letter-spacing: var(--text-xs--letter-spacing);
+	}
+}

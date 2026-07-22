@@ -250,18 +250,27 @@ export function captureAuthStarted(
 export function captureAuthSucceeded(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
+	details?: {
+		sessionId?: string;
+		sessionDurationMs?: number;
+	},
 ): void {
-	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, { provider });
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, {
+		provider,
+		...details,
+	});
 }
 
 export function captureAuthFailed(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	errorMessage?: string,
+	details?: { requestId?: string },
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_FAILED, {
 		provider,
 		errorMessage: truncateErrorMessage(errorMessage),
+		...(details?.requestId ? { request_id: details.requestId } : {}),
 	});
 }
 
@@ -269,13 +278,18 @@ export function captureAuthLoggedOut(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	reason?: string,
-	details?: { status?: number; errorCode?: string },
+	details?: {
+		status?: number;
+		errorCode?: string;
+		sessionId?: string;
+		sessionDurationMs?: number;
+		request_id?: string;
+	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
 		provider,
 		reason,
-		status: details?.status,
-		errorCode: details?.errorCode,
+		...details,
 	});
 }
 
@@ -293,16 +307,16 @@ export function captureAuthRefreshSoftFailure(
 	details?: {
 		status?: number;
 		errorCode?: string;
+		request_id?: string;
 		errorName?: string;
 		tokenExpired?: boolean;
+		sessionId?: string;
+		sessionDurationMs?: number;
 	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
 		provider,
-		status: details?.status,
-		errorCode: details?.errorCode,
-		errorName: details?.errorName,
-		tokenExpired: details?.tokenExpired,
+		...details,
 	});
 }
 

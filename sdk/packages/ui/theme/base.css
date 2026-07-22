@@ -1,4 +1,4 @@
-@import "./markdown.css";
+@import "../components/markdown.css";
 
 :root {
 	color-scheme: light;
