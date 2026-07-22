@@ -228,12 +228,15 @@ describe("@cline/ui theme contract", () => {
 			expect(theme).toContain(`--color-${token}: var(--${token});`);
 		}
 		expect(base).toContain('@import "../components/markdown.css";');
-		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
+		expect(markdown).toContain(".cline-markdown");
+		expect(markdown).not.toContain(":is(.markdown");
 		expect(markdown).not.toContain("@apply");
 		for (const token of [
 			"--text-sm",
+			"--text-sm--letter-spacing",
 			"--text-xs",
 			"--text-xs--line-height",
+			"--text-xs--letter-spacing",
 			"--radius-md",
 			"--radius-lg",
 			"--border",
