@@ -224,6 +224,19 @@ describe("@cline/ui theme contract", () => {
 		}
 		expect(base).toContain('@import "./markdown.css";');
 		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
+		expect(markdown).not.toContain("@apply");
+		for (const token of [
+			"--text-sm",
+			"--text-xs",
+			"--text-xs--line-height",
+			"--radius-md",
+			"--radius-lg",
+			"--border",
+			"--muted",
+			"--muted-foreground",
+		]) {
+			expect(markdown).toContain(`var(${token})`);
+		}
 		expect(base).toContain("--scrollbar-thumb");
 		expect(base).toContain("--selection-background");
 		expect(base).not.toContain("#__next");
@@ -237,6 +250,9 @@ describe("@cline/ui theme contract", () => {
 		const manifest = JSON.parse(
 			readFileSync(join(packageRoot, "package.json"), "utf8"),
 		) as { exports?: Record<string, string> };
+		const documentation = ["README.md", "ADOPTION.md"]
+			.map((name) => readFileSync(join(packageRoot, name), "utf8"))
+			.join("\n");
 		for (const subpath of [
 			"./components/agent-chat.css",
 			"./theme/index.css",
@@ -249,6 +265,7 @@ describe("@cline/ui theme contract", () => {
 			const target = manifest.exports?.[subpath];
 			expect(target, `missing export ${subpath}`).toBeTypeOf("string");
 			expect(existsSync(join(packageRoot, target ?? ""))).toBe(true);
+			expect(documentation).toContain(`@cline/ui/${subpath.slice(2)}`);
 		}
 	});
 });

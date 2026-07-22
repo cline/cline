@@ -63,6 +63,8 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
+| Theme only an embedded subtree | `@cline/ui/theme/scoped-tokens.css` | No | No |
+| Style Markdown without global base styles | A token entry point, then `@cline/ui/theme/markdown.css` | No | No |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -195,6 +197,62 @@ For native controls that should follow the selected theme:
   color-scheme: dark;
 }
 ```
+
+## Option 4: subtree-scoped tokens
+
+Use the scoped entry when an embedded Cline surface must preserve the host
+application's existing `:root` theme:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+```
+
+Wrap the embedded surface with `cline-ui-theme`. Dark values apply when `dark`
+is on the same element or an ancestor:
+
+```tsx
+<main className="host-dashboard">
+  <section className="cline-ui-theme">...</section>
+</main>
+
+<section className="cline-ui-theme dark">...</section>
+```
+
+The scoped entry defines variables only. The host continues to own document
+styles, native `color-scheme`, fonts, shell layout, navigation, and routing.
+Place deliberate scoped overrides after the package import:
+
+```css
+.cline-ui-theme {
+  --primary: /* product-specific value */;
+}
+
+.cline-ui-theme.dark,
+.dark .cline-ui-theme {
+  --primary: /* dark product-specific value */;
+}
+```
+
+## Add standalone Markdown styles
+
+`markdown.css` contains framework-neutral Markdown and Streamdown treatment,
+but it intentionally reads semantic typography, radius, border, and muted-color
+variables. Import it after either token entry and keep rendered Markdown inside
+that token scope:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/theme/markdown.css";
+```
+
+```tsx
+<section className="cline-ui-theme">
+  <div className="cline-markdown">...</div>
+</section>
+```
+
+Consumers retain their own Markdown renderer, plugins, sanitization, external
+link behavior, and image policy.
 
 ## Add the agent-chat components
 
