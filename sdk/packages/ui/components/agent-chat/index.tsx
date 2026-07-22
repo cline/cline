@@ -495,7 +495,7 @@ export type ReasoningTriggerProps = Omit<
 export const ReasoningTrigger = ({
 	children,
 	className,
-	completeLabel = "Thought process",
+	completeLabel = "Thinking",
 	onClick,
 	streamingLabel = "Thinking",
 	...props
@@ -515,11 +515,7 @@ export const ReasoningTrigger = ({
 		>
 			{children ?? (
 				<>
-					<BrainIcon />
 					<span>{isStreaming ? streamingLabel : completeLabel}</span>
-					<span aria-live="polite" className="cline-chat-reasoning-status">
-						{isStreaming ? "In progress" : "Complete"}
-					</span>
 					<ChevronDownIcon className="cline-chat-disclosure-icon" />
 				</>
 			)}
@@ -750,26 +746,6 @@ function ChevronDownIcon({ className }: { className?: string }) {
 				strokeLinecap="round"
 				strokeLinejoin="round"
 				strokeWidth="2"
-			/>
-		</svg>
-	);
-}
-
-function BrainIcon() {
-	return (
-		<svg
-			aria-hidden="true"
-			fill="none"
-			height="16"
-			viewBox="0 0 24 24"
-			width="16"
-		>
-			<path
-				d="M9.5 4.5A3 3 0 0 0 4 6a3 3 0 0 0 .5 5.9A3.5 3.5 0 0 0 8 17h1.5m5-12.5A3 3 0 0 1 20 6a3 3 0 0 1-.5 5.9A3.5 3.5 0 0 1 16 17h-1.5M9.5 4.5V20m5-15.5V20M9.5 9H7m7.5 3H17m-7.5 4H7m7.5 1h2"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				strokeWidth="1.75"
 			/>
 		</svg>
 	);

@@ -1,6 +1,11 @@
 # Cline Code Desktop Changelog
 
-## 0.1.0
+## 0.0.3
 
-- First automated release, published from GitHub Actions with Developer ID signing and notarization.
-- The app now keeps itself up to date: it checks for new releases on launch and every 2 hours, downloads updates in the background, and shows a "Restart now" prompt when the new version is ready. Ignored updates apply on the next launch.
+- The reasoning section in the chat transcript now reads simply "Thinking" — dropped the redundant status text and brain icon.
+
+## 0.0.2
+
+- First public release of Cline Code for macOS: a desktop app for running and inspecting Cline agent sessions, signed and notarized for Apple Silicon and Intel.
+- Automatic updates: the app checks on launch and every 2 hours, downloads new versions in the background, and prompts for a one-click restart. Ignored updates apply on the next launch.
+- Download the DMG once from GitHub Releases — every future release arrives automatically.
