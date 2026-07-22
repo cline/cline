@@ -30,7 +30,7 @@ import {
 	HubScheduleService,
 	listHookConfigFiles,
 	listLocalProviders,
-	listPluginTools,
+	listPluginToolsWithDiagnostics,
 	loginAndSaveLocalProviderOAuthCredentials,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
@@ -741,15 +741,18 @@ async function listUserInstructionConfigs(
 		}
 	};
 
-	const loadPlugins = (): Array<{
+	const loadPlugins = (
+		loadFailuresByPath: ReadonlyMap<string, string>,
+	): Array<{
 		name: string;
 		path: string;
 		enabled: boolean;
+		error?: string;
 	}> => {
 		const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
 		const pluginsByPath = new Map<
 			string,
-			{ name: string; path: string; enabled: boolean }
+			{ name: string; path: string; enabled: boolean; error?: string }
 		>();
 		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
 			(d) => existsSync(d),
@@ -760,10 +763,12 @@ async function listUserInstructionConfigs(
 					if (pluginsByPath.has(filePath)) {
 						continue;
 					}
+					const error = loadFailuresByPath.get(filePath);
 					pluginsByPath.set(filePath, {
 						name: basename(filePath, extname(filePath)),
 						path: filePath,
 						enabled: !disabledPlugins.has(filePath),
+						...(error ? { error } : {}),
 					});
 				}
 			} catch {
@@ -775,15 +780,32 @@ async function listUserInstructionConfigs(
 		);
 	};
 
-	const [rules, workflows, skills, pluginTools] = await Promise.all([
+	const [rules, workflows, skills, pluginToolsResult] = await Promise.all([
 		loadUserInstructionSnapshot("rule"),
 		loadUserInstructionSnapshot("workflow"),
 		loadUserInstructionSnapshot("skill"),
-		listPluginTools({
+		listPluginToolsWithDiagnostics({
 			workspacePath: workspaceRoot,
 			cwd: workspaceRoot,
-		}),
+		}).catch(
+			(error): Awaited<ReturnType<typeof listPluginToolsWithDiagnostics>> => {
+				warnings.push(
+					`plugins: ${error instanceof Error ? error.message : String(error)}`,
+				);
+				return { tools: [], failures: [], warnings: [] };
+			},
+		),
 	]);
+	const pluginTools = pluginToolsResult.tools;
+	const pluginFailuresByPath = new Map<string, string>();
+	for (const failure of pluginToolsResult.failures) {
+		if (!pluginFailuresByPath.has(failure.pluginPath)) {
+			pluginFailuresByPath.set(failure.pluginPath, failure.message);
+		}
+	}
+	for (const warning of pluginToolsResult.warnings) {
+		warnings.push(`plugins: ${warning.message}`);
+	}
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
@@ -796,7 +818,7 @@ async function listUserInstructionConfigs(
 		workflows,
 		skills,
 		agents: loadAgents(),
-		plugins: loadPlugins(),
+		plugins: loadPlugins(pluginFailuresByPath),
 		tools: [
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
@@ -1371,7 +1393,9 @@ export async function handleCommand(
 				// The OAuth helper's openUrl callback is fire-and-forget; surface
 				// opener failures in the log instead of an unhandled rejection.
 				openUrlInDefaultBrowser(url).catch((error) => {
-					console.warn(`[sidecar] ${error instanceof Error ? error.message : error}`);
+					console.warn(
+						`[sidecar] ${error instanceof Error ? error.message : error}`,
+					);
 				});
 			},
 		);
