@@ -98,6 +98,50 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			await localService.dispose()
 		})
 
+		it("should derive host_plugin_version from the host's clineVersion", async () => {
+			const jetbrainsProvider = new NoOpTelemetryProvider()
+			const noVersionProvider = new NoOpTelemetryProvider()
+			const jetbrainsLogSpy = sinon.spy(jetbrainsProvider, "log")
+			const noVersionLogSpy = sinon.spy(noVersionProvider, "log")
+			const hostVersionStub = sinon.stub(HostProvider.env, "getHostVersion")
+			const createProvidersStub = sinon.stub(TelemetryProviderFactory, "createProviders")
+
+			hostVersionStub.onFirstCall().resolves({
+				platform: "IntelliJ IDEA Ultimate",
+				version: "2026.1.1",
+				clineType: "Cline for JetBrains",
+				clineVersion: "1.1.61",
+			})
+			hostVersionStub.onSecondCall().resolves({
+				platform: "VS Code",
+				version: "1.103.0",
+				clineType: "VSCode Extension",
+			})
+			createProvidersStub.onFirstCall().resolves([jetbrainsProvider])
+			createProvidersStub.onSecondCall().resolves([noVersionProvider])
+
+			const jetbrainsService = await TelemetryService.create()
+			const noVersionService = await TelemetryService.create()
+
+			jetbrainsLogSpy.resetHistory()
+			noVersionLogSpy.resetHistory()
+
+			jetbrainsService.captureTaskCreated("task-jb", "openai")
+			noVersionService.captureTaskCreated("task-no-version", "openai")
+
+			assert.ok(jetbrainsLogSpy.calledOnce, "JetBrains service should emit an event")
+			assert.ok(noVersionLogSpy.calledOnce, "no-version service should emit an event")
+			assert.strictEqual(jetbrainsLogSpy.firstCall.args[1]?.host_plugin_version, "1.1.61")
+			assert.strictEqual(noVersionLogSpy.firstCall.args[1]?.host_plugin_version, undefined)
+
+			hostVersionStub.restore()
+			createProvidersStub.restore()
+			jetbrainsLogSpy.restore()
+			noVersionLogSpy.restore()
+			await jetbrainsService.dispose()
+			await noVersionService.dispose()
+		})
+
 		it("should include remote workspace metadata on workspace.initialized events", async () => {
 			const noOpProvider = new NoOpTelemetryProvider()
 			const logSpy = sinon.spy(noOpProvider, "log")
