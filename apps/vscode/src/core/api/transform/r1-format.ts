@@ -14,14 +14,20 @@ export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
 };
 
 /**
- * Adds reasoning_content to OpenAI messages for DeepSeek Reasoner.
- * Per DeepSeek API: reasoning_content should be passed back during tool calling in the same turn,
- * and omitted when starting a new turn.
+ * Adds reasoning_content to OpenAI-compatible messages.
+ * DeepSeek only needs it during tool calling in the current turn. Providers such as Moonshot K3
+ * can include previous turns and filter reasoning by its originating message.
  */
 export function addReasoningContent(
 	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
 	originalMessages: ClineStorageMessage[],
+	options: {
+		includePreviousTurns?: boolean;
+		shouldIncludeReasoning?: (message: ClineStorageMessage) => boolean;
+	} = {},
 ): DeepSeekReasonerMessage[] {
+	const { includePreviousTurns = false, shouldIncludeReasoning = () => true } = options;
+
 	// Find last user message index (start of current turn)
 	// If no user message exists (lastUserIndex = -1), all messages are in the "current turn",
 	// so reasoning_content will be added to all assistant messages. This is intentional.
@@ -38,7 +44,7 @@ export function addReasoningContent(
 	let assistantIdx = 0;
 	for (const msg of originalMessages) {
 		if (msg.role === "assistant") {
-			if (Array.isArray(msg.content)) {
+			if (Array.isArray(msg.content) && shouldIncludeReasoning(msg)) {
 				const thinking = msg.content
 					.filter(
 						(p): p is ClineAssistantThinkingBlock => p.type === "thinking",
@@ -53,12 +59,12 @@ export function addReasoningContent(
 		}
 	}
 
-	// Add reasoning_content only to assistant messages in current turn
+	// Add reasoning_content to assistant messages in the requested scope.
 	let aiIdx = 0;
 	return openAiMessages.map((msg, i): DeepSeekReasonerMessage => {
 		if (msg.role === "assistant") {
 			const thinking = thinkingByIndex.get(aiIdx++);
-			if (thinking && i >= lastUserIndex) {
+			if (thinking && (includePreviousTurns || i >= lastUserIndex)) {
 				return { ...msg, reasoning_content: thinking };
 			}
 		}

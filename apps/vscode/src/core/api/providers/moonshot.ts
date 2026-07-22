@@ -6,6 +6,7 @@ import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
@@ -48,16 +49,25 @@ export class MoonshotHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
+		const convertedMessages = convertToOpenAiMessages(messages)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...(model.id === "kimi-k3"
+				? addReasoningContent(convertedMessages, messages, {
+						includePreviousTurns: true,
+						shouldIncludeReasoning: (message) =>
+							message.modelInfo?.providerId === "moonshot" && message.modelInfo.modelId === "kimi-k3",
+					})
+				: convertedMessages),
 		]
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			messages: openAiMessages,
-			temperature: model.info.temperature,
-			max_tokens: model.info.maxTokens,
+			// Kimi K3 fixes its sampling parameters and uses max_completion_tokens.
+			...(model.id === "kimi-k3"
+				? { max_completion_tokens: model.info.maxTokens }
+				: { max_tokens: model.info.maxTokens, temperature: model.info.temperature }),
 			stream: true,
 			stream_options: { include_usage: true },
 			...getOpenAIToolParams(tools),
