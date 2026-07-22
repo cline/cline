@@ -16,6 +16,20 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Login Shell PATH Resolution
+
+Apps launched from Finder/the Dock inherit launchd's minimal `PATH`
+(`/usr/bin:/bin:/usr/sbin:/sbin`), not the one your shell profiles build, so
+agent-run commands would miss Homebrew-installed tools like `gh` even though
+they work fine from a terminal. At startup the sidecar asks the user's login
+shell — read from the account database via `getpwuid`, falling back to
+`$SHELL` — for its `PATH` and merges it into `process.env.PATH`, which every
+agent-spawned child (run_commands, MCP servers) inherits. Only `PATH` is
+imported, deliberately; other login-environment variables (`SSH_AUTH_SOCK`,
+API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
+`CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
+[`sidecar/shell-path.ts`](./sidecar/shell-path.ts).
+
 ## Web Visual System
 
 The framework-neutral color, typography, radius, and navigation contract lives
@@ -25,7 +39,21 @@ Tailwind adapter and shared base styles without depending on the desktop
 runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
 desktop integration notes.
 
-## Shareable Desktop Packages
+## Releases & Auto-Updates
+
+Releases are built, signed, notarized, and published by the `desktop-publish`
+GitHub workflow. The step-by-step flow (version bumps, changelog, tag, repo
+secrets) lives in the `publish-desktop` skill
+(`.cline/skills/publish-desktop/SKILL.md`).
+
+Installed apps auto-update via the Tauri updater: they poll the rolling
+`desktop-latest` release's `latest.json` on launch and every 2 hours, install
+updates in the background, and prompt for a restart. Two things must never be
+lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
+apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
+shipped apps can't verify new updates).
+
+## Shareable Desktop Packages (manual fallback)
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:
 

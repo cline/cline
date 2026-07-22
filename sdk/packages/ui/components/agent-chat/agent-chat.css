@@ -216,12 +216,6 @@
 		color: var(--foreground);
 	}
 
-	.cline-chat-reasoning-status {
-		color: var(--muted-foreground);
-		font-size: var(--text-xs);
-		font-weight: var(--font-weight-normal);
-	}
-
 	.cline-chat-disclosure-icon {
 		flex: 0 0 auto;
 		transition: transform 150ms ease;

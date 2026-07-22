@@ -2,8 +2,8 @@ import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	agentMessageToMessageWithMetadata,
-	messageToAgentMessages,
 	messagesToAgentMessages,
+	messageToAgentMessages,
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {
@@ -167,5 +167,75 @@ describe("agent message codec", () => {
 				signature: "sig_4",
 			},
 		});
+	});
+
+	it("keeps tool result message ids stable across restore/persist round-trips", () => {
+		// Regression: the tool-id suffix used to be re-appended on every
+		// conversion, so each agent.restore() mutated the id. Ids feed the
+		// compaction source-prefix hash, so the drift silently invalidated
+		// saved compaction state and the model kept receiving the full
+		// transcript after a successful /compact.
+		const persisted = {
+			id: "msg_result_1",
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_abc_1",
+					name: "read_files",
+					content: "file contents",
+				},
+			],
+			ts: 1_784_249_275_514,
+		};
+
+		const [firstPass] = messagesToAgentMessages([persisted]);
+		expect(firstPass?.id).toBe("msg_result_1");
+
+		const roundTripped = agentMessageToMessageWithMetadata(firstPass!);
+		const [secondPass] = messagesToAgentMessages([roundTripped]);
+		expect(secondPass?.id).toBe("msg_result_1");
+		expect(agentMessageToMessageWithMetadata(secondPass!)).toEqual(
+			roundTripped,
+		);
+	});
+
+	it("still disambiguates tool results split out of a mixed message", () => {
+		const mixed = {
+			id: "msg_mixed",
+			role: "user" as const,
+			content: [
+				{ type: "text" as const, text: "feedback" },
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_a",
+					name: "read_files",
+					content: "a",
+				},
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_b",
+					name: "read_files",
+					content: "b",
+				},
+			],
+			ts: 1,
+		};
+
+		const split = messagesToAgentMessages([mixed]);
+		expect(split.map((message) => message.id)).toEqual([
+			"msg_mixed",
+			"msg_mixed_tool_call_a",
+			"msg_mixed_tool_call_b",
+		]);
+
+		// A second round-trip of the split parts must not grow the ids.
+		const persistedParts = split.map(agentMessageToMessageWithMetadata);
+		const secondPass = messagesToAgentMessages(persistedParts);
+		expect(secondPass.map((message) => message.id)).toEqual([
+			"msg_mixed",
+			"msg_mixed_tool_call_a",
+			"msg_mixed_tool_call_b",
+		]);
 	});
 });
