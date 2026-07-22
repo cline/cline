@@ -8,6 +8,7 @@ import {
 	type LinkSafetyModalProps,
 	Streamdown,
 } from "streamdown";
+import { openExternalUrl } from "@/lib/desktop-client";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -134,7 +135,7 @@ function SafeMarkdownLink({
 			<MarkdownLinkSafetyModal
 				isOpen={isOpen}
 				onClose={() => setIsOpen(false)}
-				onConfirm={() => window.open(url, "_blank", "noreferrer")}
+				onConfirm={() => void openExternalUrl(url)}
 				url={url}
 			/>
 		</>

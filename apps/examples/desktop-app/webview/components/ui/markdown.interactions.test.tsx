@@ -140,7 +140,11 @@ describe("MemoizedMarkdown interactions", () => {
 		await click(getButton("Open link"));
 
 		expect(openWindow).toHaveBeenCalledTimes(1);
-		expect(openWindow).toHaveBeenCalledWith(url, "_blank", "noreferrer");
+		expect(openWindow).toHaveBeenCalledWith(
+			url,
+			"_blank",
+			"noopener,noreferrer",
+		);
 		await vi.waitFor(() => {
 			expect(document.querySelector('[role="alertdialog"]')).toBeNull();
 		});

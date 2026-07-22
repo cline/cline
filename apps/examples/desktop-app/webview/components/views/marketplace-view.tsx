@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
 	type MarketplaceCatalog,
@@ -228,6 +228,10 @@ function EntryDetails({
 									<a
 										className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
 										href={env.url}
+										onClick={(event) => {
+											event.preventDefault();
+											if (env.url) void openExternalUrl(env.url);
+										}}
 										rel="noreferrer"
 										target="_blank"
 									>
