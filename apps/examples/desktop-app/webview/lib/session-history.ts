@@ -7,6 +7,10 @@ export type SessionHistoryStatus =
 
 export type SessionMetadata = {
 	title?: string;
+	git?: {
+		url?: string;
+		branch?: string;
+	};
 	[key: string]: unknown;
 };
 
@@ -30,4 +34,14 @@ export function getSessionMetadataTitle(metadata?: SessionMetadata): string {
 		return "";
 	}
 	return typeof metadata.title === "string" ? metadata.title.trim() : "";
+}
+
+export function getSessionMetadataGitBranch(
+	metadata?: SessionMetadata,
+): string {
+	const git = metadata?.git;
+	if (!git || typeof git !== "object" || Array.isArray(git)) {
+		return "";
+	}
+	return typeof git.branch === "string" ? git.branch.trim() : "";
 }

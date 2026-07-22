@@ -1,12 +1,27 @@
 "use client";
 
 import {
+	Message as AgentMessage,
+	Conversation,
+	ConversationContent,
+	ConversationScrollButton,
+	ConversationViewport,
+	MessageAction,
+	MessageActions,
+	MessageContent,
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+	ToolActivity,
+	ToolActivityCode,
+	ToolActivityContent,
+	ToolActivityDetails,
+	ToolActivityTrigger,
+} from "@cline/ui/components/agent-chat";
+import {
 	AlertCircle,
 	Bot,
-	BrainIcon,
 	Check,
-	ChevronDown,
-	ChevronRight,
 	Clock3,
 	Copy,
 	FileEdit,
@@ -20,15 +35,7 @@ import {
 	SquareTerminalIcon,
 	UndoIcon,
 } from "lucide-react";
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
@@ -85,12 +92,33 @@ type AskQuestionRequestItem = {
 	};
 };
 
+type ChatRenderItem =
+	| { type: "message"; message: ChatMessage }
+	| { type: "tools"; messages: ChatMessage[] };
+
+function groupConsecutiveToolMessages(
+	messages: ChatMessage[],
+): ChatRenderItem[] {
+	const items: ChatRenderItem[] = [];
+	for (const message of messages) {
+		const previous = items.at(-1);
+		if (message.role === "tool") {
+			if (previous?.type === "tools") {
+				previous.messages.push(message);
+			} else {
+				items.push({ type: "tools", messages: [message] });
+			}
+			continue;
+		}
+		items.push({ type: "message", message });
+	}
+	return items;
+}
+
 const IS_DEBUG = process.env.NODE_ENV === "test";
-const STICKY_BOTTOM_THRESHOLD_PX = 24;
-const SCROLL_TO_BOTTOM_BUTTON_THRESHOLD_PX = 120;
 
 function ChatMessagesImpl({
-	sessionId: _sessionId,
+	sessionId,
 	status,
 	chatTransportState = "connecting",
 	isSessionSwitching = false,
@@ -105,17 +133,25 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onForkSession,
 }: ChatMessagesProps) {
-	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-	const scrollContentRef = useRef<HTMLDivElement | null>(null);
-	const shouldStickToBottomRef = useRef(true);
 	const hasMessages = messages.length > 0;
 	const lastErrorMessage = [...messages]
 		.reverse()
 		.find((message) => message.role === "error");
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+	// Core reports "running" as soon as the turn is dispatched, well before the
+	// first streamed chunk arrives, so keep the thinking indicator up until the
+	// model produces output (or something else needs the user's attention).
+	const lastConversationMessage = [...messages]
+		.reverse()
+		.find((message) => message.role !== "status");
+	const isAwaitingFirstOutput =
+		status === "running" &&
+		!streamingMessageId &&
+		lastConversationMessage?.role === "user" &&
+		pendingToolApprovals.length === 0 &&
+		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
-	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 	const [toolApprovalActions, setToolApprovalActions] = useState<
 		Record<string, "approving" | "rejecting">
 	>({});
@@ -140,23 +176,6 @@ function ChatMessagesImpl({
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 
-	const getViewport = useCallback(() => {
-		return scrollAreaRef.current;
-	}, []);
-
-	const scrollToBottom = useCallback(
-		(behavior: ScrollBehavior = "smooth") => {
-			const viewport = getViewport();
-			if (!viewport) {
-				return;
-			}
-			shouldStickToBottomRef.current = true;
-			viewport.scrollTo({ top: viewport.scrollHeight, behavior });
-			setShowScrollToBottom((prev) => (prev ? false : prev));
-		},
-		[getViewport],
-	);
-
 	useEffect(() => {
 		if (!isSessionSwitching) {
 			setShowSwitchTransition((prev) => (prev ? false : prev));
@@ -169,50 +188,6 @@ function ChatMessagesImpl({
 			window.clearTimeout(timer);
 		};
 	}, [isSessionSwitching]);
-
-	useEffect(() => {
-		const viewport = getViewport();
-		if (!viewport) {
-			return;
-		}
-
-		const updateScrollToBottomVisibility = () => {
-			const distanceFromBottom =
-				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-			shouldStickToBottomRef.current =
-				distanceFromBottom <= STICKY_BOTTOM_THRESHOLD_PX;
-			const shouldShow =
-				distanceFromBottom > SCROLL_TO_BOTTOM_BUTTON_THRESHOLD_PX;
-			setShowScrollToBottom((prev) =>
-				prev === shouldShow ? prev : shouldShow,
-			);
-		};
-
-		updateScrollToBottomVisibility();
-		viewport.addEventListener("scroll", updateScrollToBottomVisibility);
-
-		return () => {
-			viewport.removeEventListener("scroll", updateScrollToBottomVisibility);
-		};
-	}, [getViewport]);
-
-	useLayoutEffect(() => {
-		if (!shouldStickToBottomRef.current) {
-			return;
-		}
-		scrollToBottom("auto");
-	}, [scrollToBottom]);
-
-	useEffect(() => {
-		const content = scrollContentRef.current;
-		if (!content || typeof ResizeObserver === "undefined") return;
-
-		const resizeObserver = new ResizeObserver(() => {
-			if (shouldStickToBottomRef.current) scrollToBottom("auto");
-		});
-		resizeObserver.observe(content);
-		return () => resizeObserver.disconnect();
-	}, [scrollToBottom]);
 
 	useEffect(() => {
 		const activeRequestIds = new Set(
@@ -377,17 +352,19 @@ function ChatMessagesImpl({
 	);
 
 	return (
-		<div className="relative h-full min-h-0 min-w-0">
-			<div
-				className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
-				ref={scrollAreaRef}
+		<Conversation
+			className="h-full min-h-0 min-w-0"
+			key={sessionId ?? "new-chat"}
+		>
+			<ConversationViewport
+				aria-label="Agent conversation"
+				className="h-full min-h-0 min-w-0"
 			>
-				<div
+				<ConversationContent
 					className={cn(
 						"relative mx-auto min-h-full w-full min-w-0 max-w-full overflow-x-hidden",
 						showIdleDetails ? "p-0" : "px-6 py-6",
 					)}
-					ref={scrollContentRef}
 				>
 					{showIdleDetails ? null : (
 						<div className="flex min-h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
@@ -422,36 +399,47 @@ function ChatMessagesImpl({
 									requestErrors={askQuestionErrors}
 								/>
 							) : null}
-							{messages.map((message) => (
-								<MessageBubble
-									isStreaming={streamingMessageId === message.id}
-									key={message.id}
-									message={message}
-									onCopyRawText={() =>
-										void handleCopyMessage(message.id, message.content)
-									}
-									onRestoreCheckpoint={(runCount) =>
-										void handleRestoreCheckpoint(message.id, runCount)
-									}
-									restoreDisabled={
-										!onRestoreCheckpoint ||
-										status === "starting" ||
-										status === "running" ||
-										status === "stopping" ||
-										isSessionSwitching
-									}
-									restoreError={checkpointErrors[message.id]}
-									restorePending={checkpointActions[message.id] === "undoing"}
-									wasCopied={copiedMessageId === message.id}
-									onForkSession={
-										onForkSession
-											? () => void handleForkSession(message.id)
-											: undefined
-									}
-									forkPending={forkingMessageId === message.id}
-									forkError={forkErrors[message.id]}
-								/>
-							))}
+							{groupConsecutiveToolMessages(messages).map((item) => {
+								if (item.type === "tools") {
+									return (
+										<ToolMessageBlock
+											key={`tools_${item.messages[0]?.id ?? "empty"}`}
+											messages={item.messages}
+										/>
+									);
+								}
+								const { message } = item;
+								return (
+									<MessageBubble
+										isStreaming={streamingMessageId === message.id}
+										key={message.id}
+										message={message}
+										onCopyRawText={() =>
+											void handleCopyMessage(message.id, message.content)
+										}
+										onRestoreCheckpoint={(runCount) =>
+											void handleRestoreCheckpoint(message.id, runCount)
+										}
+										restoreDisabled={
+											!onRestoreCheckpoint ||
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching
+										}
+										restoreError={checkpointErrors[message.id]}
+										restorePending={checkpointActions[message.id] === "undoing"}
+										wasCopied={copiedMessageId === message.id}
+										onForkSession={
+											onForkSession
+												? () => void handleForkSession(message.id)
+												: undefined
+										}
+										forkPending={forkingMessageId === message.id}
+										forkError={forkErrors[message.id]}
+									/>
+								);
+							})}
 						</div>
 					)}
 					{showSwitchTransition ? (
@@ -476,7 +464,8 @@ function ChatMessagesImpl({
 							</div>
 						)
 					) : null}
-					{status === "starting" && !isSessionSwitching ? (
+					{(status === "starting" || isAwaitingFirstOutput) &&
+					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
 							Thinking...
@@ -497,21 +486,10 @@ function ChatMessagesImpl({
 							{error}
 						</div>
 					) : null}
-				</div>
-			</div>
-			{showScrollToBottom ? (
-				<Button
-					className="absolute bottom-4 right-4 z-20 size-9 rounded-full shadow-sm"
-					onClick={() => scrollToBottom("smooth")}
-					size="icon"
-					type="button"
-					variant="secondary"
-				>
-					<ChevronDown className="size-4" />
-					<span className="sr-only">Scroll to bottom</span>
-				</Button>
-			) : null}
-		</div>
+				</ConversationContent>
+			</ConversationViewport>
+			<ConversationScrollButton />
+		</Conversation>
 	);
 }
 
@@ -737,182 +715,120 @@ function MessageBubble({
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
+	const displayContent = formatChatMessageContent(
+		message.role,
+		message.content,
+	);
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&
 		!isStreaming &&
 		!isError &&
+		Boolean(displayContent.trim()) &&
 		Boolean(onCopyRawText || onForkSession);
 	const shouldRenderUserActions =
 		isUser && Boolean(onCopyRawText || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
 	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
-	const hiddenActionButtonsClassName =
-		"pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
-	if (message.role === "tool") {
-		return <ToolMessageBlock message={message} />;
-	}
-
-	const displayContent = formatChatMessageContent(
-		message.role,
-		message.content,
-	);
 	const reasoningContent = message.reasoning?.trim() || "";
 
 	return (
-		<div
-			className={cn(
-				"flex min-w-0",
-				isUser ? "justify-end" : "w-full justify-start",
-			)}
-		>
-			<div
-				className={cn(
-					"group max-w-full min-w-0 wrap-break-word text-sm",
-					isUser && "flex max-w-[85%] flex-col items-end gap-1 md:max-w-[50%]",
-					!isUser && "flex flex-col items-start gap-2 overflow-hidden",
-					!isUser && !isError && "text-foreground",
-					isError &&
-						"bg-destructive/10 border border-destructive/40 text-destructive",
-				)}
-			>
-				<div
-					className={cn(
-						"max-w-full min-w-0 space-y-2 overflow-hidden wrap-break-word",
-						isUser && "rounded-sm bg-card p-2 text-foreground/80",
-					)}
-				>
-					{reasoningContent || message.reasoningRedacted ? (
-						<ReasoningBlock
-							content={reasoningContent}
-							redacted={message.reasoningRedacted === true}
-							streaming={isStreaming}
-						/>
-					) : null}
+		<AgentMessage from={message.role}>
+			<MessageContent className="space-y-2 wrap-break-word">
+				{reasoningContent || message.reasoningRedacted ? (
+					<ReasoningBlock
+						content={reasoningContent}
+						redacted={message.reasoningRedacted === true}
+						streaming={isStreaming}
+					/>
+				) : null}
 
-					<div className="my-1 min-w-0 max-w-full wrap-break-word">
-						<MemoizedMarkdown
-							content={displayContent || " "}
-							streaming={isStreaming && message.role === "assistant"}
-						/>
-					</div>
+				<div className="my-1 min-w-0 max-w-full wrap-break-word">
+					<MemoizedMarkdown
+						content={displayContent || " "}
+						streaming={isStreaming && message.role === "assistant"}
+					/>
 				</div>
-				{shouldRenderUserActions ? (
-					<div className="space-y-1">
-						<div className="flex h-6 items-center justify-end">
-							<div
-								className={cn(
-									"flex items-center justify-end gap-2",
-									keepUserActionsVisible
-										? "pointer-events-auto opacity-100"
-										: hiddenActionButtonsClassName,
-								)}
+			</MessageContent>
+
+			{shouldRenderUserActions ? (
+				<>
+					<MessageActions visible={keepUserActionsVisible}>
+						{onCopyRawText ? (
+							<MessageAction
+								label={wasCopied ? "Copied user message" : "Copy user message"}
+								onClick={onCopyRawText}
+								title={wasCopied ? "Copied" : "Copy message"}
 							>
-								{onCopyRawText ? (
-									<Button
-										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-										aria-label={
-											wasCopied ? "Copied user message" : "Copy user message"
-										}
-										onClick={onCopyRawText}
-										size="sm"
-										title={wasCopied ? "Copied" : "Copy message"}
-										type="button"
-										variant="ghost"
-									>
-										{wasCopied ? (
-											<Check className="h-3.5 w-3.5" />
-										) : (
-											<Copy className="h-3.5 w-3.5" />
-										)}
-									</Button>
-								) : null}
-								{checkpoint ? (
-									<Button
-										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-										aria-label="Restore checkpoint"
-										disabled={restoreDisabled || restorePending}
-										onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
-										size="sm"
-										title="Restore checkpoint"
-										type="button"
-										variant="ghost"
-									>
-										{restorePending ? (
-											<Loader2 className="h-3.5 w-3.5 animate-spin" />
-										) : (
-											<UndoIcon className="h-3.5 w-3.5" />
-										)}
-									</Button>
-								) : null}
-							</div>
-						</div>
-						{restoreError ? (
-							<div className="text-right text-xs text-destructive">
-								{restoreError}
-							</div>
+								{wasCopied ? (
+									<Check className="h-3.5 w-3.5" />
+								) : (
+									<Copy className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
 						) : null}
-					</div>
-				) : null}
-				{shouldRenderAssistantActions ? (
-					<div className="flex h-6 items-center hidden">
-						<div
-							className={cn(
-								"flex items-center gap-0",
-								keepAssistantActionsVisible
-									? "pointer-events-auto opacity-100"
-									: hiddenActionButtonsClassName,
-							)}
-						>
-							{onCopyRawText ? (
-								<Button
-									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-									aria-label={
-										wasCopied
-											? "Copied assistant message"
-											: "Copy assistant message"
-									}
-									onClick={onCopyRawText}
-									size="sm"
-									title={wasCopied ? "Copied" : "Copy raw assistant output"}
-									type="button"
-									variant="ghost"
-								>
-									{wasCopied ? (
-										<Check className="h-3 w-3" />
-									) : (
-										<Copy className="h-3 w-3" />
-									)}
-								</Button>
-							) : null}
-							{onForkSession ? (
-								<Button
-									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-									aria-label="Fork session"
-									disabled={forkPending}
-									onClick={onForkSession}
-									size="sm"
-									title="Fork session - copy full message history into a new session"
-									type="button"
-									variant="ghost"
-								>
-									{forkPending ? (
-										<Loader2 className="h-3 w-3 animate-spin" />
-									) : (
-										<SplitIcon className="h-3 w-3" />
-									)}
-								</Button>
-							) : null}
-							{forkError ? (
-								<span className="text-[11px] text-destructive">
-									{forkError}
-								</span>
-							) : null}
+						{checkpoint ? (
+							<MessageAction
+								disabled={restoreDisabled || restorePending}
+								label="Restore checkpoint"
+								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+								title="Restore checkpoint"
+							>
+								{restorePending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<UndoIcon className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
+						) : null}
+					</MessageActions>
+					{restoreError ? (
+						<div className="text-right text-xs text-destructive">
+							{restoreError}
 						</div>
-					</div>
-				) : null}
-			</div>
-		</div>
+					) : null}
+				</>
+			) : null}
+
+			{shouldRenderAssistantActions ? (
+				<MessageActions visible={keepAssistantActionsVisible}>
+					{onCopyRawText ? (
+						<MessageAction
+							label={
+								wasCopied
+									? "Copied assistant message"
+									: "Copy assistant message"
+							}
+							onClick={onCopyRawText}
+							title={wasCopied ? "Copied" : "Copy raw assistant output"}
+						>
+							{wasCopied ? (
+								<Check className="h-3 w-3" />
+							) : (
+								<Copy className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{onForkSession ? (
+						<MessageAction
+							disabled={forkPending}
+							label="Fork session"
+							onClick={onForkSession}
+							title="Fork session - copy full message history into a new session"
+						>
+							{forkPending ? (
+								<Loader2 className="h-3 w-3 animate-spin" />
+							) : (
+								<SplitIcon className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{forkError ? (
+						<span className="text-[11px] text-destructive">{forkError}</span>
+					) : null}
+				</MessageActions>
+			) : null}
+		</AgentMessage>
 	);
 }
 
@@ -925,48 +841,18 @@ function ReasoningBlock({
 	redacted: boolean;
 	streaming?: boolean;
 }) {
-	const [expanded, setExpanded] = useState(false);
-	const panelId = useId();
 	const displayContent = content || (redacted ? "[redacted]" : "");
 	if (!displayContent) {
 		return null;
 	}
 
 	return (
-		<div className="my-2">
-			<Button
-				aria-controls={panelId}
-				aria-expanded={expanded}
-				className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-foreground/70 hover:bg-transparent hover:text-foreground has-[>svg]:px-0 dark:hover:bg-transparent dark:hover:text-foreground"
-				onClick={() => setExpanded((current) => !current)}
-				type="button"
-				variant="ghost"
-			>
-				<BrainIcon aria-hidden="true" className="size-4" />
-				<span>{streaming ? "Thinking" : "Thought process"}</span>
-				<span
-					aria-live="polite"
-					className="text-xs font-normal text-muted-foreground"
-				>
-					{streaming ? "In progress" : "Complete"}
-				</span>
-				<span aria-hidden="true" className="shrink-0 text-muted-foreground">
-					{expanded ? (
-						<ChevronDown className="size-4" />
-					) : (
-						<ChevronRight className="size-4" />
-					)}
-				</span>
-			</Button>
-			{expanded ? (
-				<div
-					className="mt-1.5 min-w-0 max-w-full rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground"
-					id={panelId}
-				>
-					<MemoizedMarkdown content={displayContent} streaming={streaming} />
-				</div>
-			) : null}
-		</div>
+		<Reasoning isStreaming={streaming}>
+			<ReasoningTrigger />
+			<ReasoningContent>
+				<MemoizedMarkdown content={displayContent} streaming={streaming} />
+			</ReasoningContent>
+		</Reasoning>
 	);
 }
 
@@ -980,6 +866,13 @@ type ToolPayload = {
 type ToolSummary = {
 	label: string;
 	details: string[];
+	aggregate?: {
+		key: string;
+		count: number;
+		noun: string;
+		completedVerb: string;
+		progressVerb: string;
+	};
 	diff?: {
 		additions: number;
 		deletions: number;
@@ -1079,7 +972,10 @@ function classifyTool(
 	)
 		return "file-edit";
 	if (["bash", "run_commands"].includes(normalized)) return "bash";
-	if (["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized))
+	if (
+		["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized) ||
+		normalized.startsWith("subagent_")
+	)
 		return "spawn";
 	return "tool";
 }
@@ -1196,6 +1092,13 @@ function buildToolSummary(
 		if (files.length > 0) {
 			return {
 				label: `${inProgress ? "Reading" : "Read"} ${pluralize(files.length, "file")}`,
+				aggregate: {
+					key: "read-files",
+					count: files.length,
+					noun: "file",
+					completedVerb: "Read",
+					progressVerb: "Reading",
+				},
 				details: files.map(
 					(file) => `${inProgress ? "Reading" : "Read"} ${toDisplayPath(file)}`,
 				),
@@ -1208,6 +1111,13 @@ function buildToolSummary(
 		if (queries.length > 0) {
 			return {
 				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(queries.length, "search")}`,
+				aggregate: {
+					key: "searches",
+					count: queries.length,
+					noun: "search",
+					completedVerb: "Explored",
+					progressVerb: "Exploring",
+				},
 				details: queries.map((query) => query),
 			};
 		}
@@ -1218,6 +1128,13 @@ function buildToolSummary(
 		if (commands.length > 0) {
 			return {
 				label: `${inProgress ? "Running" : "Ran"} ${pluralize(commands.length, "command")}`,
+				aggregate: {
+					key: "commands",
+					count: commands.length,
+					noun: "command",
+					completedVerb: "Ran",
+					progressVerb: "Running",
+				},
 				details: commands.map((command) => command.trim()),
 			};
 		}
@@ -1238,6 +1155,13 @@ function buildToolSummary(
 		if (urls.length > 0) {
 			return {
 				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(urls.length, "link")}`,
+				aggregate: {
+					key: "links",
+					count: urls.length,
+					noun: "link",
+					completedVerb: "Explored",
+					progressVerb: "Exploring",
+				},
 				details: urls.map(
 					(url) => `${inProgress ? "Fetching" : "Fetched"} ${url}`,
 				),
@@ -1258,6 +1182,13 @@ function buildToolSummary(
 			const deletions = fileDiffs.reduce((sum, d) => sum + d.deletions, 0);
 			return {
 				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")}`,
+				aggregate: {
+					key: "edited-files",
+					count: fileDiffs.length,
+					noun: "file",
+					completedVerb: "Edited",
+					progressVerb: "Editing",
+				},
 				diff: { additions, deletions },
 				details: fileDiffs.map(
 					(d) =>
@@ -1305,18 +1236,30 @@ function buildToolSummary(
 						: "Edited";
 		// The label already carries all the information; no expandable details.
 		const detail = `${action} ${path}`;
+		const aggregate = {
+			key: "edited-files",
+			count: 1,
+			noun: "file",
+			completedVerb: "Edited",
+			progressVerb: "Editing",
+		};
 		if (diff) {
-			return { label: detail, diff, details: [] };
+			return { label: detail, aggregate, diff, details: [] };
 		}
-		return { label: detail, details: [] };
+		return { label: detail, aggregate, details: [] };
 	}
 
 	const query =
 		typeof asRecord(result)?.query === "string"
 			? (asRecord(result)?.query as string)
 			: "";
+	const displayToolName = normalized.startsWith("subagent_")
+		? "spawn_agent"
+		: toolName;
 	const fallback =
-		query || (inProgress ? `Running ${toolName}` : toolName) || "Tool";
+		query ||
+		(inProgress ? `Running ${displayToolName}` : displayToolName) ||
+		"Tool";
 	return { label: fallback, details: [fallback] };
 }
 
@@ -1346,9 +1289,16 @@ function buildToolSummaryFromMeta(
 	return { label: inProgress ? `Running ${toolName}` : toolName, details: [] };
 }
 
-function ToolMessageBlock({ message }: { message: ChatMessage }) {
-	const [expanded, setExpanded] = useState(false);
-	const panelId = useId();
+type ToolPresentation = {
+	message: ChatMessage;
+	payload: ToolPayload | null;
+	toolName: string;
+	kind: ReturnType<typeof classifyTool>;
+	inProgress: boolean;
+	summary: ToolSummary;
+};
+
+function buildToolPresentation(message: ChatMessage): ToolPresentation {
 	const payload = parseToolPayload(message.content);
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
 	const hookEventName = message.meta?.hookEventName;
@@ -1357,8 +1307,77 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
 	const kind = classifyTool(toolName);
-	const isFileRead = ["read_files", "file_read", "file-read"].includes(
-		toolName.toLowerCase(),
+	const summary = payload
+		? buildToolSummary(toolName, payload.input, payload.result, inProgress)
+		: buildToolSummaryFromMeta(toolName, kind, inProgress);
+	return { message, payload, toolName, kind, inProgress, summary };
+}
+
+function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
+	if (presentations.length === 1) {
+		return presentations[0]?.summary.label ?? "Tool";
+	}
+
+	type Segment =
+		| { type: "label"; label: string }
+		| {
+				type: "aggregate";
+				aggregate: NonNullable<ToolSummary["aggregate"]> & {
+					inProgress: boolean;
+				};
+		  };
+	const segments: Segment[] = [];
+	for (const presentation of presentations) {
+		const aggregate = presentation.summary.aggregate;
+		if (!aggregate) {
+			segments.push({ type: "label", label: presentation.summary.label });
+			continue;
+		}
+
+		const previous = segments.at(-1);
+		if (
+			previous?.type === "aggregate" &&
+			previous.aggregate.key === aggregate.key
+		) {
+			segments[segments.length - 1] = {
+				type: "aggregate",
+				aggregate: {
+					...previous.aggregate,
+					count: previous.aggregate.count + aggregate.count,
+					inProgress: previous.aggregate.inProgress || presentation.inProgress,
+				},
+			};
+			continue;
+		}
+
+		segments.push({
+			type: "aggregate",
+			aggregate: { ...aggregate, inProgress: presentation.inProgress },
+		});
+	}
+
+	return segments
+		.map((segment) => {
+			if (segment.type === "label") return segment.label;
+			const { aggregate } = segment;
+			const verb = aggregate.inProgress
+				? aggregate.progressVerb
+				: aggregate.completedVerb;
+			return `${verb} ${pluralize(aggregate.count, aggregate.noun)}`;
+		})
+		.join(". ");
+}
+
+function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
+	const presentations = messages.map(buildToolPresentation);
+	const first = presentations[0];
+	if (!first) return null;
+	const hasError = presentations.some(({ payload }) => payload?.isError);
+	const isRunning = presentations.some(({ inProgress }) => inProgress);
+	const kinds = new Set(presentations.map(({ kind }) => kind));
+	const kind = kinds.size === 1 ? first.kind : "tool";
+	const isFileRead = presentations.every(({ toolName }) =>
+		["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
 	);
 	const Icon = isFileRead
 		? FileIcon
@@ -1371,103 +1390,78 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 					: kind === "spawn"
 						? Bot
 						: FileSearch;
-	const summary = payload
-		? buildToolSummary(toolName, payload.input, payload.result, inProgress)
-		: buildToolSummaryFromMeta(toolName, kind, inProgress);
-	const details = summary.details;
-	const inputPreview =
-		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
-	const resultPreview = payload?.isError ? formatToolValue(payload.result) : "";
+	const details = presentations.flatMap(({ message, summary }) =>
+		summary.details.map((detail) => ({
+			detail,
+			key: `${message.id}_${detail}`,
+		})),
+	);
+	const inputPreviews = IS_DEBUG
+		? presentations
+				.map(({ message, payload, toolName }) => ({
+					key: message.id,
+					toolName,
+					value: payload ? formatToolValue(payload.input) : "",
+				}))
+				.filter(({ value }) => Boolean(value))
+		: [];
+	const resultPreviews = presentations
+		.map(({ message, payload, toolName }) => ({
+			key: message.id,
+			toolName,
+			value: payload?.isError ? formatToolValue(payload.result) : "",
+		}))
+		.filter(({ value }) => Boolean(value));
 	const hasExpandedSections =
-		details.length > 0 || Boolean(inputPreview || resultPreview);
-	const summaryContent = (
-		<>
-			{payload?.isError ? (
-				<AlertCircle className="size-4 text-destructive/80" />
-			) : (
-				<Icon className="size-4" />
-			)}
-			<span className="min-w-0 wrap-break-word">{summary.label}</span>
-			{summary.diff ? (
-				<span className="shrink-0 font-mono text-xs">
-					<span className="text-chart-2">+{summary.diff.additions}</span>{" "}
-					<span className="text-destructive">-{summary.diff.deletions}</span>
-				</span>
-			) : null}
-		</>
+		details.length > 0 || inputPreviews.length > 0 || resultPreviews.length > 0;
+	const diff = presentations.reduce(
+		(total, { summary }) => ({
+			additions: total.additions + (summary.diff?.additions ?? 0),
+			deletions: total.deletions + (summary.diff?.deletions ?? 0),
+		}),
+		{ additions: 0, deletions: 0 },
 	);
 
 	return (
-		<div className="my-2 flex w-full min-w-0 justify-start">
-			<div
-				className={cn("min-w-0 max-w-full overflow-hidden rounded-xl text-sm")}
-			>
-				{hasExpandedSections ? (
-					<Button
-						aria-controls={panelId}
-						aria-expanded={expanded}
-						className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80 has-[>svg]:px-0 dark:hover:bg-transparent dark:hover:text-primary/80"
-						onClick={() => setExpanded((current) => !current)}
-						type="button"
-						variant="ghost"
-					>
-						{summaryContent}
-						<span className="shrink-0 text-muted-foreground">
-							{expanded ? (
-								<ChevronDown className="size-4" />
-							) : (
-								<ChevronRight className="size-4" />
-							)}
-						</span>
-					</Button>
-				) : (
-					<div className="flex max-w-full items-center justify-start gap-2 py-1 text-left text-sm font-medium text-primary">
-						{summaryContent}
-					</div>
-				)}
-				{expanded ? (
-					<div
-						className="mt-1.5 min-w-0 max-w-full overflow-x-hidden pl-8 text-sm text-muted-foreground"
-						id={panelId}
-					>
-						{hasExpandedSections ? (
-							<div className="space-y-1">
-								{details.map((detail) => (
-									<div
-										className="wrap-break-word"
-										key={`${message.id}_${detail}`}
-									>
-										{detail}
-									</div>
-								))}
-							</div>
-						) : null}
-						{inputPreview ? (
-							<div className="space-y-1">
-								<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-									Input
-								</div>
-								<pre className="max-h-52 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">
-									{inputPreview}
-								</pre>
-							</div>
-						) : null}
-						{resultPreview ? (
-							payload?.isError ? (
-								<div className="mt-1">
-									<span className="text-destructive">{resultPreview}</span>
-								</div>
-							) : (
-								<div className="space-y-1">
-									<pre className="max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-sm leading-relaxed text-foreground">
-										{resultPreview}
-									</pre>
-								</div>
-							)
-						) : null}
-					</div>
+		<ToolActivity expandable={hasExpandedSections}>
+			<ToolActivityTrigger
+				additions={diff.additions || undefined}
+				deletions={diff.deletions || undefined}
+				icon={
+					hasError ? (
+						<AlertCircle className="size-4 text-destructive/80" />
+					) : (
+						<Icon className="size-4" />
+					)
+				}
+				label={buildGroupedToolLabel(presentations)}
+				status={hasError ? "error" : isRunning ? "running" : "success"}
+			/>
+			<ToolActivityContent>
+				{details.length > 0 ? (
+					<ToolActivityDetails>
+						{details.map(({ detail, key }) => (
+							<div key={key}>{detail}</div>
+						))}
+					</ToolActivityDetails>
 				) : null}
-			</div>
-		</div>
+				{inputPreviews.map((preview) => (
+					<div className="space-y-1" key={`input_${preview.key}`}>
+						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+							{presentations.length > 1 ? `${preview.toolName} input` : "Input"}
+						</div>
+						<ToolActivityCode className="text-sm">
+							{preview.value}
+						</ToolActivityCode>
+					</div>
+				))}
+				{resultPreviews.map((preview) => (
+					<div className="mt-1 text-destructive" key={`result_${preview.key}`}>
+						{presentations.length > 1 ? `${preview.toolName}: ` : null}
+						{preview.value}
+					</div>
+				))}
+			</ToolActivityContent>
+		</ToolActivity>
 	);
 }

@@ -239,7 +239,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("defaultTerminalProfile", request.defaultTerminalProfile)
 			// Update the live terminal manager so new terminals use the new profile.
 			// Existing terminals are left open — they're keyed by effective shell
-			// and reused when compatible, or skipped when not.
+			// and reused when compatible, or skipped when not. No session rebuild
+			// is needed: the run_commands tool re-reads the profile each time a
+			// model request is built, so the description and execution both pick
+			// up the new shell at the next request boundary.
 			controller.terminalManager?.setDefaultTerminalProfile(request.defaultTerminalProfile)
 		}
 
