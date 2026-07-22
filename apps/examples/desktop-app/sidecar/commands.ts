@@ -85,6 +85,11 @@ import type {
 	SidecarContext,
 } from "./types";
 
+// Strict allowlist: the opener hands the URL to the OS protocol handler, so
+// anything broader (file:, custom app schemes) would let webview content
+// launch arbitrary local handlers.
+const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
+
 function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
 	// On Windows the URL must not pass through cmd.exe: `cmd /c start <url>`
@@ -1276,8 +1281,10 @@ export async function handleCommand(
 		} catch {
 			throw new Error(`invalid url: ${rawUrl}`);
 		}
-		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-			throw new Error("only http(s) urls can be opened externally");
+		if (!OPENABLE_URL_PROTOCOLS.has(parsed.protocol)) {
+			throw new Error(
+				"only http(s), mailto and tel urls can be opened externally",
+			);
 		}
 		await openUrlInDefaultBrowser(parsed.toString());
 		return { opened: true };
@@ -1371,7 +1378,9 @@ export async function handleCommand(
 				// The OAuth helper's openUrl callback is fire-and-forget; surface
 				// opener failures in the log instead of an unhandled rejection.
 				openUrlInDefaultBrowser(url).catch((error) => {
-					console.warn(`[sidecar] ${error instanceof Error ? error.message : error}`);
+					console.warn(
+						`[sidecar] ${error instanceof Error ? error.message : error}`,
+					);
 				});
 			},
 		);

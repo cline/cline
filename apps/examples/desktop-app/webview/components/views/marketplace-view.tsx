@@ -228,6 +228,11 @@ function EntryDetails({
 									<a
 										className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
 										href={env.url}
+										onAuxClick={(event) => {
+											if (event.button !== 1) return;
+											event.preventDefault();
+											if (env.url) void openExternalUrl(env.url);
+										}}
 										onClick={(event) => {
 											event.preventDefault();
 											if (env.url) void openExternalUrl(env.url);
