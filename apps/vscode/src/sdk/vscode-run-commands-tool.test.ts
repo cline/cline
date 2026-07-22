@@ -175,6 +175,7 @@ function createControllableTerminalProcess() {
 	return {
 		process: fakeProcess as unknown as ReturnType<VscodeTerminalManager["runCommand"]>,
 		emitLine: (line: string) => emitter.emit("line", line),
+		fail: (error: Error) => emitter.emit("error", error),
 		complete: (details?: TerminalCompletionDetails) => {
 			emitter.emit("completed", details)
 			emitter.emit("continue")
@@ -358,6 +359,7 @@ describe("executeForeground — Proceed While Running", () => {
 		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
 
 		await waitFor(() => coordinator.isRunning)
+		await waitFor(() => process.listenerCount("line") > 0)
 		emitLine("listening on :3000")
 
 		expect(coordinator.proceedWhileRunning()).toBe(1)
@@ -411,6 +413,7 @@ describe("executeForeground — Proceed While Running", () => {
 		)
 
 		await waitFor(() => coordinator.isRunning)
+		await waitFor(() => first.process.listenerCount("line") > 0 && second.process.listenerCount("line") > 0)
 		first.emitLine("first output")
 		second.emitLine("second output")
 
@@ -442,6 +445,267 @@ describe("executeForeground — Proceed While Running", () => {
 		fs.rmSync(secondLog!, { force: true })
 	})
 
+	it("registers with the coordinator before terminal acquisition", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, complete } = createControllableTerminalProcess()
+		// A terminal acquisition that never settles until released — the
+		// registration must not wait for it.
+		let releaseTerminal!: () => void
+		const terminalGate = new Promise<void>((resolve) => {
+			releaseTerminal = resolve
+		})
+		const terminalManager = {
+			getOrCreateTerminal: async () => {
+				await terminalGate
+				return { terminal: { show: () => {} } } as never
+			},
+			runCommand: () => process,
+		} as unknown as VscodeTerminalManager
+
+		const resultPromise = executeForeground("slow-acquire", "/workspace", terminalManager, 1000, undefined, coordinator)
+
+		await waitFor(() => coordinator.isRunning)
+		releaseTerminal()
+		await waitFor(() => process.listenerCount("line") > 0)
+		complete({ exitCode: 0 })
+		await resultPromise
+		expect(coordinator.isRunning).toBe(false)
+	})
+
+	it("unregisters when terminal acquisition fails", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		let rejectTerminal!: (error: Error) => void
+		const terminalGate = new Promise<never>((_, reject) => {
+			rejectTerminal = reject
+		})
+		const terminalManager = {
+			getOrCreateTerminal: () => terminalGate,
+			runCommand: vi.fn(),
+		} as unknown as VscodeTerminalManager
+
+		const resultPromise = executeForeground("failed-acquire", "/workspace", terminalManager, 1000, undefined, coordinator)
+
+		expect(coordinator.isRunning).toBe(true)
+		rejectTerminal(new Error("terminal unavailable"))
+		await expect(resultPromise).rejects.toThrow("terminal unavailable")
+		expect(coordinator.isRunning).toBe(false)
+		expect(terminalManager.runCommand).not.toHaveBeenCalled()
+	})
+
+	it("aborts during terminal acquisition without starting the command later", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const abortController = new AbortController()
+		let releaseTerminal!: () => void
+		const terminalGate = new Promise<void>((resolve) => {
+			releaseTerminal = resolve
+		})
+		const runCommand = vi.fn()
+		const terminalManager = {
+			getOrCreateTerminal: async () => {
+				await terminalGate
+				return { terminal: { show: () => {} } } as never
+			},
+			runCommand,
+		} as unknown as VscodeTerminalManager
+
+		const resultPromise = executeForeground(
+			"cancelled-before-start",
+			"/workspace",
+			terminalManager,
+			1000,
+			abortController.signal,
+			coordinator,
+		)
+
+		expect(coordinator.isRunning).toBe(true)
+		abortController.abort()
+		await expect(resultPromise).rejects.toThrow("Command execution aborted")
+		expect(coordinator.isRunning).toBe(false)
+
+		releaseTerminal()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(runCommand).not.toHaveBeenCalled()
+	})
+
+	it("detach requested during terminal acquisition applies once the command starts", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		let releaseTerminal!: () => void
+		const terminalGate = new Promise<void>((resolve) => {
+			releaseTerminal = resolve
+		})
+		const terminalManager = {
+			getOrCreateTerminal: async () => {
+				await terminalGate
+				return { terminal: { show: () => {} } } as never
+			},
+			runCommand: () => process,
+		} as unknown as VscodeTerminalManager
+
+		const resultPromise = executeForeground("late-cmd", "/workspace", terminalManager, 100_000, undefined, coordinator)
+		await waitFor(() => coordinator.isRunning)
+
+		// Proceed While Running fires while this command is still waiting for
+		// its terminal. The detach must stick: once the command starts, it
+		// resolves as detached instead of re-blocking the turn.
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		const result = await resultPromise
+		expect(result).toContain("still running")
+		expect(coordinator.isRunning).toBe(false)
+
+		// The tool result settles before terminal acquisition. Once the bounded
+		// acquisition finishes, the approved command starts and streams to the log.
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+		releaseTerminal()
+		await waitFor(() => process.listenerCount("line") > 0)
+		emitLine("started late")
+		complete({ exitCode: 0 })
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed with exit code 0]")
+			} catch {
+				return false
+			}
+		})
+		expect(fs.readFileSync(logFilePath!, "utf8")).toContain("started late")
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
+	it("records terminal acquisition failure after detach in the promised log", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		let rejectTerminal!: (error: Error) => void
+		const terminalGate = new Promise<never>((_, reject) => {
+			rejectTerminal = reject
+		})
+		const terminalManager = {
+			getOrCreateTerminal: () => terminalGate,
+			runCommand: vi.fn(),
+		} as unknown as VscodeTerminalManager
+
+		const resultPromise = executeForeground(
+			"failed-after-detach",
+			"/workspace",
+			terminalManager,
+			1000,
+			undefined,
+			coordinator,
+		)
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		const result = await resultPromise
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+		expect(coordinator.isRunning).toBe(false)
+
+		rejectTerminal(new Error("terminal unavailable"))
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("terminal unavailable")
+			} catch {
+				return false
+			}
+		})
+		expect(terminalManager.runCommand).not.toHaveBeenCalled()
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
+	it("records a detached process failure after the tool result settles", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, fail } = createControllableTerminalProcess()
+		const resultPromise = executeForeground(
+			"failed-process",
+			"/workspace",
+			createFakeTerminalManager(process),
+			1000,
+			undefined,
+			coordinator,
+		)
+
+		await waitFor(() => process.listenerCount("line") > 0)
+		expect(coordinator.proceedWhileRunning()).toBe(1)
+		const result = await resultPromise
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+
+		fail(new Error("terminal process failed"))
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("terminal process failed")
+			} catch {
+				return false
+			}
+		})
+		expect(process.listenerCount("line")).toBe(0)
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
+	it("detaches a whole parallel batch even when one command is still awaiting its terminal", async () => {
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const first = createControllableTerminalProcess()
+		const second = createControllableTerminalProcess()
+		let releaseSecondTerminal!: () => void
+		const secondTerminalGate = new Promise<void>((resolve) => {
+			releaseSecondTerminal = resolve
+		})
+		const secondTerminalManager = {
+			getOrCreateTerminal: async () => {
+				await secondTerminalGate
+				return { terminal: { show: () => {} } } as never
+			},
+			runCommand: () => second.process,
+		} as unknown as VscodeTerminalManager
+
+		const firstPromise = executeForeground(
+			"first-cmd",
+			"/workspace",
+			createFakeTerminalManager(first.process),
+			100_000,
+			undefined,
+			coordinator,
+		)
+		const secondPromise = executeForeground(
+			"second-cmd",
+			"/workspace",
+			secondTerminalManager,
+			100_000,
+			undefined,
+			coordinator,
+		)
+		await waitFor(() => coordinator.isRunning)
+
+		// The user clicks Proceed While Running while the second command is
+		// still waiting for a terminal; both must be counted and both must
+		// resolve detached — the late one must not keep the turn blocked.
+		expect(coordinator.proceedWhileRunning()).toBe(2)
+		const [firstResult, secondResult] = await Promise.all([firstPromise, secondPromise])
+		expect(firstResult).toContain("still running")
+		expect(secondResult).toContain("still running")
+		expect(coordinator.isRunning).toBe(false)
+
+		const logFilePaths = [firstResult, secondResult].map((result) =>
+			/redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim(),
+		)
+		for (const logFilePath of logFilePaths) {
+			expect(logFilePath).toBeTruthy()
+		}
+		releaseSecondTerminal()
+		await waitFor(() => first.process.listenerCount("line") > 0 && second.process.listenerCount("line") > 0)
+		first.complete()
+		second.complete()
+		await waitFor(() =>
+			logFilePaths.every((logFilePath) => {
+				try {
+					return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed]")
+				} catch {
+					return false
+				}
+			}),
+		)
+		for (const logFilePath of logFilePaths) {
+			fs.rmSync(logFilePath!, { force: true })
+		}
+	})
+
 	it("stops logging before a line that would exceed the size cap", async () => {
 		const coordinator = new SdkForegroundCommandCoordinator()
 		const { process, emitLine, complete } = createControllableTerminalProcess()
@@ -449,6 +713,7 @@ describe("executeForeground — Proceed While Running", () => {
 
 		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
 		await waitFor(() => coordinator.isRunning)
+		await waitFor(() => process.listenerCount("line") > 0)
 
 		expect(coordinator.proceedWhileRunning()).toBe(1)
 		const result = await resultPromise
@@ -486,6 +751,7 @@ describe("executeForeground — Proceed While Running", () => {
 
 		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
 		await waitFor(() => coordinator.isRunning)
+		await waitFor(() => process.listenerCount("line") > 0)
 		emitLine("x".repeat(PROCEED_LOG_MAX_BYTES))
 
 		expect(coordinator.proceedWhileRunning()).toBe(1)
@@ -515,6 +781,7 @@ describe("executeForeground — Proceed While Running", () => {
 
 		const resultPromise = executeForeground("devserver", "/workspace", terminalManager, 100_000, undefined, coordinator)
 		await waitFor(() => coordinator.isRunning)
+		await waitFor(() => process.listenerCount("line") > 0)
 		emitLine("before detach")
 
 		expect(coordinator.proceedWhileRunning()).toBe(1)
