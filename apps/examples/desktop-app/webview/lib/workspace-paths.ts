@@ -44,6 +44,28 @@ export function mergeWorkspacePaths(
 	return [...byNormalizedPath.values()];
 }
 
+const WINDOWS_ABSOLUTE_PATH_PATTERN = /^(?:[A-Za-z]:[\\/]|\\\\)/;
+
+export function isAbsoluteFilePath(path: string): boolean {
+	return path.startsWith("/") || WINDOWS_ABSOLUTE_PATH_PATTERN.test(path);
+}
+
+/**
+ * Diff tool outputs carry paths as the agent wrote them — sometimes absolute,
+ * sometimes relative to the session cwd. The webview has no `node:path`, so
+ * relative paths are joined against the cwd with the separator style the cwd
+ * already uses.
+ */
+export function resolveWorkspaceFilePath(path: string, cwd?: string): string {
+	const trimmed = path.trim();
+	const base = (cwd ?? "").trim();
+	if (!trimmed || !base || isAbsoluteFilePath(trimmed)) {
+		return trimmed;
+	}
+	const separator = base.includes("\\") && !base.includes("/") ? "\\" : "/";
+	return `${base.replace(/[\\/]+$/, "")}${separator}${trimmed.replace(/^\.\//, "")}`;
+}
+
 const POSIX_HOME_OR_DESKTOP_PATTERN =
 	/^(?:\/Users\/[^/]+|\/home\/[^/]+|\/root)(?:\/Desktop)?$/;
 const WINDOWS_HOME_OR_DESKTOP_PATTERN =

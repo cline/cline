@@ -11,7 +11,7 @@ import {
 	Trash2,
 	Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -51,6 +51,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -355,7 +361,43 @@ export function RoutineSchedulesContent() {
 	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [busyScheduleId, setBusyScheduleId] = useState<string | null>(null);
+	// Sets rather than single ids: several rows can have in-flight actions at
+	// once, and one action finishing must not clear another row's busy state.
+	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
+		new Set(),
+	);
+	const [triggeringScheduleIds, setTriggeringScheduleIds] = useState<
+		ReadonlySet<string>
+	>(new Set());
+	// Ref mirrors busyScheduleIds so a second click on the same row is
+	// rejected synchronously — two rapid clicks can both fire before React
+	// re-renders the disabled state, and state alone can't distinguish them.
+	const busyScheduleIdsRef = useRef<Set<string>>(new Set());
+	const beginScheduleAction = (scheduleId: string): boolean => {
+		if (busyScheduleIdsRef.current.has(scheduleId)) {
+			return false;
+		}
+		busyScheduleIdsRef.current.add(scheduleId);
+		setBusyScheduleIds(new Set(busyScheduleIdsRef.current));
+		return true;
+	};
+	const endScheduleAction = (scheduleId: string) => {
+		busyScheduleIdsRef.current.delete(scheduleId);
+		setBusyScheduleIds(new Set(busyScheduleIdsRef.current));
+	};
+	const setScheduleTriggering = (scheduleId: string, triggering: boolean) => {
+		setTriggeringScheduleIds((previous) => {
+			const next = new Set(previous);
+			if (triggering) {
+				next.add(scheduleId);
+			} else {
+				next.delete(scheduleId);
+			}
+			return next;
+		});
+	};
+	const [viewingSchedule, setViewingSchedule] =
+		useState<RoutineSchedule | null>(null);
 	const [schedulePendingDelete, setSchedulePendingDelete] =
 		useState<RoutineSchedule | null>(null);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -613,7 +655,9 @@ export function RoutineSchedulesContent() {
 		schedule: RoutineSchedule,
 		enabled: boolean,
 	) => {
-		setBusyScheduleId(schedule.scheduleId);
+		if (!beginScheduleAction(schedule.scheduleId)) {
+			return;
+		}
 		setErrorMessage(null);
 		try {
 			if (enabled) {
@@ -630,16 +674,23 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setBusyScheduleId(null);
+			endScheduleAction(schedule.scheduleId);
 		}
 	};
 
-	const triggerSchedule = async (scheduleId: string) => {
-		setBusyScheduleId(scheduleId);
+	const triggerSchedule = async (schedule: RoutineSchedule) => {
+		if (!beginScheduleAction(schedule.scheduleId)) {
+			return;
+		}
+		setScheduleTriggering(schedule.scheduleId, true);
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("trigger_routine_schedule", {
-				schedule_id: scheduleId,
+				schedule_id: schedule.scheduleId,
+			});
+			toast({
+				title: "Run started",
+				description: `"${schedule.name}" was queued to run now.`,
 			});
 			await refreshSchedules({ force: true, showLoading: false });
 			window.setTimeout(() => {
@@ -648,13 +699,21 @@ export function RoutineSchedulesContent() {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
+			toast({
+				title: "Failed to start run",
+				description: message,
+				variant: "destructive",
+			});
 		} finally {
-			setBusyScheduleId(null);
+			endScheduleAction(schedule.scheduleId);
+			setScheduleTriggering(schedule.scheduleId, false);
 		}
 	};
 
 	const deleteSchedule = async (scheduleId: string) => {
-		setBusyScheduleId(scheduleId);
+		if (!beginScheduleAction(scheduleId)) {
+			return;
+		}
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("delete_routine_schedule", {
@@ -666,7 +725,7 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setBusyScheduleId(null);
+			endScheduleAction(scheduleId);
 		}
 	};
 
@@ -917,7 +976,7 @@ export function RoutineSchedulesContent() {
 			) : (
 				<div className="flex flex-col gap-3">
 					{sortedSchedules.map((schedule) => {
-						const isBusy = busyScheduleId === schedule.scheduleId;
+						const isBusy = busyScheduleIds.has(schedule.scheduleId);
 						const activeExecution = executionBySchedule.get(
 							schedule.scheduleId,
 						);
@@ -952,70 +1011,113 @@ export function RoutineSchedulesContent() {
 									</span>
 									<div className="flex-1" />
 									<div className="flex items-center gap-1">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`View ${schedule.name}`}
-											onClick={() => {
-												window.alert(JSON.stringify(schedule, null, 2));
-											}}
-										>
-											<Eye className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Edit ${schedule.name}`}
-											onClick={() => openEditDialog(schedule)}
-											disabled={isBusy}
-										>
-											<Pencil className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Run ${schedule.name} now`}
-											onClick={() => void triggerSchedule(schedule.scheduleId)}
-											disabled={isBusy}
-										>
-											<Zap className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={
-												schedule.enabled
-													? `Pause ${schedule.name}`
-													: `Resume ${schedule.name}`
-											}
-											onClick={() =>
-												void upsertScheduleEnabled(schedule, !schedule.enabled)
-											}
-											disabled={isBusy}
-										>
-											{schedule.enabled ? (
-												<Pause className="h-3.5 w-3.5" />
-											) : (
-												<Play className="h-3.5 w-3.5" />
-											)}
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Delete ${schedule.name}`}
-											onClick={() => setSchedulePendingDelete(schedule)}
-											disabled={isBusy}
-										>
-											<Trash2 className="h-3.5 w-3.5" />
-										</Button>
-										<Switch
-											checked={schedule.enabled}
-											onCheckedChange={(checked) =>
-												void upsertScheduleEnabled(schedule, checked)
-											}
-											disabled={isBusy}
-											aria-label={`Enable ${schedule.name}`}
-										/>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`View ${schedule.name}`}
+													onClick={() => setViewingSchedule(schedule)}
+												>
+													<Eye className="h-3.5 w-3.5" />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>View details</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Edit ${schedule.name}`}
+													onClick={() => openEditDialog(schedule)}
+													disabled={isBusy}
+												>
+													<Pencil className="h-3.5 w-3.5" />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Edit schedule</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Run ${schedule.name} now`}
+													onClick={() => void triggerSchedule(schedule)}
+													disabled={isBusy}
+												>
+													{triggeringScheduleIds.has(schedule.scheduleId) ? (
+														<RefreshCw className="h-3.5 w-3.5 animate-spin" />
+													) : (
+														<Zap className="h-3.5 w-3.5" />
+													)}
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Run now</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={
+														schedule.enabled
+															? `Pause ${schedule.name}`
+															: `Resume ${schedule.name}`
+													}
+													onClick={() =>
+														void upsertScheduleEnabled(
+															schedule,
+															!schedule.enabled,
+														)
+													}
+													disabled={isBusy}
+												>
+													{schedule.enabled ? (
+														<Pause className="h-3.5 w-3.5" />
+													) : (
+														<Play className="h-3.5 w-3.5" />
+													)}
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>
+												{schedule.enabled
+													? "Pause schedule"
+													: "Resume schedule"}
+											</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Delete ${schedule.name}`}
+													onClick={() => setSchedulePendingDelete(schedule)}
+													disabled={isBusy}
+												>
+													<Trash2 className="h-3.5 w-3.5" />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Delete schedule</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Switch
+													checked={schedule.enabled}
+													onCheckedChange={(checked) =>
+														void upsertScheduleEnabled(schedule, checked)
+													}
+													disabled={isBusy}
+													aria-label={`Enable ${schedule.name}`}
+												/>
+											</TooltipTrigger>
+											<TooltipContent>
+												{schedule.enabled
+													? "Enabled — click to disable"
+													: "Disabled — click to enable"}
+											</TooltipContent>
+										</Tooltip>
 									</div>
 								</div>
 
@@ -1095,6 +1197,58 @@ export function RoutineSchedulesContent() {
 					})}
 				</div>
 			)}
+			<Dialog
+				open={Boolean(viewingSchedule)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setViewingSchedule(null);
+					}
+				}}
+			>
+				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+					<DialogHeader>
+						<DialogTitle>{viewingSchedule?.name ?? "Schedule"}</DialogTitle>
+						<DialogDescription>
+							Full configuration for this schedule.
+						</DialogDescription>
+					</DialogHeader>
+					{viewingSchedule && (
+						<div className="flex flex-col gap-3">
+							<div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
+								<p>
+									<span className="text-muted-foreground/70">Cron:</span>{" "}
+									<span className="font-mono">
+										{viewingSchedule.cronPattern}
+									</span>
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Mode:</span>{" "}
+									{viewingSchedule.mode}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Model:</span>{" "}
+									{formatScheduleModel(viewingSchedule)}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Enabled:</span>{" "}
+									{viewingSchedule.enabled ? "yes" : "no"}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Last run:</span>{" "}
+									{formatDateTime(viewingSchedule.lastRunAt)}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Next run:</span>{" "}
+									{formatDateTime(viewingSchedule.nextRunAt)}
+								</p>
+							</div>
+							<pre className="max-h-80 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs">
+								{JSON.stringify(viewingSchedule, null, 2)}
+							</pre>
+						</div>
+					)}
+				</DialogContent>
+			</Dialog>
 			<AlertDialog
 				open={Boolean(schedulePendingDelete)}
 				onOpenChange={(open) => {
@@ -1115,7 +1269,7 @@ export function RoutineSchedulesContent() {
 						<AlertDialogCancel
 							disabled={
 								schedulePendingDelete
-									? busyScheduleId === schedulePendingDelete.scheduleId
+									? busyScheduleIds.has(schedulePendingDelete.scheduleId)
 									: false
 							}
 						>
@@ -1124,7 +1278,7 @@ export function RoutineSchedulesContent() {
 						<AlertDialogAction
 							disabled={
 								!schedulePendingDelete ||
-								busyScheduleId === schedulePendingDelete.scheduleId
+								busyScheduleIds.has(schedulePendingDelete.scheduleId)
 							}
 							onClick={() => {
 								if (schedulePendingDelete) {
