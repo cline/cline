@@ -43,6 +43,10 @@
 	--color-brand-magenta: var(--brand-magenta);
 	--color-brand-periwinkle: var(--brand-periwinkle);
 	--color-brand-cyan: var(--brand-cyan);
+	/*
+	 * The unlayered token entry points supply these runtime values. Keeping the
+	 * standard names here lets Tailwind utilities honor root or scoped overrides.
+	 */
 	--radius-sm: var(--radius-sm);
 	--radius-md: var(--radius-md);
 	--radius-lg: var(--radius-lg);

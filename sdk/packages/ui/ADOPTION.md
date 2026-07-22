@@ -64,7 +64,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
 | Theme only an embedded subtree | `@cline/ui/theme/scoped-tokens.css` | No | No |
-| Style Markdown without global base styles | A token entry point, then `@cline/ui/theme/markdown.css` | No | No |
+| Style Markdown without global base styles | A token entry point, then `@cline/ui/components/markdown.css` | No | No |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -233,16 +233,20 @@ Place deliberate scoped overrides after the package import:
 }
 ```
 
+`tokens.css` is the canonical source for both public token contracts.
+Contributors edit it and run `bun run generate:theme`; consumers should not
+edit or copy the generated `scoped-tokens.css` file.
+
 ## Add standalone Markdown styles
 
-`markdown.css` contains framework-neutral Markdown and Streamdown treatment,
-but it intentionally reads semantic typography, radius, border, and muted-color
-variables. Import it after either token entry and keep rendered Markdown inside
-that token scope:
+`components/markdown.css` contains optional, framework-neutral Markdown and
+Streamdown treatment, but it intentionally reads semantic typography, radius,
+border, and muted-color variables. Import it after either token entry and keep
+rendered Markdown inside that token scope:
 
 ```css
 @import "@cline/ui/theme/scoped-tokens.css";
-@import "@cline/ui/theme/markdown.css";
+@import "@cline/ui/components/markdown.css";
 ```
 
 ```tsx
@@ -516,6 +520,7 @@ Until the package has a stable version, contract changes should:
 - Include light/dark visual evidence when values change
 - Avoid renaming standard shadcn/Tailwind variables
 - Keep `tokens.css` framework-neutral
+- Keep `tokens.css` canonical and regenerate the scoped token output
 - Keep component props independent of product runtime schemas
 - Keep product-specific layout and orchestration out of the package
 
@@ -547,6 +552,7 @@ current product contracts should be compared before standardizing them.
 - [Package README](./README.md)
 - [Agent-chat components](./components/agent-chat/index.tsx)
 - [Agent-chat styles](./components/agent-chat/agent-chat.css)
+- [Markdown styles](./components/markdown.css)
 - [Tokens](./theme/tokens.css)
 - [Tailwind mappings](./theme/theme.css)
 - [Optional base styles](./theme/base.css)
