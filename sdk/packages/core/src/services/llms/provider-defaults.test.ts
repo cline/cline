@@ -480,6 +480,61 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 	});
 
+	it("falls back to OpenAI-compatible /v1/models when /model/info is forbidden for LiteLLM", async () => {
+		// LiteLLM virtual keys get 403 on /v1/model/info and /model/info
+		// (admin-only routes), but can reach the OpenAI-compatible /v1/models.
+		const forbidden = new Response('{"error":"forbidden"}', { status: 403 });
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(forbidden) // /v1/model/info x-litellm-api-key
+			.mockResolvedValueOnce(forbidden) // /v1/model/info Authorization
+			.mockResolvedValueOnce(forbidden) // /model/info x-litellm-api-key
+			.mockResolvedValueOnce(forbidden) // /model/info Authorization
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: [
+							{ id: "openai/gpt-4o-mini", object: "model", owned_by: "openai" },
+							{ id: "anthropic/claude-3-5-sonnet", object: "model" },
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/model/info",
+			"http://localhost:4000/model/info",
+			"http://localhost:4000/v1/models",
+		]);
+		// /v1/models returns only an id, so each model is registered by id
+		// without capability metadata or a separate display name.
+		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"anthropic/claude-3-5-sonnet",
+			"openai/gpt-4o-mini",
+		]);
+		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
+			expect.objectContaining({
+				id: "openai/gpt-4o-mini",
+				name: "openai/gpt-4o-mini",
+			}),
+		);
+	});
+
 	it("returns an empty authoritative LiteLLM model list without auth", async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);

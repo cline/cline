@@ -543,6 +543,17 @@ interface LiteLlmModelInfoResponse {
 	};
 }
 
+/**
+ * OpenAI-compatible `/v1/models` entry, as returned by LiteLLM's virtual-key
+ * accessible route. Only `id` is required; the rest are optional metadata
+ * that LiteLLM includes when it can.
+ */
+interface LiteLlmOpenAiModelEntry {
+	id?: string;
+	object?: string;
+	owned_by?: string;
+}
+
 function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
 	const normalized = normalizeBaseUrl(baseUrl).replace(/\/+$/, "");
 	if (!normalized) {
@@ -552,7 +563,17 @@ function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
 }
 
 function buildLiteLlmModelInfoUrls(baseUrl: string): string[] {
-	return [`${baseUrl}/v1/model/info`, `${baseUrl}/model/info`];
+	// LiteLLM's `/v1/model/info` and `/model/info` expose the rich
+	// `{ model_name, litellm_params, model_info }` payload, but they are
+	// admin-only routes: virtual keys (the recommended per-developer
+	// credential) get 403 by default. The OpenAI-compatible `/v1/models`
+	// route is virtual-key accessible, so it is tried last as a fallback
+	// to keep the richer payload when it is available.
+	return [
+		`${baseUrl}/v1/model/info`,
+		`${baseUrl}/model/info`,
+		`${baseUrl}/v1/models`,
+	];
 }
 
 async function describeLiteLlmHttpFailure(response: Response): Promise<string> {
@@ -590,18 +611,16 @@ async function fetchLiteLlmPrivateModels(
 
 				if (response.ok) {
 					const payload = (await response.json()) as {
-						data?: LiteLlmModelInfoResponse[];
+						data?: LiteLlmModelInfoResponse[] | LiteLlmOpenAiModelEntry[];
 					};
 					const entries = payload?.data ?? [];
 					const models: Record<string, ModelInfo> = {};
 					for (const model of entries) {
-						const displayName = model.model_name?.trim();
-						const actualModelId = model.litellm_params?.model?.trim();
-						const modelId = actualModelId || displayName;
-						if (!modelId) {
+						const parsed = parseLiteLlmModelEntry(model);
+						if (!parsed) {
 							continue;
 						}
-						const info = model.model_info;
+						const { modelId, displayName, info } = parsed;
 						const converted = buildModelFromPrivateSource(modelId, {
 							name: displayName ?? modelId,
 							maxTokens: info?.max_output_tokens ?? info?.max_tokens,
@@ -637,6 +656,40 @@ async function fetchLiteLlmPrivateModels(
 	throw new Error(
 		`LiteLLM model refresh failed. Attempts: ${failures.join("; ")}`,
 	);
+}
+
+/**
+ * Normalizes a single model entry from a LiteLLM model-list response into the
+ * rich shape, or `undefined` when the entry carries no usable identifier.
+ *
+ * LiteLLM's `/v1/model/info` and `/model/info` routes return entries with
+ * `model_name`, `litellm_params.model`, and `model_info`. The
+ * OpenAI-compatible `/v1/models` route (the only one virtual keys can reach
+ * by default) returns entries with just `id`, so capability metadata is
+ * unavailable there and is left undefined.
+ */
+function parseLiteLlmModelEntry(
+	model: LiteLlmModelInfoResponse | LiteLlmOpenAiModelEntry,
+):
+	| {
+			modelId: string;
+			displayName?: string;
+			info?: LiteLlmModelInfoResponse["model_info"];
+	  }
+	| undefined {
+	const litellmEntry = model as LiteLlmModelInfoResponse;
+	const displayName = litellmEntry.model_name?.trim();
+	const actualModelId = litellmEntry.litellm_params?.model?.trim();
+	if (actualModelId || displayName) {
+		return {
+			modelId: actualModelId || displayName!,
+			displayName,
+			info: litellmEntry.model_info,
+		};
+	}
+	// OpenAI-compatible `/v1/models` shape: only `id` is present.
+	const openAiId = (model as LiteLlmOpenAiModelEntry).id?.trim();
+	return openAiId ? { modelId: openAiId } : undefined;
 }
 
 type PrivateProviderModelFetcher = (
