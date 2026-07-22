@@ -8,6 +8,7 @@ import {
 	type LinkSafetyModalProps,
 	Streamdown,
 } from "streamdown";
+import { openExternalUrl } from "@/lib/desktop-client";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -115,6 +116,11 @@ function SafeMarkdownLink({
 	const confirmMiddleClick = (event: MouseEvent<HTMLAnchorElement>) => {
 		if (event.button === 1) openConfirmation(event);
 	};
+	// Streamdown's harden step only lets http(s), mailto, tel, and
+	// protocol-relative URLs reach this component, matching the sidecar's
+	// open_external_url allowlist. Protocol-relative URLs fail the sidecar's
+	// `new URL()` parse, so pin them to https before handing them off.
+	const externalUrl = url.startsWith("//") ? `https:${url}` : url;
 
 	return (
 		<>
@@ -134,8 +140,8 @@ function SafeMarkdownLink({
 			<MarkdownLinkSafetyModal
 				isOpen={isOpen}
 				onClose={() => setIsOpen(false)}
-				onConfirm={() => window.open(url, "_blank", "noreferrer")}
-				url={url}
+				onConfirm={() => void openExternalUrl(externalUrl)}
+				url={externalUrl}
 			/>
 		</>
 	);
