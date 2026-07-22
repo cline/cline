@@ -29,13 +29,16 @@ import {
 	type SettingsSection,
 	SettingsView,
 } from "@/components/views/settings/settings-view";
+import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
+import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -43,6 +46,7 @@ import {
 } from "@/lib/session-history";
 import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
+	filterWorkspacePaths,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -81,9 +85,15 @@ export default function Home() {
 		() => threads[0]?.id,
 	);
 
+	useAppUpdate();
+
 	useEffect(() => {
 		syncHubTheme();
 		return watchSystemHubTheme();
+	}, []);
+
+	useEffect(() => {
+		void syncDesktopWindowTitle();
 	}, []);
 
 	const handleNewThread = useCallback(() => {
@@ -219,63 +229,68 @@ export default function Home() {
 	);
 
 	return (
-		<SidebarProvider>
-			<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-				<Sidebar className="border-r border-sidebar-border" collapsible="icon">
-					<AgentSidebar
-						activeSessionId={activeHistorySessionId}
-						isHomeActive={
-							view === "chat" &&
-							!activeThread?.historySession &&
-							!activeThread?.hasStarted
-						}
-						onHome={handleHome}
-						onNewThread={handleNewThread}
-						onSettingsSectionChange={setSettingsSection}
-						sessionHistory={sessionHistory}
-						setView={setView}
-						settingsSection={settingsSection}
-						view={view}
-					/>
-					<SidebarRail />
-				</Sidebar>
-				<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-					<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
-					{view === "sessions" ? (
-						<SessionsView
+		<AccountProvider>
+			<SidebarProvider>
+				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+					<Sidebar
+						className="border-r border-sidebar-border"
+						collapsible="icon"
+					>
+						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
-							history={sessionHistory}
+							isHomeActive={
+								view === "chat" &&
+								!activeThread?.historySession &&
+								!activeThread?.hasStarted
+							}
+							onHome={handleHome}
+							onNewThread={handleNewThread}
+							onSettingsSectionChange={setSettingsSection}
+							sessionHistory={sessionHistory}
+							setView={setView}
+							settingsSection={settingsSection}
+							view={view}
 						/>
-					) : activeThread ? (
-						<div
-							aria-hidden={view === "settings" ? true : undefined}
-							className="flex min-h-0 flex-1 flex-col"
-							inert={view === "settings" ? true : undefined}
-						>
-							<ChatThreadPane
-								key={activeThread.id}
-								historySession={activeThread.historySession}
-								knownWorkspacePaths={historyWorkspacePaths}
-								onUpdateSessionMetadata={handleUpdateSessionMetadata}
-								threadId={activeThread.id}
-								onDeleteSession={handleDeleteSession}
-								onNewThread={handleNewThread}
-								onOpenSession={handleOpenSession}
-								onThreadStarted={handleThreadStarted}
+						<SidebarRail />
+					</Sidebar>
+					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+						<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
+						{view === "sessions" ? (
+							<SessionsView
+								activeSessionId={activeHistorySessionId}
+								history={sessionHistory}
 							/>
-						</div>
-					) : null}
-					{view === "settings" ? (
-						<div className="absolute inset-0 z-30 bg-background text-foreground">
-							<SettingsView
-								onNavigateSection={setSettingsSection}
-								section={settingsSection}
-							/>
-						</div>
-					) : null}
-				</SidebarInset>
-			</div>
-		</SidebarProvider>
+						) : activeThread ? (
+							<div
+								aria-hidden={view === "settings" ? true : undefined}
+								className="flex min-h-0 flex-1 flex-col"
+								inert={view === "settings" ? true : undefined}
+							>
+								<ChatThreadPane
+									key={activeThread.id}
+									historySession={activeThread.historySession}
+									knownWorkspacePaths={historyWorkspacePaths}
+									onUpdateSessionMetadata={handleUpdateSessionMetadata}
+									threadId={activeThread.id}
+									onDeleteSession={handleDeleteSession}
+									onNewThread={handleNewThread}
+									onOpenSession={handleOpenSession}
+									onThreadStarted={handleThreadStarted}
+								/>
+							</div>
+						) : null}
+						{view === "settings" ? (
+							<div className="absolute inset-0 z-30 bg-background text-foreground">
+								<SettingsView
+									onNavigateSection={setSettingsSection}
+									section={settingsSection}
+								/>
+							</div>
+						) : null}
+					</SidebarInset>
+				</div>
+			</SidebarProvider>
+		</AccountProvider>
 	);
 }
 
@@ -345,10 +360,14 @@ function ChatThreadPane({
 		Record<string, { apiKey: string }>
 	>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
+	// History paths lead each merge: they are ordered by session recency, so
+	// stored or stale entries only append after them.
 	const [workspaces, setWorkspaces] = useState<string[]>(() =>
-		mergeWorkspacePaths(
-			readWorkspaceSelectionFromWindow().workspaces,
-			knownWorkspacePaths,
+		filterWorkspacePaths(
+			mergeWorkspacePaths(
+				knownWorkspacePaths,
+				readWorkspaceSelectionFromWindow().workspaces,
+			),
 		),
 	);
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
@@ -366,7 +385,9 @@ function ChatThreadPane({
 
 	useEffect(() => {
 		setWorkspaces((current) => {
-			const merged = mergeWorkspacePaths(current, knownWorkspacePaths);
+			const merged = filterWorkspacePaths(
+				mergeWorkspacePaths(knownWorkspacePaths, current),
+			);
 			return current.length === merged.length &&
 				current.every((workspace, index) => workspace === merged[index])
 				? current
@@ -508,7 +529,12 @@ function ChatThreadPane({
 				workspaceRef.current.cwd ||
 				""
 			).trim();
-			return mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]);
+			// The active workspace can be an excluded path (restored session,
+			// process cwd fallback); it renders via its own registration in the
+			// selector and welcome screen instead of joining the catalog.
+			return filterWorkspacePaths(
+				mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]),
+			);
 		},
 		[knownWorkspacePaths],
 	);
@@ -518,7 +544,7 @@ function ChatThreadPane({
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
 				setWorkspaces((current) => {
-					const merged = mergeWorkspacePaths(current, results);
+					const merged = mergeWorkspacePaths(results, current);
 					return current.length === merged.length &&
 						current.every((workspace, index) => workspace === merged[index])
 						? current
@@ -562,7 +588,9 @@ function ChatThreadPane({
 				workspaceRoot: nextWorkspace,
 				cwd: nextWorkspace,
 			}));
-			setWorkspaces((prev) => mergeWorkspacePaths(prev, [nextWorkspace]));
+			setWorkspaces((prev) =>
+				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
+			);
 
 			// Fire git branch + workspace list refresh in the background
 			desktopClient
@@ -1079,6 +1107,7 @@ function ChatThreadPane({
 					body={
 						showDiffView ? (
 							<DiffView
+								cwd={config.cwd || config.workspaceRoot}
 								fileDiffs={fileDiffs}
 								onClose={() => setShowDiffView(false)}
 							/>
@@ -1104,7 +1133,10 @@ function ChatThreadPane({
 						)
 					}
 					composer={composer}
+					gitBranch={gitBranch}
+					onListGitBranches={listGitBranches}
 					onStartChat={setPromptInput}
+					onSwitchGitBranch={switchGitBranch}
 					quickActions={[]}
 				/>
 			</div>

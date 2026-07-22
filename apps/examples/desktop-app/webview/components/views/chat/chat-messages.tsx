@@ -92,6 +92,29 @@ type AskQuestionRequestItem = {
 	};
 };
 
+type ChatRenderItem =
+	| { type: "message"; message: ChatMessage }
+	| { type: "tools"; messages: ChatMessage[] };
+
+function groupConsecutiveToolMessages(
+	messages: ChatMessage[],
+): ChatRenderItem[] {
+	const items: ChatRenderItem[] = [];
+	for (const message of messages) {
+		const previous = items.at(-1);
+		if (message.role === "tool") {
+			if (previous?.type === "tools") {
+				previous.messages.push(message);
+			} else {
+				items.push({ type: "tools", messages: [message] });
+			}
+			continue;
+		}
+		items.push({ type: "message", message });
+	}
+	return items;
+}
+
 const IS_DEBUG = process.env.NODE_ENV === "test";
 
 function ChatMessagesImpl({
@@ -116,6 +139,18 @@ function ChatMessagesImpl({
 		.find((message) => message.role === "error");
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+	// Core reports "running" as soon as the turn is dispatched, well before the
+	// first streamed chunk arrives, so keep the thinking indicator up until the
+	// model produces output (or something else needs the user's attention).
+	const lastConversationMessage = [...messages]
+		.reverse()
+		.find((message) => message.role !== "status");
+	const isAwaitingFirstOutput =
+		status === "running" &&
+		!streamingMessageId &&
+		lastConversationMessage?.role === "user" &&
+		pendingToolApprovals.length === 0 &&
+		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
 	const [toolApprovalActions, setToolApprovalActions] = useState<
 		Record<string, "approving" | "rejecting">
@@ -364,36 +399,47 @@ function ChatMessagesImpl({
 									requestErrors={askQuestionErrors}
 								/>
 							) : null}
-							{messages.map((message) => (
-								<MessageBubble
-									isStreaming={streamingMessageId === message.id}
-									key={message.id}
-									message={message}
-									onCopyRawText={() =>
-										void handleCopyMessage(message.id, message.content)
-									}
-									onRestoreCheckpoint={(runCount) =>
-										void handleRestoreCheckpoint(message.id, runCount)
-									}
-									restoreDisabled={
-										!onRestoreCheckpoint ||
-										status === "starting" ||
-										status === "running" ||
-										status === "stopping" ||
-										isSessionSwitching
-									}
-									restoreError={checkpointErrors[message.id]}
-									restorePending={checkpointActions[message.id] === "undoing"}
-									wasCopied={copiedMessageId === message.id}
-									onForkSession={
-										onForkSession
-											? () => void handleForkSession(message.id)
-											: undefined
-									}
-									forkPending={forkingMessageId === message.id}
-									forkError={forkErrors[message.id]}
-								/>
-							))}
+							{groupConsecutiveToolMessages(messages).map((item) => {
+								if (item.type === "tools") {
+									return (
+										<ToolMessageBlock
+											key={`tools_${item.messages[0]?.id ?? "empty"}`}
+											messages={item.messages}
+										/>
+									);
+								}
+								const { message } = item;
+								return (
+									<MessageBubble
+										isStreaming={streamingMessageId === message.id}
+										key={message.id}
+										message={message}
+										onCopyRawText={() =>
+											void handleCopyMessage(message.id, message.content)
+										}
+										onRestoreCheckpoint={(runCount) =>
+											void handleRestoreCheckpoint(message.id, runCount)
+										}
+										restoreDisabled={
+											!onRestoreCheckpoint ||
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching
+										}
+										restoreError={checkpointErrors[message.id]}
+										restorePending={checkpointActions[message.id] === "undoing"}
+										wasCopied={copiedMessageId === message.id}
+										onForkSession={
+											onForkSession
+												? () => void handleForkSession(message.id)
+												: undefined
+										}
+										forkPending={forkingMessageId === message.id}
+										forkError={forkErrors[message.id]}
+									/>
+								);
+							})}
 						</div>
 					)}
 					{showSwitchTransition ? (
@@ -418,7 +464,8 @@ function ChatMessagesImpl({
 							</div>
 						)
 					) : null}
-					{status === "starting" && !isSessionSwitching ? (
+					{(status === "starting" || isAwaitingFirstOutput) &&
+					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
 							Thinking...
@@ -668,24 +715,21 @@ function MessageBubble({
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
+	const displayContent = formatChatMessageContent(
+		message.role,
+		message.content,
+	);
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&
 		!isStreaming &&
 		!isError &&
+		Boolean(displayContent.trim()) &&
 		Boolean(onCopyRawText || onForkSession);
 	const shouldRenderUserActions =
 		isUser && Boolean(onCopyRawText || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
 	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
 
-	if (message.role === "tool") {
-		return <ToolMessageBlock message={message} />;
-	}
-
-	const displayContent = formatChatMessageContent(
-		message.role,
-		message.content,
-	);
 	const reasoningContent = message.reasoning?.trim() || "";
 
 	return (
@@ -822,6 +866,13 @@ type ToolPayload = {
 type ToolSummary = {
 	label: string;
 	details: string[];
+	aggregate?: {
+		key: string;
+		count: number;
+		noun: string;
+		completedVerb: string;
+		progressVerb: string;
+	};
 	diff?: {
 		additions: number;
 		deletions: number;
@@ -921,7 +972,10 @@ function classifyTool(
 	)
 		return "file-edit";
 	if (["bash", "run_commands"].includes(normalized)) return "bash";
-	if (["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized))
+	if (
+		["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized) ||
+		normalized.startsWith("subagent_")
+	)
 		return "spawn";
 	return "tool";
 }
@@ -1038,6 +1092,13 @@ function buildToolSummary(
 		if (files.length > 0) {
 			return {
 				label: `${inProgress ? "Reading" : "Read"} ${pluralize(files.length, "file")}`,
+				aggregate: {
+					key: "read-files",
+					count: files.length,
+					noun: "file",
+					completedVerb: "Read",
+					progressVerb: "Reading",
+				},
 				details: files.map(
 					(file) => `${inProgress ? "Reading" : "Read"} ${toDisplayPath(file)}`,
 				),
@@ -1050,6 +1111,13 @@ function buildToolSummary(
 		if (queries.length > 0) {
 			return {
 				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(queries.length, "search")}`,
+				aggregate: {
+					key: "searches",
+					count: queries.length,
+					noun: "search",
+					completedVerb: "Explored",
+					progressVerb: "Exploring",
+				},
 				details: queries.map((query) => query),
 			};
 		}
@@ -1060,6 +1128,13 @@ function buildToolSummary(
 		if (commands.length > 0) {
 			return {
 				label: `${inProgress ? "Running" : "Ran"} ${pluralize(commands.length, "command")}`,
+				aggregate: {
+					key: "commands",
+					count: commands.length,
+					noun: "command",
+					completedVerb: "Ran",
+					progressVerb: "Running",
+				},
 				details: commands.map((command) => command.trim()),
 			};
 		}
@@ -1080,6 +1155,13 @@ function buildToolSummary(
 		if (urls.length > 0) {
 			return {
 				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(urls.length, "link")}`,
+				aggregate: {
+					key: "links",
+					count: urls.length,
+					noun: "link",
+					completedVerb: "Explored",
+					progressVerb: "Exploring",
+				},
 				details: urls.map(
 					(url) => `${inProgress ? "Fetching" : "Fetched"} ${url}`,
 				),
@@ -1100,6 +1182,13 @@ function buildToolSummary(
 			const deletions = fileDiffs.reduce((sum, d) => sum + d.deletions, 0);
 			return {
 				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")}`,
+				aggregate: {
+					key: "edited-files",
+					count: fileDiffs.length,
+					noun: "file",
+					completedVerb: "Edited",
+					progressVerb: "Editing",
+				},
 				diff: { additions, deletions },
 				details: fileDiffs.map(
 					(d) =>
@@ -1147,18 +1236,30 @@ function buildToolSummary(
 						: "Edited";
 		// The label already carries all the information; no expandable details.
 		const detail = `${action} ${path}`;
+		const aggregate = {
+			key: "edited-files",
+			count: 1,
+			noun: "file",
+			completedVerb: "Edited",
+			progressVerb: "Editing",
+		};
 		if (diff) {
-			return { label: detail, diff, details: [] };
+			return { label: detail, aggregate, diff, details: [] };
 		}
-		return { label: detail, details: [] };
+		return { label: detail, aggregate, details: [] };
 	}
 
 	const query =
 		typeof asRecord(result)?.query === "string"
 			? (asRecord(result)?.query as string)
 			: "";
+	const displayToolName = normalized.startsWith("subagent_")
+		? "spawn_agent"
+		: toolName;
 	const fallback =
-		query || (inProgress ? `Running ${toolName}` : toolName) || "Tool";
+		query ||
+		(inProgress ? `Running ${displayToolName}` : displayToolName) ||
+		"Tool";
 	return { label: fallback, details: [fallback] };
 }
 
@@ -1188,7 +1289,16 @@ function buildToolSummaryFromMeta(
 	return { label: inProgress ? `Running ${toolName}` : toolName, details: [] };
 }
 
-function ToolMessageBlock({ message }: { message: ChatMessage }) {
+type ToolPresentation = {
+	message: ChatMessage;
+	payload: ToolPayload | null;
+	toolName: string;
+	kind: ReturnType<typeof classifyTool>;
+	inProgress: boolean;
+	summary: ToolSummary;
+};
+
+function buildToolPresentation(message: ChatMessage): ToolPresentation {
 	const payload = parseToolPayload(message.content);
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
 	const hookEventName = message.meta?.hookEventName;
@@ -1197,8 +1307,77 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
 	const kind = classifyTool(toolName);
-	const isFileRead = ["read_files", "file_read", "file-read"].includes(
-		toolName.toLowerCase(),
+	const summary = payload
+		? buildToolSummary(toolName, payload.input, payload.result, inProgress)
+		: buildToolSummaryFromMeta(toolName, kind, inProgress);
+	return { message, payload, toolName, kind, inProgress, summary };
+}
+
+function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
+	if (presentations.length === 1) {
+		return presentations[0]?.summary.label ?? "Tool";
+	}
+
+	type Segment =
+		| { type: "label"; label: string }
+		| {
+				type: "aggregate";
+				aggregate: NonNullable<ToolSummary["aggregate"]> & {
+					inProgress: boolean;
+				};
+		  };
+	const segments: Segment[] = [];
+	for (const presentation of presentations) {
+		const aggregate = presentation.summary.aggregate;
+		if (!aggregate) {
+			segments.push({ type: "label", label: presentation.summary.label });
+			continue;
+		}
+
+		const previous = segments.at(-1);
+		if (
+			previous?.type === "aggregate" &&
+			previous.aggregate.key === aggregate.key
+		) {
+			segments[segments.length - 1] = {
+				type: "aggregate",
+				aggregate: {
+					...previous.aggregate,
+					count: previous.aggregate.count + aggregate.count,
+					inProgress: previous.aggregate.inProgress || presentation.inProgress,
+				},
+			};
+			continue;
+		}
+
+		segments.push({
+			type: "aggregate",
+			aggregate: { ...aggregate, inProgress: presentation.inProgress },
+		});
+	}
+
+	return segments
+		.map((segment) => {
+			if (segment.type === "label") return segment.label;
+			const { aggregate } = segment;
+			const verb = aggregate.inProgress
+				? aggregate.progressVerb
+				: aggregate.completedVerb;
+			return `${verb} ${pluralize(aggregate.count, aggregate.noun)}`;
+		})
+		.join(". ");
+}
+
+function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
+	const presentations = messages.map(buildToolPresentation);
+	const first = presentations[0];
+	if (!first) return null;
+	const hasError = presentations.some(({ payload }) => payload?.isError);
+	const isRunning = presentations.some(({ inProgress }) => inProgress);
+	const kinds = new Set(presentations.map(({ kind }) => kind));
+	const kind = kinds.size === 1 ? first.kind : "tool";
+	const isFileRead = presentations.every(({ toolName }) =>
+		["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
 	);
 	const Icon = isFileRead
 		? FileIcon
@@ -1211,58 +1390,77 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 					: kind === "spawn"
 						? Bot
 						: FileSearch;
-	const summary = payload
-		? buildToolSummary(toolName, payload.input, payload.result, inProgress)
-		: buildToolSummaryFromMeta(toolName, kind, inProgress);
-	const details = summary.details;
-	const inputPreview =
-		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
-	const resultPreview = payload?.isError ? formatToolValue(payload.result) : "";
+	const details = presentations.flatMap(({ message, summary }) =>
+		summary.details.map((detail) => ({
+			detail,
+			key: `${message.id}_${detail}`,
+		})),
+	);
+	const inputPreviews = IS_DEBUG
+		? presentations
+				.map(({ message, payload, toolName }) => ({
+					key: message.id,
+					toolName,
+					value: payload ? formatToolValue(payload.input) : "",
+				}))
+				.filter(({ value }) => Boolean(value))
+		: [];
+	const resultPreviews = presentations
+		.map(({ message, payload, toolName }) => ({
+			key: message.id,
+			toolName,
+			value: payload?.isError ? formatToolValue(payload.result) : "",
+		}))
+		.filter(({ value }) => Boolean(value));
 	const hasExpandedSections =
-		details.length > 0 || Boolean(inputPreview || resultPreview);
+		details.length > 0 || inputPreviews.length > 0 || resultPreviews.length > 0;
+	const diff = presentations.reduce(
+		(total, { summary }) => ({
+			additions: total.additions + (summary.diff?.additions ?? 0),
+			deletions: total.deletions + (summary.diff?.deletions ?? 0),
+		}),
+		{ additions: 0, deletions: 0 },
+	);
 
 	return (
 		<ToolActivity expandable={hasExpandedSections}>
 			<ToolActivityTrigger
-				additions={summary.diff?.additions}
-				deletions={summary.diff?.deletions}
+				additions={diff.additions || undefined}
+				deletions={diff.deletions || undefined}
 				icon={
-					payload?.isError ? (
+					hasError ? (
 						<AlertCircle className="size-4 text-destructive/80" />
 					) : (
 						<Icon className="size-4" />
 					)
 				}
-				label={summary.label}
-				status={payload?.isError ? "error" : inProgress ? "running" : "success"}
+				label={buildGroupedToolLabel(presentations)}
+				status={hasError ? "error" : isRunning ? "running" : "success"}
 			/>
 			<ToolActivityContent>
 				{details.length > 0 ? (
 					<ToolActivityDetails>
-						{details.map((detail) => (
-							<div key={`${message.id}_${detail}`}>{detail}</div>
+						{details.map(({ detail, key }) => (
+							<div key={key}>{detail}</div>
 						))}
 					</ToolActivityDetails>
 				) : null}
-				{inputPreview ? (
-					<div className="space-y-1">
+				{inputPreviews.map((preview) => (
+					<div className="space-y-1" key={`input_${preview.key}`}>
 						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-							Input
+							{presentations.length > 1 ? `${preview.toolName} input` : "Input"}
 						</div>
 						<ToolActivityCode className="text-sm">
-							{inputPreview}
+							{preview.value}
 						</ToolActivityCode>
 					</div>
-				) : null}
-				{resultPreview ? (
-					payload?.isError ? (
-						<div className="mt-1 text-destructive">{resultPreview}</div>
-					) : (
-						<ToolActivityCode className="max-h-64 text-sm">
-							{resultPreview}
-						</ToolActivityCode>
-					)
-				) : null}
+				))}
+				{resultPreviews.map((preview) => (
+					<div className="mt-1 text-destructive" key={`result_${preview.key}`}>
+						{presentations.length > 1 ? `${preview.toolName}: ` : null}
+						{preview.value}
+					</div>
+				))}
 			</ToolActivityContent>
 		</ToolActivity>
 	);

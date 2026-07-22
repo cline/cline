@@ -766,27 +766,7 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
-	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
-		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
-			if (key === "useAutoCondense") {
-				return true
-			}
-			if (key === "subagentsEnabled") {
-				return false
-			}
-			return undefined
-		})
-
-		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-
-		expect(config.compaction).toEqual({
-			enabled: true,
-			strategy: "basic",
-		})
-	})
-
-	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "agentic" })
+	it("enables agentic SDK compaction when global useAutoCondense is true", async () => {
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -805,8 +785,8 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
-	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "basic" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -822,6 +802,26 @@ describe("buildSessionConfig", () => {
 		expect(config.compaction).toEqual({
 			enabled: true,
 			strategy: "basic",
+		})
+	})
+
+	it("falls back to agentic SDK compaction for an invalid stored strategy", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
 		})
 	})
 
@@ -859,7 +859,7 @@ describe("buildSessionConfig", () => {
 		expect(disabledConfig.compaction).toBeUndefined()
 		expect(enabledConfig.compaction).toEqual({
 			enabled: true,
-			strategy: "basic",
+			strategy: "agentic",
 		})
 	})
 
