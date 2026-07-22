@@ -33,6 +33,7 @@ import {
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -85,6 +86,8 @@ export default function Home() {
 	const [activeThreadId, setActiveThreadId] = useState<string>(
 		() => threads[0]?.id,
 	);
+
+	useAppUpdate();
 
 	useEffect(() => {
 		syncHubTheme();
@@ -1110,6 +1113,7 @@ function ChatThreadPane({
 					body={
 						showDiffView ? (
 							<DiffView
+								cwd={config.cwd || config.workspaceRoot}
 								fileDiffs={fileDiffs}
 								onClose={() => setShowDiffView(false)}
 							/>
