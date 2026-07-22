@@ -1,6 +1,10 @@
+import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
+import { resetOnboarding } from "@/lib/onboarding";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -535,6 +539,14 @@ function GeneralSettingsContent() {
 		setTheme(setStoredHubTheme(nextTheme));
 	};
 
+	const replayOnboarding = () => {
+		resetOnboarding();
+		toast({
+			title: "New user experience reset",
+			description: "Cline will show the first-run experience again.",
+		});
+	};
+
 	return (
 		<PageFrame>
 			<PageHeader
@@ -598,6 +610,26 @@ function GeneralSettingsContent() {
 						disabled={telemetryLoading || telemetrySaving}
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							New user experience
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Replay the first-run experience new users see when they open Cline
+							for the first time.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={replayOnboarding}
+						type="button"
+						variant="outline"
+					>
+						<RotateCcw className="size-3.5" />
+						Replay
+					</Button>
 				</div>
 			</section>
 		</PageFrame>
