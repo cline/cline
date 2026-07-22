@@ -1,5 +1,9 @@
 # Cline Code Desktop Changelog
 
+## 0.0.3
+
+- The reasoning section in the chat transcript now reads simply "Thinking" — dropped the redundant status text and brain icon.
+
 ## 0.0.2
 
 - First public release of Cline Code for macOS: a desktop app for running and inspecting Cline agent sessions, signed and notarized for Apple Silicon and Intel.
