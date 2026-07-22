@@ -46,7 +46,7 @@ export function sanitizeMcpDiagnosticText(message: string): string {
 		)
 		.replace(/\b(Cookie|Set-Cookie)["']?\s*[:=]\s*[^\r\n]+/gi, "$1: [REDACTED]")
 		.replace(
-			/(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?token|auth[_-]?token|client[_-]?secret|code[_-]?verifier|authorization[_-]?code|oauth[_-]?state|api[_-]?key|password|passwd|secret|token|state|code)["']?\s*[:=]\s*)("(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^"',;}\r\n]+)/gi,
+			/(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?token|auth[_-]?token|client[_-]?secret|code[_-]?verifier|authorization[_-]?code|oauth[_-]?state|api[_-]?key|password|passwd|secret|token)["']?\s*[:=]\s*)("(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^"',;}\r\n]+)/gi,
 			(_match, prefix: string, value: string) => {
 				const quote = value[0];
 				return quote === '"' || quote === "'"

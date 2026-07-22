@@ -321,9 +321,20 @@ describe("disk - atomic writes", () => {
 		}
 	})
 
+	it.skipIf(process.platform === "win32")("skips chmod when settings permissions are already private", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "already-private-mcp-settings")
+		await getMcpSettingsFilePath(settingsDir)
+		const chmod = sandbox.spy(fs, "chmod")
+
+		await getMcpSettingsFilePath(settingsDir)
+
+		chmod.notCalled.should.equal(true)
+	})
+
 	it.skipIf(process.platform === "win32")("warns and continues when permission repair fails", async () => {
 		const warn = sandbox.stub(Logger, "warn")
 		const permissionError = Object.assign(new Error("permission denied"), { code: "EACCES" })
+		await fs.chmod(path.join(testGlobalStorageDir, "settings"), 0o755)
 		sandbox.stub(fs, "chmod").rejects(permissionError)
 
 		const created = await ensureSettingsDirectoryExists()

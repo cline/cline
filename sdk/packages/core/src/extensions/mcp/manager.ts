@@ -27,12 +27,67 @@ function nowMs(): number {
 	return Date.now();
 }
 
+function sanitizeErrorInPlace(error: Error, seen: Set<Error>): boolean {
+	if (seen.has(error)) {
+		return true;
+	}
+	seen.add(error);
+
+	const sanitizedMessage = sanitizeMcpDiagnosticText(error.message);
+	if (error.message !== sanitizedMessage) {
+		try {
+			error.message = sanitizedMessage;
+		} catch {
+			return false;
+		}
+		if (error.message !== sanitizedMessage) {
+			return false;
+		}
+	}
+
+	if (typeof error.stack === "string") {
+		const sanitizedStack = sanitizeMcpDiagnosticText(error.stack);
+		if (error.stack !== sanitizedStack) {
+			try {
+				error.stack = sanitizedStack;
+			} catch {
+				return false;
+			}
+			if (error.stack !== sanitizedStack) {
+				return false;
+			}
+		}
+	}
+
+	if (error.cause instanceof Error) {
+		if (!sanitizeErrorInPlace(error.cause, seen)) {
+			return false;
+		}
+	} else if (typeof error.cause === "string") {
+		const sanitizedCause = sanitizeMcpDiagnosticText(error.cause);
+		if (error.cause !== sanitizedCause) {
+			try {
+				error.cause = sanitizedCause;
+			} catch {
+				return false;
+			}
+			if (error.cause !== sanitizedCause) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 function sanitizeMcpError(error: unknown): Error {
-	return new Error(
-		sanitizeMcpDiagnosticText(
-			error instanceof Error ? error.message : String(error),
-		),
-	);
+	if (error instanceof Error) {
+		if (sanitizeErrorInPlace(error, new Set())) {
+			return error;
+		}
+		return new Error(sanitizeMcpDiagnosticText(error.message));
+	}
+	return new Error(sanitizeMcpDiagnosticText(String(error)));
 }
 
 function cloneTools(

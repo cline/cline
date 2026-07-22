@@ -63,6 +63,27 @@ describe("mcp config loader", () => {
 	});
 
 	it.skipIf(process.platform === "win32")(
+		"does not warn when the settings path has a non-directory ancestor",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const notDirectory = join(tempRoot, "not-a-directory");
+			await writeFile(notDirectory, "not a directory", "utf8");
+			const filePath = join(notDirectory, "cline_mcp_settings.json");
+			const emitWarning = vi
+				.spyOn(process, "emitWarning")
+				.mockImplementation(() => {});
+
+			try {
+				expect(() => loadMcpSettingsFile({ filePath })).toThrow();
+				expect(emitWarning).not.toHaveBeenCalled();
+			} finally {
+				emitWarning.mockRestore();
+			}
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
 		"checks for a settings file without changing its permissions",
 		async () => {
 			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
@@ -80,7 +101,7 @@ describe("mcp config loader", () => {
 	);
 
 	it.skipIf(process.platform === "win32")(
-		"hardens an existing settings file when it is read",
+		"hardens an existing settings file without changing its parent permissions",
 		async () => {
 			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 			tempRoots.push(tempRoot);
@@ -96,8 +117,43 @@ describe("mcp config loader", () => {
 
 			loadMcpSettingsFile({ filePath: nestedFilePath });
 
-			expect(statSync(settingsDir).mode & 0o777).toBe(0o700);
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o755);
 			expect(statSync(nestedFilePath).mode & 0o777).toBe(0o600);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"does not change metadata when settings permissions are already private",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const filePath = join(tempRoot, "cline_mcp_settings.json");
+			await writeFile(filePath, JSON.stringify({ mcpServers: {} }), "utf8");
+			chmodSync(filePath, 0o600);
+			const before = statSync(filePath, { bigint: true }).ctimeNs;
+
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			loadMcpSettingsFile({ filePath });
+
+			expect(statSync(filePath, { bigint: true }).ctimeNs).toBe(before);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"writes settings without changing existing parent permissions",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const sharedDir = join(tempRoot, "shared");
+			mkdirSync(sharedDir, { mode: 0o755 });
+			const filePath = join(sharedDir, "cline_mcp_settings.json");
+
+			updateMcpSettingsFileSync(filePath, (settings) => {
+				settings.mcpServers = {};
+			});
+
+			expect(statSync(sharedDir).mode & 0o777).toBe(0o755);
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
 		},
 	);
 

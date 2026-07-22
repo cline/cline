@@ -27,8 +27,8 @@ describe("sanitizeMcpDiagnosticText", () => {
 			'{"Authorization":"Bearer header-secret","status":401}',
 			'{"Authorization":"[REDACTED]","status":401}',
 		],
-		["state=oauth-state", "state=[REDACTED]"],
-		["code: authorization-code", "code: [REDACTED]"],
+		["oauth_state=oauth-state", "oauth_state=[REDACTED]"],
+		["authorization_code: oauth-code", "authorization_code: [REDACTED]"],
 		["session_token=session-secret", "session_token=[REDACTED]"],
 		["Cookie: session=secret; tenant=acme", "Cookie: [REDACTED]"],
 		[
@@ -58,6 +58,14 @@ describe("sanitizeMcpDiagnosticText", () => {
 		).toBe("https://mcp.example.com/connect#[REDACTED]");
 	});
 
+	it("is idempotent when diagnostics cross multiple boundaries", () => {
+		const input =
+			"Request https://alice:password@mcp.example.com/connect?state=secret failed with Bearer bearer-secret password=hunter2";
+		const sanitized = sanitizeMcpDiagnosticText(input);
+
+		expect(sanitizeMcpDiagnosticText(sanitized)).toBe(sanitized);
+	});
+
 	it("preserves non-sensitive diagnostic context", () => {
 		expect(
 			sanitizeMcpDiagnosticText(
@@ -68,6 +76,15 @@ describe("sanitizeMcpDiagnosticText", () => {
 		);
 		expect(sanitizeMcpDiagnosticText("Basic authentication failed")).toBe(
 			"Basic authentication failed",
+		);
+		expect(sanitizeMcpDiagnosticText("HTTP error code: 404")).toBe(
+			"HTTP error code: 404",
+		);
+		expect(sanitizeMcpDiagnosticText("Process exited with code: 1")).toBe(
+			"Process exited with code: 1",
+		);
+		expect(sanitizeMcpDiagnosticText("connection state: disconnected")).toBe(
+			"connection state: disconnected",
 		);
 	});
 });

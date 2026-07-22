@@ -136,10 +136,12 @@ async function repairPrivatePermissions(targetPath: string, mode: number): Promi
 		return
 	}
 	try {
-		await fs.chmod(targetPath, mode)
+		if (((await fs.stat(targetPath)).mode & 0o7777) !== mode) {
+			await fs.chmod(targetPath, mode)
+		}
 	} catch (error) {
 		const fsError = error as NodeJS.ErrnoException
-		if (fsError?.code === "ENOENT") {
+		if (fsError?.code === "ENOENT" || fsError?.code === "ENOTDIR") {
 			return
 		}
 		const details = fsError?.code ?? (error instanceof Error ? error.message : String(error))

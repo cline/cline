@@ -70,7 +70,9 @@ function ensurePrivateSettingsDirectory(directoryPath: string): void {
 	mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
 	if (process.platform !== "win32") {
 		try {
-			chmodSync(directoryPath, 0o700)
+			if ((statSync(directoryPath).mode & 0o7777) !== 0o700) {
+				chmodSync(directoryPath, 0o700)
+			}
 		} catch (error) {
 			warnPermissionRepairFailure(directoryPath, 0o700, error)
 		}
@@ -79,7 +81,7 @@ function ensurePrivateSettingsDirectory(directoryPath: string): void {
 
 function warnPermissionRepairFailure(targetPath: string, mode: number, error: unknown): void {
 	const fsError = error as NodeJS.ErrnoException
-	if (fsError?.code === "ENOENT") {
+	if (fsError?.code === "ENOENT" || fsError?.code === "ENOTDIR") {
 		return
 	}
 	const details = fsError?.code ?? (error instanceof Error ? error.message : String(error))
@@ -91,7 +93,9 @@ function hardenExistingSettingsFile(settingsPath: string): void {
 		return
 	}
 	try {
-		chmodSync(settingsPath, 0o600)
+		if ((statSync(settingsPath).mode & 0o7777) !== 0o600) {
+			chmodSync(settingsPath, 0o600)
+		}
 	} catch (error) {
 		warnPermissionRepairFailure(settingsPath, 0o600, error)
 	}

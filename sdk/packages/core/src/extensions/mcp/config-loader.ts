@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { sanitizeMcpDiagnosticText, type BasicLogger } from "@cline/shared";
+import { type BasicLogger, sanitizeMcpDiagnosticText } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import type {
@@ -234,8 +234,13 @@ export function resolveDefaultMcpSettingsPath(): string {
 }
 
 function ensurePrivateSettingsDirectory(directoryPath: string): void {
-	mkdirSync(directoryPath, { recursive: true, mode: 0o700 });
-	hardenExistingSettingsDirectory(directoryPath);
+	const createdPath = mkdirSync(directoryPath, {
+		recursive: true,
+		mode: 0o700,
+	});
+	if (createdPath !== undefined) {
+		hardenExistingSettingsDirectory(directoryPath);
+	}
 }
 
 function warnPermissionRepairFailure(
@@ -244,7 +249,7 @@ function warnPermissionRepairFailure(
 	error: unknown,
 ): void {
 	const fsError = error as NodeJS.ErrnoException;
-	if (fsError?.code === "ENOENT") {
+	if (fsError?.code === "ENOENT" || fsError?.code === "ENOTDIR") {
 		return;
 	}
 	const details =
@@ -258,7 +263,9 @@ function warnPermissionRepairFailure(
 function hardenExistingSettingsDirectory(directoryPath: string): void {
 	if (process.platform !== "win32") {
 		try {
-			chmodSync(directoryPath, 0o700);
+			if ((statSync(directoryPath).mode & 0o7777) !== 0o700) {
+				chmodSync(directoryPath, 0o700);
+			}
 		} catch (error) {
 			warnPermissionRepairFailure(directoryPath, 0o700, error);
 		}
@@ -270,7 +277,9 @@ function hardenExistingSettingsFile(filePath: string): void {
 		return;
 	}
 	try {
-		chmodSync(filePath, 0o600);
+		if ((statSync(filePath).mode & 0o7777) !== 0o600) {
+			chmodSync(filePath, 0o600);
+		}
 	} catch (error) {
 		warnPermissionRepairFailure(filePath, 0o600, error);
 	}
@@ -683,7 +692,6 @@ export function loadMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): McpSettingsFile {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	hardenExistingSettingsDirectory(dirname(filePath));
 	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
