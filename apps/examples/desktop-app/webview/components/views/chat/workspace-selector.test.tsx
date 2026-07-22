@@ -79,4 +79,30 @@ describe("WorkspaceSelector", () => {
 			expect(onSwitchGitBranch).toHaveBeenCalledWith("feature/review");
 		});
 	});
+
+	it("lists the active workspace even when the catalog excludes it", async () => {
+		await act(async () => {
+			root.render(
+				<WorkspaceSelector
+					currentBranch="main"
+					onListGitBranches={vi.fn(async () => ({
+						current: "main",
+						branches: ["main"],
+					}))}
+					onPickWorkspaceDirectory={vi.fn(async () => null)}
+					onRefreshWorkspaces={vi.fn(async () => undefined)}
+					onSwitchGitBranch={vi.fn(async () => true)}
+					onSwitchWorkspace={vi.fn(async () => true)}
+					workspaceRoot="/Users/beatrix/Desktop"
+					workspaces={["/workspace/one"]}
+				/>,
+			);
+		});
+
+		await click(container.querySelector("#git-branch-btn") as Element);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("~/Desktop");
+			expect(container.textContent).toContain("/workspace/one");
+		});
+	});
 });
