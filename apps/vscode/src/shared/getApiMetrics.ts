@@ -77,13 +77,30 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
  * This is used for context window progress display - it shows how much of the
  * context window is used in the current/most recent request, not cumulative totals.
  *
+ * A completed compaction divider that postdates the last request reports the
+ * compacted working-context size, so the context-window bar drops immediately
+ * after a compaction instead of waiting for the next request to run.
+ *
  * @param messages - An array of ClineMessage objects to process.
- * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, or 0 if none found.
+ * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, the compacted size (tokensAfter) if a compaction happened after it, or 0 if none found.
  */
 export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i]
-		if (msg.type === "say" && msg.say === "api_req_started" && msg.text) {
+		if (msg.type !== "say" || !msg.text) {
+			continue
+		}
+		if (msg.say === "compaction") {
+			try {
+				const { status, tokensAfter } = JSON.parse(msg.text)
+				if (status === "completed" && typeof tokensAfter === "number" && tokensAfter > 0) {
+					return tokensAfter
+				}
+			} catch {
+				// Ignore JSON parse errors, continue searching
+			}
+		}
+		if (msg.say === "api_req_started") {
 			try {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
 				const total = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
