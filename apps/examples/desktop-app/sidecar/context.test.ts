@@ -22,6 +22,7 @@ const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const resolveHubOwnerContextMock = vi.hoisted(() => vi.fn());
 const startHubWebSocketServerMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const loginOAuthMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -47,6 +48,7 @@ vi.mock("@cline/core", async () => {
 			subscribe = subscribeMock;
 			dispose = vi.fn();
 		},
+		loginAndSaveLocalProviderOAuthCredentials: loginOAuthMock,
 	};
 });
 
@@ -71,6 +73,7 @@ describe("Code sidecar runtime capabilities", () => {
 		resolveHubOwnerContextMock.mockReset();
 		startHubWebSocketServerMock.mockReset();
 		subscribeMock.mockReset();
+		loginOAuthMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
 		resolveHubOwnerContextMock.mockReturnValue({
 			ownerId: "code-sidecar-test",
@@ -86,6 +89,45 @@ describe("Code sidecar runtime capabilities", () => {
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
 			subscribe: vi.fn(() => () => {}),
 			dispose: vi.fn(),
+		});
+	});
+
+	it("routes OAuth authorization URLs to the requesting desktop client", async () => {
+		loginOAuthMock.mockImplementation(
+			async (
+				_manager: unknown,
+				providerId: string,
+				onAuth: (input: { url: string; instructions?: string }) => void,
+			) => {
+				onAuth({
+					url: "https://auth.example.com/authorize?code=test",
+					instructions: "Enter code TEST",
+				});
+				return {
+					provider: providerId,
+					auth: { accessToken: "oauth-token" },
+				};
+			},
+		);
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project", { runtimeInfo });
+		const sendEvent = vi.fn();
+
+		await expect(
+			handleCommand(
+				ctx,
+				"run_provider_oauth_login",
+				{ provider: "cline", flowId: "flow-1" },
+				{ requestId: "request-1", sendEvent },
+			),
+		).resolves.toEqual({ provider: "cline", accessTokenPresent: true });
+
+		expect(sendEvent).toHaveBeenCalledWith("oauth_authorization_requested", {
+			flowId: "flow-1",
+			providerId: "cline",
+			url: "https://auth.example.com/authorize?code=test",
+			instructions: "Enter code TEST",
 		});
 	});
 
@@ -130,6 +172,32 @@ describe("Code sidecar runtime capabilities", () => {
 				clientType: "code-sidecar-approvals",
 			}),
 		);
+	});
+
+	it("rejects non-web OAuth authorization URLs", async () => {
+		loginOAuthMock.mockImplementation(
+			async (
+				_manager: unknown,
+				_providerId: string,
+				onAuth: (input: { url: string }) => void,
+			) => {
+				onAuth({ url: "file:///etc/passwd" });
+			},
+		);
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project", { runtimeInfo });
+		const sendEvent = vi.fn();
+
+		await expect(
+			handleCommand(
+				ctx,
+				"run_provider_oauth_login",
+				{ provider: "cline", flowId: "flow-1" },
+				{ requestId: "request-1", sendEvent },
+			),
+		).rejects.toThrow("OAuth authorization URL must use http(s)");
+		expect(sendEvent).not.toHaveBeenCalled();
 	});
 
 	it("wires the desktop logger and telemetry through the client and embedded hub", async () => {

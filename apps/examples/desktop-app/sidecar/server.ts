@@ -80,6 +80,19 @@ function jsonResponse(
 	return JSON.stringify({ type: "response", id, ok, result, error });
 }
 
+function sendClientEvent(
+	ws: SidecarWebSocketClient,
+	name: string,
+	payload: unknown,
+): void {
+	ws.send(
+		JSON.stringify({
+			type: "event",
+			event: { name, payload },
+		}),
+	);
+}
+
 function createJsonResponse(
 	req: Request,
 	body: unknown,
@@ -237,7 +250,10 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				return;
 			}
 			try {
-				const result = await handleCommand(ctx, request.command, request.args);
+				const result = await handleCommand(ctx, request.command, request.args, {
+					requestId: request.id,
+					sendEvent: (name, payload) => sendClientEvent(ws, name, payload),
+				});
 				ws.send(jsonResponse(request.id, true, result));
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

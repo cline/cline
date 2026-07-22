@@ -166,7 +166,7 @@ export async function handleDesktopCommand(
 		const saved = await loginAndSaveLocalProviderOAuthCredentials(
 			providerSettingsManager,
 			providerId,
-			openExternalUrl,
+			({ url }) => openExternalUrl(url),
 		);
 		if (saved.provider !== providerId) {
 			markLocalProviderEnabled(providerSettingsManager, providerId, {

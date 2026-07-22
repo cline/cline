@@ -31,6 +31,16 @@ export type DesktopTransportState =
 	| "connected"
 	| "unavailable";
 
+export const OAUTH_AUTHORIZATION_REQUESTED_EVENT =
+	"oauth_authorization_requested";
+
+export type OAuthAuthorizationRequestedPayload = {
+	flowId: string;
+	providerId: string;
+	url: string;
+	instructions?: string;
+};
+
 export type DesktopBackendReadyPayload = {
 	endpoint: string;
 	wsEndpoint: string;

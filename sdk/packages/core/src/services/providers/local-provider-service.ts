@@ -9,13 +9,13 @@ import type {
 	ProviderModel,
 	SaveProviderSettingsActionRequest,
 } from "@cline/shared";
-import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
 	loginAndSaveProviderOAuthCredentials,
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import type { OAuthLoginCallbacks } from "../../auth/types";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import type {
 	ModelInfo,
@@ -903,20 +903,17 @@ export function normalizeOAuthProvider(provider: string): string {
 export async function loginLocalProvider(
 	providerId: string,
 	existing: ProviderSettings | undefined,
-	openUrl: (url: string) => void,
+	onAuth: OAuthLoginCallbacks["onAuth"],
 	telemetry?: ITelemetryService,
 ): Promise<ProviderOAuthCredentials> {
 	const handler = getProviderAuthHandler(providerId);
 	if (!handler) {
 		throw new Error(`provider "${providerId}" does not support OAuth login`);
 	}
-	const callbacks = createOAuthClientCallbacks({
+	const callbacks: OAuthLoginCallbacks = {
+		onAuth,
 		onPrompt: async (prompt) => prompt.defaultValue ?? "",
-		openUrl,
-		onOpenUrlError: ({ error }) => {
-			throw error instanceof Error ? error : new Error(String(error));
-		},
-	});
+	};
 	return handler.login({ settings: existing, callbacks, telemetry });
 }
 
@@ -939,16 +936,13 @@ export function saveLocalProviderOAuthCredentials(
 export async function loginAndSaveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
 	providerId: string,
-	openUrl: (url: string) => void,
+	onAuth: OAuthLoginCallbacks["onAuth"],
 	telemetry?: ITelemetryService,
 ): Promise<ProviderSettings> {
-	const callbacks = createOAuthClientCallbacks({
+	const callbacks: OAuthLoginCallbacks = {
+		onAuth,
 		onPrompt: async (prompt) => prompt.defaultValue ?? "",
-		openUrl,
-		onOpenUrlError: ({ error }) => {
-			throw error instanceof Error ? error : new Error(String(error));
-		},
-	});
+	};
 	return loginAndSaveProviderOAuthCredentials(manager, providerId, {
 		callbacks,
 		telemetry,

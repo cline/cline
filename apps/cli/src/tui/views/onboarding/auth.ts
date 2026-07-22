@@ -40,7 +40,7 @@ export function runOAuthAuthFlow(input: {
 	loginLocalProvider(
 		input.providerId,
 		existing,
-		(url: string) => {
+		({ url }) => {
 			input.setAuthUrl(url);
 			input.setStatus("Waiting for sign-in...");
 			try {

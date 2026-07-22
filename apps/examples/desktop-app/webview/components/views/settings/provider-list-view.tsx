@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { handleExternalLinkClick } from "@/lib/external-links";
 import type {
 	Provider,
 	ProviderConfigField,
@@ -242,6 +243,7 @@ export function ProviderDetailContent({
 	modelsError,
 	onOAuthLogin,
 	oauthLoginPending = false,
+	oauthAuthorization,
 	variant = "page",
 }: {
 	provider: Provider;
@@ -252,6 +254,11 @@ export function ProviderDetailContent({
 	modelsError?: string | null;
 	onOAuthLogin?: () => void;
 	oauthLoginPending?: boolean;
+	oauthAuthorization?: {
+		url: string;
+		instructions?: string;
+		openError?: string;
+	};
 	variant?: "page" | "panel";
 }) {
 	const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
@@ -506,6 +513,43 @@ export function ProviderDetailContent({
 							) : null}
 							<span>Login via Browser</span>
 						</Button>
+						{oauthLoginPending && oauthAuthorization ? (
+							<div className="mt-3 rounded-lg border bg-muted/30 p-3 text-sm">
+								<p className="text-foreground">
+									{oauthAuthorization.instructions ??
+										"Complete sign-in in your browser."}
+								</p>
+								{oauthAuthorization.openError ? (
+									<p className="mt-2 text-xs text-destructive">
+										The browser could not be opened automatically:{" "}
+										{oauthAuthorization.openError}
+									</p>
+								) : null}
+								<div className="mt-3 flex flex-wrap items-center gap-2">
+									<a
+										className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+										href={oauthAuthorization.url}
+										onClick={handleExternalLinkClick}
+										rel="noopener noreferrer"
+										target="_blank"
+									>
+										Continue in browser
+										<LinkIcon className="size-3.5" />
+									</a>
+									<Button
+										className="h-8 px-3 text-xs"
+										onClick={() =>
+											void navigator.clipboard.writeText(oauthAuthorization.url)
+										}
+										type="button"
+										variant="outline"
+									>
+										<Copy className="size-3.5" />
+										Copy URL
+									</Button>
+								</div>
+							</div>
+						) : null}
 					</div>
 				) : null}
 				{provider.oauthAccessTokenPresent ? (

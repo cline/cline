@@ -54,6 +54,10 @@ import {
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import {
+	OAUTH_AUTHORIZATION_REQUESTED_EVENT,
+	type OAuthAuthorizationRequestedPayload,
+} from "../webview/lib/desktop-transport";
+import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
@@ -756,6 +760,10 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
+	transport?: {
+		requestId: string;
+		sendEvent: (name: string, payload: unknown) => void;
+	},
 ): Promise<unknown> {
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -1057,25 +1065,27 @@ export async function handleCommand(
 	}
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
+		const flowId = String(args?.flowId ?? transport?.requestId ?? "").trim();
+		if (!flowId) throw new Error("flowId is required");
+		if (!transport) {
+			throw new Error("OAuth login requires an interactive desktop client");
+		}
 		const manager = new ProviderSettingsManager();
 		const saved = await loginAndSaveLocalProviderOAuthCredentials(
 			manager,
 			providerId,
-			(url) => {
-				const platform = process.platform;
-				const spawned =
-					platform === "darwin"
-						? spawn("open", [url], { stdio: "ignore", detached: true })
-						: platform === "win32"
-							? spawn("cmd", ["/c", "start", "", url], {
-									stdio: "ignore",
-									detached: true,
-								})
-							: spawn("xdg-open", [url], {
-									stdio: "ignore",
-									detached: true,
-								});
-				spawned.unref();
+			({ url, instructions }) => {
+				const parsed = new URL(url);
+				if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+					throw new Error("OAuth authorization URL must use http(s)");
+				}
+				const payload: OAuthAuthorizationRequestedPayload = {
+					flowId,
+					providerId,
+					url: parsed.toString(),
+					...(instructions ? { instructions } : {}),
+				};
+				transport.sendEvent(OAUTH_AUTHORIZATION_REQUESTED_EVENT, payload);
 			},
 		);
 		if (saved.provider !== providerId) {
@@ -1083,7 +1093,9 @@ export async function handleCommand(
 		}
 		return {
 			provider: providerId,
-			accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "",
+			accessTokenPresent:
+				(saved.auth?.accessToken?.trim() ?? saved.apiKey?.trim() ?? "").length >
+				0,
 		};
 	}
 

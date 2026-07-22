@@ -844,9 +844,9 @@ export function OAuthLoginContent(
 		const manager = new ProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
 
-		loginLocalProvider(providerId, existing, (url: string) => {
+		loginLocalProvider(providerId, existing, ({ url, instructions }) => {
 			setAuthUrl(url);
-			setStatus("Waiting for authentication in browser...");
+			setStatus(instructions ?? "Waiting for authentication in browser...");
 			try {
 				void open(url, { wait: false }).catch(() => {
 					setStatus(

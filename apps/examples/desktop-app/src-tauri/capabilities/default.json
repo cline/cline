@@ -7,7 +7,7 @@
 		"core:default",
 		{
 			"identifier": "opener:allow-open-url",
-			"allow": [{ "url": "https://app.cline.bot/**" }]
+			"allow": [{ "url": "https://*" }, { "url": "http://*" }]
 		}
 	]
 }

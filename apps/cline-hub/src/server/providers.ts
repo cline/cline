@@ -139,7 +139,7 @@ export async function runProviderOAuthLogin(
 	const saved = await loginAndSaveLocalProviderOAuthCredentials(
 		providerSettingsManager,
 		normalized,
-		openExternalUrl,
+		({ url }) => openExternalUrl(url),
 	);
 	if (saved.provider !== normalized) {
 		markLocalProviderEnabled(providerSettingsManager, normalized, {

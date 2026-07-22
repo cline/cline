@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import type { OAuthAuthorizationRequestedPayload } from "@/lib/desktop-transport";
+import { openExternalUrl } from "@/lib/external-links";
+import { loginProviderWithOAuth } from "@/lib/provider-oauth";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -49,6 +52,10 @@ type GlobalSettingsResponse = {
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
+type OAuthAuthorizationState = OAuthAuthorizationRequestedPayload & {
+	openError?: string;
+};
+
 let providerCatalogCache: {
 	providers: Provider[];
 	fetchedAt: number;
@@ -84,6 +91,8 @@ export function SettingsView({
 	const [oauthSigningProviderId, setOauthSigningProviderId] = useState<
 		string | null
 	>(null);
+	const [oauthAuthorization, setOauthAuthorization] =
+		useState<OAuthAuthorizationState | null>(null);
 	const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
 		null,
 	);
@@ -263,12 +272,24 @@ export function SettingsView({
 
 	const runOAuthProviderLogin = async (id: string) => {
 		setOauthSigningProviderId(id);
+		setOauthAuthorization(null);
 		try {
-			const result = await desktopClient.invoke<{
-				provider: string;
-				accessToken: string;
-			}>("run_provider_oauth_login", {
-				provider: id,
+			const result = await loginProviderWithOAuth({
+				providerId: id,
+				onAuthorization: (authorization) => {
+					setOauthAuthorization(authorization);
+					if (isTauriAvailable()) {
+						void openExternalUrl(authorization.url).catch((error: unknown) => {
+							const message =
+								error instanceof Error ? error.message : String(error);
+							setOauthAuthorization((current) =>
+								current?.flowId === authorization.flowId
+									? { ...current, openError: message }
+									: current,
+							);
+						});
+					}
+				},
 			});
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
@@ -276,7 +297,7 @@ export function SettingsView({
 						? {
 								...provider,
 								enabled: true,
-								oauthAccessTokenPresent: result.accessToken.trim().length > 0,
+								oauthAccessTokenPresent: result.accessTokenPresent,
 							}
 						: provider,
 				),
@@ -287,6 +308,7 @@ export function SettingsView({
 			window.alert(`Failed to sign in to ${id}: ${message}`);
 		} finally {
 			setOauthSigningProviderId(null);
+			setOauthAuthorization(null);
 		}
 	};
 
@@ -374,6 +396,11 @@ export function SettingsView({
 				<ProviderDetailContent
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
 					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
+					oauthAuthorization={
+						oauthAuthorization?.providerId === selectedProvider.id
+							? oauthAuthorization
+							: undefined
+					}
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
 					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
