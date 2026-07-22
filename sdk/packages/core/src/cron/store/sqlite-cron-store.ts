@@ -294,6 +294,7 @@ function jsonOrNull(value: Record<string, unknown> | undefined): string | null {
 }
 
 const MEANINGFUL_FIELD_KEYS = [
+	"triggerKind",
 	"prompt",
 	"workspaceRoot",
 	"mode",
@@ -336,6 +337,20 @@ function hasMeaningfulChange(
 		if (normalizeForCompare(prevVal) !== normalizeForCompare(nextVal)) {
 			return true;
 		}
+	}
+	const oneOffTimingApplies =
+		prev.triggerKind === "one_off" || nextValues.triggerKind === "one_off";
+	const nextMetadata = nextValues.metadata as
+		| Record<string, unknown>
+		| undefined;
+	if (
+		oneOffTimingApplies &&
+		normalizeForCompare(
+			prev.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY],
+		) !==
+			normalizeForCompare(nextMetadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY])
+	) {
+		return true;
 	}
 	if (prevEnabled === false && nextEnabled === true) return true;
 	return false;
@@ -691,26 +706,45 @@ export class SqliteCronStore {
 		scheduleId: string,
 		updates: HubScheduleUpdateInput,
 	): CronSpecRecord | undefined {
-		const current = this.getHubSchedule(scheduleId);
-		if (!current) return undefined;
-		const input = cronSpecRecordToHubScheduleInput(current, updates);
-		const spec = hubScheduleInputToCronSpec(input);
-		const result = this.upsertSpec({
-			externalId: scheduleId,
-			sourcePath: current.sourcePath,
-			triggerKind: spec.triggerKind,
-			sourceHash: hubScheduleHash(input),
-			parseStatus: "valid",
-			spec,
-		});
-		if (
-			updates.cronPattern !== undefined ||
-			updates.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY] !== undefined ||
-			updates.enabled !== undefined
-		) {
-			this.initializeHubScheduleNextRun(result.record.specId, input);
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const current = this.getHubSchedule(scheduleId);
+			if (!current) {
+				this.db.exec("COMMIT;");
+				return undefined;
+			}
+			const input = cronSpecRecordToHubScheduleInput(current, updates);
+			const spec = hubScheduleInputToCronSpec(input);
+			const result = this.upsertSpec({
+				externalId: scheduleId,
+				sourcePath: current.sourcePath,
+				triggerKind: spec.triggerKind,
+				sourceHash: hubScheduleHash(input),
+				parseStatus: "valid",
+				spec,
+			});
+			const enabledChanged = current.enabled !== result.record.enabled;
+			const involvesOneOff =
+				current.triggerKind === "one_off" ||
+				result.record.triggerKind === "one_off";
+			if (involvesOneOff && (result.revisionChanged || enabledChanged)) {
+				this.cancelQueuedOneOffRunsForSpec(result.record.specId);
+			}
+			if (
+				updates.cronPattern !== undefined ||
+				updates.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY] !==
+					undefined ||
+				updates.enabled !== undefined
+			) {
+				this.initializeHubScheduleNextRun(result.record.specId, input);
+			}
+			const updated = this.getSpec(result.record.specId);
+			this.db.exec("COMMIT;");
+			return updated;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
 		}
-		return this.getSpec(result.record.specId);
 	}
 
 	private initializeHubScheduleNextRun(
@@ -852,6 +886,7 @@ export class SqliteCronStore {
 
 		const spec = input.spec;
 		const nextValues: Record<string, unknown> = {
+			triggerKind: spec?.triggerKind ?? input.triggerKind,
 			title:
 				spec?.title ??
 				existing?.title ??
@@ -883,6 +918,7 @@ export class SqliteCronStore {
 			notesDirectory: spec?.notesDirectory,
 			extensions: spec?.extensions,
 			source: spec?.source,
+			metadata: spec?.metadata,
 		};
 
 		const enabled = input.parseStatus === "valid" && (spec?.enabled ?? true);
@@ -1477,6 +1513,18 @@ export class SqliteCronStore {
 				.prepare(
 					`UPDATE cron_runs SET status = 'cancelled', updated_at = ?
 						WHERE spec_id = ? AND status = 'queued'`,
+				)
+				.run(nowIso(), specId).changes ?? 0;
+		return changes;
+	}
+
+	private cancelQueuedOneOffRunsForSpec(specId: string): number {
+		const changes =
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET status = 'cancelled', updated_at = ?
+						WHERE spec_id = ? AND trigger_kind = 'one_off'
+							AND status = 'queued'`,
 				)
 				.run(nowIso(), specId).changes ?? 0;
 		return changes;
