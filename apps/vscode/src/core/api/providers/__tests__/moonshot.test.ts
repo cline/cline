@@ -53,7 +53,7 @@ describe("MoonshotHandler", () => {
 		should(payload.max_tokens).equal(moonshotModels["kimi-k2.6"].maxTokens)
 	})
 
-	it("supports kimi-k3 with its required request parameters", async () => {
+	it("supports kimi-k3 request requirements and scopes reasoning replay", async () => {
 		const handler = new MoonshotHandler({
 			moonshotApiKey: "test-api-key",
 			apiModelId: "kimi-k3",
@@ -69,12 +69,30 @@ describe("MoonshotHandler", () => {
 		})
 
 		const messages: ClineStorageMessage[] = [
-			{ role: "user", content: "first question" },
+			{ role: "user", content: "foreign-provider question" },
 			{
 				role: "assistant",
 				content: [
-					{ type: "thinking", thinking: "Previous reasoning", signature: "" },
-					{ type: "text", text: "First answer" },
+					{ type: "thinking", thinking: "Foreign reasoning", signature: "" },
+					{ type: "text", text: "Foreign answer" },
+				],
+				modelInfo: { providerId: "anthropic", modelId: "claude-sonnet-4", mode: "act" },
+			},
+			{ role: "user", content: "K3 question" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "thinking", thinking: "K3 reasoning", signature: "" },
+					{ type: "text", text: "K3 answer" },
+				],
+				modelInfo: { providerId: "moonshot", modelId: "kimi-k3", mode: "act" },
+			},
+			{ role: "user", content: "legacy question" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "thinking", thinking: "Unattributed reasoning", signature: "" },
+					{ type: "text", text: "Legacy answer" },
 				],
 			},
 			{ role: "user", content: "follow-up question" },
@@ -88,7 +106,9 @@ describe("MoonshotHandler", () => {
 		should(payload.max_completion_tokens).equal(moonshotModels["kimi-k3"].maxTokens)
 		should(payload.max_tokens).equal(undefined)
 		should(payload.temperature).equal(undefined)
-		const assistantMessage = payload.messages?.find((message) => message.role === "assistant")
-		should(assistantMessage?.reasoning_content).equal("Previous reasoning")
+		const assistantReasoning = payload.messages
+			?.filter((message) => message.role === "assistant")
+			.map((message) => message.reasoning_content)
+		should(assistantReasoning).deepEqual([undefined, "K3 reasoning", undefined])
 	})
 })

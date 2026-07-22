@@ -52,7 +52,13 @@ export class MoonshotHandler implements ApiHandler {
 		const convertedMessages = convertToOpenAiMessages(messages)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...(model.id === "kimi-k3" ? addReasoningContent(convertedMessages, messages, true) : convertedMessages),
+			...(model.id === "kimi-k3"
+				? addReasoningContent(convertedMessages, messages, {
+						includePreviousTurns: true,
+						shouldIncludeReasoning: (message) =>
+							message.modelInfo?.providerId === "moonshot" && message.modelInfo.modelId === "kimi-k3",
+					})
+				: convertedMessages),
 		]
 
 		const stream = await client.chat.completions.create({

@@ -16,13 +16,18 @@ export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
 /**
  * Adds reasoning_content to OpenAI-compatible messages.
  * DeepSeek only needs it during tool calling in the current turn. Providers such as Moonshot K3
- * can set includePreviousTurns when their API requires the complete assistant history.
+ * can include previous turns and filter reasoning by its originating message.
  */
 export function addReasoningContent(
 	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
 	originalMessages: ClineStorageMessage[],
-	includePreviousTurns = false,
+	options: {
+		includePreviousTurns?: boolean;
+		shouldIncludeReasoning?: (message: ClineStorageMessage) => boolean;
+	} = {},
 ): DeepSeekReasonerMessage[] {
+	const { includePreviousTurns = false, shouldIncludeReasoning = () => true } = options;
+
 	// Find last user message index (start of current turn)
 	// If no user message exists (lastUserIndex = -1), all messages are in the "current turn",
 	// so reasoning_content will be added to all assistant messages. This is intentional.
@@ -39,7 +44,7 @@ export function addReasoningContent(
 	let assistantIdx = 0;
 	for (const msg of originalMessages) {
 		if (msg.role === "assistant") {
-			if (Array.isArray(msg.content)) {
+			if (Array.isArray(msg.content) && shouldIncludeReasoning(msg)) {
 				const thinking = msg.content
 					.filter(
 						(p): p is ClineAssistantThinkingBlock => p.type === "thinking",
