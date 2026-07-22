@@ -17,7 +17,7 @@ import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { Button, ConfirmDialog, SessionStatus } from "@cline/ui";
 const controlsCss = import.meta.resolve("@cline/ui/components.css");
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
-const markdown = import.meta.resolve("@cline/ui/theme/markdown.css");
+const markdown = import.meta.resolve("@cline/ui/components/markdown.css");
 const scopedTokens = import.meta.resolve("@cline/ui/theme/scoped-tokens.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (!Button || !ConfirmDialog || !SessionStatus || !Conversation || !Message || !controlsCss || !css || !markdown || !scopedTokens || !tokens) process.exit(1);

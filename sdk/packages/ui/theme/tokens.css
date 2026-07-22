@@ -1,8 +1,9 @@
 /*
- * Default Cline web theme.
+ * Canonical Cline web theme tokens.
  *
  * Keep this file framework-neutral: variable blocks only, with no Tailwind
- * directives, resets, font imports, or app-specific selectors.
+ * directives, resets, font imports, or app-specific selectors. Generate the
+ * scoped entry point with `bun run generate:theme` after making changes.
  */
 
 :root {
