@@ -42,6 +42,7 @@ const VERTEX_GLOBAL_ENDPOINT_BASE_IDS: readonly string[] = [
 	"claude-sonnet-4",
 	"claude-sonnet-4-5",
 	"claude-sonnet-4-6",
+	"claude-fable-5",
 	"claude-opus-4",
 	"claude-opus-4-1",
 	"claude-opus-4-5",

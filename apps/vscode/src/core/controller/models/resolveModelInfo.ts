@@ -65,7 +65,8 @@ export async function resolveModelInfo(
 		}
 	}
 
-	// Custom-model-id providers (openai-compatible, ollama, lmstudio, litellm)
+	// Custom-model-id providers (openai-compatible, ollama, lmstudio, litellm,
+	// vertex)
 	// accept arbitrary user-supplied model ids that the SDK catalog does not
 	// list. For these, a catalog lookup must only count as a hit when it matches
 	// the requested id; an unrecognized id is the user's own model and must be

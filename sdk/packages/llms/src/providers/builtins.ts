@@ -382,6 +382,16 @@ function buildClineModels(): Record<string, ModelInfo> {
 	);
 }
 
+function buildVertexModels(): Record<string, ModelInfo> {
+	const vertexModels = generatedModels("vertex");
+	const fable = generatedModels("anthropic")["claude-fable-5"];
+
+	return {
+		...vertexModels,
+		"claude-fable-5": { ...fable, id: "claude-fable-5" },
+	};
+}
+
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
 	const info: ModelInfo = {
 		id,
@@ -1078,7 +1088,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 			"GOOGLE_VERTEX_PROJECT",
 			"GOOGLE_VERTEX_LOCATION",
 		],
-		modelsProviderId: "vertex",
+		modelsFactory: buildVertexModels,
 		configFields: VERTEX_CONFIG_FIELDS,
 		metadata: ANTHROPIC_ROUTING_METADATA,
 	},

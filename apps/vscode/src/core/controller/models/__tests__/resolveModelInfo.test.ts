@@ -228,6 +228,28 @@ describe("resolveModelInfo", () => {
 		expect(response.modelInfo).toBeUndefined()
 	})
 
+	it("does not coerce a custom Vertex model id to the catalog default", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const store = makeStore({ providerId: parseProviderId("vertex") })
+		const catalog = makeCatalog()
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult(
+				"vertex",
+				[["gemini-3.5-flash", { name: "Gemini 3.5 Flash", supportsPromptCache: true, contextWindow: 1_048_576 }]],
+				"gemini-3.5-flash",
+			),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "vertex",
+			modelId: "my-private-vertex-model",
+		})
+
+		expect(response.modelId).toBe("my-private-vertex-model")
+		expect(response.source).toBe("unknown")
+		expect(response.modelInfo).toBeUndefined()
+	})
+
 	it("resolves a free model id from the cline-pass catalog without coercing to the default", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const store = makeStore({ providerId: parseProviderId("cline-pass") })
