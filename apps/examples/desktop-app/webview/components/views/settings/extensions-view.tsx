@@ -97,6 +97,8 @@ type PluginItem = {
 	name: string;
 	path: string;
 	enabled: boolean;
+	/** Load/setup failure message when the plugin could not be initialized. */
+	error?: string;
 };
 
 type ToolItem = {
@@ -215,6 +217,7 @@ function normalizeInstructionListsResponse(
 
 const EXTENSION_LISTS_CACHE_TTL_MS = 60_000;
 const EXTENSION_HOOK_STATS_CACHE_TTL_MS = 30_000;
+const EXTENSION_FOCUS_REFRESH_MIN_INTERVAL_MS = 5_000;
 
 let extensionListsCache:
 	| (UserInstructionListsResponse & {
@@ -662,6 +665,20 @@ export function CustomizationSectionView({
 			void refresh(false);
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
+	}, [refresh]);
+
+	// Changes made outside the app (e.g. `cline plugin install` in a terminal)
+	// should show up when the user switches back, not after the cache TTL.
+	useEffect(() => {
+		const onFocus = () => {
+			const fetchedAt = extensionListsCache?.fetchedAt ?? 0;
+			if (Date.now() - fetchedAt < EXTENSION_FOCUS_REFRESH_MIN_INTERVAL_MS) {
+				return;
+			}
+			void refresh(true);
+		};
+		window.addEventListener("focus", onFocus);
+		return () => window.removeEventListener("focus", onFocus);
 	}, [refresh]);
 
 	useEffect(() => {
@@ -1503,6 +1520,14 @@ export function CustomizationSectionView({
 									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 										{plugin.path}
 									</p>
+									{plugin.error && (
+										<div className="mt-2 ml-7 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+											<TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+											<span className="min-w-0 break-words">
+												Failed to load: {plugin.error}
+											</span>
+										</div>
+									)}
 									<div className="mt-3 ml-7 flex flex-col gap-2">
 										{(
 											pluginToolsByPluginKey.get(
@@ -1542,11 +1567,12 @@ export function CustomizationSectionView({
 										})}
 										{(pluginToolsByPluginKey.get(
 											`${plugin.name}:${plugin.path}`,
-										)?.length ?? 0) === 0 && (
-											<p className="text-xs text-muted-foreground">
-												No plugin tools found.
-											</p>
-										)}
+										)?.length ?? 0) === 0 &&
+											!plugin.error && (
+												<p className="text-xs text-muted-foreground">
+													No plugin tools found.
+												</p>
+											)}
 									</div>
 								</div>
 							))}
@@ -1588,6 +1614,14 @@ export function CustomizationSectionView({
 									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 										{plugin.path}
 									</p>
+									{plugin.error && (
+										<div className="mt-2 ml-7 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+											<TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+											<span className="min-w-0 break-words">
+												Failed to load: {plugin.error}
+											</span>
+										</div>
+									)}
 									<div className="mt-3 ml-7 flex flex-col gap-2">
 										{(
 											pluginToolsByPluginKey.get(
@@ -1627,11 +1661,12 @@ export function CustomizationSectionView({
 										})}
 										{(pluginToolsByPluginKey.get(
 											`${plugin.name}:${plugin.path}`,
-										)?.length ?? 0) === 0 && (
-											<p className="text-xs text-muted-foreground">
-												No plugin tools found.
-											</p>
-										)}
+										)?.length ?? 0) === 0 &&
+											!plugin.error && (
+												<p className="text-xs text-muted-foreground">
+													No plugin tools found.
+												</p>
+											)}
 									</div>
 								</div>
 							))}
