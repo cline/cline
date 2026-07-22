@@ -191,6 +191,14 @@ describe("isPoolsideModelFamily", () => {
 		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), true).should.equal(true)
 		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), false).should.equal(false)
 	})
+
+	it("should qualify Kimi K2 and K3 models for next-gen and native tool calling paths", () => {
+		for (const modelId of ["moonshotai/kimi-k2", "kimi-k2-thinking", "moonshotai/kimi-k3", "kimi-k3"]) {
+			isNextGenModelFamily(modelId).should.equal(true)
+			isNativeToolCallingConfig(providerInfo("openrouter", modelId), true).should.equal(true)
+			isNativeToolCallingConfig(providerInfo("cline", modelId), true).should.equal(true)
+		}
+	})
 })
 
 describe("isGeminiFlashModel", () => {

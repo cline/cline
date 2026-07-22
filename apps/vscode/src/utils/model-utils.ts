@@ -156,7 +156,7 @@ export function isHermesModelFamily(id: string): boolean {
 
 export function isNextGenOpenSourceModelFamily(id: string): boolean {
 	const modelId = normalize(id)
-	return ["kimi-k2"].some((substring) => modelId.includes(substring))
+	return ["kimi-k2", "kimi-k3"].some((substring) => modelId.includes(substring))
 }
 
 export function isDevstralModelFamily(id: string): boolean {
