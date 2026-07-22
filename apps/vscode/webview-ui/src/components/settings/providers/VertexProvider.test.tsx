@@ -224,6 +224,38 @@ describe("VertexProvider custom models", () => {
 		expect(commitSelection).not.toHaveBeenCalled()
 	})
 
+	it("does not seed overrides for a catalog model while the catalog is loading", () => {
+		setSelection(false)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: true,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({
+				actSelection: {
+					providerId: "vertex",
+					modelId: "gemini-3.5-flash",
+					modelInfo: { supportsPromptCache: true, tiers: [] },
+				},
+			}),
+			write: vi.fn(async () => providerConfig()),
+			commitSelection,
+		})
+
+		render(<VertexProvider currentMode="act" showModelOptions={true} />)
+
+		// gemini-3.5-flash only looks custom because the catalog is empty; the
+		// seed effect must stay silent and the overrides editor hidden until
+		// the catalog resolves.
+		expect(screen.queryByLabelText("Context Window Size")).not.toBeInTheDocument()
+		expect(commitSelection).not.toHaveBeenCalled()
+	})
+
 	it("lets users override the custom context window and image support", async () => {
 		setSelection(true)
 		vi.mocked(useProviderConfig).mockReturnValue({
@@ -262,6 +294,52 @@ describe("VertexProvider custom models", () => {
 				}),
 			}),
 		)
+	})
+
+	it("serializes rapid override commits so an older refresh cannot restore stale overrides", async () => {
+		setSelection(true)
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({
+				actSelection: {
+					providerId: "vertex",
+					modelId: "my-private-vertex-model",
+					modelInfo: { supportsPromptCache: true, tiers: [] },
+					overrides: {
+						contextWindow: 200_000,
+						maxInputTokens: 200_000,
+						maxTokens: 64_000,
+						supportsVision: true,
+						supportsReasoning: true,
+						capabilities: ["prompt-cache"],
+					},
+				},
+			}),
+			write: vi.fn(async () => providerConfig()),
+			commitSelection,
+		})
+		const resolvers: Array<() => void> = []
+		commitSelection.mockImplementation(() => new Promise<void>((resolve) => resolvers.push(resolve)))
+		render(<VertexProvider currentMode="act" showModelOptions={true} />)
+
+		fireEvent.change(screen.getByLabelText("Context Window Size"), { target: { value: "250000" } })
+		fireEvent.click(screen.getByLabelText("Supports Images"))
+
+		// The second edit queues behind the in-flight first commit instead of
+		// racing it; it starts (and its config refresh runs) only after the
+		// first commit settles.
+		await waitFor(() => expect(commitSelection).toHaveBeenCalledTimes(1))
+		resolvers[0]()
+		await waitFor(() => expect(commitSelection).toHaveBeenCalledTimes(2))
+		expect(commitSelection).toHaveBeenLastCalledWith("act", {
+			providerId: "vertex",
+			modelId: "my-private-vertex-model",
+			overrides: expect.objectContaining({
+				contextWindow: 250_000,
+				supportsVision: false,
+			}),
+		})
+		resolvers.forEach((resolve) => resolve())
+		commitSelection.mockImplementation(async () => undefined)
 	})
 
 	it("clears custom overrides when selecting a catalog model", async () => {

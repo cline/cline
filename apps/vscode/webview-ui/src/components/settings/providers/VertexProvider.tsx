@@ -66,13 +66,19 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const committedOverrides = fromProtobufProviderModelOverrides(committedSelection?.overrides)
 	const hasCommittedOverrides = committedOverrides !== undefined
-	const isCustomModelSelected = Boolean(selectedModelId) && !Object.hasOwn(allVertexModels, selectedModelId)
+	// The catalog hydrates asynchronously; while it loads (or failed) the map
+	// is empty and any committed id would be misclassified as custom, letting
+	// the seed effect below stamp generic 200k/64k overrides onto a catalog
+	// model. Only classify once the catalog has resolved.
+	const catalogResolved = !isLoading && Object.keys(allVertexModels).length > 0
+	const isCustomModelSelected = catalogResolved && Boolean(selectedModelId) && !Object.hasOwn(allVertexModels, selectedModelId)
 	const customOverrides = isCustomModelSelected ? withCustomModelDefaults(committedOverrides) : undefined
 	const customOverridesRef = useRef<{ modelId: string; overrides: ProviderModelOverrides }>({
 		modelId: selectedModelId,
 		overrides: customOverrides ?? CUSTOM_MODEL_DEFAULT_OVERRIDES,
 	})
 	const pendingCommitsRef = useRef(0)
+	const commitQueueRef = useRef<Promise<unknown>>(Promise.resolve())
 	const [fieldErrors, setFieldErrors] = useState<Partial<Record<NumericOverrideKey, string>>>({})
 
 	useEffect(() => {
@@ -84,11 +90,19 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	const commitVertexSelection = useCallback(
 		(modelId: string, overrides?: ProviderModelOverrides) => {
 			pendingCommitsRef.current += 1
-			void commitSelection(currentMode, {
-				providerId: "vertex",
-				modelId,
-				...(overrides !== undefined ? { overrides } : {}),
-			})
+			// Serialize commits: rapid edits must apply in issue order. Each
+			// commit ends with a config read() in useProviderConfig, so an older
+			// commit resolving last can otherwise restore stale overrides in the
+			// UI and persisted settings. Errors are swallowed per-link so one
+			// failed commit never jams the queue.
+			commitQueueRef.current = commitQueueRef.current
+				.then(() =>
+					commitSelection(currentMode, {
+						providerId: "vertex",
+						modelId,
+						...(overrides !== undefined ? { overrides } : {}),
+					}),
+				)
 				.catch((err) => console.error("Failed to commit Vertex model selection:", err))
 				.finally(() => {
 					pendingCommitsRef.current -= 1
