@@ -67,8 +67,10 @@ tests/**/cache
 # Tauri generated code
 apps/*/src-tauri/gen
 apps/*/src-tauri/bin
+apps/*/src-tauri/resources
 apps/examples/*/src-tauri/gen
 apps/examples/*/src-tauri/bin
+apps/examples/*/src-tauri/resources
 # Tauri UI test snapshots
 apps/*/src/tests/.tui-test
 apps/*/src/tests/tui-traces
