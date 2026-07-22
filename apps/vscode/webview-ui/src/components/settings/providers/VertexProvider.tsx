@@ -85,7 +85,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 		if (pendingCommitsRef.current === 0 && customOverrides) {
 			customOverridesRef.current = { modelId: selectedModelId, overrides: customOverrides }
 		}
-	}, [committedSelection?.overrides, customOverrides, selectedModelId])
+	}, [customOverrides, selectedModelId])
 
 	const commitVertexSelection = useCallback(
 		(modelId: string, overrides?: ProviderModelOverrides) => {
@@ -238,7 +238,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<VSCodeDropdown
 						disabled={remoteConfigSettings?.vertexRegion !== undefined}
 						id="vertex-region-dropdown"
-						onChange={(e: any) => handleRegionChange(e.target.value)}
+						onChange={(event: Event) => handleRegionChange((event.target as HTMLSelectElement).value)}
 						style={{ width: "100%" }}
 						value={vertexRegion}>
 						<VSCodeOption value="">Select a region...</VSCodeOption>
@@ -309,15 +309,17 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							</div>
 							<VSCodeCheckbox
 								checked={customOverrides.supportsVision !== false}
-								onChange={(event: any) =>
-									updateCustomOverrides({ supportsVision: event.target.checked === true })
+								onChange={(event: Event) =>
+									updateCustomOverrides({ supportsVision: (event.target as HTMLInputElement).checked === true })
 								}>
 								Supports Images
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
 								checked={customOverrides.supportsReasoning !== false}
-								onChange={(event: any) =>
-									updateCustomOverrides({ supportsReasoning: event.target.checked === true })
+								onChange={(event: Event) =>
+									updateCustomOverrides({
+										supportsReasoning: (event.target as HTMLInputElement).checked === true,
+									})
 								}>
 								Supports Reasoning
 							</VSCodeCheckbox>

@@ -338,7 +338,9 @@ describe("VertexProvider custom models", () => {
 				supportsVision: false,
 			}),
 		})
-		resolvers.forEach((resolve) => resolve())
+		resolvers.forEach((resolve) => {
+			resolve()
+		})
 		commitSelection.mockImplementation(async () => undefined)
 	})
 
