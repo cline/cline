@@ -78,7 +78,7 @@ export class CronMaterializer {
 			specId: spec.specId,
 			specRevision: spec.revision,
 			triggerKind: "one_off",
-			scheduledFor: new Date(this.nowFn()).toISOString(),
+			scheduledFor: spec.nextRunAt ?? new Date(this.nowFn()).toISOString(),
 		});
 		return true;
 	}

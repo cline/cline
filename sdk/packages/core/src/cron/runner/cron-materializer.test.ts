@@ -51,6 +51,18 @@ describe("CronMaterializer", () => {
 		expect(m.materializeAll().oneOffQueued).toBe(0);
 	});
 
+	it("preserves a future run time when materializing a one-off spec", () => {
+		const spec = seedOneOff();
+		const runAt = new Date(Date.now() + 60_000).toISOString();
+		store.updateSpecNextRunAt(spec.specId, runAt);
+		const materializer = new CronMaterializer({ store });
+
+		expect(materializer.materializeAll().oneOffQueued).toBe(1);
+		expect(store.listRuns({ specId: spec.specId })[0]?.scheduledFor).toBe(
+			runAt,
+		);
+	});
+
 	it("queues a new run when the revision bumps", () => {
 		const spec = seedOneOff();
 		const m = new CronMaterializer({ store });

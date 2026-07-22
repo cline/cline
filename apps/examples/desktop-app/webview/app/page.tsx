@@ -223,6 +223,35 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const handleOpenSessionById = useCallback(
+		async (sessionId: string) => {
+			const cachedSession = sessionHistory.sessions.find(
+				(session) => session.sessionId === sessionId,
+			);
+			if (cachedSession) {
+				handleOpenSession(cachedSession);
+				return;
+			}
+			try {
+				const discovered = await desktopClient.invoke<SessionHistoryItem[]>(
+					"list_discovered_sessions",
+					{ limit: 500 },
+				);
+				const session = discovered.find((item) => item.sessionId === sessionId);
+				if (!session) {
+					throw new Error("The session for this run is no longer available.");
+				}
+				handleOpenSession(session);
+			} catch (error) {
+				toast({
+					title: "Unable to open run",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+			}
+		},
+		[handleOpenSession, sessionHistory.sessions],
+	);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
@@ -283,6 +312,7 @@ export default function Home() {
 							<div className="absolute inset-0 z-30 bg-background text-foreground">
 								<SettingsView
 									onNavigateSection={setSettingsSection}
+									onOpenSession={handleOpenSessionById}
 									section={settingsSection}
 								/>
 							</div>

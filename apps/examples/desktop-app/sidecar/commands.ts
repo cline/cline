@@ -51,7 +51,11 @@ import {
 	toggleDisabledTool,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getClineEnvironmentConfig,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import {
@@ -466,10 +470,35 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
+function routineScheduleTiming(
+	args?: Record<string, unknown>,
+): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+	if (args?.schedule_type === "once") {
+		const runAt =
+			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
+		return Number.isFinite(runAt)
+			? {
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+				}
+			: undefined;
+	}
+	const cronPattern = asTrimmedString(args?.cron_pattern);
+	return cronPattern ? { cronPattern } : undefined;
+}
+
 function asTrimmedString(value: unknown): string | undefined {
 	if (typeof value !== "string") return undefined;
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function asTrimmedStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const values = value
+		.map((item) => asTrimmedString(item))
+		.filter((item): item is string => item !== undefined);
+	return values.length > 0 ? values : undefined;
 }
 
 async function handleRoutineScheduleCommand(
@@ -564,17 +593,17 @@ async function handleRoutineScheduleCommand(
 		}
 		if (command === "create_routine_schedule") {
 			const name = asTrimmedString(args?.name);
-			const cronPattern = asTrimmedString(args?.cron_pattern);
+			const timing = routineScheduleTiming(args);
 			const prompt = asTrimmedString(args?.prompt);
 			const workspaceRoot = asTrimmedString(args?.workspace_root);
-			if (!name || !cronPattern || !prompt || !workspaceRoot) {
+			if (!name || !timing || !prompt || !workspaceRoot) {
 				throw new Error(
-					"createSchedule requires name, cron_pattern, prompt, and workspace_root",
+					"createSchedule requires name, timing, prompt, and workspace_root",
 				);
 			}
 			const created = await clientCommand("schedule.create", {
 				name,
-				cronPattern,
+				...timing,
 				prompt,
 				modelSelection: {
 					providerId: asTrimmedString(args?.provider) ?? "cline",
@@ -588,17 +617,52 @@ async function handleRoutineScheduleCommand(
 				timeoutSeconds: toPositiveInt(args?.timeout_seconds),
 				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
 				enabled: args?.enabled !== false,
-				tags:
-					Array.isArray(args?.tags) && args.tags.length > 0
-						? (args.tags as string[])
-								.map((v: string) => v.trim())
-								.filter((v: string) => v.length > 0)
-						: undefined,
+				tags: asTrimmedStringArray(args?.tags),
 			});
 			return { schedule: created.schedule ?? null };
 		}
 		const scheduleId = asTrimmedString(args?.schedule_id);
 		if (!scheduleId) throw new Error(`${command} requires schedule_id`);
+		if (command === "update_routine_schedule") {
+			const name = asTrimmedString(args?.name);
+			const timing = routineScheduleTiming(args);
+			const prompt = asTrimmedString(args?.prompt);
+			const workspaceRoot = asTrimmedString(args?.workspace_root);
+			if (!name || !timing || !prompt || !workspaceRoot) {
+				throw new Error(
+					"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
+				);
+			}
+			const reply = await clientCommand("schedule.update", {
+				scheduleId,
+				name,
+				...timing,
+				prompt,
+				modelSelection: {
+					providerId: asTrimmedString(args?.provider) ?? "cline",
+					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				},
+				mode: args?.mode === "plan" ? "plan" : "act",
+				workspaceRoot,
+				cwd: asTrimmedString(args?.cwd) ?? null,
+				systemPrompt:
+					args?.system_prompt === null
+						? null
+						: asTrimmedString(args?.system_prompt),
+				maxIterations:
+					args?.max_iterations === null
+						? null
+						: toPositiveInt(args?.max_iterations),
+				timeoutSeconds:
+					args?.timeout_seconds === null
+						? null
+						: toPositiveInt(args?.timeout_seconds),
+				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+				enabled: args?.enabled !== false,
+				tags: asTrimmedStringArray(args?.tags) ?? [],
+			});
+			return { schedule: reply.schedule ?? null };
+		}
 		if (command === "pause_routine_schedule") {
 			const reply = await clientCommand("schedule.disable", { scheduleId });
 			return { schedule: reply.schedule ?? null };
@@ -1371,7 +1435,9 @@ export async function handleCommand(
 				// The OAuth helper's openUrl callback is fire-and-forget; surface
 				// opener failures in the log instead of an unhandled rejection.
 				openUrlInDefaultBrowser(url).catch((error) => {
-					console.warn(`[sidecar] ${error instanceof Error ? error.message : error}`);
+					console.warn(
+						`[sidecar] ${error instanceof Error ? error.message : error}`,
+					);
 				});
 			},
 		);
@@ -1554,6 +1620,7 @@ export async function handleCommand(
 	if (
 		command === "list_routine_schedules" ||
 		command === "create_routine_schedule" ||
+		command === "update_routine_schedule" ||
 		command === "pause_routine_schedule" ||
 		command === "resume_routine_schedule" ||
 		command === "trigger_routine_schedule" ||

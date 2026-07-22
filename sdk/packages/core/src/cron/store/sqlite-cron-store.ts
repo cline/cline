@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type {
-	AutomationEventEnvelope,
-	CronSpec,
-	CronSpecExtensionKind,
-	CronTriggerKind,
-	HubScheduleCreateInput,
-	HubScheduleUpdateInput,
+import {
+	type AutomationEventEnvelope,
+	type CronSpec,
+	type CronSpecExtensionKind,
+	type CronTriggerKind,
+	type HubScheduleCreateInput,
+	type HubScheduleUpdateInput,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
 import {
 	asOptionalString,
@@ -354,7 +356,7 @@ function hubScheduleSourcePath(scheduleId: string): string {
 function hubScheduleMetadata(
 	input: HubScheduleCreateInput,
 ): Record<string, unknown> | undefined {
-	const metadata = {
+	const metadata: Record<string, unknown> = {
 		...(input.metadata ?? {}),
 		...(input.createdBy ? { __hubScheduleCreatedBy: input.createdBy } : {}),
 		...(input.cwd ? { __hubScheduleCwd: input.cwd } : {}),
@@ -362,16 +364,18 @@ function hubScheduleMetadata(
 			? { __hubRuntimeOptions: input.runtimeOptions }
 			: {}),
 	};
+	if (input.cronPattern.trim() !== ONE_TIME_SCHEDULE_CRON_PATTERN) {
+		delete metadata[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+	}
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
-	return {
-		triggerKind: "schedule",
+	const oneTime = input.cronPattern.trim() === ONE_TIME_SCHEDULE_CRON_PATTERN;
+	const common = {
 		title: input.name.trim(),
 		prompt: input.prompt,
 		workspaceRoot: input.workspaceRoot.trim(),
-		schedule: input.cronPattern.trim(),
 		mode: input.mode ?? "act",
 		systemPrompt: input.systemPrompt,
 		modelSelection: input.modelSelection
@@ -393,7 +397,17 @@ function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
 		tags: input.tags?.filter((tag) => tag.trim().length > 0),
 		enabled: input.enabled !== false,
 		metadata: hubScheduleMetadata(input),
-	} as CronSpec;
+	};
+	return oneTime
+		? {
+				...common,
+				triggerKind: "one_off",
+			}
+		: {
+				...common,
+				triggerKind: "schedule",
+				schedule: input.cronPattern.trim(),
+			};
 }
 
 function hubScheduleHash(input: HubScheduleCreateInput): string {
@@ -430,9 +444,21 @@ function cronSpecRecordToHubScheduleInput(
 	delete metadata.__hubScheduleCreatedBy;
 	delete metadata.__hubScheduleCwd;
 	delete metadata.__hubRuntimeOptions;
+	const cronPattern =
+		updates.cronPattern ??
+		(current.triggerKind === "one_off"
+			? ONE_TIME_SCHEDULE_CRON_PATTERN
+			: (current.scheduleExpr ?? ""));
+	const nextMetadata = {
+		...metadata,
+		...(updates.metadata ?? {}),
+	};
+	if (cronPattern.trim() !== ONE_TIME_SCHEDULE_CRON_PATTERN) {
+		delete nextMetadata[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+	}
 	return {
 		name: updates.name ?? current.title,
-		cronPattern: updates.cronPattern ?? current.scheduleExpr ?? "",
+		cronPattern,
 		prompt: updates.prompt ?? current.prompt ?? "",
 		workspaceRoot: updates.workspaceRoot ?? current.workspaceRoot ?? "",
 		cwd,
@@ -476,11 +502,9 @@ function cronSpecRecordToHubScheduleInput(
 		tags: updates.tags ?? current.tags,
 		runtimeOptions,
 		metadata:
-			updates.metadata !== undefined
-				? updates.metadata
-				: Object.keys(metadata).length > 0
-					? (metadata as HubScheduleCreateInput["metadata"])
-					: undefined,
+			Object.keys(nextMetadata).length > 0
+				? (nextMetadata as HubScheduleCreateInput["metadata"])
+				: undefined,
 	};
 }
 
@@ -607,15 +631,16 @@ export class SqliteCronStore {
 
 	public createHubSchedule(input: HubScheduleCreateInput): CronSpecRecord {
 		const scheduleId = `sched_${randomUUID()}`;
+		const spec = hubScheduleInputToCronSpec(input);
 		const result = this.upsertSpec({
 			externalId: scheduleId,
 			sourcePath: hubScheduleSourcePath(scheduleId),
-			triggerKind: "schedule",
+			triggerKind: spec.triggerKind,
 			sourceHash: hubScheduleHash(input),
 			parseStatus: "valid",
-			spec: hubScheduleInputToCronSpec(input),
+			spec,
 		});
-		this.initializeScheduleNextRun(result.record.specId);
+		this.initializeHubScheduleNextRun(result.record.specId, input);
 		const record = this.getSpec(result.record.specId);
 		if (!record) throw new Error("failed to create hub schedule");
 		return record;
@@ -637,7 +662,7 @@ export class SqliteCronStore {
 	): CronSpecRecord[] {
 		const where = [
 			"source = 'hub-schedule'",
-			"trigger_kind = 'schedule'",
+			"trigger_kind IN ('schedule', 'one_off')",
 			"removed = 0",
 		];
 		const params: unknown[] = [];
@@ -669,18 +694,42 @@ export class SqliteCronStore {
 		const current = this.getHubSchedule(scheduleId);
 		if (!current) return undefined;
 		const input = cronSpecRecordToHubScheduleInput(current, updates);
+		const spec = hubScheduleInputToCronSpec(input);
 		const result = this.upsertSpec({
 			externalId: scheduleId,
 			sourcePath: current.sourcePath,
-			triggerKind: "schedule",
+			triggerKind: spec.triggerKind,
 			sourceHash: hubScheduleHash(input),
 			parseStatus: "valid",
-			spec: hubScheduleInputToCronSpec(input),
+			spec,
 		});
-		if (updates.cronPattern !== undefined || updates.enabled !== undefined) {
-			this.initializeScheduleNextRun(result.record.specId);
+		if (
+			updates.cronPattern !== undefined ||
+			updates.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY] !== undefined ||
+			updates.enabled !== undefined
+		) {
+			this.initializeHubScheduleNextRun(result.record.specId, input);
 		}
 		return this.getSpec(result.record.specId);
+	}
+
+	private initializeHubScheduleNextRun(
+		specId: string,
+		input: HubScheduleCreateInput,
+	): void {
+		if (input.enabled === false) {
+			this.updateSpecNextRunAt(specId, undefined);
+			return;
+		}
+		if (input.cronPattern.trim() === ONE_TIME_SCHEDULE_CRON_PATTERN) {
+			const runAt = input.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+			if (typeof runAt !== "number" || !Number.isFinite(runAt)) {
+				throw new Error("runAt metadata is required for one-time schedules");
+			}
+			this.updateSpecNextRunAt(specId, new Date(runAt).toISOString());
+			return;
+		}
+		this.initializeScheduleNextRun(specId);
 	}
 
 	public deleteHubSchedule(scheduleId: string): boolean {

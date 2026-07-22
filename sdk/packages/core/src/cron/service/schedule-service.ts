@@ -1,13 +1,15 @@
-import type {
-	BasicLogger,
-	ChatRunTurnRequest,
-	ChatStartSessionArtifacts,
-	ChatStartSessionRequest,
-	HubScheduleCreateInput,
-	HubScheduleUpdateInput,
-	ScheduleExecutionRecord,
-	ScheduleExecutionStatus,
-	ScheduleRecord,
+import {
+	type BasicLogger,
+	type ChatRunTurnRequest,
+	type ChatStartSessionArtifacts,
+	type ChatStartSessionRequest,
+	type HubScheduleCreateInput,
+	type HubScheduleUpdateInput,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+	type ScheduleExecutionRecord,
+	type ScheduleExecutionStatus,
+	type ScheduleRecord,
 } from "@cline/shared";
 import { CronMaterializer } from "../runner/cron-materializer";
 import { CronRunner } from "../runner/cron-runner";
@@ -119,7 +121,10 @@ function specToSchedule(spec: CronSpecRecord): ScheduleRecord {
 	return {
 		scheduleId: spec.externalId,
 		name: spec.title,
-		cronPattern: spec.scheduleExpr ?? "",
+		cronPattern:
+			spec.triggerKind === "one_off"
+				? ONE_TIME_SCHEDULE_CRON_PATTERN
+				: (spec.scheduleExpr ?? ""),
 		prompt: spec.prompt ?? "",
 		workspaceRoot: spec.workspaceRoot ?? "",
 		cwd:
@@ -236,7 +241,7 @@ export class HubScheduleService {
 	}
 
 	public createSchedule(input: HubScheduleCreateInput): ScheduleRecord {
-		validateCronPattern(input.cronPattern);
+		this.validateScheduleTiming(input.cronPattern, input.metadata, true);
 		if (!input.workspaceRoot?.trim()) {
 			throw new Error("workspaceRoot is required for schedules");
 		}
@@ -258,9 +263,6 @@ export class HubScheduleService {
 		scheduleId: string,
 		updates: HubScheduleUpdateInput,
 	): ScheduleRecord | undefined {
-		if (updates.cronPattern !== undefined) {
-			validateCronPattern(updates.cronPattern);
-		}
 		const current = this.store.getHubSchedule(scheduleId);
 		if (!current) return undefined;
 		const nextWorkspaceRoot =
@@ -268,6 +270,12 @@ export class HubScheduleService {
 				? updates.workspaceRoot.trim()
 				: current.workspaceRoot;
 		const nextEnabled = updates.enabled ?? current.enabled;
+		const currentSchedule = specToSchedule(current);
+		this.validateScheduleTiming(
+			updates.cronPattern ?? currentSchedule.cronPattern,
+			updates.metadata ?? currentSchedule.metadata,
+			nextEnabled,
+		);
 		if (nextEnabled && !nextWorkspaceRoot) {
 			throw new Error("workspaceRoot is required for enabled schedules");
 		}
@@ -276,6 +284,25 @@ export class HubScheduleService {
 			scheduleId,
 		});
 		return updated ? specToSchedule(updated) : undefined;
+	}
+
+	private validateScheduleTiming(
+		cronPattern: string,
+		metadata: HubScheduleCreateInput["metadata"],
+		requireFutureRunAt: boolean,
+	): void {
+		if (cronPattern.trim() !== ONE_TIME_SCHEDULE_CRON_PATTERN) {
+			validateCronPattern(cronPattern);
+			return;
+		}
+		const runAt = metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+		if (
+			typeof runAt !== "number" ||
+			!Number.isFinite(runAt) ||
+			(requireFutureRunAt && runAt <= Date.now())
+		) {
+			throw new Error("runAt must be a future timestamp");
+		}
 	}
 
 	public deleteSchedule(scheduleId: string): boolean {
