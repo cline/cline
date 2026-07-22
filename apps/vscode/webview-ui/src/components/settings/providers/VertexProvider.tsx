@@ -238,7 +238,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<VSCodeDropdown
 						disabled={remoteConfigSettings?.vertexRegion !== undefined}
 						id="vertex-region-dropdown"
-						onChange={(event: Event) => handleRegionChange((event.target as HTMLSelectElement).value)}
+						onChange={(event) => handleRegionChange((event.target as HTMLSelectElement).value)}
 						style={{ width: "100%" }}
 						value={vertexRegion}>
 						<VSCodeOption value="">Select a region...</VSCodeOption>
@@ -309,14 +309,14 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							</div>
 							<VSCodeCheckbox
 								checked={customOverrides.supportsVision !== false}
-								onChange={(event: Event) =>
+								onChange={(event) =>
 									updateCustomOverrides({ supportsVision: (event.target as HTMLInputElement).checked === true })
 								}>
 								Supports Images
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
 								checked={customOverrides.supportsReasoning !== false}
-								onChange={(event: Event) =>
+								onChange={(event) =>
 									updateCustomOverrides({
 										supportsReasoning: (event.target as HTMLInputElement).checked === true,
 									})
