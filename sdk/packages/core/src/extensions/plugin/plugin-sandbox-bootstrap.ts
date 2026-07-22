@@ -22,6 +22,13 @@ import {
 	type PluginTargeting,
 } from "./plugin-targeting";
 
+// When the host is a compiled Bun binary it spawns this bootstrap by
+// re-executing itself with BUN_BE_BUN=1. The flag is only meaningful at exec
+// time, so drop it here to keep it from leaking into subprocesses spawned by
+// plugin code, where it would make any bun-compiled binary run as the plain
+// bun CLI instead of its embedded entrypoint.
+delete process.env.BUN_BE_BUN;
+
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
 // ---------------------------------------------------------------------------

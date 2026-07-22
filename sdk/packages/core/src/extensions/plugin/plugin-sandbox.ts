@@ -147,7 +147,15 @@ function resolveBootstrapFromEnv(): string | undefined {
 	if (!envPath) {
 		return undefined;
 	}
-	return existsSync(envPath) ? envPath : undefined;
+	if (!existsSync(envPath)) {
+		// The env var is an explicit override, so a missing file is a
+		// misconfiguration worth surfacing before falling back to discovery.
+		console.warn(
+			`CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH points to a missing file, ignoring: ${envPath}`,
+		);
+		return undefined;
+	}
+	return envPath;
 }
 
 function resolveBootstrapFromWrapper(): string | undefined {
