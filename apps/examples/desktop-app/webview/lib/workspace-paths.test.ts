@@ -151,6 +151,30 @@ describe("workspace paths", () => {
 		).toBe(true);
 	});
 
+	it("excludes SDK temporary workspaces from discovery and stored selections", () => {
+		const temporaryWorkspace =
+			"/tmp/cline/sessions/session-a1b2c3-temp/project";
+
+		expect(isExcludedWorkspacePath(temporaryWorkspace)).toBe(true);
+		expect(
+			workspacePathsFromSessions([
+				{ workspaceRoot: temporaryWorkspace },
+				{ workspaceRoot: "/projects/app" },
+			]),
+		).toEqual(["/projects/app"]);
+		expect(
+			parseWorkspaceSelectionStorage(
+				JSON.stringify({
+					lastWorkspace: temporaryWorkspace,
+					workspaces: [temporaryWorkspace, "/projects/app"],
+				}),
+			),
+		).toEqual({
+			lastWorkspace: "",
+			workspaces: ["/projects/app"],
+		});
+	});
+
 	describe("with a registered host home directory", () => {
 		afterEach(() => {
 			registerHostHomeDirectory("");

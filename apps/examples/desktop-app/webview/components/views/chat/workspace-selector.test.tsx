@@ -105,4 +105,33 @@ describe("WorkspaceSelector", () => {
 			expect(container.textContent).toContain("/workspace/one");
 		});
 	});
+
+	it("labels SDK temporary workspaces as New Project without listing the raw path", async () => {
+		const temporaryWorkspace =
+			"/tmp/cline/sessions/session-a1b2c3-temp/project";
+		await act(async () => {
+			root.render(
+				<WorkspaceSelector
+					currentBranch="no-git"
+					onListGitBranches={vi.fn(async () => ({
+						current: "no-git",
+						branches: [],
+					}))}
+					onPickWorkspaceDirectory={vi.fn(async () => null)}
+					onRefreshWorkspaces={vi.fn(async () => undefined)}
+					onSwitchGitBranch={vi.fn(async () => false)}
+					onSwitchWorkspace={vi.fn(async () => true)}
+					workspaceRoot={temporaryWorkspace}
+					workspaces={["/workspace/one"]}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("New Project");
+		await click(container.querySelector("#git-branch-btn") as Element);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("/workspace/one");
+		});
+		expect(container.textContent).not.toContain(temporaryWorkspace);
+	});
 });

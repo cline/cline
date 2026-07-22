@@ -100,6 +100,93 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it("delegates pathless session.create and returns the host-resolved workspace", async () => {
+		let resolvedWorkspace = "";
+		let capturedStartInput: StartSessionInput | undefined;
+		const startSession = vi.fn(
+			async (input: StartSessionInput): Promise<StartSessionResult> => {
+				capturedStartInput = input;
+				const sessionId = input.config.sessionId?.trim() || "missing-session";
+				resolvedWorkspace = `/tmp/cline/sessions/${sessionId}-temp/project`;
+				return {
+					sessionId,
+					manifest: {
+						version: 1,
+						session_id: sessionId,
+						source: "core",
+						pid: 1,
+						started_at: new Date(0).toISOString(),
+						status: "running",
+						interactive: true,
+						provider: "cline",
+						model: "test-model",
+						cwd: resolvedWorkspace,
+						workspace_root: resolvedWorkspace,
+						enable_tools: true,
+						enable_spawn: true,
+						enable_teams: false,
+					},
+					manifestPath: "",
+					messagesPath: "",
+					result: undefined,
+				};
+			},
+		);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi.fn().mockImplementation(async (sessionId: string) => ({
+					sessionId,
+					source: "core",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
+					cwd: resolvedWorkspace,
+					workspaceRoot: resolvedWorkspace,
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: false,
+					isSubagent: false,
+				})),
+			},
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-pathless-create",
+			command: "session.create",
+			clientId: "client-1",
+			payload: {
+				sessionConfig: {
+					sessionId: "session-boundary",
+					providerId: "cline",
+					modelId: "test-model",
+					systemPrompt: "system",
+				},
+				metadata: { source: "core", interactive: true },
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(startSession).toHaveBeenCalledTimes(1);
+		expect(capturedStartInput?.config.sessionId).toBe("session-boundary");
+		expect(capturedStartInput?.config.cwd).toBeUndefined();
+		expect(capturedStartInput?.config.workspaceRoot).toBeUndefined();
+		expect(reply.payload?.session).toMatchObject({
+			cwd: resolvedWorkspace,
+			workspaceRoot: resolvedWorkspace,
+		});
+		expect(reply.payload?.snapshot).toMatchObject({
+			workspace: {
+				cwd: resolvedWorkspace,
+				root: resolvedWorkspace,
+			},
+		});
+	});
+
 	it("denies non-interactive approval requests immediately", async () => {
 		const transport = createTransport();
 		const ctx = getContext(transport);

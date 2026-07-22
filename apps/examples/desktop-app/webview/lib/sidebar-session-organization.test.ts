@@ -48,4 +48,12 @@ describe("sidebar session organization", () => {
 			"cline",
 		);
 	});
+
+	it("labels temporary workspace groups as New Project", () => {
+		const path = "/tmp/cline/sessions/session-a1b2c3-temp/project";
+		expect(workspaceDisplayName(path)).toBe("New Project");
+		expect(groupThreadsByProject([thread("temp", path)])[0]?.label).toBe(
+			"New Project",
+		);
+	});
 });

@@ -6,17 +6,22 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { MessageWithMetadata } from "@cline/llms";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtensionAutomationContext,
-	AgentResult,
-	AgentRuntimeEvent,
-	BasicLogger,
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtensionAutomationContext,
+	type AgentResult,
+	type AgentRuntimeEvent,
+	type BasicLogger,
+	isTemporaryWorkspacePath,
 } from "@cline/shared";
-import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import {
+	resolveTemporaryWorkspacePath,
+	setClineDir,
+	setHomeDir,
+} from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -180,6 +185,75 @@ describe("LocalRuntimeHost", () => {
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
+	it.each([
+		{ source: "generated", requestedSessionId: undefined },
+		{ source: "requested", requestedSessionId: "session-explicit" },
+	] as const)("resolves an omitted workspace with the $source session ID", async ({
+		requestedSessionId,
+	}) => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
+			getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		let temporaryWorkspace = "";
+
+		try {
+			const result = await manager.startSession({
+				config: {
+					...(requestedSessionId ? { sessionId: requestedSessionId } : {}),
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					systemPrompt: "You are a test agent",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+			});
+
+			temporaryWorkspace = result.manifest.cwd;
+			if (requestedSessionId) {
+				expect(result.sessionId).toBe(requestedSessionId);
+			}
+			expect(temporaryWorkspace).toBe(
+				resolveTemporaryWorkspacePath(result.sessionId),
+			);
+			expect(isTemporaryWorkspacePath(temporaryWorkspace)).toBe(true);
+			expect(result.manifest.workspace_root).toBe(temporaryWorkspace);
+			expect(runtimeBuilder.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						cwd: temporaryWorkspace,
+						workspaceRoot: temporaryWorkspace,
+					}),
+				}),
+			);
+		} finally {
+			await manager.dispose();
+			if (temporaryWorkspace) {
+				rmSync(dirname(temporaryWorkspace), { recursive: true, force: true });
+			}
+		}
 	});
 
 	it("stores git under metadata and refreshes it after an active turn", async () => {
@@ -3354,15 +3428,25 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-				initialMessages,
-			}),
-		);
+		const pathlessConfig = {
+			...createConfig({ sessionId }),
+			cwd: undefined,
+		};
+		await manager.startSession({
+			config: pathlessConfig,
+			interactive: true,
+			initialMessages,
+		});
 
 		expect(createRootSessionWithArtifacts).not.toHaveBeenCalled();
+		expect(runtimeBuilder.build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					cwd: manifest.cwd,
+					workspaceRoot: manifest.workspace_root,
+				}),
+			}),
+		);
 		expect(persistSessionMessages).not.toHaveBeenCalled();
 		expect(updateSessionStatus).not.toHaveBeenCalled();
 		expect(updateSession).not.toHaveBeenCalled();

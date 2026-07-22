@@ -53,30 +53,58 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
-	it("asks the user to select a workspace before submitting", async () => {
+	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
+		let startedSessionId = "";
 		await act(async () => {
-			current.setConfig((previous) => ({
-				...previous,
-				workspaceRoot: "",
-				cwd: "",
-			}));
+			current.setWorkspacePath("");
 		});
 		invokeMock.mockClear();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; config?: Record<string, unknown> }
+					| undefined;
+				if (request?.action === "start") {
+					const sessionId = String(
+						request.config?.sessionId ?? "session-pathless",
+					);
+					startedSessionId = sessionId;
+					const workspacePath = `/tmp/cline/sessions/${sessionId}-temp/project`;
+					return {
+						sessionId,
+						cwd: workspacePath,
+						workspaceRoot: workspacePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
 
 		await act(async () => current.sendPrompt("Start the task"));
 
-		expect(current.error).toBe("Select a workspace before trying again.");
-		expect(current.messages.at(-1)).toMatchObject({
-			role: "error",
-			content: "Select a workspace before trying again.",
+		expect(current.error).toBeNull();
+		expect(startedSessionId).toMatch(/^session_/);
+		const expectedWorkspacePath = `/tmp/cline/sessions/${startedSessionId}-temp/project`;
+		expect(current.config).toMatchObject({
+			cwd: expectedWorkspacePath,
+			workspaceRoot: expectedWorkspacePath,
 		});
-		expect(invokeMock).not.toHaveBeenCalledWith(
-			"chat_session_command",
-			expect.anything(),
-		);
+		expect(invokeMock).toHaveBeenCalledWith("chat_session_command", {
+			request: expect.objectContaining({
+				action: "start",
+				config: expect.objectContaining({ cwd: "", workspaceRoot: "" }),
+			}),
+		});
 	});
 
-	it("replaces raw workspace manifest errors with actionable copy", async () => {
+	it("preserves server validation errors", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
 				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
@@ -91,10 +119,10 @@ describe("useChatSession", () => {
 
 		await act(async () => current.start(current.config));
 
-		expect(current.error).toBe("Select a workspace before trying again.");
-		expect(current.messages.at(-1)?.content).toBe(
-			"Select a workspace before trying again.",
-		);
+		const expected =
+			'[{"origin":"string","code":"too_small","path":["workspaces","/","hint"],"message":"Too small: expected string to have >=1 characters"}]';
+		expect(current.error).toBe(expected);
+		expect(current.messages.at(-1)?.content).toBe(expected);
 	});
 
 	it.each([
@@ -105,7 +133,8 @@ describe("useChatSession", () => {
 		},
 		{
 			finishReason: "error",
-			expected: "Select a workspace before trying again.",
+			expected:
+				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 	])("handles schema-like assistant text for $finishReason responses", async ({
 		finishReason,
@@ -126,7 +155,11 @@ describe("useChatSession", () => {
 						| { action?: string; config?: { sessionId?: string } }
 						| undefined;
 					if (request?.action === "start") {
-						return { sessionId: request.config?.sessionId ?? "session-test" };
+						return {
+							sessionId: request.config?.sessionId ?? "session-test",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
 					}
 					if (request?.action === "send") {
 						return {
@@ -594,11 +627,7 @@ describe("useChatSession", () => {
 		root = createRoot(container);
 		await act(async () => root.render(<HookHarness />));
 		await act(async () => {
-			current.setConfig((previous) => ({
-				...previous,
-				workspaceRoot: "/workspace/selected",
-				cwd: "/workspace/selected",
-			}));
+			current.setWorkspacePath("/workspace/selected");
 		});
 
 		await act(async () => {
@@ -610,5 +639,37 @@ describe("useChatSession", () => {
 		});
 		expect(current.config.workspaceRoot).toBe("/workspace/selected");
 		expect(current.config.cwd).toBe("/workspace/selected");
+	});
+
+	it("preserves a New Project selection while process context is loading", async () => {
+		await act(async () => root.unmount());
+		let resolveContext:
+			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| undefined;
+		const contextResponse = new Promise<{
+			cwd: string;
+			workspaceRoot: string;
+		}>((resolve) => {
+			resolveContext = resolve;
+		});
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") return await contextResponse;
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+		await act(async () => {
+			current.setWorkspacePath("");
+		});
+
+		await act(async () => {
+			resolveContext?.({
+				cwd: "/workspace/default",
+				workspaceRoot: "/workspace/default",
+			});
+			await contextResponse;
+		});
+		expect(current.config.workspaceRoot).toBe("");
+		expect(current.config.cwd).toBe("");
 	});
 });

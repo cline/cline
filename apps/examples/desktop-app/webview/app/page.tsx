@@ -332,6 +332,7 @@ function ChatThreadPane({
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,
+		setWorkspacePath,
 		sendPrompt,
 		steerPromptInQueue,
 		updatePromptInQueue,
@@ -374,6 +375,7 @@ function ChatThreadPane({
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
+	const workspaceSelectionRequestRef = useRef(0);
 	const workspaceRef = useRef({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
@@ -466,12 +468,15 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
+		const cwd = getWorkspaceCwd();
+		if (!cwd) {
+			setGitBranch("no-git");
+			return;
+		}
 		try {
 			const payload = await desktopClient.invoke<{ branch?: string }>(
 				"get_git_branch",
-				{
-					cwd: getWorkspaceCwd(),
-				},
+				{ cwd },
 			);
 			const branch = payload?.branch?.trim();
 			setGitBranch(branch && branch.length > 0 ? branch : "no-git");
@@ -484,13 +489,15 @@ function ChatThreadPane({
 		current: string;
 		branches: string[];
 	}> => {
+		const cwd = getWorkspaceCwd();
+		if (!cwd) {
+			return { current: "no-git", branches: [] };
+		}
 		try {
 			const payload = await desktopClient.invoke<{
 				current?: string;
 				branches?: string[];
-			}>("list_git_branches", {
-				cwd: getWorkspaceCwd(),
-			});
+			}>("list_git_branches", { cwd });
 			const current = payload?.current?.trim() || "no-git";
 			const branches = Array.isArray(payload?.branches)
 				? payload.branches.filter((item) => item.trim().length > 0)
@@ -503,13 +510,14 @@ function ChatThreadPane({
 
 	const switchGitBranch = useCallback(
 		async (nextBranch: string): Promise<boolean> => {
+			const cwd = getWorkspaceCwd();
+			if (!cwd) {
+				return false;
+			}
 			try {
 				const payload = await desktopClient.invoke<{ branch?: string }>(
 					"checkout_git_branch",
-					{
-						cwd: getWorkspaceCwd(),
-						branch: nextBranch,
-					},
+					{ cwd, branch: nextBranch },
 				);
 				const branch = payload?.branch?.trim();
 				setGitBranch(branch && branch.length > 0 ? branch : "no-git");
@@ -567,6 +575,7 @@ function ChatThreadPane({
 			if (!nextWorkspace) {
 				return false;
 			}
+			const requestId = ++workspaceSelectionRequestRef.current;
 			const normalizedNext = normalizeWorkspacePath(nextWorkspace);
 			const normalizedCurrent = normalizeWorkspacePath(
 				workspaceRef.current.workspaceRoot || workspaceRef.current.cwd || "",
@@ -582,12 +591,11 @@ function ChatThreadPane({
 			if (validation.valid !== true) {
 				return false;
 			}
+			if (requestId !== workspaceSelectionRequestRef.current) {
+				return false;
+			}
 
-			setConfig((prev) => ({
-				...prev,
-				workspaceRoot: nextWorkspace,
-				cwd: nextWorkspace,
-			}));
+			setWorkspacePath(nextWorkspace);
 			setWorkspaces((prev) =>
 				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
 			);
@@ -598,11 +606,16 @@ function ChatThreadPane({
 					cwd: nextWorkspace,
 				})
 				.then((payload) => {
+					if (requestId !== workspaceSelectionRequestRef.current) {
+						return;
+					}
 					const branch = payload?.branch?.trim();
 					setGitBranch(branch && branch.length > 0 ? branch : "no-git");
 				})
 				.catch(() => {
-					setGitBranch("no-git");
+					if (requestId === workspaceSelectionRequestRef.current) {
+						setGitBranch("no-git");
+					}
 				});
 
 			// Refresh the merged history, stored, and current workspace catalog.
@@ -610,8 +623,15 @@ function ChatThreadPane({
 
 			return true;
 		},
-		[setConfig, refreshWorkspaces],
+		[refreshWorkspaces, setWorkspacePath],
 	);
+
+	const selectNewProject = useCallback(async (): Promise<boolean> => {
+		workspaceSelectionRequestRef.current += 1;
+		setWorkspacePath("");
+		setGitBranch("no-git");
+		return true;
+	}, [setWorkspacePath]);
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
@@ -954,6 +974,7 @@ function ChatThreadPane({
 			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
+			selectNewProject,
 		}),
 		[
 			resolvedWorkspaceRoot,
@@ -962,6 +983,7 @@ function ChatThreadPane({
 			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
+			selectNewProject,
 		],
 	);
 

@@ -203,6 +203,11 @@ const session = await cline.start({
 console.log(session.result?.text)
 ```
 
+If both `cwd` and `workspaceRoot` are omitted, the execution host creates a
+workspace at
+`<os.tmpdir()>/cline/sessions/<session-id>-temp/project`.
+The paths in `session.manifest` are the authoritative resolved workspace paths.
+
 `ClineCore` gives the agent built-in tools (`bash`, `editor`, `read_files`, `apply_patch`, `search`, `fetch_web`), persists sessions to SQLite, discovers config from `.cline/` directories, and optionally connects to an RPC sidecar for scheduled agents and cross-process session management.
 
 ## Packages

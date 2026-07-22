@@ -7,9 +7,25 @@ import {
 	readFileSync,
 	statSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { PluginManifest } from "..";
+import {
+	CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
+	CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
+	CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
+	CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+} from "./temporary-workspace-paths";
+
+// Keep the structural pieces browser-safe while exposing them through the
+// canonical Node storage-path module alongside the os.tmpdir() resolver.
+export {
+	CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
+	CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
+	CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
+	CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+	isTemporaryWorkspacePath,
+} from "./temporary-workspace-paths";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
@@ -22,6 +38,22 @@ export const RULES_CONFIG_DIRECTORY_NAME = "rules";
 export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
+
+export function resolveTemporaryWorkspacePath(sessionId: string): string {
+	const normalizedSessionId = sessionId.trim();
+	if (!/^[A-Za-z0-9_-]+$/.test(normalizedSessionId)) {
+		throw new Error(
+			"sessionId must contain only letters, numbers, underscores, or hyphens",
+		);
+	}
+	return join(
+		tmpdir(),
+		CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
+		CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+		`${normalizedSessionId}${CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX}`,
+		CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
+	);
+}
 
 export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
 export const CLINE_CONNECTOR_SETTINGS_FILE_NAME = "settings.json";

@@ -5,7 +5,7 @@ import {
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
-	type CoreSessionConfig,
+	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -197,6 +197,11 @@ function readPositiveInteger(value: unknown): number | undefined {
 }
 
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
+	const workspaceRoot =
+		typeof rawWorkspaceRoot === "string" ? rawWorkspaceRoot.trim() : "";
+	const cwd =
+		(typeof config.cwd === "string" ? config.cwd.trim() : "") || workspaceRoot;
 	const thinking =
 		typeof config.thinking === "boolean" ? config.thinking : undefined;
 	const reasoningEffort =
@@ -218,8 +223,8 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		baseUrl: config.baseUrl,
 		headers: config.headers,
 		providerConfig: config.providerConfig,
-		workspaceRoot: config.workspaceRoot ?? config.workspace_root ?? "",
-		cwd: config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
+		...(workspaceRoot ? { workspaceRoot } : {}),
+		...(cwd ? { cwd } : {}),
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
@@ -471,7 +476,7 @@ async function handleStart(
 		modelId: String(coreConfig.modelId ?? ""),
 	});
 	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
+		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages
@@ -480,19 +485,24 @@ async function handleStart(
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
+	const workspaceRoot = startResult.manifest.workspace_root;
+	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
-	const session = createLiveSession(request.config, {
-		messages: initialMessages,
-		prompt: initialMessages
-			? derivePromptFromMessages(initialMessages)
-			: undefined,
-		title: requestedSessionId
-			? readSessionMetadataTitle(requestedSessionId)
-			: undefined,
-		status: "idle",
-	});
+	const session = createLiveSession(
+		{ ...request.config, cwd, workspaceRoot },
+		{
+			messages: initialMessages,
+			prompt: initialMessages
+				? derivePromptFromMessages(initialMessages)
+				: undefined,
+			title: requestedSessionId
+				? readSessionMetadataTitle(requestedSessionId)
+				: undefined,
+			status: "idle",
+		},
+	);
 	ctx.liveSessions.set(sessionId, session);
-	return { sessionId };
+	return { sessionId, cwd, workspaceRoot };
 }
 
 async function handleAttach(
@@ -582,7 +592,7 @@ async function startRebuiltSession(
 				...config,
 				sessionId,
 				systemPrompt,
-			}) as unknown as CoreSessionConfig,
+			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -932,7 +942,7 @@ async function handleFork(
 				...forkConfig,
 				systemPrompt,
 				initialMessages: sourceMessages,
-			}) as unknown as CoreSessionConfig,
+			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -1018,7 +1028,7 @@ async function handleRestoreCheckpoint(
 				buildCoreSessionConfig({
 					...request.config,
 					systemPrompt: await resolveSystemPrompt(request.config),
-				}) as unknown as CoreSessionConfig,
+				}) as unknown as ClineCoreStartConfig,
 			),
 			source: SessionSource.DESKTOP,
 			interactive: true,

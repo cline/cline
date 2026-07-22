@@ -51,6 +51,7 @@ import {
 	sumUsageTotals,
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
+import { resolveStartSessionWorkspace } from "../../services/workspace/temporary-workspace";
 import {
 	type GitWorkspaceState,
 	hasCurrentSessionGitMetadata,
@@ -117,6 +118,7 @@ import {
 import { loadUserFileContent } from "./local/user-files";
 import type {
 	PendingPromptsServiceApi,
+	ResolvedStartSessionInput,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -305,8 +307,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private async applyInitialOAuthCredentials(
-		input: StartSessionInput,
-	): Promise<StartSessionInput> {
+		input: ResolvedStartSessionInput,
+	): Promise<ResolvedStartSessionInput> {
 		if (input.config.apiKey?.trim()) {
 			return input;
 		}
@@ -330,11 +332,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
-		const source = input.source ?? SessionSource.CLI;
-		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput =
+		const isReadOnlyResumeStart =
+			requestedSessionId.length > 0 &&
+			(input.initialMessages?.length ?? 0) > 0 &&
+			!input.prompt?.trim();
+		const hasRequestedWorkspace = Boolean(
+			input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
+		);
+		const existingResumeManifest =
+			isReadOnlyResumeStart && !hasRequestedWorkspace
+				? await this.invokeOptionalValue<SessionManifest>(
+						"readSessionManifest",
+						sessionId,
+					)
+				: undefined;
+		const config = existingResumeManifest
+			? {
+					...input.config,
+					cwd: existingResumeManifest.cwd,
+					workspaceRoot: existingResumeManifest.workspace_root,
+				}
+			: await resolveStartSessionWorkspace(input.config, sessionId);
+		return await this.startResolvedSession(
+			{ ...input, config },
+			sessionId,
+			requestedSessionId.length > 0,
+			existingResumeManifest,
+		);
+	}
+
+	private async startResolvedSession(
+		input: ResolvedStartSessionInput,
+		sessionId: string,
+		wasSessionIdRequested: boolean,
+		existingResumeManifest?: SessionManifest,
+	): Promise<StartSessionResult> {
+		const source = input.source ?? SessionSource.CLI;
+		const startedAt = nowIso();
+		const startInput: ResolvedStartSessionInput =
 			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
@@ -379,14 +416,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let resumedArtifacts: RootSessionArtifacts | undefined;
 		let resumedCompactionState: SessionCompactionState | undefined;
 		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
+			wasSessionIdRequested &&
 			initialMessages.length > 0 &&
 			!startInput.prompt?.trim();
 		if (isReadOnlyResumeStart) {
-			const existingManifest = await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				sessionId,
-			);
+			const existingManifest =
+				existingResumeManifest ??
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				));
 			if (existingManifest) {
 				manifest = existingManifest;
 				resumedArtifacts = {
@@ -705,7 +744,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		emitSessionCreationTelemetry(
 			configWithProvider,
 			sessionId,
-			requestedSessionId.length > 0,
+			wasSessionIdRequested,
 			workspacePath,
 			rootAgentIdentity,
 		);

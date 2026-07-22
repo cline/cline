@@ -128,6 +128,51 @@ describe("hasProviderChanged", () => {
 	});
 });
 
+describe("pathless session starts", () => {
+	it("omits workspace paths and returns the SDK-resolved temporary workspace", async () => {
+		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
+			expect(input.config).not.toHaveProperty("cwd");
+			expect(input.config).not.toHaveProperty("workspaceRoot");
+			return {
+				sessionId: "session-pathless",
+				manifest: {
+					cwd: "/tmp/cline/sessions/session-pathless-temp/project",
+					workspace_root: "/tmp/cline/sessions/session-pathless-temp/project",
+				},
+				manifestPath: "/tmp/session-pathless.json",
+				messagesPath: "/tmp/session-pathless.messages.json",
+			};
+		});
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				enableTools: true,
+			},
+		})) as {
+			sessionId: string;
+			cwd: string;
+			workspaceRoot: string;
+		};
+
+		expect(result).toEqual({
+			sessionId: "session-pathless",
+			cwd: "/tmp/cline/sessions/session-pathless-temp/project",
+			workspaceRoot: "/tmp/cline/sessions/session-pathless-temp/project",
+		});
+		expect(ctx.liveSessions.get("session-pathless")?.config).toMatchObject({
+			cwd: "/tmp/cline/sessions/session-pathless-temp/project",
+			workspaceRoot: "/tmp/cline/sessions/session-pathless-temp/project",
+		});
+	});
+});
+
 describe("first-send connection updates", () => {
 	const baseConfig = {
 		provider: "cline",

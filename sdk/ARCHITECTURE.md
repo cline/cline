@@ -149,6 +149,15 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Workspace bootstrap is owned by the runtime that executes the session. Hub
+clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
+the hub-side execution host can create a temporary workspace on its own
+filesystem at
+`<os.tmpdir()>/cline/sessions/<session-id>-temp/project`.
+The resolved paths are returned in the session snapshot and are the source of
+truth for client-side manifests; transport clients must not invent a local path
+for a remote runtime.
+
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI
 binary immediately before a command restarts the shared hub.

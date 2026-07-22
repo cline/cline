@@ -283,3 +283,12 @@ export interface CoreSessionConfig
 	skills?: string[];
 	workspaceMetadata?: string;
 }
+
+/**
+ * Public ClineCore start configuration. The execution host resolves `cwd`
+ * before constructing a runtime, creating a temporary workspace when both
+ * workspace paths are omitted.
+ */
+export type ClineCoreStartConfig = Omit<CoreSessionConfig, "cwd"> & {
+	cwd?: string;
+};

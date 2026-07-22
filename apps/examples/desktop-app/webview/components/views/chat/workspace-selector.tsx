@@ -1,5 +1,6 @@
 "use client";
 
+import { isTemporaryWorkspacePath } from "@cline/shared/browser";
 import { Check, FolderCode, GitBranch, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -54,9 +55,12 @@ export function WorkspaceSelector({
 	const [newBranchName, setNewBranchName] = useState("");
 
 	const workspaceName = useMemo(() => {
+		if (isTemporaryWorkspacePath(workspaceRoot)) {
+			return "New Project";
+		}
 		const trimmed = workspaceRoot.trim().replace(/[\\/]+$/, "");
 		if (!trimmed) {
-			return "workspace";
+			return "New Project";
 		}
 		const parts = trimmed.split(/[\\/]/);
 		return parts[parts.length - 1] || "workspace";
@@ -177,9 +181,10 @@ export function WorkspaceSelector({
 		const byNormalizedPath = new Map<string, string>();
 		const register = (path: string) => {
 			const trimmed = path.trim();
-			if (trimmed) byNormalizedPath.set(normalizeWorkspacePath(trimmed), trimmed);
+			if (trimmed)
+				byNormalizedPath.set(normalizeWorkspacePath(trimmed), trimmed);
 		};
-		register(workspaceRoot);
+		if (!isTemporaryWorkspacePath(workspaceRoot)) register(workspaceRoot);
 		for (const path of workspaces) register(path);
 		return [...byNormalizedPath.values()];
 	}, [workspaceRoot, workspaces]);

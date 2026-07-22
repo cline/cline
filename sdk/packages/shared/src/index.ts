@@ -495,6 +495,13 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export {
+	CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
+	CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
+	CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
+	CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+	isTemporaryWorkspacePath,
+} from "./storage/temporary-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";

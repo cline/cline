@@ -70,29 +70,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"stopping",
 ]);
 
-const WORKSPACE_SELECTION_REQUIRED_MESSAGE =
-	"Select a workspace before trying again.";
-
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
 // ---------------------------------------------------------------------------
 
-function userFacingMessage(message: string): string {
-	const normalized = message.toLowerCase();
-	const isWorkspaceManifestValidationError =
-		normalized.includes("workspaces") &&
-		(normalized.includes("too_small") ||
-			normalized.includes("expected string to have >=1"));
-	const isMissingWorkspaceConfig = normalized.includes(
-		"config.cwd or config.workspaceroot is required",
-	);
-	return isWorkspaceManifestValidationError || isMissingWorkspaceConfig
-		? WORKSPACE_SELECTION_REQUIRED_MESSAGE
-		: message;
-}
-
 function errorMessage(err: unknown): string {
-	return userFacingMessage(err instanceof Error ? err.message : String(err));
+	return err instanceof Error ? err.message : String(err);
 }
 
 function makeErrorChatMessage(
@@ -113,9 +96,6 @@ function validateConfig(
 ):
 	| { parsed: ChatSessionConfig; error: null }
 	| { parsed: null; error: string } {
-	if (!config.workspaceRoot.trim()) {
-		return { parsed: null, error: WORKSPACE_SELECTION_REQUIRED_MESSAGE };
-	}
 	const runtimeConfig = normalizeRuntimeConfig(config);
 	const result = ChatSessionConfigSchema.safeParse(runtimeConfig);
 	if (!result.success) {
@@ -265,6 +245,7 @@ export function useChatSession() {
 		null,
 	);
 	const hydrationRequestIdRef = useRef(0);
+	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
@@ -284,6 +265,16 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+
+	const setWorkspacePath = useCallback((workspacePath: string): void => {
+		workspaceSelectionRequestRef.current += 1;
+		const normalized = workspacePath.trim();
+		setConfig((previous) => ({
+			...previous,
+			workspaceRoot: normalized,
+			cwd: normalized,
+		}));
+	}, []);
 
 	// ---- Shared state reset helpers ----
 
@@ -331,6 +322,8 @@ export function useChatSession() {
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
 		return await desktopClient.invoke<{
 			sessionId?: string;
+			cwd?: string;
+			workspaceRoot?: string;
 			result?: ChatApiResult;
 			ok?: boolean;
 			queued?: boolean;
@@ -492,6 +485,7 @@ export function useChatSession() {
 	// ---- Process context ----
 
 	const applyProcessContext = useCallback(async () => {
+		const requestId = workspaceSelectionRequestRef.current;
 		try {
 			const ctx = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
@@ -508,6 +502,9 @@ export function useChatSession() {
 						})
 						.catch(() => ({ valid: false }))
 				: { valid: false };
+			if (requestId !== workspaceSelectionRequestRef.current) {
+				return;
+			}
 			setConfig((prev) => {
 				const currentWorkspace = (prev.workspaceRoot || prev.cwd || "").trim();
 				const selectionChangedWhileLoading = Boolean(
@@ -977,6 +974,13 @@ export function useChatSession() {
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
+			const workspaceRoot =
+				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
+			const cwd =
+				payload.cwd?.trim() || validatedConfig.cwd?.trim() || workspaceRoot;
+			if (!workspaceRoot || !cwd) {
+				throw new Error("Missing resolved workspace from server");
+			}
 			setSessionId(id);
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
@@ -984,7 +988,12 @@ export function useChatSession() {
 			if (!options.preserveStatus) {
 				setStatus("idle");
 			}
-			setConfig(validatedConfig);
+			workspaceSelectionRequestRef.current += 1;
+			setConfig({
+				...validatedConfig,
+				cwd,
+				workspaceRoot,
+			});
 			setHydratedHistorySessionId(null);
 			return id;
 		},
@@ -1246,10 +1255,7 @@ export function useChatSession() {
 					result?.messages,
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
-				const resolvedAssistantText =
-					result?.finishReason === "error"
-						? userFacingMessage(rawAssistantText)
-						: rawAssistantText;
+				const resolvedAssistantText = rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1403,9 +1409,7 @@ export function useChatSession() {
 						addMessage(
 							makeErrorChatMessage(
 								activeSessionId,
-								(toolError?.trim()
-									? userFacingMessage(toolError.trim())
-									: undefined) ||
+								toolError?.trim() ||
 									"Runtime turn failed before an assistant response was produced.",
 							),
 						);
@@ -1906,6 +1910,7 @@ export function useChatSession() {
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,
+		setWorkspacePath,
 		start,
 		hydrateSession,
 		sendPrompt,

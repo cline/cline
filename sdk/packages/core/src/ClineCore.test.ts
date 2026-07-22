@@ -215,6 +215,46 @@ describe("ClineCore", () => {
 		expect(listeners).toHaveLength(1);
 	});
 
+	it("preserves an omitted workspace until the execution host resolves it", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-pathless"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		await core.start({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "test",
+				systemPrompt: "You are concise.",
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+		});
+
+		expect(host.startSession).toHaveBeenCalledTimes(1);
+		const forwarded = host.startSession.mock.calls[0]?.[0];
+		expect(forwarded?.config).not.toHaveProperty("cwd");
+		expect(forwarded?.config).not.toHaveProperty("workspaceRoot");
+	});
+
 	it("disposes active session bootstraps when the session ends", async () => {
 		let listener:
 			| ((event: { type: string; payload: { sessionId: string } }) => void)
