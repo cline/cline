@@ -26,8 +26,8 @@
 			"import": "./dist/components/agent-chat/index.js"
 		},
 		"./components/agent-chat.css": "./components/agent-chat/agent-chat.css",
+		"./components/markdown.css": "./components/markdown.css",
 		"./theme/index.css": "./theme/index.css",
-		"./theme/markdown.css": "./theme/markdown.css",
 		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
@@ -39,6 +39,7 @@
 		"components/*.css",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
+		"components/markdown.css",
 		"dist",
 		"src",
 		"theme",
@@ -60,13 +61,15 @@
 	],
 	"license": "Apache-2.0",
 	"scripts": {
-		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json && bun tsc -p tsconfig.primitives.json",
+		"build": "bun run generate:theme && bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json && bun tsc -p tsconfig.primitives.json",
+		"check:theme-generated": "bun scripts/generate-theme.ts --check",
+		"generate:theme": "bun scripts/generate-theme.ts",
 		"prepack": "bun run build",
 		"storybook": "storybook dev",
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
 		"test:package": "bun run build && bun scripts/smoke-package.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
-		"test": "vitest run --config vitest.config.ts"
+		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts"
 	},
 	"dependencies": {
 		"@radix-ui/react-dialog": "1.1.15",

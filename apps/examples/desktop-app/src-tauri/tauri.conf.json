@@ -1,13 +1,21 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
 	"productName": "Cline Code",
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"identifier": "bot.cline.app",
 	"build": {
 		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
 		"devUrl": "http://localhost:3125",
 		"beforeBuildCommand": "bun run build",
 		"frontendDist": "../webview/out"
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENEMTJDNzk2RUExQUY3RDEKUldUUjl4cnFsc2NTelYxNzlFR1NkWnI0VTM1V0hvQXRyOW0xV2c0bFhkL3dhdkdpNGhNRW1MQXEK",
+			"endpoints": [
+				"https://github.com/cline/cline/releases/download/desktop-latest/latest.json"
+			]
+		}
 	},
 	"app": {
 		"windows": [

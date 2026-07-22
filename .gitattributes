@@ -5,3 +5,4 @@ assets/docs/demo.gif filter=lfs diff=lfs merge=lfs -text
 
 # Built package output is committed for temporary git-SHA consumers.
 sdk/packages/ui/dist/** linguist-generated=true
+sdk/packages/ui/theme/scoped-tokens.css linguist-generated=true
