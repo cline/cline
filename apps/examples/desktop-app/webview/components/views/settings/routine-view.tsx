@@ -185,7 +185,7 @@ const WEEKDAY_OPTIONS = [
 
 interface RoutineFormState {
 	name: string;
-	scheduleType: "once" | "daily" | "weekly";
+	scheduleType: "daily" | "weekly" | "once";
 	scheduleDate: string;
 	scheduleHour: string;
 	scheduleMinute: string;
@@ -979,7 +979,7 @@ export function RoutineSchedulesContent({
 		}
 		const workspaceRoot = asTrimmedFormString(createForm.workspaceRoot);
 		if (!workspaceRoot) {
-			setCreateFormError("Workspace root is required.");
+			setCreateFormError("Workspace is required.");
 			return;
 		}
 		setCreateFormError(null);
@@ -1013,9 +1013,9 @@ export function RoutineSchedulesContent({
 				prompt,
 				provider,
 				model,
-				mode: "act",
+				mode: editingSchedule?.mode ?? "act",
 				workspace_root: workspaceRoot,
-				cwd: workspaceRoot,
+				cwd: editingSchedule ? (editingSchedule.cwd ?? null) : workspaceRoot,
 				system_prompt: editingSchedule
 					? systemPrompt || null
 					: systemPrompt || undefined,
@@ -1573,9 +1573,9 @@ export function RoutineSchedulesContent({
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="once">Once</SelectItem>
 											<SelectItem value="daily">Daily</SelectItem>
 											<SelectItem value="weekly">Weekly</SelectItem>
+											<SelectItem value="once">Once</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
@@ -1783,7 +1783,7 @@ export function RoutineSchedulesContent({
 						</div>
 
 						<div className="sm:col-span-2">
-							<Label htmlFor="routine-workspace">Workspace root</Label>
+							<Label htmlFor="routine-workspace">Workspace</Label>
 							<Input
 								id="routine-workspace"
 								value={createForm.workspaceRoot}

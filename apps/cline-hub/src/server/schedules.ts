@@ -65,6 +65,10 @@ function asTrimmedStringArray(value: unknown): string[] | undefined {
 	return values.length > 0 ? values : undefined;
 }
 
+function routineScheduleMode(value: unknown): "act" | "plan" | "yolo" {
+	return value === "plan" || value === "yolo" ? value : "act";
+}
+
 export async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
@@ -121,7 +125,7 @@ export async function handleRoutineScheduleCommand(
 				providerId: asTrimmedString(args?.provider) ?? "cline",
 				modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
 			},
-			mode: args?.mode === "plan" ? "plan" : "act",
+			mode: routineScheduleMode(args?.mode),
 			workspaceRoot: routineWorkspaceRoot,
 			cwd: asTrimmedString(args?.cwd),
 			systemPrompt: asTrimmedString(args?.system_prompt),
@@ -155,7 +159,7 @@ export async function handleRoutineScheduleCommand(
 				providerId: asTrimmedString(args?.provider) ?? "cline",
 				modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
 			},
-			mode: args?.mode === "plan" ? "plan" : "act",
+			mode: routineScheduleMode(args?.mode),
 			workspaceRoot: routineWorkspaceRoot,
 			cwd: asTrimmedString(args?.cwd) ?? null,
 			systemPrompt:

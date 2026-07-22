@@ -753,12 +753,82 @@ export class SqliteCronStore {
 		) {
 			return undefined;
 		}
+		if (spec.triggerKind === "one_off" && triggerKind === "manual") {
+			return this.consumeOneOffWithManualRun(spec);
+		}
 		return this.enqueueRun({
 			specId: spec.specId,
 			specRevision: spec.revision,
 			triggerKind,
 			scheduledFor: nowIso(),
 		});
+	}
+
+	private consumeOneOffWithManualRun(
+		spec: CronSpecRecord,
+	): CronRunRecord | undefined {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const current = this.getSpec(spec.specId);
+			if (
+				!current ||
+				current.revision !== spec.revision ||
+				current.triggerKind !== "one_off" ||
+				!current.enabled ||
+				current.removed ||
+				current.parseStatus !== "valid"
+			) {
+				this.db.exec("COMMIT;");
+				return undefined;
+			}
+			const now = nowIso();
+			this.db
+				.prepare(
+					`UPDATE cron_specs SET next_run_at = NULL, updated_at = ?
+						WHERE spec_id = ? AND revision = ?`,
+				)
+				.run(now, current.specId, current.revision);
+
+			const existingRow = this.db
+				.prepare(
+					`SELECT * FROM cron_runs
+						WHERE spec_id = ? AND spec_revision = ?
+							AND trigger_kind IN ('one_off', 'manual')
+							AND status != 'cancelled'
+						ORDER BY CASE trigger_kind WHEN 'manual' THEN 0 ELSE 1 END,
+							created_at ASC
+						LIMIT 1`,
+				)
+				.get(current.specId, current.revision);
+			const existing = existingRow ? runToRecord(existingRow) : undefined;
+			if (existing && existing.status !== "queued") {
+				this.db.exec("COMMIT;");
+				return existing;
+			}
+			if (existing?.triggerKind === "manual") {
+				this.db.exec("COMMIT;");
+				return existing;
+			}
+
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET status = 'cancelled', updated_at = ?
+						WHERE spec_id = ? AND spec_revision = ?
+							AND trigger_kind = 'one_off' AND status = 'queued'`,
+				)
+				.run(now, current.specId, current.revision);
+			const run = this.enqueueRun({
+				specId: current.specId,
+				specRevision: current.revision,
+				triggerKind: "manual",
+				scheduledFor: now,
+			});
+			this.db.exec("COMMIT;");
+			return run;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
 	}
 
 	public listEventSpecsForType(eventType: string): CronSpecRecord[] {
@@ -1360,12 +1430,12 @@ export class SqliteCronStore {
 		return this.getRun(options.runId);
 	}
 
-	public hasOneOffRunForRevision(specId: string, revision: number): boolean {
+	public hasConsumedOneOffRevision(specId: string, revision: number): boolean {
 		const row = this.db
 			.prepare(
 				`SELECT run_id FROM cron_runs
 					WHERE spec_id = ? AND spec_revision = ?
-						AND trigger_kind = 'one_off'
+						AND trigger_kind IN ('one_off', 'manual')
 					LIMIT 1`,
 			)
 			.get(specId, revision);

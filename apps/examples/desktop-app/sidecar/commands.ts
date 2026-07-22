@@ -292,6 +292,93 @@ async function resolveFreshClineAuthToken(
 	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
 }
 
+function mergePersistedSessionRecord(
+	store: SqliteSessionStore,
+	sessionId: string,
+	record: JsonRecord,
+): JsonRecord {
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	const metadata =
+		record.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return {
+		...(persisted ?? {}),
+		...record,
+		sessionId,
+		provider: record.provider ?? persisted?.provider ?? "",
+		model: record.model ?? persisted?.model ?? "",
+		cwd: record.cwd ?? persisted?.cwd ?? "",
+		workspaceRoot:
+			record.workspaceRoot ?? persisted?.workspaceRoot ?? persisted?.cwd ?? "",
+		prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
+		parentSessionId:
+			record.parentSessionId ??
+			persisted?.parentSessionId ??
+			metadata?.parentSessionId,
+		parentAgentId:
+			record.parentAgentId ??
+			persisted?.parentAgentId ??
+			metadata?.parentAgentId,
+		agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
+		conversationId:
+			record.conversationId ??
+			persisted?.conversationId ??
+			metadata?.conversationId,
+		isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
+		startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
+		updatedAt: record.updatedAt ?? persisted?.updatedAt,
+		metadata: {
+			...((persisted?.metadata && typeof persisted.metadata === "object"
+				? persisted.metadata
+				: {}) as JsonRecord),
+			...(metadata ?? {}),
+		},
+	};
+}
+
+async function getSessionFromSidecarManager(
+	ctx: SidecarContext,
+	sessionId: string,
+): Promise<JsonRecord | undefined> {
+	const store = new SqliteSessionStore();
+	if (ctx.sessionManager) {
+		const session = await ctx.sessionManager.get(sessionId);
+		if (session) {
+			return mergePersistedSessionRecord(
+				store,
+				sessionId,
+				session as unknown as JsonRecord,
+			);
+		}
+	}
+
+	if (ctx.hubClient) {
+		try {
+			const reply = await ctx.hubClient.command(
+				"session.get",
+				undefined,
+				sessionId,
+			);
+			const session = reply.payload?.session;
+			if (session && typeof session === "object") {
+				return mergePersistedSessionRecord(
+					store,
+					sessionId,
+					session as JsonRecord,
+				);
+			}
+		} catch {
+			// Fall through to the local SQLite index.
+		}
+	}
+
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	return persisted
+		? mergePersistedSessionRecord(store, sessionId, persisted)
+		: undefined;
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -303,52 +390,6 @@ async function listSessionsFromSidecarManager(
 
 	const byId = new Map<string, JsonRecord>();
 	const store = new SqliteSessionStore();
-	const mergeSessionRecord = (
-		sessionId: string,
-		record: JsonRecord,
-	): JsonRecord => {
-		const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
-		const metadata =
-			record.metadata && typeof record.metadata === "object"
-				? (record.metadata as JsonRecord)
-				: undefined;
-		return {
-			...(persisted ?? {}),
-			...record,
-			sessionId,
-			provider: record.provider ?? persisted?.provider ?? "",
-			model: record.model ?? persisted?.model ?? "",
-			cwd: record.cwd ?? persisted?.cwd ?? "",
-			workspaceRoot:
-				record.workspaceRoot ??
-				persisted?.workspaceRoot ??
-				persisted?.cwd ??
-				"",
-			prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
-			parentSessionId:
-				record.parentSessionId ??
-				persisted?.parentSessionId ??
-				metadata?.parentSessionId,
-			parentAgentId:
-				record.parentAgentId ??
-				persisted?.parentAgentId ??
-				metadata?.parentAgentId,
-			agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
-			conversationId:
-				record.conversationId ??
-				persisted?.conversationId ??
-				metadata?.conversationId,
-			isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
-			startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
-			updatedAt: record.updatedAt ?? persisted?.updatedAt,
-			metadata: {
-				...((persisted?.metadata && typeof persisted.metadata === "object"
-					? persisted.metadata
-					: {}) as JsonRecord),
-				...(metadata ?? {}),
-			},
-		};
-	};
 
 	if (ctx.hubClient) {
 		try {
@@ -361,7 +402,10 @@ async function listSessionsFromSidecarManager(
 				const record = item as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
 				if (sessionId)
-					byId.set(sessionId, mergeSessionRecord(sessionId, record));
+					byId.set(
+						sessionId,
+						mergePersistedSessionRecord(store, sessionId, record),
+					);
 			}
 		} catch {
 			// Fall through to the local SQLite index.
@@ -501,6 +545,10 @@ function asTrimmedStringArray(value: unknown): string[] | undefined {
 	return values.length > 0 ? values : undefined;
 }
 
+function routineScheduleMode(value: unknown): "act" | "plan" | "yolo" {
+	return value === "plan" || value === "yolo" ? value : "act";
+}
+
 async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
@@ -609,7 +657,7 @@ async function handleRoutineScheduleCommand(
 					providerId: asTrimmedString(args?.provider) ?? "cline",
 					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
 				},
-				mode: args?.mode === "plan" ? "plan" : "act",
+				mode: routineScheduleMode(args?.mode),
 				workspaceRoot,
 				cwd: asTrimmedString(args?.cwd),
 				systemPrompt: asTrimmedString(args?.system_prompt),
@@ -642,7 +690,7 @@ async function handleRoutineScheduleCommand(
 					providerId: asTrimmedString(args?.provider) ?? "cline",
 					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
 				},
-				mode: args?.mode === "plan" ? "plan" : "act",
+				mode: routineScheduleMode(args?.mode),
 				workspaceRoot,
 				cwd: asTrimmedString(args?.cwd) ?? null,
 				systemPrompt:
@@ -1213,6 +1261,11 @@ export async function handleCommand(
 			ctx,
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
+	}
+	if (command === "get_discovered_session") {
+		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();

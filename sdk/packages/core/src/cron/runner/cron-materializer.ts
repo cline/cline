@@ -71,7 +71,7 @@ export class CronMaterializer {
 	public materializeOneOff(spec: CronSpecRecord): boolean {
 		if (spec.triggerKind !== "one_off") return false;
 		if (!spec.enabled || spec.removed) return false;
-		if (this.store.hasOneOffRunForRevision(spec.specId, spec.revision)) {
+		if (this.store.hasConsumedOneOffRevision(spec.specId, spec.revision)) {
 			return false;
 		}
 		this.store.enqueueRun({

@@ -233,11 +233,10 @@ export default function Home() {
 				return;
 			}
 			try {
-				const discovered = await desktopClient.invoke<SessionHistoryItem[]>(
-					"list_discovered_sessions",
-					{ limit: 500 },
+				const session = await desktopClient.invoke<SessionHistoryItem | null>(
+					"get_discovered_session",
+					{ session_id: sessionId },
 				);
-				const session = discovered.find((item) => item.sessionId === sessionId);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}

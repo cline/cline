@@ -797,7 +797,7 @@ export function RoutineSchedulesContent() {
 			const model =
 				asTrimmedFormString(createForm.model) ||
 				(visibleProviderModels[provider] ?? [])[0] ||
-				"openai/gpt-5.3-codex";
+				"openai/gpt-6-sol";
 			const systemPrompt = asTrimmedFormString(createForm.systemPrompt);
 			const timeoutSeconds = parseOptionalPositiveInt(
 				createForm.timeoutSeconds,
@@ -815,9 +815,9 @@ export function RoutineSchedulesContent() {
 				prompt,
 				provider,
 				model,
-				mode: "act",
+				mode: editingSchedule?.mode ?? "yolo", // New routines must default to yolo mode.
 				workspace_root: workspaceRoot,
-				cwd: workspaceRoot,
+				cwd: editingSchedule ? (editingSchedule.cwd ?? null) : workspaceRoot,
 				system_prompt: editingSchedule
 					? systemPrompt || null
 					: systemPrompt || undefined,
