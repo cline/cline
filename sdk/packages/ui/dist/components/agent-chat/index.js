@@ -211,13 +211,13 @@ export const Reasoning = ({ className, defaultOpen = false, isStreaming = false,
     const value = useMemo(() => ({ isOpen, isStreaming, panelId, setIsOpen }), [isOpen, isStreaming, panelId, setIsOpen]);
     return (_jsx(ReasoningContext.Provider, { value: value, children: _jsx("div", { ...props, className: classNames("cline-chat-reasoning", className), "data-streaming": isStreaming || undefined }) }));
 };
-export const ReasoningTrigger = ({ children, className, completeLabel = "Thought process", onClick, streamingLabel = "Thinking", ...props }) => {
+export const ReasoningTrigger = ({ children, className, completeLabel = "Thinking", onClick, streamingLabel = "Thinking", ...props }) => {
     const { isOpen, isStreaming, panelId, setIsOpen } = useReasoning();
     return (_jsx("button", { ...props, "aria-controls": panelId, "aria-expanded": isOpen, className: classNames("cline-chat-reasoning-trigger", className), onClick: (event) => {
             onClick?.(event);
             if (!event.defaultPrevented)
                 setIsOpen(!isOpen);
-        }, type: "button", children: children ?? (_jsxs(_Fragment, { children: [_jsx(BrainIcon, {}), _jsx("span", { children: isStreaming ? streamingLabel : completeLabel }), _jsx("span", { "aria-live": "polite", className: "cline-chat-reasoning-status", children: isStreaming ? "In progress" : "Complete" }), _jsx(ChevronDownIcon, { className: "cline-chat-disclosure-icon" })] })) }));
+        }, type: "button", children: children ?? (_jsxs(_Fragment, { children: [_jsx("span", { children: isStreaming ? streamingLabel : completeLabel }), _jsx(ChevronDownIcon, { className: "cline-chat-disclosure-icon" })] })) }));
 };
 export const ReasoningContent = ({ className, ...props }) => {
     const { isOpen, panelId } = useReasoning();
@@ -271,8 +271,5 @@ export const ToolActivityDetails = ({ className, ...props }) => (_jsx("div", { c
 export const ToolActivityCode = ({ className, ...props }) => (_jsx("pre", { className: classNames("cline-chat-tool-code", className), ...props }));
 function ChevronDownIcon({ className }) {
     return (_jsx("svg", { "aria-hidden": "true", className: className, fill: "none", height: "16", viewBox: "0 0 24 24", width: "16", children: _jsx("path", { d: "m6 9 6 6 6-6", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2" }) }));
-}
-function BrainIcon() {
-    return (_jsx("svg", { "aria-hidden": "true", fill: "none", height: "16", viewBox: "0 0 24 24", width: "16", children: _jsx("path", { d: "M9.5 4.5A3 3 0 0 0 4 6a3 3 0 0 0 .5 5.9A3.5 3.5 0 0 0 8 17h1.5m5-12.5A3 3 0 0 1 20 6a3 3 0 0 1-.5 5.9A3.5 3.5 0 0 1 16 17h-1.5M9.5 4.5V20m5-15.5V20M9.5 9H7m7.5 3H17m-7.5 4H7m7.5 1h2", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1.75" }) }));
 }
 //# sourceMappingURL=index.js.map
