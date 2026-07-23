@@ -176,9 +176,20 @@ export function resolveWindowsExecutable(
 	const execPath = options.execPath ?? process.execPath;
 	const fileExists = options.fileExists ?? existsSync;
 
-	// Already a concrete path or extension-qualified: trust it as-is.
+	// An explicit path: only directly spawnable if its extension can run
+	// without a shell. A `.cmd`/`.bat` at an explicit path still needs cmd.exe,
+	// so return undefined and let the caller rewrite the shim or fall back to a
+	// shell. An extensionless explicit path is trusted as a real executable.
 	if (command.includes("/") || command.includes("\\")) {
-		return fileExists(command) ? command : undefined;
+		if (!fileExists(command)) return undefined;
+		const explicitExtension = win32.extname(command).toLowerCase();
+		if (
+			explicitExtension &&
+			!DIRECT_SPAWN_EXTENSIONS.includes(explicitExtension)
+		) {
+			return undefined;
+		}
+		return command;
 	}
 	const extension = win32.extname(command).toLowerCase();
 	if (extension) {

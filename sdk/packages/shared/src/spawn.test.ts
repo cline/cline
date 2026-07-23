@@ -122,6 +122,26 @@ describe("resolveWindowsExecutable", () => {
 			}),
 		).toBe("C:\\bin\\tool.exe");
 	});
+
+	it("rejects an explicit .cmd/.bat path (still needs a shell)", () => {
+		for (const shim of ["C:\\bin\\tool.cmd", "C:\\bin\\tool.bat"]) {
+			expect(
+				resolveWindowsExecutable(shim, {
+					...options,
+					fileExists: (path) => path === shim,
+				}),
+			).toBeUndefined();
+		}
+	});
+
+	it("accepts an explicit extensionless executable path", () => {
+		expect(
+			resolveWindowsExecutable("C:\\bin\\tool", {
+				...options,
+				fileExists: (path) => path === "C:\\bin\\tool",
+			}),
+		).toBe("C:\\bin\\tool");
+	});
 });
 
 describe("resolveShellFreeInvocation", () => {
@@ -261,6 +281,41 @@ describe("resolveShellFreeInvocation", () => {
 		).toEqual({
 			command: nodePath,
 			args: [scriptPath, "run", "arg<1"],
+		});
+	});
+
+	it("returns undefined for an explicit non-npm .cmd path so callers keep a shell", () => {
+		// An MCP config that names an explicit `.cmd` that is not an npm shim
+		// must not be treated as shell-free; the caller falls back to a shell.
+		expect(
+			resolveShellFreeInvocation("C:\\tools\\server.cmd", ["--port", "1<2"], {
+				platform: "win32",
+				env: { Path: "C:\\tools" },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => path === "C:\\tools\\server.cmd",
+				readTextFile: () => "@echo off\r\nserver-native %*\r\n",
+			}),
+		).toBeUndefined();
+	});
+
+	it("rewrites an explicit npm .cmd shim path to node + its script", () => {
+		const dir = "C:\\Program Files\\nodejs";
+		const nodePath = `${dir}\\node.exe`;
+		const shimPath = `${dir}\\some-tool.cmd`;
+		const scriptPath = `${dir}\\node_modules\\some-tool\\cli.js`;
+		const existing = new Set([nodePath, shimPath, scriptPath]);
+
+		expect(
+			resolveShellFreeInvocation(shimPath, ["run"], {
+				platform: "win32",
+				env: { Path: dir },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+				readTextFile: () => TOOL_CMD,
+			}),
+		).toEqual({
+			command: nodePath,
+			args: [scriptPath, "run"],
 		});
 	});
 });
