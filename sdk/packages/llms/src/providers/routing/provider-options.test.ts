@@ -1674,23 +1674,65 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "ollama qwen3 fallback with unset reasoning -> no disable patch",
+			// Thinking is off by default for reasoning-defaults-on Ollama models:
+			// when the request has not explicitly opted into reasoning, we still
+			// emit reasoningEffort=none so qwen3 does not "think" on every turn.
+			name: "ollama qwen3 fallback with unset reasoning -> reasoningEffort none",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
 			},
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
-				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
 			],
 		},
 		{
-			name: "ollama metadata reasoningDefaultOn with unset reasoning -> no disable patch",
+			// Metadata-driven reasoning-defaults-on models behave the same way:
+			// unset reasoning is treated as "thinking off".
+			name: "ollama metadata reasoningDefaultOn with unset reasoning -> reasoningEffort none",
 			request: {
 				providerId: "ollama",
 				modelId: "local-known-reasoner:latest",
 			},
 			context: { modelMetadata: { reasoningDefaultOn: true } },
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+			],
+		},
+		{
+			// Non-reasoning-defaults-on Ollama models are unaffected: unset
+			// reasoning must not inject a disable patch.
+			name: "ollama non-reasoner with unset reasoning -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "llama3.1:8b",
+			},
 			expect: [
 				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
