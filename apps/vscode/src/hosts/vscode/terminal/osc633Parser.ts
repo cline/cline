@@ -19,7 +19,7 @@
  */
 
 /** OSC 633 event types we care about. */
-export const enum Osc633EventType {
+export enum Osc633EventType {
 	/** 633;A — Prompt start. Indicates shell integration is active. */
 	PromptStart = 0,
 	/** 633;B — Command start (where the user inputs their command). */
