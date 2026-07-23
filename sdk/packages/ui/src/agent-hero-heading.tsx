@@ -1,12 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cx } from "./utils.js";
 
 const DEFAULT_VERBS = ["build", "create", "fix", "know"] as const;
+const DEFAULT_CYCLE_MS = 2600;
+const MINIMUM_CYCLE_MS = 500;
+
+function splitGraphemes(value: string): string[] {
+	if (typeof Intl.Segmenter === "function") {
+		return Array.from(
+			new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value),
+			({ segment }) => segment,
+		);
+	}
+	return Array.from(value);
+}
 
 export interface AgentHeroHeadingProps {
 	ariaLabel?: string;
 	className?: string;
 	cycleMs?: number;
+	leadingText?: string;
+	trailingText?: string;
 	verbs?: readonly string[];
 }
 
@@ -14,10 +28,23 @@ export interface AgentHeroHeadingProps {
 export function AgentHeroHeading({
 	ariaLabel,
 	className,
-	cycleMs = 2600,
+	cycleMs = DEFAULT_CYCLE_MS,
+	leadingText = "What would you like to ",
+	trailingText = "?",
 	verbs = DEFAULT_VERBS,
 }: AgentHeroHeadingProps) {
-	const availableVerbs = verbs.filter((verb) => verb.trim().length > 0);
+	const availableVerbs = useMemo(
+		() =>
+			Array.from(
+				new Set(
+					verbs.map((verb) => verb.trim()).filter((verb) => verb.length > 0),
+				),
+			),
+		[verbs],
+	);
+	const safeCycleMs = Number.isFinite(cycleMs)
+		? Math.max(MINIMUM_CYCLE_MS, cycleMs)
+		: DEFAULT_CYCLE_MS;
 	const [verbIndex, setVerbIndex] = useState(0);
 
 	useEffect(() => {
@@ -36,7 +63,7 @@ export function AgentHeroHeading({
 			if (motionPreference.matches || interval !== undefined) return;
 			interval = window.setInterval(() => {
 				setVerbIndex((current) => (current + 1) % availableVerbs.length);
-			}, cycleMs);
+			}, safeCycleMs);
 		};
 		const handleMotionPreference = () => {
 			if (motionPreference.matches) stopCycling();
@@ -49,19 +76,19 @@ export function AgentHeroHeading({
 			motionPreference.removeEventListener("change", handleMotionPreference);
 			stopCycling();
 		};
-	}, [availableVerbs.length, cycleMs]);
+	}, [availableVerbs.length, safeCycleMs]);
 
 	const verb = availableVerbs[verbIndex % availableVerbs.length] ?? "build";
 	const accessibleText =
-		ariaLabel ?? `What would you like to ${availableVerbs[0] ?? "build"}?`;
+		ariaLabel ?? `${leadingText}${availableVerbs[0] ?? "build"}${trailingText}`;
 
 	return (
 		<h1 className={cx("cline-ui-hero-heading", className)}>
 			<span className="cline-ui-sr-only">{accessibleText}</span>
 			<span aria-hidden="true">
-				What would you like to{" "}
+				{leadingText}
 				<span className="cline-ui-hero-heading__word" key={verb}>
-					{verb.split("").map((character, index) => (
+					{splitGraphemes(verb).map((character, index) => (
 						<span
 							className="cline-ui-hero-heading__character"
 							// biome-ignore lint/suspicious/noArrayIndexKey: the keyed word remounts as a unit and character positions never reorder
@@ -72,7 +99,7 @@ export function AgentHeroHeading({
 						</span>
 					))}
 				</span>
-				?
+				{trailingText}
 			</span>
 		</h1>
 	);

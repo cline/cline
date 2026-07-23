@@ -233,6 +233,7 @@
 	position: absolute;
 	border-radius: 1px;
 	background: color-mix(in oklab, white 90%, var(--brand-lilac));
+	opacity: 0.3;
 	animation: cline-ui-aurora-twinkle 5s ease-in-out infinite;
 }
 

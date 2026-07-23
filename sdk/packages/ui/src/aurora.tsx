@@ -5,7 +5,6 @@ interface AuroraStar {
 	delay: string;
 	duration: string;
 	left: string;
-	opacity: number;
 	size: number;
 	top: string;
 }
@@ -36,7 +35,6 @@ export function AgentAurora({ className, starCount = 36 }: AgentAuroraProps) {
 					delay: `${seededUnit(index, 4) * -5}s`,
 					duration: `${3.5 + seededUnit(index, 5) * 3.5}s`,
 					left: `${seededUnit(index, 2) * 100}%`,
-					opacity: 0.3 + seededUnit(index, 6) * 0.55,
 					size: size < 0.18 ? 4 : size < 0.55 ? 3 : 2,
 					top: `${100 - (1 - vertical * vertical) * 48}%`,
 				};
@@ -60,7 +58,6 @@ export function AgentAurora({ className, starCount = 36 }: AgentAuroraProps) {
 						animationDuration: star.duration,
 						height: star.size,
 						left: star.left,
-						opacity: star.opacity,
 						top: star.top,
 						width: star.size,
 					}}
