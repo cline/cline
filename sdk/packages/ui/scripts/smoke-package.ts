@@ -9,8 +9,57 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
-const importCheck =
-	'import { Conversation, Message } from "@cline/ui/components/agent-chat"; const css = import.meta.resolve("@cline/ui/components/agent-chat.css"); const tokens = import.meta.resolve("@cline/ui/theme/tokens.css"); if (!Conversation || !Message || !css || !tokens) process.exit(1);';
+const importCheck = `
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Conversation, Message } from "@cline/ui/components/agent-chat";
+
+if (!Conversation || !Message) {
+	throw new Error("agent-chat exports are missing from the packed package");
+}
+
+for (const specifier of [
+	"@cline/ui/components/agent-chat.css",
+	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/scoped-tokens.css",
+	"@cline/ui/theme/tokens.css",
+]) {
+	const resolved = fileURLToPath(import.meta.resolve(specifier));
+	if (!existsSync(resolved)) {
+		throw new Error("packed CSS export does not exist: " + specifier);
+	}
+}
+
+const packageRoot = dirname(
+	fileURLToPath(import.meta.resolve("@cline/ui/package.json")),
+);
+const maps = [];
+const pending = [join(packageRoot, "dist")];
+while (pending.length > 0) {
+	const directory = pending.pop();
+	for (const entry of readdirSync(directory, { withFileTypes: true })) {
+		const target = join(directory, entry.name);
+		if (entry.isDirectory()) pending.push(target);
+		else if (entry.name.endsWith(".map")) maps.push(target);
+	}
+}
+if (maps.length === 0) {
+	throw new Error("packed package contains no source maps");
+}
+for (const sourceMapPath of maps) {
+	const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
+	if (
+		!Array.isArray(sourceMap.sources) ||
+		sourceMap.sources.length === 0 ||
+		!sourceMap.sources.every((source) =>
+			existsSync(resolve(dirname(sourceMapPath), source)),
+		)
+	) {
+		throw new Error("packed source map has missing sources: " + sourceMapPath);
+	}
+}
+`;
 
 async function run(command: string[], cwd: string): Promise<void> {
 	const child = Bun.spawn(command, {

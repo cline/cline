@@ -136,6 +136,10 @@ jobs:
           fi
 
           version=$(tar -xOf "$archive" package/package.json | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => process.stdout.write(JSON.parse(input).version))')
+          if [[ "$NPM_TAG" == "latest" && "$version" == *-* ]]; then
+            echo "Refusing to publish prerelease @cline/ui@${version} with the 'latest' tag; use 'next'"
+            exit 1
+          fi
           if npm view "@cline/ui@${version}" version >/dev/null 2>&1; then
             echo "@cline/ui@${version} already exists; bump sdk/packages/ui/package.json before publishing"
             exit 1

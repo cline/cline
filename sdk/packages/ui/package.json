@@ -1,6 +1,6 @@
 {
 	"name": "@cline/ui",
-	"version": "0.1.0",
+	"version": "0.2.0-next.0",
 	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
@@ -19,7 +19,9 @@
 			"import": "./dist/components/agent-chat/index.js"
 		},
 		"./components/agent-chat.css": "./components/agent-chat/agent-chat.css",
+		"./components/markdown.css": "./components/markdown.css",
 		"./theme/index.css": "./theme/index.css",
+		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
 		"./theme/base.css": "./theme/base.css",
@@ -28,6 +30,7 @@
 	"files": [
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
+		"components/markdown.css",
 		"dist",
 		"theme",
 		"ADOPTION.md",
@@ -47,13 +50,15 @@
 	],
 	"license": "Apache-2.0",
 	"scripts": {
-		"build": "bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
+		"build": "bun run generate:theme && bun scripts/clean-dist.ts && bun tsc -p tsconfig.build.json && bun scripts/validate-theme.ts",
+		"check:theme-generated": "bun scripts/generate-theme.ts --check",
+		"generate:theme": "bun scripts/generate-theme.ts",
 		"prepack": "bun run build",
 		"storybook": "storybook dev",
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
 		"test:package": "bun run build && bun scripts/smoke-package.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
-		"test": "vitest run --config vitest.config.ts"
+		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts"
 	},
 	"peerDependencies": {
 		"react": ">=18.3.0 <20",

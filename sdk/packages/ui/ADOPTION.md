@@ -47,11 +47,13 @@ without turning `@cline/ui` into a second agent runtime.
 
 ## Current status
 
-`@cline/ui` is configured for public npm publication with its own version and
-manual release workflow. Check availability with `npm view @cline/ui version`;
-an `E404` means the first release is still pending. The API is pre-stable, so
-production consumers should pin exact versions and review compatibility notes
-when updating.
+`@cline/ui@0.1.0` is publicly available. The package has its own version and
+manual release workflow. The API is pre-stable, so production consumers should
+pin exact versions and review compatibility notes when updating.
+
+The scoped-token and standalone Markdown exports in this guide are part of the
+upcoming `0.2` release. Until a `next` preview is published, consume them from
+the Cline workspace.
 
 Desktop is the first production-shaped consumer of both the theme and shared
 chat primitives. Storybook is the reference catalog for isolated component
@@ -63,6 +65,8 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
+| Theme only an embedded subtree | `@cline/ui/theme/scoped-tokens.css` | No | No |
+| Style Markdown without global base styles | A token entry point, then `@cline/ui/components/markdown.css` | No | No |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -90,8 +94,8 @@ manifest and lockfile.
 
 ## Install from npm in another repository
 
-After the initial release is available, install the latest production UI
-release. The `--exact` flag records the resolved version instead of a range:
+Install the latest production UI release. The `--exact` flag records the
+resolved version instead of a range:
 
 ```bash
 bun add --exact @cline/ui
@@ -195,6 +199,66 @@ For native controls that should follow the selected theme:
   color-scheme: dark;
 }
 ```
+
+## Option 4: subtree-scoped tokens
+
+Use the scoped entry when an embedded Cline surface must preserve the host
+application's existing `:root` theme:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+```
+
+Wrap the embedded surface with `cline-ui-theme`. Dark values apply when `dark`
+is on the same element or an ancestor:
+
+```tsx
+<main className="host-dashboard">
+  <section className="cline-ui-theme">...</section>
+</main>
+
+<section className="cline-ui-theme dark">...</section>
+```
+
+The scoped entry defines variables only. The host continues to own document
+styles, native `color-scheme`, fonts, shell layout, navigation, and routing.
+Place deliberate scoped overrides after the package import:
+
+```css
+.cline-ui-theme {
+  --primary: /* product-specific value */;
+}
+
+.cline-ui-theme.dark,
+.dark .cline-ui-theme {
+  --primary: /* dark product-specific value */;
+}
+```
+
+`tokens.css` is the canonical source for both public token contracts.
+Contributors edit it and run `bun run generate:theme`; consumers should not
+edit or copy the generated `scoped-tokens.css` file.
+
+## Add standalone Markdown styles
+
+`components/markdown.css` contains optional, framework-neutral Markdown and
+Streamdown treatment, but it intentionally reads semantic typography, radius,
+border, and muted-color variables. Import it after either token entry and keep
+rendered Markdown inside that token scope:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components/markdown.css";
+```
+
+```tsx
+<section className="cline-ui-theme">
+  <div className="cline-markdown">...</div>
+</section>
+```
+
+Consumers retain their own Markdown renderer, plugins, sanitization, external
+link behavior, and image policy.
 
 ## Add the agent-chat components
 
@@ -458,6 +522,7 @@ Until the package has a stable version, contract changes should:
 - Include light/dark visual evidence when values change
 - Avoid renaming standard shadcn/Tailwind variables
 - Keep `tokens.css` framework-neutral
+- Keep `tokens.css` canonical and regenerate the scoped token output
 - Keep component props independent of product runtime schemas
 - Keep product-specific layout and orchestration out of the package
 
@@ -489,6 +554,7 @@ current product contracts should be compared before standardizing them.
 - [Package README](./README.md)
 - [Agent-chat components](./components/agent-chat/index.tsx)
 - [Agent-chat styles](./components/agent-chat/agent-chat.css)
+- [Markdown styles](./components/markdown.css)
 - [Tokens](./theme/tokens.css)
 - [Tailwind mappings](./theme/theme.css)
 - [Optional base styles](./theme/base.css)
