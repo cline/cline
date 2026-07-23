@@ -45,6 +45,7 @@ function makeRuntime(): InteractiveChatCommandRuntime {
 		getActiveSessionId: vi.fn(() => "session-1"),
 		resetForNewSession: vi.fn(async () => {}),
 		restartEmpty: vi.fn(async () => {}),
+		changeWorkingDirectory: vi.fn(async () => {}),
 	};
 }
 
@@ -162,6 +163,41 @@ describe("runInteractiveChatCommand", () => {
 		});
 		expect(state.autoApproveTools).toBe(true);
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
+	});
+
+	it("changes the runtime working directory before reporting /cd success", async () => {
+		const config = makeConfig();
+		const state = makeState(config);
+		const runtime = makeRuntime();
+		const target = process.cwd();
+		state.cwd = "/tmp";
+		state.workspaceRoot = "/tmp";
+		vi.mocked(runtime.changeWorkingDirectory).mockImplementation(
+			async (next) => {
+				Object.assign(state, next);
+			},
+		);
+
+		const result = await runInteractiveChatCommand({
+			prompt: `/cd ${target}`,
+			enabled: true,
+			config,
+			host: chatCommandHost,
+			chatCommandState: state,
+			autoApproveAllRef: { current: false },
+			setInteractiveAutoApprove: () => {},
+			sessionRuntime: runtime,
+			stop: () => {},
+		});
+
+		expect(runtime.changeWorkingDirectory).toHaveBeenCalledWith(
+			expect.objectContaining({ cwd: target }),
+		);
+		expect(state.cwd).toBe(target);
+		expect(result).toMatchObject({
+			handled: true,
+			turnResult: { commandOutput: expect.stringContaining(`cwd=${target}`) },
+		});
 	});
 
 	it("returns plugin command submit prompts as model input", async () => {

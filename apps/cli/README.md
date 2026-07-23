@@ -215,7 +215,7 @@ cline connect --stop
 cline connect --stop telegram
 ```
 
-In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/schedule`, `/abort`, and `/exit`. Run `cline connect <adapter> --help` to see the full flag list for any adapter.
+In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/clear`, `/whereami`, `/tools`, `/yolo`, `/cd <path>` (also `/cwd <path>`), `/schedule`, `/abort`, and `/exit`. Run `cline connect <adapter> --help` to see the full flag list for any adapter.
 
 ### Schedules
 
