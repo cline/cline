@@ -7,7 +7,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ChatStartSessionRequest, CronOneOffSpec } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DefaultToolNames } from "../../extensions/tools/constants";
 import type { HubScheduleRuntimeHandlers } from "../service/schedule-service";
 import { SqliteCronStore } from "../store/sqlite-cron-store";
 import { CronMaterializer } from "./cron-materializer";
@@ -15,12 +17,25 @@ import { CronRunner } from "./cron-runner";
 
 function fakeHandlers(): {
 	handlers: HubScheduleRuntimeHandlers;
-	calls: { start: number; send: number; stop: number; prompts: string[] };
+	calls: {
+		start: number;
+		send: number;
+		stop: number;
+		prompts: string[];
+		startRequests: ChatStartSessionRequest[];
+	};
 } {
-	const calls = { start: 0, send: 0, stop: 0, prompts: [] as string[] };
+	const calls = {
+		start: 0,
+		send: 0,
+		stop: 0,
+		prompts: [] as string[],
+		startRequests: [] as ChatStartSessionRequest[],
+	};
 	const handlers: HubScheduleRuntimeHandlers = {
-		async startSession(_req) {
+		async startSession(req) {
 			calls.start += 1;
+			calls.startRequests.push(req);
 			return { sessionId: `sess_${calls.start}` };
 		},
 		async sendSession(_sessionId, req) {
@@ -109,6 +124,16 @@ describe("CronRunner", () => {
 		expect(calls.start).toBe(1);
 		expect(calls.send).toBe(1);
 		expect(calls.stop).toBe(1);
+		expect(calls.startRequests[0]?.mode).toBe("yolo");
+		expect(calls.startRequests[0]?.toolPolicies?.["*"]).toEqual({
+			autoApprove: true,
+		});
+		expect(
+			calls.startRequests[0]?.toolPolicies?.[DefaultToolNames.ASK],
+		).toEqual({ enabled: false });
+		expect(
+			calls.startRequests[0]?.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT],
+		).toEqual({ enabled: true, autoApprove: true });
 
 		const run = requireValue(
 			store.listRuns({ specId: upserted.record.specId })[0],
@@ -117,6 +142,106 @@ describe("CronRunner", () => {
 		expect(store.getSpec(upserted.record.specId)?.nextRunAt).toBeUndefined();
 		const reportPath = requireValue(run.reportPath);
 		expect(existsSync(reportPath)).toBe(true);
+	});
+
+	it("falls back to yolo for an unknown mode and disables questions", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const upserted = store.upsertSpec({
+			externalId: "headless-unknown",
+			sourcePath: "headless-unknown.md",
+			triggerKind: "one_off",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "headless-unknown",
+				title: "Headless unknown",
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+				mode: "unknown" as CronOneOffSpec["mode"],
+				tools: [DefaultToolNames.ASK, DefaultToolNames.READ_FILES],
+			},
+		});
+		store.updateSpecNextRunAt(
+			upserted.record.specId,
+			new Date(Date.now() - 1_000).toISOString(),
+		);
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+
+		await runner.tick();
+		await runner.dispose();
+
+		const request = requireValue(calls.startRequests[0]);
+		expect(request.mode).toBe("yolo");
+		expect(request.toolPolicies?.["*"]).toEqual({
+			enabled: false,
+			autoApprove: true,
+		});
+		expect(request.toolPolicies?.[DefaultToolNames.READ_FILES]).toEqual({
+			enabled: true,
+			autoApprove: true,
+		});
+		expect(request.toolPolicies?.[DefaultToolNames.ASK]).toEqual({
+			enabled: false,
+		});
+		expect(request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT]).toEqual({
+			enabled: true,
+			autoApprove: true,
+		});
+	});
+
+	it.each([
+		"act",
+		"plan",
+		"yolo",
+	] as const)("preserves an explicit %s mode for scheduled runs", async (mode) => {
+		const { handlers, calls } = fakeHandlers();
+		const upserted = store.upsertSpec({
+			externalId: `explicit-${mode}`,
+			sourcePath: `explicit-${mode}.md`,
+			triggerKind: "one_off",
+			sourceHash: `h-${mode}`,
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: `explicit-${mode}`,
+				title: `Explicit ${mode}`,
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+				mode,
+			},
+		});
+		store.updateSpecNextRunAt(
+			upserted.record.specId,
+			new Date(Date.now() - 1_000).toISOString(),
+		);
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+
+		await runner.tick();
+		await runner.dispose();
+
+		const request = requireValue(calls.startRequests[0]);
+		expect(request.mode).toBe(mode);
+		expect(request.toolPolicies?.[DefaultToolNames.ASK]).toEqual({
+			enabled: false,
+		});
+		expect(request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT]).toEqual(
+			mode === "yolo" ? { enabled: true, autoApprove: true } : undefined,
+		);
 	});
 
 	it("marks runs failed when the runtime throws", async () => {

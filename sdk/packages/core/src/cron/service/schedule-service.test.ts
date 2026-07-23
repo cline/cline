@@ -3,10 +3,12 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+	type CronScheduleSpec,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SqliteCronStore } from "../store/sqlite-cron-store";
 import { HubScheduleCommandService } from "./schedule-command-service";
 import { HubScheduleService } from "./schedule-service";
 
@@ -80,6 +82,7 @@ describe("HubScheduleService", () => {
 				timeoutSeconds: 30,
 				metadata: { delivery: { threadId: "thread-1" } },
 			});
+			expect(created.mode).toBe("yolo");
 
 			const execution = await service.triggerScheduleNow(created.scheduleId);
 			expect(execution?.status).toBe("success");
@@ -109,6 +112,57 @@ describe("HubScheduleService", () => {
 			await service.dispose();
 		}
 	});
+
+	sqliteIt(
+		"maps missing and unknown stored modes to yolo while preserving act",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const store = new SqliteCronStore({ dbPath });
+			for (const [scheduleId, mode] of [
+				["sched-missing", undefined],
+				["sched-unknown", "unknown"],
+				["sched-act", "act"],
+			] as const) {
+				store.upsertSpec({
+					externalId: scheduleId,
+					sourcePath: `hub/schedules/${scheduleId}.cron.md`,
+					triggerKind: "schedule",
+					sourceHash: `hash-${scheduleId}`,
+					parseStatus: "valid",
+					spec: {
+						triggerKind: "schedule",
+						id: scheduleId,
+						title: scheduleId,
+						prompt: "Do the work",
+						workspaceRoot: "/workspace",
+						schedule: "0 * * * *",
+						enabled: true,
+						mode: mode as CronScheduleSpec["mode"],
+						source: "hub-schedule",
+					},
+				});
+			}
+			store.close();
+
+			const service = new HubScheduleService({
+				dbPath,
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "unused" })),
+					sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				expect(service.getSchedule("sched-missing")?.mode).toBe("yolo");
+				expect(service.getSchedule("sched-unknown")?.mode).toBe("yolo");
+				expect(service.getSchedule("sched-act")?.mode).toBe("act");
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
 
 	sqliteIt("publishes failed schedule execution events", async () => {
 		const dbPath = await createTempDbPath();

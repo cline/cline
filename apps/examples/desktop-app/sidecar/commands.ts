@@ -52,6 +52,7 @@ import {
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import {
+	CLINE_DEFAULT_MODEL_ID,
 	getClineEnvironmentConfig,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
@@ -551,7 +552,10 @@ function asTrimmedStringArray(value: unknown): string[] | undefined {
 }
 
 function routineScheduleMode(value: unknown): "act" | "plan" | "yolo" {
-	return value === "plan" || value === "yolo" ? value : "act";
+	if (value === "act" || value === "plan" || value === "yolo") {
+		return value;
+	}
+	return "yolo";
 }
 
 async function handleRoutineScheduleCommand(
@@ -660,7 +664,7 @@ async function handleRoutineScheduleCommand(
 				prompt,
 				modelSelection: {
 					providerId: asTrimmedString(args?.provider) ?? "cline",
-					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+					modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
 				},
 				mode: routineScheduleMode(args?.mode),
 				workspaceRoot,
@@ -693,7 +697,7 @@ async function handleRoutineScheduleCommand(
 				prompt,
 				modelSelection: {
 					providerId: asTrimmedString(args?.provider) ?? "cline",
-					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+					modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
 				},
 				mode: routineScheduleMode(args?.mode),
 				workspaceRoot,
