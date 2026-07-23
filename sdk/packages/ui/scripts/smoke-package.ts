@@ -22,6 +22,7 @@ const scopedTokens = import.meta.resolve("@cline/ui/theme/scoped-tokens.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (!Button || !SessionStatus || !Conversation || !Message || !controlsCss || !css || !markdown || !scopedTokens || !tokens) process.exit(1);
 const entry = fileURLToPath(import.meta.resolve("@cline/ui"));
+if (!readFileSync(entry, "utf8").startsWith('"use client";')) process.exit(1);
 const sourceMapPath = entry + ".map";
 const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
 if (!sourceMap.sources.every((source) => existsSync(resolve(dirname(sourceMapPath), source)))) process.exit(1);

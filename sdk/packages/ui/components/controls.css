@@ -113,6 +113,10 @@
 	color: var(--destructive-foreground);
 }
 
+.cline-ui-button--danger:hover:not(:disabled):not([aria-disabled="true"]) {
+	background: color-mix(in oklab, var(--destructive) 88%, var(--foreground));
+}
+
 .cline-ui-spinner {
 	display: inline-block;
 	width: 0.875rem;

@@ -106,7 +106,7 @@ The package is ESM. Its React entry point targets browser applications. Install
 only the prerequisites for the layer being adopted:
 
 ```bash
-# Required only for agent-chat components
+# Required for root controls and agent-chat components
 bun add react@^19 react-dom@^19
 
 # Required for the documented Tailwind-backed theme and Cline fonts
