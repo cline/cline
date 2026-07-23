@@ -254,6 +254,58 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("replaces tool-result image blocks with a placeholder when the model lacks image support", () => {
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_file",
+							output: [
+								{ type: "text", text: "Successfully read image" },
+								{
+									type: "image",
+									data: "QkFTRTY0REFUQQ==",
+									mediaType: "image/jpeg",
+								},
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: {
+							type: "content",
+							value: [
+								{ type: "text", text: "Successfully read image" },
+								{
+									type: "text",
+									text: "[image omitted: this model does not support image input]",
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+		// the base64 image payload must not reach a text-only model
+		expect(JSON.stringify(messages)).not.toContain("QkFTRTY0REFUQQ==");
+	});
+
 	it("extracts nested image content blocks from a read_files tool result", () => {
 		// `read_files` returns its output as a `ToolOperationResult[]` whose
 		// `result` is a content-block array `[{type:'text'}, {type:'image'}]`.
@@ -343,6 +395,71 @@ describe("formatMessagesForAiSdk", () => {
 				],
 			},
 		]);
+	});
+
+	it("replaces nested read_files image blocks with a placeholder for text-only models", () => {
+		// Same nested `[{query, result:[{text},{image}], success}]` shape as the
+		// hoisting test above, but with a model that lacks image support: the
+		// nested image must collapse to the capability placeholder (not be
+		// hoisted as an image-data part), so a text-only endpoint isn't sent
+		// image content.
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_files",
+							output: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										{ type: "text", text: "Successfully read image" },
+										{
+											type: "image",
+											data: "QkFTRTY0REFUQQ==",
+											mediaType: "image/jpeg",
+										},
+									],
+									success: true,
+								},
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_files",
+						output: {
+							type: "json",
+							value: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										"Successfully read image",
+										"[image omitted: this model does not support image input]",
+									],
+									success: true,
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain("QkFTRTY0REFUQQ==");
 	});
 
 	it("sanitizes nested strings before stringifying extracted image metadata", () => {
@@ -776,6 +893,57 @@ describe("formatMessagesForAiSdk", () => {
 			{
 				role: "user",
 				content: [{ type: "image", image }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
+	it("omits image parts when the model does not support images", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "what is this?" },
+						{ type: "image", image, mediaType: "image/png" },
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		// A text-only model must never receive an image part — sending one makes
+		// providers like Z.AI reject the request:
+		//   messages.content.type is invalid, allowed values: ['text']
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "what is this?" },
+					{
+						type: "text",
+						text: "[image omitted: this model does not support image input]",
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("keeps image parts when supportsImages is omitted (vision default)", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/png" }],
 			},
 		]);
 
