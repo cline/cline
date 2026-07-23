@@ -70,7 +70,7 @@ describe("useChatSession", () => {
 						request.config?.sessionId ?? "session-pathless",
 					);
 					startedSessionId = sessionId;
-					const workspacePath = `/home/host/.cline/data/workspaces/${sessionId}/project`;
+					const workspacePath = "/home/host/.cline/data/workspaces/chat";
 					return {
 						sessionId,
 						cwd: workspacePath,
@@ -91,7 +91,7 @@ describe("useChatSession", () => {
 
 		expect(current.error).toBeNull();
 		expect(startedSessionId).toMatch(/^session_/);
-		const expectedWorkspacePath = `/home/host/.cline/data/workspaces/${startedSessionId}/project`;
+		const expectedWorkspacePath = "/home/host/.cline/data/workspaces/chat";
 		expect(current.config).toMatchObject({
 			cwd: expectedWorkspacePath,
 			workspaceRoot: expectedWorkspacePath,
@@ -641,7 +641,7 @@ describe("useChatSession", () => {
 		expect(current.config.cwd).toBe("/workspace/selected");
 	});
 
-	it("preserves a New Project selection while process context is loading", async () => {
+	it("preserves a chat selection while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
 			| ((value: { cwd: string; workspaceRoot: string }) => void)

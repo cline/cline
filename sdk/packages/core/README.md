@@ -51,10 +51,12 @@ console.log(result.result?.text);
 await cline.dispose();
 ```
 
-When both `cwd` and `workspaceRoot` are omitted, the execution host creates a
-workspace at
-`<cline-data-dir>/workspaces/<session-id>/project` (by default
-`~/.cline/data/workspaces/<session-id>/project`).
+When both `cwd` and `workspaceRoot` are omitted, the execution host places
+the session in the shared chat workspace at
+`<cline-data-dir>/workspaces/chat` (by default
+`~/.cline/data/workspaces/chat`), seeded with an `AGENTS.md` rules file that
+tells the agent to treat the session as a chat and only create a named
+project folder when the user asks for one.
 Read the resolved paths from `result.manifest.cwd` and
 `result.manifest.workspace_root`.
 

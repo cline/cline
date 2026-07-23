@@ -1,4 +1,4 @@
-import { isTemporaryWorkspacePath } from "@cline/shared/browser";
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import type { SessionThread } from "@/hooks/use-session-history";
 import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
@@ -12,7 +12,7 @@ export type SidebarProjectGroup = {
 };
 
 export function workspaceDisplayName(path: string): string {
-	if (isTemporaryWorkspacePath(path)) return "New Project";
+	if (isChatWorkspacePath(path)) return "Chat";
 	const trimmed = path.trim().replace(/[\\/]+$/, "");
 	if (!trimmed) return "";
 	const segments = trimmed.split(/[\\/]/).filter(Boolean);
@@ -60,8 +60,8 @@ export function groupThreadsByProject(
 	);
 	return [...groups.entries()].map(([id, group]) => ({
 		id,
-		label: isTemporaryWorkspacePath(group.workspacePath)
-			? "New Project"
+		label: isChatWorkspacePath(group.workspacePath)
+			? "Chat"
 			: uniqueWorkspaceLabel(group.workspacePath, workspacePaths),
 		workspacePath: group.workspacePath,
 		threads: group.threads,

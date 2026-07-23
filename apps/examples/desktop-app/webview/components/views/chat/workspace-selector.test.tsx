@@ -106,9 +106,8 @@ describe("WorkspaceSelector", () => {
 		});
 	});
 
-	it("labels SDK temporary workspaces as New Project without listing the raw path", async () => {
-		const temporaryWorkspace =
-			"/home/host/.cline/data/workspaces/session-a1b2c3/project";
+	it("labels the SDK chat workspace as Chat without listing the raw path", async () => {
+		const temporaryWorkspace = "/home/host/.cline/data/workspaces/chat";
 		await act(async () => {
 			root.render(
 				<WorkspaceSelector
@@ -127,7 +126,7 @@ describe("WorkspaceSelector", () => {
 			);
 		});
 
-		expect(container.textContent).toContain("New Project");
+		expect(container.textContent).toContain("Chat");
 		await click(container.querySelector("#git-branch-btn") as Element);
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("/workspace/one");

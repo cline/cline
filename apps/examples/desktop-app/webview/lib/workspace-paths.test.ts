@@ -151,9 +151,8 @@ describe("workspace paths", () => {
 		).toBe(true);
 	});
 
-	it("excludes SDK temporary workspaces from discovery and stored selections", () => {
-		const temporaryWorkspace =
-			"/home/host/.cline/data/workspaces/session-a1b2c3/project";
+	it("excludes the SDK chat workspace from discovery and stored selections", () => {
+		const temporaryWorkspace = "/home/host/.cline/data/workspaces/chat";
 
 		expect(isExcludedWorkspacePath(temporaryWorkspace)).toBe(true);
 		expect(

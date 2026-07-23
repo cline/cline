@@ -444,10 +444,10 @@ export {
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export {
-	CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME,
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
 	CLINE_WORKSPACES_DIRECTORY_NAME,
-	isTemporaryWorkspacePath,
-} from "./storage/temporary-workspace-paths";
+	isChatWorkspacePath,
+} from "./storage/chat-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";

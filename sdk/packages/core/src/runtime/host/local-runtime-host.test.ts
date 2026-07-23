@@ -15,10 +15,10 @@ import {
 	type AgentResult,
 	type AgentRuntimeEvent,
 	type BasicLogger,
-	isTemporaryWorkspacePath,
+	isChatWorkspacePath,
 } from "@cline/shared";
 import {
-	resolveTemporaryWorkspacePath,
+	resolveChatWorkspacePath,
 	setClineDir,
 	setHomeDir,
 } from "@cline/shared/storage";
@@ -223,7 +223,7 @@ describe("LocalRuntimeHost", () => {
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: () => agent as never,
 		});
-		let temporaryWorkspace = "";
+		let chatWorkspace = "";
 
 		try {
 			const result = await manager.startSession({
@@ -238,27 +238,25 @@ describe("LocalRuntimeHost", () => {
 				},
 			});
 
-			temporaryWorkspace = result.manifest.cwd;
+			chatWorkspace = result.manifest.cwd;
 			if (requestedSessionId) {
 				expect(result.sessionId).toBe(requestedSessionId);
 			}
-			expect(temporaryWorkspace).toBe(
-				resolveTemporaryWorkspacePath(result.sessionId),
-			);
-			expect(isTemporaryWorkspacePath(temporaryWorkspace)).toBe(true);
-			expect(result.manifest.workspace_root).toBe(temporaryWorkspace);
+			expect(chatWorkspace).toBe(resolveChatWorkspacePath());
+			expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
+			expect(result.manifest.workspace_root).toBe(chatWorkspace);
 			expect(runtimeBuilder.build).toHaveBeenCalledWith(
 				expect.objectContaining({
 					config: expect.objectContaining({
-						cwd: temporaryWorkspace,
-						workspaceRoot: temporaryWorkspace,
+						cwd: chatWorkspace,
+						workspaceRoot: chatWorkspace,
 					}),
 				}),
 			);
 		} finally {
 			await manager.dispose();
-			if (temporaryWorkspace) {
-				rmSync(dirname(temporaryWorkspace), { recursive: true, force: true });
+			if (chatWorkspace) {
+				rmSync(dirname(chatWorkspace), { recursive: true, force: true });
 			}
 		}
 	});

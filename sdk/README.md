@@ -203,10 +203,12 @@ const session = await cline.start({
 console.log(session.result?.text)
 ```
 
-If both `cwd` and `workspaceRoot` are omitted, the execution host creates a
-workspace at
-`<cline-data-dir>/workspaces/<session-id>/project` (by default
-`~/.cline/data/workspaces/<session-id>/project`).
+If both `cwd` and `workspaceRoot` are omitted, the execution host places the
+session in the shared chat workspace at
+`<cline-data-dir>/workspaces/chat` (by default
+`~/.cline/data/workspaces/chat`), seeded with an `AGENTS.md` rules file that
+tells the agent to treat the session as a chat and only create a named
+project folder when the user asks for one.
 The paths in `session.manifest` are the authoritative resolved workspace paths.
 
 `ClineCore` gives the agent built-in tools (`bash`, `editor`, `read_files`, `apply_patch`, `search`, `fetch_web`), persists sessions to SQLite, discovers config from `.cline/` directories, and optionally connects to an RPC sidecar for scheduled agents and cross-process session management.

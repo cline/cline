@@ -129,16 +129,15 @@ describe("hasProviderChanged", () => {
 });
 
 describe("pathless session starts", () => {
-	it("omits workspace paths and returns the SDK-resolved temporary workspace", async () => {
+	it("omits workspace paths and returns the SDK-resolved chat workspace", async () => {
 		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
 			expect(input.config).not.toHaveProperty("cwd");
 			expect(input.config).not.toHaveProperty("workspaceRoot");
 			return {
 				sessionId: "session-pathless",
 				manifest: {
-					cwd: "/home/host/.cline/data/workspaces/session-pathless/project",
-					workspace_root:
-						"/home/host/.cline/data/workspaces/session-pathless/project",
+					cwd: "/home/host/.cline/data/workspaces/chat",
+					workspace_root: "/home/host/.cline/data/workspaces/chat",
 				},
 				manifestPath: "/tmp/session-pathless.json",
 				messagesPath: "/tmp/session-pathless.messages.json",
@@ -164,14 +163,12 @@ describe("pathless session starts", () => {
 
 		expect(result).toEqual({
 			sessionId: "session-pathless",
-			cwd: "/home/host/.cline/data/workspaces/session-pathless/project",
-			workspaceRoot:
-				"/home/host/.cline/data/workspaces/session-pathless/project",
+			cwd: "/home/host/.cline/data/workspaces/chat",
+			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
 		expect(ctx.liveSessions.get("session-pathless")?.config).toMatchObject({
-			cwd: "/home/host/.cline/data/workspaces/session-pathless/project",
-			workspaceRoot:
-				"/home/host/.cline/data/workspaces/session-pathless/project",
+			cwd: "/home/host/.cline/data/workspaces/chat",
+			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
 	});
 });

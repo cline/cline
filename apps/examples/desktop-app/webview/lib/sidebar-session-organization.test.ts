@@ -49,11 +49,11 @@ describe("sidebar session organization", () => {
 		);
 	});
 
-	it("labels temporary workspace groups as New Project", () => {
-		const path = "/home/host/.cline/data/workspaces/session-a1b2c3/project";
-		expect(workspaceDisplayName(path)).toBe("New Project");
+	it("labels chat workspace groups as Chat", () => {
+		const path = "/home/host/.cline/data/workspaces/chat";
+		expect(workspaceDisplayName(path)).toBe("Chat");
 		expect(groupThreadsByProject([thread("temp", path)])[0]?.label).toBe(
-			"New Project",
+			"Chat",
 		);
 	});
 });

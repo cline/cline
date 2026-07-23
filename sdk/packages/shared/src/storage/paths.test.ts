@@ -2,14 +2,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
 	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
-	CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME,
 	CLINE_WORKSPACES_DIRECTORY_NAME,
 	HOOKS_CONFIG_DIRECTORY_NAME,
-	isTemporaryWorkspacePath,
+	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
+	resolveChatWorkspacePath,
 	resolveClineDataDir,
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
@@ -22,7 +23,6 @@ import {
 	resolveRulesConfigSearchPaths,
 	resolveSessionDataDir,
 	resolveTeamDataDir,
-	resolveTemporaryWorkspacePath,
 	resolveWorkflowsConfigSearchPaths,
 } from "./paths";
 
@@ -224,7 +224,7 @@ describe("storage path resolution", () => {
 	});
 });
 
-describe("temporary workspace paths", () => {
+describe("chat workspace paths", () => {
 	let snapshot: EnvSnapshot = captureEnv();
 
 	afterEach(() => {
@@ -233,17 +233,16 @@ describe("temporary workspace paths", () => {
 
 	it("exports the canonical path segments", () => {
 		expect(CLINE_WORKSPACES_DIRECTORY_NAME).toBe("workspaces");
-		expect(CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME).toBe("project");
+		expect(CLINE_CHAT_WORKSPACE_DIRECTORY_NAME).toBe("chat");
 	});
 
-	it("resolves the session workspace under the cline data dir", () => {
+	it("resolves the shared chat workspace under the cline data dir", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_DATA_DIR;
 		process.env.CLINE_DIR = "/tmp/home/.cline";
 
-		const sessionId = "1700000000000_a1b2c";
-		expect(resolveTemporaryWorkspacePath(sessionId)).toBe(
-			join("/tmp/home/.cline", "data", "workspaces", sessionId, "project"),
+		expect(resolveChatWorkspacePath()).toBe(
+			join("/tmp/home/.cline", "data", "workspaces", "chat"),
 		);
 	});
 
@@ -251,43 +250,31 @@ describe("temporary workspace paths", () => {
 		snapshot = captureEnv();
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 
-		expect(resolveTemporaryWorkspacePath("session-a1b2c3")).toBe(
-			join("/tmp/cline-data", "workspaces", "session-a1b2c3", "project"),
+		expect(resolveChatWorkspacePath()).toBe(
+			join("/tmp/cline-data", "workspaces", "chat"),
 		);
 	});
 
 	it.each([
-		"/home/user/.cline/data/workspaces/session-a1b2c3/project",
-		"//home//user//.cline//data//workspaces//session-a1b2c3//project//",
-		"C:\\Users\\dev\\.cline\\data\\workspaces\\session-a1b2c3\\project\\",
-		"\\\\server\\share\\.cline\\data\\workspaces\\session-a1b2c3\\project",
-		"/home/user/.cline/data/workspaces/1700000000000_a1b2c/project",
-	])("recognizes temporary workspace root %s", (path) => {
-		expect(isTemporaryWorkspacePath(path)).toBe(true);
+		"/home/user/.cline/data/workspaces/chat",
+		"//home//user//.cline//data//workspaces//chat//",
+		"C:\\Users\\dev\\.cline\\data\\workspaces\\chat\\",
+		"\\\\server\\share\\.cline\\data\\workspaces\\chat",
+	])("recognizes chat workspace root %s", (path) => {
+		expect(isChatWorkspacePath(path)).toBe(true);
 	});
 
 	it.each([
-		".cline/data/workspaces/session-a1b2c3/project",
-		"/tmp/project",
+		".cline/data/workspaces/chat",
+		"/tmp/chat",
 		"/tmp/cline/sessions/session-a1b2c3-temp/project",
-		"/home/user/cline/data/workspaces/session-a1b2c3/project",
-		"/home/user/.cline/workspaces/session-a1b2c3/project",
-		"/home/user/.cline/data/other/session-a1b2c3/project",
-		"/home/user/.cline/data/workspaces/session with spaces/project",
-		"/home/user/.cline/data/workspaces/session-a1b2c3",
-		"/home/user/.cline/data/workspaces/session-a1b2c3/Project",
-		"/home/user/.cline/data/workspaces/session-a1b2c3/project/src",
-	])("rejects non-temporary workspace path %s", (path) => {
-		expect(isTemporaryWorkspacePath(path)).toBe(false);
-	});
-
-	it.each([
-		"../outside",
-		"session\\outside",
-		"session with spaces",
-	])("rejects unsafe session ID %s", (sessionId) => {
-		expect(() => resolveTemporaryWorkspacePath(sessionId)).toThrow(
-			"sessionId must contain only letters, numbers, underscores, or hyphens",
-		);
+		"/home/user/cline/data/workspaces/chat",
+		"/home/user/.cline/workspaces/chat",
+		"/home/user/.cline/data/other/chat",
+		"/home/user/.cline/data/workspaces/Chat",
+		"/home/user/.cline/data/workspaces/chat/my-app",
+		"/home/user/.cline/data/workspaces",
+	])("rejects non-chat workspace path %s", (path) => {
+		expect(isChatWorkspacePath(path)).toBe(false);
 	});
 });

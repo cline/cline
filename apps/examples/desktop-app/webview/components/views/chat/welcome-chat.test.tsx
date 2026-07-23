@@ -30,7 +30,7 @@ afterEach(async () => {
 async function renderWelcomeScreen({
 	workspaceRoot,
 	workspaces,
-	selectNewProject = vi.fn(async () => true),
+	selectChat = vi.fn(async () => true),
 	onListGitBranches = vi.fn(async () => ({
 		current: "main",
 		branches: ["main"],
@@ -38,7 +38,7 @@ async function renderWelcomeScreen({
 }: {
 	workspaceRoot: string;
 	workspaces: string[];
-	selectNewProject?: () => Promise<boolean>;
+	selectChat?: () => Promise<boolean>;
 	onListGitBranches?: () => Promise<{
 		current: string;
 		branches: string[];
@@ -54,7 +54,7 @@ async function renderWelcomeScreen({
 					refreshWorkspaces: vi.fn(async () => undefined),
 					switchWorkspace: vi.fn(async () => true),
 					pickWorkspaceDirectory: vi.fn(async () => null),
-					selectNewProject,
+					selectChat,
 				}}
 			>
 				<WelcomeScreen
@@ -103,8 +103,8 @@ describe("WelcomeScreen", () => {
 		}
 	});
 
-	it("selects New Project from the pathless workspace menu", async () => {
-		const selectNewProject = vi.fn(async () => true);
+	it("selects Just chat from the pathless workspace menu", async () => {
+		const selectChat = vi.fn(async () => true);
 		const onListGitBranches = vi.fn(async () => ({
 			current: "main",
 			branches: ["main"],
@@ -112,16 +112,16 @@ describe("WelcomeScreen", () => {
 		await renderWelcomeScreen({
 			workspaceRoot: "",
 			workspaces: ["/projects/existing"],
-			selectNewProject,
+			selectChat,
 			onListGitBranches,
 		});
 
 		expect(container.querySelector('button[title="main"]')).toBeNull();
 		expect(onListGitBranches).not.toHaveBeenCalled();
-		await clickButton("New Project");
+		await clickButton("Chat");
 		expect(container.textContent).toContain("/projects/existing");
-		await clickButton("New Project", true);
+		await clickButton("Just chat", true);
 
-		expect(selectNewProject).toHaveBeenCalledOnce();
+		expect(selectChat).toHaveBeenCalledOnce();
 	});
 });

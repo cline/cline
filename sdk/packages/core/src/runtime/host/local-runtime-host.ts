@@ -51,7 +51,7 @@ import {
 	sumUsageTotals,
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
-import { resolveStartSessionWorkspace } from "../../services/workspace/temporary-workspace";
+import { resolveStartSessionWorkspace } from "../../services/workspace/chat-workspace";
 import {
 	type GitWorkspaceState,
 	hasCurrentSessionGitMetadata,
@@ -354,7 +354,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					cwd: existingResumeManifest.cwd,
 					workspaceRoot: existingResumeManifest.workspace_root,
 				}
-			: await resolveStartSessionWorkspace(input.config, sessionId);
+			: await resolveStartSessionWorkspace(input.config);
 		return await this.startResolvedSession(
 			{ ...input, config },
 			sessionId,

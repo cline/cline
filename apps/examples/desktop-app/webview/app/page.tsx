@@ -658,7 +658,7 @@ function ChatThreadPane({
 		[refreshWorkspaces, setWorkspacePath],
 	);
 
-	const selectNewProject = useCallback(async (): Promise<boolean> => {
+	const selectChat = useCallback(async (): Promise<boolean> => {
 		workspaceSelectionRequestRef.current += 1;
 		setWorkspacePath("");
 		setGitBranch("no-git");
@@ -1069,7 +1069,7 @@ function ChatThreadPane({
 			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
-			selectNewProject,
+			selectChat,
 		}),
 		[
 			resolvedWorkspaceRoot,
@@ -1078,7 +1078,7 @@ function ChatThreadPane({
 			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
-			selectNewProject,
+			selectChat,
 		],
 	);
 

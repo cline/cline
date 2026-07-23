@@ -99,7 +99,7 @@ export function WelcomeScreen({
 		refreshWorkspaces,
 		switchWorkspace,
 		pickWorkspaceDirectory,
-		selectNewProject,
+		selectChat,
 	} = useWorkspace();
 	const actions =
 		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
@@ -141,7 +141,7 @@ export function WelcomeScreen({
 									onListGitBranches={onListGitBranches}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
-									onSelectNewProject={selectNewProject}
+									onSelectChat={selectChat}
 									onSwitchGitBranch={onSwitchGitBranch}
 									onSwitchWorkspace={switchWorkspace}
 									workspaceRoot={workspaceRoot}

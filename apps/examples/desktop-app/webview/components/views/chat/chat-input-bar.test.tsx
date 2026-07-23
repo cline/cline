@@ -60,7 +60,7 @@ describe("ChatInputBar", () => {
 							refreshWorkspaces: vi.fn(async () => undefined),
 							switchWorkspace: vi.fn(async () => true),
 							pickWorkspaceDirectory: vi.fn(async () => null),
-							selectNewProject: vi.fn(async () => true),
+							selectChat: vi.fn(async () => true),
 						}}
 					>
 						<ChatInputBar
@@ -140,7 +140,7 @@ describe("ChatInputBar", () => {
 						refreshWorkspaces: vi.fn(async () => undefined),
 						switchWorkspace: vi.fn(async () => true),
 						pickWorkspaceDirectory: vi.fn(async () => null),
-						selectNewProject: vi.fn(async () => true),
+						selectChat: vi.fn(async () => true),
 					}}
 				>
 					<ChatInputBar
