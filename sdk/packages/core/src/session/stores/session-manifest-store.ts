@@ -108,7 +108,11 @@ export class SessionManifestStore {
 				return undefined;
 			}
 			const metadata = (parsed as { metadata?: unknown }).metadata;
-			if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+			if (
+				!metadata ||
+				typeof metadata !== "object" ||
+				Array.isArray(metadata)
+			) {
 				return undefined;
 			}
 			const title = (metadata as { title?: unknown }).title;
@@ -196,7 +200,10 @@ export class SessionManifestStore {
 		);
 	}
 
-	private updateCompactionPath(sessionId: string, path: string | undefined): void {
+	private updateCompactionPath(
+		sessionId: string,
+		path: string | undefined,
+	): void {
 		const manifestFile = this.readManifestFile(sessionId);
 		if (!manifestFile.manifest) {
 			return;

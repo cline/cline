@@ -1,16 +1,25 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type ITelemetryService,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
 	CORE_TELEMETRY_EVENTS,
+	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
 	captureTelemetryOptOut,
+	captureTaskLifecycleEvent,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -85,6 +94,26 @@ describe("CORE_TELEMETRY_EVENTS", () => {
 		expect(CORE_TELEMETRY_EVENTS.AGENT.UNEXPECTED_REASONING_TOKENS).toBe(
 			AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 		);
+	});
+
+	test("catalogs task lifecycle events", () => {
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_REQUEST_STARTED).toBe(
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_STREAM_STARTED).toBe(
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.FIRST_CHUNK_RECEIVED).toBe(
+			TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_STREAM_FAILED).toBe(
+			TASK_PROVIDER_STREAM_FAILED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.CANCELLED).toBe(TASK_CANCELLED_EVENT);
+	});
+
+	test("re-exports the task lifecycle telemetry helper", () => {
+		expect(captureTaskLifecycleEvent).toBe(captureSharedTaskLifecycleEvent);
 	});
 });
 
@@ -269,6 +298,35 @@ describe("captureWorkspacePathResolved", () => {
 		).not.toThrow();
 	});
 });
+
+describe("captureMistakeLimitReached", () => {
+	const baseProps = {
+		ulid: "sess-1",
+		model: "claude-3-5-sonnet",
+		provider: "anthropic",
+		reason: "tool_execution_failed",
+		consecutiveMistakes: 3,
+		maxConsecutiveMistakes: 3,
+	};
+
+	test("emits task.mistake_limit_reached with limit context and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureMistakeLimitReached(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.mistake_limit_reached");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof properties?.timestamp).toBe("string");
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			captureMistakeLimitReached(undefined, baseProps),
+		).not.toThrow();
+	});
+});
+
 describe("captureCompactionExecuted", () => {
 	const baseProps = {
 		ulid: "ulid-1",
@@ -453,6 +511,38 @@ describe("captureRunCommandsTimeout", () => {
 	});
 });
 
+describe("captureCompactionBudgetEmergency", () => {
+	test("emits task.compaction_budget_emergency with action metadata", () => {
+		const stub = createTelemetryStub();
+		captureCompactionBudgetEmergency(stub.telemetry, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 2,
+			warningCount: 1,
+			liveTailHandling: "included_degraded",
+			provider: "anthropic",
+			modelId: "claude-sonnet-4",
+		});
+
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.compaction_budget_emergency");
+		expect(properties).toMatchObject({
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 2,
+			warningCount: 1,
+			liveTailHandling: "included_degraded",
+		});
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+});
+
 /**
  * Telemetry-policy regression coverage.
  *
@@ -615,6 +705,24 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureCompactionBudgetEmergency never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureCompactionBudgetEmergency(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 1,
+			warningCount: 0,
+			liveTailHandling: "included_degraded",
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("a correctly-policed adapter drops these events when disabled", () => {
 		// This test layers on top of the previous four to assert the *full*
 		// end-to-end policy: when the adapter is disabled, a real adapter
@@ -693,6 +801,15 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			command_count: 2,
 			duration_ms: 1502,
 		});
+		captureCompactionBudgetEmergency(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 1,
+			warningCount: 0,
+			liveTailHandling: "included_degraded",
+		});
 		expect(observed).toEqual([]);
 		expect(dropped).toEqual([
 			"user.extension_activated",
@@ -703,6 +820,7 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"task.compaction_executed",
 			"task.compaction_skipped",
 			"sdk.tool_timeout",
+			"task.compaction_budget_emergency",
 		]);
 	});
 });

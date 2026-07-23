@@ -216,6 +216,13 @@ export async function syncModeConfigurations(
 			updates.actModeClineModelInfo = sourceFields.clineModelInfo
 			break
 
+		case "cline-pass":
+			updates.planModeClinePassModelId = sourceFields.clinePassModelId
+			updates.actModeClinePassModelId = sourceFields.clinePassModelId
+			updates.planModeClinePassModelInfo = sourceFields.clinePassModelInfo
+			updates.actModeClinePassModelInfo = sourceFields.clinePassModelInfo
+			break
+
 		case "requesty":
 			updates.planModeRequestyModelId = sourceFields.requestyModelId
 			updates.actModeRequestyModelId = sourceFields.requestyModelId

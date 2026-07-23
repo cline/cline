@@ -129,9 +129,7 @@ describe("createEditorExecutor", () => {
 			expect(result).toBe(
 				`Edited ${filePath}\n\`\`\`diff\n-2: b\n-3: c\n-4: d\n+2: B\n\`\`\``,
 			);
-			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
-				"a\nB\ne\nf",
-			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("a\nB\ne\nf");
 		});
 	});
 
@@ -144,9 +142,7 @@ describe("createEditorExecutor", () => {
 				context,
 			);
 
-			expect(result).toBe(
-				`Edited ${filePath}\n\`\`\`diff\n+2: new\n\`\`\``,
-			);
+			expect(result).toBe(`Edited ${filePath}\n\`\`\`diff\n+2: new\n\`\`\``);
 		});
 	});
 
@@ -189,6 +185,77 @@ describe("createEditorExecutor", () => {
 			// reporting +0 additions.
 			expect(result).toBe(
 				`Edited ${filePath}\n\`\`\`diff\n-1: old-0\n-2: old-1\n-3: old-2\n+1: new-0\n+2: new-1\n+3: new-2\n... diff truncated (3 more removed, 1 more added lines) ...\n\`\`\``,
+			);
+		});
+	});
+
+	it("preserves CRLF line endings when inserting LF-only text into a CRLF file", async () => {
+		await withTempFile("one\r\ntwo\r\nthree", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			await editor(
+				{
+					path: filePath,
+					new_text: "first\nsecond",
+					insert_line: 2,
+				},
+				dir,
+				context,
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\r\nfirst\r\nsecond\r\ntwo\r\nthree",
+			);
+		});
+	});
+
+	it("replaces multi-line LF old_text in a CRLF file and keeps CRLF endings", async () => {
+		await withTempFile("a\r\nb\r\nc\r\nd", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			// Reads strip "\r", so the model round-trips LF-only text even
+			// though the file on disk is CRLF.
+			const result = await editor(
+				{ path: filePath, old_text: "b\nc", new_text: "B\nC\nX" },
+				dir,
+				context,
+			);
+
+			expect(result).toBe(
+				`Edited ${filePath}\n\`\`\`diff\n-2: b\n-3: c\n+2: B\n+3: C\n+4: X\n\`\`\``,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"a\r\nB\r\nC\r\nX\r\nd",
+			);
+		});
+	});
+
+	it("replaces text in a pure-LF file without introducing CRLF", async () => {
+		await withTempFile("a\nb\nc", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			await editor(
+				{ path: filePath, old_text: "b\nc", new_text: "B\r\nC" },
+				dir,
+				context,
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("a\nB\nC");
+		});
+	});
+
+	it("inserts $-sequences in new_text literally", async () => {
+		await withTempFile("a\nb\nc", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			await editor(
+				{
+					path: filePath,
+					old_text: "b",
+					new_text: "cost=$100 pid=$$ match=$& rest=$'",
+				},
+				dir,
+				context,
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"a\ncost=$100 pid=$$ match=$& rest=$'\nc",
 			);
 		});
 	});

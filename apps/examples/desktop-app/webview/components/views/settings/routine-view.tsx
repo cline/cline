@@ -1,17 +1,25 @@
 "use client";
 
 import {
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared/browser";
+import {
+	CheckCircle2,
 	Circle,
+	Clock3,
+	ExternalLink,
 	Eye,
 	Pause,
 	Pencil,
 	Play,
+	PlayIcon,
 	Plus,
 	RefreshCw,
 	Trash2,
-	Zap,
+	XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -23,7 +31,6 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Combobox,
 	ComboboxContent,
@@ -40,6 +47,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -50,7 +63,14 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -72,6 +92,7 @@ interface RoutineSchedule {
 	scheduleId: string;
 	name: string;
 	cronPattern: string;
+	metadata?: Record<string, unknown>;
 	prompt: string;
 	provider?: string;
 	model?: string;
@@ -164,19 +185,17 @@ const WEEKDAY_OPTIONS = [
 
 interface RoutineFormState {
 	name: string;
+	scheduleType: "daily" | "weekly" | "once";
+	scheduleDate: string;
 	scheduleHour: string;
 	scheduleMinute: string;
 	scheduleDays: string[];
 	prompt: string;
 	provider: string;
 	model: string;
-	mode: "act" | "plan";
 	workspaceRoot: string;
-	cwd: string;
 	systemPrompt: string;
-	maxIterations: string;
 	timeoutSeconds: string;
-	maxParallel: string;
 	tags: string;
 	enabled: boolean;
 }
@@ -241,20 +260,27 @@ function formatExecutionResult(execution?: RoutineExecution): string {
 	return when === "-" ? status : `${status} at ${when}`;
 }
 
-function parseOptionalPositiveInt(text: string): number | undefined {
-	const trimmed = text.trim();
+function asTrimmedFormString(value: unknown): string {
+	return typeof value === "string" ? value.trim() : "";
+}
+
+function parseOptionalPositiveInt(value: unknown): number | undefined {
+	const trimmed = asTrimmedFormString(value);
 	if (!trimmed) {
 		return undefined;
 	}
-	const value = Number.parseInt(trimmed, 10);
-	if (!Number.isFinite(value) || value <= 0) {
+	const parsedValue = Number.parseInt(trimmed, 10);
+	if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
 		return undefined;
 	}
-	return value;
+	return parsedValue;
 }
 
-function parseTags(text: string): string[] | undefined {
-	const tags = text
+function parseTags(value: unknown): string[] | undefined {
+	if (typeof value !== "string") {
+		return undefined;
+	}
+	const tags = value
 		.split(",")
 		.map((value) => value.trim())
 		.filter((value) => value.length > 0);
@@ -266,6 +292,100 @@ function normalizeScheduleDays(days: string[]): string[] {
 	return WEEKDAY_OPTIONS.map((option) => option.value).filter((value) =>
 		selected.has(value),
 	);
+}
+
+function formatScheduleDays(days: string[]): string {
+	const normalized = normalizeScheduleDays(days);
+	if (normalized.length === WEEKDAY_OPTIONS.length) {
+		return "Every day";
+	}
+	if (normalized.join(",") === ["MON", "TUE", "WED", "THU", "FRI"].join(",")) {
+		return "Weekdays";
+	}
+	return normalized
+		.map(
+			(value) =>
+				WEEKDAY_OPTIONS.find((option) => option.value === value)?.label ??
+				value,
+		)
+		.join(", ");
+}
+
+function formatScheduleTime(hour: string, minute: string): string {
+	const date = new Date();
+	date.setHours(
+		Number.parseInt(hour, 10) || 0,
+		Number.parseInt(minute, 10) || 0,
+		0,
+		0,
+	);
+	return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatLocalDateInput(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
+function formatLocalTimeInput(date: Date): string {
+	const hour = String(date.getHours()).padStart(2, "0");
+	const minute = String(date.getMinutes()).padStart(2, "0");
+	return `${hour}:${minute}`;
+}
+
+function minimumOneTimeDateTime(now = new Date()): {
+	date: string;
+	time: string;
+} {
+	const minimum = new Date(now.getTime() + 60_000);
+	minimum.setSeconds(0, 0);
+	return {
+		date: formatLocalDateInput(minimum),
+		time: formatLocalTimeInput(minimum),
+	};
+}
+
+function defaultScheduleDate(): string {
+	const tomorrow = new Date();
+	tomorrow.setDate(tomorrow.getDate() + 1);
+	return formatLocalDateInput(tomorrow);
+}
+
+function buildRunAt(form: RoutineFormState): number | undefined {
+	if (!form.scheduleDate) {
+		return undefined;
+	}
+	const runAt = new Date(
+		`${form.scheduleDate}T${form.scheduleHour.padStart(2, "0")}:${form.scheduleMinute.padStart(2, "0")}:00`,
+	).getTime();
+	return Number.isFinite(runAt) ? runAt : undefined;
+}
+
+function formatExecutionTimestamp(execution: RoutineExecution): string {
+	return formatDateTime(
+		execution.endedAt ?? execution.startedAt ?? execution.triggeredAt,
+	);
+}
+
+function formatScheduleTrigger(schedule: RoutineSchedule): string {
+	if (schedule.cronPattern === ONE_TIME_SCHEDULE_CRON_PATTERN) {
+		return `Once · ${formatDateTime(getOneTimeScheduleRunAt(schedule))}`;
+	}
+	const parsed = parseCronPattern(schedule.cronPattern);
+	return parsed.scheduleType === "daily"
+		? `Daily · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`
+		: `${formatScheduleDays(parsed.scheduleDays)} · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`;
+}
+
+function getOneTimeScheduleRunAt(
+	schedule: RoutineSchedule,
+): number | undefined {
+	const runAt = schedule.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+	return typeof runAt === "number" && Number.isFinite(runAt)
+		? runAt
+		: undefined;
 }
 
 function buildCronPattern(
@@ -324,12 +444,16 @@ function expandCronDays(dayExpression: string | undefined): string[] {
 
 function parseCronPattern(
 	cronPattern: string,
-): Pick<RoutineFormState, "scheduleHour" | "scheduleMinute" | "scheduleDays"> {
+): Pick<
+	RoutineFormState,
+	"scheduleType" | "scheduleHour" | "scheduleMinute" | "scheduleDays"
+> {
 	const parts = cronPattern.trim().split(/\s+/);
 	const minute = Number.parseInt(parts[0] ?? "", 10);
 	const hour = Number.parseInt(parts[1] ?? "", 10);
 	const days = expandCronDays(parts[4]);
 	return {
+		scheduleType: parts[4] === "*" ? "daily" : "weekly",
 		scheduleHour:
 			Number.isInteger(hour) && hour >= 0 && hour <= 23 ? String(hour) : "9",
 		scheduleMinute:
@@ -340,7 +464,39 @@ function parseCronPattern(
 	};
 }
 
-export function RoutineSchedulesContent() {
+function parseScheduleTrigger(
+	schedule: RoutineSchedule,
+): Pick<
+	RoutineFormState,
+	| "scheduleType"
+	| "scheduleDate"
+	| "scheduleHour"
+	| "scheduleMinute"
+	| "scheduleDays"
+> {
+	if (schedule.cronPattern === ONE_TIME_SCHEDULE_CRON_PATTERN) {
+		const date = new Date(
+			getOneTimeScheduleRunAt(schedule) ?? schedule.nextRunAt ?? Date.now(),
+		);
+		return {
+			scheduleType: "once",
+			scheduleDate: formatLocalDateInput(date),
+			scheduleHour: String(date.getHours()),
+			scheduleMinute: String(date.getMinutes()),
+			scheduleDays: ["MON", "TUE", "WED", "THU", "FRI"],
+		};
+	}
+	return {
+		...parseCronPattern(schedule.cronPattern),
+		scheduleDate: defaultScheduleDate(),
+	};
+}
+
+export function RoutineSchedulesContent({
+	onOpenSession,
+}: {
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
+}) {
 	const [schedules, setSchedules] = useState<RoutineSchedule[]>(
 		() => routineOverviewCache?.schedules ?? [],
 	);
@@ -355,7 +511,43 @@ export function RoutineSchedulesContent() {
 	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [busyScheduleId, setBusyScheduleId] = useState<string | null>(null);
+	// Sets rather than single ids: several rows can have in-flight actions at
+	// once, and one action finishing must not clear another row's busy state.
+	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
+		new Set(),
+	);
+	const [triggeringScheduleIds, setTriggeringScheduleIds] = useState<
+		ReadonlySet<string>
+	>(new Set());
+	// Ref mirrors busyScheduleIds so a second click on the same row is
+	// rejected synchronously — two rapid clicks can both fire before React
+	// re-renders the disabled state, and state alone can't distinguish them.
+	const busyScheduleIdsRef = useRef<Set<string>>(new Set());
+	const beginScheduleAction = (scheduleId: string): boolean => {
+		if (busyScheduleIdsRef.current.has(scheduleId)) {
+			return false;
+		}
+		busyScheduleIdsRef.current.add(scheduleId);
+		setBusyScheduleIds(new Set(busyScheduleIdsRef.current));
+		return true;
+	};
+	const endScheduleAction = (scheduleId: string) => {
+		busyScheduleIdsRef.current.delete(scheduleId);
+		setBusyScheduleIds(new Set(busyScheduleIdsRef.current));
+	};
+	const setScheduleTriggering = (scheduleId: string, triggering: boolean) => {
+		setTriggeringScheduleIds((previous) => {
+			const next = new Set(previous);
+			if (triggering) {
+				next.add(scheduleId);
+			} else {
+				next.delete(scheduleId);
+			}
+			return next;
+		});
+	};
+	const [viewingSchedule, setViewingSchedule] =
+		useState<RoutineSchedule | null>(null);
 	const [schedulePendingDelete, setSchedulePendingDelete] =
 		useState<RoutineSchedule | null>(null);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -377,22 +569,21 @@ export function RoutineSchedulesContent() {
 	);
 	const [createForm, setCreateForm] = useState<RoutineFormState>({
 		name: "",
+		scheduleType: "once",
+		scheduleDate: defaultScheduleDate(),
 		scheduleHour: "9",
 		scheduleMinute: "0",
 		scheduleDays: ["MON", "TUE", "WED", "THU", "FRI"],
 		prompt: "Review PRs opened yesterday and summarize issues.",
 		provider: "cline",
 		model: "openai/gpt-5.3-codex",
-		mode: "act",
 		workspaceRoot: "",
-		cwd: "",
 		systemPrompt: "",
-		maxIterations: "",
 		timeoutSeconds: "",
-		maxParallel: "1",
 		tags: "",
 		enabled: true,
 	});
+	const minimumOnce = minimumOneTimeDateTime();
 
 	const visibleProviderModels = useMemo(() => {
 		if (enabledProviderIds.length === 0) {
@@ -413,20 +604,6 @@ export function RoutineSchedulesContent() {
 	const availableModelsForProvider = useMemo(
 		() => visibleProviderModels[createForm.provider] ?? [],
 		[createForm.provider, visibleProviderModels],
-	);
-
-	const cronPreview = useMemo(
-		() =>
-			buildCronPattern(
-				createForm.scheduleDays,
-				createForm.scheduleHour,
-				createForm.scheduleMinute,
-			),
-		[
-			createForm.scheduleDays,
-			createForm.scheduleHour,
-			createForm.scheduleMinute,
-		],
 	);
 
 	useEffect(() => {
@@ -613,7 +790,9 @@ export function RoutineSchedulesContent() {
 		schedule: RoutineSchedule,
 		enabled: boolean,
 	) => {
-		setBusyScheduleId(schedule.scheduleId);
+		if (!beginScheduleAction(schedule.scheduleId)) {
+			return;
+		}
 		setErrorMessage(null);
 		try {
 			if (enabled) {
@@ -630,16 +809,23 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setBusyScheduleId(null);
+			endScheduleAction(schedule.scheduleId);
 		}
 	};
 
-	const triggerSchedule = async (scheduleId: string) => {
-		setBusyScheduleId(scheduleId);
+	const triggerSchedule = async (schedule: RoutineSchedule) => {
+		if (!beginScheduleAction(schedule.scheduleId)) {
+			return;
+		}
+		setScheduleTriggering(schedule.scheduleId, true);
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("trigger_routine_schedule", {
-				schedule_id: scheduleId,
+				schedule_id: schedule.scheduleId,
+			});
+			toast({
+				title: "Run started",
+				description: `"${schedule.name}" was queued to run now.`,
 			});
 			await refreshSchedules({ force: true, showLoading: false });
 			window.setTimeout(() => {
@@ -648,13 +834,21 @@ export function RoutineSchedulesContent() {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
+			toast({
+				title: "Failed to start run",
+				description: message,
+				variant: "destructive",
+			});
 		} finally {
-			setBusyScheduleId(null);
+			endScheduleAction(schedule.scheduleId);
+			setScheduleTriggering(schedule.scheduleId, false);
 		}
 	};
 
 	const deleteSchedule = async (scheduleId: string) => {
-		setBusyScheduleId(scheduleId);
+		if (!beginScheduleAction(scheduleId)) {
+			return;
+		}
 		setErrorMessage(null);
 		try {
 			await desktopClient.invoke("delete_routine_schedule", {
@@ -666,7 +860,7 @@ export function RoutineSchedulesContent() {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 		} finally {
-			setBusyScheduleId(null);
+			endScheduleAction(scheduleId);
 		}
 	};
 
@@ -696,19 +890,17 @@ export function RoutineSchedulesContent() {
 				: (modelsForProvider[0] ?? createForm.model);
 		setCreateForm({
 			name: "",
+			scheduleType: "once",
+			scheduleDate: defaultScheduleDate(),
 			scheduleHour: "9",
 			scheduleMinute: "0",
 			scheduleDays: ["MON", "TUE", "WED", "THU", "FRI"],
 			prompt: "Review PRs opened yesterday and summarize issues.",
 			provider: preferredProvider,
 			model: preferredModel,
-			mode: "act",
 			workspaceRoot: context.workspaceRoot || context.cwd,
-			cwd: context.cwd || "",
 			systemPrompt: "",
-			maxIterations: "",
 			timeoutSeconds: "",
-			maxParallel: "1",
 			tags: "",
 			enabled: true,
 		});
@@ -717,7 +909,7 @@ export function RoutineSchedulesContent() {
 
 	const openEditDialog = (schedule: RoutineSchedule) => {
 		const { provider, model } = getScheduleProviderModel(schedule);
-		const parsedCron = parseCronPattern(schedule.cronPattern);
+		const parsedTrigger = parseScheduleTrigger(schedule);
 		setEditingSchedule(schedule);
 		setErrorMessage(null);
 		setCreateFormError(null);
@@ -734,26 +926,16 @@ export function RoutineSchedulesContent() {
 		);
 		setCreateForm({
 			name: schedule.name,
-			...parsedCron,
+			...parsedTrigger,
 			prompt: schedule.prompt,
 			provider,
 			model,
-			mode: schedule.mode === "plan" ? "plan" : "act",
 			workspaceRoot: schedule.workspaceRoot ?? "",
-			cwd: schedule.cwd ?? "",
 			systemPrompt: schedule.systemPrompt ?? "",
-			maxIterations:
-				typeof schedule.maxIterations === "number"
-					? String(schedule.maxIterations)
-					: "",
 			timeoutSeconds:
 				typeof schedule.timeoutSeconds === "number"
 					? String(schedule.timeoutSeconds)
 					: "",
-			maxParallel:
-				typeof schedule.maxParallel === "number"
-					? String(schedule.maxParallel)
-					: "1",
 			tags: schedule.tags?.join(",") ?? "",
 			enabled: schedule.enabled,
 		});
@@ -761,46 +943,60 @@ export function RoutineSchedulesContent() {
 	};
 
 	const submitCreateForm = async () => {
-		const name = createForm.name.trim();
+		const name = asTrimmedFormString(createForm.name);
 		if (!name) {
 			setCreateFormError("Routine name is required.");
 			return;
 		}
-		const cronPattern = buildCronPattern(
-			createForm.scheduleDays,
-			createForm.scheduleHour,
-			createForm.scheduleMinute,
-		);
-		if (!cronPattern) {
-			setCreateFormError("Select at least one day and a valid time.");
+		const runAt =
+			createForm.scheduleType === "once" ? buildRunAt(createForm) : undefined;
+		if (createForm.scheduleType === "once" && (!runAt || runAt <= Date.now())) {
+			setCreateFormError("Choose a one-time date and time in the future.");
 			return;
 		}
-		const prompt = createForm.prompt.trim();
+		const cronPattern =
+			createForm.scheduleType === "daily"
+				? buildCronPattern(
+						WEEKDAY_OPTIONS.map((option) => option.value),
+						createForm.scheduleHour,
+						createForm.scheduleMinute,
+					)
+				: createForm.scheduleType === "weekly"
+					? buildCronPattern(
+							createForm.scheduleDays,
+							createForm.scheduleHour,
+							createForm.scheduleMinute,
+						)
+					: undefined;
+		if (createForm.scheduleType === "weekly" && !cronPattern) {
+			setCreateFormError("Select at least one weekday.");
+			return;
+		}
+		const prompt = asTrimmedFormString(createForm.prompt);
 		if (!prompt) {
 			setCreateFormError("Prompt is required.");
 			return;
 		}
-		const workspaceRoot = createForm.workspaceRoot.trim();
+		const workspaceRoot = asTrimmedFormString(createForm.workspaceRoot);
 		if (!workspaceRoot) {
-			setCreateFormError("Workspace root is required.");
+			setCreateFormError("Workspace is required.");
 			return;
 		}
 		setCreateFormError(null);
 		setIsCreating(true);
 		try {
 			const provider =
-				normalizeProviderId(createForm.provider) ||
+				normalizeProviderId(asTrimmedFormString(createForm.provider)) ||
 				availableProviders[0] ||
 				"cline";
 			const model =
-				createForm.model.trim() ||
+				asTrimmedFormString(createForm.model) ||
 				(visibleProviderModels[provider] ?? [])[0] ||
 				"openai/gpt-5.3-codex";
-			const maxIterations = parseOptionalPositiveInt(createForm.maxIterations);
+			const systemPrompt = asTrimmedFormString(createForm.systemPrompt);
 			const timeoutSeconds = parseOptionalPositiveInt(
 				createForm.timeoutSeconds,
 			);
-			const maxParallel = parseOptionalPositiveInt(createForm.maxParallel) ?? 1;
 			const tags = parseTags(createForm.tags);
 			const command = editingSchedule
 				? "update_routine_schedule"
@@ -810,23 +1006,23 @@ export function RoutineSchedulesContent() {
 					? { schedule_id: editingSchedule.scheduleId }
 					: undefined),
 				name,
+				schedule_type:
+					createForm.scheduleType === "once" ? "once" : "recurring",
+				run_at: runAt,
 				cron_pattern: cronPattern,
 				prompt,
 				provider,
 				model,
-				mode: createForm.mode,
+				mode: editingSchedule?.mode ?? "act",
 				workspace_root: workspaceRoot,
-				cwd: createForm.cwd.trim() || undefined,
+				cwd: editingSchedule ? (editingSchedule.cwd ?? null) : workspaceRoot,
 				system_prompt: editingSchedule
-					? createForm.systemPrompt.trim() || null
-					: createForm.systemPrompt.trim() || undefined,
-				max_iterations: editingSchedule
-					? (maxIterations ?? null)
-					: maxIterations,
+					? systemPrompt || null
+					: systemPrompt || undefined,
 				timeout_seconds: editingSchedule
 					? (timeoutSeconds ?? null)
 					: timeoutSeconds,
-				max_parallel: maxParallel,
+				max_parallel: 1,
 				enabled: createForm.enabled,
 				tags: tags ?? [],
 			});
@@ -875,6 +1071,25 @@ export function RoutineSchedulesContent() {
 		[schedules],
 	);
 
+	const viewingExecutions = useMemo(() => {
+		if (!viewingSchedule) {
+			return [];
+		}
+		return [...lastExecutions]
+			.filter(
+				(execution) => execution.scheduleId === viewingSchedule.scheduleId,
+			)
+			.sort((left, right) => {
+				const leftTime = new Date(
+					left.endedAt ?? left.startedAt ?? left.triggeredAt ?? 0,
+				).getTime();
+				const rightTime = new Date(
+					right.endedAt ?? right.startedAt ?? right.triggeredAt ?? 0,
+				).getTime();
+				return rightTime - leftTime;
+			});
+	}, [lastExecutions, viewingSchedule]);
+
 	return (
 		<PageFrame>
 			<PageHeader
@@ -917,7 +1132,7 @@ export function RoutineSchedulesContent() {
 			) : (
 				<div className="flex flex-col gap-3">
 					{sortedSchedules.map((schedule) => {
-						const isBusy = busyScheduleId === schedule.scheduleId;
+						const isBusy = busyScheduleIds.has(schedule.scheduleId);
 						const activeExecution = executionBySchedule.get(
 							schedule.scheduleId,
 						);
@@ -948,74 +1163,117 @@ export function RoutineSchedulesContent() {
 										{schedule.mode}
 									</span>
 									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-										{schedule.cronPattern}
+										{formatScheduleTrigger(schedule)}
 									</span>
 									<div className="flex-1" />
 									<div className="flex items-center gap-1">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`View ${schedule.name}`}
-											onClick={() => {
-												window.alert(JSON.stringify(schedule, null, 2));
-											}}
-										>
-											<Eye className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Edit ${schedule.name}`}
-											onClick={() => openEditDialog(schedule)}
-											disabled={isBusy}
-										>
-											<Pencil className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Run ${schedule.name} now`}
-											onClick={() => void triggerSchedule(schedule.scheduleId)}
-											disabled={isBusy}
-										>
-											<Zap className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={
-												schedule.enabled
-													? `Pause ${schedule.name}`
-													: `Resume ${schedule.name}`
-											}
-											onClick={() =>
-												void upsertScheduleEnabled(schedule, !schedule.enabled)
-											}
-											disabled={isBusy}
-										>
-											{schedule.enabled ? (
-												<Pause className="h-3.5 w-3.5" />
-											) : (
-												<Play className="h-3.5 w-3.5" />
-											)}
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Delete ${schedule.name}`}
-											onClick={() => setSchedulePendingDelete(schedule)}
-											disabled={isBusy}
-										>
-											<Trash2 className="h-3.5 w-3.5" />
-										</Button>
-										<Switch
-											checked={schedule.enabled}
-											onCheckedChange={(checked) =>
-												void upsertScheduleEnabled(schedule, checked)
-											}
-											disabled={isBusy}
-											aria-label={`Enable ${schedule.name}`}
-										/>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`View ${schedule.name}`}
+													onClick={() => setViewingSchedule(schedule)}
+												>
+													<Eye className="h-3.5 w-3.5" />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>View details</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Edit ${schedule.name}`}
+													onClick={() => openEditDialog(schedule)}
+													disabled={isBusy}
+												>
+													<Pencil className="h-3.5 w-3.5" />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Edit schedule</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Run ${schedule.name} now`}
+													onClick={() => void triggerSchedule(schedule)}
+													disabled={isBusy}
+												>
+													{triggeringScheduleIds.has(schedule.scheduleId) ? (
+														<RefreshCw className="h-3.5 w-3.5 animate-spin" />
+													) : (
+														<PlayIcon className="h-3.5 w-3.5" />
+													)}
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Run now</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={
+														schedule.enabled
+															? `Pause ${schedule.name}`
+															: `Resume ${schedule.name}`
+													}
+													onClick={() =>
+														void upsertScheduleEnabled(
+															schedule,
+															!schedule.enabled,
+														)
+													}
+													disabled={isBusy}
+												>
+													{schedule.enabled ? (
+														<Pause className="h-3.5 w-3.5" />
+													) : (
+														<Play className="h-3.5 w-3.5" />
+													)}
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>
+												{schedule.enabled
+													? "Pause schedule"
+													: "Resume schedule"}
+											</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Delete ${schedule.name}`}
+													onClick={() => setSchedulePendingDelete(schedule)}
+													disabled={isBusy}
+												>
+													<Trash2 className="h-3.5 w-3.5" />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Delete schedule</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Switch
+													checked={schedule.enabled}
+													onCheckedChange={(checked) =>
+														void upsertScheduleEnabled(schedule, checked)
+													}
+													disabled={isBusy}
+													aria-label={`Enable ${schedule.name}`}
+												/>
+											</TooltipTrigger>
+											<TooltipContent>
+												{schedule.enabled
+													? "Enabled — click to disable"
+													: "Disabled — click to enable"}
+											</TooltipContent>
+										</Tooltip>
 									</div>
 								</div>
 
@@ -1032,20 +1290,6 @@ export function RoutineSchedulesContent() {
 										<span className="text-muted-foreground/70">Model:</span>{" "}
 										{formatScheduleModel(schedule)}
 									</p>
-									{schedule.workspaceRoot && (
-										<p>
-											<span className="text-muted-foreground/70">
-												Workspace:
-											</span>{" "}
-											{schedule.workspaceRoot}
-										</p>
-									)}
-									{schedule.cwd && (
-										<p>
-											<span className="text-muted-foreground/70">CWD:</span>{" "}
-											{schedule.cwd}
-										</p>
-									)}
 									<p>
 										<span className="text-muted-foreground/70">Last run:</span>{" "}
 										{formatDateTime(schedule.lastRunAt)}
@@ -1095,6 +1339,135 @@ export function RoutineSchedulesContent() {
 					})}
 				</div>
 			)}
+			<Dialog
+				open={Boolean(viewingSchedule)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setViewingSchedule(null);
+					}
+				}}
+			>
+				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+					<DialogHeader>
+						<DialogTitle>{viewingSchedule?.name ?? "Schedule"}</DialogTitle>
+						<DialogDescription>
+							Full configuration for this schedule.
+						</DialogDescription>
+					</DialogHeader>
+					{viewingSchedule && (
+						<Tabs defaultValue="overview">
+							<TabsList>
+								<TabsTrigger value="overview">Overview</TabsTrigger>
+								<TabsTrigger value="runs">
+									Runs
+									{viewingExecutions.length > 0 && (
+										<span className="ml-1 text-xs text-muted-foreground">
+											{viewingExecutions.length}
+										</span>
+									)}
+								</TabsTrigger>
+							</TabsList>
+							<TabsContent
+								className="mt-4 flex flex-col gap-3"
+								value="overview"
+							>
+								<div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
+									<p>
+										<span className="text-muted-foreground/70">Schedule:</span>{" "}
+										{formatScheduleTrigger(viewingSchedule)}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Mode:</span>{" "}
+										{viewingSchedule.mode}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Model:</span>{" "}
+										{formatScheduleModel(viewingSchedule)}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Enabled:</span>{" "}
+										{viewingSchedule.enabled ? "yes" : "no"}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Last run:</span>{" "}
+										{formatDateTime(viewingSchedule.lastRunAt)}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Next run:</span>{" "}
+										{formatDateTime(viewingSchedule.nextRunAt)}
+									</p>
+								</div>
+								<pre className="max-h-80 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs">
+									{JSON.stringify(viewingSchedule, null, 2)}
+								</pre>
+							</TabsContent>
+							<TabsContent className="mt-4" value="runs">
+								<div className="mb-2 flex items-center justify-between">
+									<h3 className="text-sm font-semibold">Runs</h3>
+									<span className="text-xs text-muted-foreground">
+										{viewingExecutions.length} result
+										{viewingExecutions.length === 1 ? "" : "s"}
+									</span>
+								</div>
+								{viewingExecutions.length === 0 ? (
+									<div className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">
+										No runs yet.
+									</div>
+								) : (
+									<div className="overflow-hidden rounded-lg border border-border">
+										{viewingExecutions.map((execution) => {
+											const status = execution.status?.toLowerCase() ?? "";
+											const succeeded = ["success", "completed"].includes(
+												status,
+											);
+											const failed = ["failed", "timeout", "aborted"].includes(
+												status,
+											);
+											return (
+												<button
+													className="group flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-accent/40 disabled:cursor-default disabled:hover:bg-transparent"
+													disabled={!execution.sessionId || !onOpenSession}
+													key={execution.executionId}
+													onClick={() => {
+														if (execution.sessionId) {
+															void onOpenSession?.(execution.sessionId);
+														}
+													}}
+													type="button"
+												>
+													{succeeded ? (
+														<CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+													) : failed ? (
+														<XCircle className="size-4 shrink-0 text-destructive" />
+													) : (
+														<Clock3 className="size-4 shrink-0 text-muted-foreground" />
+													)}
+													<span className="min-w-0 flex-1">
+														<span className="block truncate font-medium capitalize">
+															{execution.status || "Unknown result"}
+														</span>
+														{execution.errorMessage && (
+															<span className="block truncate text-xs text-destructive">
+																{execution.errorMessage}
+															</span>
+														)}
+													</span>
+													<span className="shrink-0 text-xs text-muted-foreground">
+														{formatExecutionTimestamp(execution)}
+													</span>
+													{execution.sessionId && onOpenSession && (
+														<ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+													)}
+												</button>
+											);
+										})}
+									</div>
+								)}
+							</TabsContent>
+						</Tabs>
+					)}
+				</DialogContent>
+			</Dialog>
 			<AlertDialog
 				open={Boolean(schedulePendingDelete)}
 				onOpenChange={(open) => {
@@ -1115,7 +1488,7 @@ export function RoutineSchedulesContent() {
 						<AlertDialogCancel
 							disabled={
 								schedulePendingDelete
-									? busyScheduleId === schedulePendingDelete.scheduleId
+									? busyScheduleIds.has(schedulePendingDelete.scheduleId)
 									: false
 							}
 						>
@@ -1124,7 +1497,7 @@ export function RoutineSchedulesContent() {
 						<AlertDialogAction
 							disabled={
 								!schedulePendingDelete ||
-								busyScheduleId === schedulePendingDelete.scheduleId
+								busyScheduleIds.has(schedulePendingDelete.scheduleId)
 							}
 							onClick={() => {
 								if (schedulePendingDelete) {
@@ -1178,107 +1551,143 @@ export function RoutineSchedulesContent() {
 
 						<div className="sm:col-span-2 space-y-3">
 							<Label>Schedule</Label>
-							<div className="grid grid-cols-1 gap-3 rounded-md border border-border p-3 sm:grid-cols-2">
-								<div>
-									<Label htmlFor="routine-hour">Hour</Label>
+							<div className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-3">
+								<div className="min-w-32 flex-1">
+									<Label htmlFor="routine-schedule-type">Frequency</Label>
 									<Select
-										value={createForm.scheduleHour}
 										onValueChange={(value) =>
 											setCreateForm((prev) => ({
 												...prev,
-												scheduleHour: value ?? prev.scheduleHour,
+												scheduleType:
+													value === "once" || value === "daily"
+														? value
+														: "weekly",
 											}))
 										}
+										value={createForm.scheduleType}
 									>
-										<SelectTrigger className="w-full" id="routine-hour">
-											<SelectValue placeholder="Hour" />
+										<SelectTrigger
+											className="w-full"
+											id="routine-schedule-type"
+										>
+											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											{Array.from({ length: 24 }, (_, idx) => idx).map(
-												(hour) => (
-													<SelectItem key={`hour-${hour}`} value={`${hour}`}>
-														{hour.toString().padStart(2, "0")}
-													</SelectItem>
-												),
-											)}
+											<SelectItem value="daily">Daily</SelectItem>
+											<SelectItem value="weekly">Weekly</SelectItem>
+											<SelectItem value="once">Once</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
-								<div>
-									<Label htmlFor="routine-minute">Minute</Label>
-									<Select
-										value={createForm.scheduleMinute}
-										onValueChange={(value) =>
-											setCreateForm((prev) => ({
-												...prev,
-												scheduleMinute: value ?? prev.scheduleMinute,
-											}))
-										}
-									>
-										<SelectTrigger className="w-full" id="routine-minute">
-											<SelectValue placeholder="Minute" />
-										</SelectTrigger>
-										<SelectContent>
-											{Array.from({ length: 60 }, (_, minute) => minute).map(
-												(minute) => {
-													return (
-														<SelectItem
-															key={`minute-${minute}`}
-															value={`${minute}`}
-														>
-															{minute.toString().padStart(2, "0")}
-														</SelectItem>
-													);
-												},
-											)}
-										</SelectContent>
-									</Select>
-								</div>
-								<div className="sm:col-span-2">
-									<Label>Days of week</Label>
-									<div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-										{WEEKDAY_OPTIONS.map((day) => {
-											const inputId = `routine-day-${day.value.toLowerCase()}`;
-											const checked = createForm.scheduleDays.includes(
-												day.value,
-											);
-											return (
-												<Label
-													className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-sm"
-													htmlFor={inputId}
-													key={day.value}
+								{createForm.scheduleType === "once" && (
+									<div className="min-w-40 flex-1">
+										<Label htmlFor="routine-date">Date</Label>
+										<Input
+											id="routine-date"
+											min={minimumOnce.date}
+											onChange={(event) => {
+												const selectedDate = event.target.value;
+												setCreateForm((prev) => {
+													const scheduleDate =
+														selectedDate < minimumOnce.date
+															? minimumOnce.date
+															: selectedDate;
+													const currentTime = `${prev.scheduleHour.padStart(2, "0")}:${prev.scheduleMinute.padStart(2, "0")}`;
+													const useMinimumTime =
+														scheduleDate === minimumOnce.date &&
+														currentTime < minimumOnce.time;
+													const [minimumHour, minimumMinute] =
+														minimumOnce.time.split(":");
+													return {
+														...prev,
+														scheduleDate,
+														scheduleHour: useMinimumTime
+															? String(Number.parseInt(minimumHour, 10))
+															: prev.scheduleHour,
+														scheduleMinute: useMinimumTime
+															? String(Number.parseInt(minimumMinute, 10))
+															: prev.scheduleMinute,
+													};
+												});
+											}}
+											type="date"
+											value={createForm.scheduleDate}
+										/>
+									</div>
+								)}
+								{createForm.scheduleType === "weekly" && (
+									<div className="min-w-44 flex-[1.4]">
+										<Label>Days</Label>
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													className="w-full justify-between font-normal"
+													variant="outline"
 												>
-													<Checkbox
-														checked={checked}
-														id={inputId}
-														onCheckedChange={(value) =>
+													<span className="truncate">
+														{formatScheduleDays(createForm.scheduleDays) ||
+															"Choose days"}
+													</span>
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="start" className="w-48">
+												{WEEKDAY_OPTIONS.map((day) => (
+													<DropdownMenuCheckboxItem
+														checked={createForm.scheduleDays.includes(
+															day.value,
+														)}
+														key={day.value}
+														onCheckedChange={(checked) =>
 															setCreateForm((prev) => {
-																const nextSet = new Set(prev.scheduleDays);
-																if (value === true) {
-																	nextSet.add(day.value);
-																} else {
-																	nextSet.delete(day.value);
-																}
+																const days = new Set(prev.scheduleDays);
+																if (checked) days.add(day.value);
+																else days.delete(day.value);
 																return {
 																	...prev,
 																	scheduleDays: normalizeScheduleDays([
-																		...nextSet,
+																		...days,
 																	]),
 																};
 															})
 														}
-													/>
-													{day.label}
-												</Label>
-											);
-										})}
+														onSelect={(event) => event.preventDefault()}
+													>
+														{day.label}
+													</DropdownMenuCheckboxItem>
+												))}
+											</DropdownMenuContent>
+										</DropdownMenu>
 									</div>
-								</div>
-								<div className="sm:col-span-2 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-									Cron:{" "}
-									<span className="font-mono text-foreground">
-										{cronPreview || "Select one or more days"}
-									</span>
+								)}
+								<div className="min-w-32 flex-1">
+									<Label htmlFor="routine-time">Time</Label>
+									<Input
+										id="routine-time"
+										min={
+											createForm.scheduleType === "once" &&
+											createForm.scheduleDate === minimumOnce.date
+												? minimumOnce.time
+												: undefined
+										}
+										onChange={(event) => {
+											const selectedTime =
+												createForm.scheduleType === "once" &&
+												createForm.scheduleDate === minimumOnce.date &&
+												event.target.value < minimumOnce.time
+													? minimumOnce.time
+													: event.target.value;
+											const [hour, minute] = selectedTime.split(":");
+											if (hour !== undefined && minute !== undefined) {
+												setCreateForm((prev) => ({
+													...prev,
+													scheduleHour: String(Number.parseInt(hour, 10)),
+													scheduleMinute: String(Number.parseInt(minute, 10)),
+												}));
+											}
+										}}
+										type="time"
+										value={`${createForm.scheduleHour.padStart(2, "0")}:${createForm.scheduleMinute.padStart(2, "0")}`}
+									/>
 								</div>
 							</div>
 						</div>
@@ -1373,29 +1782,8 @@ export function RoutineSchedulesContent() {
 							</Combobox>
 						</div>
 
-						<div>
-							<Label>Mode</Label>
-							<Select
-								value={createForm.mode}
-								onValueChange={(value) =>
-									setCreateForm((prev) => ({
-										...prev,
-										mode: value === "plan" ? "plan" : "act",
-									}))
-								}
-							>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select mode" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="act">act</SelectItem>
-									<SelectItem value="plan">plan</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-
 						<div className="sm:col-span-2">
-							<Label htmlFor="routine-workspace">Workspace root</Label>
+							<Label htmlFor="routine-workspace">Workspace</Label>
 							<Input
 								id="routine-workspace"
 								value={createForm.workspaceRoot}
@@ -1403,20 +1791,6 @@ export function RoutineSchedulesContent() {
 									setCreateForm((prev) => ({
 										...prev,
 										workspaceRoot: event.target.value,
-									}))
-								}
-							/>
-						</div>
-
-						<div className="sm:col-span-2">
-							<Label htmlFor="routine-cwd">CWD (optional)</Label>
-							<Input
-								id="routine-cwd"
-								value={createForm.cwd}
-								onChange={(event) =>
-									setCreateForm((prev) => ({
-										...prev,
-										cwd: event.target.value,
 									}))
 								}
 							/>
@@ -1440,23 +1814,6 @@ export function RoutineSchedulesContent() {
 						</div>
 
 						<div>
-							<Label htmlFor="routine-max-iterations">
-								Max iterations (optional)
-							</Label>
-							<Input
-								id="routine-max-iterations"
-								value={createForm.maxIterations}
-								onChange={(event) =>
-									setCreateForm((prev) => ({
-										...prev,
-										maxIterations: event.target.value,
-									}))
-								}
-								placeholder="50"
-							/>
-						</div>
-
-						<div>
 							<Label htmlFor="routine-timeout">
 								Timeout seconds (optional)
 							</Label>
@@ -1470,21 +1827,6 @@ export function RoutineSchedulesContent() {
 									}))
 								}
 								placeholder="3600"
-							/>
-						</div>
-
-						<div>
-							<Label htmlFor="routine-max-parallel">Max parallel</Label>
-							<Input
-								id="routine-max-parallel"
-								value={createForm.maxParallel}
-								onChange={(event) =>
-									setCreateForm((prev) => ({
-										...prev,
-										maxParallel: event.target.value,
-									}))
-								}
-								placeholder="1"
 							/>
 						</div>
 

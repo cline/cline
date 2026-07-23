@@ -1,6 +1,13 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { basename, dirname, extname, join } from "node:path";
+import {
+	existsSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
 	ProviderCapability,
@@ -28,6 +35,7 @@ import {
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	resolvePluginConfigSearchPaths,
@@ -43,7 +51,13 @@ import {
 	toggleDisabledTool,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getClineEnvironmentConfig,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import packageJson from "../package.json";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -75,6 +89,56 @@ import type {
 	SidecarContext,
 } from "./types";
 
+// Strict allowlist: the opener hands the URL to the OS protocol handler, so
+// anything broader (file:, custom app schemes) would let webview content
+// launch arbitrary local handlers.
+const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
+
+function openUrlInDefaultBrowser(url: string): Promise<void> {
+	const platform = process.platform;
+	// On Windows the URL must not pass through cmd.exe: `cmd /c start <url>`
+	// re-parses metacharacters (&, ^, |) that are valid inside http(s) URLs,
+	// turning a crafted URL into command execution. rundll32 hands the URL
+	// straight to the protocol handler with no shell parsing.
+	const spawned =
+		platform === "darwin"
+			? spawn("open", [url], { stdio: "ignore", detached: true })
+			: platform === "win32"
+				? spawn("rundll32", ["url.dll,FileProtocolHandler", url], {
+						stdio: "ignore",
+						detached: true,
+					})
+				: spawn("xdg-open", [url], {
+						stdio: "ignore",
+						detached: true,
+					});
+	// A missing opener binary emits an async "error" event; without a listener
+	// it becomes an uncaught exception that kills the sidecar. Launchers hand
+	// off to the browser and exit quickly, so a fast non-zero exit means the
+	// handoff failed (xdg-open exits 3 when no handler is available; rundll32
+	// exits 0 even on failure, so Windows stays best-effort). If the launcher
+	// is still running after the grace window, assume the handoff worked
+	// rather than blocking on a launcher that lingers.
+	return new Promise((resolve, reject) => {
+		const graceTimer = setTimeout(resolve, 2_000);
+		spawned.once("spawn", () => {
+			spawned.unref();
+		});
+		spawned.once("error", (error) => {
+			clearTimeout(graceTimer);
+			reject(new Error(`could not open browser: ${error.message}`));
+		});
+		spawned.once("exit", (code) => {
+			clearTimeout(graceTimer);
+			if (code === 0 || code === null) {
+				resolve();
+			} else {
+				reject(new Error(`browser opener exited with code ${code}`));
+			}
+		});
+	});
+}
+
 function readProviderSettingsUpdate(
 	args: Record<string, unknown> | undefined,
 ): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
@@ -102,8 +166,13 @@ function readMcpServersResponse(): JsonRecord {
 			record.transport && typeof record.transport === "object"
 				? (record.transport as JsonRecord)
 				: undefined;
+		const rawTransportType =
+			transport?.type ?? record.transportType ?? record.type;
 		const transportType = String(
-			transport?.type ?? record.transportType ?? record.type ?? "stdio",
+			rawTransportType ??
+				(typeof transport?.url === "string" || typeof record.url === "string"
+					? "sse"
+					: "stdio"),
 		).trim();
 		return {
 			name,
@@ -150,6 +219,31 @@ function readMcpServersResponse(): JsonRecord {
 	return { settingsPath, hasSettingsFile: true, servers: entries };
 }
 
+/**
+ * Transport type + URL a server record actually points at, tolerating both
+ * the nested `transport` shape and legacy flat fields (mirrors
+ * readMcpServersResponse).
+ */
+function mcpTransportIdentity(record: JsonRecord): string {
+	const transport =
+		record.transport && typeof record.transport === "object"
+			? (record.transport as JsonRecord)
+			: undefined;
+	const url =
+		typeof transport?.url === "string"
+			? transport.url
+			: typeof record.url === "string"
+				? record.url
+				: "";
+	// Core's config-loader defaults a URL-based legacy record with no explicit
+	// type to SSE and maps the legacy "http" alias to streamableHttp; mirror
+	// both so an unchanged endpoint keeps the same identity.
+	const rawType = transport?.type ?? record.transportType ?? record.type;
+	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
+	const normalizedType = type === "http" ? "streamableHttp" : type;
+	return `${normalizedType}\u0000${url}`;
+}
+
 function writeMcpServersMap(servers: JsonRecord): void {
 	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
 		settings.mcpServers = servers;
@@ -178,6 +272,118 @@ function removePathIfExists(
 	return true;
 }
 
+// Cline access tokens expire between app launches, so account requests must
+// resolve through the refresh-aware OAuth manager instead of reading the
+// persisted token directly. A single shared instance keeps concurrent account
+// requests single-flight; the refresh token is single-use, so parallel
+// refreshes would invalidate each other.
+let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
+
+async function resolveFreshClineAuthToken(
+	manager: ProviderSettingsManager,
+): Promise<string | undefined> {
+	try {
+		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
+		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
+			providerId: "cline",
+		});
+		if (resolution?.apiKey) {
+			return resolution.apiKey;
+		}
+	} catch {
+		// Fall back to the persisted token; the account request surfaces the
+		// auth failure to the caller.
+	}
+	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
+}
+
+function mergePersistedSessionRecord(
+	store: SqliteSessionStore,
+	sessionId: string,
+	record: JsonRecord,
+): JsonRecord {
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	const metadata =
+		record.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return {
+		...(persisted ?? {}),
+		...record,
+		sessionId,
+		provider: record.provider ?? persisted?.provider ?? "",
+		model: record.model ?? persisted?.model ?? "",
+		cwd: record.cwd ?? persisted?.cwd ?? "",
+		workspaceRoot:
+			record.workspaceRoot ?? persisted?.workspaceRoot ?? persisted?.cwd ?? "",
+		prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
+		parentSessionId:
+			record.parentSessionId ??
+			persisted?.parentSessionId ??
+			metadata?.parentSessionId,
+		parentAgentId:
+			record.parentAgentId ??
+			persisted?.parentAgentId ??
+			metadata?.parentAgentId,
+		agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
+		conversationId:
+			record.conversationId ??
+			persisted?.conversationId ??
+			metadata?.conversationId,
+		isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
+		startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
+		updatedAt: record.updatedAt ?? persisted?.updatedAt,
+		metadata: {
+			...((persisted?.metadata && typeof persisted.metadata === "object"
+				? persisted.metadata
+				: {}) as JsonRecord),
+			...(metadata ?? {}),
+		},
+	};
+}
+
+async function getSessionFromSidecarManager(
+	ctx: SidecarContext,
+	sessionId: string,
+): Promise<JsonRecord | undefined> {
+	const store = new SqliteSessionStore();
+	if (ctx.sessionManager) {
+		const session = await ctx.sessionManager.get(sessionId);
+		if (session) {
+			return mergePersistedSessionRecord(
+				store,
+				sessionId,
+				session as unknown as JsonRecord,
+			);
+		}
+	}
+
+	if (ctx.hubClient) {
+		try {
+			const reply = await ctx.hubClient.command(
+				"session.get",
+				undefined,
+				sessionId,
+			);
+			const session = reply.payload?.session;
+			if (session && typeof session === "object") {
+				return mergePersistedSessionRecord(
+					store,
+					sessionId,
+					session as JsonRecord,
+				);
+			}
+		} catch {
+			// Fall through to the local SQLite index.
+		}
+	}
+
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	return persisted
+		? mergePersistedSessionRecord(store, sessionId, persisted)
+		: undefined;
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -189,52 +395,6 @@ async function listSessionsFromSidecarManager(
 
 	const byId = new Map<string, JsonRecord>();
 	const store = new SqliteSessionStore();
-	const mergeSessionRecord = (
-		sessionId: string,
-		record: JsonRecord,
-	): JsonRecord => {
-		const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
-		const metadata =
-			record.metadata && typeof record.metadata === "object"
-				? (record.metadata as JsonRecord)
-				: undefined;
-		return {
-			...(persisted ?? {}),
-			...record,
-			sessionId,
-			provider: record.provider ?? persisted?.provider ?? "",
-			model: record.model ?? persisted?.model ?? "",
-			cwd: record.cwd ?? persisted?.cwd ?? "",
-			workspaceRoot:
-				record.workspaceRoot ??
-				persisted?.workspaceRoot ??
-				persisted?.cwd ??
-				"",
-			prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
-			parentSessionId:
-				record.parentSessionId ??
-				persisted?.parentSessionId ??
-				metadata?.parentSessionId,
-			parentAgentId:
-				record.parentAgentId ??
-				persisted?.parentAgentId ??
-				metadata?.parentAgentId,
-			agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
-			conversationId:
-				record.conversationId ??
-				persisted?.conversationId ??
-				metadata?.conversationId,
-			isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
-			startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
-			updatedAt: record.updatedAt ?? persisted?.updatedAt,
-			metadata: {
-				...((persisted?.metadata && typeof persisted.metadata === "object"
-					? persisted.metadata
-					: {}) as JsonRecord),
-				...(metadata ?? {}),
-			},
-		};
-	};
 
 	if (ctx.hubClient) {
 		try {
@@ -247,7 +407,10 @@ async function listSessionsFromSidecarManager(
 				const record = item as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
 				if (sessionId)
-					byId.set(sessionId, mergeSessionRecord(sessionId, record));
+					byId.set(
+						sessionId,
+						mergePersistedSessionRecord(store, sessionId, record),
+					);
 			}
 		} catch {
 			// Fall through to the local SQLite index.
@@ -356,10 +519,39 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
+function routineScheduleTiming(
+	args?: Record<string, unknown>,
+): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+	if (args?.schedule_type === "once") {
+		const runAt =
+			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
+		return Number.isFinite(runAt)
+			? {
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+				}
+			: undefined;
+	}
+	const cronPattern = asTrimmedString(args?.cron_pattern);
+	return cronPattern ? { cronPattern } : undefined;
+}
+
 function asTrimmedString(value: unknown): string | undefined {
 	if (typeof value !== "string") return undefined;
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function asTrimmedStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const values = value
+		.map((item) => asTrimmedString(item))
+		.filter((item): item is string => item !== undefined);
+	return values.length > 0 ? values : undefined;
+}
+
+function routineScheduleMode(value: unknown): "act" | "plan" | "yolo" {
+	return value === "plan" || value === "yolo" ? value : "act";
 }
 
 async function handleRoutineScheduleCommand(
@@ -399,38 +591,78 @@ async function handleRoutineScheduleCommand(
 	};
 	try {
 		if (command === "list_routine_schedules") {
-			const [schedules, activeExecutions, upcomingRuns] = await Promise.all([
-				clientCommand("schedule.list", {
-					limit: toPositiveInt(args?.limit) ?? 200,
-				}),
-				clientCommand("schedule.active"),
-				clientCommand("schedule.upcoming", { limit: 30 }),
-			]);
+			const [schedules, activeExecutions, upcomingRuns, lastExecutions] =
+				await Promise.all([
+					clientCommand("schedule.list", {
+						limit: toPositiveInt(args?.limit) ?? 200,
+					}),
+					clientCommand("schedule.active"),
+					clientCommand("schedule.upcoming", { limit: 30 }),
+					clientCommand("schedule.list_executions", { limit: 50 }),
+				]);
+			const scheduleRecords = (schedules.schedules ?? []) as JsonRecord[];
+			const executionRecords = (lastExecutions.executions ??
+				[]) as JsonRecord[];
+			// The bulk query returns the newest executions across ALL schedules,
+			// so a few chatty schedules can evict everyone else's latest run.
+			// Backfill the latest execution for schedules that have run
+			// (lastRunAt set) but fell out of that window.
+			const covered = new Set<string>();
+			for (const execution of executionRecords) {
+				if (typeof execution.scheduleId === "string") {
+					covered.add(execution.scheduleId);
+				}
+			}
+			const missing = scheduleRecords.filter(
+				(schedule) =>
+					typeof schedule.scheduleId === "string" &&
+					schedule.lastRunAt != null &&
+					!covered.has(schedule.scheduleId),
+			);
+			const concurrency = 8;
+			for (let index = 0; index < missing.length; index += concurrency) {
+				const chunk = missing.slice(index, index + concurrency);
+				const replies = await Promise.all(
+					chunk.map((schedule) =>
+						clientCommand("schedule.list_executions", {
+							scheduleId: schedule.scheduleId,
+							limit: 1,
+						}).catch(() => undefined),
+					),
+				);
+				for (const reply of replies) {
+					const executions = (reply?.executions ?? []) as JsonRecord[];
+					if (executions[0]) {
+						executionRecords.push(executions[0]);
+					}
+				}
+			}
 			return {
-				schedules: schedules.schedules ?? [],
+				schedules: scheduleRecords,
 				activeExecutions: activeExecutions.executions ?? [],
 				upcomingRuns: upcomingRuns.runs ?? [],
+				lastExecutions: executionRecords,
 			};
 		}
 		if (command === "create_routine_schedule") {
 			const name = asTrimmedString(args?.name);
-			const cronPattern = asTrimmedString(args?.cron_pattern);
+			const timing = routineScheduleTiming(args);
 			const prompt = asTrimmedString(args?.prompt);
 			const workspaceRoot = asTrimmedString(args?.workspace_root);
-			if (!name || !cronPattern || !prompt || !workspaceRoot) {
+			if (!name || !timing || !prompt || !workspaceRoot) {
 				throw new Error(
-					"createSchedule requires name, cron_pattern, prompt, and workspace_root",
+					"createSchedule requires name, timing, prompt, and workspace_root",
 				);
 			}
 			const created = await clientCommand("schedule.create", {
 				name,
-				cronPattern,
+				...timing,
 				prompt,
 				modelSelection: {
 					providerId: asTrimmedString(args?.provider) ?? "cline",
 					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
 				},
-				mode: args?.mode === "plan" ? "plan" : "act",
+				mode: routineScheduleMode(args?.mode),
 				workspaceRoot,
 				cwd: asTrimmedString(args?.cwd),
 				systemPrompt: asTrimmedString(args?.system_prompt),
@@ -438,17 +670,52 @@ async function handleRoutineScheduleCommand(
 				timeoutSeconds: toPositiveInt(args?.timeout_seconds),
 				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
 				enabled: args?.enabled !== false,
-				tags:
-					Array.isArray(args?.tags) && args.tags.length > 0
-						? (args.tags as string[])
-								.map((v: string) => v.trim())
-								.filter((v: string) => v.length > 0)
-						: undefined,
+				tags: asTrimmedStringArray(args?.tags),
 			});
 			return { schedule: created.schedule ?? null };
 		}
 		const scheduleId = asTrimmedString(args?.schedule_id);
 		if (!scheduleId) throw new Error(`${command} requires schedule_id`);
+		if (command === "update_routine_schedule") {
+			const name = asTrimmedString(args?.name);
+			const timing = routineScheduleTiming(args);
+			const prompt = asTrimmedString(args?.prompt);
+			const workspaceRoot = asTrimmedString(args?.workspace_root);
+			if (!name || !timing || !prompt || !workspaceRoot) {
+				throw new Error(
+					"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
+				);
+			}
+			const reply = await clientCommand("schedule.update", {
+				scheduleId,
+				name,
+				...timing,
+				prompt,
+				modelSelection: {
+					providerId: asTrimmedString(args?.provider) ?? "cline",
+					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				},
+				mode: routineScheduleMode(args?.mode),
+				workspaceRoot,
+				cwd: asTrimmedString(args?.cwd) ?? null,
+				systemPrompt:
+					args?.system_prompt === null
+						? null
+						: asTrimmedString(args?.system_prompt),
+				maxIterations:
+					args?.max_iterations === null
+						? null
+						: toPositiveInt(args?.max_iterations),
+				timeoutSeconds:
+					args?.timeout_seconds === null
+						? null
+						: toPositiveInt(args?.timeout_seconds),
+				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+				enabled: args?.enabled !== false,
+				tags: asTrimmedStringArray(args?.tags) ?? [],
+			});
+			return { schedule: reply.schedule ?? null };
+		}
 		if (command === "pause_routine_schedule") {
 			const reply = await clientCommand("schedule.disable", { scheduleId });
 			return { schedule: reply.schedule ?? null };
@@ -458,7 +725,13 @@ async function handleRoutineScheduleCommand(
 			return { schedule: reply.schedule ?? null };
 		}
 		if (command === "trigger_routine_schedule") {
-			const reply = await clientCommand("schedule.trigger", { scheduleId });
+			// wait: false queues the run and returns immediately; the default
+			// path blocks until the whole agent run finishes, which outlives the
+			// webview's request timeout.
+			const reply = await clientCommand("schedule.trigger", {
+				scheduleId,
+				wait: false,
+			});
 			return { execution: reply.execution ?? null };
 		}
 		if (command === "delete_routine_schedule") {
@@ -552,7 +825,7 @@ async function listUserInstructionConfigs(
 					const ext = extname(entry.name).toLowerCase();
 					if (ext !== ".yml" && ext !== ".yaml") continue;
 					const filePath = join(directory, entry.name);
-					const raw = readFileSync(filePath, "utf8");
+					const raw = readFileSyncStrippingUtf8Bom(filePath);
 					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 					const fm = fmMatch?.[1] ?? "";
 					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);
@@ -711,7 +984,174 @@ function openFileInEditor(filePath: string): void {
 	const cmdArgs =
 		platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
 	const child = spawn(cmd, cmdArgs, { stdio: "ignore", detached: true });
+	// An unhandled child error event would crash the sidecar process.
+	child.once("error", () => {});
 	child.unref();
+}
+
+// The macOS app shell launches the sidecar with a minimal GUI PATH
+// (/usr/bin:/bin:...), so editor CLIs installed under /usr/local/bin or
+// /opt/homebrew/bin are often not resolvable. `macApps` lets `open -a`
+// find the app bundle regardless of PATH.
+interface CodeEditorDefinition {
+	id: string;
+	label: string;
+	cli: string;
+	macApps: string[];
+}
+
+// Order doubles as the auto-open preference when no editor is requested.
+const CODE_EDITOR_CATALOG: readonly CodeEditorDefinition[] = [
+	{
+		id: "vscode",
+		label: "VS Code",
+		cli: "code",
+		macApps: ["Visual Studio Code"],
+	},
+	{ id: "cursor", label: "Cursor", cli: "cursor", macApps: ["Cursor"] },
+	{ id: "windsurf", label: "Windsurf", cli: "windsurf", macApps: ["Windsurf"] },
+	{ id: "zed", label: "Zed", cli: "zed", macApps: ["Zed"] },
+	{
+		id: "vscode-insiders",
+		label: "VS Code Insiders",
+		cli: "code-insiders",
+		macApps: ["Visual Studio Code - Insiders"],
+	},
+	{
+		id: "sublime",
+		label: "Sublime Text",
+		cli: "subl",
+		macApps: ["Sublime Text"],
+	},
+	{
+		id: "intellijidea",
+		label: "IntelliJ IDEA",
+		cli: "idea",
+		macApps: ["IntelliJ IDEA", "IntelliJ IDEA CE"],
+	},
+	{ id: "xcode", label: "Xcode", cli: "xed", macApps: ["Xcode"] },
+];
+
+function findExecutableOnPath(name: string): string | null {
+	try {
+		const locator = process.platform === "win32" ? "where" : "which";
+		const stdout = execFileSync(locator, [name], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+		return stdout.split("\n")[0]?.trim() || null;
+	} catch {
+		return null;
+	}
+}
+
+// cmd.exe re-parses metacharacters inside arguments even when quoted (the
+// reason Node refuses to spawn .cmd files without a shell), so strings that
+// could smuggle a second command must never reach it.
+const WINDOWS_CMD_UNSAFE_PATTERN = /[&|^<>%!"\r\n]/;
+
+function isMacAppInstalled(app: string): boolean {
+	return (
+		existsSync(`/Applications/${app}.app`) ||
+		existsSync(join(homedir(), "Applications", `${app}.app`))
+	);
+}
+
+/** Editors the current machine can actually launch, in catalog order. */
+function listAvailableCodeEditors(): Array<{ id: string; label: string }> {
+	return CODE_EDITOR_CATALOG.filter(
+		(editor) =>
+			findExecutableOnPath(editor.cli) !== null ||
+			(process.platform === "darwin" && editor.macApps.some(isMacAppInstalled)),
+	).map(({ id, label }) => ({ id, label }));
+}
+
+/** Launches `executable filePath` detached; false if the CLI is unusable. */
+function launchEditorCli(executable: string, filePath: string): boolean {
+	// Windows `where` resolves editor CLIs to .cmd/.bat shims, which
+	// spawn() cannot launch directly — route those through cmd.exe.
+	const isWindowsShim =
+		process.platform === "win32" && /\.(cmd|bat)$/i.test(executable);
+	if (isWindowsShim && WINDOWS_CMD_UNSAFE_PATTERN.test(executable)) {
+		return false;
+	}
+	const child = isWindowsShim
+		? spawn("cmd", ["/c", executable, filePath], {
+				stdio: "ignore",
+				detached: true,
+			})
+		: spawn(executable, [filePath], {
+				stdio: "ignore",
+				detached: true,
+			});
+	// Spawn failures surface as async error events; without a listener
+	// they crash the sidecar. Fall back to the OS default opener so the
+	// click still opens the file.
+	child.once("error", () => {
+		openFileInEditor(filePath);
+	});
+	child.unref();
+	return true;
+}
+
+function launchMacApp(app: string, filePath: string): boolean {
+	try {
+		execFileSync("open", ["-a", app, filePath], {
+			stdio: ["ignore", "ignore", "ignore"],
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Returns the launcher that handled the file, for logging/UI feedback. */
+function openFileInCodeEditor(filePath: string, editorId?: string): string {
+	if (
+		process.platform === "win32" &&
+		WINDOWS_CMD_UNSAFE_PATTERN.test(filePath)
+	) {
+		throw new Error(
+			"File path contains characters that cannot be passed safely to the Windows shell",
+		);
+	}
+	if (editorId && editorId !== "default") {
+		const editor = CODE_EDITOR_CATALOG.find((entry) => entry.id === editorId);
+		if (!editor) {
+			throw new Error(`Unknown editor: ${editorId}`);
+		}
+		const executable = findExecutableOnPath(editor.cli);
+		if (executable && launchEditorCli(executable, filePath)) {
+			return editor.label;
+		}
+		if (
+			process.platform === "darwin" &&
+			editor.macApps.some((app) => launchMacApp(app, filePath))
+		) {
+			return editor.label;
+		}
+		throw new Error(`${editor.label} is not available on this machine`);
+	}
+	if (!editorId) {
+		for (const editor of CODE_EDITOR_CATALOG) {
+			const executable = findExecutableOnPath(editor.cli);
+			if (executable && launchEditorCli(executable, filePath)) {
+				return editor.cli;
+			}
+		}
+		if (process.platform === "darwin") {
+			for (const editor of CODE_EDITOR_CATALOG) {
+				const app = editor.macApps.find((candidate) =>
+					launchMacApp(candidate, filePath),
+				);
+				if (app) {
+					return app;
+				}
+			}
+		}
+	}
+	openFileInEditor(filePath);
+	return "system default";
 }
 
 // ---------------------------------------------------------------------------
@@ -750,7 +1190,13 @@ export async function handleCommand(
 
 	// ── Process context ───────────────────────────────────────────────
 	if (command === "get_process_context") {
-		return { workspaceRoot: ctx.workspaceRoot, cwd: ctx.workspaceRoot };
+		return {
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+			homeDir: homedir(),
+			platform: process.platform,
+			appVersion: packageJson.version,
+		};
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
@@ -821,6 +1267,11 @@ export async function handleCommand(
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
+	if (command === "get_discovered_session") {
+		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -835,9 +1286,7 @@ export async function handleCommand(
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
-		console.error(
-			`[sidecar:delete] request command=${command} sessionId=${sessionId}`,
-		);
+		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
@@ -915,14 +1364,16 @@ export async function handleCommand(
 			}
 		}
 		if (!deleted && deleteError) {
-			console.error(
-				`[sidecar:delete] failed sessionId=${sessionId} error=${deleteError.message}`,
-			);
+			ctx.logger?.error?.("Failed to delete desktop chat session", {
+				sessionId,
+				error: deleteError,
+			});
 			throw deleteError;
 		}
-		console.error(
-			`[sidecar:delete] result sessionId=${sessionId} deleted=${deleted}`,
-		);
+		ctx.logger?.log("Desktop chat session delete completed", {
+			sessionId,
+			deleted,
+		});
 		if (deleted) {
 			broadcastEvent(ctx, "session_deleted", {
 				sessionId,
@@ -938,6 +1389,24 @@ export async function handleCommand(
 		return await searchWorkspaceFiles(ctx, args);
 	}
 
+	// ── External links ─────────────────────────────────────────────────
+	if (command === "open_external_url") {
+		const rawUrl = String(args?.url ?? "").trim();
+		let parsed: URL;
+		try {
+			parsed = new URL(rawUrl);
+		} catch {
+			throw new Error(`invalid url: ${rawUrl}`);
+		}
+		if (!OPENABLE_URL_PROTOCOLS.has(parsed.protocol)) {
+			throw new Error(
+				"only http(s), mailto and tel urls can be opened externally",
+			);
+		}
+		await openUrlInDefaultBrowser(parsed.toString());
+		return { opened: true };
+	}
+
 	// ── Cline account ──────────────────────────────────────────────────
 	if (command === "cline_account") {
 		const operation = String(args?.operation ?? "").trim();
@@ -947,7 +1416,7 @@ export async function handleCommand(
 		const accountService = new ClineAccountService({
 			apiBaseUrl:
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => resolveLocalClineAuthToken(settings),
+			getAuthToken: async () => resolveFreshClineAuthToken(manager),
 		});
 		return await executeClineAccountAction(
 			args as ClineAccountActionRequest,
@@ -1023,20 +1492,13 @@ export async function handleCommand(
 			manager,
 			providerId,
 			(url) => {
-				const platform = process.platform;
-				const spawned =
-					platform === "darwin"
-						? spawn("open", [url], { stdio: "ignore", detached: true })
-						: platform === "win32"
-							? spawn("cmd", ["/c", "start", "", url], {
-									stdio: "ignore",
-									detached: true,
-								})
-							: spawn("xdg-open", [url], {
-									stdio: "ignore",
-									detached: true,
-								});
-				spawned.unref();
+				// The OAuth helper's openUrl callback is fire-and-forget; surface
+				// opener failures in the log instead of an unhandled rejection.
+				openUrlInDefaultBrowser(url).catch((error) => {
+					console.warn(
+						`[sidecar] ${error instanceof Error ? error.message : error}`,
+					);
+				});
 			},
 		);
 		if (saved.provider !== providerId) {
@@ -1139,10 +1601,31 @@ export async function handleCommand(
 		updateMcpSettingsFileSync(path, (settings) => {
 			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
 				{}) as JsonRecord;
+			// Preserve machine-managed fields the editor dialog doesn't expose:
+			// oauth tokens for remote servers and plugin-ownership metadata.
+			const sourceName =
+				previousName && servers[previousName] ? previousName : name;
+			const existing = servers[sourceName];
+			const upserted = { ...next };
+			if (existing && typeof existing === "object") {
+				const record = existing as JsonRecord;
+				if (upserted.metadata === undefined && record.metadata !== undefined) {
+					upserted.metadata = record.metadata;
+				}
+				// OAuth tokens were issued for a specific endpoint; carrying them
+				// onto an edited transport or URL would send the old server's
+				// credentials to a different endpoint.
+				if (
+					record.oauth !== undefined &&
+					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
+				) {
+					upserted.oauth = record.oauth;
+				}
+			}
 			if (previousName && previousName !== name) {
 				delete servers[previousName];
 			}
-			servers[name] = next;
+			servers[name] = upserted;
 			settings.mcpServers = servers;
 		});
 		return readMcpServersResponse();
@@ -1163,10 +1646,13 @@ export async function handleCommand(
 
 	// ── Git operations ─────────────────────────────────────────────────
 	if (command === "get_git_branch") {
-		const branches = listGitBranches(
-			ctx,
-			typeof args?.cwd === "string" ? args.cwd : undefined,
-		);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const branches = listGitBranches(ctx, cwd);
+		const { prewarmWorkspaceMetadata } = await import("./chat-session");
+		prewarmWorkspaceMetadata(cwd);
 		return { branch: branches.current };
 	}
 	if (command === "list_git_branches") {
@@ -1179,11 +1665,14 @@ export async function handleCommand(
 		const cwd = typeof args?.cwd === "string" ? args.cwd : undefined;
 		const branch = String(args?.branch ?? "").trim();
 		if (!branch) throw new Error("branch is required");
+		const targetCwd = cwd?.trim() || ctx.workspaceRoot;
 		execFileSync("git", ["checkout", branch], {
-			cwd: cwd?.trim() || ctx.workspaceRoot,
+			cwd: targetCwd,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "pipe"],
 		});
+		const { refreshWorkspaceMetadata } = await import("./chat-session");
+		refreshWorkspaceMetadata(targetCwd);
 		return { branch };
 	}
 
@@ -1191,6 +1680,7 @@ export async function handleCommand(
 	if (
 		command === "list_routine_schedules" ||
 		command === "create_routine_schedule" ||
+		command === "update_routine_schedule" ||
 		command === "pause_routine_schedule" ||
 		command === "resume_routine_schedule" ||
 		command === "trigger_routine_schedule" ||
@@ -1252,6 +1742,15 @@ export async function handleCommand(
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────
+	if (command === "validate_workspace_directory") {
+		const workspacePath = String(args?.path ?? "").trim();
+		if (!workspacePath) return { valid: false };
+		try {
+			return { valid: statSync(workspacePath).isDirectory() };
+		} catch {
+			return { valid: false };
+		}
+	}
 	if (command === "pick_workspace_directory") {
 		return pickWorkspaceDirectory();
 	}
@@ -1259,6 +1758,27 @@ export async function handleCommand(
 		const path = ensureMcpSettingsFile();
 		openFileInEditor(path);
 		return path;
+	}
+	if (command === "list_available_editors") {
+		return listAvailableCodeEditors();
+	}
+	if (command === "open_file_in_editor") {
+		const rawPath = String(args?.path ?? "").trim();
+		if (!rawPath) throw new Error("path is required");
+		const baseDir =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const filePath = isAbsolute(rawPath) ? rawPath : join(baseDir, rawPath);
+		if (!existsSync(filePath)) {
+			throw new Error(`File not found: ${filePath}`);
+		}
+		const requestedEditor =
+			typeof args?.editor === "string" && args.editor.trim()
+				? args.editor.trim()
+				: undefined;
+		const editor = openFileInCodeEditor(filePath, requestedEditor);
+		return { path: filePath, editor };
 	}
 
 	throw new Error(`unsupported desktop command: ${command}`);

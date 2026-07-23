@@ -1,5 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MessageWithMetadata } from "@cline/llms";
@@ -12,10 +17,12 @@ import type {
 	BasicLogger,
 } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
+import { FileSessionService } from "../../session/services/file-session-service";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
@@ -152,25 +159,6 @@ function normalizeStartInput(
 	};
 }
 
-function _createGitRepo(cwd: string): void {
-	execFileSync("git", ["-C", cwd, "init"], { stdio: "pipe" });
-	execFileSync("git", ["-C", cwd, "config", "user.name", "Codex Test"], {
-		stdio: "pipe",
-	});
-	execFileSync(
-		"git",
-		["-C", cwd, "config", "user.email", "codex@example.com"],
-		{
-			stdio: "pipe",
-		},
-	);
-	writeFileSync(join(cwd, "note.txt"), "base\n", "utf8");
-	execFileSync("git", ["-C", cwd, "add", "note.txt"], { stdio: "pipe" });
-	execFileSync("git", ["-C", cwd, "commit", "-m", "initial"], {
-		stdio: "pipe",
-	});
-}
-
 describe("LocalRuntimeHost", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
@@ -192,6 +180,94 @@ describe("LocalRuntimeHost", () => {
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
+	it("stores git under metadata and refreshes it after an active turn", async () => {
+		const workspaceRoot = join(isolatedHomeDir, "workspace");
+		mkdirSync(workspaceRoot, { recursive: true });
+		const git = simpleGit({ baseDir: workspaceRoot });
+		await git.init();
+		await git.addConfig("user.email", "test@example.com");
+		await git.addConfig("user.name", "Test");
+		await git.commit("initial", ["--allow-empty"]);
+		await git.addRemote("origin", "https://example.com/original.git");
+
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const sessionId = "session-git-metadata";
+		const sessionService = new FileSessionService(sessionsDir);
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		let initialManifest: SessionManifest | undefined;
+		const agent = {
+			run: vi.fn(async () => {
+				initialManifest = JSON.parse(
+					readFileSync(
+						join(sessionsDir, sessionId, `${sessionId}.json`),
+						"utf8",
+					),
+				) as SessionManifest;
+				await git.checkoutLocalBranch("feature/session-git");
+				await git.removeRemote("origin");
+				await git.addRemote("origin", "https://example.com/updated.git");
+				return createResult();
+			}),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-git"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-git"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		const result = await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					cwd: workspaceRoot,
+					workspaceRoot,
+					enableAgentTeams: false,
+				}),
+				prompt: "change repository state",
+				interactive: true,
+				sessionMetadata: {
+					title: "Keep this title",
+					checkpoint: { latest: { ref: "checkpoint-ref" } },
+				},
+			}),
+		);
+
+		expect(initialManifest?.metadata).toMatchObject({
+			checkpoint: { latest: { ref: "checkpoint-ref" } },
+			git: {
+				url: "https://example.com/original.git",
+				branch: expect.any(String),
+			},
+		});
+		const manifest = JSON.parse(
+			readFileSync(result.manifestPath, "utf8"),
+		) as SessionManifest;
+		expect(manifest).not.toHaveProperty("git_url");
+		expect(manifest).not.toHaveProperty("git_branch");
+		expect(manifest.metadata).toMatchObject({
+			title: "change repository state",
+			checkpoint: { latest: { ref: "checkpoint-ref" } },
+			git: {
+				url: "https://example.com/updated.git",
+				branch: "feature/session-git",
+			},
+		});
 	});
 
 	it("emits session lifecycle telemetry when configured", async () => {
@@ -344,7 +420,7 @@ describe("LocalRuntimeHost", () => {
 				config: createConfig({
 					sessionId,
 					providerId: "cline-pass",
-					modelId: "cline-pass/glm-5.1",
+					modelId: "cline-pass/glm-5.2",
 					apiKey: undefined,
 				}),
 				prompt: "hello",
@@ -360,6 +436,87 @@ describe("LocalRuntimeHost", () => {
 				apiKey: "workos:resolved-token",
 			}),
 		);
+	});
+
+	it("persists provider/model connection updates to the session manifest", async () => {
+		const sessionId = "sess-connection-manifest-update";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+		sessionService.writeSessionManifest.mockClear();
+
+		// A disk-only writer (compaction path, rename) updated the manifest
+		// behind the in-memory copy's back; the connection update must re-read
+		// and preserve it instead of clobbering it with the stale copy.
+		const diskManifest = {
+			...manifest,
+			compaction_path: "/tmp/compaction.json",
+			title: "renamed session",
+		};
+		const readSessionManifest = vi.fn().mockResolvedValue(diskManifest);
+		(sessionService as Record<string, unknown>).readSessionManifest =
+			readSessionManifest;
+
+		await manager.updateSessionConnection(sessionId, {
+			providerId: "openai",
+			modelId: "codex-test",
+		});
+
+		expect(sessionService.writeSessionManifest).toHaveBeenCalledWith(
+			"/tmp/manifest.json",
+			expect.objectContaining({
+				session_id: sessionId,
+				provider: "openai",
+				model: "codex-test",
+				compaction_path: "/tmp/compaction.json",
+				title: "renamed session",
+			}),
+		);
+
+		sessionService.writeSessionManifest.mockClear();
+		await manager.updateSessionConnection(sessionId, { thinking: true });
+		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 
 	it("persists thinking budget token connection updates", async () => {
@@ -408,6 +565,7 @@ describe("LocalRuntimeHost", () => {
 					thinking: true,
 					reasoningEffort: "high",
 					thinkingBudgetTokens: 1024,
+					temperature: 0.3,
 				}),
 				prompt: "hello",
 				interactive: true,
@@ -419,6 +577,7 @@ describe("LocalRuntimeHost", () => {
 				thinking: true,
 				reasoningEffort: "high",
 				thinkingBudgetTokens: 1024,
+				temperature: 0.3,
 			}),
 		);
 
@@ -4592,6 +4751,145 @@ describe("LocalRuntimeHost", () => {
 			manager.updateSessionCompactionState(sessionId, initialCompactionState),
 		).resolves.toEqual({ updated: true });
 		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
+	});
+
+	it("persists active manual compaction state against the persisted transcript", async () => {
+		const sessionId = "sess-compaction-active-persisted";
+		const tempCwd = mkdtempSync(join(tmpdir(), "compaction-active-"));
+		try {
+			const messagesPath = join(tempCwd, "messages.json");
+			const persistedMessages = [
+				{ role: "user", content: "hi" },
+				{
+					role: "assistant",
+					content: "hello",
+					modelInfo: { maxTokens: 1 },
+				},
+			] as MessageWithMetadata[];
+			const liveMessages = [
+				{ role: "user", content: "hi" },
+				{ role: "assistant", content: "hello" },
+			] as MessageWithMetadata[];
+			writeFileSync(messagesPath, JSON.stringify(persistedMessages), "utf8");
+			const manifest = {
+				...createManifest(sessionId),
+				messages_path: messagesPath,
+			};
+			const incoming = createSessionCompactionState({
+				sourceMessages: persistedMessages,
+				compactedMessages: [{ role: "user", content: "summary" }],
+				conversationId: sessionId,
+				updatedAt: "2026-01-01T00:00:00Z",
+			});
+			const sessionService = {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest-compaction-active.json",
+					messagesPath,
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				persistSessionCompactionState: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([
+					{
+						sessionId,
+						provider: "mock-provider",
+						model: "mock-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+						createdAt: "2026-01-01T00:00:00.000Z",
+						updatedAt: "2026-01-01T00:00:00.000Z",
+						status: "completed",
+						messagesPath,
+					},
+				]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			};
+			const createAgent = vi.fn().mockReturnValue({
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn(),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue(sessionId),
+				restore: vi.fn(),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				getMessages: vi.fn().mockReturnValue(liveMessages),
+				messages: liveMessages,
+			});
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: {
+					build: vi.fn().mockReturnValue({
+						tools: [],
+						shutdown: vi.fn(),
+					}),
+				},
+				createAgent: createAgent as never,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						compaction: {
+							enabled: true,
+							strategy: "basic",
+							compact: vi.fn().mockResolvedValue(undefined),
+						},
+					}),
+					initialMessages: liveMessages,
+					interactive: true,
+				}),
+			);
+
+			await expect(
+				manager.updateSessionCompactionState(sessionId, incoming),
+			).resolves.toEqual({ updated: true });
+			expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+				sessionId,
+				incoming,
+			);
+			expect(createAgent.mock.results[0]?.value.restore).toHaveBeenCalledWith(
+				persistedMessages,
+			);
+			const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+			await expect(
+				prepareTurn?.({
+					agentId: "agent-root-1",
+					conversationId: sessionId,
+					parentAgentId: null,
+					iteration: 1,
+					abortSignal: new AbortController().signal,
+					systemPrompt: "",
+					tools: [],
+					messages: [
+						...persistedMessages,
+						{ role: "user", content: "next" },
+					] as MessageWithMetadata[],
+					apiMessages: [
+						...persistedMessages,
+						{ role: "user", content: "next" },
+					] as MessageWithMetadata[],
+					model: {
+						id: "mock-model",
+						provider: "mock-provider",
+						info: { id: "mock-model", maxInputTokens: 100_000 },
+					},
+				}),
+			).resolves.toEqual({
+				messages: [
+					{ role: "user", content: "summary" },
+					{ role: "user", content: "next" },
+				],
+			});
+		} finally {
+			rmSync(tempCwd, { recursive: true, force: true });
+		}
 	});
 
 	it("orders equal-length compaction updates by parsed timestamp", async () => {

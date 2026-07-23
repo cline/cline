@@ -1,13 +1,21 @@
+import { homedir } from "node:os";
+import { setHomeDirIfUnset } from "@cline/core";
+import { prewarmWorkspaceMetadata } from "./chat-session";
 import {
 	createSidecarContext,
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
-import { BunRuntime, SIDECAR_MODE, SIDECAR_PORT } from "./types";
+import { ensureLoginShellPath } from "./shell-path";
+import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
+let activeObservability:
+	| ReturnType<typeof createDesktopObservability>
+	| undefined;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 	let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -31,18 +39,48 @@ async function main() {
 		throw new Error("sidecar must be run with Bun");
 	}
 
-	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
-	const ctx = createSidecarContext(workspaceRoot);
+	// When launched from Finder/the Dock the app inherits launchd's minimal
+	// PATH, so agent-spawned processes can't find shell-profile-installed
+	// tools like `gh`. Kick resolution off first so it overlaps the rest of
+	// startup, but await it before the session manager exists — that's what
+	// spawns children (agent sessions, MCP servers, scheduled runs).
+	const shellPathPromise = ensureLoginShellPath();
 
+	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
+	setHomeDirIfUnset(homedir());
+	const observability = createDesktopObservability();
+	activeObservability = observability;
+	const ctx = createSidecarContext(workspaceRoot, observability);
+	observability.logger.log("Desktop sidecar starting", {
+		workspaceRoot,
+		pid: process.pid,
+	});
+
+	prewarmWorkspaceMetadata(workspaceRoot);
+	observability.logger.log(
+		"Login shell PATH resolution",
+		await shellPathPromise,
+	);
 	await initializeSessionManager(ctx);
 
 	let shuttingDown = false;
+	let handlingFatalError = false;
 	const shutdown = async (reason = "code_sidecar_shutdown"): Promise<void> => {
 		if (shuttingDown) {
 			return;
 		}
 		shuttingDown = true;
-		await withTimeout(disposeSidecarContext(ctx, reason), SHUTDOWN_TIMEOUT_MS);
+		observability.logger.log("Desktop sidecar shutting down", { reason });
+		await withTimeout(
+			(async () => {
+				try {
+					await disposeSidecarContext(ctx, reason);
+				} finally {
+					await observability.dispose();
+				}
+			})(),
+			SHUTDOWN_TIMEOUT_MS,
+		);
 	};
 
 	const shutdownAndExit = (signal: string): void => {
@@ -53,14 +91,37 @@ async function main() {
 
 	process.once("SIGINT", () => shutdownAndExit("SIGINT"));
 	process.once("SIGTERM", () => shutdownAndExit("SIGTERM"));
+	const handleFatalError = (kind: string, error: unknown): void => {
+		if (handlingFatalError) {
+			process.exit(1);
+		}
+		handlingFatalError = true;
+		observability.logger.error?.("Desktop sidecar process error", {
+			kind,
+			error,
+		});
+		void shutdown(`code_sidecar_${kind}`).finally(() => process.exit(1));
+	};
+	process.on("uncaughtException", (error) => {
+		handleFatalError("uncaught_exception", error);
+	});
+	process.on("unhandledRejection", (error) => {
+		handleFatalError("unhandled_rejection", error);
+	});
 	process.once("beforeExit", () => {
 		void shutdown("code_sidecar_before_exit");
 	});
 
 	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
+	observability.logger.log("Desktop sidecar ready", {
+		port,
+		mode: SIDECAR_MODE,
+	});
 
-	const endpoint = `http://127.0.0.1:${port}`;
-	const wsEndpoint = `ws://127.0.0.1:${port}/transport`;
+	// A wildcard bind isn't a dialable address; advertise loopback instead.
+	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
+	const endpoint = `http://${dialHost}:${port}`;
+	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
 	process.stdout.write(
 		`${JSON.stringify({
 			type: "ready",
@@ -72,8 +133,12 @@ async function main() {
 	);
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
 	const message = error instanceof Error ? error.message : String(error);
+	activeObservability?.logger.error?.("Desktop sidecar process failed", {
+		error,
+	});
+	await activeObservability?.dispose();
 	process.stderr.write(`${message}\n`);
 	process.exit(1);
 });

@@ -9,6 +9,7 @@ import {
 	type ProviderCapability,
 	type ProviderConfigField,
 } from "@cline/shared";
+import { GENERATED_PROVIDER_MODELS } from "../catalog/catalog.generated";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import {
 	isCanonicalModelIdForAliasRules,
@@ -24,6 +25,8 @@ import type {
 import {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
+	extractClinePassLimitMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
@@ -51,6 +54,15 @@ const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
 	},
 };
 
+/**
+ * Context window requested from Ollama when neither the resolved model nor
+ * the user's configuration supplies one. Matches the pre-SDK-migration
+ * handler default; deliberately larger than Ollama's 4096 server default,
+ * which cannot fit Cline's agentic prompts. Single source of truth — the
+ * vendor, the VS Code session factory, and the settings UI all import this.
+ */
+export const OLLAMA_DEFAULT_CONTEXT_WINDOW = 32768;
+
 export type ProviderFamily =
 	| "openai"
 	| "openai-compatible"
@@ -63,6 +75,7 @@ export type ProviderFamily =
 	| "openai-codex"
 	| "opencode"
 	| "dify"
+	| "ollama"
 	| "sap-ai-core";
 
 export interface BuiltinSpec {
@@ -295,7 +308,13 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	const generatedModelList = Object.keys(generatedModels(providerId));
+	// Use the catalog's authored order, not release-date order. The cline-pass
+	// block mirrors the recommended-models endpoint, which lists the intended
+	// default subscription model first — the newest model is not necessarily a
+	// safe default.
+	const generatedModelList = Object.keys(
+		GENERATED_PROVIDER_MODELS.providers[providerId] ?? {},
+	);
 	if (!generatedModelList.length) {
 		return "";
 	}
@@ -471,6 +490,7 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 		case "openai-codex":
 		case "opencode":
 		case "dify":
+		case "ollama":
 		case "sap-ai-core":
 			return "ai-sdk-community";
 		default:
@@ -520,7 +540,7 @@ async function handleClineResponseError(
 	response: Response,
 	providerId: string,
 ): Promise<void> {
-	if (response.status !== 403) {
+	if (response.status < 400) {
 		return;
 	}
 
@@ -531,6 +551,11 @@ async function handleClineResponseError(
 
 	if (isClineOrgIndividualInferenceSubscriptionMessage(body)) {
 		throw new ClineOrgIndividualInferenceSubscriptionError(providerId);
+	}
+
+	const clinePassLimitMessage = extractClinePassLimitMessage(body);
+	if (clinePassLimitMessage) {
+		throw new ClinePassLimitError(clinePassLimitMessage, providerId);
 	}
 
 	if (isClineNotSubscribedMessage(body)) {
@@ -915,11 +940,15 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		id: "ollama",
 		name: "Ollama",
 		description: "Ollama Cloud and local LLM hosting",
-		family: "openai-compatible",
+		// Routed to the native Ollama API vendor (`vendors/ollama.ts`), not the
+		// OpenAI-compatible `/v1` endpoint: `/v1` ignores `options.num_ctx`, so
+		// models would always load with Ollama's 4096-token server default.
+		family: "ollama",
 		popular: 25,
+		capabilities: ["tools"],
 		defaultModelId: "",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
-		defaults: { baseUrl: "http://localhost:11434/v1" },
+		defaults: { baseUrl: "http://localhost:11434" },
 		modelsSourceUrl: "http://localhost:11434/api/tags",
 	},
 	{

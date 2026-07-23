@@ -1,7 +1,9 @@
 import type {
 	AgentToolContext,
+	BasicLogger,
 	ClineCore,
 	HubServer,
+	ITelemetryService,
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
@@ -51,6 +53,7 @@ export type LiveSession = {
 	startedAt: number;
 	endedAt?: number;
 	status: string;
+	transitioningProvider?: boolean;
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
@@ -106,6 +109,8 @@ export type SidecarContext = {
 	hubClient: NodeHubClient | null;
 	hubServer: HubServer | null;
 	workspaceRoot: string;
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 	unsubscribeSessionEvents: (() => void) | null;
 };
 export type BunRuntimeApi = {
@@ -115,4 +120,8 @@ export type BunRuntimeApi = {
 export const BunRuntime = (globalThis as { Bun?: BunRuntimeApi }).Bun;
 
 export const SIDECAR_PORT = Number(process.env.CLINE_SIDECAR_PORT) || 3126;
+// Loopback-only by default. Set CLINE_SIDECAR_HOST=0.0.0.0 to accept
+// connections from outside the local host (e.g. Docker port publishing).
+export const SIDECAR_HOST =
+	process.env.CLINE_SIDECAR_HOST?.trim() || "127.0.0.1";
 export const SIDECAR_MODE = "sidecar";

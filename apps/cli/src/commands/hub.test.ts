@@ -34,6 +34,7 @@ vi.mock("@cline/core", () => ({
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 }));
 
+import { version as cliVersion } from "../../package.json";
 import { createHubCommand } from "./hub";
 
 const originalBuildEnv = process.env.CLINE_BUILD_ENV;
@@ -63,6 +64,7 @@ describe("createHubCommand", () => {
 			port: 25463,
 			pid: 50174,
 			startedAt: "2026-01-01T00:00:00.000Z",
+			coreVersion: "0.0.62",
 		});
 
 		const output: string[] = [];
@@ -88,6 +90,8 @@ describe("createHubCommand", () => {
 			pid: 50174,
 			startedAt: "2026-01-01T00:00:00.000Z",
 			uptime: "1m 5s",
+			cliVersion,
+			coreVersion: "0.0.62",
 		});
 	});
 

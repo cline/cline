@@ -4,12 +4,14 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
 	type AgentToolContext,
+	type BasicLogger,
 	ClineCore,
-	createLocalHubScheduleRuntimeHandlers,
 	type CoreSessionEvent,
+	createLocalHubScheduleRuntimeHandlers,
+	type ITelemetryService,
 	NodeHubClient,
-	resolveHubOwnerContext,
 	type RuntimeCapabilities,
+	resolveHubOwnerContext,
 	setHomeDirIfUnset,
 	startHubWebSocketServer,
 	type ToolApprovalRequest,
@@ -380,7 +382,13 @@ function handleCoreSessionEvent(
 // Context factory
 // ---------------------------------------------------------------------------
 
-export function createSidecarContext(workspaceRoot: string): SidecarContext {
+export function createSidecarContext(
+	workspaceRoot: string,
+	observability: {
+		logger?: BasicLogger;
+		telemetry?: ITelemetryService;
+	} = {},
+): SidecarContext {
 	return {
 		liveSessions: new Map(),
 		streamIndices: new Map(),
@@ -391,6 +399,8 @@ export function createSidecarContext(workspaceRoot: string): SidecarContext {
 		hubClient: null,
 		hubServer: null,
 		workspaceRoot,
+		logger: observability.logger,
+		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
 	};
 }
@@ -694,12 +704,19 @@ export async function initializeSessionManager(
 	setHomeDirIfUnset(homedir());
 	const hubServer = await startHubWebSocketServer({
 		port: 0,
-		owner: resolveHubOwnerContext(`code-sidecar:${process.pid}:${randomUUID()}`),
+		owner: resolveHubOwnerContext(
+			`code-sidecar:${process.pid}:${randomUUID()}`,
+		),
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
 	});
 	const sessionManager = await ClineCore.create({
+		clientName: "cline-code",
 		backendMode: "hub",
 		capabilities: createSidecarRuntimeCapabilities(ctx),
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
 		hub: {
 			endpoint: hubServer.url,
 			authToken: hubServer.authToken,

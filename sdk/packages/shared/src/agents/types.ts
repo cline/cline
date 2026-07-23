@@ -162,7 +162,9 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 		| "completion_without_submit"
 		| "tool_execution_failed"
 		| "mistake_limit"
-		| "auto_compaction";
+		| "auto_compaction"
+		| "manual_compaction"
+		| "compaction_budget_emergency";
 	metadata?: Record<string, unknown>;
 }
 
@@ -679,6 +681,14 @@ export interface AgentConfig {
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/**
+	 * Called when a run fails with an auth-like provider error (e.g. an OAuth
+	 * access token that expired mid-run). Hosts refresh credentials and push
+	 * the new key into the runtime via `updateConnection`; returning `true`
+	 * makes the runtime retry the failed run once with the refreshed
+	 * connection.
+	 */
+	onAuthError?: () => Promise<boolean>;
 	/** Optional provider model catalog overrides */
 	knownModels?: Record<string, ModelInfo>;
 	/** Optional pre-resolved provider configuration (includes provider-specific fields like aws/gcp). */
@@ -711,6 +721,10 @@ export interface AgentConfig {
 	 * Maximum output tokens per API call
 	 */
 	maxTokensPerTurn?: number;
+	/**
+	 * Sampling temperature per API call
+	 */
+	temperature?: number;
 	/**
 	 * Timeout for each API call in milliseconds
 	 * @default 180000 (3 minutes)
@@ -886,6 +900,7 @@ export const AgentConfigSchema = z.object({
 	maxIterations: z.number().positive().optional(),
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),
+	temperature: z.number().nonnegative().optional(),
 	apiTimeoutMs: z.number().positive().default(180000),
 	userFileContentLoader: z
 		.function()

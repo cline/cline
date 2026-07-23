@@ -31,6 +31,13 @@ export {
 	resolveProviderUsageCostDisplay,
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
+export {
+	type OpenAICodexRequestHeaderContext,
+	type ProviderRequestHeaderClientContext,
+	type ProviderRequestHeaderLayers,
+	type ResolveProviderRequestHeadersInput,
+	resolveProviderRequestHeaders,
+} from "./providers/request-headers";
 export type {
 	ProviderCapability,
 	ProviderId,
@@ -38,12 +45,15 @@ export type {
 export {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
-	getClineOrgIndividualInferenceSubscriptionMessage,
+	ClinePassLimitError,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
 	normalizeProviderId,
 } from "./providers.browser";

@@ -8,6 +8,7 @@ export default defineConfig({
 	test: {
 		include: [
 			"src/sdk/**/*.test.ts",
+			"src/hosts/vscode/VscodeEditPreview.test.ts",
 			"src/shared/vsCodeSelectorUtils.test.ts",
 			"src/shared/proto-conversions/models/**/*.test.ts",
 			"src/core/storage/remote-config/**/*.test.ts",
@@ -20,8 +21,10 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
+			"src/core/controller/models/__tests__/refreshGroqModels.test.ts",
 		],
 		environment: "node",
+		setupFiles: ["./src/test/vitest-setup.ts"],
 		// Several suites lazily `await import()` their subject inside the first test
 		// (needed so vi.mock factories apply first). That import pulls in heavy
 		// workspace packages (@cline/core/@cline/llms/@cline/shared), and on loaded

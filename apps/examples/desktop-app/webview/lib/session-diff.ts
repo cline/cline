@@ -401,7 +401,11 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 		};
 	}
 
-	if (command === "create" || command === "insert" || command === "str_replace") {
+	if (
+		command === "create" ||
+		command === "insert" ||
+		command === "str_replace"
+	) {
 		const newContent =
 			toStringValue(input.new_text) ??
 			toStringValue(input.file_text) ??

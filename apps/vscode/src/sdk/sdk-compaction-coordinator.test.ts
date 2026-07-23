@@ -1,7 +1,17 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import { createContextCompactionPrepareTurn } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkCompactionCoordinator, type SdkCompactionCoordinatorOptions } from "./sdk-compaction-coordinator"
+
+vi.mock("@cline/core", () => ({
+	createContextCompactionPrepareTurn: vi.fn(),
+	createSessionCompactionState: vi.fn((input: { compactedMessages: unknown[] }) => ({
+		version: 1,
+		messages: input.compactedMessages,
+	})),
+}))
+
+const mockCreateContextCompactionPrepareTurn = createContextCompactionPrepareTurn as unknown as ReturnType<typeof vi.fn>
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -10,11 +20,6 @@ vi.mock("@/shared/services/Logger", () => ({
 		log: vi.fn(),
 		warn: vi.fn(),
 	},
-}))
-
-const compactSessionMessages = vi.fn()
-vi.mock("./sdk-compaction", () => ({
-	compactSessionMessages: (...args: unknown[]) => compactSessionMessages(...args),
 }))
 
 describe("SdkCompactionCoordinator", () => {
@@ -28,7 +33,7 @@ describe("SdkCompactionCoordinator", () => {
 		await coordinator.compactTask()
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(compactSessionMessages).not.toHaveBeenCalled()
+		expect(mockCreateContextCompactionPrepareTurn).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "There is no active task to compact." })],
 			expect.anything(),
@@ -41,7 +46,7 @@ describe("SdkCompactionCoordinator", () => {
 
 		await coordinator.compactTask()
 
-		expect(compactSessionMessages).not.toHaveBeenCalled()
+		expect(mockCreateContextCompactionPrepareTurn).not.toHaveBeenCalled()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: expect.stringContaining("Cannot compact while a response") })],
@@ -56,7 +61,7 @@ describe("SdkCompactionCoordinator", () => {
 
 		await coordinator.compactTask()
 
-		expect(compactSessionMessages).not.toHaveBeenCalled()
+		expect(mockCreateContextCompactionPrepareTurn).not.toHaveBeenCalled()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "No messages to compact." })],
@@ -64,17 +69,29 @@ describe("SdkCompactionCoordinator", () => {
 		)
 	})
 
-	it("reports when the strategy declines to compact", async () => {
+	it("reports unsupported runtime without running compaction", async () => {
 		const activeSession = makeActiveSession()
+		;(activeSession.sdkHost as Partial<typeof activeSession.sdkHost>).updateSessionCompactionState = undefined
 		const { coordinator, options } = makeCoordinator({ activeSession })
-		compactSessionMessages.mockResolvedValueOnce({
-			compacted: false,
-			messages: [{ role: "user", content: "a" }],
-		})
 
 		await coordinator.compactTask()
 
-		expect(compactSessionMessages).toHaveBeenCalledOnce()
+		expect(activeSession.sdkHost.readMessages).not.toHaveBeenCalled()
+		expect(mockCreateContextCompactionPrepareTurn).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "info", text: expect.stringContaining("not supported") })],
+			expect.anything(),
+		)
+	})
+
+	it("reports when the strategy declines to compact", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(vi.fn().mockResolvedValue(undefined))
+
+		await coordinator.compactTask()
+
+		expect(mockCreateContextCompactionPrepareTurn).toHaveBeenCalledOnce()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "No compaction needed." })],
@@ -82,39 +99,60 @@ describe("SdkCompactionCoordinator", () => {
 		)
 	})
 
-	it("compacts and restarts the session, preserving the session id", async () => {
+	it("compacts and persists the sidecar without rebuilding the session", async () => {
 		const activeSession = makeActiveSession()
 		activeSession.sdkHost.readMessages.mockResolvedValueOnce([
 			{ role: "user", content: "1" },
 			{ role: "assistant", content: "2" },
 			{ role: "user", content: "3" },
 		])
-		const task = makeTask("old-session")
-		const { coordinator, options } = makeCoordinator({ activeSession, task })
-		compactSessionMessages.mockResolvedValueOnce({
-			compacted: true,
-			messages: [{ role: "user", content: "summary" }],
-		})
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
+			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
+		)
 
 		await coordinator.compactTask()
 
-		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
-			cwd: "/workspace",
-			mode: "act",
+		expect(activeSession.sdkHost.updateSessionCompactionState).toHaveBeenCalledWith("old-session", {
+			version: 1,
+			messages: [{ role: "user", content: "summary" }],
 		})
-		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
-			startInput: expect.objectContaining({
-				config: expect.objectContaining({ sessionId: "old-session" }),
-				interactive: true,
-				prompt: undefined,
-			}),
-			initialMessages: [{ role: "user", content: "summary" }],
-			disposeReason: "compactTask",
-		})
-		expect(task.taskId).toBe("new-session")
-		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "Compacted 3 messages to 1." })],
+			expect.anything(),
+		)
+	})
+
+	it("does not append compaction status to a different active session", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		options.sessions.getActiveSession
+			.mockReturnValueOnce(activeSession)
+			.mockReturnValueOnce(makeActiveSession({ sessionId: "other-session" }))
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
+			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
+		)
+
+		await coordinator.compactTask()
+
+		expect(activeSession.sdkHost.updateSessionCompactionState).toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
+	it("does not restart or report success when sidecar persistence fails", async () => {
+		const activeSession = makeActiveSession()
+		activeSession.sdkHost.updateSessionCompactionState.mockResolvedValueOnce({ updated: false })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
+			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
+		)
+
+		await coordinator.compactTask()
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "info", text: "Couldn't compact the conversation. Please try again." })],
 			expect.anything(),
 		)
 	})
@@ -122,13 +160,13 @@ describe("SdkCompactionCoordinator", () => {
 	it("reports a failure when compaction throws", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
-		compactSessionMessages.mockRejectedValueOnce(new Error("boom"))
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(vi.fn().mockRejectedValue(new Error("boom")))
 
 		await coordinator.compactTask()
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "info", text: "Compaction failed: boom" })],
+			[expect.objectContaining({ say: "info", text: "Couldn't compact the conversation. Please try again." })],
 			expect.anything(),
 		)
 	})
@@ -136,7 +174,6 @@ describe("SdkCompactionCoordinator", () => {
 
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession> | undefined
-	task: ReturnType<typeof makeTask>
 }
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
@@ -168,14 +205,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
 		},
-		getTask: vi.fn(() => input.task),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
-		buildStartSessionInput: vi.fn((startConfig) => ({
-			config: startConfig,
-			prompt: undefined,
-			interactive: true,
-		})),
-		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkCompactionCoordinatorOptions & {
 		sessions: SdkCompactionCoordinatorOptions["sessions"] & {
@@ -188,8 +218,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessionConfigBuilder: SdkCompactionCoordinatorOptions["sessionConfigBuilder"] & {
 			build: ReturnType<typeof vi.fn>
 		}
-		buildStartSessionInput: ReturnType<typeof vi.fn>
-		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
 
@@ -199,11 +227,12 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	}
 }
 
-function makeActiveSession(input: { isRunning?: boolean } = {}) {
+function makeActiveSession(input: { isRunning?: boolean; sessionId?: string } = {}) {
 	return {
-		sessionId: "old-session",
+		sessionId: input.sessionId ?? "old-session",
 		sdkHost: {
 			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "1" }]),
+			updateSessionCompactionState: vi.fn().mockResolvedValue({ updated: true }),
 			send: vi.fn(),
 			abort: vi.fn().mockResolvedValue(undefined),
 			stop: vi.fn().mockResolvedValue(undefined),
@@ -212,17 +241,5 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		unsubscribe: vi.fn(),
 		startResult: { sessionId: "old-session" },
 		isRunning: input.isRunning ?? false,
-	}
-}
-
-function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
-	return {
-		taskId,
-		messageStateHandler: {
-			getClineMessages: vi.fn(() => messages as ClineMessage[]),
-		},
-	} as unknown as {
-		taskId: string
-		messageStateHandler: { getClineMessages: () => ClineMessage[] }
 	}
 }

@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
 	type MarketplaceCatalog,
@@ -59,7 +59,7 @@ type InstalledStatusState = "loading" | "ready";
 const INSTALL_TIMEOUT_MS = 300_000;
 const CODE_FONT_STYLE: CSSProperties = {
 	fontFamily:
-		'ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
+		'"Azeret Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
 };
 
 const primitivePageDetails = {
@@ -228,6 +228,15 @@ function EntryDetails({
 									<a
 										className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
 										href={env.url}
+										onAuxClick={(event) => {
+											if (event.button !== 1) return;
+											event.preventDefault();
+											if (env.url) void openExternalUrl(env.url);
+										}}
+										onClick={(event) => {
+											event.preventDefault();
+											if (env.url) void openExternalUrl(env.url);
+										}}
 										rel="noreferrer"
 										target="_blank"
 									>
@@ -457,7 +466,7 @@ function MarketplaceEntryCard({
 
 	if (!hasExpandableDetails) {
 		return (
-			<div className="relative grid gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20">
+			<div className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20">
 				{content}
 			</div>
 		);
@@ -468,7 +477,7 @@ function MarketplaceEntryCard({
 		<div
 			aria-expanded={expanded}
 			aria-label={`${expanded ? "Collapse" : "Expand"} ${entry.name}`}
-			className="relative grid cursor-pointer gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+			className="relative grid min-w-0 cursor-pointer gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
 			onClick={(event) => {
 				if (
 					event.target instanceof HTMLElement &&
@@ -563,14 +572,14 @@ function MarketplaceSection({
 }) {
 	const totalCount = entries.length + localOnlyInstalledItems.length;
 	return (
-		<section className="grid gap-3">
+		<section className="grid min-w-0 gap-3">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="text-base font-semibold text-foreground">{title}</h2>
 				<span className="text-sm text-muted-foreground">{totalCount}</span>
 			</div>
 			{headerContent}
 			{totalCount > 0 ? (
-				<div className="grid gap-3">
+				<div className="grid min-w-0 gap-3">
 					{localOnlyInstalledItems.map((item) => item.render())}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
@@ -786,8 +795,8 @@ export function MarketplaceView({
 
 	const marketplaceTagFilters =
 		primitiveTags.length > 0 ? (
-			<div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-				<div className="flex gap-2 overflow-x-auto pb-1">
+			<div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:justify-between">
+				<div className="flex min-w-0 gap-2 overflow-x-auto pb-1">
 					{primitiveTags.map((tag) => (
 						<TagButton
 							active={selectedTag === tag.id}

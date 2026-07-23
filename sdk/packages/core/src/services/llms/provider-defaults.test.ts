@@ -118,6 +118,73 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]).toBeUndefined();
 	});
 
+	it("keeps ClinePass models ahead of newer free models in the served catalog", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									release_date: "2024-01-01",
+								},
+								"vendor/live-free-model": {
+									name: "Live Free Model",
+									tool_call: true,
+									release_date: "2026-01-01",
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+					free: [{ id: "vendor/live-free-model" }],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline-pass", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		// The first live model is the fallback default when the bundled default
+		// id is not in the live list, so a subscription model must stay first
+		// even when a free model has a newer release date.
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+			"cline-pass/live-pass-model",
+			"vendor/live-free-model",
+		]);
+		expect(resolved?.knownModels?.["vendor/live-free-model"]?.pricing).toEqual({
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+		});
+	});
+
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.test/api.json") {

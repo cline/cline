@@ -49,6 +49,9 @@ type RuntimeHooks = ReturnType<typeof createRuntimeHooks>;
 type StartedSession = Awaited<ReturnType<CliCore["start"]>>;
 type CurrentTurnInput = Omit<Parameters<CliCore["send"]>[0], "sessionId">;
 type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
+export type SessionConnectionUpdate = Parameters<
+	CliCore["updateSessionConnection"]
+>[1];
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
@@ -210,12 +213,18 @@ export function createInteractiveSessionRuntime(input: {
 		initial: Message[] = [],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
+		// Restarting an old session associate with this ID,
+		// For continuing the same conversation, e.g. after a config change.
+		sessionId?: string,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
 		const started = await manager.start({
 			source: SessionSource.CLI,
-			config: buildSessionConfig(),
+			config: {
+				...buildSessionConfig(),
+				...(sessionId ? { sessionId } : {}),
+			},
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
 			initialMessages: initial,
@@ -411,43 +420,51 @@ export function createInteractiveSessionRuntime(input: {
 		});
 	};
 
-		const restartWithMessages = async (
-			messages: Message[],
-			sessionMetadata?: Record<string, unknown>,
-			initialCompactionState?: SessionCompactionState,
-		): Promise<void> => {
-			sessionStartGeneration += 1;
-			pendingResumeSessionId = undefined;
-			startupError = undefined;
-			// Publish the restart as the in-flight startup. Teardown leaves a window
-			// with no active session, and without this barrier a concurrent
-			// ensureReady() (e.g. a message submitted right after a plan/act toggle)
-			// reads that window as "no session" and boots an empty session that then
-			// races the restarted one for the active slot.
-			const restart = (async () => {
-				await stopCurrentSession();
-				clearActiveSession();
-				await startFreshSession(
-					messages,
-					sessionMetadata,
-					initialCompactionState,
-				);
-			})().catch((error) => {
-				startupError = error;
-				throw error;
-			});
-			startupPromise = restart;
-			try {
-				await restart;
-			} finally {
-				// Restore the pre-restart steady state (startupPromise unset) so a
-				// failed restart stays retryable by the next ensureReady(). A newer
-				// startup that already replaced the barrier is left alone.
-				if (startupPromise === restart) {
-					startupPromise = undefined;
-				}
+	const restartWithMessages = async (
+		messages: Message[],
+		sessionMetadata?: Record<string, unknown>,
+		initialCompactionState?: SessionCompactionState,
+		options?: { preserveSessionId?: boolean },
+	): Promise<void> => {
+		// Config-only restarts (model/mode/account changes) continue the same
+		// conversation, so they must keep the session id — otherwise each
+		// restart mints a new session history entry for the same conversation.
+		const reuseSessionId = options?.preserveSessionId
+			? activeSessionId || undefined
+			: undefined;
+		sessionStartGeneration += 1;
+		pendingResumeSessionId = undefined;
+		startupError = undefined;
+		// Publish the restart as the in-flight startup. Teardown leaves a window
+		// with no active session, and without this barrier a concurrent
+		// ensureReady() (e.g. a message submitted right after a plan/act toggle)
+		// reads that window as "no session" and boots an empty session that then
+		// races the restarted one for the active slot.
+		const restart = (async () => {
+			await stopCurrentSession();
+			clearActiveSession();
+			await startFreshSession(
+				messages,
+				sessionMetadata,
+				initialCompactionState,
+				reuseSessionId,
+			);
+		})().catch((error) => {
+			startupError = error;
+			throw error;
+		});
+		startupPromise = restart;
+		try {
+			await restart;
+		} finally {
+			// Restore the pre-restart steady state (startupPromise unset) so a
+			// failed restart stays retryable by the next ensureReady(). A newer
+			// startup that already replaced the barrier is left alone.
+			if (startupPromise === restart) {
+				startupPromise = undefined;
 			}
-		};
+		}
+	};
 
 	const restartWithCurrentMessages = async (): Promise<void> => {
 		const [{ messages, status }, compactionState] = await Promise.all([
@@ -473,7 +490,22 @@ export function createInteractiveSessionRuntime(input: {
 						systemPrompt: compactionState?.system_prompt,
 					})
 				: undefined,
+			{ preserveSessionId: true },
 		);
+	};
+
+	const updateCurrentSessionConnection = async (
+		update: SessionConnectionUpdate,
+	): Promise<void> => {
+		await ensureReady();
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId) {
+			// No live session to update; the next startup builds its config from
+			// the already-mutated CLI config, so nothing else is needed.
+			return;
+		}
+		await manager.updateSessionConnection(sessionId, update);
 	};
 
 	const restartEmpty = async (): Promise<void> => {
@@ -609,7 +641,22 @@ export function createInteractiveSessionRuntime(input: {
 					})
 				: undefined,
 		);
-		return { forkedFromSessionId, newSessionId: activeSessionId };
+		// Report carried context from what the new session actually accepted:
+		// the host can reject the inherited state (e.g. stale anchor), and the
+		// UI must not claim a carry-over that did not happen.
+		const acceptedState = projectedMessages
+			? await readCompactionState(activeSessionId)
+			: undefined;
+		return {
+			forkedFromSessionId,
+			newSessionId: activeSessionId,
+			carriedWorkingContext: acceptedState
+				? {
+						workingContextMessages: acceptedState.messages.length,
+						canonicalMessages: messages.length,
+					}
+				: undefined,
+		};
 	};
 
 	const resumeSession = async (sessionId: string): Promise<Message[]> => {
@@ -840,6 +887,7 @@ export function createInteractiveSessionRuntime(input: {
 		resetForNewSession,
 		restartWithMessages,
 		restartWithCurrentMessages,
+		updateCurrentSessionConnection,
 		resumeSession,
 		forkCurrentSession,
 		compactCurrentSession,

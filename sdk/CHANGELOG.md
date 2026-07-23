@@ -1,5 +1,65 @@
 # Cline SDK Changelog
 
+## 0.0.65
+
+- Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size
+- Added Kimi K3 to the bundled ClinePass model fallback
+- Runs now retry once after refreshing expired OAuth credentials
+- Team runs: the spawn tool is no longer exposed to teammate agents
+- Team runs: errored teammate runs now report as failed instead of completed
+- Improved shell-command parsing to fix a Windows shell mismatch
+- New `@cline/ui` agent chat components with Storybook and npm packaging
+- Updated the bundled model catalog
+
+## 0.0.64
+
+- Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models)
+- Frontmatter and user-instruction files that start with a UTF-8 byte order mark (e.g. saved by Windows editors) now parse correctly
+
+## 0.0.63
+
+- The session runtime now emits `task.mistake_limit_reached` telemetry when the consecutive-mistake limit is hit, so every host (CLI, VS Code extension, hub daemon) captures it — including auto-stops when no host prompt is configured
+
+## 0.0.62
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+- Telemetry is no longer attached to hub tool contexts
+
+## 0.0.61
+
+- Context compaction now reports progress status while it runs
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Fixed benign git states being reported as workspace initialization errors
+- Plan/Act mode guidance added to the system prompt, with nudges when switching modes
+- Editor diff view restored for SDK edit tools
+- Model IDs are now suggested from OpenAI-compatible endpoints
+- VS Code terminal reliability improvements (OSC 633 parsing, exit codes, timeout handling)
+- Provider-specific request headers are now centralized in the LLM layer
+- Telemetry now attaches organization context when identifying with cached credentials
+- Added a shared `@cline/ui` theme package
+
+## 0.0.60
+
+- Fixed an issue where a transient network or server error during token refresh could log you out — transient failures no longer clear your credentials
+- Added the ClinePass usage-limit error so limit-reached responses are surfaced clearly
+- Session id is now preserved when continuing within the same session
+- Fixed infinite loading when initializing a task with an image
+- Hardened compaction budget handling
+- Added telemetry for auth-refresh outcomes and Cline credential lifecycle debug logging
+
+## 0.0.59
+
+- You can now select Cline free models on the ClinePass provider
+- The SDK now recognizes ClinePass rate-limit responses and surfaces them as a typed `ClinePassLimitError` (with `isClinePassLimitMessage` / `extractClinePassLimitMessage` helpers)
+- Removed references to the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- The detached hub daemon process now emits telemetry
+- SDK/CLI telemetry identity attributes now include `user_id`
+- Cline provider requests now send versioned Cline client-identity headers
+- Fixed context compaction so canonical session history is preserved
+- `str_replace` edits now report accurate diffs
+- Fixed a performance issue where listing sessions could hang the extension host
+
 ## 0.0.58
 
 - `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected

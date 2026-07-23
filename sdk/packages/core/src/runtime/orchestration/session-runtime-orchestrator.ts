@@ -39,6 +39,7 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
+	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
 	type Message,
@@ -52,6 +53,10 @@ import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
+import {
+	captureAuthRunRetry,
+	captureMistakeLimitReached,
+} from "../../services/telemetry/core-events";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
 	getMessageBuilderOptionsFromEnv,
@@ -276,10 +281,10 @@ export class SessionRuntime {
 	private readonly agentId: string;
 	private readonly parentAgentId?: string;
 	private readonly logger?: BasicLogger;
-	// Reserved for §3.4.4 telemetry parity (not yet consumed — §3.4.4
-	// listed as explicitly deferred until telemetry wiring is added).
-	// Typed as `readonly` to preserve the field slot for future use
-	// without re-touching the constructor.
+	// §3.4.4 telemetry parity. Currently consumed by the MistakeTracker's
+	// `onLimitTelemetry` hook (task.mistake_limit_reached); most other
+	// runtime telemetry is emitted host-side from the agent event stream
+	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
 	private readonly mistakeTracker: MistakeTracker;
@@ -401,6 +406,22 @@ export class SessionRuntime {
 		this.mistakeTracker = new MistakeTracker({
 			maxConsecutiveMistakes: maxMistakes,
 			onLimitReached: config.onConsecutiveMistakeLimitReached,
+			onLimitTelemetry: (context) => {
+				// Read connection fields from `this.config` at fire time so a
+				// mid-session `updateConnection` is reflected in the event.
+				captureMistakeLimitReached(this.telemetry, {
+					ulid: this.config.sessionId ?? this.conversation.getConversationId(),
+					model: this.config.modelId,
+					provider: this.config.providerId,
+					reason: context.reason,
+					consecutiveMistakes: context.consecutiveMistakes,
+					maxConsecutiveMistakes: context.maxConsecutiveMistakes,
+					agentId: this.agentId,
+					conversationId: this.conversation.getConversationId(),
+					parentAgentId: this.parentAgentId,
+					isSubagent: Boolean(this.parentAgentId),
+				});
+			},
 			emit: (event) => this.emitLegacyEvent(event),
 			log: (level, message, metadata) =>
 				leveledLog(this.logger, level, message, metadata),
@@ -674,13 +695,44 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunInternal(input).finally(() => {
+		activePromise = this.executeRunWithAuthRetry(input).finally(() => {
 			if (this.activeRunPromise === activePromise) {
 				this.activeRunPromise = null;
 			}
 		});
 		this.activeRunPromise = activePromise;
 		return activePromise;
+	}
+
+	/**
+	 * Retry a run once when it failed with an auth-like error and the host
+	 * refreshed credentials via `config.onAuthError`. The failed attempt's
+	 * trail is already persisted to the conversation store, so the retry
+	 * continues from where the stream died instead of replaying the run.
+	 */
+	private async executeRunWithAuthRetry(input: {
+		userMessage?: string;
+		userImages?: string[];
+		userFiles?: string[];
+		isContinue: boolean;
+	}): Promise<AgentResult> {
+		const result = await this.executeRunInternal(input);
+		if (
+			result.finishReason !== "error" ||
+			!this.config.onAuthError ||
+			!isLikelyAuthError(result.text)
+		) {
+			return result;
+		}
+		const refreshed = await this.config.onAuthError().catch(() => false);
+		if (!refreshed) {
+			return result;
+		}
+		const retryResult = await this.executeRunInternal({ isContinue: true });
+		captureAuthRunRetry(this.telemetry, this.config.providerId, {
+			recovered: retryResult.finishReason !== "error",
+		});
+		return retryResult;
 	}
 
 	private async executeRunInternal(input: {
