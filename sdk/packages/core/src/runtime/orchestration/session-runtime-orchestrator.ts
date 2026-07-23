@@ -628,10 +628,8 @@ export class SessionRuntime {
 	/** Shut the session down after any active run drains. */
 	async shutdown(_reason?: string, _timeoutMs?: number): Promise<void> {
 		if (this.running) {
-			if (!this.abortRequested || !this.activeRunPromise) {
-				throw new Error(
-					`SessionRuntime.shutdown called while a run is in progress (agentId=${this.agentId})`,
-				);
+			if (!this.abortRequested) {
+				this.abort(_reason ?? "shutdown");
 			}
 			await this.activeRunPromise;
 		}
