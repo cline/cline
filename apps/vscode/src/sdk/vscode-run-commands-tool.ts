@@ -27,7 +27,11 @@ import * as fs from "fs"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { MAX_UNRETRIEVED_LINES } from "@/integrations/terminal/constants"
-import type { ITerminalProcess } from "@/integrations/terminal/types"
+import {
+	getUnobservedTerminalCommandDisposition,
+	type ITerminalProcess,
+	type TerminalCompletionDetails,
+} from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
@@ -49,6 +53,7 @@ export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
  * for the files themselves.
  */
 export const PROCEED_LOG_MAX_BYTES = 10 * 1024 * 1024
+const PROCEED_LOG_FINAL_MESSAGE_MAX_CHARS = 4096
 
 /** Options for creating the VSCode run_commands tool. */
 export interface VscodeRunCommandsToolOptions {
@@ -144,7 +149,9 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 		}
 		settled = true
 		removeAttachedListeners()
-		tryWriteLine(message)
+		// Output obeys the strict cap, but reserve a small bounded allowance for
+		// the terminal status so a full log never hides completion or failure.
+		stream.write(`${message.slice(0, PROCEED_LOG_FINAL_MESSAGE_MAX_CHARS)}\n`)
 		stream.end()
 	}
 
@@ -159,15 +166,19 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 					process.removeListener("line", onLine)
 				}
 			}
-			const onCompleted = (details?: { exitCode?: number | null }): void => {
+			const onCompleted = (details?: TerminalCompletionDetails): void => {
 				const exitCode = details?.exitCode
 				end(
-					exitCode !== undefined && exitCode !== null
-						? `[Command completed with exit code ${exitCode}]`
-						: "[Command completed]",
+					details?.terminalClosed
+						? "[Terminal closed while the command was running; output may be incomplete]"
+						: details?.unobservedCommand
+							? "[Command completion could not be observed; the command may still be running]"
+							: exitCode !== undefined && exitCode !== null
+								? `[Command completed with exit code ${exitCode}]`
+								: "[Command completed]",
 				)
 			}
-			const onError = (error: Error): void => end(`[Command failed before log capture completed: ${error.message}]`)
+			const onError = (error: Error): void => end(`[Command failed after detaching: ${error.message}]`)
 			removeAttachedListeners = () => {
 				process.removeListener("line", onLine)
 				process.removeListener("completed", onCompleted)
@@ -257,7 +268,6 @@ export async function executeForeground(
 		const terminalPromise = terminalManager.getOrCreateTerminal(cwd, terminalProfileId)
 		const startDetached = (terminalInfo: Awaited<typeof terminalPromise>, log: DetachedCommandLog): void => {
 			try {
-				terminalInfo.terminal.show()
 				const process = terminalManager.runCommand(terminalInfo, terminalCommand)
 				log.attach(process)
 				void process.catch((error) => log.fail(error))
@@ -277,6 +287,11 @@ export async function executeForeground(
 				log.fail(outcome.error)
 			}
 		}
+		const finishAbortedAcquisition = (outcome: Awaited<typeof acquisition>): void => {
+			if (outcome.type === "terminal") {
+				terminalManager.releaseTerminalReservation(outcome.terminalInfo)
+			}
+		}
 		const firstOutcome = await Promise.race([
 			acquisition,
 			preStartControl.then((control) => ({ type: "control" as const, control })),
@@ -284,6 +299,10 @@ export async function executeForeground(
 
 		if (firstOutcome.type === "control") {
 			if (firstOutcome.control === "abort") {
+				// Acquisition is already in flight and may return a synchronously
+				// reserved terminal after this tool result settles. Consume it so a
+				// pre-start cancellation cannot leave that terminal permanently busy.
+				void acquisition.then(finishAbortedAcquisition)
 				throw new Error("Command execution aborted")
 			}
 
@@ -300,6 +319,7 @@ export async function executeForeground(
 		// terminal outcome cannot overwrite a detach or abort that happened while
 		// the promise continuation was pending.
 		if (state.phase === "aborted") {
+			finishAbortedAcquisition(firstOutcome)
 			throw new Error("Command execution aborted")
 		}
 		if (state.phase === "detached") {
@@ -316,7 +336,6 @@ export async function executeForeground(
 
 		state.phase = "started"
 		const { terminalInfo } = firstOutcome
-		terminalInfo.terminal.show()
 
 		const process = terminalManager.runCommand(terminalInfo, terminalCommand)
 		const outputLines: string[] = []
@@ -343,72 +362,89 @@ export async function executeForeground(
 		}
 		process.on("line", bufferLine)
 
-		applyAbort = () => process.continue()
+		try {
+			applyAbort = () => process.continue()
 
-		applyDetach = () => {
-			if (detachedLog !== undefined) {
-				return
+			applyDetach = () => {
+				if (detachedLog !== undefined) {
+					return
+				}
+				detachedLog = createDetachedCommandLog(terminalCommand, outputLines)
+				detachedLog.attach(process)
+				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
+				// detach() flushes any partial line (reaching both bufferLine and
+				// the log) before resolving the awaited promise. After that the
+				// partial output is final: stop buffering so the remaining
+				// (log-only) output doesn't mutate outputLines while it's read.
+				process.detach()
+				process.removeListener("line", bufferLine)
 			}
-			detachedLog = createDetachedCommandLog(terminalCommand, outputLines)
-			detachedLog.attach(process)
-			telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
-			// detach() flushes any partial line (reaching both bufferLine and
-			// the log) before resolving the awaited promise. After that the
-			// partial output is final: stop buffering so the remaining
-			// (log-only) output doesn't mutate outputLines while it's read.
-			process.detach()
+
+			// Wait for completion (or detach, which also resolves the promise)
+			await process
+
+			if (abortSignal?.aborted) {
+				throw new Error("Command execution aborted")
+			}
+
+			const bufferedOutput =
+				droppedLines > 0
+					? [...outputLines, `\n... (${droppedLines} earlier lines dropped) ...\n`].join("\n")
+					: outputLines.join("\n")
+			const output = truncateCommandOutput(bufferedOutput.trim(), {
+				maxChars: maxOutputChars,
+			})
+
+			if (detachedLog !== undefined) {
+				return formatDetachedResult(detachedLog.path, output)
+			}
+
+			const completionDetails = process.getCompletionDetails?.()
+
+			// A terminal closed mid-command has no exit code and no reliable output —
+			// whatever the command was doing (e.g. running a test suite) was interrupted,
+			// so this must never look like success to the agent.
+			if (completionDetails?.terminalClosed) {
+				const result =
+					output.length > 0
+						? `[Terminal closed while the command was running; output may be incomplete]\n${output}`
+						: "[Terminal closed while the command was running; no output was captured]"
+				throw new CommandExitError(1, result)
+			}
+
+			if (completionDetails?.unobservedCommand) {
+				const disposition = getUnobservedTerminalCommandDisposition(completionDetails.unobservedCommand)
+				const lifecycle =
+					disposition === "disposeBeforeNextTerminalAcquisition"
+						? "The terminal remains open for now, but starting another foreground command will attempt to close it, stopping the command if it is still running."
+						: "The terminal has been left open and will not be closed automatically."
+				const result =
+					output.length > 0
+						? `[Command completion could not be observed; the command may still be running and must not be assumed to have succeeded. ${lifecycle}]\n${output}`
+						: `[Command completion could not be observed; the command may still be running and must not be assumed to have succeeded. ${lifecycle}]`
+				throw new CommandExitError(1, result)
+			}
+
+			// Plumb the exit code from onDidEndTerminalShellExecution through to the tool
+			// result. When shell integration reports a non-zero exit code, throw
+			// CommandExitError so the SDK's shell tool wrapper marks the result as
+			// `success: false` and includes the exit code in the error message —
+			// matching the background (child_process) executor's behavior.
+			// If no exit code was captured after an observed completion, return the
+			// output as-is. Unobserved completion is handled explicitly above.
+			const exitCode = completionDetails?.exitCode
+			if (exitCode !== undefined && exitCode !== null && exitCode !== 0) {
+				const result =
+					output.length > 0
+						? `[Command exited with code ${exitCode}]\n${output}`
+						: `[Command exited with code ${exitCode}]`
+				throw new CommandExitError(exitCode, result)
+			}
+
+			return output
+		} finally {
 			process.removeListener("line", bufferLine)
 		}
-
-		// Wait for completion (or detach, which also resolves the promise)
-		await process
-
-		if (abortSignal?.aborted) {
-			throw new Error("Command execution aborted")
-		}
-
-		const bufferedOutput =
-			droppedLines > 0
-				? [...outputLines, `\n... (${droppedLines} earlier lines dropped) ...\n`].join("\n")
-				: outputLines.join("\n")
-		const output = truncateCommandOutput(bufferedOutput.trim(), {
-			maxChars: maxOutputChars,
-		})
-
-		if (detachedLog !== undefined) {
-			return formatDetachedResult(detachedLog.path, output)
-		}
-
-		const completionDetails = process.getCompletionDetails?.()
-
-		// A terminal closed mid-command has no exit code and no reliable output —
-		// whatever the command was doing (e.g. running a test suite) was interrupted,
-		// so this must never look like success to the agent.
-		if (completionDetails?.terminalClosed) {
-			const result =
-				output.length > 0
-					? `[Terminal closed while the command was running; output may be incomplete]\n${output}`
-					: "[Terminal closed while the command was running; no output was captured]"
-			throw new CommandExitError(1, result)
-		}
-
-		// Plumb the exit code from onDidEndTerminalShellExecution through to the tool
-		// result. When shell integration reports a non-zero exit code, throw
-		// CommandExitError so the SDK's shell tool wrapper marks the result as
-		// `success: false` and includes the exit code in the error message —
-		// matching the background (child_process) executor's behavior.
-		// If no exit code was captured (shell integration present but not reporting
-		// completion for this execution — e.g. a command run inside an ssh session),
-		// we can't determine success/failure, so we return the output as-is
-		// (success: true).
-		const exitCode = completionDetails?.exitCode
-		if (exitCode !== undefined && exitCode !== null && exitCode !== 0) {
-			const result =
-				output.length > 0 ? `[Command exited with code ${exitCode}]\n${output}` : `[Command exited with code ${exitCode}]`
-			throw new CommandExitError(exitCode, result)
-		}
-
-		return output
 	} finally {
 		abortSignal?.removeEventListener("abort", onAbort)
 		unregister?.()

@@ -1,5 +1,6 @@
 "use client";
 
+import { ImagePlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
@@ -223,6 +224,34 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const handleOpenSessionById = useCallback(
+		async (sessionId: string) => {
+			const cachedSession = sessionHistory.sessions.find(
+				(session) => session.sessionId === sessionId,
+			);
+			if (cachedSession) {
+				handleOpenSession(cachedSession);
+				return;
+			}
+			try {
+				const session = await desktopClient.invoke<SessionHistoryItem | null>(
+					"get_discovered_session",
+					{ session_id: sessionId },
+				);
+				if (!session) {
+					throw new Error("The session for this run is no longer available.");
+				}
+				handleOpenSession(session);
+			} catch (error) {
+				toast({
+					title: "Unable to open run",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+			}
+		},
+		[handleOpenSession, sessionHistory.sessions],
+	);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
@@ -283,6 +312,7 @@ export default function Home() {
 							<div className="absolute inset-0 z-30 bg-background text-foreground">
 								<SettingsView
 									onNavigateSection={setSettingsSection}
+									onOpenSession={handleOpenSessionById}
 									section={settingsSection}
 								/>
 							</div>
@@ -348,6 +378,8 @@ function ChatThreadPane({
 	} = useChatSession();
 	const [promptInput, setPromptInput] = useState("");
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+	const dragDepthRef = useRef(0);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -890,6 +922,69 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	const handleAttachFiles = useCallback((files: File[]) => {
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of files) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
+
+	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
+	// Tauri window — otherwise the native shell swallows OS file drags and these
+	// HTML5 events never fire.
+	const handleDragEnter = useCallback((event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		event.preventDefault();
+		dragDepthRef.current += 1;
+		setIsDraggingFiles(true);
+	}, []);
+
+	const handleDragOver = useCallback((event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		event.preventDefault();
+		event.dataTransfer.dropEffect = "copy";
+	}, []);
+
+	const handleDragLeave = useCallback((event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+		if (dragDepthRef.current === 0) {
+			setIsDraggingFiles(false);
+		}
+	}, []);
+
+	const handleDrop = useCallback(
+		(event: React.DragEvent) => {
+			if (!event.dataTransfer.types.includes("Files")) {
+				return;
+			}
+			event.preventDefault();
+			dragDepthRef.current = 0;
+			setIsDraggingFiles(false);
+			const files = Array.from(event.dataTransfer.files);
+			if (files.length > 0) {
+				handleAttachFiles(files);
+			}
+		},
+		[handleAttachFiles],
+	);
+
 	const attachmentList = pendingAttachments.map((file, index) => ({
 		id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 		name: file.name,
@@ -1014,24 +1109,7 @@ function ChatThreadPane({
 		<ChatInputBar
 			attachments={attachmentList}
 			onAbort={() => void abort()}
-			onAttachFiles={(files) => {
-				setPendingAttachments((prev) => {
-					const existing = new Set(
-						prev.map(
-							(file) => `${file.name}:${file.size}:${file.lastModified}`,
-						),
-					);
-					const next = [...prev];
-					for (const file of files) {
-						const key = `${file.name}:${file.size}:${file.lastModified}`;
-						if (!existing.has(key)) {
-							existing.add(key);
-							next.push(file);
-						}
-					}
-					return next;
-				});
-			}}
+			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
 			onRemoveAttachment={(id) => {
 				setPendingAttachments((prev) =>
@@ -1095,13 +1173,31 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
 			<div
 				className={
 					isWelcomeState
-						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
 				}
+				onDragEnter={handleDragEnter}
+				onDragLeave={handleDragLeave}
+				onDragOver={handleDragOver}
+				onDrop={handleDrop}
 			>
+				{isDraggingFiles ? (
+					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
+							<ImagePlus className="h-8 w-8 text-primary" />
+							<p className="text-sm font-medium text-foreground">
+								Drop to attach
+							</p>
+							<p className="text-xs text-muted-foreground">
+								Screenshots and files will be added to your next message
+							</p>
+						</div>
+					</div>
+				) : null}
 				{!isWelcomeState ? (
 					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader

@@ -283,15 +283,13 @@ export function captureAuthLoggedOut(
 		errorCode?: string;
 		sessionId?: string;
 		sessionDurationMs?: number;
-		requestId?: string;
+		request_id?: string;
 	},
 ): void {
-	const { requestId, ...eventDetails } = details ?? {};
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
 		provider,
 		reason,
-		...eventDetails,
-		...(requestId ? { request_id: requestId } : {}),
+		...details,
 	});
 }
 
@@ -309,18 +307,16 @@ export function captureAuthRefreshSoftFailure(
 	details?: {
 		status?: number;
 		errorCode?: string;
-		requestId?: string;
+		request_id?: string;
 		errorName?: string;
 		tokenExpired?: boolean;
 		sessionId?: string;
 		sessionDurationMs?: number;
 	},
 ): void {
-	const { requestId, ...eventDetails } = details ?? {};
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
 		provider,
-		...eventDetails,
-		...(requestId ? { request_id: requestId } : {}),
+		...details,
 	});
 }
 
