@@ -118,13 +118,17 @@ export {
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
-export type { GlobalSettings } from "./services/global-settings";
+export type {
+	GlobalCompactionStrategy,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
 	isAutoUpdateEnabledGlobally,
+	isCompactionEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
@@ -133,6 +137,7 @@ export {
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
+	setCompactionEnabledGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
@@ -140,7 +145,6 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { GlobalCompactionStrategy } from "./services/global-settings";
 export type {
 	ListPluginToolsResult,
 	PluginToolSummary,

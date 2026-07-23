@@ -2,6 +2,7 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import {
+	isCompactionEnabledGlobally,
 	readCompactionStrategyGlobally,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
@@ -853,6 +854,14 @@ export async function runCli(): Promise<void> {
 	const defaultToolAutoApprove = persistedAutoApprove ?? true;
 	const effectiveToolAutoApprove =
 		args.autoApproveOverride ?? defaultToolAutoApprove;
+	const effectiveMode = args.modeExplicitlySet
+		? args.mode
+		: (readPlanActModeGlobally() ?? "act");
+	const persistedCompactionMode = isCompactionEnabledGlobally()
+		? readCompactionStrategyGlobally()
+		: "off";
+	const effectiveCompactionMode =
+		args.compactionMode ?? persistedCompactionMode;
 	const toolPolicies: Record<string, ToolPolicy> = {
 		"*": {
 			autoApprove: effectiveToolAutoApprove,
@@ -1092,15 +1101,13 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: args.mode ?? readPlanActModeGlobally() ?? "act",
+				mode: effectiveMode,
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
-			compaction: buildCliCompactionConfig(
-				args.compactionMode ?? readCompactionStrategyGlobally(),
-			),
+			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
@@ -1108,7 +1115,7 @@ export async function runCli(): Promise<void> {
 			thinking: resolvedReasoning.thinking,
 			reasoningEffort: resolvedReasoning.reasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.mode,
+			mode: effectiveMode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			telemetry: getCliTelemetryService(loggerAdapter.core),

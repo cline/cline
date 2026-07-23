@@ -2,6 +2,7 @@ import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	setCompactionEnabledGlobally,
 	setCompactionStrategyGlobally,
 	setPlanActModeGlobally,
 	setToolAutoApproveGlobally,
@@ -721,7 +722,10 @@ export async function runInteractive(
 		onCompactionModeChange: async (mode) => {
 			await sessionRuntime.ensureReady();
 			applyCliCompactionMode(config, mode);
-			setCompactionStrategyGlobally(mode === "off" ? "basic" : mode);
+			setCompactionEnabledGlobally(mode !== "off");
+			if (mode !== "off") {
+				setCompactionStrategyGlobally(mode);
+			}
 			await sessionRuntime.restartWithCurrentMessages();
 		},
 		onModeChange: async (mode) => {

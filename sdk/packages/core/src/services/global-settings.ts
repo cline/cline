@@ -42,6 +42,7 @@ export const GlobalSettingsSchema = z
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		compactionStrategy: GlobalCompactionStrategySchema.optional(),
+		compactionEnabled: z.boolean().optional(),
 		toolAutoApprove: z.boolean().optional(),
 		planActMode: z.enum(["plan", "act"]).optional(),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
@@ -53,6 +54,7 @@ export const GlobalSettingsSchema = z
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
 			compactionStrategy?: GlobalCompactionStrategy;
+			compactionEnabled?: boolean;
 			toolAutoApprove?: boolean;
 			planActMode?: "plan" | "act";
 			disabledTools?: string[];
@@ -63,6 +65,9 @@ export const GlobalSettingsSchema = z
 		};
 		if (settings.compactionStrategy) {
 			normalized.compactionStrategy = settings.compactionStrategy;
+		}
+		if (settings.compactionEnabled !== undefined) {
+			normalized.compactionEnabled = settings.compactionEnabled;
 		}
 		if (settings.toolAutoApprove !== undefined) {
 			normalized.toolAutoApprove = settings.toolAutoApprove;
@@ -210,7 +215,19 @@ export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
 export function setCompactionStrategyGlobally(
 	compactionStrategy: GlobalCompactionStrategy,
 ): void {
-	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
+	writeGlobalSettings({
+		...readGlobalSettings(),
+		compactionEnabled: true,
+		compactionStrategy,
+	});
+}
+
+export function isCompactionEnabledGlobally(): boolean {
+	return readGlobalSettings().compactionEnabled ?? true;
+}
+
+export function setCompactionEnabledGlobally(compactionEnabled: boolean): void {
+	writeGlobalSettings({ ...readGlobalSettings(), compactionEnabled });
 }
 
 export function readToolAutoApproveGlobally(): boolean | undefined {

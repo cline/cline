@@ -124,6 +124,16 @@ const featureFlagMocks = vi.hoisted(() => ({
 	setCliFeatureFlagsAccountContext: vi.fn(),
 	refreshCliFeatureFlagsInBackground: vi.fn(),
 }));
+const globalSettingsMocks = vi.hoisted(() => ({
+	isCompactionEnabledGlobally: vi.fn(() => true),
+	readCompactionStrategyGlobally: vi.fn(() => "agentic"),
+	readPlanActModeGlobally: vi.fn<() => "plan" | "act" | undefined>(
+		() => undefined,
+	),
+	readToolAutoApproveGlobally: vi.fn<() => boolean | undefined>(
+		() => undefined,
+	),
+}));
 
 function forcePromptModeInput() {
 	Object.defineProperty(process.stdin, "isTTY", {
@@ -167,6 +177,13 @@ vi.mock("@cline/core", async () => {
 			start: vi.fn(async () => {}),
 			stop: vi.fn(),
 		})),
+		isCompactionEnabledGlobally:
+			globalSettingsMocks.isCompactionEnabledGlobally,
+		readCompactionStrategyGlobally:
+			globalSettingsMocks.readCompactionStrategyGlobally,
+		readPlanActModeGlobally: globalSettingsMocks.readPlanActModeGlobally,
+		readToolAutoApproveGlobally:
+			globalSettingsMocks.readToolAutoApproveGlobally,
 		ProviderSettingsManager: class {
 			getLastUsedProviderSettings(options?: unknown) {
 				return providerSettingsMocks.getLastUsedProviderSettings(options);
@@ -269,6 +286,16 @@ describe("runCli lightweight command dispatch", () => {
 		featureFlagMocks.getBooleanFlagEnabled.mockReturnValue(false);
 		featureFlagMocks.setCliFeatureFlagsAccountContext.mockReset();
 		featureFlagMocks.refreshCliFeatureFlagsInBackground.mockReset();
+		globalSettingsMocks.isCompactionEnabledGlobally.mockReset();
+		globalSettingsMocks.isCompactionEnabledGlobally.mockReturnValue(true);
+		globalSettingsMocks.readCompactionStrategyGlobally.mockReset();
+		globalSettingsMocks.readCompactionStrategyGlobally.mockReturnValue(
+			"agentic",
+		);
+		globalSettingsMocks.readPlanActModeGlobally.mockReset();
+		globalSettingsMocks.readPlanActModeGlobally.mockReturnValue(undefined);
+		globalSettingsMocks.readToolAutoApproveGlobally.mockReset();
+		globalSettingsMocks.readToolAutoApproveGlobally.mockReturnValue(undefined);
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
@@ -848,6 +875,78 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("restores auto-approve and lets an explicit flag override it", async () => {
+		globalSettingsMocks.readToolAutoApproveGlobally.mockReturnValue(false);
+		process.argv = ["bun", "src/index.ts", "--auto-approve", "true"];
+
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultToolAutoApprove: false,
+				toolPolicies: { "*": { autoApprove: true } },
+			}),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
+	it("restores persisted auto-approve without an explicit flag", async () => {
+		globalSettingsMocks.readToolAutoApproveGlobally.mockReturnValue(false);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultToolAutoApprove: false,
+				toolPolicies: { "*": { autoApprove: false } },
+			}),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
+	it("restores Plan mode for both runtime and system prompt", async () => {
+		globalSettingsMocks.readPlanActModeGlobally.mockReturnValue("plan");
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({ mode: "plan" }),
+		);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({ mode: "plan" }),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
+	it("lets an explicit Act flag override persisted Plan mode", async () => {
+		globalSettingsMocks.readPlanActModeGlobally.mockReturnValue("plan");
+		process.argv = ["bun", "src/index.ts", "--act"];
+
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({ mode: "act" }),
+		);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({ mode: "act" }),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
 	it("forces chat view when resuming a session", async () => {
 		process.argv = ["bun", "src/index.ts", "--id", "sess_123"];
 
@@ -1404,6 +1503,44 @@ describe("runCli lightweight command dispatch", () => {
 				compaction: {
 					enabled: true,
 				},
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("restores disabled compaction for prompt runs", async () => {
+		globalSettingsMocks.isCompactionEnabledGlobally.mockReturnValue(false);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({ compaction: { enabled: false } }),
+			expect.anything(),
+		);
+	});
+
+	it("lets explicit compaction override persisted Off", async () => {
+		globalSettingsMocks.isCompactionEnabledGlobally.mockReturnValue(false);
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--compaction",
+			"basic",
+			"say hello",
+		];
+
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({
+				compaction: { enabled: true, strategy: "basic" },
 			}),
 			expect.anything(),
 		);
