@@ -270,6 +270,8 @@ describe("ChatMessages image attachments", () => {
 			'img[alt="Attachment 1"]',
 		);
 		expect(image?.src).toBe("data:image/png;base64,aGVsbG8=");
+		expect(image?.className).toContain("max-h-[225px]");
+		expect(image?.className).toContain("max-w-[225px]");
 		expect(container.textContent).toContain("Describe this");
 	});
 

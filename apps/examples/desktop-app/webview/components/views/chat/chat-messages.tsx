@@ -818,7 +818,7 @@ function MessageBubble({
 								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
 								<img
 									alt={`Attachment ${index + 1}`}
-									className="max-h-[28rem] max-w-full object-contain"
+									className="max-h-[225px] max-w-[225px] object-contain"
 									src={`data:${image.mediaType};base64,${image.data}`}
 								/>
 							</button>
