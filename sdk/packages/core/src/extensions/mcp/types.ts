@@ -75,6 +75,7 @@ export interface McpServerRegistration {
 	name: string;
 	transport: McpServerTransportConfig;
 	disabled?: boolean;
+	timeoutMs?: number;
 	metadata?: Record<string, unknown>;
 	oauth?: McpServerOAuthState;
 }
