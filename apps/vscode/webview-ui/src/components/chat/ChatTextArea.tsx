@@ -1,5 +1,5 @@
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { type SlashCommand } from "@shared/slashCommands"
@@ -20,7 +20,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, SlashServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptionIndex,
@@ -250,6 +250,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
+		const [extraSlashCommands, setExtraSlashCommands] = useState<SlashCommand[]>([])
 		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -306,7 +307,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return () => {
 				document.removeEventListener("mousedown", handleClickOutside)
 			}
-		}, [showContextMenu, setShowContextMenu])
+		}, [showContextMenu])
+
+		// Fetch the server-side slash-command list (skills, remote workflows, etc.) once so
+		// the chat composer mirrors the CLI's slash menu. The menu re-derives as the user
+		// types, so we do not need to re-run the RPC on every keystroke.
+		useEffect(() => {
+			let cancelled = false
+			SlashServiceClient.getAvailableSlashCommands(EmptyRequest.create({}))
+				.then((response) => {
+					if (cancelled) {
+						return
+					}
+					const commands: SlashCommand[] = (response.commands || [])
+						.filter((cmd) => cmd.section !== "default")
+						.map((cmd) => ({
+							name: cmd.name,
+							description: cmd.description || undefined,
+							section: cmd.section === "mcp" ? "mcp" : "custom",
+							cliCompatible: cmd.cliCompatible,
+						}))
+					setExtraSlashCommands(commands)
+				})
+				.catch((error) => {
+					console.error("Failed to load available slash commands", error)
+				})
+			return () => {
+				cancelled = true
+			}
+		}, [])
 
 		useEffect(() => {
 			const handleClickOutsideSlashMenu = (event: MouseEvent) => {
@@ -489,6 +518,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
+								extraSlashCommands,
 							)
 
 							if (allCommands.length === 0) {
@@ -514,6 +544,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
+							extraSlashCommands,
 						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
@@ -1401,6 +1432,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
+								extraCommands={extraSlashCommands}
 								globalWorkflowToggles={globalWorkflowToggles}
 								localWorkflowToggles={localWorkflowToggles}
 								mcpServers={mcpServers}
