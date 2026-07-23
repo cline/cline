@@ -244,5 +244,5 @@ export function useLocalCommandActions(input: {
 		],
 	);
 
-	return { handleSlashCommand };
+	return { handleSlashCommand, openHistory };
 }

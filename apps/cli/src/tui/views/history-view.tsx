@@ -6,7 +6,7 @@ import {
 	formatHumanReadableDate,
 	truncateStr,
 } from "@cline/shared";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -424,46 +424,6 @@ export function HistoryDialogContent(props: ChoiceContext<string>) {
 			loadRows
 			onResolve={resolve}
 			onDismiss={dismiss}
-			registerKeyHandler={registerKeyHandler}
-		/>
-	);
-}
-
-export function HistoryStandaloneContent(
-	props: HistoryListActions & {
-		rows: SessionHistoryRecord[];
-		title?: string;
-		footerText?: string;
-		refreshRows?: () => Promise<SessionHistoryRecord[]>;
-		refreshIntervalMs?: number;
-	},
-) {
-	const [keyHandler, setKeyHandler] = useState<
-		((key: HistoryKeyEvent | undefined) => void) | undefined
-	>();
-	const registerKeyHandler = useCallback(
-		(handler: (key: HistoryKeyEvent | undefined) => void) => {
-			setKeyHandler(() => handler);
-		},
-		[],
-	);
-
-	useKeyboard((key) => keyHandler?.(key));
-
-	return (
-		<HistoryListContent
-			initialRows={props.rows}
-			onResolve={props.onResolve}
-			onDismiss={props.onDismiss}
-			onExport={props.onExport}
-			onDelete={props.onDelete}
-			refreshRows={props.refreshRows}
-			refreshIntervalMs={props.refreshIntervalMs}
-			title={props.title ?? "History"}
-			footerText={
-				props.footerText ??
-				"\u2191/\u2193 navigate, Enter to resume, \u2190 delete, \u2192 export, Esc to close"
-			}
 			registerKeyHandler={registerKeyHandler}
 		/>
 	);

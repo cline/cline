@@ -86,15 +86,10 @@ const worktreeMocks = vi.hoisted(() => ({
 	createTaskWorktree: vi.fn(),
 }));
 const historyMocks = vi.hoisted(() => ({
-	runHistoryList: vi.fn<() => Promise<number | string>>(async () => 0),
+	runHistoryList: vi.fn<() => Promise<number>>(async () => 0),
 	runHistoryDelete: vi.fn(async () => 0),
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
-}));
-const historyResumeMocks = vi.hoisted(() => ({
-	spawnHistoryResume: vi.fn<() => Promise<number | undefined>>(
-		async () => undefined,
-	),
 }));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
@@ -201,7 +196,6 @@ vi.mock("./commands/dashboard", () => dashboardMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
-vi.mock("./utils/history-resume", () => historyResumeMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
@@ -221,8 +215,6 @@ describe("runCli lightweight command dispatch", () => {
 		historyMocks.runHistoryExport.mockResolvedValue(0);
 		historyMocks.runHistoryUpdate.mockReset();
 		historyMocks.runHistoryUpdate.mockResolvedValue(0);
-		historyResumeMocks.spawnHistoryResume.mockReset();
-		historyResumeMocks.spawnHistoryResume.mockResolvedValue(undefined);
 		sessionMocks.getSessionRow.mockReset();
 		sessionMocks.getSessionRow.mockResolvedValue({
 			sessionId: "sess_123",
@@ -865,60 +857,26 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("resumes a history-picked session in a child process", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
-		historyResumeMocks.spawnHistoryResume.mockResolvedValueOnce(0);
+	it("opens history inside the interactive TUI for the history picker", async () => {
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+
 		process.argv = ["bun", "src/index.ts", "history"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
-		expect(historyResumeMocks.spawnHistoryResume).toHaveBeenCalledTimes(1);
-		expect(historyResumeMocks.spawnHistoryResume).toHaveBeenCalledWith(
-			expect.objectContaining({
-				sessionId: "sess_from_history",
-				normalizedArgs: ["history"],
-				remainingArgs: ["history"],
-			}),
-		);
-		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
-		expect(process.exitCode).toBe(0);
-	});
-
-	it("propagates the child exit code when resuming from history picker", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
-		historyResumeMocks.spawnHistoryResume.mockResolvedValueOnce(3);
-		process.argv = ["bun", "src/index.ts", "history"];
-
-		const { runCli } = await import("./main");
-
-		await expect(runCli()).resolves.toBeUndefined();
-		expect(process.exitCode).toBe(3);
-		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
-	});
-
-	it("forces chat view when the history-picker child cannot launch", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
-		historyResumeMocks.spawnHistoryResume.mockResolvedValueOnce(undefined);
-		process.argv = ["bun", "src/index.ts", "history"];
-
-		const { runCli } = await import("./main");
-
-		await expect(runCli()).resolves.toBeUndefined();
+		expect(historyMocks.runHistoryList).not.toHaveBeenCalled();
 		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
 		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
 			expect.any(Object),
 			expect.anything(),
-			"sess_from_history",
+			undefined,
 			expect.objectContaining({
 				initialPrompt: undefined,
-				initialView: "chat",
+				initialView: "history",
 			}),
 		);
 	});
