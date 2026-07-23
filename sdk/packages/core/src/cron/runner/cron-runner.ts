@@ -380,6 +380,9 @@ export class CronRunner {
 				run.runId,
 			);
 		} finally {
+			if (run.triggerKind === "one_off") {
+				this.store.updateSpecNextRunAt(spec.specId, undefined);
+			}
 			releaseLeaseHeartbeat?.();
 			if (sessionId) {
 				try {

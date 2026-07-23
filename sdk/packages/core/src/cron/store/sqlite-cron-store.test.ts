@@ -1,7 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CronOneOffSpec, CronScheduleSpec } from "@cline/shared";
+import {
+	type CronOneOffSpec,
+	type CronScheduleSpec,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SqliteCronStore } from "./sqlite-cron-store";
@@ -207,7 +212,7 @@ describe("SqliteCronStore: runs", () => {
 
 	it("enqueues a queued one-off run and detects duplicates", () => {
 		const spec = seedOneOff();
-		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(false);
+		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(false);
 		const run = store.enqueueRun({
 			specId: spec.specId,
 			specRevision: 1,
@@ -216,7 +221,7 @@ describe("SqliteCronStore: runs", () => {
 		});
 		expect(run.status).toBe("queued");
 		expect(run.triggerKind).toBe("one_off");
-		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(true);
+		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
 	});
 
 	it("treats failed one-off runs as satisfying the revision", () => {
@@ -227,7 +232,40 @@ describe("SqliteCronStore: runs", () => {
 			triggerKind: "one_off",
 		});
 		store.completeRun(run.runId, { status: "failed", error: "boom" });
-		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(true);
+		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
+	});
+
+	it("consumes a queued one-time occurrence when manually triggered", () => {
+		const runAt = Date.now() + 60_000;
+		const spec = store.createHubSchedule({
+			name: "Run once",
+			cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+			metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+		});
+		const scheduled = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "one_off",
+			scheduledFor: new Date(runAt).toISOString(),
+		});
+
+		const manual = store.enqueueHubScheduleRun(spec.externalId, "manual");
+		const repeatedManual = store.enqueueHubScheduleRun(
+			spec.externalId,
+			"manual",
+		);
+
+		expect(manual).toEqual(
+			expect.objectContaining({ triggerKind: "manual", status: "queued" }),
+		);
+		expect(repeatedManual?.runId).toBe(manual?.runId);
+		expect(store.getRun(scheduled.runId)?.status).toBe("cancelled");
+		expect(store.getSpec(spec.specId)?.nextRunAt).toBeUndefined();
+		expect(store.hasConsumedOneOffRevision(spec.specId, spec.revision)).toBe(
+			true,
+		);
 	});
 
 	it("claims due queued runs and completes them", () => {
