@@ -696,6 +696,15 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.studio.nebius.ai/v1" },
 	},
 	{
+		id: "crusoe",
+		name: "Crusoe",
+		description: "Managed inference on renewable-powered GPU infrastructure",
+		family: "openai-compatible",
+		defaultModelId: "zai/GLM-5.2",
+		apiKeyEnv: ["CRUSOE_API_KEY"],
+		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
+	},
+	{
 		id: "baseten",
 		name: "Baseten",
 		description: "ML inference platform",

@@ -35,6 +35,7 @@ export enum BUILT_IN_PROVIDER {
 	CEREBRAS = "cerebras",
 	SAMBANOVA = "sambanova",
 	NEBIUS = "nebius",
+	CRUSOE = "crusoe",
 	BASETEN = "baseten",
 	REQUESTY = "requesty",
 	LITELLM = "litellm",
