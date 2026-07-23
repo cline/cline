@@ -1,6 +1,6 @@
 import { cjk } from "@streamdown/cjk";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
-import { memo, useState } from "react";
+import { isValidElement, memo, useState } from "react";
 import {
 	type Components,
 	type ControlsConfig,
@@ -69,37 +69,62 @@ function extractLinkText(children: ReactNode): string {
 	if (Array.isArray(children)) {
 		return children.map(extractLinkText).join("");
 	}
+	// Inline formatting (**bold**, `code`, …) nests the label text inside
+	// elements; recurse so styled hostnames can't dodge the deception check.
+	if (isValidElement(children)) {
+		return extractLinkText(
+			(children.props as { children?: ReactNode }).children,
+		);
+	}
 	return "";
 }
 
 const urlLikeTextPattern =
 	/^(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:[/:?#]\S*)?$/i;
 
-function hostnameOf(value: string): string | null {
-	const withScheme = /^[a-z][a-z\d+.-]*:/i.test(value)
-		? value
-		: `https://${value}`;
+type LinkParts = {
+	protocol: string;
+	hostname: string;
+	port: string;
+	explicitScheme: boolean;
+};
+
+function parseLinkParts(value: string): LinkParts | null {
+	const explicitScheme = /^[a-z][a-z\d+.-]*:/i.test(value);
 	try {
-		const hostname = new URL(withScheme).hostname
-			.replace(/^www\./, "")
-			.toLowerCase();
-		return hostname || null;
+		const parsed = new URL(explicitScheme ? value : `https://${value}`);
+		const hostname = parsed.hostname.replace(/^www\./, "").toLowerCase();
+		if (!hostname) return null;
+		return {
+			explicitScheme,
+			hostname,
+			port: parsed.port,
+			protocol: parsed.protocol,
+		};
 	} catch {
 		return null;
 	}
 }
 
 /**
- * A link is deceptive when its visible text reads as a URL pointing at a
- * different host than the real destination — the one shape where a click
- * genuinely surprises the user. Only those links get the confirmation
- * dialog; ordinary external links open directly.
+ * A link is deceptive when its visible text reads as a URL that does not
+ * match the real destination — the one shape where a click genuinely
+ * surprises the user. Only those links get the confirmation dialog;
+ * ordinary external links open directly. The label and destination must
+ * agree on hostname and port, and on scheme when the label states one.
  */
 function isDeceptiveLink(children: ReactNode, url: string): boolean {
 	const text = extractLinkText(children).trim();
 	if (!text || !urlLikeTextPattern.test(text)) return false;
-	const textHost = hostnameOf(text);
-	return textHost !== null && textHost !== hostnameOf(url);
+	const textParts = parseLinkParts(text);
+	if (!textParts) return false;
+	const urlParts = parseLinkParts(url);
+	if (!urlParts) return true;
+	return (
+		textParts.hostname !== urlParts.hostname ||
+		textParts.port !== urlParts.port ||
+		(textParts.explicitScheme && textParts.protocol !== urlParts.protocol)
+	);
 }
 
 function SafeMarkdownLink({

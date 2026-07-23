@@ -86,6 +86,29 @@ const ready = true;
 		expect(html).not.toContain('href="https://evil.example/payload"');
 	});
 
+	test("sees through inline formatting inside deceptive URL text", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[**github.com**/cline](https://evil.example/payload)" />,
+		);
+
+		expect(html).toContain('href="#confirm-external-link"');
+		expect(html).not.toContain('href="https://evil.example/payload"');
+	});
+
+	test("treats scheme and port mismatches as deceptive", () => {
+		const schemeHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[https://example.com](http://example.com/login)" />,
+		);
+		expect(schemeHtml).toContain('href="#confirm-external-link"');
+		expect(schemeHtml).not.toContain('href="http://example.com/login"');
+
+		const portHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[example.com](https://example.com:8080/admin)" />,
+		);
+		expect(portHtml).toContain('href="#confirm-external-link"');
+		expect(portHtml).not.toContain('href="https://example.com:8080/admin"');
+	});
+
 	test("leaves app-local and fragment links navigable", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown content="[Details](#details) [Home](/)" />,
