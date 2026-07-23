@@ -44,9 +44,9 @@ import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
-import { updateMcpSettingsFile } from "./settingsLock"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { updateMcpSettingsFile } from "./settingsLock"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -129,6 +129,14 @@ export class McpHub {
 		// Only return enabled servers
 
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
+	}
+
+	/**
+	 * Returns all servers including disabled ones.
+	 * Used for the webview subscription which needs to show the full server list.
+	 */
+	getAllServers(): McpServer[] {
+		return this.connections.map((conn) => conn.server)
 	}
 
 	/**
