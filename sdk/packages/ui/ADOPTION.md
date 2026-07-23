@@ -51,6 +51,10 @@ without turning `@cline/ui` into a second agent runtime.
 manual release workflow. The API is pre-stable, so production consumers should
 pin exact versions and review compatibility notes when updating.
 
+The scoped-token and standalone Markdown exports in this guide are part of the
+upcoming `0.2` release. Until a `next` preview is published, consume them from
+the Cline workspace.
+
 Desktop is the first production-shaped consumer of both the theme and shared
 chat primitives. Storybook is the reference catalog for isolated component
 states. Hub and other agent interfaces are candidates for the next adoption

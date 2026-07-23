@@ -71,6 +71,11 @@ if (!base.includes('@import "../components/markdown.css";')) {
 if (markdown.includes("@apply")) {
 	throw new Error("components/markdown.css must remain framework-neutral");
 }
+if (!markdown.includes(":is(.markdown, .cline-markdown)")) {
+	throw new Error(
+		"components/markdown.css must preserve the legacy .markdown selector",
+	);
+}
 if (
 	!index.includes('@import "./tokens.css";') ||
 	!index.includes('@import "./theme.css";') ||
