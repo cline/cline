@@ -183,6 +183,36 @@ describe("McpSettingsSchema", () => {
 			;(server as any).url.should.equal("https://mcp.example.com/mcp")
 		})
 
+		it("accepts legacy transportType streamableHttp in MCP settings", () => {
+			const input = {
+				mcpServers: {
+					strictServer: {
+						transportType: "streamableHttp",
+						url: "http://localhost:8000/mcp",
+					},
+				},
+			}
+
+			const result = McpSettingsSchema.safeParse(input)
+			result.success.should.be.true()
+
+			const server = result.data!.mcpServers["strictServer"]
+			server.type.should.equal("streamableHttp")
+			;((server as any).transportType === undefined).should.be.true()
+		})
+
+		it("accepts legacy transportType http for URL servers", () => {
+			const result = ServerConfigSchema.safeParse({
+				transportType: "http",
+				url: "http://localhost:8000/mcp",
+			})
+
+			result.success.should.be.true()
+			const server = result.data!
+			server.type.should.equal("streamableHttp")
+			;((server as any).transportType === undefined).should.be.true()
+		})
+
 		it("accepts a flat stdio server with no explicit type", () => {
 			const input = {
 				mcpServers: {
@@ -207,6 +237,15 @@ describe("McpSettingsSchema", () => {
 			result.success.should.be.true()
 			// Without a type field, the flat schema defaults to "sse"
 			result.data!.mcpServers["legacy"].type.should.equal("sse")
+		})
+
+		it("rejects unknown legacy transportType values for URL servers", () => {
+			const result = ServerConfigSchema.safeParse({
+				transportType: "websocket",
+				url: "http://localhost:8000/mcp",
+			})
+
+			result.success.should.be.false()
 		})
 
 		it("preserves oauth on flat-format servers (round-trip from write-back)", () => {
