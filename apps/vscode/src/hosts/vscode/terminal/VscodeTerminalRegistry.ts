@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 export interface TerminalInfo {
 	terminal: vscode.Terminal
@@ -18,6 +19,7 @@ export interface TerminalInfo {
 // Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
 export class TerminalRegistry {
 	private static terminals: TerminalInfo[] = []
+	private static terminalsPendingCleanup = new Map<number, TerminalInfo>()
 	private static nextTerminalId = 1
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
@@ -71,6 +73,36 @@ export class TerminalRegistry {
 
 	static removeTerminal(id: number) {
 		TerminalRegistry.terminals = TerminalRegistry.terminals.filter((t) => t.id !== id)
+	}
+
+	/**
+	 * Evict a terminal now and remember it for disposal at the next terminal
+	 * acquisition boundary. Keeping this queue in the global registry preserves
+	 * cleanup ownership across task-scoped terminal-manager replacement. If no
+	 * later command needs a terminal, leave the unobservable command alone: it
+	 * may still be running, and without another acquisition it cannot contribute
+	 * to the terminal pile-up this queue prevents.
+	 */
+	static queueTerminalForCleanup(terminalInfo: TerminalInfo): void {
+		TerminalRegistry.removeTerminal(terminalInfo.id)
+		TerminalRegistry.terminalsPendingCleanup.set(terminalInfo.id, terminalInfo)
+	}
+
+	/** Dispose every terminal that was cleanup-eligible when this call began. */
+	static disposeTerminalsPendingCleanup(): void {
+		const pending = Array.from(TerminalRegistry.terminalsPendingCleanup.entries())
+		for (const [id, terminalInfo] of pending) {
+			// Remove ownership before dispose(), which may synchronously trigger
+			// terminal-close listeners that acquire another terminal. Restore it if
+			// disposal fails so the resource is never silently lost.
+			TerminalRegistry.terminalsPendingCleanup.delete(id)
+			try {
+				terminalInfo.terminal.dispose()
+			} catch (error) {
+				TerminalRegistry.terminalsPendingCleanup.set(id, terminalInfo)
+				Logger.warn(`[TerminalRegistry] Failed to dispose fallback terminal ${id}; cleanup will be retried`, error)
+			}
+		}
 	}
 
 	static getAllTerminals(): TerminalInfo[] {

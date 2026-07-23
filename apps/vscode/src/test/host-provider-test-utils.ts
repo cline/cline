@@ -1,10 +1,4 @@
-import {
-	CommentReviewControllerCreator,
-	DiffViewProviderCreator,
-	EditPreviewCreator,
-	HostProvider,
-	WebviewProviderCreator,
-} from "@/hosts/host-provider"
+import { CommentReviewControllerCreator, EditPreviewCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
@@ -16,7 +10,6 @@ import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-gr
  */
 export function setVscodeHostProviderMock(options?: {
 	webviewProviderCreator?: WebviewProviderCreator
-	diffViewProviderCreator?: DiffViewProviderCreator
 	editPreviewCreator?: EditPreviewCreator
 	commentReviewControllerCreator?: CommentReviewControllerCreator
 	hostBridgeClient?: HostBridgeClientProvider
@@ -29,7 +22,6 @@ export function setVscodeHostProviderMock(options?: {
 	HostProvider.reset()
 	HostProvider.initialize(
 		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
-		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
 		options?.editPreviewCreator ?? ((() => {}) as EditPreviewCreator),
 		options?.commentReviewControllerCreator ?? ((() => {}) as CommentReviewControllerCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,

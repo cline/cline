@@ -2,7 +2,7 @@ import path from "path"
 import * as vscode from "vscode"
 import { OpenMultiFileDiffRequest, OpenMultiFileDiffResponse } from "@/shared/proto/index.host"
 import { getCwd } from "@/utils/path"
-import { DIFF_VIEW_URI_SCHEME } from "../../VscodeDiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "../../VscodeDiffContentProvider"
 
 export async function openMultiFileDiff(request: OpenMultiFileDiffRequest): Promise<OpenMultiFileDiffResponse> {
 	const cwd = await getCwd()
