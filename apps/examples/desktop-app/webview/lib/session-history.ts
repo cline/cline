@@ -16,6 +16,7 @@ export type SessionMetadata = {
 
 export interface SessionHistoryItem {
 	sessionId: string;
+	source?: string;
 	status: SessionHistoryStatus;
 	provider: string;
 	model: string;
@@ -27,6 +28,20 @@ export interface SessionHistoryItem {
 	startedAt: string;
 	endedAt?: string;
 	metadata?: SessionMetadata;
+}
+
+export const SCHEDULED_SESSION_SOURCE = "hub-schedule";
+
+export function getSessionSource(
+	session: Pick<SessionHistoryItem, "source" | "metadata">,
+): string {
+	const source = session.source?.trim();
+	if (source) {
+		return source;
+	}
+	return typeof session.metadata?.source === "string"
+		? session.metadata.source.trim()
+		: "";
 }
 
 export function getSessionMetadataTitle(metadata?: SessionMetadata): string {
