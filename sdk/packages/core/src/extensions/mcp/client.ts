@@ -1,5 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { resolveShellFreeInvocation } from "@cline/shared/node";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -253,21 +254,30 @@ class StdioMcpClient implements McpServerClient {
 		this.stderrBuffer = "";
 		this.protocolMode = protocolMode;
 
-		const platformOptions =
-			process.platform === "win32"
-				? {
-						windowsHide: true,
-						shell: true,
-					}
-				: {};
-		const child = spawn(transport.command, transport.args ?? [], {
+		// Prefer a shell-free invocation so config arguments (e.g. an npm semver
+		// range like `mongodb-mcp-server@<3`) reach the server as literal argv
+		// rather than being reinterpreted by cmd.exe. Fall back to a shell only
+		// when Windows exposes the command exclusively as a `.cmd`/`.bat` shim,
+		// which spawn() cannot execute directly — that preserves launch behavior
+		// for servers that have no directly-spawnable executable.
+		const requestedArgs = transport.args ?? [];
+		const invocation = resolveShellFreeInvocation(
+			transport.command,
+			requestedArgs,
+		);
+		const useShellFallback = process.platform === "win32" && !invocation;
+		const command = invocation?.command ?? transport.command;
+		const args = invocation?.args ?? requestedArgs;
+		const child = spawn(command, args, {
 			cwd: transport.cwd,
 			env: {
 				...process.env,
 				...(transport.env ?? {}),
 			},
 			stdio: ["pipe", "pipe", "pipe"],
-			...platformOptions,
+			...(process.platform === "win32"
+				? { windowsHide: true, shell: useShellFallback }
+				: {}),
 		});
 
 		this.process = child;

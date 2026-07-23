@@ -20,6 +20,7 @@ import {
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin,
 } from "@cline/core"
+import { resolveShellFreeInvocation } from "@cline/shared/node"
 import { deleteSkillFile } from "@core/controller/file/deleteSkillFile"
 import { refreshSkills } from "@core/controller/file/refreshSkills"
 import { toggleSkill } from "@core/controller/file/toggleSkill"
@@ -261,9 +262,17 @@ async function runCommand(command: string, args: string[]): Promise<SpawnResult>
 	return new Promise((resolveResult, reject) => {
 		let settled = false
 		let timedOut = false
-		const child = spawn(command, args, {
+		// Prefer a shell-free invocation so catalog arguments (e.g. an npm semver
+		// range like `mongodb-mcp-server@<3`) reach the child as literal argv
+		// rather than being reinterpreted by cmd.exe. `npx` always resolves this
+		// way on a real Node install; fall back to a shell only when Windows
+		// exposes the command exclusively as a `.cmd`/`.bat` shim (e.g. a global
+		// `cline.cmd`), which spawn() cannot execute directly.
+		const invocation = resolveShellFreeInvocation(command, args)
+		const useShellFallback = platform() === "win32" && !invocation
+		const child = spawn(invocation?.command ?? command, invocation?.args ?? args, {
 			env: process.env,
-			shell: platform() === "win32",
+			shell: useShellFallback,
 			stdio: ["ignore", "pipe", "pipe"],
 			windowsHide: true,
 		})
