@@ -48,6 +48,7 @@ import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
 	createDesktopAppState,
 	type DesktopAppLocation,
+	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
@@ -176,7 +177,7 @@ export default function Home() {
 		navigateWith({ view: "chat" });
 	}, [activeThread, handleNewThread, navigateWith]);
 	const handleViewChange = useCallback(
-		(nextView: AppView) => {
+		(nextView: DesktopAppView) => {
 			navigateWith({ view: nextView });
 		},
 		[navigateWith],
