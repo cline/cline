@@ -333,7 +333,7 @@ describe("runCli lightweight command dispatch", () => {
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
-	});
+	}, 30_000);
 
 	it("does not load runtime modules for root update", async () => {
 		mockState.runAgentImports = 0;

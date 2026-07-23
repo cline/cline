@@ -138,7 +138,9 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 
 describe("getDefaultModelIdForProvider", () => {
 	it("uses the SDK provider catalog for the Cline default model", () => {
-		expect(getDefaultModelIdForProvider("cline")).toBe("anthropic/claude-sonnet-4.6")
+		expect(getDefaultModelIdForProvider("cline")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline.provider.defaultModelId,
+		)
 	})
 
 	it("uses the generated Gemini provider default", () => {
