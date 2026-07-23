@@ -21,6 +21,14 @@ export type * from "@cline/shared";
 
 export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
+// The chars/token estimate in `estimateRequestInputTokens` drifts from the
+// provider's real tokenizer count, and that drift scales with input size
+// (a 1% estimation error is ~1 token on a short prompt but ~2,500 tokens on
+// a 250k-token one). A flat reserve is enough at small sizes but gets
+// swallowed by estimation error at large ones, letting requests land at or
+// just over the real context limit. Scale the reserve with the estimate so
+// large prompts keep a proportional safety margin.
+const GATEWAY_OUTPUT_RESERVE_RATIO = 0.02;
 
 function mergeRequestMetadata(
 	defaults: Record<string, unknown> | undefined,
@@ -159,7 +167,11 @@ export function resolveGatewayRequestMaxTokens(input: {
 
 	if (isPositiveFiniteNumber(input.model.contextWindow)) {
 		const reserveTokens =
-			input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS;
+			input.outputReserveTokens ??
+			Math.max(
+				GATEWAY_OUTPUT_RESERVE_TOKENS,
+				Math.ceil(input.estimatedInputTokens * GATEWAY_OUTPUT_RESERVE_RATIO),
+			);
 		const remainingContext =
 			input.model.contextWindow - input.estimatedInputTokens - reserveTokens;
 		if (remainingContext <= 0) {

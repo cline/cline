@@ -291,6 +291,29 @@ describe("sdk-gateway", () => {
 		).toBeUndefined();
 	});
 
+	it("scales the default output reserve with estimated input size on large prompts", () => {
+		// Regression test: a fixed 1,024-token reserve is fine on small prompts
+		// but gets swallowed by chars/token estimation error on very large
+		// ones, letting requests land at/over the real context limit. The
+		// default reserve should grow with the estimate instead of staying flat.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 8_192,
+				model: { contextWindow: 262_144 },
+				estimatedInputTokens: 250_000,
+			}),
+		).toBe(7_144); // 262_144 - 250_000 - ceil(250_000 * 0.02 = 5_000)
+
+		// Small prompts keep the flat 1,024-token floor.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 8_192,
+				model: { contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(8_192);
+	});
+
 	it("does not collapse to one output token when estimated input exceeds context", () => {
 		const onContextOverflow = vi.fn();
 
