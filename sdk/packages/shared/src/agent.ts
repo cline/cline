@@ -290,6 +290,19 @@ export interface AgentAfterModelContext {
 	finishReason: AgentModelFinishReason;
 }
 
+export interface AgentAfterModelResult {
+	stop?: boolean;
+	reason?: string;
+	/**
+	 * Replacement assistant message. When set, the runtime uses this message
+	 * instead of the streamed one — including its `tool-call` parts, which are
+	 * executed as if the model had emitted them natively. Metrics and model
+	 * info from the original message are preserved unless the replacement
+	 * carries its own.
+	 */
+	message?: AgentMessage;
+}
+
 export interface AgentBeforeToolContext {
 	snapshot: AgentRuntimeStateSnapshot;
 	tool: AgentTool;
@@ -348,7 +361,10 @@ export interface AgentRuntimeHooks {
 		| Promise<AgentBeforeModelResult | undefined>;
 	afterModel?: (
 		context: AgentAfterModelContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentAfterModelResult
+		| undefined
+		| Promise<AgentAfterModelResult | undefined>;
 	beforeTool?: (
 		context: AgentBeforeToolContext,
 	) =>
