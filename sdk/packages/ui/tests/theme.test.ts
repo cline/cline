@@ -154,6 +154,15 @@ describe("@cline/ui theme contract", () => {
 		);
 	});
 
+	it("gives reduced-motion aurora layers a calm resting opacity", () => {
+		const welcome = readComponent("welcome.css");
+		const ruleBody = (selector: string) =>
+			topLevelRules(welcome).find((rule) => rule.selector === selector)?.body;
+		expect(ruleBody(".cline-ui-aurora__horizon")).toContain("opacity: 0.48");
+		expect(ruleBody(".cline-ui-aurora__current")).toContain("opacity: 0.28");
+		expect(ruleBody(".cline-ui-aurora__blob")).toContain("opacity: 0.55");
+	});
+
 	it("uses standard semantic and Tailwind token names", () => {
 		const tokens = read("tokens.css");
 		expect(tokens).not.toContain("--cline-");

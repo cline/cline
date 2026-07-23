@@ -1,8 +1,17 @@
 import * as Popover from "@radix-ui/react-popover";
-import { Command } from "cmdk";
+import { Command, defaultFilter } from "cmdk";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { cx } from "./utils.js";
+
+function filterVisibleOptionText(
+	_value: string,
+	search: string,
+	keywords: string[] = [],
+): number {
+	const visibleText = keywords.join(" ").trim();
+	return visibleText ? defaultFilter(visibleText, search) : 0;
+}
 
 export interface SearchComboboxOption {
 	description?: string;
@@ -105,6 +114,7 @@ export function SearchCombobox({
 				>
 					<Command
 						className="cline-ui-combobox__command"
+						filter={filterVisibleOptionText}
 						label={`Search ${ariaLabel.toLowerCase()}`}
 						onValueChange={setCommandValue}
 						value={commandValue}
@@ -115,7 +125,9 @@ export function SearchCombobox({
 						/>
 						<Command.List className="cline-ui-combobox__list">
 							<Command.Empty className="cline-ui-combobox__empty">
-								{emptyText}
+								<span aria-live="polite" role="status">
+									{emptyText}
+								</span>
 							</Command.Empty>
 							{options.map((option) => (
 								<Command.Item

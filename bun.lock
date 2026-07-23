@@ -770,7 +770,6 @@
       },
       "optionalPeers": [
         "react",
-        "react-dom",
         "tailwindcss",
       ],
     },

@@ -15,6 +15,7 @@ export function AgentComposer({ actions, className, disabled, footer, loading = 
         if (event.key === "Enter" &&
             !event.shiftKey &&
             !event.nativeEvent.isComposing &&
+            event.nativeEvent.keyCode !== 229 &&
             !disabled &&
             !submitDisabled &&
             !loading &&

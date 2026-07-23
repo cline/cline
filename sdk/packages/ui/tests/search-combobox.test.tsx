@@ -43,12 +43,15 @@ describe("SearchCombobox", () => {
 		});
 		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
 		fireEvent.click(trigger);
+		const popup = screen.getByRole("dialog");
 		const listbox = screen.getByRole("listbox");
 		expect(listbox).toBeTruthy();
 		expect(listbox.closest(".cline-ui-theme")).toBeTruthy();
 		const search = screen.getByRole("combobox", {
 			name: "Search repository",
 		});
+		expect(trigger.getAttribute("aria-controls")).toBe(popup.id);
+		expect(search.getAttribute("aria-controls")).toBe(listbox.id);
 		fireEvent.change(search, { target: { value: "core-platform" } });
 		fireEvent.click(screen.getByText("cline/core-platform"));
 		expect(onValueChange).toHaveBeenCalledWith(
@@ -59,6 +62,46 @@ describe("SearchCombobox", () => {
 		expect(document.querySelector(".cline-ui-combobox__search")).toHaveProperty(
 			"value",
 			"",
+		);
+	});
+
+	it("filters only on visible option text", () => {
+		render(
+			<SearchCombobox
+				ariaLabel="Repository"
+				emptyText="No matching repositories."
+				onValueChange={vi.fn()}
+				options={[
+					{
+						description: "Primary codebase",
+						label: "cline/cline",
+						value: "https://github.com/cline/cline",
+					},
+					{
+						description: "Cloud dashboard",
+						label: "cline/core-platform",
+						value: "https://github.com/cline/core-platform",
+					},
+				]}
+			/>,
+		);
+
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: "Repository: Select an option…",
+			}),
+		);
+		const search = screen.getByRole("combobox", {
+			name: "Search repository",
+		});
+		fireEvent.change(search, { target: { value: "dashboard" } });
+		expect(screen.queryByText("cline/cline")).toBeNull();
+		expect(screen.getByText("cline/core-platform")).toBeTruthy();
+
+		fireEvent.change(search, { target: { value: "https" } });
+		expect(screen.queryByRole("option")).toBeNull();
+		expect(screen.getByRole("status").textContent).toBe(
+			"No matching repositories.",
 		);
 	});
 

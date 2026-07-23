@@ -75,6 +75,7 @@ export function AgentComposer({
 			event.key === "Enter" &&
 			!event.shiftKey &&
 			!event.nativeEvent.isComposing &&
+			event.nativeEvent.keyCode !== 229 &&
 			!disabled &&
 			!submitDisabled &&
 			!loading &&
