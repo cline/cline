@@ -70,7 +70,7 @@ describe("useChatSession", () => {
 						request.config?.sessionId ?? "session-pathless",
 					);
 					startedSessionId = sessionId;
-					const workspacePath = `/tmp/cline/sessions/${sessionId}-temp/project`;
+					const workspacePath = `/home/host/.cline/data/workspaces/${sessionId}/project`;
 					return {
 						sessionId,
 						cwd: workspacePath,
@@ -91,7 +91,7 @@ describe("useChatSession", () => {
 
 		expect(current.error).toBeNull();
 		expect(startedSessionId).toMatch(/^session_/);
-		const expectedWorkspacePath = `/tmp/cline/sessions/${startedSessionId}-temp/project`;
+		const expectedWorkspacePath = `/home/host/.cline/data/workspaces/${startedSessionId}/project`;
 		expect(current.config).toMatchObject({
 			cwd: expectedWorkspacePath,
 			workspaceRoot: expectedWorkspacePath,

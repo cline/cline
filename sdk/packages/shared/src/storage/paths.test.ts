@@ -1,14 +1,11 @@
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
 	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
-	CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
-	CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
-	CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
-	CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+	CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	isTemporaryWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -228,43 +225,58 @@ describe("storage path resolution", () => {
 });
 
 describe("temporary workspace paths", () => {
-	it("exports the canonical path segments", () => {
-		expect(CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY).toBe("cline");
-		expect(CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY).toBe("sessions");
-		expect(CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX).toBe("-temp");
-		expect(CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY).toBe("project");
+	let snapshot: EnvSnapshot = captureEnv();
+
+	afterEach(() => {
+		restoreEnv(snapshot);
 	});
 
-	it("resolves the session workspace under the system temp directory", () => {
+	it("exports the canonical path segments", () => {
+		expect(CLINE_WORKSPACES_DIRECTORY_NAME).toBe("workspaces");
+		expect(CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME).toBe("project");
+	});
+
+	it("resolves the session workspace under the cline data dir", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_DATA_DIR;
+		process.env.CLINE_DIR = "/tmp/home/.cline";
+
 		const sessionId = "1700000000000_a1b2c";
 		expect(resolveTemporaryWorkspacePath(sessionId)).toBe(
-			join(tmpdir(), "cline", "sessions", `${sessionId}-temp`, "project"),
+			join("/tmp/home/.cline", "data", "workspaces", sessionId, "project"),
+		);
+	});
+
+	it("honors the CLINE_DATA_DIR override", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveTemporaryWorkspacePath("session-a1b2c3")).toBe(
+			join("/tmp/cline-data", "workspaces", "session-a1b2c3", "project"),
 		);
 	});
 
 	it.each([
-		"/tmp/cline/sessions/session-a1b2c3-temp/project",
-		"//tmp//cline//sessions//session-a1b2c3-temp//project//",
-		"C:\\Temp\\cline\\sessions\\session-a1b2c3-temp\\project\\",
-		"\\\\server\\share\\cline\\sessions\\session-a1b2c3-temp\\project",
-		"/tmp/cline/sessions/session-temp-temp/project",
+		"/home/user/.cline/data/workspaces/session-a1b2c3/project",
+		"//home//user//.cline//data//workspaces//session-a1b2c3//project//",
+		"C:\\Users\\dev\\.cline\\data\\workspaces\\session-a1b2c3\\project\\",
+		"\\\\server\\share\\.cline\\data\\workspaces\\session-a1b2c3\\project",
+		"/home/user/.cline/data/workspaces/1700000000000_a1b2c/project",
 	])("recognizes temporary workspace root %s", (path) => {
 		expect(isTemporaryWorkspacePath(path)).toBe(true);
 	});
 
 	it.each([
-		"cline/sessions/session-a1b2c3-temp/project",
+		".cline/data/workspaces/session-a1b2c3/project",
 		"/tmp/project",
-		"/tmp/cline-temp-workspaces/cline-temp-cwd-session-a1b2c3/project",
-		"/tmp/other/sessions/session-a1b2c3-temp/project",
-		"/tmp/cline/other/session-a1b2c3-temp/project",
-		"/tmp/cline/sessions/-temp/project",
-		"/tmp/cline/sessions/session-a1b2c3/project",
-		"/tmp/cline/sessions/session-a1b2c3-temp-copy/project",
-		"/tmp/cline/sessions/session with spaces-temp/project",
-		"/tmp/cline/sessions/session-a1b2c3-temp",
-		"/tmp/cline/sessions/session-a1b2c3-temp/Project",
-		"/tmp/cline/sessions/session-a1b2c3-temp/project/src",
+		"/tmp/cline/sessions/session-a1b2c3-temp/project",
+		"/home/user/cline/data/workspaces/session-a1b2c3/project",
+		"/home/user/.cline/workspaces/session-a1b2c3/project",
+		"/home/user/.cline/data/other/session-a1b2c3/project",
+		"/home/user/.cline/data/workspaces/session with spaces/project",
+		"/home/user/.cline/data/workspaces/session-a1b2c3",
+		"/home/user/.cline/data/workspaces/session-a1b2c3/Project",
+		"/home/user/.cline/data/workspaces/session-a1b2c3/project/src",
 	])("rejects non-temporary workspace path %s", (path) => {
 		expect(isTemporaryWorkspacePath(path)).toBe(false);
 	});

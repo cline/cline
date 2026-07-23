@@ -1,11 +1,20 @@
-export const CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY = "cline";
-export const CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY = "sessions";
-export const CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX = "-temp";
-export const CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY = "project";
+export const CLINE_WORKSPACES_DIRECTORY_NAME = "workspaces";
+export const CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME = "project";
 
-const TEMPORARY_WORKSPACE_SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+// Default data-dir anchors for the structural check below. The Node resolver
+// derives the real location from resolveClineDataDir(), which defaults to
+// `~/.cline/data`.
+const CLINE_CONFIG_DIRECTORY_NAME = ".cline";
+const CLINE_DATA_DIRECTORY_NAME = "data";
 
-/** Browser-safe structural check for an SDK-created temporary workspace root. */
+const WORKSPACE_SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Browser-safe structural check for an SDK-created pathless-session workspace
+ * root: `.cline/data/workspaces/<session-id>/project`. Matches the default
+ * data-dir layout only; explicit `CLINE_DATA_DIR` overrides are not detectable
+ * from a bare path string.
+ */
 export function isTemporaryWorkspacePath(path: string): boolean {
 	const normalizedPath = path.trim();
 	const isWindowsAbsolute =
@@ -18,21 +27,15 @@ export function isTemporaryWorkspacePath(path: string): boolean {
 		.split(isWindowsAbsolute ? /[\\/]+/ : /\/+/)
 		.filter(Boolean);
 	const projectDirectory = segments.at(-1) ?? "";
-	const sessionDirectory = segments.at(-2) ?? "";
-	const sessionsDirectory = segments.at(-3) ?? "";
-	const rootDirectory = segments.at(-4) ?? "";
-	const sessionId = sessionDirectory.endsWith(
-		CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
-	)
-		? sessionDirectory.slice(
-				0,
-				-CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX.length,
-			)
-		: "";
+	const sessionId = segments.at(-2) ?? "";
+	const workspacesDirectory = segments.at(-3) ?? "";
+	const dataDirectory = segments.at(-4) ?? "";
+	const configDirectory = segments.at(-5) ?? "";
 	return (
-		rootDirectory === CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY &&
-		sessionsDirectory === CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY &&
-		TEMPORARY_WORKSPACE_SESSION_ID_PATTERN.test(sessionId) &&
-		projectDirectory === CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY
+		configDirectory === CLINE_CONFIG_DIRECTORY_NAME &&
+		dataDirectory === CLINE_DATA_DIRECTORY_NAME &&
+		workspacesDirectory === CLINE_WORKSPACES_DIRECTORY_NAME &&
+		WORKSPACE_SESSION_ID_PATTERN.test(sessionId) &&
+		projectDirectory === CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME
 	);
 }

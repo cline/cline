@@ -108,7 +108,7 @@ describe("WorkspaceSelector", () => {
 
 	it("labels SDK temporary workspaces as New Project without listing the raw path", async () => {
 		const temporaryWorkspace =
-			"/tmp/cline/sessions/session-a1b2c3-temp/project";
+			"/home/host/.cline/data/workspaces/session-a1b2c3/project";
 		await act(async () => {
 			root.render(
 				<WorkspaceSelector

@@ -7,23 +7,19 @@ import {
 	readFileSync,
 	statSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { PluginManifest } from "..";
 import {
-	CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
-	CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
-	CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
-	CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+	CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
 } from "./temporary-workspace-paths";
 
 // Keep the structural pieces browser-safe while exposing them through the
-// canonical Node storage-path module alongside the os.tmpdir() resolver.
+// canonical Node storage-path module alongside the data-dir resolver.
 export {
-	CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
-	CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
-	CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX,
-	CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
+	CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
 	isTemporaryWorkspacePath,
 } from "./temporary-workspace-paths";
 
@@ -39,6 +35,12 @@ export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
 
+/**
+ * Workspace created for sessions started without a `cwd`/`workspaceRoot`.
+ * Lives under the cline data dir (not `os.tmpdir()`) so OS temp reapers never
+ * delete user work, the path is private to the user on multi-user hosts, and
+ * the directory shares the session store's lifecycle and env overrides.
+ */
 export function resolveTemporaryWorkspacePath(sessionId: string): string {
 	const normalizedSessionId = sessionId.trim();
 	if (!/^[A-Za-z0-9_-]+$/.test(normalizedSessionId)) {
@@ -47,11 +49,10 @@ export function resolveTemporaryWorkspacePath(sessionId: string): string {
 		);
 	}
 	return join(
-		tmpdir(),
-		CLINE_TEMPORARY_WORKSPACE_ROOT_DIRECTORY,
-		CLINE_TEMPORARY_WORKSPACE_SESSIONS_DIRECTORY,
-		`${normalizedSessionId}${CLINE_TEMPORARY_WORKSPACE_SESSION_DIRECTORY_SUFFIX}`,
-		CLINE_TEMPORARY_WORKSPACE_PROJECT_DIRECTORY,
+		resolveClineDataDir(),
+		CLINE_WORKSPACES_DIRECTORY_NAME,
+		normalizedSessionId,
+		CLINE_WORKSPACE_PROJECT_DIRECTORY_NAME,
 	);
 }
 

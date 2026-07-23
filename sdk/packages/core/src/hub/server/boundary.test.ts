@@ -107,7 +107,7 @@ describe("HubServerTransport boundaries", () => {
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
 				capturedStartInput = input;
 				const sessionId = input.config.sessionId?.trim() || "missing-session";
-				resolvedWorkspace = `/tmp/cline/sessions/${sessionId}-temp/project`;
+				resolvedWorkspace = `/home/host/.cline/data/workspaces/${sessionId}/project`;
 				return {
 					sessionId,
 					manifest: {

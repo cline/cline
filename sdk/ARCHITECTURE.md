@@ -151,9 +151,10 @@ event payload and `source` field.
 
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
-the hub-side execution host can create a temporary workspace on its own
+the hub-side execution host can create a workspace on its own
 filesystem at
-`<os.tmpdir()>/cline/sessions/<session-id>-temp/project`.
+`<cline-data-dir>/workspaces/<session-id>/project` (by default
+`~/.cline/data/workspaces/<session-id>/project`).
 The resolved paths are returned in the session snapshot and are the source of
 truth for client-side manifests; transport clients must not invent a local path
 for a remote runtime.

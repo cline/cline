@@ -136,8 +136,9 @@ describe("pathless session starts", () => {
 			return {
 				sessionId: "session-pathless",
 				manifest: {
-					cwd: "/tmp/cline/sessions/session-pathless-temp/project",
-					workspace_root: "/tmp/cline/sessions/session-pathless-temp/project",
+					cwd: "/home/host/.cline/data/workspaces/session-pathless/project",
+					workspace_root:
+						"/home/host/.cline/data/workspaces/session-pathless/project",
 				},
 				manifestPath: "/tmp/session-pathless.json",
 				messagesPath: "/tmp/session-pathless.messages.json",
@@ -163,12 +164,14 @@ describe("pathless session starts", () => {
 
 		expect(result).toEqual({
 			sessionId: "session-pathless",
-			cwd: "/tmp/cline/sessions/session-pathless-temp/project",
-			workspaceRoot: "/tmp/cline/sessions/session-pathless-temp/project",
+			cwd: "/home/host/.cline/data/workspaces/session-pathless/project",
+			workspaceRoot:
+				"/home/host/.cline/data/workspaces/session-pathless/project",
 		});
 		expect(ctx.liveSessions.get("session-pathless")?.config).toMatchObject({
-			cwd: "/tmp/cline/sessions/session-pathless-temp/project",
-			workspaceRoot: "/tmp/cline/sessions/session-pathless-temp/project",
+			cwd: "/home/host/.cline/data/workspaces/session-pathless/project",
+			workspaceRoot:
+				"/home/host/.cline/data/workspaces/session-pathless/project",
 		});
 	});
 });

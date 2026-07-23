@@ -168,6 +168,7 @@ describe("LocalRuntimeHost", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
 		CLINE_DIR: process.env.CLINE_DIR,
+		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
 	};
 	let isolatedHomeDir = "";
 
@@ -175,6 +176,7 @@ describe("LocalRuntimeHost", () => {
 		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
 		process.env.HOME = isolatedHomeDir;
 		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		delete process.env.CLINE_DATA_DIR;
 		setHomeDir(isolatedHomeDir);
 		setClineDir(process.env.CLINE_DIR);
 	});
@@ -182,6 +184,11 @@ describe("LocalRuntimeHost", () => {
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
 		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		if (envSnapshot.CLINE_DATA_DIR === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = envSnapshot.CLINE_DATA_DIR;
+		}
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });

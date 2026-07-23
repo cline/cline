@@ -155,7 +155,8 @@ describe("HubRuntimeHost", () => {
 
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
 		subscribeMock.mockReturnValue(() => {});
-		const resolvedWorkspace = "/tmp/cline/sessions/sess-pathless-temp/project";
+		const resolvedWorkspace =
+			"/home/host/.cline/data/workspaces/sess-pathless/project";
 		commandMock.mockResolvedValue({
 			payload: {
 				session: {

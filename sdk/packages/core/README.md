@@ -53,7 +53,8 @@ await cline.dispose();
 
 When both `cwd` and `workspaceRoot` are omitted, the execution host creates a
 workspace at
-`<os.tmpdir()>/cline/sessions/<session-id>-temp/project`.
+`<cline-data-dir>/workspaces/<session-id>/project` (by default
+`~/.cline/data/workspaces/<session-id>/project`).
 Read the resolved paths from `result.manifest.cwd` and
 `result.manifest.workspace_root`.
 

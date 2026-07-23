@@ -1,10 +1,11 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	isTemporaryWorkspacePath,
 	resolveTemporaryWorkspacePath,
 } from "@cline/shared/storage";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { StartSessionConfig } from "../../runtime/host/runtime-host";
 import {
 	createTemporaryWorkspace,
@@ -26,15 +27,39 @@ function createConfig(
 }
 
 describe("temporary session workspaces", () => {
-	it("creates the session workspace under the system temp directory", async () => {
+	let previousDataDir: string | undefined;
+	let isolatedDataDir: string;
+
+	beforeEach(async () => {
+		previousDataDir = process.env.CLINE_DATA_DIR;
+		isolatedDataDir = await mkdtemp(join(tmpdir(), "temp-workspace-test-"));
+		process.env.CLINE_DATA_DIR = isolatedDataDir;
+	});
+
+	afterEach(async () => {
+		if (previousDataDir === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = previousDataDir;
+		}
+		await rm(isolatedDataDir, { recursive: true, force: true });
+	});
+
+	it("creates the session workspace under the cline data directory", async () => {
 		const sessionId = "session-a1b2c3";
 		const workspace = await createTemporaryWorkspace(sessionId);
-		try {
-			expect(workspace).toBe(resolveTemporaryWorkspacePath(sessionId));
-			expect(isTemporaryWorkspacePath(workspace)).toBe(true);
-		} finally {
-			await rm(dirname(workspace), { recursive: true, force: true });
-		}
+		expect(workspace).toBe(resolveTemporaryWorkspacePath(sessionId));
+		expect(workspace).toBe(
+			join(isolatedDataDir, "workspaces", sessionId, "project"),
+		);
+	});
+
+	it("recognizes the default data-dir layout as a temporary workspace", () => {
+		expect(
+			isTemporaryWorkspacePath(
+				"/home/user/.cline/data/workspaces/session-a1b2c3/project",
+			),
+		).toBe(true);
 	});
 
 	it.each([
@@ -51,13 +76,9 @@ describe("temporary session workspaces", () => {
 		const sessionId = "session-resume";
 		const workspace = await createTemporaryWorkspace(sessionId);
 		const draftPath = join(workspace, "draft.txt");
-		try {
-			await writeFile(draftPath, "keep me");
-			expect(await createTemporaryWorkspace(sessionId)).toBe(workspace);
-			expect(await readFile(draftPath, "utf8")).toBe("keep me");
-		} finally {
-			await rm(dirname(workspace), { recursive: true, force: true });
-		}
+		await writeFile(draftPath, "keep me");
+		expect(await createTemporaryWorkspace(sessionId)).toBe(workspace);
+		expect(await readFile(draftPath, "utf8")).toBe("keep me");
 	});
 
 	it("uses one provided workspace path for both resolved fields", async () => {
@@ -87,12 +108,7 @@ describe("temporary session workspaces", () => {
 			createConfig(),
 			sessionId,
 		);
-		try {
-			expect(resolved.cwd).toBe(resolved.workspaceRoot);
-			expect(resolved.cwd).toBe(resolveTemporaryWorkspacePath(sessionId));
-			expect(isTemporaryWorkspacePath(resolved.cwd)).toBe(true);
-		} finally {
-			await rm(dirname(resolved.cwd), { recursive: true, force: true });
-		}
+		expect(resolved.cwd).toBe(resolved.workspaceRoot);
+		expect(resolved.cwd).toBe(resolveTemporaryWorkspacePath(sessionId));
 	});
 });
