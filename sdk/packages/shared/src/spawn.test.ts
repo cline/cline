@@ -169,14 +169,98 @@ describe("resolveShellFreeInvocation", () => {
 		});
 	});
 
-	it("returns undefined when a non-npx command has only a .cmd shim", () => {
+	it("returns undefined when a non-npx command has only a non-npm .cmd shim", () => {
 		expect(
 			resolveShellFreeInvocation("uv", ["run"], {
 				platform: "win32",
 				env: { Path: "C:\\Tools" },
 				execPath: "C:\\Apps\\cline.exe",
+				// A .cmd that is not an npm-generated node shim: no rewrite possible.
 				fileExists: (path) => path === "C:\\Tools\\uv.cmd",
+				readTextFile: () => "@echo off\r\nuv-native %*\r\n",
 			}),
 		).toBeUndefined();
+	});
+
+	// Verbatim body of an npm-global `cline.cmd` (node.exe not beside the shim).
+	const CLINE_CMD = [
+		"@ECHO off",
+		"GOTO start",
+		":find_dp0",
+		"SET dp0=%~dp0",
+		"EXIT /b",
+		":start",
+		"SETLOCAL",
+		"CALL :find_dp0",
+		'IF EXIST "%dp0%\\node.exe" (',
+		'  SET "_prog=%dp0%\\node.exe"',
+		") ELSE (",
+		'  SET "_prog=node"',
+		"  SET PATHEXT=%PATHEXT:;.JS;=;%",
+		")",
+		'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\cline\\bin\\cline" %*',
+	].join("\r\n");
+
+	it("rewrites an npm-global cline.cmd shim to node + its bin script", () => {
+		const nodePath = "C:\\Program Files\\nodejs\\node.exe";
+		const shimPath = "C:\\Users\\me\\AppData\\Roaming\\npm\\cline.cmd";
+		const scriptPath =
+			"C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\cline\\bin\\cline";
+		const existing = new Set([nodePath, shimPath, scriptPath]);
+
+		expect(
+			resolveShellFreeInvocation("cline", ["mcp", "install", "mongodb"], {
+				platform: "win32",
+				env: {
+					Path: "C:\\Program Files\\nodejs;C:\\Users\\me\\AppData\\Roaming\\npm",
+				},
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+				readTextFile: () => CLINE_CMD,
+			}),
+		).toEqual({
+			command: nodePath,
+			args: [scriptPath, "mcp", "install", "mongodb"],
+		});
+	});
+
+	// npm bin-linking shim for a package's CLI, node.exe beside the shim
+	// (the `%~dp0`-relative layout, as under a Node install's node_modules/.bin).
+	const TOOL_CMD = [
+		"@ECHO off",
+		"GOTO start",
+		":find_dp0",
+		"SET dp0=%~dp0",
+		"EXIT /b",
+		":start",
+		"SETLOCAL",
+		"CALL :find_dp0",
+		'IF EXIST "%dp0%\\node.exe" (',
+		'  SET "_prog=%dp0%\\node.exe"',
+		") ELSE (",
+		'  SET "_prog=node"',
+		")",
+		'"%_prog%"  "%dp0%\\node_modules\\some-tool\\cli.js" %*',
+	].join("\r\n");
+
+	it("rewrites a generic npm .cmd shim to node + its script", () => {
+		const dir = "C:\\Program Files\\nodejs";
+		const nodePath = `${dir}\\node.exe`;
+		const shimPath = `${dir}\\some-tool.cmd`;
+		const scriptPath = `${dir}\\node_modules\\some-tool\\cli.js`;
+		const existing = new Set([nodePath, shimPath, scriptPath]);
+
+		expect(
+			resolveShellFreeInvocation("some-tool", ["run", "arg<1"], {
+				platform: "win32",
+				env: { Path: dir },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+				readTextFile: () => TOOL_CMD,
+			}),
+		).toEqual({
+			command: nodePath,
+			args: [scriptPath, "run", "arg<1"],
+		});
 	});
 });

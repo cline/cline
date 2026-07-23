@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { win32 } from "node:path";
 
 // Shell-free process launching for Windows.
@@ -30,6 +30,8 @@ export interface ResolveWindowsSpawnOptions {
 	env?: NodeJS.ProcessEnv;
 	execPath?: string;
 	fileExists?: (path: string) => boolean;
+	/** Reads a `.cmd` shim's contents; injectable for tests. */
+	readTextFile?: (path: string) => string;
 }
 
 function normalizeWindowsPathEntry(value: string): string {
@@ -69,6 +71,22 @@ function getWindowsPathDirectories(
 	]);
 }
 
+function resolveWindowsNodePath(
+	env: NodeJS.ProcessEnv,
+	execPath: string,
+	fileExists: (path: string) => boolean,
+): string | undefined {
+	// The running process is the most trustworthy node.exe when it is one.
+	const execIsNode = win32.basename(execPath).toLowerCase() === "node.exe";
+	const nodeCandidates = uniqueWindowsPaths([
+		...(execIsNode ? [execPath] : []),
+		...getWindowsPathDirectories(env, execPath).map((directory) =>
+			win32.join(directory, "node.exe"),
+		),
+	]);
+	return nodeCandidates.find(fileExists);
+}
+
 /**
  * Resolve a shell-free `npx` invocation.
  *
@@ -92,16 +110,8 @@ export function resolveNpxInvocation(
 	const env = options.env ?? process.env;
 	const execPath = options.execPath ?? process.execPath;
 	const fileExists = options.fileExists ?? existsSync;
-	const execDirectory =
-		win32.basename(execPath).toLowerCase() === "node.exe"
-			? win32.dirname(execPath)
-			: undefined;
 	const directories = getWindowsPathDirectories(env, execPath);
-	const nodeCandidates = uniqueWindowsPaths([
-		...(execDirectory ? [execPath] : []),
-		...directories.map((directory) => win32.join(directory, "node.exe")),
-	]);
-	const nodePath = nodeCandidates.find(fileExists);
+	const nodePath = resolveWindowsNodePath(env, execPath, fileExists);
 
 	const npmExecPath = env.npm_execpath?.trim();
 	if (
@@ -193,14 +203,77 @@ export function resolveWindowsExecutable(
 	return undefined;
 }
 
+function findWindowsCmdShim(
+	command: string,
+	env: NodeJS.ProcessEnv,
+	execPath: string,
+	fileExists: (path: string) => boolean,
+): string | undefined {
+	if (command.includes("/") || command.includes("\\")) {
+		return command.toLowerCase().endsWith(".cmd") && fileExists(command)
+			? command
+			: undefined;
+	}
+	if (win32.extname(command)) return undefined;
+	for (const directory of getWindowsPathDirectories(env, execPath)) {
+		const candidate = win32.join(directory, `${command}.cmd`);
+		if (fileExists(candidate)) return candidate;
+	}
+	return undefined;
+}
+
+/**
+ * Rewrite an npm-generated `.cmd` shim to the `node <script>` invocation it runs
+ * internally, so we can launch its target directly instead of through cmd.exe.
+ *
+ * npm's shims (both the `npx.cmd` and the `cline.cmd`/`node-gyp`-style layouts)
+ * ultimately execute `"<node>" "<%~dp0%-relative script>" %*`. We parse the shim
+ * to recover that `%~dp0`-relative script, resolve it against the shim's own
+ * directory (mirroring `%~dp0`), and pair it with a real `node.exe`. Returns
+ * `undefined` for any shim that does not match this shape.
+ */
+function resolveCmdShimInvocation(
+	shimPath: string,
+	nodePath: string | undefined,
+	extraArgs: readonly string[],
+	fileExists: (path: string) => boolean,
+	readTextFile: (path: string) => string,
+): ShellFreeInvocation | undefined {
+	if (!nodePath) return undefined;
+	let contents: string;
+	try {
+		contents = readTextFile(shimPath);
+	} catch {
+		return undefined;
+	}
+	const shimDir = win32.dirname(shimPath);
+	// Match the script argument in `... "%~dp0\<script>" %*` or the
+	// `"%dp0%\<script>"` variable-indirection form both npm layouts emit. A shim
+	// also references `"%~dp0\node.exe"` with the same prefix, so skip any match
+	// that resolves to node.exe itself and keep the first script that exists.
+	const scriptPattern = /"%~?dp0%?[\\/]+([^"]+?)"\s+%\*/g;
+	let match: RegExpExecArray | null = scriptPattern.exec(contents);
+	while (match) {
+		const relative = match[1].replace(/[\\/]+/g, win32.sep);
+		if (!/node\.exe$/i.test(relative)) {
+			const scriptPath = win32.join(shimDir, relative);
+			if (fileExists(scriptPath)) {
+				return { command: nodePath, args: [scriptPath, ...extraArgs] };
+			}
+		}
+		match = scriptPattern.exec(contents);
+	}
+	return undefined;
+}
+
 /**
  * Resolve any `(command, args)` pair to a shell-free invocation.
  *
- * `npx` is special-cased to npm's Node CLI resolution; every other command is
- * resolved to a directly-spawnable executable. On non-Windows platforms the
- * pair passes through unchanged. Returns `undefined` when the command cannot be
- * launched without a shell, so callers must fail with a clear message rather
- * than fall back to `shell: true`.
+ * `npx` is special-cased to npm's Node CLI resolution. Other commands resolve to
+ * a directly-spawnable executable; failing that, an npm-generated `.cmd` shim is
+ * rewritten to the `node <script>` invocation it wraps so it too runs without a
+ * shell. On non-Windows platforms the pair passes through unchanged. Returns
+ * `undefined` only when the command can be launched exclusively through a shell.
  */
 export function resolveShellFreeInvocation(
 	command: string,
@@ -215,5 +288,27 @@ export function resolveShellFreeInvocation(
 		return resolveNpxInvocation(args, options);
 	}
 	const executable = resolveWindowsExecutable(command, options);
-	return executable ? { command: executable, args: [...args] } : undefined;
+	if (executable) {
+		return { command: executable, args: [...args] };
+	}
+	// No directly-spawnable .exe: if the command is an npm-generated .cmd shim,
+	// run the `node <script>` invocation it wraps so it still avoids cmd.exe.
+	const env = options.env ?? process.env;
+	const execPath = options.execPath ?? process.execPath;
+	const fileExists = options.fileExists ?? existsSync;
+	const readTextFile = options.readTextFile ?? readFileSyncUtf8;
+	const shimPath = findWindowsCmdShim(command, env, execPath, fileExists);
+	if (!shimPath) return undefined;
+	const nodePath = resolveWindowsNodePath(env, execPath, fileExists);
+	return resolveCmdShimInvocation(
+		shimPath,
+		nodePath,
+		args,
+		fileExists,
+		readTextFile,
+	);
+}
+
+function readFileSyncUtf8(path: string): string {
+	return readFileSync(path, "utf8");
 }
