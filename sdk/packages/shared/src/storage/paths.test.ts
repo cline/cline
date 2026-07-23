@@ -29,6 +29,8 @@ type EnvSnapshot = {
 	CLINE_CONNECTOR_SETTINGS_PATH: string | undefined;
 	CLINE_DB_DATA_DIR: string | undefined;
 	CLINE_GLOBAL_SETTINGS_PATH: string | undefined;
+	CLINE_ENVIRONMENT: string | undefined;
+	CLINE_ENVIRONMENT_OVERRIDE: string | undefined;
 	CLINE_MCP_SETTINGS_PATH: string | undefined;
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
@@ -43,6 +45,8 @@ function captureEnv(): EnvSnapshot {
 		CLINE_CONNECTOR_SETTINGS_PATH: process.env.CLINE_CONNECTOR_SETTINGS_PATH,
 		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
 		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
+		CLINE_ENVIRONMENT: process.env.CLINE_ENVIRONMENT,
+		CLINE_ENVIRONMENT_OVERRIDE: process.env.CLINE_ENVIRONMENT_OVERRIDE,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
@@ -58,6 +62,8 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DIR = snapshot.CLINE_DIR;
 	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
+	process.env.CLINE_ENVIRONMENT = snapshot.CLINE_ENVIRONMENT;
+	process.env.CLINE_ENVIRONMENT_OVERRIDE = snapshot.CLINE_ENVIRONMENT_OVERRIDE;
 	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
 	process.env.CLINE_PROVIDER_SETTINGS_PATH =
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
@@ -137,11 +143,46 @@ describe("storage path resolution", () => {
 	it("falls back to CLINE_DATA_DIR/settings/providers.json for provider settings", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_PROVIDER_SETTINGS_PATH;
+		delete process.env.CLINE_ENVIRONMENT;
+		delete process.env.CLINE_ENVIRONMENT_OVERRIDE;
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 
 		expect(resolveProviderSettingsPath()).toBe(
 			join("/tmp/cline-data", "settings", "providers.json"),
 		);
+	});
+
+	it("resolves staging provider settings as a full replacement file", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_PROVIDER_SETTINGS_PATH;
+		delete process.env.CLINE_ENVIRONMENT_OVERRIDE;
+		process.env.CLINE_ENVIRONMENT = "staging";
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveProviderSettingsPath()).toBe(
+			join("/tmp/cline-data", "settings", "providers.staging.json"),
+		);
+	});
+
+	it("resolves local provider settings as a full replacement file", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_PROVIDER_SETTINGS_PATH;
+		delete process.env.CLINE_ENVIRONMENT_OVERRIDE;
+		process.env.CLINE_ENVIRONMENT = "local";
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveProviderSettingsPath()).toBe(
+			join("/tmp/cline-data", "settings", "providers.local.json"),
+		);
+	});
+
+	it("keeps explicit provider settings path precedence over environment", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_PROVIDER_SETTINGS_PATH = "/tmp/custom-providers.json";
+		process.env.CLINE_ENVIRONMENT = "staging";
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveProviderSettingsPath()).toBe("/tmp/custom-providers.json");
 	});
 
 	it("falls back to CLINE_DATA_DIR/settings/global-settings.json for global settings", () => {
