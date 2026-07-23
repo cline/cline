@@ -16,6 +16,12 @@ vi.mock("@cline/core", () => ({
 const telemetryState = vi.hoisted(() => ({
 	clineTelemetrySetting: "unset" as string | undefined,
 	hostSetting: 1,
+	hostVersion: {
+		platform: "VS Code",
+		version: "1.103.0",
+		clineType: "VSCode Extension",
+	} as { platform: string; version: string; clineType: string; clineVersion?: string },
+	hostVersionError: undefined as Error | undefined,
 	subscribeCallback: undefined as ((event: { isEnabled: number }) => void) | undefined,
 	unsubscribe: vi.fn(),
 }))
@@ -33,6 +39,12 @@ vi.mock("@/hosts/host-provider", () => ({
 	HostProvider: {
 		env: {
 			getTelemetrySettings: vi.fn(async () => ({ isEnabled: telemetryState.hostSetting })),
+			getHostVersion: vi.fn(async () => {
+				if (telemetryState.hostVersionError) {
+					throw telemetryState.hostVersionError
+				}
+				return telemetryState.hostVersion
+			}),
 			subscribeToTelemetrySettings: vi.fn((_request, callbacks: { onResponse: (event: { isEnabled: number }) => void }) => {
 				telemetryState.subscribeCallback = callbacks.onResponse
 				return telemetryState.unsubscribe
@@ -47,6 +59,12 @@ describe("VscodeTelemetryPolicyService", () => {
 	beforeEach(() => {
 		telemetryState.clineTelemetrySetting = "unset"
 		telemetryState.hostSetting = Setting.ENABLED
+		telemetryState.hostVersion = {
+			platform: "VS Code",
+			version: "1.103.0",
+			clineType: "VSCode Extension",
+		}
+		telemetryState.hostVersionError = undefined
 		telemetryState.subscribeCallback = undefined
 		telemetryState.unsubscribe.mockReset()
 		coreTelemetryMocks.createConfig.mockClear()
@@ -156,6 +174,49 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.recordCounter).toHaveBeenCalledWith("required", 1, undefined, undefined, true)
 	})
 
+	it("applies host_plugin_version metadata before enabling events when the host reports one", async () => {
+		telemetryState.hostVersion = {
+			platform: "IntelliJ IDEA Ultimate",
+			version: "2026.1.1",
+			clineType: "Cline for JetBrains",
+			clineVersion: "1.1.61",
+		}
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
+		service.capture({ event: "task.created" })
+
+		expect(handle.telemetry.updateMetadata).toHaveBeenCalledWith({ host_plugin_version: "1.1.61" })
+		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
+		const updateOrder = handle.telemetry.updateMetadata.mock.invocationCallOrder[0]
+		const captureOrder = handle.telemetry.capture.mock.invocationCallOrder[0]
+		expect(updateOrder).toBeLessThan(captureOrder)
+	})
+
+	it("omits host_plugin_version metadata when the host does not report one", async () => {
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
+		service.capture({ event: "task.created" })
+
+		expect(handle.telemetry.updateMetadata).not.toHaveBeenCalled()
+		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
+	})
+
+	it("still enables telemetry when the host version lookup fails", async () => {
+		telemetryState.hostVersionError = new Error("host bridge unavailable")
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
+		service.capture({ event: "task.created" })
+
+		expect(handle.telemetry.updateMetadata).not.toHaveBeenCalled()
+		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
+	})
+
 	it("always forwards metadata mutators and cleans up on dispose", async () => {
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
@@ -196,10 +257,12 @@ type MockTelemetry = ITelemetryService & {
 	capture: ITelemetryService["capture"] & Mock<ITelemetryService["capture"]>
 	captureRequired: ITelemetryService["captureRequired"] & Mock<ITelemetryService["captureRequired"]>
 	recordCounter: ITelemetryService["recordCounter"] & Mock<ITelemetryService["recordCounter"]>
+	updateMetadata: ITelemetryService["updateMetadata"] & Mock<ITelemetryService["updateMetadata"]>
 	updateCommonProperties: ITelemetryService["updateCommonProperties"] & Mock<ITelemetryService["updateCommonProperties"]>
 }
 
 async function settlePromises(): Promise<void> {
-	await Promise.resolve()
-	await Promise.resolve()
+	for (let i = 0; i < 6; i++) {
+		await Promise.resolve()
+	}
 }

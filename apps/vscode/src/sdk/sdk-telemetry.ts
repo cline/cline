@@ -146,9 +146,14 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	}
 
 	private initializeHostTelemetryState(): void {
-		HostProvider.env
-			.getTelemetrySettings({})
-			.then((settings) => {
+		// Resolve host-derived metadata together with the telemetry setting and apply
+		// it first: events stay gated until the setting is applied, so this ordering
+		// guarantees no event is emitted before host_plugin_version is in place.
+		Promise.all([this.resolveHostPluginVersion(), HostProvider.env.getTelemetrySettings({})])
+			.then(([hostPluginVersion, settings]) => {
+				if (hostPluginVersion) {
+					this.handle.telemetry.updateMetadata({ host_plugin_version: hostPluginVersion })
+				}
 				this.applyHostTelemetrySetting(settings.isEnabled)
 			})
 			.catch((error) => {
@@ -169,6 +174,16 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 			)
 		} catch (error) {
 			Logger.warn("[SdkTelemetry] Failed to subscribe to host telemetry changes", error)
+		}
+	}
+
+	private async resolveHostPluginVersion(): Promise<string | undefined> {
+		try {
+			const hostVersion = await HostProvider.env.getHostVersion({})
+			return hostVersion.clineVersion || undefined
+		} catch (error) {
+			Logger.warn("[SdkTelemetry] Failed to resolve host version for telemetry metadata", error)
+			return undefined
 		}
 	}
 
