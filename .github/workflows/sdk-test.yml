@@ -9,8 +9,6 @@ on:
             - ".github/workflows/sdk-test.yml"
     workflow_dispatch:
     pull_request:
-        branches:
-            - main
         paths:
             - "sdk/**"
             - ".github/workflows/sdk-test.yml"
@@ -49,6 +47,9 @@ jobs:
 
             - name: Verify committed UI artifacts
               run: test -z "$(git status --porcelain --untracked-files=all -- sdk/packages/ui/dist sdk/packages/ui/theme/tokens.css sdk/packages/ui/theme/scoped-tokens.css)"
+
+            - name: Verify packed UI package
+              run: bun -F @cline/ui test:package
 
             - name: Lint & Format
               run: bun run lint

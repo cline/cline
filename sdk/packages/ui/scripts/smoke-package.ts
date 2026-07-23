@@ -10,19 +10,49 @@ import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
-const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
-const markdown = import.meta.resolve("@cline/ui/components/markdown.css");
-const scopedTokens = import.meta.resolve("@cline/ui/theme/scoped-tokens.css");
-const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
-if (!Conversation || !Message || !css || !markdown || !scopedTokens || !tokens) process.exit(1);
-const entry = fileURLToPath(import.meta.resolve("@cline/ui/components/agent-chat"));
-const sourceMapPath = entry + ".map";
-const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
-if (!sourceMap.sources.every((source) => existsSync(resolve(dirname(sourceMapPath), source)))) process.exit(1);
+
+if (!Conversation || !Message) process.exit(1);
+
+for (const specifier of [
+	"@cline/ui/components/agent-chat.css",
+	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/scoped-tokens.css",
+	"@cline/ui/theme/tokens.css",
+]) {
+	const resolved = fileURLToPath(import.meta.resolve(specifier));
+	if (!existsSync(resolved)) process.exit(1);
+}
+
+const packageRoot = dirname(
+	fileURLToPath(import.meta.resolve("@cline/ui/package.json")),
+);
+const maps = [];
+const pending = [join(packageRoot, "dist")];
+while (pending.length > 0) {
+	const directory = pending.pop();
+	for (const entry of readdirSync(directory, { withFileTypes: true })) {
+		const target = join(directory, entry.name);
+		if (entry.isDirectory()) pending.push(target);
+		else if (entry.name.endsWith(".map")) maps.push(target);
+	}
+}
+if (maps.length === 0) process.exit(1);
+for (const sourceMapPath of maps) {
+	const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
+	if (
+		!Array.isArray(sourceMap.sources) ||
+		sourceMap.sources.length === 0 ||
+		!sourceMap.sources.every((source) =>
+			existsSync(resolve(dirname(sourceMapPath), source)),
+		)
+	) {
+		process.exit(1);
+	}
+}
 `;
 
 async function run(command: string[], cwd: string): Promise<void> {
