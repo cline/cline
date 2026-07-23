@@ -112,6 +112,51 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("filters scheduled sessions without changing their titles", async () => {
+		const scheduled = {
+			...makeThread("scheduled", 1),
+			source: "hub-schedule",
+		};
+		const regular = makeThread("regular", 1);
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						isHomeActive
+						onHome={vi.fn()}
+						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([scheduled, regular], vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(sessionIsVisible("scheduled session 1")).toBe(true);
+		expect(container.textContent).not.toContain("(schedule)");
+
+		await click(
+			container.querySelector('[aria-label="Filter sessions"]') as Element,
+		);
+		expect(document.body.textContent).not.toContain("Recent");
+		const schedulesOption = await vi.waitFor(() => {
+			const option = [
+				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+			].find((candidate) => candidate.textContent?.includes("Schedules"));
+			expect(option).toBeDefined();
+			return option as HTMLElement;
+		});
+		await click(schedulesOption);
+
+		expect(sessionIsVisible("scheduled session 1")).toBe(true);
+		expect(sessionIsVisible("regular session 1")).toBe(false);
+	});
+
 	it("builds the hover overview with branch and secondary metadata last", () => {
 		const thread = {
 			...makeThread("cline", 5),
@@ -123,7 +168,7 @@ describe("AgentSidebar session organization", () => {
 
 		expect(getSessionOverviewItems(thread)).toEqual([
 			["Workspace", "cline", "/projects/cline"],
-			["Git branch", "bee/session-overview"],
+			["Branch", "bee/session-overview"],
 			["Provider", "cline"],
 			["Model", "test-model"],
 			["Tokens", "3009k"],
@@ -132,7 +177,7 @@ describe("AgentSidebar session organization", () => {
 			["Updated", "5m"],
 		]);
 		expect(getSessionOverviewItems(makeThread("cline", 5))).not.toContainEqual([
-			"Git branch",
+			"Branch",
 			expect.anything(),
 		]);
 		expect(

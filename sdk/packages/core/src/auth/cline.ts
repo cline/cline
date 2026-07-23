@@ -806,12 +806,15 @@ export async function getValidClineCredentials(
 		return await refreshClineToken(currentCredentials, providerOptions);
 	} catch (error) {
 		const authTelemetryDetails = getAuthTelemetryDetails(currentCredentials);
+		const requestIdDetails =
+			error instanceof ClineOAuthTokenError && error.requestId
+				? { request_id: error.requestId }
+				: {};
 		const failureDetails = {
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
-			request_id:
-				error instanceof ClineOAuthTokenError ? error.requestId : undefined,
+			...requestIdDetails,
 			...authTelemetryDetails,
 			errorName: error instanceof Error ? error.name : undefined,
 		};
@@ -826,7 +829,7 @@ export async function getValidClineCredentials(
 				{
 					status: error.status,
 					errorCode: error.errorCode,
-					request_id: error.requestId,
+					...requestIdDetails,
 					...authTelemetryDetails,
 				},
 			);
