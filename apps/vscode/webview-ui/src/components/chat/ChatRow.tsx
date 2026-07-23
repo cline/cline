@@ -149,7 +149,14 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
+		const {
+			backgroundCommandRunning,
+			backgroundEditEnabled,
+			mcpServers,
+			vscodeTerminalExecutionMode,
+			clineMessages,
+			showFeatureTips,
+		} =
 			useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -211,11 +218,27 @@ export const ChatRowContent = memo(
 		const isCommandMessage = type === "command"
 		// Check if command has output to determine if it's actually executing
 		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
-		// A command is executing if it has output but hasn't completed yet
-		const isCommandExecuting = isCommandMessage && !message.commandCompleted && commandHasOutput
-		// A command is pending if it hasn't started (no output) and hasn't completed
-		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
+		const isCommandPending =
+			isCommandMessage &&
+			!isCommandCompleted &&
+			message.type === "ask" &&
+			isLast &&
+			!commandHasOutput &&
+			!backgroundCommandRunning &&
+			!message.partial
+		const isCommandExecuting =
+			isCommandMessage &&
+			!isCommandCompleted &&
+			!isCommandPending &&
+			(commandHasOutput || message.partial === true || (isLast && backgroundCommandRunning === true))
+		const commandTitle = isCommandCompleted
+			? "Cline executed this command:"
+			: isCommandPending
+				? "Cline wants to execute this command:"
+				: isCommandExecuting
+					? "Cline is executing this command:"
+					: "Cline did not execute this command:"
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
@@ -309,7 +332,7 @@ export const ChatRowContent = memo(
 				case "command":
 					return [
 						<TerminalIcon className="text-foreground size-2" />,
-						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
+						<span className="font-bold text-foreground">{commandTitle}</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -345,8 +368,7 @@ export const ChatRowContent = memo(
 			type,
 			cost,
 			apiRequestFailedMessage,
-			isCommandExecuting,
-			isCommandPending,
+			commandTitle,
 			apiReqCancelReason,
 			isMcpServerResponding,
 			message.text,
