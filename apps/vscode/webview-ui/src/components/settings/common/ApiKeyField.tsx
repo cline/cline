@@ -23,7 +23,7 @@ export const ApiKeyField = ({
 	onChange,
 	providerName,
 	signupUrl,
-	placeholder = "Enter API Key...",
+	placeholder = "输入 API 密钥...",
 	helpText,
 	label = `${providerName} API Key`,
 }: ApiKeyFieldProps) => {

@@ -757,7 +757,7 @@ const McpManagementPanel = ({
 }) => {
 	const { mcpServers, navigateToSettings, remoteConfigSettings } = useExtensionState()
 	const [showAddRemote, setShowAddRemote] = useState(false)
-	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
+	const showRemoteServers = remoteConfigSettings?.block个人RemoteMCPServers !== true
 	const hasRemoteMCPServers = remoteConfigSettings?.remoteMCPServers && remoteConfigSettings.remoteMCPServers.length > 0
 
 	return (

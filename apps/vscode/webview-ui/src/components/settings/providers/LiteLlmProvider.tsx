@@ -107,7 +107,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					{isStale && <div role="status">Model list may be stale for the current LiteLLM configuration.</div>}
 					{error && <div role="alert">{error}</div>}
 					<ModelAutocomplete
-						label="Model"
+						label="模型"
 						models={models}
 						onChange={handleModelChange}
 						placeholder="Search or enter a custom model ID..."

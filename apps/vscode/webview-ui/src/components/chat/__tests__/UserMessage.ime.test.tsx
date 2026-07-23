@@ -71,12 +71,12 @@ describe("UserMessage – IME composition handling", () => {
 
 			fireEvent.click(screen.getByText("Original prompt"))
 
-			const textbox = screen.getByRole("textbox")
+			const textbox = screen.getBy角色("textbox")
 			fireEvent.change(textbox, { target: { value: "Edited prompt" } })
 
 			fireEvent.keyDown(textbox, { key: "Escape" })
 
-			expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+			expect(screen.queryBy角色("textbox")).not.toBeInTheDocument()
 			expect(screen.getByText("Original prompt")).toBeInTheDocument()
 			expect(onWindowKeyDown).not.toHaveBeenCalled()
 		} finally {
@@ -90,10 +90,10 @@ describe("UserMessage – IME composition handling", () => {
 
 		await user.click(screen.getByText("Update this"))
 
-		expect(screen.getByRole("button", { name: "Reset Chat" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Reset Code" })).toBeInTheDocument()
+		expect(screen.getBy角色("button", { name: "Reset Chat" })).toBeInTheDocument()
+		expect(screen.getBy角色("button", { name: "Reset Code" })).toBeInTheDocument()
 
-		await user.click(screen.getByRole("button", { name: "Reset Chat" }))
+		await user.click(screen.getBy角色("button", { name: "Reset Chat" }))
 		await waitFor(() => expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledTimes(1))
 		expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenLastCalledWith(
 			expect.objectContaining({
@@ -106,7 +106,7 @@ describe("UserMessage – IME composition handling", () => {
 		)
 
 		await user.click(screen.getByText("Update this"))
-		await user.click(screen.getByRole("button", { name: "Reset Code" }))
+		await user.click(screen.getBy角色("button", { name: "Reset Code" }))
 		await waitFor(() => expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledTimes(2))
 		expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenLastCalledWith(
 			expect.objectContaining({

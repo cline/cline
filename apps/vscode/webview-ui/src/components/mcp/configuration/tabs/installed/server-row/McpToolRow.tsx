@@ -1,6 +1,6 @@
 import { McpTool } from "@shared/mcp"
 import { ToggleToolAutoApproveRequest } from "@shared/proto/cline/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-服务器-conversion"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"

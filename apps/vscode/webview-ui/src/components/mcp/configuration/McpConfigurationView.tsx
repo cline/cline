@@ -1,7 +1,7 @@
 import { McpViewTab } from "@shared/mcp"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-服务器-conversion"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -17,7 +17,7 @@ type McpViewProps = {
 
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	const { remoteConfigSettings, setMcpServers, environment } = useExtensionState()
-	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
+	const showRemoteServers = remoteConfigSettings?.block个人RemoteMCPServers !== true
 	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || "configure")
 
 	const handleTabChange = (tab: McpViewTab) => {

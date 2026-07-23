@@ -72,7 +72,7 @@ export const QwenCodeProvider = ({ showModelOptions, isPopup, currentMode }: Qwe
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={models}
 						onChange={(modelId) => {
 							const fieldName = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"

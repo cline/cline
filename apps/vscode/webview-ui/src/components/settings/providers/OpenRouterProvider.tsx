@@ -81,7 +81,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 				<DebouncedTextField
 					initialValue={savedApiKeyMask}
 					onChange={handleApiKeyChange}
-					placeholder="Enter API Key..."
+					placeholder="输入 API 密钥..."
 					style={{ width: "100%" }}
 					type="password">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>

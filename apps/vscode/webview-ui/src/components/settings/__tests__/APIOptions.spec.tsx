@@ -83,7 +83,7 @@ describe("ApiOptions Component", () => {
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		const apiKeyInput = screen.getByPlaceholderText("输入 API 密钥...")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
@@ -93,7 +93,7 @@ describe("ApiOptions Component", () => {
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const modelIdInput = screen.getByPlaceholderText("Search and select a model...")
+		const modelIdInput = screen.getByPlaceholderText("搜索并选择模型...")
 		expect(modelIdInput).toBeInTheDocument()
 	})
 

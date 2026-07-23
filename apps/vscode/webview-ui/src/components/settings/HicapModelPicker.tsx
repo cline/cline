@@ -179,7 +179,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder="搜索并选择模型..."
 						role="combobox"
 						style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX }}
 						value={searchTerm}>

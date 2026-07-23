@@ -224,7 +224,7 @@ export function insertSlashCommand(
 
 /**
  * Determines the validation state of a slash command
- * Returns partial if we have a partial match against valid commands, or full for full match
+ * 返回 partial if we have a partial match against valid commands, or full for full match
  */
 export function validateSlashCommand(
 	command: string,

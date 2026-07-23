@@ -6,7 +6,7 @@ import {
 	ToggleToolAutoApproveRequest,
 	UpdateMcpTimeoutRequest,
 } from "@shared/proto/cline/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-服务器-conversion"
 import {
 	VSCodeCheckbox,
 	VSCodeDropdown,

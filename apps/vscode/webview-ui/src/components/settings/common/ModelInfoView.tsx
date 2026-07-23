@@ -126,7 +126,7 @@ const formatCompactContext = (contextWindow: number | undefined): string => {
 }
 
 /**
- * Returns an array of formatted tier strings
+ * 返回 an array of formatted tier strings
  */
 const formatTiers = (
 	tiers: ModelInfo["tiers"],

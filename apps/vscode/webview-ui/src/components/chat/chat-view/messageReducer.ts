@@ -67,7 +67,7 @@ function resetTo(epoch: number, messages: ClineMessage[], stateVersion: number, 
 /**
  * Apply a TurnState update, gated by `seq`. The replica keeps the highest-seq TurnState and
  * ignores older ones, so a late/out-of-order "streaming" can never overwrite a newer
- * "completed" (and vice-versa). Returns the same state when ignored.
+ * "completed" (and vice-versa). 返回 the same state when ignored.
  */
 export function applyTurnState(state: ReplicaState, incoming: TurnState | undefined): ReplicaState {
 	if (!incoming) {
@@ -81,7 +81,7 @@ export function applyTurnState(state: ReplicaState, incoming: TurnState | undefi
 
 /**
  * Apply one incoming ClineMessage (from the partial-message stream OR from within a state
- * snapshot). Returns the same state object when the message is stale/ignored, or a new state
+ * snapshot). 返回 the same state object when the message is stale/ignored, or a new state
  * when it changes the transcript.
  *
  * Rules:

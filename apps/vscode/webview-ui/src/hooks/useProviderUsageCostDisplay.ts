@@ -8,7 +8,7 @@ import { useProviderListings } from "./useProviderListings"
  * `apps/vscode/src/sdk/model-catalog/catalog.ts`) and is propagated
  * through the `ProviderListing.usage_cost_display` gRPC field.
  *
- * Returns `"hide"` when the SDK reports a subscription-style provider
+ * 返回 `"hide"` when the SDK reports a subscription-style provider
  * whose per-token / total cost displays should be suppressed (matches
  * the CLI's `shouldShowCliUsageCost` consumer in `sdk/apps/cli`). Falls
  * back to `"show"` while the listings are still loading or for any

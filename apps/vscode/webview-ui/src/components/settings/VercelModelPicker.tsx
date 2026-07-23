@@ -220,7 +220,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder="搜索并选择模型..."
 						role="combobox"
 						style={{
 							width: "100%",
@@ -292,7 +292,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 									: undefined
 							}
-							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							label={showAdaptiveThinkingEffort ? "自适应思考" : undefined}
 						/>
 					)}
 

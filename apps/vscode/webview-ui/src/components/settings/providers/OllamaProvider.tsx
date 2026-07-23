@@ -95,7 +95,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 		<div className="flex flex-col gap-2">
 			<BaseUrlField
 				initialValue={ollamaBaseUrl}
-				label="Use custom base URL"
+				label="使用自定义基础 URL"
 				onChange={handleBaseUrlChange}
 				placeholder="Default: http://localhost:11434"
 			/>
@@ -126,7 +126,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						modelInfo: { ...ollamaModelInfo, name: trimmedModelId },
 					}).catch((error) => console.error("Failed to update Ollama model selection:", error))
 				}}
-				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
+				placeholder={ollamaModels.length > 0 ? "搜索并选择模型..." : "e.g. llama3.1"}
 				selectedModelId={selectedModel.modelId || ""}
 			/>
 

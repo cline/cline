@@ -142,7 +142,7 @@ class ImagePreview extends React.Component<
 		console.log(`Image failed to load: ${this.props.url}`)
 		this.setState({
 			loading: false,
-			error: `Failed to load image: ${this.props.url}`,
+			error: `加载图片失败: ${this.props.url}`,
 		})
 		this.cleanup()
 	}
@@ -244,7 +244,7 @@ class ImagePreview extends React.Component<
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
 					}}>
-					<div style={{ fontWeight: "bold" }}>Failed to load image</div>
+					<div style={{ fontWeight: "bold" }}>加载图片失败</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
 						Click to open in browser

@@ -306,7 +306,7 @@ export function findReasoningForApiReq(
 
 /**
  * Check if a text message's associated API request is still in progress.
- * Returns true if there's no cost yet on the parent api_req_started.
+ * 返回 true if there's no cost yet on the parent api_req_started.
  */
 export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineMessage[]): boolean {
 	// Find the api_req_started that precedes this text message
@@ -333,7 +333,7 @@ export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineM
 
 /**
  * Filter a tool group to exclude tools that are in the "current activities" range.
- * Returns the filtered array of messages (may be empty).
+ * 返回 the filtered array of messages (may be empty).
  *
  * This is used so ToolGroupRenderer shows PAST tools (what's already in context),
  * while the loading state shows ACTIVE tools (what's being "read" now).
@@ -458,7 +458,7 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 }
 
 /**
- * Returns true if this api_req_started should be fully absorbed into a low-stakes tool group.
+ * 返回 true if this api_req_started should be fully absorbed into a low-stakes tool group.
  *
  * This scans FORWARD from the api_req_started until the next api_req_started and checks:
  * - at least one low-stakes tool exists

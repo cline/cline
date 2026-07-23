@@ -120,7 +120,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={models}
 						onChange={(event: Event) => handleModelChange(getEventValue(event))}
 						selectedModelId={selectedModelId}

@@ -87,7 +87,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 
 			{showModelOptions && (
 				<>
-					<ModelSelector label="Model" models={models} onChange={handleModelSelect} selectedModelId={selectedModelId} />
+					<ModelSelector label="模型" models={models} onChange={handleModelSelect} selectedModelId={selectedModelId} />
 
 					{(selectedModelId === "sonnet" || selectedModelId === "opus") && (
 						<p

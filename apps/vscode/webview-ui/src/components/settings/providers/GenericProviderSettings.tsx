@@ -71,7 +71,7 @@ export const GenericProviderSettings = ({
 			<ApiKeyField
 				initialValue={savedApiKeyMask}
 				onChange={handleApiKeyChange}
-				placeholder="Enter API Key..."
+				placeholder="输入 API 密钥..."
 				providerName={providerName}
 				signupUrl={signupUrl}
 			/>

@@ -41,7 +41,7 @@ export const HicapProvider = ({ showModelOptions, isPopup, currentMode }: HicapP
 							refreshHicapModels()
 						}
 					}}
-					placeholder="Enter API Key..."
+					placeholder="输入 API 密钥..."
 					style={{ width: "100%" }}
 					type="password">
 					<div

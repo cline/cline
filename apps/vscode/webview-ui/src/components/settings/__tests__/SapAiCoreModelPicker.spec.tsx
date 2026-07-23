@@ -149,7 +149,7 @@ describe("SapAiCoreModelPicker Component", () => {
 		const label = screen.getByText("Model")
 		expect(label).toBeInTheDocument()
 
-		const dropdown = screen.getByRole("combobox")
+		const dropdown = screen.getBy角色("combobox")
 		expect(dropdown).toBeInTheDocument()
 		expect(dropdown).toHaveAttribute("id", "sap-ai-core-model-dropdown")
 	})
@@ -256,7 +256,7 @@ describe("SapAiCoreModelPicker Component", () => {
 		)
 
 		// Test that the component renders correctly and has the expected structure
-		const dropdown = screen.getByRole("combobox")
+		const dropdown = screen.getBy角色("combobox")
 		expect(dropdown).toBeInTheDocument()
 		expect(dropdown).toHaveValue("anthropic--claude-3.5-sonnet")
 
@@ -279,7 +279,7 @@ describe("SapAiCoreModelPicker Component", () => {
 		)
 
 		// Test that not deployed models are properly displayed
-		const dropdown = screen.getByRole("combobox")
+		const dropdown = screen.getBy角色("combobox")
 		expect(dropdown).toBeInTheDocument()
 		expect(dropdown).toHaveValue("gpt-4o")
 
@@ -298,7 +298,7 @@ describe("SapAiCoreModelPicker Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		const dropdown = screen.getByRole("combobox")
+		const dropdown = screen.getBy角色("combobox")
 		expect(dropdown).toHaveValue("anthropic--claude-3.5-sonnet")
 
 		// Rerender with different selectedModelId
@@ -424,7 +424,7 @@ describe("SapAiCoreModelPicker Component", () => {
 		)
 
 		// Test that the component handles empty selectedModelId correctly
-		const dropdown = screen.getByRole("combobox")
+		const dropdown = screen.getBy角色("combobox")
 		expect(dropdown).toBeInTheDocument()
 		expect(dropdown).toHaveValue("")
 

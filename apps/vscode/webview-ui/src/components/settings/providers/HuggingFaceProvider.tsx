@@ -29,7 +29,7 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.huggingFaceApiKey || ""}
 				onChange={(value) => handleFieldChange("huggingFaceApiKey", value)}
-				placeholder="Enter API Key..."
+				placeholder="输入 API 密钥..."
 				style={{ width: "100%" }}
 				type="password">
 				<span style={{ fontWeight: 500 }}>Hugging Face API Key</span>

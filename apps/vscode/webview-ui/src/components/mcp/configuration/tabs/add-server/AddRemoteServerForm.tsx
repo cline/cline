@@ -1,6 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { AddRemoteMcpServerRequest, McpServers } from "@shared/proto/cline/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-服务器-conversion"
 import { VSCodeButton, VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { LINKS } from "@/constants"
@@ -87,7 +87,7 @@ const AddRemoteServerForm = ({ onCancel, onServerAdded, showEditConfiguration = 
 							setServerName((e.target as HTMLInputElement).value)
 							setError("")
 						}}
-						placeholder="mcp-server"
+						placeholder="mcp-服务器"
 						value={serverName}>
 						Server Name
 					</VSCodeTextField>
@@ -101,7 +101,7 @@ const AddRemoteServerForm = ({ onCancel, onServerAdded, showEditConfiguration = 
 							setServerUrl((e.target as HTMLInputElement).value)
 							setError("")
 						}}
-						placeholder="https://example.com/mcp-server"
+						placeholder="https://example.com/mcp-服务器"
 						value={serverUrl}>
 						Server URL
 					</VSCodeTextField>

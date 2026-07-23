@@ -288,8 +288,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="plain">Plain Text</SelectItem>
-										<SelectItem value="rich">Rich Display</SelectItem>
+										<SelectItem value="plain">纯文本</SelectItem>
+										<SelectItem value="rich">富文本显示</SelectItem>
 										<SelectItem value="markdown">Markdown</SelectItem>
 									</SelectContent>
 								</Select>

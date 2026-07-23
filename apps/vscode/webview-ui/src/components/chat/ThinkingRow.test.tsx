@@ -34,7 +34,7 @@ describe("ThinkingRow", () => {
 			/>,
 		)
 
-		fireEvent.click(screen.getByRole("button", { name: /Thinking/i }))
+		fireEvent.click(screen.getBy角色("button", { name: /Thinking/i }))
 		expect(onToggle).toHaveBeenCalledTimes(1)
 	})
 })

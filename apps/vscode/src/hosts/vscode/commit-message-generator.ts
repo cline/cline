@@ -65,12 +65,12 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 	try {
 		const gitExtension = vscode.extensions.getExtension<GitExtensionExports>("vscode.git")?.exports
 		if (!gitExtension) {
-			throw new Error("Git extension not found")
+			throw new Error("未找到 Git 扩展")
 		}
 
 		const git = gitExtension.getAPI(1)
 		if (git.repositories.length === 0) {
-			throw new Error("No Git repositories available")
+			throw new Error("没有可用的 Git 仓库")
 		}
 
 		// If scm is provided, then the user specified one repository by clicking the "Source Control" menu button
@@ -78,7 +78,7 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 			const repository = git.getRepository(scm.rootUri)
 
 			if (!repository) {
-				throw new Error("Repository not found for provided SCM")
+				throw new Error("未找到提供的 SCM 对应的仓库")
 			}
 
 			await generateCommitMsgForRepository(controller, repository)
@@ -101,7 +101,7 @@ async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, r
 	if (reposWithChanges.length === 0) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
-			message: "No changes found in any workspace repositories",
+			message: "在工作区的任何仓库中都没有找到更改",
 		})
 		return
 	}
@@ -167,7 +167,7 @@ async function promptRepoSelection(repos: GitRepository[]): Promise<RepoSelectio
 	})
 
 	return await vscode.window.showQuickPick(repoItems, {
-		placeHolder: "Select repository for commit message generation",
+		placeHolder: "选择要生成提交信息的仓库",
 	})
 }
 
@@ -245,7 +245,7 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 				throw new Error(streamError)
 			}
 			throw new Error(
-				"The model returned an empty response. Check that the selected provider and model are configured correctly.",
+				"模型返回了空响应。请检查所选提供商和模型是否配置正确。",
 			)
 		}
 	} catch (error) {

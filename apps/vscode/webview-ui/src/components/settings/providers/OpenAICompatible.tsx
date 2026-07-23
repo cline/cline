@@ -474,7 +474,7 @@ export const OpenAICompatibleProvider = ({
 						<BaseUrlField
 							disabled={true}
 							initialValue={apiConfiguration?.azureApiVersion}
-							label="Set Azure API version"
+							label="设置 Azure API 版本"
 							onChange={(value) => handleFieldChange("azureApiVersion", value)}
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 							showLockIcon={true}
@@ -485,7 +485,7 @@ export const OpenAICompatibleProvider = ({
 			) : (
 				<BaseUrlField
 					initialValue={apiConfiguration?.azureApiVersion}
-					label="Set Azure API version"
+					label="设置 Azure API 版本"
 					onChange={(value) => handleFieldChange("azureApiVersion", value)}
 					placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 				/>

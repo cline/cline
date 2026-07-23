@@ -22,7 +22,7 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
-vi.mock("@shared/proto-conversions/mcp/mcp-server-conversion", () => ({
+vi.mock("@shared/proto-conversions/mcp/mcp-服务器-conversion", () => ({
 	convertProtoMcpServersToMcpServers: () => [],
 }))
 
@@ -44,14 +44,14 @@ describe("McpConfigurationView", () => {
 
 	it("never renders the marketplace tab while keeping remote servers available", async () => {
 		mocks.remoteConfigSettings = {
-			blockPersonalRemoteMCPServers: false,
+			block个人RemoteMCPServers: false,
 		}
 
 		render(<McpConfigurationView onDone={vi.fn()} />)
 
-		expect(screen.queryByRole("button", { name: "Marketplace" })).not.toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Remote Servers" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
+		expect(screen.queryBy角色("button", { name: "Marketplace" })).not.toBeInTheDocument()
+		expect(screen.getBy角色("button", { name: "Remote Servers" })).toBeInTheDocument()
+		expect(screen.getBy角色("button", { name: "Configure" })).toBeInTheDocument()
 		expect(screen.getByText("Configure Servers View")).toBeInTheDocument()
 
 		await waitFor(() => expect(mocks.getLatestMcpServers).toHaveBeenCalledTimes(1))
@@ -59,14 +59,14 @@ describe("McpConfigurationView", () => {
 
 	it("hides remote servers only when personal remote MCP servers are blocked", () => {
 		mocks.remoteConfigSettings = {
-			blockPersonalRemoteMCPServers: true,
+			block个人RemoteMCPServers: true,
 		}
 
 		render(<McpConfigurationView initialTab="addRemote" onDone={vi.fn()} />)
 
-		expect(screen.queryByRole("button", { name: "Marketplace" })).not.toBeInTheDocument()
-		expect(screen.queryByRole("button", { name: "Remote Servers" })).not.toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
+		expect(screen.queryBy角色("button", { name: "Marketplace" })).not.toBeInTheDocument()
+		expect(screen.queryBy角色("button", { name: "Remote Servers" })).not.toBeInTheDocument()
+		expect(screen.getBy角色("button", { name: "Configure" })).toBeInTheDocument()
 		expect(screen.queryByText("Add Remote Server Form")).not.toBeInTheDocument()
 		expect(screen.getByText("Configure Servers View")).toBeInTheDocument()
 	})

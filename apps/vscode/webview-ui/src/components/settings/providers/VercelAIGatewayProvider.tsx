@@ -27,7 +27,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				<DebouncedTextField
 					initialValue={apiConfiguration?.vercelAiGatewayApiKey || ""}
 					onChange={(value) => handleFieldChange("vercelAiGatewayApiKey", value)}
-					placeholder="Enter API Key..."
+					placeholder="输入 API 密钥..."
 					style={{ width: "100%" }}
 					type="password">
 					<span style={{ fontWeight: 500 }}>Vercel AI Gateway API Key</span>

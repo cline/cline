@@ -14,8 +14,8 @@ export const Navbar = () => {
 		() => [
 			{
 				id: "chat",
-				name: "Chat",
-				tooltip: "New Task",
+				name: "聊天",
+				tooltip: "新任务",
 				icon: PlusIcon,
 				navigate: () => {
 					UiServiceClient.trackIntent(
@@ -34,29 +34,29 @@ export const Navbar = () => {
 			},
 			{
 				id: "customize",
-				name: "Customize",
-				tooltip: "Customize",
+				name: "自定义",
+				tooltip: "自定义",
 				icon: PuzzleIcon,
 				navigate: navigateToMarketplace,
 			},
 			{
 				id: "history",
-				name: "History",
-				tooltip: "History",
+				name: "历史",
+				tooltip: "历史",
 				icon: HistoryIcon,
 				navigate: navigateToHistory,
 			},
 			{
 				id: "account",
-				name: "Account",
-				tooltip: "Account",
+				name: "账户",
+				tooltip: "账户",
 				icon: UserCircleIcon,
 				navigate: navigateToAccount,
 			},
 			{
 				id: "settings",
-				name: "Settings",
-				tooltip: "Settings",
+				name: "设置",
+				tooltip: "设置",
 				icon: SettingsIcon,
 				navigate: navigateToSettings,
 			},

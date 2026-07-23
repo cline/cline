@@ -147,7 +147,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 						<VSCodeTextField
 							className="w-full"
 							onInput={(e) => setNewBranchName((e.target as HTMLInputElement).value)}
-							placeholder="feature/my-feature"
+							placeholder="feature/我的功能"
 							value={newBranchName}>
 							{newBranchName && (
 								<div
@@ -173,7 +173,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 						<VSCodeTextField
 							className="w-full"
 							onInput={(e) => setNewWorktreePath((e.target as HTMLInputElement).value)}
-							placeholder="../my-feature-worktree"
+							placeholder="../我的工作树"
 							value={newWorktreePath}>
 							{newWorktreePath && (
 								<div

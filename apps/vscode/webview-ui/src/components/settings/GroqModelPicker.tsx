@@ -214,7 +214,7 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder="搜索并选择模型..."
 						role="combobox"
 						style={{
 							width: "100%",

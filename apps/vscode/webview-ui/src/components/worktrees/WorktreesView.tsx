@@ -243,7 +243,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 				<h3 className="m-0" style={{ color: getEnvironmentColor(environment) }}>
 					Worktrees
 				</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<VSCodeButton onClick={onDone}>完成</VSCodeButton>
 			</div>
 
 			{/* Scrollable Content */}
@@ -286,7 +286,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 						) : (
 							<div className="flex flex-col gap-2">
 								<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0">
-									<strong>Tip:</strong> Create a{" "}
+									<strong>提示：</strong> Create a{" "}
 									<code className="bg-[var(--vscode-textCodeBlock-background)] px-1 rounded">
 										.worktreeinclude
 									</code>{" "}
@@ -435,7 +435,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 																<FolderOpen className="w-4 h-4" />
 															</VSCodeButton>
 														</TooltipTrigger>
-														<TooltipContent side="bottom">Open in current window</TooltipContent>
+														<TooltipContent side="bottom">在当前窗口中打开</TooltipContent>
 													</Tooltip>
 													<Tooltip>
 														<TooltipTrigger asChild>
@@ -445,7 +445,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 																<ExternalLink className="w-4 h-4" />
 															</VSCodeButton>
 														</TooltipTrigger>
-														<TooltipContent side="bottom">Open in new window</TooltipContent>
+														<TooltipContent side="bottom">在新窗口中打开</TooltipContent>
 													</Tooltip>
 												</>
 											)}
@@ -471,7 +471,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 																<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
 															</VSCodeButton>
 														</TooltipTrigger>
-														<TooltipContent side="bottom">Delete this worktree</TooltipContent>
+														<TooltipContent side="bottom">删除此工作树</TooltipContent>
 													</Tooltip>
 												</>
 											)}
@@ -546,7 +546,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 									<p className="text-sm m-0">{mergeResult.message}</p>
 								</div>
 								<div className="flex justify-end">
-									<VSCodeButton onClick={closeMergeModal}>Done</VSCodeButton>
+									<VSCodeButton onClick={closeMergeModal}>完成</VSCodeButton>
 								</div>
 							</div>
 						) : mergeResult?.hasConflicts ? (

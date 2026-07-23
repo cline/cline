@@ -97,7 +97,7 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={availableModels}
 						onChange={(e) =>
 							handleModeFieldChange(

@@ -105,7 +105,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				<BaseUrlField
 					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
 					initialValue={config?.baseUrl}
-					label="Use custom base URL"
+					label="使用自定义基础 URL"
 					onChange={handleBaseUrlChange}
 					placeholder="Default: https://api.anthropic.com"
 					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
@@ -115,7 +115,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={models}
 						onChange={(e) => handleModelChange(e.target.value)}
 						selectedModelId={selectedModelId}
@@ -127,7 +127,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
+							label="自适应思考"
 							onEffortChange={handleAdaptiveThinkingChange}
 						/>
 					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (

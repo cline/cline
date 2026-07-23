@@ -1,7 +1,7 @@
 import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/ClineAccount"
 import type { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/cline/account"
 
-export const getMainRole = (roles?: string[]) => {
+export const getMain角色 = (roles?: string[]) => {
 	if (!roles) {
 		return undefined
 	}

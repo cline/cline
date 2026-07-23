@@ -106,7 +106,7 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={models}
 						onChange={(event: Event) => handleModelChange((event.target as HTMLSelectElement | null)?.value ?? "")}
 						selectedModelId={selectedModelId}

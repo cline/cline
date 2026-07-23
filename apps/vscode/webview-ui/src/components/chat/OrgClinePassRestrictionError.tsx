@@ -10,7 +10,7 @@ const OrgClinePassRestrictionError = () => {
 	const [didSwitch, setDidSwitch] = useState(false);
 	const [error, setError] = useState<string | undefined>();
 
-	const handleSwitchToPersonalAccount = async () => {
+	const handleSwitchTo个人Account = async () => {
 		setIsSwitching(true);
 		setError(undefined);
 		try {
@@ -40,7 +40,7 @@ const OrgClinePassRestrictionError = () => {
 			<VSCodeButton
 				className="w-full mt-3"
 				disabled={isSwitching || didSwitch}
-				onClick={handleSwitchToPersonalAccount}
+				onClick={handleSwitchTo个人Account}
 			>
 				{isSwitching
 					? "Switching..."

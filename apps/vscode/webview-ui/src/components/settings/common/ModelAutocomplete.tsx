@@ -22,7 +22,7 @@ export const ModelAutocomplete = ({
 	onChange,
 	zIndex = AUTOCOMPLETE_Z_INDEX,
 	label = "Model",
-	placeholder = "Search and select a model...",
+	placeholder = "搜索并选择模型...",
 }: ModelAutocompleteProps) => {
 	const [searchTerm, setSearchTerm] = useState(selectedModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)

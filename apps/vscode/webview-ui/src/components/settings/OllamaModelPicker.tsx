@@ -17,7 +17,7 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 	ollamaModels,
 	selectedModelId,
 	onModelChange,
-	placeholder = "Search and select a model...",
+	placeholder = "搜索并选择模型...",
 }) => {
 	const [searchTerm, setSearchTerm] = useState(selectedModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)

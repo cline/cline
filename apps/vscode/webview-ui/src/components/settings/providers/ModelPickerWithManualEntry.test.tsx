@@ -112,7 +112,7 @@ describe("ModelPickerWithManualEntry", () => {
 			/>,
 		)
 
-		expect(screen.getByRole("alert")).toHaveTextContent("Could not fetch models")
+		expect(screen.getBy角色("alert")).toHaveTextContent("Could not fetch models")
 		expect(screen.getByLabelText("Custom model ID")).toBeInTheDocument()
 	})
 

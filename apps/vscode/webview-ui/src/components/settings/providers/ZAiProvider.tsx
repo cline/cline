@@ -123,7 +123,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={models}
 						onChange={(event: Event) => handleModelChange(getEventValue(event))}
 						selectedModelId={selectedModelId}

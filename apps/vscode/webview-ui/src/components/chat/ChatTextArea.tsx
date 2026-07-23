@@ -58,8 +58,8 @@ const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: n
 			}
 		}
 		img.onerror = (err) => {
-			console.error("Failed to load image for dimension check:", err)
-			reject(new Error("Failed to load image to check dimensions."))
+			console.error("加载图片失败 for dimension check:", err)
+			reject(new Error("加载图片失败 to check dimensions."))
 		}
 		img.src = dataUrl
 	})

@@ -270,7 +270,7 @@ describe("GenericProviderSettings", () => {
 			/>,
 		)
 
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		const apiKeyInput = screen.getByPlaceholderText("输入 API 密钥...")
 		fireEvent.input(apiKeyInput, { target: { value: "partial-key" } })
 		fireEvent.blur(apiKeyInput)
 
@@ -386,7 +386,7 @@ describe("GenericProviderSettings", () => {
 			/>,
 		)
 
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		const apiKeyInput = screen.getByPlaceholderText("输入 API 密钥...")
 		fireEvent.focus(apiKeyInput)
 		fireEvent.input(apiKeyInput, { target: { value: "max" } })
 
@@ -443,7 +443,7 @@ describe("GenericProviderSettings", () => {
 			<GenericProviderSettings
 				allowsCustomIds={false}
 				baseUrlField={{
-					label: "Use custom base URL",
+					label: "使用自定义基础 URL",
 					placeholder: "Default: https://generativelanguage.googleapis.com",
 				}}
 				currentMode="act"
@@ -458,7 +458,7 @@ describe("GenericProviderSettings", () => {
 
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "https://new.example" }))
 
-		fireEvent.click(screen.getByText("Use custom base URL"))
+		fireEvent.click(screen.getByText("使用自定义基础 URL"))
 
 		expect(write).toHaveBeenCalledWith({ baseUrl: "" })
 	})

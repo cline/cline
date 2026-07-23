@@ -314,7 +314,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 							onClick={async () => {
 								await logout()
 							}}>
-							Log out
+							登出
 						</VSCodeButton>
 					</div>
 
@@ -322,7 +322,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 						<BaseUrlField
 							defaultValue={undefined}
 							initialValue={ocaBaseUrl}
-							label="Custom Base URL (optional)"
+							label="自定义基础 URL（可选）"
 							onChange={(value) => handleFieldChange("ocaBaseUrl", value)}
 						/>
 					</div>

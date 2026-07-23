@@ -156,7 +156,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label="模型"
 						models={modelsToUse}
 						onChange={(e: any) => {
 							const modelId = e.target.value
@@ -175,7 +175,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
+							label="自适应思考"
 						/>
 					) : supportsThinkingBudget ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />

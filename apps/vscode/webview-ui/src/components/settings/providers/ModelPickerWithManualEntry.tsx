@@ -84,7 +84,7 @@ export function ModelPickerWithManualEntry({
 			{hasModels && (
 				<DropdownContainer className="dropdown-container">
 					<VSCodeDropdown
-						aria-label="Model"
+						aria-label="模型"
 						className="w-full"
 						id="provider-model-picker"
 						key={dropdownKey}
@@ -130,7 +130,7 @@ export function ModelPickerWithManualEntry({
 								commitCustomModel(customModelId)
 							}
 						}}
-						placeholder="Enter custom model ID"
+						placeholder="输入自定义模型 ID"
 						style={{ flexGrow: 1 }}
 						value={customModelId}>
 						<span className="font-medium">Custom model ID</span>

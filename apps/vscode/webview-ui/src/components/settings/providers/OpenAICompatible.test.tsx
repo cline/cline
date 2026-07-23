@@ -257,7 +257,7 @@ describe("OpenAICompatibleProvider", () => {
 		await act(async () => {})
 		fireEvent.click(screen.getByText("Model Configuration"))
 
-		fireEvent.click(screen.getByRole("checkbox", { name: "Supports Images" }))
+		fireEvent.click(screen.getBy角色("checkbox", { name: "Supports Images" }))
 
 		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "custom-openai",
@@ -279,7 +279,7 @@ describe("OpenAICompatibleProvider", () => {
 		await act(async () => {})
 		fireEvent.click(screen.getByText("Model Configuration"))
 
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
+		expect(screen.getBy角色("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
 	})
 
 	it("restores the R1 checkbox from canonical resolved apiFormat", async () => {
@@ -288,7 +288,7 @@ describe("OpenAICompatibleProvider", () => {
 		await act(async () => {})
 		fireEvent.click(screen.getByText("Model Configuration"))
 
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
+		expect(screen.getBy角色("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
 	})
 
 	it("persists the R1 checkbox as one explicit override", async () => {
@@ -296,7 +296,7 @@ describe("OpenAICompatibleProvider", () => {
 		await act(async () => {})
 		fireEvent.click(screen.getByText("Model Configuration"))
 
-		fireEvent.click(screen.getByRole("checkbox", { name: "Enable R1 messages format" }))
+		fireEvent.click(screen.getBy角色("checkbox", { name: "Enable R1 messages format" }))
 
 		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "custom-openai",
@@ -403,7 +403,7 @@ describe("OpenAICompatibleProvider", () => {
 
 		fireEvent.change(screen.getByLabelText("Max Output Tokens"), { target: { value: "80000o" } })
 
-		expect(screen.getByRole("alert")).toHaveTextContent("Max Output Tokens must be a valid number.")
+		expect(screen.getBy角色("alert")).toHaveTextContent("Max Output Tokens must be a valid number.")
 		expect(mocks.commitSelection).not.toHaveBeenCalled()
 	})
 
@@ -461,13 +461,13 @@ describe("OpenAICompatibleProvider", () => {
 		await act(async () => {
 			newRequest.resolve({ values: ["new-model"] })
 		})
-		expect(screen.getByRole("option", { name: "new-model" })).toBeInTheDocument()
+		expect(screen.getBy角色("option", { name: "new-model" })).toBeInTheDocument()
 
 		await act(async () => {
 			oldRequest.resolve({ values: ["stale-model"] })
 		})
-		expect(screen.queryByRole("option", { name: "stale-model" })).not.toBeInTheDocument()
-		expect(screen.getByRole("option", { name: "new-model" })).toBeInTheDocument()
+		expect(screen.queryBy角色("option", { name: "stale-model" })).not.toBeInTheDocument()
+		expect(screen.getBy角色("option", { name: "new-model" })).toBeInTheDocument()
 	})
 
 	it("cancels a pending debounced refresh when unmounted", async () => {
@@ -499,17 +499,17 @@ describe("OpenAICompatibleProvider", () => {
 		await act(async () => {})
 
 		expect(screen.getByDisplayValue("http://localhost:1234/v1")).toBeDisabled()
-		expect(screen.getByRole("button", { name: "Add Header" })).toBeDisabled()
-		expect(screen.getByLabelText("Set Azure API version")).toBeDisabled()
-		expect(screen.getByRole("checkbox", { name: "Use Azure Identity Authentication" })).toBeChecked()
+		expect(screen.getBy角色("button", { name: "Add Header" })).toBeDisabled()
+		expect(screen.getByLabelText("设置 Azure API 版本")).toBeDisabled()
+		expect(screen.getBy角色("checkbox", { name: "Use Azure Identity Authentication" })).toBeChecked()
 	})
 
 	it("writes editable Azure settings through the legacy handlers", async () => {
 		renderProvider()
 		await act(async () => {})
 
-		fireEvent.change(screen.getByLabelText("Set Azure API version"), { target: { value: "2026-01-01" } })
-		fireEvent.click(screen.getByRole("checkbox", { name: "Use Azure Identity Authentication" }))
+		fireEvent.change(screen.getByLabelText("设置 Azure API 版本"), { target: { value: "2026-01-01" } })
+		fireEvent.click(screen.getBy角色("checkbox", { name: "Use Azure Identity Authentication" }))
 
 		expect(mocks.handleFieldChange).toHaveBeenCalledWith("azureApiVersion", "2026-01-01")
 		expect(mocks.handleFieldChange).toHaveBeenCalledWith("azureIdentity", true)

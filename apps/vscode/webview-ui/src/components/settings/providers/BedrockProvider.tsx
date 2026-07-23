@@ -276,7 +276,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					helpText="This key is stored locally and only used to make API requests from this extension."
 					initialValue={savedApiKeyMask}
 					key="apikey"
-					label="AWS Bedrock Api Key"
+					label="AWS Bedrock API 密钥"
 					onChange={handleApiKeyChange}
 					placeholder="Enter Bedrock Api Key"
 					providerName="Bedrock"
@@ -287,7 +287,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						helpText="This key is stored locally and only used to make API requests from this extension."
 						initialValue={accessKeyMask}
 						key="accessKey"
-						label="AWS Access Key"
+						label="AWS 访问密钥"
 						onChange={(value) => handleAwsSecretChange("accessKey", value, accessKeyMask, "access key")}
 						placeholder="Enter Access Key..."
 						providerName="AWS"
@@ -295,7 +295,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<ApiKeyField
 						helpText="This key is stored locally and only used to make API requests from this extension."
 						initialValue={secretKeyMask}
-						label="AWS Secret Key"
+						label="AWS 秘密密钥"
 						onChange={(value) => handleAwsSecretChange("secretKey", value, secretKeyMask, "secret key")}
 						placeholder="Enter Secret Key..."
 						providerName="AWS"
@@ -303,7 +303,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<ApiKeyField
 						helpText="This key is stored locally and only used to make API requests from this extension."
 						initialValue={sessionTokenMask}
-						label="AWS Session Token"
+						label="AWS 会话令牌"
 						onChange={(value) => handleAwsSecretChange("sessionToken", value, sessionTokenMask, "session token")}
 						placeholder="Enter Session Token..."
 						providerName="AWS"
@@ -577,7 +577,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 										modelInfo: bedrockModels[customBaseModelId] ?? selectedModelInfo,
 									}).catch((err) => console.error("Failed to commit Bedrock custom model selection:", err))
 								}}
-								placeholder="Enter custom model ID...">
+								placeholder="输入自定义模型 ID...">
 								<span className="font-medium">Model ID</span>
 							</DebouncedTextField>
 							<label htmlFor="bedrock-base-model-dropdown">
@@ -610,7 +610,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
+							label="自适应思考"
 						/>
 					) : SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId) ||
 						(isCustomModelSelected &&

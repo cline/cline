@@ -294,7 +294,7 @@ export const InteractiveSignIn: Story = {
 		const canvas = within(canvasElement)
 
 		// Find the sign in button
-		const signInButton = canvas.getByRole("button", { name: /sign in to cline/i })
+		const signInButton = canvas.getBy角色("button", { name: /sign in to cline/i })
 		await expect(signInButton).toBeInTheDocument()
 
 		// Test button is clickable
@@ -316,7 +316,7 @@ export const TroubleshootingLink: Story = {
 		const canvas = within(canvasElement)
 
 		// Find the troubleshooting link
-		const troubleshootingLink = canvas.getByRole("link", { name: /troubleshooting guide/i })
+		const troubleshootingLink = canvas.getBy角色("link", { name: /troubleshooting guide/i })
 		await expect(troubleshootingLink).toBeInTheDocument()
 
 		// Verify link attributes

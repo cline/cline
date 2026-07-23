@@ -155,7 +155,7 @@ export const BrowserSettingsMenu = () => {
 						border: "1px solid var(--vscode-widget-border)",
 						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
 					}}>
-					<h4 style={{ margin: "0 0 8px 0" }}>Browser Connection</h4>
+					<h4 style={{ margin: "0 0 8px 0" }}>浏览器连接</h4>
 					{/* InfoRow - Status row container */}
 					<div className="flex flex-wrap whitespace-nowrap mb-1">
 						{/* InfoLabel - Fixed-width label */}

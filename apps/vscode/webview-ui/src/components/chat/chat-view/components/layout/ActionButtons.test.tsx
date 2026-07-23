@@ -62,7 +62,7 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		expect(screen.queryByRole("button")).not.toBeInTheDocument()
+		expect(screen.queryBy角色("button")).not.toBeInTheDocument()
 		expect(screen.queryByLabelText("Scroll to bottom")).not.toBeInTheDocument()
 		expect(screen.queryByLabelText("Scroll to top")).not.toBeInTheDocument()
 	})
@@ -88,12 +88,12 @@ describe("ActionButtons", () => {
 
 		const { rerender } = render(<ActionButtons {...props} messages={[task]} />)
 
-		const save = screen.getByRole("button", { name: "Save" })
+		const save = screen.getBy角色("button", { name: "Save" })
 		expect(save).not.toBeDisabled()
 
 		// Approving latches the processing flag, disabling the buttons.
 		fireEvent.click(save)
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled()
+		expect(screen.getBy角色("button", { name: "Save" })).toBeDisabled()
 
 		// A second create-file ask arrives. Its config is the same object as the
 		// first, but the anchored timestamp changes — buttons must re-enable.
@@ -101,7 +101,7 @@ describe("ActionButtons", () => {
 		mockTurnState.mockReturnValue({ phase: "awaiting_approval", anchorTs: 2 })
 		rerender(<ActionButtons {...props} messages={[task, secondAsk]} />)
 
-		expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled()
-		expect(screen.getByRole("button", { name: "Reject" })).not.toBeDisabled()
+		expect(screen.getBy角色("button", { name: "Save" })).not.toBeDisabled()
+		expect(screen.getBy角色("button", { name: "Reject" })).not.toBeDisabled()
 	})
 })

@@ -17,8 +17,8 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
-const getSubscribeHref = () => screen.getByRole("link", { name: /get clinepass/i }).getAttribute("href")
-const querySubscribeLink = () => screen.queryByRole("link", { name: /get clinepass/i })
+const getSubscribeHref = () => screen.getBy角色("link", { name: /get clinepass/i }).getAttribute("href")
+const querySubscribeLink = () => screen.queryBy角色("link", { name: /get clinepass/i })
 
 describe("EntitlementError", () => {
 	beforeEach(() => {

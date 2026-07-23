@@ -391,7 +391,7 @@ function parseNewFormat(content: string): Patch[] {
 
 /**
  * Parse all SEARCH/REPLACE blocks from a diff string
- * Returns an array of Patch objects, one per SEARCH/REPLACE block
+ * 返回 an array of Patch objects, one per SEARCH/REPLACE block
  */
 function parseAllSearchReplaceBlocks(patch: string, path: string): Patch[] {
 	const results: Patch[] = []
