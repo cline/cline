@@ -4,17 +4,16 @@ Shared visual foundations and reusable React presentation primitives for Cline
 web products. The package lets teams adopt the same semantic theme and agent
 chat language without adopting another product's routes, state, or runtime.
 
-The package is configured for public npm releases on its own version and
+`@cline/ui@0.1.0` is publicly available. The package has its own version and
 release cycle. Its API is still pre-stable, so consumers should pin an exact
-version and review compatibility notes when updating. Check availability with
-`npm view @cline/ui version`; an `E404` means the first release is still pending.
+version and review compatibility notes when updating.
 
 See the [adoption primer](./ADOPTION.md) for complete setup instructions,
 component examples, boundaries, and release status.
 
 ## Install
 
-After the initial release is available:
+Install the current release:
 
 ```bash
 bun add --exact @cline/ui
