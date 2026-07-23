@@ -86,6 +86,7 @@ import type {
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
 import { desktopClient } from "@/lib/desktop-client";
+import { SCHEDULED_SESSION_SOURCE } from "@/lib/session-history";
 import {
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
@@ -96,7 +97,7 @@ import { cn } from "@/lib/utils";
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
 
-const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
+const filterOptions = ["All", "Running", "Schedules", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
 const SETTINGS_SECTION_ICONS = {
@@ -278,8 +279,8 @@ export function AgentSidebar({
 		switch (filter) {
 			case "Running":
 				return filtered.filter((t) => t.status === "running");
-			case "Recent":
-				return filtered.slice(0, 8);
+			case "Schedules":
+				return filtered.filter((t) => t.source === SCHEDULED_SESSION_SOURCE);
 			case "Pinned":
 				return filtered.filter((t) => t.pinned);
 			default:
@@ -893,7 +894,7 @@ function ThreadItem({
 	unread: boolean;
 }) {
 	const title = normalizeTitle(thread.title);
-	const overviewTitle = getSessionOverviewTitle(thread.title);
+	const overviewTitle = getSessionOverviewTitle(title);
 	const pending = pendingAction !== null;
 	const statusDotClass = pending
 		? "bg-yellow-400"
@@ -977,7 +978,7 @@ function ThreadItem({
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
 									<span
-										className="min-w-0 truncate font-mono"
+										className="min-w-0 truncate font-mono font-thin text-foreground"
 										title={fullValue}
 									>
 										{value}
@@ -1013,12 +1014,13 @@ export function getSessionOverviewItems(
 			workspaceDisplayName(workspacePath),
 			workspacePath || undefined,
 		],
-		["Git branch", thread.gitBranch],
+		["Branch", thread.gitBranch],
 		["Provider", thread.provider],
 		["Model", thread.model],
 		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
 		["Cost", formatCostUsd(thread.totalCostUsd)],
 		["ID", thread.id],
+		["Source", thread.source],
 		["Updated", thread.time],
 	];
 	return items.filter((item): item is [string, string, string?] =>
