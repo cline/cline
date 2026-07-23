@@ -58,4 +58,20 @@ describe("OptionsButtons", () => {
 
 		consoleError.mockRestore()
 	})
+
+	it("splits concatenated JSON-like options into separate buttons", () => {
+		render(
+			<OptionsButtons
+				isActive
+				options={[
+					'Implement a new communication protocol handler"] ["Add a display feature/UI element"] ["Improve existing functionality"] | ["Other (Please specify)',
+				]}
+			/>,
+		)
+
+		expect(screen.getByRole("button", { name: "Implement a new communication protocol handler" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Add a display feature/UI element" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Improve existing functionality" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Other (Please specify)" })).toBeInTheDocument()
+	})
 })

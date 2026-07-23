@@ -24,6 +24,43 @@ const OptionButton = styled.button<{ $isSelected?: boolean; $isNotSelectable?: b
 	`}
 `
 
+const normalizeOptions = (options?: string[]) => {
+	if (!options || options.length !== 1) {
+		return options ?? []
+	}
+
+	const option = options[0].trim()
+	if (!option) {
+		return []
+	}
+
+	if (option.startsWith("[") && option.endsWith("]")) {
+		try {
+			const parsed = JSON.parse(option)
+			if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+				return parsed.map((item) => item.trim()).filter(Boolean)
+			}
+		} catch {
+			// Fall through to the loose concatenated-option parser below.
+		}
+	}
+
+	if (!/"\s*\]\s*(?:\||,)?\s*\[\s*"/.test(option)) {
+		return options
+	}
+
+	return option
+		.split(/"\s*\]\s*(?:\||,)?\s*\[\s*"/)
+		.map((item) =>
+			item
+				.trim()
+				.replace(/^\[\s*"?/, "")
+				.replace(/"?\s*\]$/, "")
+				.trim(),
+		)
+		.filter(Boolean)
+}
+
 export const OptionsButtons = ({
 	options,
 	selected,
@@ -35,7 +72,7 @@ export const OptionsButtons = ({
 	isActive?: boolean
 	inputValue?: string
 }) => {
-	const optionItems = options ?? []
+	const optionItems = normalizeOptions(options)
 	const optionsKey = optionItems.join("\u0000")
 	const optimisticSelectionKey = `${selected ?? ""}\u0001${optionsKey}`
 	const [optimisticSelection, setOptimisticSelection] = useState<{ key: string; option: string }>()
