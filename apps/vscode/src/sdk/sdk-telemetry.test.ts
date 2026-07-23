@@ -22,6 +22,7 @@ const telemetryState = vi.hoisted(() => ({
 		clineType: "VSCode Extension",
 	} as { platform?: string; version?: string; clineType?: string; clineVersion?: string },
 	hostVersionError: undefined as Error | undefined,
+	hostVersionGate: undefined as Promise<void> | undefined,
 	subscribeCallback: undefined as ((event: { isEnabled: number }) => void) | undefined,
 	unsubscribe: vi.fn(),
 }))
@@ -40,6 +41,9 @@ vi.mock("@/hosts/host-provider", () => ({
 		env: {
 			getTelemetrySettings: vi.fn(async () => ({ isEnabled: telemetryState.hostSetting })),
 			getHostVersion: vi.fn(async () => {
+				if (telemetryState.hostVersionGate) {
+					await telemetryState.hostVersionGate
+				}
 				if (telemetryState.hostVersionError) {
 					throw telemetryState.hostVersionError
 				}
@@ -65,6 +69,7 @@ describe("VscodeTelemetryPolicyService", () => {
 			clineType: "VSCode Extension",
 		}
 		telemetryState.hostVersionError = undefined
+		telemetryState.hostVersionGate = undefined
 		telemetryState.subscribeCallback = undefined
 		telemetryState.unsubscribe.mockReset()
 		coreTelemetryMocks.createConfig.mockClear()
@@ -90,6 +95,18 @@ describe("VscodeTelemetryPolicyService", () => {
 					platform: "unknown",
 					platform_version: "unknown",
 				}),
+			}),
+		)
+	})
+
+	it("defers the provider_created event so it carries resolved host identity", () => {
+		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+
+		createVscodeSdkTelemetryHandle()
+
+		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				deferProviderCreatedEvent: true,
 			}),
 		)
 	})
@@ -174,6 +191,8 @@ describe("VscodeTelemetryPolicyService", () => {
 
 		service.capture({ event: "task.created" })
 		telemetryState.subscribeCallback?.({ isEnabled: Setting.ENABLED })
+		// Subscription updates apply asynchronously, after host metadata resolution.
+		await settlePromises()
 		service.capture({ event: "task.created" })
 
 		expect(handle.telemetry.capture).toHaveBeenCalledTimes(1)
@@ -213,8 +232,10 @@ describe("VscodeTelemetryPolicyService", () => {
 		})
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
 		const updateOrder = handle.telemetry.updateMetadata.mock.invocationCallOrder[0]
+		const providerCreatedOrder = handle.emitProviderCreated.mock.invocationCallOrder[0]
 		const captureOrder = handle.telemetry.capture.mock.invocationCallOrder[0]
-		expect(updateOrder).toBeLessThan(captureOrder)
+		expect(updateOrder).toBeLessThan(providerCreatedOrder)
+		expect(providerCreatedOrder).toBeLessThan(captureOrder)
 	})
 
 	it("omits the metadata fields the host does not report", async () => {
@@ -245,7 +266,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
 	})
 
-	it("still enables telemetry when the host version lookup fails", async () => {
+	it("still enables telemetry and emits provider_created when the host version lookup fails", async () => {
 		telemetryState.hostVersionError = new Error("host bridge unavailable")
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
@@ -254,7 +275,32 @@ describe("VscodeTelemetryPolicyService", () => {
 		service.capture({ event: "task.created" })
 
 		expect(handle.telemetry.updateMetadata).not.toHaveBeenCalled()
+		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
+	})
+
+	it("holds subscription-driven gate opens until the host identity is applied", async () => {
+		telemetryState.hostSetting = Setting.DISABLED
+		let releaseHostVersion!: () => void
+		telemetryState.hostVersionGate = new Promise((resolve) => {
+			releaseHostVersion = resolve
+		})
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
+		telemetryState.subscribeCallback?.({ isEnabled: Setting.ENABLED })
+		await settlePromises()
+		service.capture({ event: "task.created" })
+		expect(handle.telemetry.capture).not.toHaveBeenCalled()
+		expect(handle.emitProviderCreated).not.toHaveBeenCalled()
+
+		releaseHostVersion()
+		await settlePromises()
+		service.capture({ event: "task.created" })
+		expect(handle.telemetry.updateMetadata).toHaveBeenCalledTimes(1)
+		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
+		expect(handle.telemetry.capture).toHaveBeenCalledTimes(1)
 	})
 
 	it("always forwards metadata mutators and cleans up on dispose", async () => {
@@ -270,7 +316,7 @@ describe("VscodeTelemetryPolicyService", () => {
 	})
 })
 
-function createHandle(): ConfiguredTelemetryHandle & { telemetry: MockTelemetry } {
+function createHandle(): ConfiguredTelemetryHandle & { telemetry: MockTelemetry; emitProviderCreated: Mock<() => void> } {
 	const telemetry: MockTelemetry = {
 		setDistinctId: vi.fn<(distinctId?: string) => void>(),
 		setMetadata: vi.fn<ITelemetryService["setMetadata"]>(),
@@ -290,6 +336,7 @@ function createHandle(): ConfiguredTelemetryHandle & { telemetry: MockTelemetry 
 		telemetry,
 		flush: vi.fn(async () => {}),
 		dispose: vi.fn(async () => {}),
+		emitProviderCreated: vi.fn<() => void>(),
 	}
 }
 
