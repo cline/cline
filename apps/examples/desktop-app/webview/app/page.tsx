@@ -46,6 +46,7 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { createIdempotencyRegistry } from "@/lib/idempotency-registry";
 import {
 	createNavigationHistory,
 	navigationHistoryReducer,
@@ -114,6 +115,7 @@ export default function Home() {
 			view: "chat",
 		}),
 	);
+	const [sessionDeletionClaims] = useState(createIdempotencyRegistry<string>);
 	const { activeThreadId, settingsSection, view } = navigation.current;
 
 	const navigate = useCallback(
@@ -179,6 +181,9 @@ export default function Home() {
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
+			if (!sessionDeletionClaims.claim(deletedSessionId)) {
+				return;
+			}
 			const historyThreadId = `session_${deletedSessionId}`;
 			const deletedThreadIds = new Set(
 				threads
@@ -228,7 +233,7 @@ export default function Home() {
 				},
 			});
 		},
-		[activeThreadId, navigation.current, threads],
+		[activeThreadId, navigation.current, sessionDeletionClaims, threads],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
