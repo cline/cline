@@ -148,6 +148,12 @@ function block(source: string, selector: string): string {
 }
 
 describe("@cline/ui theme contract", () => {
+	it("keeps the shared agent surface vertically composed", () => {
+		expect(block(readComponent("welcome.css"), ".cline-ui-agent-surface")).toContain(
+			"flex-direction: column",
+		);
+	});
+
 	it("uses standard semantic and Tailwind token names", () => {
 		const tokens = read("tokens.css");
 		expect(tokens).not.toContain("--cline-");
