@@ -1,4 +1,4 @@
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -239,6 +239,14 @@ describe("first-send connection updates", () => {
 			tmpdir(),
 			`cline-desktop-attachments-${Date.now()}-${delivery ?? "immediate"}`,
 		);
+		let sentFileContent: string | undefined;
+		send.mockImplementation(async (input?: unknown) => {
+			const files = (input as { userFiles?: string[] } | undefined)?.userFiles;
+			if (files?.[0]) {
+				sentFileContent = readFileSync(files[0], "utf8");
+			}
+			return { text: "done", finishReason: "completed", messages: [] };
+		});
 
 		try {
 			process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
@@ -262,7 +270,105 @@ describe("first-send connection updates", () => {
 				userImages: undefined,
 				userFiles: [expect.stringMatching(/notes\.txt$/)],
 			});
-			expect(readFileSync(input?.userFiles?.[0] ?? "", "utf8")).toBe("hello");
+			expect(sentFileContent).toBe("hello");
+			if (delivery === "queue") {
+				// Queued attachments stay on disk until the prompt is consumed.
+				expect(existsSync(input?.userFiles?.[0] ?? "")).toBe(true);
+			} else {
+				// Immediate turns delete the materialized file once the send resolves.
+				expect(existsSync(input?.userFiles?.[0] ?? "")).toBe(false);
+			}
+		} finally {
+			if (previousSessionDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			}
+			rmSync(testSessionDataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("deletes materialized attachments when a queued prompt is removed", async () => {
+		const { ctx, send, sessionId } = createContext();
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		const testSessionDataDir = join(
+			tmpdir(),
+			`cline-desktop-attachments-remove-${Date.now()}`,
+		);
+
+		try {
+			process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
+			const queue: Array<{
+				id: string;
+				prompt: string;
+				delivery: "queue";
+				attachmentCount: number;
+				userFiles?: string[];
+			}> = [];
+			const manager = ctx.sessionManager as unknown as {
+				send: typeof send;
+				pendingPrompts: {
+					list: (input: unknown) => Promise<unknown[]>;
+					delete: (input: {
+						sessionId: string;
+						promptId: string;
+					}) => Promise<unknown>;
+				};
+			};
+			manager.send = vi.fn(async (input?: unknown) => {
+				const { prompt, userFiles } = input as {
+					prompt: string;
+					userFiles?: string[];
+				};
+				queue.push({
+					id: "pending_1",
+					prompt,
+					delivery: "queue",
+					attachmentCount: userFiles?.length ?? 0,
+					userFiles,
+				});
+				return undefined;
+			}) as unknown as typeof send;
+			manager.pendingPrompts = {
+				list: vi.fn(async () => [...queue]),
+				delete: vi.fn(async ({ promptId }) => {
+					const index = queue.findIndex((entry) => entry.id === promptId);
+					const [removed] = index >= 0 ? queue.splice(index, 1) : [];
+					return {
+						sessionId,
+						prompts: [...queue],
+						prompt: removed,
+						removed: index >= 0,
+					};
+				}),
+			};
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "queued with file",
+				delivery: "queue",
+				attachments: {
+					userFiles: [{ name: "notes.txt", content: "hello" }],
+				},
+			});
+			const filePath = queue[0]?.userFiles?.[0] ?? "";
+			expect(existsSync(filePath)).toBe(true);
+			expect(
+				ctx.liveSessions
+					.get(sessionId)
+					?.queuedAttachmentFiles?.get("pending_1"),
+			).toEqual([filePath]);
+
+			await handleChatSessionCommand(ctx, {
+				action: "remove_pending_prompt",
+				sessionId,
+				promptId: "pending_1",
+			});
+			expect(existsSync(filePath)).toBe(false);
+			expect(
+				ctx.liveSessions.get(sessionId)?.queuedAttachmentFiles?.size ?? 0,
+			).toBe(0);
 		} finally {
 			if (previousSessionDataDir === undefined) {
 				delete process.env.CLINE_SESSION_DATA_DIR;

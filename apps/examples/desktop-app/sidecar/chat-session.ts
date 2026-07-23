@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -16,6 +15,11 @@ import {
 } from "@cline/core";
 import type { Message } from "@cline/llms";
 import { buildClineSystemPrompt } from "@cline/shared";
+import {
+	deleteMaterializedAttachments,
+	materializeUserFiles,
+	trackQueuedAttachments,
+} from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import type {
@@ -123,31 +127,6 @@ function readSessionMetadataTitle(sessionId: string): string | undefined {
 			: undefined;
 	const title = metadata?.title;
 	return typeof title === "string" ? title.trim() || undefined : undefined;
-}
-
-function materializeUserFiles(
-	sessionId: string,
-	files: NonNullable<ChatSessionCommandRequest["attachments"]>["userFiles"],
-): string[] | undefined {
-	if (!files?.length) {
-		return undefined;
-	}
-	const attachmentDir = join(
-		sharedSessionDataDir(),
-		sessionId,
-		"user-attachments",
-	);
-	mkdirSync(attachmentDir, { recursive: true });
-	return files.map((file) => {
-		const requestedName = basename(file.name.trim());
-		const safeName =
-			requestedName && requestedName !== "." && requestedName !== ".."
-				? requestedName
-				: "attachment.txt";
-		const path = join(attachmentDir, `${randomUUID()}-${safeName}`);
-		writeFileSync(path, file.content, "utf8");
-		return path;
-	});
 }
 
 function readSessionMetadata(sessionId: string): JsonRecord | undefined {
@@ -801,6 +780,7 @@ async function handleSend(
 				userFiles,
 			});
 			const prompts = await manager.pendingPrompts.list({ sessionId });
+			trackQueuedAttachments(session, prompts, userFiles);
 			return {
 				sessionId,
 				ok: true,
@@ -814,13 +794,33 @@ async function handleSend(
 			promptLength: prompt.length,
 			delivery,
 		});
-		const result = await manager.send({
-			sessionId,
-			prompt,
-			delivery,
-			userImages: request.attachments?.userImages,
-			userFiles,
-		});
+		let result: Awaited<ReturnType<ClineCore["send"]>>;
+		try {
+			result = await manager.send({
+				sessionId,
+				prompt,
+				delivery,
+				userImages: request.attachments?.userImages,
+				userFiles,
+			});
+		} catch (error) {
+			deleteMaterializedAttachments(sessionId, userFiles);
+			throw error;
+		}
+		if (result === undefined) {
+			// The runtime queued or steered the prompt instead of running it
+			// (busy interactive session / steer delivery) — track the files so
+			// they are deleted once the prompt is consumed or discarded.
+			if (userFiles?.length) {
+				trackQueuedAttachments(
+					session,
+					await manager.pendingPrompts.list({ sessionId }),
+					userFiles,
+				);
+			}
+		} else {
+			deleteMaterializedAttachments(sessionId, userFiles);
+		}
 		ctx.logger?.log("Desktop chat prompt completed", {
 			sessionId,
 			finishReason: result?.finishReason,
@@ -1180,6 +1180,10 @@ async function handleRemovePendingPrompt(
 		sessionId,
 		promptId,
 	});
+	if (result.removed === true) {
+		deleteMaterializedAttachments(sessionId, result.prompt?.userFiles);
+		ctx.liveSessions.get(sessionId)?.queuedAttachmentFiles?.delete(promptId);
+	}
 	return {
 		sessionId,
 		removed: result.removed === true,

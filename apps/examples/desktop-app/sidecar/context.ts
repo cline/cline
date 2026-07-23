@@ -18,6 +18,12 @@ import {
 	type ToolApprovalResult,
 } from "@cline/core";
 import type { AgentEvent } from "@cline/shared";
+import {
+	discardAllTrackedAttachments,
+	flushConsumedAttachments,
+	markQueuedAttachmentsSubmitted,
+	reconcileQueuedAttachments,
+} from "./attachments";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -331,6 +337,10 @@ function handleCoreSessionEvent(
 					(item) => item.id && (item.prompt || (item.attachmentCount ?? 0) > 0),
 				);
 			if (session) {
+				reconcileQueuedAttachments(
+					session,
+					mapped.map((item) => item.id),
+				);
 				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
 				if (
@@ -357,6 +367,7 @@ function handleCoreSessionEvent(
 		case "pending_prompt_submitted": {
 			const { sessionId, id, prompt, attachmentCount, userImages } =
 				event.payload;
+			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
 			emitChunk(
 				ctx,
 				sessionId,
@@ -378,6 +389,7 @@ function handleCoreSessionEvent(
 				session.endedAt = nowMs();
 				session.status = reason || "ended";
 			}
+			discardAllTrackedAttachments(sessionId, session);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -397,6 +409,10 @@ function handleCoreSessionEvent(
 			if (session) {
 				session.status = status;
 				session.busy = status === "running";
+				if (status !== "running") {
+					// The turn that consumed submitted attachments has finished.
+					flushConsumedAttachments(sessionId, session);
+				}
 			}
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
 			break;

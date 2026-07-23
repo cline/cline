@@ -58,6 +58,10 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Materialized attachment files for prompts still waiting in the queue. */
+	queuedAttachmentFiles?: Map<string, string[]>;
+	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
+	consumedAttachmentFiles?: Map<string, string[]>;
 };
 
 export type ToolApprovalRequestItem = {
