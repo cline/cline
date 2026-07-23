@@ -46,6 +46,50 @@ describe("sortProvidersForApiKeySetup", () => {
 			"zai",
 		]);
 	});
+
+	it("drops providers the API-key form cannot fully configure", () => {
+		const apiKeyField = {
+			path: "apiKey",
+			label: "API Key",
+			type: "password" as const,
+		};
+		const sorted = sortProvidersForApiKeySetup([
+			makeProvider({
+				id: "vertex",
+				name: "Google Vertex AI",
+				configFields: [
+					{ path: "gcp.projectId", label: "Project", type: "text" },
+					apiKeyField,
+				],
+			}),
+			makeProvider({
+				id: "bedrock",
+				name: "AWS Bedrock",
+				configFields: [
+					{ path: "aws.region", label: "Region", type: "text" },
+					apiKeyField,
+				],
+			}),
+			makeProvider({
+				id: "claude-code",
+				name: "Claude Code",
+				configFields: [],
+			}),
+			makeProvider({
+				id: "ollama",
+				name: "Ollama",
+				configFields: [
+					apiKeyField,
+					{ path: "baseUrl", label: "Base URL", type: "url" },
+				],
+			}),
+			makeProvider({ id: "anthropic", name: "Anthropic" }),
+		]);
+		expect(sorted.map((provider) => provider.id)).toEqual([
+			"anthropic",
+			"ollama",
+		]);
+	});
 });
 
 describe("OnboardingView", () => {
@@ -125,6 +169,38 @@ describe("OnboardingView", () => {
 			buttonByText("Skip for now").click();
 		});
 		expect(onComplete).toHaveBeenCalledTimes(1);
+	});
+
+	it("records Cline as the provider when a signed-in user continues", async () => {
+		// Simulate replaying onboarding after previously using another provider.
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({ lastProvider: "anthropic", lastModelByProvider: {} }),
+		);
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		expect(container.textContent).toContain("Signed in as");
+
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(container.textContent).toContain("You're all set");
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			).lastProvider,
+		).toBe("cline");
 	});
 
 	it("saves an API key provider and remembers the selection", async () => {

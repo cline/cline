@@ -54,10 +54,30 @@ const PREFERRED_PROVIDER_ORDER = [
 ];
 
 /**
+ * True when entering an API key is all the provider needs: it declares an
+ * API-key config field and nothing beyond key/base-URL. Providers with
+ * structured setup (Vertex `gcp.*`, Bedrock `aws.*`) or no API-key field at
+ * all (Claude Code) would "connect" here without working, so they stay in
+ * Settings where the full form lives. Missing metadata means the catalog
+ * fell back to a plain API-key field.
+ */
+function isApiKeyOnlyProvider(provider: Provider): boolean {
+	const fields = provider.configFields;
+	if (!fields) {
+		return true;
+	}
+	return (
+		fields.some((field) => field.path === "apiKey") &&
+		fields.every((field) => field.path === "apiKey" || field.path === "baseUrl")
+	);
+}
+
+/**
  * Orders the provider catalog for the API-key setup step: OAuth-managed
  * providers (Cline itself, ChatGPT, OCA) are excluded because they have
- * dedicated sign-in paths, popular API-key providers come first, and the
- * rest follow alphabetically.
+ * dedicated sign-in paths, providers needing more than an API key are
+ * excluded because this form only collects one, popular API-key providers
+ * come first, and the rest follow alphabetically.
  */
 export function sortProvidersForApiKeySetup(providers: Provider[]): Provider[] {
 	const rank = (id: string) => {
@@ -65,7 +85,11 @@ export function sortProvidersForApiKeySetup(providers: Provider[]): Provider[] {
 		return index === -1 ? PREFERRED_PROVIDER_ORDER.length : index;
 	};
 	return providers
-		.filter((provider) => !OAUTH_MANAGED_PROVIDERS.has(provider.id))
+		.filter(
+			(provider) =>
+				!OAUTH_MANAGED_PROVIDERS.has(provider.id) &&
+				isApiKeyOnlyProvider(provider),
+		)
 		.sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name));
 }
 
@@ -285,7 +309,10 @@ function ConnectStep({
 							</p>
 							<Button
 								className="rounded-full"
-								onClick={() => onConnected({ kind: "cline" })}
+								onClick={() => {
+									rememberProviderSelection({ id: "cline" });
+									onConnected({ kind: "cline" });
+								}}
 								type="button"
 							>
 								Continue
