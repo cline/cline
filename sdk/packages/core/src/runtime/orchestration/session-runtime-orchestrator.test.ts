@@ -2143,6 +2143,50 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.continue("two");
 		// Second failed turn — counter reaches 2, tracker calls abort.
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+		// The mistake-limit stop notice is a synthetic system-injected
+		// `role: "user"` message; it must be tagged so checkpoint run
+		// counting doesn't mistake it for a genuine user turn.
+		const notice = session
+			.getMessages()
+			.find(
+				(message) =>
+					(message.metadata as Record<string, unknown> | undefined)?.kind ===
+					"mistake_stop_notice",
+			);
+		expect(notice).toBeDefined();
+		expect(notice?.role).toBe("user");
+	});
+
+	// When a consecutive-mistake limit decision resolves to "continue" with
+	// guidance, the guidance is appended as a synthetic system-injected
+	// `role: "user"` recovery notice - it must be tagged so checkpoint run
+	// counting doesn't mistake it for a genuine user turn.
+	it("tags the mistake-limit recovery notice as a synthetic message", async () => {
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: failedToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 2 },
+				onConsecutiveMistakeLimitReached: () => ({
+					action: "continue",
+					guidance: "try a different approach",
+				}),
+			}),
+			deps,
+		);
+		await session.run("one");
+		await session.continue("two");
+		expect(abortCalls).toHaveLength(0);
+		const notice = session
+			.getMessages()
+			.find(
+				(message) =>
+					(message.metadata as Record<string, unknown> | undefined)?.kind ===
+					"recovery_notice",
+			);
+		expect(notice).toBeDefined();
+		expect(notice?.role).toBe("user");
 	});
 
 	it("serializes structured tool errors in mistake details", async () => {
@@ -2309,6 +2353,50 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 		await session.run("task two");
 		expect(abortCalls).toHaveLength(0);
+	});
+
+	// The soft-threshold loop warning is a synthetic system-injected
+	// `role: "user"` message; it must be tagged so checkpoint run counting
+	// doesn't mistake it for a genuine user turn.
+	it("tags the soft-threshold loop-detection warning as a synthetic message", async () => {
+		const identical = (i: number): AgentRuntimeEvent => ({
+			type: "tool-started",
+			iteration: i,
+			toolCall: {
+				type: "tool-call",
+				toolCallId: `tc${i}`,
+				toolName: "same",
+				input: { a: 1 },
+			},
+			snapshot: makeSnapshot(),
+		});
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: [
+				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+				identical(1),
+				identical(1),
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: {
+					maxConsecutiveMistakes: 6,
+					loopDetection: { softThreshold: 2, hardThreshold: 3 },
+				},
+			}),
+			deps,
+		);
+		await session.run("loop-me");
+		expect(abortCalls).toHaveLength(0);
+		const notice = session
+			.getMessages()
+			.find(
+				(message) =>
+					(message.metadata as Record<string, unknown> | undefined)?.kind ===
+					"loop_detection_notice",
+			);
+		expect(notice).toBeDefined();
+		expect(notice?.role).toBe("user");
 	});
 
 	it("does not trigger loop-detection when execution.loopDetection === false", async () => {

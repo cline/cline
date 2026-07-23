@@ -430,6 +430,10 @@ describe("AgentRuntime", () => {
 						(part) => part.type === "text" && part.text.includes("submit"),
 					),
 				).toBe(true);
+				// This synthetic system-injected reminder must be tagged so
+				// checkpoint run counting doesn't mistake it for a genuine
+				// user turn - see checkpoint-run-counting.ts.
+				expect(reminder?.metadata?.kind).toBe("completion_reminder");
 				return [
 					{
 						type: "tool-call-delta",

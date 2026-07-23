@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import type { AgentMessage } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	type CheckpointEntry,
@@ -30,29 +31,59 @@ async function createGitRepo(): Promise<string> {
 	return cwd;
 }
 
+// Checkpoint runCount is derived from the count of genuine user-authored
+// messages in the snapshot (see ./checkpoint-run-counting.ts) rather than a
+// counter incremented on every root run/continue invocation - so test
+// fixtures build up the message list explicitly instead of relying on an
+// internal counter or an `initialRunCount` option (both removed).
+let nextMessageId = 0;
+
+function userMessage(
+	text: string,
+	metadata?: Record<string, unknown>,
+): AgentMessage {
+	nextMessageId += 1;
+	return {
+		id: `msg_${nextMessageId}`,
+		role: "user",
+		content: [{ type: "text", text }],
+		createdAt: nextMessageId,
+		...(metadata ? { metadata } : {}),
+	};
+}
+
+function assistantMessage(text: string): AgentMessage {
+	nextMessageId += 1;
+	return {
+		id: `msg_${nextMessageId}`,
+		role: "assistant",
+		content: [{ type: "text", text }],
+		createdAt: nextMessageId,
+	};
+}
+
 async function runCheckpointHooks(
 	hooks: ReturnType<typeof createCheckpointHooks>,
+	messages: AgentMessage[],
 	options: { parentAgentId?: string | null } = {},
 ): Promise<void> {
-	const snapshot = {
-		agentId: options.parentAgentId ? "agent_child" : "agent_1",
-		parentAgentId: options.parentAgentId,
-		conversationId: options.parentAgentId ? "conv_child" : "conv_1",
-		runId: options.parentAgentId ? "run_child" : "run_1",
-		status: "running" as const,
-		iteration: 1,
-		messages: [],
-		pendingToolCalls: [],
-		usage: {
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheReadTokens: 0,
-			cacheWriteTokens: 0,
-		},
-	};
-	await hooks.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
 	await hooks.beforeModel?.({
-		snapshot,
+		snapshot: {
+			agentId: options.parentAgentId ? "agent_child" : "agent_1",
+			parentAgentId: options.parentAgentId,
+			conversationId: options.parentAgentId ? "conv_child" : "conv_1",
+			runId: options.parentAgentId ? "run_child" : "run_1",
+			status: "running" as const,
+			iteration: 1,
+			messages,
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		},
 		request: {
 			messages: [],
 			tools: [],
@@ -69,13 +100,13 @@ describe("createCheckpointHooks", () => {
 				cwd,
 				sessionId: "sess_1",
 				readSessionMetadata: async () => metadata,
-				writeSessionMetadata: async (next) => {
-					metadata = next;
+				writeSessionMetadata: async (updater) => {
+					metadata = updater(metadata);
 				},
 			});
 
 			await writeFile(join(cwd, "note.txt"), "run-one\n", "utf8");
-			await runCheckpointHooks(hooks);
+			await runCheckpointHooks(hooks, [userMessage("first")]);
 
 			const first = metadata?.checkpoint as CheckpointMetadata;
 			expect(first.history).toHaveLength(1);
@@ -83,7 +114,11 @@ describe("createCheckpointHooks", () => {
 			expect(first.latest.ref).toMatch(/^[0-9a-f]{40}$/);
 
 			await writeFile(join(cwd, "note.txt"), "run-two\n", "utf8");
-			await runCheckpointHooks(hooks);
+			await runCheckpointHooks(hooks, [
+				userMessage("first"),
+				assistantMessage("reply"),
+				userMessage("second"),
+			]);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.runCount).toBe(2);
@@ -105,12 +140,12 @@ describe("createCheckpointHooks", () => {
 				cwd,
 				sessionId: "sess_clean",
 				readSessionMetadata: async () => metadata,
-				writeSessionMetadata: async (next) => {
-					metadata = next;
+				writeSessionMetadata: async (updater) => {
+					metadata = updater(metadata);
 				},
 			});
 
-			await runCheckpointHooks(hooks);
+			await runCheckpointHooks(hooks, [userMessage("first")]);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.history).toHaveLength(1);
@@ -129,18 +164,22 @@ describe("createCheckpointHooks", () => {
 				cwd,
 				sessionId: "sess_no_change",
 				readSessionMetadata: async () => metadata,
-				writeSessionMetadata: async (next) => {
-					metadata = next;
+				writeSessionMetadata: async (updater) => {
+					metadata = updater(metadata);
 				},
 			});
 
-			await runCheckpointHooks(hooks);
+			const messages = [userMessage("first")];
+			await runCheckpointHooks(hooks, messages);
 
 			const first = metadata?.checkpoint as CheckpointMetadata;
 			expect(first.history).toHaveLength(1);
 			expect(first.latest.kind).toBe("commit");
 
-			await runCheckpointHooks(hooks);
+			// Same message count (no new genuine user turn) and a still-clean
+			// worktree - HEAD hasn't moved, so this must be recognized as the
+			// same checkpoint and not appended again.
+			await runCheckpointHooks(hooks, messages);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.history).toHaveLength(1);
@@ -164,7 +203,11 @@ describe("createCheckpointHooks", () => {
 			});
 
 			await writeFile(join(cwd, "note.txt"), "subagent-dirty\n", "utf8");
-			await runCheckpointHooks(hooks, { parentAgentId: "agent_root" });
+			await runCheckpointHooks(
+				hooks,
+				[userMessage("subagent turn")],
+				{ parentAgentId: "agent_root" },
+			);
 
 			expect(writes).toBe(0);
 		} finally {
@@ -184,17 +227,56 @@ describe("createCheckpointHooks", () => {
 				kind: "commit",
 			}),
 			readSessionMetadata: async () => metadata,
-			writeSessionMetadata: async (next) => {
-				metadata = next;
+			writeSessionMetadata: async (updater) => {
+				metadata = updater(metadata);
 			},
 		});
 
-		await runCheckpointHooks(hooks, { parentAgentId: "agent_root" });
-		await runCheckpointHooks(hooks);
+		// A subagent run has its own, unrelated conversation - it must never
+		// influence the root session's checkpoint numbering.
+		await runCheckpointHooks(
+			hooks,
+			[userMessage("a"), userMessage("b"), userMessage("c")],
+			{ parentAgentId: "agent_root" },
+		);
+		await runCheckpointHooks(hooks, [userMessage("root turn one")]);
 
 		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 		expect(checkpoint.latest.runCount).toBe(1);
 		expect(checkpoint.history.map((entry) => entry.runCount)).toEqual([1]);
+	});
+
+	it("ignores synthetic system-injected messages when computing runCount", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_synthetic",
+			createCheckpoint: ({ runCount }) => ({
+				ref: `checkpoint-${runCount}`,
+				createdAt: runCount,
+				runCount,
+				kind: "commit",
+			}),
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (updater) => {
+				metadata = updater(metadata);
+			},
+		});
+
+		// Two genuine user turns, plus several synthetic `role: "user"`
+		// messages the system injects internally (completion reminders,
+		// recovery notices, etc - see checkpoint-run-counting.ts). None of
+		// these should count as a new run.
+		await runCheckpointHooks(hooks, [
+			userMessage("first"),
+			assistantMessage("reply"),
+			userMessage("reminder", { kind: "completion_reminder" }),
+			userMessage("recovered", { kind: "recovery_notice" }),
+			userMessage("second"),
+		]);
+
+		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+		expect(checkpoint.latest.runCount).toBe(2);
 	});
 
 	it("continues checkpoint numbering after seeded messages", async () => {
@@ -204,15 +286,22 @@ describe("createCheckpointHooks", () => {
 			const hooks = createCheckpointHooks({
 				cwd,
 				sessionId: "sess_seeded",
-				initialRunCount: 2,
 				readSessionMetadata: async () => metadata,
-				writeSessionMetadata: async (next) => {
-					metadata = next;
+				writeSessionMetadata: async (updater) => {
+					metadata = updater(metadata);
 				},
 			});
 
+			// Two prior turns already seeded into the conversation (e.g. after
+			// a checkpoint restore), plus one new turn for this run.
 			await writeFile(join(cwd, "note.txt"), "run-three\n", "utf8");
-			await runCheckpointHooks(hooks);
+			await runCheckpointHooks(hooks, [
+				userMessage("seeded one"),
+				assistantMessage("seeded reply one"),
+				userMessage("seeded two"),
+				assistantMessage("seeded reply two"),
+				userMessage("run three"),
+			]);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.runCount).toBe(3);
@@ -245,7 +334,6 @@ describe("createCheckpointHooks", () => {
 		const hooks = createCheckpointHooks({
 			cwd: "/tmp",
 			sessionId: "sess_replace",
-			initialRunCount: 2,
 			createCheckpoint: ({ runCount }) => ({
 				ref: "new-three",
 				createdAt: 4,
@@ -253,12 +341,16 @@ describe("createCheckpointHooks", () => {
 				kind: "commit",
 			}),
 			readSessionMetadata: async () => metadata,
-			writeSessionMetadata: async (next) => {
-				metadata = next;
+			writeSessionMetadata: async (updater) => {
+				metadata = updater(metadata);
 			},
 		});
 
-		await runCheckpointHooks(hooks);
+		await runCheckpointHooks(hooks, [
+			userMessage("one"),
+			userMessage("two"),
+			userMessage("three"),
+		]);
 
 		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 		expect(checkpoint.latest).toMatchObject({

@@ -6,6 +6,7 @@ import type {
 	CheckpointMetadata,
 } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
+import { isGenuineUserPromptMessage } from "./checkpoint-message-filter";
 
 const execFile = promisify(execFileCallback);
 
@@ -83,16 +84,7 @@ function findCheckpointMessageIndex(
 	let userRunCount = 0;
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
-		if (message?.role !== "user") {
-			continue;
-		}
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object"
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") {
+		if (!message || !isGenuineUserPromptMessage(message)) {
 			continue;
 		}
 		userRunCount += 1;

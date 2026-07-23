@@ -284,6 +284,54 @@ export class UnifiedSessionPersistenceService {
 		return { updated: false };
 	}
 
+	// Not exposed on the public RuntimeHost/ClineCore API - internal use only
+	// (via LocalRuntimeHost.persistSessionMetadata), so it can't be a breaking
+	// change for external callers of updateSession() who expect
+	// replace-semantics.
+	//
+	// `updateSession()` above already retries on an OCC lock conflict, but on
+	// each retry it re-writes the SAME `input.metadata` the caller computed
+	// once, before the retry loop even started - it never re-merges against
+	// the freshly-read `row.metadata` obtained on that attempt. Two callers
+	// racing to update metadata (e.g. a checkpoint write and a usage/cost
+	// write for the same turn) can each pass the OCC check on a later retry
+	// while blindly overwriting whatever the other committed in between - a
+	// classic lost update, silently invisible to both callers (both see
+	// `updated: true`). This variant re-applies `resolveMetadata` against the
+	// freshly-read row on every attempt, so a retry can never discard a
+	// concurrent writer's change.
+	async mergeSessionMetadata(
+		sessionId: string,
+		resolveMetadata: (
+			current: Record<string, unknown> | undefined,
+		) => Record<string, unknown> | undefined,
+	): Promise<{ updated: boolean; metadata?: Record<string, unknown> }> {
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+			const row = await this.adapter.getSession(sessionId);
+			if (!row) return { updated: false };
+			const nextMeta =
+				sanitizeMetadata(resolveMetadata(row.metadata ?? undefined)) ?? {};
+			const changed = await this.adapter.updateSession({
+				sessionId,
+				metadata: Object.keys(nextMeta).length > 0 ? nextMeta : null,
+				expectedStatusLock: row.statusLock,
+			});
+			if (!changed.updated) continue;
+			const { path: manifestPath, manifest } =
+				this.manifestStore.readManifestFile(sessionId);
+			if (manifest) {
+				manifest.metadata =
+					Object.keys(nextMeta).length > 0 ? nextMeta : undefined;
+				this.manifestStore.writeSessionManifest(manifestPath, manifest);
+			}
+			return {
+				updated: true,
+				metadata: Object.keys(nextMeta).length > 0 ? nextMeta : undefined,
+			};
+		}
+		return { updated: false };
+	}
+
 	queueSpawnRequest(event: HookEventPayload): Promise<void> {
 		return this.teamChildren.queueSpawnRequest(event);
 	}
