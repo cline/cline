@@ -314,8 +314,8 @@ export async function runInteractive(
 	const changeInteractiveWorkingDirectory = async (
 		next: ChatCommandState,
 	): Promise<void> => {
-		const applySessionChange = () =>
-			sessionRuntime.changeWorkingDirectory(next);
+		const applySessionChange = (service = activeUserInstructionService) =>
+			sessionRuntime.changeWorkingDirectory(next, service);
 		if (!workspaceResources) {
 			await applySessionChange();
 			return;
@@ -645,11 +645,10 @@ export async function runInteractive(
 					prompt: userInput,
 					userImages,
 					userFiles,
-				} = await buildUserInputMessage(
-					input,
-					activeUserInstructionService,
-					{ cwd: config.cwd, mode },
-				);
+				} = await buildUserInputMessage(input, activeUserInstructionService, {
+					cwd: config.cwd,
+					mode,
+				});
 				const mergedUserImages = [
 					...(attachments?.userImages ?? []),
 					...userImages,

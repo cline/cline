@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { searchWorkspaceFilesForMention } from "../../tui/interactive-welcome";
 import {
 	formatSlashCommandAutocompleteValue,
@@ -135,6 +135,22 @@ export function useAutocomplete(opts: {
 
 	const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 	const searchCounterRef = useRef(0);
+	const activeWorkspaceRootRef = useRef(workspaceRoot);
+
+	useEffect(() => {
+		if (activeWorkspaceRootRef.current === workspaceRoot) {
+			return;
+		}
+		activeWorkspaceRootRef.current = workspaceRoot;
+		searchCounterRef.current += 1;
+		if (searchTimerRef.current) {
+			clearTimeout(searchTimerRef.current);
+			searchTimerRef.current = null;
+		}
+		setMentionResults([]);
+		setMode(false);
+		setFilter("");
+	}, [workspaceRoot]);
 
 	const systemOptions: AutocompleteOption[] = systemCommands.map((cmd) => ({
 		display: `/${cmd.name}`,

@@ -1,5 +1,6 @@
 import {
 	createSessionCompactionState,
+	createUserInstructionConfigService,
 	type ProviderSettingsManager,
 	type SessionManifest,
 	SessionNotFoundError,
@@ -598,11 +599,14 @@ describe("createInteractiveSessionRuntime", () => {
 		const manager = makeManager();
 		const config = createConfig();
 		const state = createChatCommandState(config);
+		const initialInstructionService = createUserInstructionConfigService();
+		const nextInstructionService = createUserInstructionConfigService();
 		createCliCoreMock.mockResolvedValue(manager);
 		const { createInteractiveSessionRuntime } = await importRuntime();
 		const runtime = createInteractiveSessionRuntime({
 			config,
 			providerSettingsManager: createProviderSettingsManager(),
+			userInstructionService: initialInstructionService,
 			explicitSystemPrompt: "custom prompt",
 			chatCommandState: state,
 			requestToolApproval: vi.fn(),
@@ -617,11 +621,14 @@ describe("createInteractiveSessionRuntime", () => {
 		});
 
 		await runtime.ensureReady();
-		await runtime.changeWorkingDirectory({
-			...state,
-			cwd: "/tmp/next-project",
-			workspaceRoot: "/tmp/next-project",
-		});
+		await runtime.changeWorkingDirectory(
+			{
+				...state,
+				cwd: "/tmp/next-project",
+				workspaceRoot: "/tmp/next-project",
+			},
+			nextInstructionService,
+		);
 
 		expect(resolveSystemPromptMock).toHaveBeenCalledWith({
 			cwd: "/tmp/next-project",
@@ -646,6 +653,9 @@ describe("createInteractiveSessionRuntime", () => {
 					cwd: "/tmp/next-project",
 					workspaceRoot: "/tmp/next-project",
 					systemPrompt: "rebuilt system prompt",
+				}),
+				localRuntime: expect.objectContaining({
+					userInstructionService: nextInstructionService,
 				}),
 			}),
 		);
