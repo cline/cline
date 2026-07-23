@@ -14,7 +14,10 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
-import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import {
+	CLI_DEFAULT_CHECKPOINT_CONFIG,
+	CLI_DEFAULT_MAX_ITERATIONS,
+} from "./runtime/defaults";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -1091,6 +1094,7 @@ export async function runCli(): Promise<void> {
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
+			maxIterations: CLI_DEFAULT_MAX_ITERATIONS,
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
 			compaction: buildCliCompactionConfig(args.compactionMode),
 			timeoutSeconds: args.timeoutSeconds,

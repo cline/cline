@@ -1044,6 +1044,36 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("bounds the loop and fails when maxIterations is reached", async () => {
+		let requestCount = 0;
+		const model: AgentModel = {
+			async stream() {
+				requestCount += 1;
+				return toAsyncIterable([
+					{
+						type: "tool-call-delta",
+						toolCallId: `call_${requestCount}`,
+						toolName: "echo",
+						inputText: `{"text":"loop_${requestCount}"}`,
+					},
+					{ type: "finish", reason: "tool-calls" },
+				]);
+			},
+		};
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			maxIterations: 5,
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("exceeded maxIterations");
+		expect(result.iterations).toBe(5);
+		expect(requestCount).toBe(5);
+	});
+
 	it("supports plugin-contributed tools and hooks", async () => {
 		const beforeRun = vi.fn();
 		const plugin: AgentRuntimePlugin = {
