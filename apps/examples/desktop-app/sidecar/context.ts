@@ -7,13 +7,11 @@ import {
 	type BasicLogger,
 	ClineCore,
 	type CoreSessionEvent,
-	createLocalHubScheduleRuntimeHandlers,
+	ensureCompatibleLocalHubUrl,
 	type ITelemetryService,
 	NodeHubClient,
 	type RuntimeCapabilities,
-	resolveHubOwnerContext,
 	setHomeDirIfUnset,
-	startHubWebSocketServer,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
@@ -28,6 +26,10 @@ import type {
 } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
+const hubClientInitialization = new WeakMap<
+	SidecarContext,
+	Promise<NodeHubClient>
+>();
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -397,7 +399,6 @@ export function createSidecarContext(
 		pendingQuestions: new Map(),
 		sessionManager: null,
 		hubClient: null,
-		hubServer: null,
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
@@ -442,12 +443,6 @@ export async function disposeSidecarContext(
 	ctx.sessionManager = null;
 	if (sessionManager) {
 		cleanup.push(sessionManager.dispose(reason));
-	}
-
-	const hubServer = ctx.hubServer;
-	ctx.hubServer = null;
-	if (hubServer) {
-		cleanup.push(hubServer.close());
 	}
 
 	const results = await Promise.allSettled(cleanup);
@@ -702,15 +697,6 @@ export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
 	setHomeDirIfUnset(homedir());
-	const hubServer = await startHubWebSocketServer({
-		port: 0,
-		owner: resolveHubOwnerContext(
-			`code-sidecar:${process.pid}:${randomUUID()}`,
-		),
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		logger: ctx.logger,
-		telemetry: ctx.telemetry,
-	});
 	const sessionManager = await ClineCore.create({
 		clientName: "cline-code",
 		backendMode: "hub",
@@ -718,8 +704,7 @@ export async function initializeSessionManager(
 		logger: ctx.logger,
 		telemetry: ctx.telemetry,
 		hub: {
-			endpoint: hubServer.url,
-			authToken: hubServer.authToken,
+			strategy: "require-hub",
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			clientType: "code-sidecar",
@@ -732,25 +717,64 @@ export async function initializeSessionManager(
 		handleCoreSessionEvent(ctx, event);
 	});
 
-	const runtimeAddress = sessionManager.runtimeAddress?.trim();
-	let hubClient: NodeHubClient | null = null;
-	if (runtimeAddress) {
-		hubClient = new NodeHubClient({
-			url: runtimeAddress,
-			authToken: hubServer.authToken,
-			clientType: "code-sidecar-approvals",
-			displayName: "Code App approvals",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-		});
-		await hubClient.connect();
-		hubClient.subscribe((event) => {
-			handleHubLiveEvent(ctx, event);
-		});
+	try {
+		await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+	} catch (error) {
+		unsubscribe();
+		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
+		throw error;
 	}
 
 	ctx.sessionManager = sessionManager;
-	ctx.hubClient = hubClient;
-	ctx.hubServer = hubServer;
 	ctx.unsubscribeSessionEvents = unsubscribe;
+}
+
+export async function ensureSharedHubClient(
+	ctx: SidecarContext,
+	preferredUrl?: string,
+): Promise<NodeHubClient> {
+	if (ctx.hubClient) {
+		return ctx.hubClient;
+	}
+	const pending = hubClientInitialization.get(ctx);
+	if (pending) {
+		return await pending;
+	}
+
+	const initialization = (async () => {
+		const url =
+			preferredUrl?.trim() ||
+			(await ensureCompatibleLocalHubUrl({
+				strategy: "require-hub",
+				workspaceRoot: ctx.workspaceRoot,
+				cwd: ctx.workspaceRoot,
+			}));
+		if (!url) {
+			throw new Error("Unable to start or connect to the shared Cline Hub.");
+		}
+
+		const client = new NodeHubClient({
+			url,
+			clientType: "code-sidecar-observer",
+			displayName: "Code App observer",
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+		});
+		try {
+			await client.connect();
+			client.subscribe((event) => {
+				handleHubLiveEvent(ctx, event);
+			});
+			ctx.hubClient = client;
+			return client;
+		} catch (error) {
+			await client.dispose().catch(() => undefined);
+			throw error;
+		}
+	})().finally(() => {
+		hubClientInitialization.delete(ctx);
+	});
+
+	hubClientInitialization.set(ctx, initialization);
+	return await initialization;
 }

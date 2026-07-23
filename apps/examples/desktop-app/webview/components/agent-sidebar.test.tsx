@@ -70,6 +70,15 @@ async function click(element: Element): Promise<void> {
 	});
 }
 
+async function hover(element: Element): Promise<void> {
+	await act(async () => {
+		element.dispatchEvent(
+			new MouseEvent("pointerover", { bubbles: true, cancelable: true }),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	});
+}
+
 function buttonWithText(text: string, rootNode: ParentNode = container) {
 	const button = [
 		...rootNode.querySelectorAll<HTMLButtonElement>("button"),
@@ -349,11 +358,18 @@ describe("AgentSidebar session organization", () => {
 		expect(setView).toHaveBeenCalledWith("settings");
 	});
 
-	it("shows the desktop app version in a popover when the Cline logo is clicked", async () => {
+	it("shows the desktop app version and connected Hub when the logo is hovered", async () => {
 		const onHome = vi.fn();
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
-				return { appVersion: "1.2.3" };
+				return {
+					appVersion: "1.2.3",
+					hub: {
+						error: null,
+						status: "connected",
+						url: "ws://127.0.0.1:25463/hub",
+					},
+				};
 			}
 			throw new Error("No Cline account auth token found");
 		});
@@ -382,13 +398,62 @@ describe("AgentSidebar session organization", () => {
 		expect(logoButton).not.toBeNull();
 		expect(document.body.textContent).not.toContain("Version 1.2.3");
 
-		await click(logoButton as Element);
+		await hover(logoButton as Element);
 
 		await vi.waitFor(() => {
 			expect(document.body.textContent).toContain("Version 1.2.3");
+			expect(document.body.textContent).toContain("Cline Hub @25463");
+			expect(document.body.textContent).not.toContain(
+				"ws://127.0.0.1:25463/hub",
+			);
 		});
+		expect(onHome).not.toHaveBeenCalled();
+
+		await click(logoButton as Element);
 		expect(onHome).toHaveBeenCalled();
 		expect(invoke).toHaveBeenCalledWith("get_process_context");
+	});
+
+	it("shows a disconnected Hub when process context has no live connection", async () => {
+		invoke.mockResolvedValue({
+			appVersion: "1.2.3",
+			hub: {
+				error: "Hub connection closed (code=1006)",
+				status: "disconnected",
+				url: "ws://127.0.0.1:25463/hub",
+			},
+		});
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							isHomeActive
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const logoButton = container.querySelector('[aria-label="Cline home"]');
+		expect(logoButton).not.toBeNull();
+		await hover(logoButton as Element);
+
+		await vi.waitFor(() => {
+			expect(document.body.textContent).toContain("Cline Hub @25463");
+			expect(document.body.textContent).toContain(
+				"Hub connection closed (code=1006)",
+			);
+		});
 	});
 
 	it("falls back to a signed-out footer without account data", async () => {

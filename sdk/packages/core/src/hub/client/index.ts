@@ -323,6 +323,14 @@ export class NodeHubClient {
 		return this.currentUrl;
 	}
 
+	isConnected(): boolean {
+		return this.socket?.readyState === 1 && this.registered;
+	}
+
+	getConnectionError(): HubTransportError | null {
+		return this.isConnected() ? null : this.lastCloseError;
+	}
+
 	async connect(): Promise<void> {
 		if (
 			this.socket &&

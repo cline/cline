@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { setHomeDirIfUnset } from "@cline/core";
+import { isHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import {
 	createSidecarContext,
@@ -133,7 +134,15 @@ async function main() {
 	);
 }
 
-main().catch(async (error) => {
+async function runEntrypoint(): Promise<void> {
+	if (isHubDaemonProcess()) {
+		await import("@cline/core/hub/daemon-entry");
+		return;
+	}
+	await main();
+}
+
+runEntrypoint().catch(async (error) => {
 	const message = error instanceof Error ? error.message : String(error);
 	activeObservability?.logger.error?.("Desktop sidecar process failed", {
 		error,
