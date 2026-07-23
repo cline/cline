@@ -162,6 +162,7 @@ export function ChatView(props: {
 					gitDiffStats={repoStatus.diffStats}
 					onToggleMode={props.onToggleMode}
 					variant="chat"
+					isTeamActive={session.isTeamActive}
 				/>
 			</box>
 		</box>
