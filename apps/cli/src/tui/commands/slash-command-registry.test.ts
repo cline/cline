@@ -283,4 +283,26 @@ describe("slash command registry", () => {
 			getVisibleSystemSlashCommands(registry).map((command) => command.name),
 		).toContain("account");
 	});
+
+	it("exposes cd as a runtime command", () => {
+		const registry = buildSlashCommandRegistry({
+			workflowSlashCommands: [
+				{
+					name: "cd",
+					instructions: "/cd <directory>",
+					description: "Change the working directory",
+				},
+			],
+		});
+
+		expect(resolveSlashCommand(registry, "cd")).toMatchObject({
+			source: "runtime",
+			execution: "runtime",
+			visible: true,
+			selectable: true,
+		});
+		expect(
+			getVisibleSystemSlashCommands(registry).map((command) => command.name),
+		).toContain("cd");
+	});
 });

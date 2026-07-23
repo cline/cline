@@ -78,7 +78,7 @@ export async function runZen(
 			prompt: userInput,
 			userImages,
 			userFiles,
-		} = await buildUserInputMessage(prompt, userInstructionService);
+		} = await buildUserInputMessage(prompt, userInstructionService, config.cwd);
 
 		const startRequest: ChatStartSessionRequest = {
 			workspaceRoot,
