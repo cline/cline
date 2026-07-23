@@ -110,6 +110,17 @@ describe("MCP install service", () => {
 		);
 	});
 
+	it("parses marketplace stdio args after the command separator", () => {
+		expect(
+			parseMcpInstallArgs(["aikido", "--", "npx", "-y", "@aikidosec/mcp@1.0.9"]),
+		).toEqual({
+			name: "aikido",
+			transport: undefined,
+			targetArgs: ["npx", "-y", "@aikidosec/mcp@1.0.9"],
+			headers: [],
+		});
+	});
+
 	it("keeps transport-like values as stdio command args for direct builder input", () => {
 		expect(
 			buildMcpInstallTransport({
