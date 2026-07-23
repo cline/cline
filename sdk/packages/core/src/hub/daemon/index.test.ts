@@ -17,6 +17,7 @@ const {
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
+	withHubStartupLock,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
@@ -42,6 +43,10 @@ const {
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
+	withHubStartupLock: vi.fn(
+		async (_discoveryPath: string, callback: () => Promise<unknown>) =>
+			callback(),
+	),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
 
@@ -89,6 +94,7 @@ vi.mock("../discovery", () => ({
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
+	withHubStartupLock,
 }));
 
 describe("ensureDetachedHubServer", () => {
@@ -577,5 +583,60 @@ describe("ensureDetachedHubServer", () => {
 		} finally {
 			kill.mockRestore();
 		}
+	});
+
+	it("does not spawn a second daemon when a concurrent call holds the startup lock", async () => {
+		let discoveryCallCount = 0;
+		readHubDiscovery.mockImplementation(async () => {
+			discoveryCallCount++;
+			return discoveryCallCount === 1
+				? undefined
+				: {
+						url: "ws://127.0.0.1:5555/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+						authToken: "shared-token",
+					};
+		});
+		probeHubServer.mockImplementation(async (url: string) => {
+			if (url === "ws://127.0.0.1:25463/hub") {
+				return undefined;
+			}
+			return {
+				url: "ws://127.0.0.1:5555/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			};
+		});
+		verifyHubConnection.mockResolvedValue(true);
+		let activeLock = Promise.resolve();
+		withHubStartupLock.mockImplementation(
+			async (_discoveryPath: string, callback: () => Promise<unknown>) => {
+				const previousLock = activeLock;
+				let releaseLock!: () => void;
+				activeLock = new Promise<void>((resolve) => {
+					releaseLock = resolve;
+				});
+				await previousLock;
+				try {
+					return await callback();
+				} finally {
+					releaseLock();
+				}
+			},
+		);
+
+		const { ensureDetachedHubServer } = await import(".");
+		const [result1, result2] = await Promise.all([
+			ensureDetachedHubServer("/workspace"),
+			ensureDetachedHubServer("/workspace"),
+		]);
+
+		expect(result1).toEqual({
+			url: "ws://127.0.0.1:5555/hub",
+			authToken: "shared-token",
+		});
+		expect(result2).toEqual(result1);
+		expect(spawn).toHaveBeenCalledOnce();
 	});
 });
