@@ -161,6 +161,7 @@ describe("@cline/ui theme contract", () => {
 		expect(ruleBody(".cline-ui-aurora__horizon")).toContain("opacity: 0.48");
 		expect(ruleBody(".cline-ui-aurora__current")).toContain("opacity: 0.28");
 		expect(ruleBody(".cline-ui-aurora__blob")).toContain("opacity: 0.55");
+		expect(ruleBody(".cline-ui-aurora__star")).toContain("opacity: 0.3");
 	});
 
 	it("uses standard semantic and Tailwind token names", () => {

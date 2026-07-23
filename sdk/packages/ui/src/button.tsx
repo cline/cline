@@ -147,9 +147,17 @@ const ButtonImpl = forwardRef<HTMLButtonElement, InternalButtonProps>(
 		return (
 			<button
 				aria-busy={loading || undefined}
+				aria-disabled={loading || undefined}
 				className={classNames}
-				disabled={disabled || loading}
-				onClick={onClick}
+				disabled={disabled}
+				onClick={(event) => {
+					if (loading) {
+						event.preventDefault();
+						event.stopPropagation();
+						return;
+					}
+					onClick?.(event);
+				}}
 				ref={ref}
 				tabIndex={tabIndex}
 				type={type}

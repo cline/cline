@@ -169,7 +169,36 @@ describe("SearchCombobox", () => {
 		expect(onValueChange).not.toHaveBeenCalled();
 	});
 
-	it("can portal into a scoped dark theme boundary", () => {
+	it("stays open and preserves the search while options load", () => {
+		const props = {
+			ariaLabel: "Repository",
+			onValueChange: vi.fn(),
+			options: [{ label: "cline/cline", value: "cline/cline" }],
+		};
+		const { rerender } = render(<SearchCombobox {...props} />);
+
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: "Repository: Select an option…",
+			}),
+		);
+		const search = screen.getByRole("combobox", {
+			name: "Search repository",
+		}) as HTMLInputElement;
+		fireEvent.change(search, { target: { value: "cli" } });
+
+		rerender(
+			<SearchCombobox {...props} loading loadingText="Loading repositories…" />,
+		);
+
+		expect(screen.getByRole("listbox")).toBeTruthy();
+		expect(search.value).toBe("cli");
+		expect(screen.getByRole("status").textContent).toBe(
+			"Loading repositories…",
+		);
+	});
+
+	it("portals into the nearest scoped dark theme boundary by default", () => {
 		const themeRoot = document.createElement("div");
 		themeRoot.className = "cline-ui-theme dark";
 		document.body.append(themeRoot);
@@ -178,7 +207,6 @@ describe("SearchCombobox", () => {
 				ariaLabel="Repository"
 				onValueChange={vi.fn()}
 				options={[{ label: "cline/cline", value: "cline/cline" }]}
-				portalContainer={themeRoot}
 			/>,
 			{ container: themeRoot },
 		);
