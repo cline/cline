@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClineOAuthCredentials } from "./cline";
-import { getValidClineCredentials, loginClineOAuth } from "./cline";
+import {
+	completeClineDeviceAuth,
+	getValidClineCredentials,
+	loginClineOAuth,
+} from "./cline";
 
 const PROVIDER_OPTIONS = {
 	apiBaseUrl: "https://auth.example.com",
@@ -151,7 +155,10 @@ describe("auth/cline getValidClineCredentials", () => {
 					}),
 					{
 						status: 401,
-						headers: { "Content-Type": "application/json" },
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-invalid-grant",
+						},
 					},
 				),
 		) as unknown as typeof fetch;
@@ -169,12 +176,35 @@ describe("auth/cline getValidClineCredentials", () => {
 					reason: "invalid_grant",
 					status: 401,
 					errorCode: "invalid_grant",
+					request_id: "req-invalid-grant",
 					sessionId: "sid-1",
 					sessionDurationMs: Date.now() - 12_345,
 				}),
 			}),
 		);
 		nowSpy.mockRestore();
+	});
+
+	it("omits request_id when a failed response has no request ID header", async () => {
+		const current = createCredentials({ expires: 0 });
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ error: "invalid_grant" }), {
+					status: 401,
+					headers: { "Content-Type": "application/json" },
+				}),
+		) as unknown as typeof fetch;
+
+		const capture = vi.fn();
+		await getValidClineCredentials(current, {
+			...PROVIDER_OPTIONS,
+			telemetry: { capture } as never,
+		});
+
+		const logoutEvent = capture.mock.calls.find(
+			([event]) => event.event === "user.auth_logged_out",
+		)?.[0];
+		expect(logoutEvent?.properties).not.toHaveProperty("request_id");
 	});
 
 	it("keeps current credentials on transient refresh error while token remains valid", async () => {
@@ -204,7 +234,10 @@ describe("auth/cline getValidClineCredentials", () => {
 					}),
 					{
 						status: 500,
-						headers: { "Content-Type": "application/json" },
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-soft-failure-valid",
+						},
 					},
 				),
 		) as unknown as typeof fetch;
@@ -224,6 +257,7 @@ describe("auth/cline getValidClineCredentials", () => {
 				event: "user.auth_refresh_soft_failure",
 				properties: expect.objectContaining({
 					status: 500,
+					request_id: "req-soft-failure-valid",
 					tokenExpired: false,
 					sessionId: "sid-2",
 					sessionDurationMs: Date.now() - 67_890,
@@ -247,7 +281,10 @@ describe("auth/cline getValidClineCredentials", () => {
 					}),
 					{
 						status: 500,
-						headers: { "Content-Type": "application/json" },
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-soft-failure-expired",
+						},
 					},
 				),
 		) as unknown as typeof fetch;
@@ -266,6 +303,7 @@ describe("auth/cline getValidClineCredentials", () => {
 				event: "user.auth_refresh_soft_failure",
 				properties: expect.objectContaining({
 					status: 500,
+					request_id: "req-soft-failure-expired",
 					tokenExpired: true,
 				}),
 			}),
@@ -388,5 +426,88 @@ describe("auth/cline loginClineOAuth", () => {
 			}),
 		);
 		nowSpy.mockRestore();
+	});
+
+	it("includes the request ID when initial authentication fails", async () => {
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						error: "invalid_request",
+						error_description: "device auth failed",
+					}),
+					{
+						status: 400,
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-device-authorization",
+						},
+					},
+				),
+		) as unknown as typeof fetch;
+		const capture = vi.fn();
+
+		await expect(
+			loginClineOAuth({
+				apiBaseUrl: "https://api.cline.bot",
+				useWorkOSDeviceAuth: true,
+				telemetry: { capture } as never,
+				callbacks: {
+					onAuth: vi.fn(),
+					onPrompt: async () => "",
+				},
+			}),
+		).rejects.toThrow("Device authorization failed: 400");
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_failed",
+				properties: expect.objectContaining({
+					request_id: "req-device-authorization",
+				}),
+			}),
+		);
+	});
+});
+
+describe("auth/cline completeClineDeviceAuth", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		globalThis.fetch = ORIGINAL_FETCH;
+	});
+
+	it("includes the request ID when device polling fails", async () => {
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						error: "access_denied",
+						error_description: "authorization denied",
+					}),
+					{
+						status: 403,
+						headers: {
+							"Content-Type": "application/json",
+							"x-request-id": "req-device-poll",
+						},
+					},
+				),
+		) as unknown as typeof fetch;
+		const capture = vi.fn();
+
+		await expect(
+			completeClineDeviceAuth({
+				deviceCode: "device-code",
+				expiresInSeconds: 300,
+				pollIntervalSeconds: 1,
+				apiBaseUrl: "https://api.cline.bot",
+				telemetry: { capture } as never,
+			}),
+		).rejects.toThrow("authorization denied");
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_failed",
+				properties: expect.objectContaining({ request_id: "req-device-poll" }),
+			}),
+		);
 	});
 });

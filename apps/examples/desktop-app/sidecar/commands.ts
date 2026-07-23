@@ -51,7 +51,11 @@ import {
 	toggleDisabledTool,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getClineEnvironmentConfig,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import {
@@ -84,6 +88,11 @@ import type {
 	JsonRecord,
 	SidecarContext,
 } from "./types";
+
+// Strict allowlist: the opener hands the URL to the OS protocol handler, so
+// anything broader (file:, custom app schemes) would let webview content
+// launch arbitrary local handlers.
+const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
@@ -288,6 +297,93 @@ async function resolveFreshClineAuthToken(
 	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
 }
 
+function mergePersistedSessionRecord(
+	store: SqliteSessionStore,
+	sessionId: string,
+	record: JsonRecord,
+): JsonRecord {
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	const metadata =
+		record.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return {
+		...(persisted ?? {}),
+		...record,
+		sessionId,
+		provider: record.provider ?? persisted?.provider ?? "",
+		model: record.model ?? persisted?.model ?? "",
+		cwd: record.cwd ?? persisted?.cwd ?? "",
+		workspaceRoot:
+			record.workspaceRoot ?? persisted?.workspaceRoot ?? persisted?.cwd ?? "",
+		prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
+		parentSessionId:
+			record.parentSessionId ??
+			persisted?.parentSessionId ??
+			metadata?.parentSessionId,
+		parentAgentId:
+			record.parentAgentId ??
+			persisted?.parentAgentId ??
+			metadata?.parentAgentId,
+		agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
+		conversationId:
+			record.conversationId ??
+			persisted?.conversationId ??
+			metadata?.conversationId,
+		isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
+		startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
+		updatedAt: record.updatedAt ?? persisted?.updatedAt,
+		metadata: {
+			...((persisted?.metadata && typeof persisted.metadata === "object"
+				? persisted.metadata
+				: {}) as JsonRecord),
+			...(metadata ?? {}),
+		},
+	};
+}
+
+async function getSessionFromSidecarManager(
+	ctx: SidecarContext,
+	sessionId: string,
+): Promise<JsonRecord | undefined> {
+	const store = new SqliteSessionStore();
+	if (ctx.sessionManager) {
+		const session = await ctx.sessionManager.get(sessionId);
+		if (session) {
+			return mergePersistedSessionRecord(
+				store,
+				sessionId,
+				session as unknown as JsonRecord,
+			);
+		}
+	}
+
+	if (ctx.hubClient) {
+		try {
+			const reply = await ctx.hubClient.command(
+				"session.get",
+				undefined,
+				sessionId,
+			);
+			const session = reply.payload?.session;
+			if (session && typeof session === "object") {
+				return mergePersistedSessionRecord(
+					store,
+					sessionId,
+					session as JsonRecord,
+				);
+			}
+		} catch {
+			// Fall through to the local SQLite index.
+		}
+	}
+
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	return persisted
+		? mergePersistedSessionRecord(store, sessionId, persisted)
+		: undefined;
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -299,52 +395,6 @@ async function listSessionsFromSidecarManager(
 
 	const byId = new Map<string, JsonRecord>();
 	const store = new SqliteSessionStore();
-	const mergeSessionRecord = (
-		sessionId: string,
-		record: JsonRecord,
-	): JsonRecord => {
-		const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
-		const metadata =
-			record.metadata && typeof record.metadata === "object"
-				? (record.metadata as JsonRecord)
-				: undefined;
-		return {
-			...(persisted ?? {}),
-			...record,
-			sessionId,
-			provider: record.provider ?? persisted?.provider ?? "",
-			model: record.model ?? persisted?.model ?? "",
-			cwd: record.cwd ?? persisted?.cwd ?? "",
-			workspaceRoot:
-				record.workspaceRoot ??
-				persisted?.workspaceRoot ??
-				persisted?.cwd ??
-				"",
-			prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
-			parentSessionId:
-				record.parentSessionId ??
-				persisted?.parentSessionId ??
-				metadata?.parentSessionId,
-			parentAgentId:
-				record.parentAgentId ??
-				persisted?.parentAgentId ??
-				metadata?.parentAgentId,
-			agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
-			conversationId:
-				record.conversationId ??
-				persisted?.conversationId ??
-				metadata?.conversationId,
-			isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
-			startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
-			updatedAt: record.updatedAt ?? persisted?.updatedAt,
-			metadata: {
-				...((persisted?.metadata && typeof persisted.metadata === "object"
-					? persisted.metadata
-					: {}) as JsonRecord),
-				...(metadata ?? {}),
-			},
-		};
-	};
 
 	if (ctx.hubClient) {
 		try {
@@ -357,7 +407,10 @@ async function listSessionsFromSidecarManager(
 				const record = item as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
 				if (sessionId)
-					byId.set(sessionId, mergeSessionRecord(sessionId, record));
+					byId.set(
+						sessionId,
+						mergePersistedSessionRecord(store, sessionId, record),
+					);
 			}
 		} catch {
 			// Fall through to the local SQLite index.
@@ -466,10 +519,39 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
+function routineScheduleTiming(
+	args?: Record<string, unknown>,
+): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+	if (args?.schedule_type === "once") {
+		const runAt =
+			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
+		return Number.isFinite(runAt)
+			? {
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+				}
+			: undefined;
+	}
+	const cronPattern = asTrimmedString(args?.cron_pattern);
+	return cronPattern ? { cronPattern } : undefined;
+}
+
 function asTrimmedString(value: unknown): string | undefined {
 	if (typeof value !== "string") return undefined;
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function asTrimmedStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const values = value
+		.map((item) => asTrimmedString(item))
+		.filter((item): item is string => item !== undefined);
+	return values.length > 0 ? values : undefined;
+}
+
+function routineScheduleMode(value: unknown): "act" | "plan" | "yolo" {
+	return value === "plan" || value === "yolo" ? value : "act";
 }
 
 async function handleRoutineScheduleCommand(
@@ -564,23 +646,23 @@ async function handleRoutineScheduleCommand(
 		}
 		if (command === "create_routine_schedule") {
 			const name = asTrimmedString(args?.name);
-			const cronPattern = asTrimmedString(args?.cron_pattern);
+			const timing = routineScheduleTiming(args);
 			const prompt = asTrimmedString(args?.prompt);
 			const workspaceRoot = asTrimmedString(args?.workspace_root);
-			if (!name || !cronPattern || !prompt || !workspaceRoot) {
+			if (!name || !timing || !prompt || !workspaceRoot) {
 				throw new Error(
-					"createSchedule requires name, cron_pattern, prompt, and workspace_root",
+					"createSchedule requires name, timing, prompt, and workspace_root",
 				);
 			}
 			const created = await clientCommand("schedule.create", {
 				name,
-				cronPattern,
+				...timing,
 				prompt,
 				modelSelection: {
 					providerId: asTrimmedString(args?.provider) ?? "cline",
 					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
 				},
-				mode: args?.mode === "plan" ? "plan" : "act",
+				mode: routineScheduleMode(args?.mode),
 				workspaceRoot,
 				cwd: asTrimmedString(args?.cwd),
 				systemPrompt: asTrimmedString(args?.system_prompt),
@@ -588,17 +670,52 @@ async function handleRoutineScheduleCommand(
 				timeoutSeconds: toPositiveInt(args?.timeout_seconds),
 				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
 				enabled: args?.enabled !== false,
-				tags:
-					Array.isArray(args?.tags) && args.tags.length > 0
-						? (args.tags as string[])
-								.map((v: string) => v.trim())
-								.filter((v: string) => v.length > 0)
-						: undefined,
+				tags: asTrimmedStringArray(args?.tags),
 			});
 			return { schedule: created.schedule ?? null };
 		}
 		const scheduleId = asTrimmedString(args?.schedule_id);
 		if (!scheduleId) throw new Error(`${command} requires schedule_id`);
+		if (command === "update_routine_schedule") {
+			const name = asTrimmedString(args?.name);
+			const timing = routineScheduleTiming(args);
+			const prompt = asTrimmedString(args?.prompt);
+			const workspaceRoot = asTrimmedString(args?.workspace_root);
+			if (!name || !timing || !prompt || !workspaceRoot) {
+				throw new Error(
+					"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
+				);
+			}
+			const reply = await clientCommand("schedule.update", {
+				scheduleId,
+				name,
+				...timing,
+				prompt,
+				modelSelection: {
+					providerId: asTrimmedString(args?.provider) ?? "cline",
+					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				},
+				mode: routineScheduleMode(args?.mode),
+				workspaceRoot,
+				cwd: asTrimmedString(args?.cwd) ?? null,
+				systemPrompt:
+					args?.system_prompt === null
+						? null
+						: asTrimmedString(args?.system_prompt),
+				maxIterations:
+					args?.max_iterations === null
+						? null
+						: toPositiveInt(args?.max_iterations),
+				timeoutSeconds:
+					args?.timeout_seconds === null
+						? null
+						: toPositiveInt(args?.timeout_seconds),
+				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+				enabled: args?.enabled !== false,
+				tags: asTrimmedStringArray(args?.tags) ?? [],
+			});
+			return { schedule: reply.schedule ?? null };
+		}
 		if (command === "pause_routine_schedule") {
 			const reply = await clientCommand("schedule.disable", { scheduleId });
 			return { schedule: reply.schedule ?? null };
@@ -1150,6 +1267,11 @@ export async function handleCommand(
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
+	if (command === "get_discovered_session") {
+		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -1276,8 +1398,10 @@ export async function handleCommand(
 		} catch {
 			throw new Error(`invalid url: ${rawUrl}`);
 		}
-		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-			throw new Error("only http(s) urls can be opened externally");
+		if (!OPENABLE_URL_PROTOCOLS.has(parsed.protocol)) {
+			throw new Error(
+				"only http(s), mailto and tel urls can be opened externally",
+			);
 		}
 		await openUrlInDefaultBrowser(parsed.toString());
 		return { opened: true };
@@ -1371,7 +1495,9 @@ export async function handleCommand(
 				// The OAuth helper's openUrl callback is fire-and-forget; surface
 				// opener failures in the log instead of an unhandled rejection.
 				openUrlInDefaultBrowser(url).catch((error) => {
-					console.warn(`[sidecar] ${error instanceof Error ? error.message : error}`);
+					console.warn(
+						`[sidecar] ${error instanceof Error ? error.message : error}`,
+					);
 				});
 			},
 		);
@@ -1554,6 +1680,7 @@ export async function handleCommand(
 	if (
 		command === "list_routine_schedules" ||
 		command === "create_routine_schedule" ||
+		command === "update_routine_schedule" ||
 		command === "pause_routine_schedule" ||
 		command === "resume_routine_schedule" ||
 		command === "trigger_routine_schedule" ||

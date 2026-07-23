@@ -16,6 +16,20 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Login Shell PATH Resolution
+
+Apps launched from Finder/the Dock inherit launchd's minimal `PATH`
+(`/usr/bin:/bin:/usr/sbin:/sbin`), not the one your shell profiles build, so
+agent-run commands would miss Homebrew-installed tools like `gh` even though
+they work fine from a terminal. At startup the sidecar asks the user's login
+shell — read from the account database via `getpwuid`, falling back to
+`$SHELL` — for its `PATH` and merges it into `process.env.PATH`, which every
+agent-spawned child (run_commands, MCP servers) inherits. Only `PATH` is
+imported, deliberately; other login-environment variables (`SSH_AUTH_SOCK`,
+API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
+`CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
+[`sidecar/shell-path.ts`](./sidecar/shell-path.ts).
+
 ## Web Visual System
 
 The framework-neutral color, typography, radius, and navigation contract lives

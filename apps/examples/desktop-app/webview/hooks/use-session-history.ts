@@ -12,6 +12,7 @@ import type {
 import {
 	getSessionMetadataGitBranch,
 	getSessionMetadataTitle,
+	getSessionSource,
 } from "@/lib/session-history";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
@@ -21,6 +22,7 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 export interface SessionThread {
 	id: string;
 	title: string;
+	source?: string;
 	codebase: string;
 	workspacePath: string;
 	time: string;
@@ -233,6 +235,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 	return {
 		id: session.sessionId,
 		title: toTitle(session),
+		source: getSessionSource(session) || undefined,
 		codebase: basenamePath(workspacePath),
 		workspacePath,
 		time: formatRelativeTime(session.endedAt || session.startedAt),
@@ -332,6 +335,7 @@ function areSessionsEquivalent(
 		const b = next[i];
 		if (
 			a.sessionId !== b.sessionId ||
+			getSessionSource(a) !== getSessionSource(b) ||
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
@@ -364,6 +368,7 @@ function areThreadsEquivalent(
 		if (
 			a.id !== b.id ||
 			a.title !== b.title ||
+			a.source !== b.source ||
 			a.codebase !== b.codebase ||
 			a.workspacePath !== b.workspacePath ||
 			a.time !== b.time ||
