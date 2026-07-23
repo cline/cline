@@ -24,6 +24,7 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
+import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
 import {
 	type SettingsSection,
@@ -39,6 +40,11 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	hasCompletedOnboarding,
+	markOnboardingCompleted,
+	ONBOARDING_RESET_EVENT,
+} from "@/lib/onboarding";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -84,8 +90,19 @@ export default function Home() {
 	const [activeThreadId, setActiveThreadId] = useState<string>(
 		() => threads[0]?.id,
 	);
+	// Starts false on both server and first client render (hydration-safe);
+	// the effect below reads the persisted state right after mount.
+	const [showOnboarding, setShowOnboarding] = useState(false);
 
 	useAppUpdate();
+
+	useEffect(() => {
+		setShowOnboarding(!hasCompletedOnboarding());
+		const handleReset = () => setShowOnboarding(true);
+		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
+		return () =>
+			window.removeEventListener(ONBOARDING_RESET_EVENT, handleReset);
+	}, []);
 
 	useEffect(() => {
 		syncHubTheme();
@@ -102,6 +119,14 @@ export default function Home() {
 		setActiveThreadId(id);
 		setView("chat");
 	}, []);
+
+	const completeOnboarding = useCallback(() => {
+		markOnboardingCompleted();
+		setShowOnboarding(false);
+		// A fresh thread remounts the chat pane so it picks up credentials and
+		// the provider/model selection configured during onboarding.
+		handleNewThread();
+	}, [handleNewThread]);
 
 	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
 		const threadId = `session_${session.sessionId}`;
@@ -290,6 +315,11 @@ export default function Home() {
 					</SidebarInset>
 				</div>
 			</SidebarProvider>
+			{showOnboarding ? (
+				<div className="fixed inset-0 z-50">
+					<OnboardingView onComplete={completeOnboarding} />
+				</div>
+			) : null}
 		</AccountProvider>
 	);
 }

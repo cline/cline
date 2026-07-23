@@ -2,7 +2,6 @@ import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import type {
@@ -539,12 +538,10 @@ function GeneralSettingsContent() {
 		setTheme(setStoredHubTheme(nextTheme));
 	};
 
+	// resetOnboarding dispatches ONBOARDING_RESET_EVENT, which the app shell
+	// listens for to re-enter the first-run flow immediately.
 	const replayOnboarding = () => {
 		resetOnboarding();
-		toast({
-			title: "New user experience reset",
-			description: "Cline will show the first-run experience again.",
-		});
 	};
 
 	return (
