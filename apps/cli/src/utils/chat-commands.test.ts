@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createChatCommandHost,
@@ -197,6 +200,65 @@ describe("chat commands", () => {
 
 		expect(handled).toBe(true);
 		expect(reply).toHaveBeenCalledWith("hello world");
+	});
+
+	it("changes directories with both /cd and the existing /cwd spelling", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cli-chat-cd-"));
+		const target = join(root, "project with spaces");
+		mkdirSync(target);
+
+		for (const command of [
+			`/cd "project with spaces"`,
+			`/cwd "project with spaces"`,
+		]) {
+			const state = {
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: root,
+				workspaceRoot: root,
+			};
+			const setState = vi.fn(async (next) => Object.assign(state, next));
+			const reply = vi.fn(async () => undefined);
+
+			expect(
+				await maybeHandleChatCommand(command, {
+					enabled: true,
+					getState: () => state,
+					setState,
+					reply,
+				}),
+			).toBe(true);
+			expect(state.cwd).toBe(target);
+			expect(setState).toHaveBeenCalledOnce();
+			expect(reply).toHaveBeenCalledWith(
+				expect.stringContaining(`cwd=${target}`),
+			);
+		}
+	});
+
+	it("leaves the working directory unchanged when /cd is not a directory", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cli-chat-cd-invalid-"));
+		writeFileSync(join(root, "file.txt"), "not a directory");
+		const setState = vi.fn(async () => undefined);
+		const reply = vi.fn(async () => undefined);
+
+		expect(
+			await maybeHandleChatCommand("/cd file.txt", {
+				enabled: true,
+				getState: () => ({
+					enableTools: true,
+					autoApproveTools: false,
+					cwd: root,
+					workspaceRoot: root,
+				}),
+				setState,
+				reply,
+			}),
+		).toBe(true);
+		expect(setState).not.toHaveBeenCalled();
+		expect(reply).toHaveBeenCalledWith(
+			`invalid directory: ${join(root, "file.txt")}`,
+		);
 	});
 
 	it("shows usage for /team with no arguments", async () => {

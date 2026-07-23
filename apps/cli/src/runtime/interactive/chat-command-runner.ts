@@ -39,12 +39,14 @@ function commandTurnResult(commandOutput?: string): InteractiveTurnResult {
 export async function runInteractiveChatCommand(input: {
 	prompt: string;
 	enabled: boolean;
+	delivery?: "queue" | "steer";
 	config: Config;
 	host: ChatCommandHost;
 	chatCommandState: ChatCommandState;
 	autoApproveAllRef: AutoApproveRef;
 	setInteractiveAutoApprove: (enabled: boolean) => void;
 	sessionRuntime: InteractiveChatCommandRuntime;
+	changeWorkingDirectory: (next: ChatCommandState) => Promise<void>;
 	stop: () => void;
 	onCommandOutput?: (text: string) => void;
 }): Promise<InteractiveChatCommandResult> {
@@ -74,10 +76,22 @@ export async function runInteractiveChatCommand(input: {
 			autoApproveTools: input.autoApproveAllRef.current,
 		}),
 		setState: async (next) => {
-			input.chatCommandState.enableTools = next.enableTools;
-			input.chatCommandState.autoApproveTools = next.autoApproveTools;
-			input.chatCommandState.cwd = next.cwd;
-			input.chatCommandState.workspaceRoot = next.workspaceRoot;
+			if (
+				next.cwd !== input.chatCommandState.cwd ||
+				next.workspaceRoot !== input.chatCommandState.workspaceRoot
+			) {
+				// Workspace resources and the replacement session change together at
+				// an immediate submission boundary; deferred prompts cannot replay CLI
+				// commands after the active turn finishes.
+				if (input.delivery) {
+					throw new Error(
+						"Cannot change working directory while a turn is running. Wait for it to finish or abort it first.",
+					);
+				}
+				await input.changeWorkingDirectory(next);
+			} else {
+				Object.assign(input.chatCommandState, next);
+			}
 			input.setInteractiveAutoApprove(next.autoApproveTools);
 		},
 		reply: async (text) => {
