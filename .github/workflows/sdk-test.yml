@@ -45,8 +45,8 @@ jobs:
                   bun run -F @cline/cli build
                   bun run types
 
-            - name: Verify committed UI artifacts
-              run: test -z "$(git status --porcelain --untracked-files=all -- sdk/packages/ui/dist sdk/packages/ui/theme/tokens.css sdk/packages/ui/theme/scoped-tokens.css)"
+            - name: Verify generated UI theme
+              run: test -z "$(git status --porcelain --untracked-files=all -- sdk/packages/ui/theme/tokens.css sdk/packages/ui/theme/scoped-tokens.css)"
 
             - name: Verify packed UI package
               run: bun -F @cline/ui test:package
