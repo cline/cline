@@ -1,0 +1,29 @@
+---
+title: "Lynkr"
+description: "Learn how to configure and use Lynkr, a self-hosted complexity-routing gateway, with Cline."
+---
+
+Lynkr is a self-hosted, Apache-2.0 LLM gateway with an OpenAI-compatible endpoint. It routes each request by complexity — simple requests to local models (Ollama, llama.cpp, LM Studio), complex ones to a configured cloud provider (AWS Bedrock, Azure OpenAI, Databricks, OpenRouter, and others) — and reduces token usage by stripping unused tool schemas and compressing large JSON tool results.
+
+**Repository:** [https://github.com/Fast-Editor/Lynkr](https://github.com/Fast-Editor/Lynkr)
+
+### Start Lynkr
+
+1.  **Install:** `npm install -g lynkr`
+2.  **Configure:** Run `lynkr init` — an interactive wizard where you pick tier models (SIMPLE/MEDIUM/COMPLEX/REASONING) and enter provider credentials.
+3.  **Start:** Run `lynkr start`. The gateway serves `http://localhost:8081`.
+
+### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "OpenAI Compatible" from the "API Provider" dropdown.
+3.  **Enter Base URL:** `http://localhost:8081/v1`
+4.  **Enter API Key:** Any non-empty value (provider authentication is handled by Lynkr's own configuration).
+5.  **Model ID:** Any placeholder value; Lynkr's tier routing selects the actual model per request.
+
+### Notes
+
+*   Requests are sent only to the providers you configured in Lynkr; nothing transits third-party infrastructure.
+*   See [Lynkr's routing documentation](https://github.com/Fast-Editor/Lynkr/blob/main/documentation/routing.md) for tier configuration and complexity-threshold tuning.
