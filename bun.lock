@@ -692,7 +692,7 @@
         "@ai-sdk/provider": "^3.0.8",
         "@aws-sdk/credential-providers": "^3.922.0",
         "@cline/shared": "workspace:*",
-        "@jerome-benoit/sap-ai-provider": "4.6.9",
+        "@jerome-benoit/sap-ai-provider": "4.8.0",
         "@langfuse/otel": "^4.0.0",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/sdk-trace-node": "^2.6.1",
@@ -1557,7 +1557,7 @@
 
     "@istanbuljs/schema": ["@istanbuljs/schema@0.1.6", "", {}, "sha512-+Sg6GCR/wy1oSmQDFq4LQDAhm3ETKnorxN+y5nbLULOR3P0c14f2Wurzj3/xqPXtasLFfHd5iRFQ7AJt4KH2cw=="],
 
-    "@jerome-benoit/sap-ai-provider": ["@jerome-benoit/sap-ai-provider@4.6.9", "", { "dependencies": { "@ai-sdk/provider": "^3.0.10", "@ai-sdk/provider-utils": "^4.0.26", "@sap-ai-sdk/foundation-models": "^2.10.0", "@sap-ai-sdk/orchestration": "^2.10.0", "zod": "^4.4.2" }, "peerDependencies": { "ai": "^5.0.0 || ^6.0.0" } }, "sha512-z+ayDBasD2/PB4iAO6Lp6myQ96KZYjN/gBX3WAisaFKcCeRIsJyzHcBQh26lDu0cpzAybRmI5XUrWzn3nRaqgA=="],
+    "@jerome-benoit/sap-ai-provider": ["@jerome-benoit/sap-ai-provider@4.8.0", "", { "dependencies": { "@ai-sdk/provider": "^3.0.13", "@ai-sdk/provider-utils": "^4.0.35", "@sap-ai-sdk/foundation-models": "^2.12.0", "@sap-ai-sdk/orchestration": "^2.12.0", "zod": "^4.4.3" }, "peerDependencies": { "ai": "^5.0.0 || ^6.0.0" } }, "sha512-rJvAW9eDFj+IFTJQ+UK0CrPyq78BG+PF6AgmHE5C0bHAalJewT119rryHqttITVpCNuX49k2ajBSax8r0+SXcg=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.4.0", "", {}, "sha512-zOpzlfUs45l6u7jm39qr87JCHUDsaeCtvL+kQe/Vn9jSnRB4/5IPXISm0h9I1vZW/o00Kn4UTJ2MOlhnUGwv3g=="],
 

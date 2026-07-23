@@ -91,6 +91,7 @@ export class VscodeEditPreview extends EditPreview {
 
 		await vscode.commands.executeCommand("vscode.diff", this.leftUri, this.rightUri, content.title, {
 			preview: false,
+			preserveFocus: true,
 		})
 
 		// Fire-and-forget: the approval ask should render while the animation plays,

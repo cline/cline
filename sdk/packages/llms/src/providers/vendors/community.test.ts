@@ -185,6 +185,59 @@ describe("createSapAiCoreProviderModule", () => {
 		expect(model.config?.providerApi).toBe("orchestration");
 	});
 
+	it("sets requestConfig with fetch adapter and Cline client-type header", async () => {
+		const provider = await createSapAiCoreProviderModule({
+			providerId: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			options: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.example",
+			},
+		});
+
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: {
+				requestConfig?: {
+					adapter?: string;
+					headers?: Record<string, string>;
+					fetch?: unknown;
+					maxBodyLength?: number;
+					maxContentLength?: number;
+				};
+			};
+		};
+
+		expect(model.config?.requestConfig?.adapter).toBe("fetch");
+		expect(model.config?.requestConfig?.headers?.["ai-client-type"]).toBe("Cline");
+		expect(model.config?.requestConfig?.maxBodyLength).toBe(Number.POSITIVE_INFINITY);
+		expect(model.config?.requestConfig?.maxContentLength).toBe(Number.POSITIVE_INFINITY);
+		expect(model.config?.requestConfig?.fetch).toBeUndefined();
+	});
+
+	it("forwards custom fetch function via requestConfig.fetch", async () => {
+		const customFetch = globalThis.fetch as unknown as typeof fetch;
+
+		const provider = await createSapAiCoreProviderModule({
+			providerId: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			fetch: customFetch,
+			options: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.example",
+			},
+		});
+
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: {
+				requestConfig?: { fetch?: unknown };
+			};
+		};
+
+		expect(model.config?.requestConfig?.fetch).toBe(customFetch);
+	});
+
 	it("fails fast for partial explicit SAP configuration", async () => {
 		await expect(
 			createSapAiCoreProviderModule({
