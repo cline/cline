@@ -246,6 +246,14 @@ export interface TuiProps {
 		handler: ((question: string, options: string[]) => Promise<string>) | null,
 	) => void;
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
+	setWorkspaceCommandNotifier: (
+		handler:
+			| ((snapshot: {
+					workflowSlashCommands: InteractiveSlashCommand[];
+					pluginSlashCommands: InteractiveSlashCommand[];
+			  }) => void)
+			| null,
+	) => void;
 }
 
 export type InlineStream = "text" | "reasoning" | undefined;
