@@ -2,6 +2,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import {
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HubScheduleCommandService } from "./schedule-command-service";
 import { HubScheduleService } from "./schedule-service";
@@ -157,6 +161,47 @@ describe("HubScheduleService", () => {
 			await service.dispose();
 		}
 	});
+
+	sqliteIt(
+		"schedules a one-time run for an exact future timestamp",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-once" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const runAt = Date.now() + 60_000;
+				const created = service.createSchedule({
+					name: "One time routine",
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					prompt: "Run once",
+					workspaceRoot: "/workspace",
+					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+				});
+
+				expect(created.cronPattern).toBe(ONE_TIME_SCHEDULE_CRON_PATTERN);
+				expect(created.metadata).toEqual({
+					[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt,
+				});
+				expect(created.nextRunAt).toBe(runAt);
+				await service.start();
+				expect(
+					service.listScheduleExecutions({ scheduleId: created.scheduleId }),
+				).toEqual([
+					expect.objectContaining({ status: "pending", triggeredAt: runAt }),
+				]);
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
 
 	sqliteIt(
 		"handles schedule commands through the hub command adapter",
