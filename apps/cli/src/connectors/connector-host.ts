@@ -1028,7 +1028,7 @@ export async function handleConnectorUserTurn<
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
 			runtimeInput,
 			input.userInstructionService,
-			{ mode: startRequest.mode },
+			{ mode: startRequest.mode, cwd: startRequest.cwd },
 		);
 		try {
 			await input.client.sendRuntimeSession(
