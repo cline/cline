@@ -60,5 +60,11 @@ export function useSlashCommands(input: {
 		[registry],
 	);
 
-	return { registry, systemCommands, skillCommands, invokableSkillCommands };
+	return {
+		registry,
+		systemCommands,
+		skillCommands,
+		invokableSkillCommands,
+		setAdditionalSlashCommands,
+	};
 }
