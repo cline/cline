@@ -91,7 +91,8 @@
 	padding: 0.375rem;
 }
 
-.cline-ui-combobox__empty {
+.cline-ui-combobox__empty,
+.cline-ui-combobox__loading {
 	color: var(--muted-foreground);
 	font-size: var(--text-sm);
 	padding: 1.5rem 0.75rem;

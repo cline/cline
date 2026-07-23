@@ -1,7 +1,7 @@
 import * as Popover from "@radix-ui/react-popover";
-import { Command, defaultFilter } from "cmdk";
+import { Command, defaultFilter, useCommandState } from "cmdk";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cx } from "./utils.js";
 
 function filterVisibleOptionText(
@@ -11,6 +11,36 @@ function filterVisibleOptionText(
 ): number {
 	const visibleText = keywords.join(" ").trim();
 	return visibleText ? defaultFilter(visibleText, search) : 0;
+}
+
+function SearchComboboxStatus({
+	emptyText,
+	loading,
+	loadingText,
+}: {
+	emptyText: string;
+	loading: boolean;
+	loadingText: string;
+}) {
+	const resultCount = useCommandState((state) => state.filtered.count);
+	const search = useCommandState((state) => state.search);
+	const [announcement, setAnnouncement] = useState("");
+
+	useEffect(() => {
+		setAnnouncement(
+			loading
+				? loadingText
+				: search.trim() && resultCount === 0
+					? emptyText
+					: "",
+		);
+	}, [emptyText, loading, loadingText, resultCount, search]);
+
+	return (
+		<output aria-live="polite" className="cline-ui-sr-only">
+			{announcement}
+		</output>
+	);
 }
 
 export interface SearchComboboxOption {
@@ -26,10 +56,11 @@ export interface SearchComboboxProps {
 	disabled?: boolean;
 	emptyText?: string;
 	loading?: boolean;
+	loadingText?: string;
 	onValueChange: (value: string) => void;
 	options: SearchComboboxOption[];
 	placeholder?: string;
-	/** Portal root inside the host theme scope; defaults to the document body. */
+	/** Portal root; defaults to the nearest `.cline-ui-theme`, then the document body. */
 	portalContainer?: HTMLElement | null;
 	searchPlaceholder?: string;
 	value?: string;
@@ -41,6 +72,7 @@ export function SearchCombobox({
 	disabled = false,
 	emptyText = "No results found.",
 	loading = false,
+	loadingText = "Loading options…",
 	onValueChange,
 	options,
 	placeholder = "Select an option…",
@@ -50,11 +82,15 @@ export function SearchCombobox({
 }: SearchComboboxProps) {
 	const [open, setOpen] = useState(false);
 	const [commandValue, setCommandValue] = useState(value ?? "");
-	const unavailable = disabled || loading;
-	const visiblyOpen = open && !unavailable;
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	const visiblyOpen = open && !disabled;
+	const resolvedPortalContainer =
+		portalContainer === undefined
+			? (triggerRef.current?.closest(".cline-ui-theme") as HTMLElement | null)
+			: portalContainer;
 	useEffect(() => {
-		if (unavailable) setOpen(false);
-	}, [unavailable]);
+		if (disabled) setOpen(false);
+	}, [disabled]);
 	useEffect(() => {
 		if (!open) setCommandValue(value ?? "");
 	}, [open, value]);
@@ -66,21 +102,22 @@ export function SearchCombobox({
 	return (
 		<Popover.Root
 			onOpenChange={(nextOpen) => {
-				if (nextOpen && !unavailable) setCommandValue(value ?? "");
-				if (!nextOpen || !unavailable) setOpen(nextOpen);
+				if (nextOpen && !disabled) setCommandValue(value ?? "");
+				if (!nextOpen || !disabled) setOpen(nextOpen);
 			}}
 			open={visiblyOpen}
 		>
 			<Popover.Trigger asChild>
 				<button
 					aria-busy={loading || undefined}
-					aria-disabled={unavailable || undefined}
+					aria-disabled={disabled || undefined}
 					aria-label={`${ariaLabel}: ${displayedValue}`}
 					aria-expanded={visiblyOpen}
 					className={cx("cline-ui-combobox__trigger", className)}
 					onClick={(event) => {
-						if (unavailable) event.preventDefault();
+						if (disabled) event.preventDefault();
 					}}
+					ref={triggerRef}
 					type="button"
 				>
 					{loading ? (
@@ -105,7 +142,7 @@ export function SearchCombobox({
 					</svg>
 				</button>
 			</Popover.Trigger>
-			<Popover.Portal container={portalContainer ?? undefined}>
+			<Popover.Portal container={resolvedPortalContainer ?? undefined}>
 				<Popover.Content
 					align="start"
 					className="cline-ui-theme cline-ui-combobox__popover"
@@ -123,38 +160,51 @@ export function SearchCombobox({
 							className="cline-ui-combobox__search"
 							placeholder={searchPlaceholder}
 						/>
+						<SearchComboboxStatus
+							emptyText={emptyText}
+							loading={loading}
+							loadingText={loadingText}
+						/>
 						<Command.List className="cline-ui-combobox__list">
-							<Command.Empty className="cline-ui-combobox__empty">
-								<output aria-live="polite">{emptyText}</output>
-							</Command.Empty>
-							{options.map((option) => (
-								<Command.Item
-									className="cline-ui-combobox__option"
-									key={option.value}
-									keywords={[option.label, option.description ?? ""]}
-									onSelect={() => {
-										onValueChange(option.value);
-										setOpen(false);
-									}}
-									value={option.value}
-								>
-									{option.icon}
-									<span className="cline-ui-combobox__option-copy">
-										<span>{option.label}</span>
-										{option.description ? (
-											<small>{option.description}</small>
-										) : null}
-									</span>
-									{option.value === value ? (
-										<span
-											aria-hidden="true"
-											className="cline-ui-combobox__check"
+							{loading ? (
+								<div aria-hidden="true" className="cline-ui-combobox__loading">
+									{loadingText}
+								</div>
+							) : (
+								<>
+									<Command.Empty className="cline-ui-combobox__empty">
+										{emptyText}
+									</Command.Empty>
+									{options.map((option) => (
+										<Command.Item
+											className="cline-ui-combobox__option"
+											key={option.value}
+											keywords={[option.label, option.description ?? ""]}
+											onSelect={() => {
+												onValueChange(option.value);
+												setOpen(false);
+											}}
+											value={option.value}
 										>
-											✓
-										</span>
-									) : null}
-								</Command.Item>
-							))}
+											{option.icon}
+											<span className="cline-ui-combobox__option-copy">
+												<span>{option.label}</span>
+												{option.description ? (
+													<small>{option.description}</small>
+												) : null}
+											</span>
+											{option.value === value ? (
+												<span
+													aria-hidden="true"
+													className="cline-ui-combobox__check"
+												>
+													✓
+												</span>
+											) : null}
+										</Command.Item>
+									))}
+								</>
+							)}
 						</Command.List>
 					</Command>
 				</Popover.Content>
