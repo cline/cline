@@ -82,6 +82,7 @@ export async function runZen(
 			// Zen runs in yolo mode, whose preset has no skills tool — skill
 			// commands must keep expanding textually.
 			mode: "yolo",
+			cwd: config.cwd,
 		});
 
 		const startRequest: ChatStartSessionRequest = {

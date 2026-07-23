@@ -124,6 +124,11 @@ export function listInteractiveSlashCommands(
 			description: "Modify agent configuration",
 		},
 		{
+			name: "cd",
+			instructions: "/cd <directory>",
+			description: "Change the working directory",
+		},
+		{
 			name: "mcp",
 			instructions: "",
 			description: "Manage MCP servers",

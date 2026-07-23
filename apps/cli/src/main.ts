@@ -1188,6 +1188,7 @@ export async function runCli(): Promise<void> {
 			await runInteractive(config, userInstructionService, resumeSessionId, {
 				initialPrompt: args.prompt,
 				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
+				explicitSystemPrompt: args.systemPrompt,
 				clineProviderSettings: initialClineProviderSettings,
 				startupTarget,
 				initialNotice,

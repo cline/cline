@@ -74,11 +74,11 @@ function extractFileMentions(
 	return matches;
 }
 
-function resolveMentionPath(filePath: string): string {
+function resolveMentionPath(filePath: string, cwd: string): string {
 	if (filePath.startsWith("~/")) {
 		return resolve(homedir(), filePath.slice(2));
 	}
-	return resolve(filePath);
+	return resolve(cwd, filePath);
 }
 
 /**
@@ -104,7 +104,7 @@ export function shouldExpandSkillSlashCommands(mode?: string): boolean {
 export async function buildUserInputMessage(
 	rawPrompt: string,
 	userInstructionService?: UserInstructionConfigService,
-	options?: { mode?: string },
+	options?: { mode?: string; cwd?: string },
 ): Promise<{
 	prompt: string;
 	userImages: string[];
@@ -154,7 +154,10 @@ export async function buildUserInputMessage(
 
 	for (const mention of fileMentions) {
 		try {
-			const resolvedPath = resolveMentionPath(mention.path);
+			const resolvedPath = resolveMentionPath(
+				mention.path,
+				options?.cwd ?? process.cwd(),
+			);
 			const stats = statSync(resolvedPath);
 			if (!stats.isFile()) {
 				throw new Error(`Path is not a file: ${resolvedPath}`);
