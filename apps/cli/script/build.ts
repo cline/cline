@@ -164,6 +164,9 @@ function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
 	const targetOs = item.os === "win32" ? "windows" : item.os;
+	if (targetOs === "windows" && item.arch === "x64") {
+		return "bun-windows-x64-baseline";
+	}
 	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
 }
 
@@ -218,7 +221,10 @@ async function buildCompiledBinary(input: {
 		process.exit(1);
 	}
 
-	await $`cp ${tmpOutfile} ${input.outfile} && chmod 755 ${input.outfile}`;
+	await $`cp ${tmpOutfile} ${input.outfile}`;
+	if (targetOs !== "windows") {
+		await $`chmod 755 ${input.outfile}`;
+	}
 	await $`rm -rf ${tmpDir}`;
 }
 
