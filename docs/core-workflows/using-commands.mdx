@@ -17,7 +17,7 @@ Type `/` in the chat input to see available slash commands:
 | Command | What It Does |
 |---------|--------------|
 | `/newtask` | Start fresh task with distilled context from current conversation |
-| `/smol` | Compress conversation history while preserving essential context |
+| `/compact` | Compress conversation history while preserving essential context |
 | `/newrule` | Create a rule file to teach Cline your preferences |
 | `/deep-planning` | Investigate codebase, plan thoroughly, then create implementation task |
 | `/reportbug` | Report a bug with diagnostic info |
@@ -28,11 +28,11 @@ Type `/` in the chat input to see available slash commands:
 
 I use `/newtask` when working through complex implementations. If I've completed 3 steps of a 10-step process and my context is already 75% full, I use `/newtask` to extract key decisions, file changes, and progress without all the noise.
 
-### /smol
+### /compact
 
-`/smol` (or its alias `/compact`) compresses your conversation history while preserving essential context. Unlike `/newtask` which creates a new task, `/smol` condenses your current conversation into a comprehensive summary, freeing up context window space while allowing you to continue working in the same task.
+`/compact` compresses your conversation history while preserving essential context. Unlike `/newtask` which creates a new task, `/compact` condenses your current conversation into a comprehensive summary, freeing up context window space while allowing you to continue working in the same task.
 
-Use `/smol` when you're deep into a debugging session or brainstorming and need to continue in the same task without losing the insights you've gained. For more details, see [Smol Command](#smol).
+Use `/compact` when you're deep into a debugging session or brainstorming and need to continue in the same task without losing the insights you've gained. For more details, see [Compact Command](#compact).
 
 ### /newrule
 

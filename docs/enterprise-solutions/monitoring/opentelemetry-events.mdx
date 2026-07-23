@@ -35,10 +35,6 @@ Cline emits events across several categories, each prefixed with a namespace:
     Hook discovery, execution, and context modification
   </Card>
   
-  <Card title="worktree.*" icon="code-branch">
-    Git worktree operations and merge handling
-  </Card>
-  
   <Card title="host.*" icon="computer">
     Host environment detection
   </Card>
@@ -160,13 +156,6 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 
 | Event | Description | Key Attributes |
 |-------|-------------|----------------|
-| `task.focus_chain_enabled` | Focus chain feature enabled | task_id |
-| `task.focus_chain_disabled` | Focus chain feature disabled | task_id |
-| `task.focus_chain_progress_first` | First focus-chain checklist/progress emitted | items_count |
-| `task.focus_chain_progress_update` | Subsequent focus-chain checklist/progress updates | items_total, items_completed |
-| `task.focus_chain_incomplete_on_completion` | Task completed while focus-chain checklist still incomplete | items_remaining |
-| `task.focus_chain_list_opened` | Focus-chain markdown/list opened by user | task_id |
-| `task.focus_chain_list_written` | Focus-chain markdown/list written/saved | task_id |
 | `task.subagent_enabled` | Subagents feature enabled | task_id |
 | `task.subagent_disabled` | Subagents feature disabled | task_id |
 | `task.subagent_started` | Subagent execution started | subagent_id, prompt_length |
@@ -287,31 +276,6 @@ The `hooks.execution` event tracks the complete lifecycle with a `status` attrib
 }
 ```
 
-## Worktree Events
-
-Events related to Git worktree operations.
-
-| Event | Description | Key Attributes |
-|-------|-------------|----------------|
-| `worktree.view_opened` | Worktree view opened | user_id |
-| `worktree.created` | Worktree create event | success, branch_name, duration_ms |
-| `worktree.merge_attempted` | Worktree merge attempt event | has_conflicts, delete_option_chosen |
-
-### Example: worktree.created
-
-```json
-{
-  "event": "worktree.created",
-  "timestamp": "2026-03-05T14:22:00Z",
-  "attributes": {
-    "success": true,
-    "branch_name_hash": "abc123",
-    "duration_ms": 1250,
-    "parent_branch": "main"
-  }
-}
-```
-
 ## Host Events
 
 Events related to host environment detection.
@@ -378,7 +342,7 @@ Sensitive information is hashed or anonymized:
 - **File paths**: Hashed to preserve privacy
 - **Command content**: Hashed, not logged verbatim
 - **User identifiers**: Anonymized tokens
-- **Branch names**: Hashed in worktree events
+- **Branch names**: Hashed to preserve privacy
 
 <Warning>
 File paths, command arguments, and code content are **never** included in raw form. Only hashes or anonymized identifiers are used.
