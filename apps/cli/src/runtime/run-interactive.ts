@@ -138,6 +138,7 @@ export async function runInteractive(
 		initialPrompt?: string;
 		initialNotice?: CliMigrationNotice;
 		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
+		explicitSystemPrompt?: string;
 	},
 ): Promise<void> {
 	assertInteractivePreflight(config);
@@ -235,6 +236,7 @@ export async function runInteractive(
 		config,
 		providerSettingsManager,
 		userInstructionService,
+		explicitSystemPrompt: options?.explicitSystemPrompt,
 		resumeSessionId,
 		chatCommandState,
 		requestToolApproval,
@@ -573,7 +575,11 @@ export async function runInteractive(
 					prompt: userInput,
 					userImages,
 					userFiles,
-				} = await buildUserInputMessage(input, userInstructionService);
+				} = await buildUserInputMessage(
+					input,
+					userInstructionService,
+					config.cwd,
+				);
 				const mergedUserImages = [
 					...(attachments?.userImages ?? []),
 					...userImages,
