@@ -3279,6 +3279,13 @@ describe("LocalRuntimeHost", () => {
 				title: "saved title",
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
+				"cline.pendingPrompts": [
+					{
+						id: "pending-resumed",
+						prompt: "queued before switching tasks",
+						delivery: "queue",
+					},
+				],
 			},
 			messages_path: messagesPath,
 		};
@@ -3359,6 +3366,7 @@ describe("LocalRuntimeHost", () => {
 				config: createConfig({ sessionId }),
 				interactive: true,
 				initialMessages,
+				sessionMetadata: { title: "saved title" },
 			}),
 		);
 
@@ -3366,6 +3374,26 @@ describe("LocalRuntimeHost", () => {
 		expect(persistSessionMessages).not.toHaveBeenCalled();
 		expect(updateSessionStatus).not.toHaveBeenCalled();
 		expect(updateSession).not.toHaveBeenCalled();
+		const [resumedPrompt] = await manager.pendingPrompts.list({ sessionId });
+		expect([resumedPrompt]).toEqual([
+			expect.objectContaining({
+				id: "pending-resumed",
+				prompt: "queued before switching tasks",
+				delivery: "queue",
+			}),
+		]);
+		await manager.pendingPrompts.delete({
+			sessionId,
+			promptId: resumedPrompt?.id ?? "",
+		});
+		const metadataAfterDelete = updateSession.mock.calls[0]?.[0]
+			.metadata as Record<string, unknown>;
+		expect(metadataAfterDelete).not.toHaveProperty("cline.pendingPrompts");
+		sessionService.readSessionManifest.mockReturnValue({
+			...manifest,
+			metadata: metadataAfterDelete,
+		});
+		updateSession.mockClear();
 		expect((await manager.getAccumulatedUsage(sessionId))?.usage).toEqual({
 			inputTokens: 11,
 			outputTokens: 7,

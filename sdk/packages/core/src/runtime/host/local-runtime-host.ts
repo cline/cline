@@ -97,6 +97,10 @@ import {
 } from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
+import {
+	readPersistedPendingPrompts,
+	withPersistedPendingPrompts,
+} from "../turn-queue/pending-prompt-persistence";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
@@ -276,13 +280,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
 			emit: (event) => this.emit(event),
+			onChanged: (session) => this.queuePendingPromptsWrite(session),
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
 			list: async (input) =>
 				this.pendingPromptsController.list(input.sessionId),
-			update: async (input) => this.pendingPromptsController.update(input),
-			delete: async (input) => this.pendingPromptsController.delete(input),
+			update: async (input) => {
+				const result = this.pendingPromptsController.update(input);
+				await this.flushPendingPromptsWrite(input.sessionId);
+				return result;
+			},
+			delete: async (input) => {
+				const result = this.pendingPromptsController.delete(input);
+				await this.flushPendingPromptsWrite(input.sessionId);
+				return result;
+			},
 		};
 		this.eventBridge = new AgentEventBridge({
 			getSession: (sid) => this.sessions.get(sid),
@@ -487,7 +500,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		});
 		const initialSessionMetadata = withSessionGitMetadata(
-			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
+			resumedArtifacts
+				? {
+						...(resumedArtifacts.manifest.metadata ?? {}),
+						...(startInput.sessionMetadata ?? {}),
+					}
+				: startInput.sessionMetadata,
 			bootstrap.gitState,
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
@@ -750,7 +768,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
-			pendingPrompts: [],
+			pendingPrompts: readPersistedPendingPrompts(initialSessionMetadata),
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
@@ -776,6 +794,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			active.compactionState = undefined;
 		}
 		this.sessions.set(sessionId, active);
+		if (active.pendingPrompts.length > 0) {
+			this.pendingPromptsController.emitPrompts(active, false);
+		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
@@ -905,6 +926,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				userImages: input.userImages,
 				userFiles: input.userFiles,
 			});
+			await this.flushPendingPromptsWrite(input.sessionId);
 			return undefined;
 		}
 		try {
@@ -970,11 +992,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.aborting = true;
 		this.pendingPromptsController.clearAborted(session);
 		session.agent.abort(reason);
+		await this.flushPendingPromptsWrite(sessionId);
 	}
 
 	async stopSession(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
+		await this.flushPendingPromptsWrite(sessionId);
 		session.config.telemetry?.capture({
 			event: "session.stopped",
 			properties: { sessionId },
@@ -1860,6 +1884,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		session.sessionMetadata = metadata;
 		session.artifacts.manifest.metadata = metadata;
+	}
+
+	private queuePendingPromptsWrite(session: ActiveSession): void {
+		const pendingPrompts = session.pendingPrompts.map((prompt) => ({
+			...prompt,
+			userImages: prompt.userImages ? [...prompt.userImages] : undefined,
+			userFiles: prompt.userFiles ? [...prompt.userFiles] : undefined,
+		}));
+		const previous = session.pendingPromptsWriteQueue ?? Promise.resolve();
+		const write = previous
+			.catch(() => undefined)
+			.then(async () => {
+				await this.ensureSessionPersisted(session);
+				await this.persistSessionMetadata(session.sessionId, (current) =>
+					withPersistedPendingPrompts(current, pendingPrompts),
+				);
+			});
+		session.pendingPromptsWriteQueue = write;
+		void write.catch((error) => {
+			session.config.logger?.error?.("Failed to persist pending prompts", {
+				sessionId: session.sessionId,
+				error,
+			});
+		});
+	}
+
+	private async flushPendingPromptsWrite(sessionId: string): Promise<void> {
+		const session = this.sessions.get(sessionId);
+		if (!session?.pendingPromptsWriteQueue) return;
+		await session.pendingPromptsWriteQueue.catch(() => undefined);
 	}
 
 	private async finalizeSingleRun(
