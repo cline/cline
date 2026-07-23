@@ -68,6 +68,7 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	private disposed = false
 	private unsubscribeHostTelemetrySettings?: () => void
 	private receivedHostSubscriptionUpdate = false
+	private providerCreatedEmitted = false
 
 	constructor(private readonly handle: ConfiguredTelemetryHandle) {
 		this.initializeHostTelemetryState()
@@ -150,7 +151,19 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 		this.disposed = true
 		this.unsubscribeHostTelemetrySettings?.()
 		this.unsubscribeHostTelemetrySettings = undefined
+		// If the host-version lookup is still pending, emit the deferred
+		// provider_created now (with the construction-time fallback identity, as the
+		// undeferred event always did) so disposal never swallows the required event.
+		this.emitProviderCreatedOnce()
 		await this.handle.dispose()
+	}
+
+	private emitProviderCreatedOnce(): void {
+		if (this.providerCreatedEmitted) {
+			return
+		}
+		this.providerCreatedEmitted = true
+		this.handle.emitProviderCreated?.()
 	}
 
 	private initializeHostTelemetryState(): void {
@@ -162,7 +175,7 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 			if (Object.keys(hostMetadata).length > 0) {
 				this.handle.telemetry.updateMetadata(hostMetadata)
 			}
-			this.handle.emitProviderCreated?.()
+			this.emitProviderCreatedOnce()
 		})
 
 		Promise.all([hostMetadataApplied, HostProvider.env.getTelemetrySettings({})])

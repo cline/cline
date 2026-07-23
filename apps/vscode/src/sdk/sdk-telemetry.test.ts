@@ -303,6 +303,27 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledTimes(1)
 	})
 
+	it("emits provider_created on dispose when the host version lookup is still pending", async () => {
+		let releaseHostVersion!: () => void
+		telemetryState.hostVersionGate = new Promise((resolve) => {
+			releaseHostVersion = resolve
+		})
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
+		await service.dispose()
+		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
+		const providerCreatedOrder = handle.emitProviderCreated.mock.invocationCallOrder[0]
+		const disposeOrder = handle.dispose.mock.invocationCallOrder[0]
+		expect(providerCreatedOrder).toBeLessThan(disposeOrder)
+
+		// The late continuation must not emit a second event.
+		releaseHostVersion()
+		await settlePromises()
+		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
+	})
+
 	it("always forwards metadata mutators and cleans up on dispose", async () => {
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
@@ -316,7 +337,11 @@ describe("VscodeTelemetryPolicyService", () => {
 	})
 })
 
-function createHandle(): ConfiguredTelemetryHandle & { telemetry: MockTelemetry; emitProviderCreated: Mock<() => void> } {
+function createHandle(): ConfiguredTelemetryHandle & {
+	telemetry: MockTelemetry
+	emitProviderCreated: Mock<() => void>
+	dispose: Mock<() => Promise<void>>
+} {
 	const telemetry: MockTelemetry = {
 		setDistinctId: vi.fn<(distinctId?: string) => void>(),
 		setMetadata: vi.fn<ITelemetryService["setMetadata"]>(),
