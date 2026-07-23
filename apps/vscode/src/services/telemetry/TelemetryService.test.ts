@@ -99,47 +99,44 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		})
 
 		it("should derive host_plugin_version from the host's clineVersion", async () => {
-			const jetbrainsProvider = new NoOpTelemetryProvider()
-			const noVersionProvider = new NoOpTelemetryProvider()
-			const jetbrainsLogSpy = sinon.spy(jetbrainsProvider, "log")
-			const noVersionLogSpy = sinon.spy(noVersionProvider, "log")
-			const hostVersionStub = sinon.stub(HostProvider.env, "getHostVersion")
-			const createProvidersStub = sinon.stub(TelemetryProviderFactory, "createProviders")
+			const cases = [
+				{
+					hostVersion: {
+						platform: "IntelliJ IDEA Ultimate",
+						version: "2026.1.1",
+						clineType: "Cline for JetBrains",
+						clineVersion: "1.1.61",
+					},
+					expectedHostPluginVersion: "1.1.61" as string | undefined,
+				},
+				{
+					hostVersion: {
+						platform: "VS Code",
+						version: "1.103.0",
+						clineType: "VSCode Extension",
+					},
+					expectedHostPluginVersion: undefined,
+				},
+			]
 
-			hostVersionStub.onFirstCall().resolves({
-				platform: "IntelliJ IDEA Ultimate",
-				version: "2026.1.1",
-				clineType: "Cline for JetBrains",
-				clineVersion: "1.1.61",
-			})
-			hostVersionStub.onSecondCall().resolves({
-				platform: "VS Code",
-				version: "1.103.0",
-				clineType: "VSCode Extension",
-			})
-			createProvidersStub.onFirstCall().resolves([jetbrainsProvider])
-			createProvidersStub.onSecondCall().resolves([noVersionProvider])
+			for (const { hostVersion, expectedHostPluginVersion } of cases) {
+				const provider = new NoOpTelemetryProvider()
+				const logSpy = sinon.spy(provider, "log")
+				const hostVersionStub = sinon.stub(HostProvider.env, "getHostVersion").resolves(hostVersion)
+				const createProvidersStub = sinon.stub(TelemetryProviderFactory, "createProviders").resolves([provider])
 
-			const jetbrainsService = await TelemetryService.create()
-			const noVersionService = await TelemetryService.create()
+				const service = await TelemetryService.create()
+				logSpy.resetHistory()
+				service.captureTaskCreated("task-123", "openai")
 
-			jetbrainsLogSpy.resetHistory()
-			noVersionLogSpy.resetHistory()
+				assert.ok(logSpy.calledOnce, `service should emit an event (${hostVersion.clineType})`)
+				assert.strictEqual(logSpy.firstCall.args[1]?.host_plugin_version, expectedHostPluginVersion)
 
-			jetbrainsService.captureTaskCreated("task-jb", "openai")
-			noVersionService.captureTaskCreated("task-no-version", "openai")
-
-			assert.ok(jetbrainsLogSpy.calledOnce, "JetBrains service should emit an event")
-			assert.ok(noVersionLogSpy.calledOnce, "no-version service should emit an event")
-			assert.strictEqual(jetbrainsLogSpy.firstCall.args[1]?.host_plugin_version, "1.1.61")
-			assert.strictEqual(noVersionLogSpy.firstCall.args[1]?.host_plugin_version, undefined)
-
-			hostVersionStub.restore()
-			createProvidersStub.restore()
-			jetbrainsLogSpy.restore()
-			noVersionLogSpy.restore()
-			await jetbrainsService.dispose()
-			await noVersionService.dispose()
+				hostVersionStub.restore()
+				createProvidersStub.restore()
+				logSpy.restore()
+				await service.dispose()
+			}
 		})
 
 		it("should include remote workspace metadata on workspace.initialized events", async () => {
