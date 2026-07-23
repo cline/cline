@@ -333,7 +333,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	aihubmix: "aihubmixApiKey",
 	nousResearch: "nousResearchApiKey",
 	"vercel-ai-gateway": "vercelAiGatewayApiKey",
-	claude_code: "apiKey", // Claude Code uses anthropic key
 	wandb: "wandbApiKey",
 	"qwen-code": "qwenApiKey",
 	oca: "ocaApiKey",
