@@ -23,6 +23,12 @@ describe("@cline/ui agent interactions", () => {
 		});
 		expect(onSubmit).not.toHaveBeenCalled();
 
+		fireEvent.keyDown(screen.getByRole("textbox"), {
+			isComposing: true,
+			key: "Enter",
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+
 		fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
 		expect(onSubmit).toHaveBeenCalledOnce();
 		expect(screen.getByRole("textbox").getAttribute("autocomplete")).toBe(

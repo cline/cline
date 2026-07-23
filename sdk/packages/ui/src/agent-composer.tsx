@@ -71,7 +71,11 @@ export function AgentComposer({
 	function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
 		onKeyDown?.(event);
 		if (event.defaultPrevented) return;
-		if (event.key === "Enter" && !event.shiftKey) {
+		if (
+			event.key === "Enter" &&
+			!event.shiftKey &&
+			!event.nativeEvent.isComposing
+		) {
 			event.preventDefault();
 			if (!disabled && !submitDisabled && !loading && !running) onSubmit();
 		}

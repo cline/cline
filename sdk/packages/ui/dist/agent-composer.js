@@ -12,7 +12,9 @@ export function AgentComposer({ actions, className, disabled, footer, loading = 
         onKeyDown?.(event);
         if (event.defaultPrevented)
             return;
-        if (event.key === "Enter" && !event.shiftKey) {
+        if (event.key === "Enter" &&
+            !event.shiftKey &&
+            !event.nativeEvent.isComposing) {
             event.preventDefault();
             if (!disabled && !submitDisabled && !loading && !running)
                 onSubmit();
