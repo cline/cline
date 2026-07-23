@@ -130,7 +130,7 @@ describe("CronRunner", () => {
 		});
 		expect(
 			calls.startRequests[0]?.toolPolicies?.[DefaultToolNames.ASK],
-		).toEqual({ enabled: false });
+		).toEqual({ enabled: false, autoApprove: true });
 		expect(
 			calls.startRequests[0]?.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT],
 		).toEqual({ enabled: true, autoApprove: true });
@@ -190,6 +190,7 @@ describe("CronRunner", () => {
 		});
 		expect(request.toolPolicies?.[DefaultToolNames.ASK]).toEqual({
 			enabled: false,
+			autoApprove: true,
 		});
 		expect(request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT]).toEqual({
 			enabled: true,
@@ -238,6 +239,7 @@ describe("CronRunner", () => {
 		expect(request.mode).toBe(mode);
 		expect(request.toolPolicies?.[DefaultToolNames.ASK]).toEqual({
 			enabled: false,
+			autoApprove: true,
 		});
 		expect(request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT]).toEqual(
 			mode === "yolo" ? { enabled: true, autoApprove: true } : undefined,

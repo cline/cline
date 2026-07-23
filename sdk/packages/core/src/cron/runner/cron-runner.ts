@@ -70,7 +70,11 @@ function buildToolPolicies(
 		policies[tool] = { enabled: true, autoApprove: true };
 	}
 	// Scheduled runs are headless, so they cannot wait for a human response.
-	policies[DefaultToolNames.ASK] = { enabled: false };
+	policies[DefaultToolNames.ASK] = {
+		...policies[DefaultToolNames.ASK],
+		enabled: false,
+		autoApprove: true,
+	};
 	if (mode === "yolo") {
 		policies[DefaultToolNames.SUBMIT_AND_EXIT] = {
 			enabled: true,
