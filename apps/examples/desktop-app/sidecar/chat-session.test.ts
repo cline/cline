@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -141,7 +141,7 @@ describe("first-send connection updates", () => {
 		config?: Record<string, unknown>;
 	}) {
 		const updateSessionConnection = vi.fn(async () => undefined);
-		const send = vi.fn(async () => ({
+		const send = vi.fn(async (_input?: unknown) => ({
 			text: "done",
 			finishReason: "completed",
 			messages: [],
@@ -227,6 +227,50 @@ describe("first-send connection updates", () => {
 			delivery: undefined,
 			userImages: ["data:image/png;base64,aGVsbG8="],
 		});
+	});
+
+	it.each([
+		undefined,
+		"queue",
+	] as const)("forwards file attachments for %s delivery", async (delivery) => {
+		const { ctx, send, sessionId } = createContext();
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		const testSessionDataDir = join(
+			tmpdir(),
+			`cline-desktop-attachments-${Date.now()}-${delivery ?? "immediate"}`,
+		);
+
+		try {
+			process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "",
+				delivery,
+				attachments: {
+					userFiles: [{ name: "notes.txt", content: "hello" }],
+				},
+			});
+
+			const input = send.mock.calls[0]?.[0] as
+				| { userFiles?: string[] }
+				| undefined;
+			expect(send).toHaveBeenCalledWith({
+				sessionId,
+				prompt: "",
+				delivery,
+				userImages: undefined,
+				userFiles: [expect.stringMatching(/notes\.txt$/)],
+			});
+			expect(readFileSync(input?.userFiles?.[0] ?? "", "utf8")).toBe("hello");
+		} finally {
+			if (previousSessionDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			}
+			rmSync(testSessionDataDir, { recursive: true, force: true });
+		}
 	});
 
 	it("updates a changed connection before sending", async () => {

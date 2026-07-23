@@ -5,8 +5,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useChatSession } from "./use-chat-session";
 
-const { invokeMock } = vi.hoisted(() => ({
+const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
+	subscribeMock: vi.fn(() => () => undefined),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -14,7 +15,7 @@ vi.mock("@/lib/desktop-client", () => ({
 		getTransportError: vi.fn(() => null),
 		getTransportState: vi.fn(() => "connected"),
 		invoke: invokeMock,
-		subscribe: vi.fn(() => () => undefined),
+		subscribe: subscribeMock,
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
 }));
@@ -37,6 +38,7 @@ beforeEach(async () => {
 	document.body.appendChild(container);
 	root = createRoot(container);
 	invokeMock.mockReset();
+	subscribeMock.mockClear();
 	invokeMock.mockImplementation(async (command: string) => {
 		if (command === "get_process_context") {
 			return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
@@ -332,6 +334,66 @@ describe("useChatSession", () => {
 
 		expect(current.messages.find((message) => message.role === "user")).toEqual(
 			expect.objectContaining({
+				content: "Describe this",
+				images: [
+					expect.objectContaining({
+						mediaType: "image/png",
+						data: "AQID",
+					}),
+				],
+			}),
+		);
+	});
+
+	it("adds image previews when a queued prompt starts", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "Done", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,AQID"],
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		expect(current.messages.at(-1)).toEqual(
+			expect.objectContaining({
+				role: "user",
 				content: "Describe this",
 				images: [
 					expect.objectContaining({

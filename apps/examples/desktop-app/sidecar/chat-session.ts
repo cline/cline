@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -122,6 +123,31 @@ function readSessionMetadataTitle(sessionId: string): string | undefined {
 			: undefined;
 	const title = metadata?.title;
 	return typeof title === "string" ? title.trim() || undefined : undefined;
+}
+
+function materializeUserFiles(
+	sessionId: string,
+	files: NonNullable<ChatSessionCommandRequest["attachments"]>["userFiles"],
+): string[] | undefined {
+	if (!files?.length) {
+		return undefined;
+	}
+	const attachmentDir = join(
+		sharedSessionDataDir(),
+		sessionId,
+		"user-attachments",
+	);
+	mkdirSync(attachmentDir, { recursive: true });
+	return files.map((file) => {
+		const requestedName = basename(file.name.trim());
+		const safeName =
+			requestedName && requestedName !== "." && requestedName !== ".."
+				? requestedName
+				: "attachment.txt";
+		const path = join(attachmentDir, `${randomUUID()}-${safeName}`);
+		writeFileSync(path, file.content, "utf8");
+		return path;
+	});
 }
 
 function readSessionMetadata(sessionId: string): JsonRecord | undefined {
@@ -402,7 +428,13 @@ function sendPromptsInQueueSnapshot(
 	const session = ctx.liveSessions.get(sessionId);
 	sendEvent(ctx, "prompts_in_queue_state", {
 		sessionId,
-		items: session?.promptsInQueue ?? [],
+		items:
+			session?.promptsInQueue.map(({ id, prompt, steer, attachmentCount }) => ({
+				id,
+				prompt,
+				steer,
+				attachmentCount,
+			})) ?? [],
 	});
 }
 
@@ -412,6 +444,7 @@ function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
 		prompt: item.prompt,
 		steer: item.delivery === "steer",
 		attachmentCount: item.attachmentCount,
+		userImages: item.userImages,
 	};
 }
 
@@ -426,7 +459,12 @@ function applyPendingPrompts(
 		session.promptsInQueue = mapped;
 	}
 	sendPromptsInQueueSnapshot(ctx, sessionId);
-	return mapped;
+	return mapped.map(({ id, prompt, steer, attachmentCount }) => ({
+		id,
+		prompt,
+		steer,
+		attachmentCount,
+	}));
 }
 
 function getSessionManager(ctx: SidecarContext): ClineCore {
@@ -747,6 +785,10 @@ async function handleSend(
 			}
 		}
 
+		const userFiles = materializeUserFiles(
+			sessionId,
+			request.attachments?.userFiles,
+		);
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;
@@ -756,6 +798,7 @@ async function handleSend(
 				prompt,
 				delivery: "queue",
 				userImages: request.attachments?.userImages,
+				userFiles,
 			});
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			return {
@@ -776,6 +819,7 @@ async function handleSend(
 			prompt,
 			delivery,
 			userImages: request.attachments?.userImages,
+			userFiles,
 		});
 		ctx.logger?.log("Desktop chat prompt completed", {
 			sessionId,

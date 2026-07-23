@@ -147,6 +147,24 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("serializes queued image data when a queued prompt starts", async () => {
+		const { serializeQueuedPromptStart } = await import("./context");
+
+		expect(
+			JSON.parse(
+				serializeQueuedPromptStart({
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,AQID"],
+				}),
+			),
+		).toEqual({
+			prompt: "Describe this",
+			attachmentCount: 1,
+			userImages: ["data:image/png;base64,AQID"],
+		});
+	});
+
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

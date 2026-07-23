@@ -693,11 +693,16 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_queued_prompt_start") {
-				let parsed: { prompt?: string; attachmentCount?: number } = {};
+				let parsed: {
+					prompt?: string;
+					attachmentCount?: number;
+					userImages?: string[];
+				} = {};
 				try {
 					parsed = JSON.parse(payload.chunk) as {
 						prompt?: string;
 						attachmentCount?: number;
+						userImages?: string[];
 					};
 				} catch {
 					parsed = { prompt: payload.chunk };
@@ -707,15 +712,24 @@ export function useChatSession() {
 					typeof parsed.attachmentCount === "number"
 						? parsed.attachmentCount
 						: 0;
+				const userImages = Array.isArray(parsed.userImages)
+					? parsed.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: [];
+				const attachedFileCount = Math.max(
+					0,
+					attachmentCount - userImages.length,
+				);
 				const userLabel =
-					attachmentCount > 0
-						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
+					attachedFileCount > 0
+						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 						: prompt;
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("running");
-				if (userLabel) {
+				if (userLabel || userImages.length > 0) {
 					setMessages((prev) => {
 						const lastVisible = [...prev]
 							.reverse()
@@ -730,13 +744,16 @@ export function useChatSession() {
 						) {
 							return prev;
 						}
+						const userMessageId = makeId("user");
+						const images = toChatMessageImages(userImages, userMessageId);
 						return sliceMessages([
 							...prev,
 							{
-								id: makeId("user"),
+								id: userMessageId,
 								sessionId: listeningSessionId,
 								role: "user",
 								content: userLabel,
+								images: images.length > 0 ? images : undefined,
 								createdAt: chunkCreatedAt(payload),
 							},
 						]);

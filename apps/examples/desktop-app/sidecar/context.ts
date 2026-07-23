@@ -111,7 +111,26 @@ export function broadcastChunk(
 // ---------------------------------------------------------------------------
 
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
-	return session.promptsInQueue;
+	return session.promptsInQueue.map(
+		({ id, prompt, steer, attachmentCount }) => ({
+			id,
+			prompt,
+			steer,
+			attachmentCount,
+		}),
+	);
+}
+
+export function serializeQueuedPromptStart(input: {
+	prompt: string;
+	attachmentCount?: number;
+	userImages?: string[];
+}): string {
+	return JSON.stringify({
+		prompt: input.prompt,
+		attachmentCount: input.attachmentCount ?? 0,
+		userImages: input.userImages,
+	});
 }
 
 function sendPromptsInQueueSnapshot(
@@ -303,8 +322,11 @@ function handleCoreSessionEvent(
 					prompt: item.prompt ?? "",
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
+					userImages: item.userImages,
 				}))
-				.filter((item) => item.id && item.prompt);
+				.filter(
+					(item) => item.id && (item.prompt || (item.attachmentCount ?? 0) > 0),
+				);
 			if (session) {
 				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
@@ -317,9 +339,10 @@ function handleCoreSessionEvent(
 						ctx,
 						sessionId,
 						"chat_queued_prompt_start",
-						JSON.stringify({
+						serializeQueuedPromptStart({
 							prompt: previous[0].prompt,
 							attachmentCount: previous[0].attachmentCount ?? 0,
+							userImages: previous[0].userImages,
 						}),
 					);
 				}
@@ -328,14 +351,15 @@ function handleCoreSessionEvent(
 			break;
 		}
 		case "pending_prompt_submitted": {
-			const { sessionId, prompt, attachmentCount } = event.payload;
+			const { sessionId, prompt, attachmentCount, userImages } = event.payload;
 			emitChunk(
 				ctx,
 				sessionId,
 				"chat_queued_prompt_start",
-				JSON.stringify({
+				serializeQueuedPromptStart({
 					prompt,
 					attachmentCount: attachmentCount ?? 0,
+					userImages,
 				}),
 			);
 			break;

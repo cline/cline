@@ -43,6 +43,7 @@ export type PromptInQueue = {
 	prompt: string;
 	steer: boolean;
 	attachmentCount?: number;
+	userImages?: string[];
 };
 
 export type LiveSession = {
