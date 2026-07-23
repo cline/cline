@@ -77,6 +77,8 @@ export interface McpServerRegistration {
 	disabled?: boolean;
 	metadata?: Record<string, unknown>;
 	oauth?: McpServerOAuthState;
+	/** Timeout for each stdio initialize attempt. Newline and framed modes are attempted separately. */
+	initializeTimeoutMs?: number;
 }
 
 export interface McpServerSnapshot {
