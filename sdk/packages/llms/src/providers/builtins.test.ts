@@ -76,6 +76,26 @@ describe("cline builtin models", () => {
 	});
 });
 
+describe("vertex builtin models", () => {
+	it("adds Claude Fable 5 without changing existing Vertex models", async () => {
+		const models = await getModelsForProvider("vertex");
+		expect(models["claude-fable-5"]).toMatchObject({
+			id: "claude-fable-5",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+			maxTokens: 128_000,
+		});
+
+		expect(models["claude-sonnet-5@default"]).toBeDefined();
+		await expect(getProvider("vertex")).resolves.toMatchObject({
+			defaultModelId: "claude-sonnet-5@default",
+		});
+		expect(
+			(await getModelsForProvider("gemini"))["claude-fable-5"],
+		).toBeUndefined();
+	});
+});
+
 describe("cline-pass builtin spec", () => {
 	it("registers a distinct Cline-compatible provider with a custom model list", async () => {
 		const models = await getModelsForProvider("cline-pass");
