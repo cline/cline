@@ -1,7 +1,5 @@
 out
 dist
-!packages/ui/dist/
-!packages/ui/dist/**
 dist-standalone
 node_modules
 tmp
