@@ -205,7 +205,7 @@ To continue the conversation after a tool call, include the tool result:
   "messages": [
     {"role": "user", "content": "What's the weather in San Francisco?"},
     {"role": "assistant", "tool_calls": [{"id": "call_abc123", "type": "function", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}}]},
-    {"role": "tool", "tool_call_id": "call_abc123", "content": "{\"temperature\": 62, \"condition\": \"foggy\"}"},
+    {"role": "tool", "tool_call_id": "call_abc123", "content": "{\"temperature\": 62, \"condition\": \"foggy\"}"}
   ]
 }
 ```
