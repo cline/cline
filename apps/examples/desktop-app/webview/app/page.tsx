@@ -44,13 +44,13 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import {
+	createDesktopAppState,
+	type DesktopAppLocation,
+	desktopAppReducer,
+} from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
-import { createIdempotencyRegistry } from "@/lib/idempotency-registry";
-import {
-	createNavigationHistory,
-	navigationHistoryReducer,
-} from "@/lib/navigation-history";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -70,27 +70,7 @@ function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-type Thread = {
-	id: string;
-	historySession?: SessionHistoryItem;
-	hasStarted?: boolean;
-};
-
-type AppView = "chat" | "sessions" | "settings";
-
-type AppLocation = {
-	activeThreadId: string;
-	settingsSection: SettingsSection;
-	view: AppView;
-};
-
-function areLocationsEqual(a: AppLocation, b: AppLocation): boolean {
-	return (
-		a.activeThreadId === b.activeThreadId &&
-		a.settingsSection === b.settingsSection &&
-		a.view === b.view
-	);
-}
+type AppLocation = DesktopAppLocation<SettingsSection>;
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
@@ -104,27 +84,17 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 
 export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
-	const [threads, setThreads] = useState<Thread[]>(() => [
-		{ id: initialThreadId },
-	]);
-	const [navigation, dispatchNavigation] = useReducer(
-		navigationHistoryReducer<AppLocation>,
-		createNavigationHistory<AppLocation>({
-			activeThreadId: initialThreadId,
-			settingsSection: "General",
-			view: "chat",
-		}),
+	const [appState, dispatchApp] = useReducer(
+		desktopAppReducer<SettingsSection>,
+		initialThreadId,
+		(threadId) => createDesktopAppState(threadId, "General"),
 	);
-	const [sessionDeletionClaims] = useState(createIdempotencyRegistry<string>);
+	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
 
-	const navigate = useCallback(
-		(destination: AppLocation) => {
-			if (areLocationsEqual(navigation.current, destination)) return;
-			dispatchNavigation({ type: "navigate", destination });
-		},
-		[navigation.current],
-	);
+	const navigate = useCallback((destination: AppLocation) => {
+		dispatchApp({ type: "navigate", destination });
+	}, []);
 	const navigateWith = useCallback(
 		(destination: Partial<AppLocation>) => {
 			navigate({ ...navigation.current, ...destination });
@@ -132,10 +102,10 @@ export default function Home() {
 		[navigate, navigation.current],
 	);
 	const handleNavigateBack = useCallback(() => {
-		dispatchNavigation({ type: "back" });
+		dispatchApp({ type: "back" });
 	}, []);
 	const handleNavigateForward = useCallback(() => {
-		dispatchNavigation({ type: "forward" });
+		dispatchApp({ type: "forward" });
 	}, []);
 
 	useAppUpdate();
@@ -150,108 +120,28 @@ export default function Home() {
 	}, []);
 
 	const handleNewThread = useCallback(() => {
-		const id = makeThreadId();
-		setThreads((prev) => [...prev, { id }]);
-		navigateWith({ activeThreadId: id, view: "chat" });
-	}, [navigateWith]);
+		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+	}, []);
 
-	const handleOpenSession = useCallback(
-		(session: SessionHistoryItem) => {
-			const threadId = `session_${session.sessionId}`;
-			setThreads((prev) => {
-				const existingIdx = prev.findIndex((item) => item.id === threadId);
-				if (existingIdx >= 0) {
-					const next = [...prev];
-					next[existingIdx] = {
-						...next[existingIdx],
-						hasStarted: true,
-						historySession: session,
-					};
-					return next;
-				}
-				return [
-					...prev,
-					{ id: threadId, hasStarted: true, historySession: session },
-				];
-			});
-			navigateWith({ activeThreadId: threadId, view: "chat" });
-		},
-		[navigateWith],
-	);
+	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
+		dispatchApp({ type: "open-session", session });
+	}, []);
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
-			if (!sessionDeletionClaims.claim(deletedSessionId)) {
-				return;
-			}
-			const historyThreadId = `session_${deletedSessionId}`;
-			const deletedThreadIds = new Set(
-				threads
-					.filter(
-						(thread) =>
-							thread.id === deletedThreadId ||
-							thread.id === historyThreadId ||
-							thread.historySession?.sessionId === deletedSessionId,
-					)
-					.map((thread) => thread.id),
-			);
-			if (deletedThreadId) {
-				deletedThreadIds.add(deletedThreadId);
-			}
-			deletedThreadIds.add(historyThreadId);
-
-			let nextThreads = threads.filter(
-				(thread) => !deletedThreadIds.has(thread.id),
-			);
-			const deletedWasActive = deletedThreadIds.has(activeThreadId);
-			let replacementThreadId = nextThreads[0]?.id;
-			if (deletedWasActive || !replacementThreadId) {
-				replacementThreadId = makeThreadId();
-				nextThreads = [...nextThreads, { id: replacementThreadId }];
-			}
-			setThreads(nextThreads);
-
-			const fallback: AppLocation = {
-				...navigation.current,
-				activeThreadId: replacementThreadId,
-				view: "chat",
-			};
-			dispatchNavigation({
-				type: "reconcile",
-				fallback,
-				reconcile: (location) => {
-					if (!deletedThreadIds.has(location.activeThreadId)) {
-						return location;
-					}
-					if (location.view === "chat") {
-						return null;
-					}
-					return {
-						...location,
-						activeThreadId: replacementThreadId,
-					};
-				},
+			dispatchApp({
+				type: "delete-session",
+				deletedSessionId,
+				deletedThreadId,
+				fallbackThreadId: makeThreadId(),
 			});
 		},
-		[activeThreadId, navigation.current, sessionDeletionClaims, threads],
+		[],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
 		(sessionId: string, metadata: SessionMetadata) => {
-			setThreads((prev) =>
-				prev.map((thread) => {
-					if (thread.historySession?.sessionId !== sessionId) {
-						return thread;
-					}
-					return {
-						...thread,
-						historySession: {
-							...thread.historySession,
-							metadata,
-						},
-					};
-				}),
-			);
+			dispatchApp({ type: "update-session-metadata", sessionId, metadata });
 		},
 		[],
 	);
@@ -297,13 +187,7 @@ export default function Home() {
 		[navigateWith],
 	);
 	const handleThreadStarted = useCallback((threadId: string) => {
-		setThreads((current) =>
-			current.map((thread) =>
-				thread.id === threadId && !thread.hasStarted
-					? { ...thread, hasStarted: true }
-					: thread,
-			),
-		);
+		dispatchApp({ type: "thread-started", threadId });
 	}, []);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
