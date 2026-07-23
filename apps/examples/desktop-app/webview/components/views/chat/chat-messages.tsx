@@ -34,11 +34,16 @@ import {
 	SplitIcon,
 	SquareTerminalIcon,
 	UndoIcon,
+	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
+import type {
+	ChatMessage,
+	ChatMessageImage,
+	ChatSessionStatus,
+} from "@/lib/chat-schema";
 import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
@@ -173,8 +178,27 @@ function ChatMessagesImpl({
 	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 	const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
+	const [expandedImage, setExpandedImage] = useState<{
+		sessionId: string | null;
+		image: ChatMessageImage;
+	} | null>(null);
+	const visibleExpandedImage =
+		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
+
+	useEffect(() => {
+		if (!visibleExpandedImage) {
+			return;
+		}
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setExpandedImage(null);
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [visibleExpandedImage]);
 
 	useEffect(() => {
 		if (!isSessionSwitching) {
@@ -353,7 +377,7 @@ function ChatMessagesImpl({
 
 	return (
 		<Conversation
-			className="h-full min-h-0 min-w-0"
+			className="relative isolate h-full min-h-0 min-w-0 overflow-hidden"
 			key={sessionId ?? "new-chat"}
 		>
 			<ConversationViewport
@@ -414,6 +438,9 @@ function ChatMessagesImpl({
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
+										onExpandImage={(image) =>
+											setExpandedImage({ sessionId, image })
+										}
 										onCopyRawText={() =>
 											void handleCopyMessage(message.id, message.content)
 										}
@@ -489,6 +516,39 @@ function ChatMessagesImpl({
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />
+			{visibleExpandedImage ? (
+				<div
+					aria-label="Expanded attachment"
+					aria-modal="true"
+					className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm"
+					role="dialog"
+				>
+					<button
+						aria-label="Close expanded attachment"
+						className="absolute inset-0 cursor-zoom-out"
+						onClick={() => setExpandedImage(null)}
+						type="button"
+					/>
+					<div className="pointer-events-none relative z-10 flex h-full w-full items-center justify-center">
+						{/* biome-ignore lint/performance/noImgElement: User-provided data URLs cannot use Next's optimizer. */}
+						<img
+							alt="Expanded attachment"
+							className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+							src={`data:${visibleExpandedImage.mediaType};base64,${visibleExpandedImage.data}`}
+						/>
+						<Button
+							aria-label="Close image viewer"
+							className="pointer-events-auto absolute right-0 top-0 rounded-full"
+							onClick={() => setExpandedImage(null)}
+							size="icon"
+							type="button"
+							variant="secondary"
+						>
+							<X className="h-4 w-4" />
+						</Button>
+					</div>
+				</div>
+			) : null}
 		</Conversation>
 	);
 }
@@ -691,6 +751,7 @@ function MessageBubble({
 	message,
 	isStreaming = false,
 	onCopyRawText,
+	onExpandImage,
 	onRestoreCheckpoint,
 	restoreDisabled = false,
 	restorePending = false,
@@ -703,6 +764,7 @@ function MessageBubble({
 	message: ChatMessage;
 	isStreaming?: boolean;
 	onCopyRawText?: () => void;
+	onExpandImage?: (image: ChatMessageImage) => void;
 	onRestoreCheckpoint?: (runCount: number) => void;
 	restoreDisabled?: boolean;
 	restorePending?: boolean;
@@ -743,12 +805,35 @@ function MessageBubble({
 					/>
 				) : null}
 
-				<div className="my-1 min-w-0 max-w-full wrap-break-word">
-					<MemoizedMarkdown
-						content={displayContent || " "}
-						streaming={isStreaming && message.role === "assistant"}
-					/>
-				</div>
+				{message.images?.length ? (
+					<div className="grid max-w-2xl gap-2">
+						{message.images.map((image, index) => (
+							<button
+								aria-label={`Expand attachment ${index + 1}`}
+								className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								key={image.id}
+								onClick={() => onExpandImage?.(image)}
+								type="button"
+							>
+								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
+								<img
+									alt={`Attachment ${index + 1}`}
+									className="max-h-[28rem] max-w-full object-contain"
+									src={`data:${image.mediaType};base64,${image.data}`}
+								/>
+							</button>
+						))}
+					</div>
+				) : null}
+
+				{displayContent ? (
+					<div className="my-1 min-w-0 max-w-full wrap-break-word">
+						<MemoizedMarkdown
+							content={displayContent}
+							streaming={isStreaming && message.role === "assistant"}
+						/>
+					</div>
+				) : null}
 			</MessageContent>
 
 			{shouldRenderUserActions ? (

@@ -251,6 +251,65 @@ describe("ChatMessages tool disclosures", () => {
 	});
 });
 
+describe("ChatMessages image attachments", () => {
+	it("renders persisted image blocks in the user message", async () => {
+		await renderMessages([
+			{
+				id: "user-image",
+				sessionId: "session-1",
+				role: "user",
+				content: "Describe this",
+				images: [
+					{ id: "user-image-1", mediaType: "image/png", data: "aGVsbG8=" },
+				],
+				createdAt: 1,
+			},
+		]);
+
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Attachment 1"]',
+		);
+		expect(image?.src).toBe("data:image/png;base64,aGVsbG8=");
+		expect(container.textContent).toContain("Describe this");
+	});
+
+	it("expands an attachment within the conversation and closes it", async () => {
+		await renderMessages([
+			{
+				id: "user-image",
+				sessionId: "session-1",
+				role: "user",
+				content: "Describe this",
+				images: [
+					{ id: "user-image-1", mediaType: "image/png", data: "aGVsbG8=" },
+				],
+				createdAt: 1,
+			},
+		]);
+
+		const expand = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Expand attachment 1"]',
+		);
+		await act(async () => expand?.click());
+
+		expect(
+			container.querySelector(
+				'[role="dialog"][aria-label="Expanded attachment"]',
+			),
+		).not.toBeNull();
+		expect(
+			container.querySelector<HTMLImageElement>(
+				'img[alt="Expanded attachment"]',
+			)?.src,
+		).toBe("data:image/png;base64,aGVsbG8=");
+
+		await act(async () => {
+			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+		});
+		expect(container.querySelector('[role="dialog"]')).toBeNull();
+	});
+});
+
 describe("ChatMessages thinking indicator", () => {
 	const userMessage: ChatMessage = {
 		id: "user-1",

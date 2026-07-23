@@ -299,6 +299,50 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("adds an attached image to the optimistic user message", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "Done", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+		const attachment = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+			type: "image/png",
+		});
+
+		await act(async () => {
+			await current.sendPrompt("Describe this", [attachment]);
+		});
+
+		expect(current.messages.find((message) => message.role === "user")).toEqual(
+			expect.objectContaining({
+				content: "Describe this",
+				images: [
+					expect.objectContaining({
+						mediaType: "image/png",
+						data: "AQID",
+					}),
+				],
+			}),
+		);
+	});
+
 	it("shares one cold start and queues a second prompt behind it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

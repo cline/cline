@@ -208,6 +208,27 @@ describe("first-send connection updates", () => {
 		expect(send).toHaveBeenCalledTimes(1);
 	});
 
+	it("allows an image-only user turn", async () => {
+		const { ctx, send, sessionId } = createContext();
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "",
+			attachments: {
+				userImages: ["data:image/png;base64,aGVsbG8="],
+				userFiles: [],
+			},
+		});
+
+		expect(send).toHaveBeenCalledWith({
+			sessionId,
+			prompt: "",
+			delivery: undefined,
+			userImages: ["data:image/png;base64,aGVsbG8="],
+		});
+	});
+
 	it("updates a changed connection before sending", async () => {
 		const { ctx, send, sessionId, updateSessionConnection } = createContext({
 			config: { ...baseConfig, reasoningEffort: "low" },

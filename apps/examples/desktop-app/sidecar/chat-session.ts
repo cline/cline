@@ -679,8 +679,13 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const prompt = request.prompt?.trim();
-	if (!prompt) throw new Error("prompt is required");
+	const prompt = request.prompt?.trim() ?? "";
+	const hasAttachments =
+		(request.attachments?.userImages?.length ?? 0) > 0 ||
+		(request.attachments?.userFiles?.length ?? 0) > 0;
+	if (!prompt && !hasAttachments) {
+		throw new Error("prompt or attachment is required");
+	}
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session?.transitioningProvider) {
