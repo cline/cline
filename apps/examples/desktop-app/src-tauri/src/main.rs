@@ -349,6 +349,44 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
+/// Locate the self-contained plugin-sandbox bootstrap bundle emitted by
+/// `build:sidecar:bin`. The compiled sidecar cannot hand its embedded copy of
+/// the bootstrap to a child process and the app bundle ships no node_modules,
+/// so the sidecar is pointed at this file via
+/// `CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH`. Candidate order mirrors
+/// `resolve_desktop_backend_binary_path`: repo checkout first, then the
+/// per-platform resource layouts of a packaged install.
+fn resolve_plugin_sandbox_bootstrap_path(context: &AppContext) -> Option<PathBuf> {
+    let mut candidates = vec![PathBuf::from(&context.workspace_root)
+        .join("apps")
+        .join("examples")
+        .join("desktop-app")
+        .join("src-tauri")
+        .join("resources")
+        .join("plugin-sandbox-bootstrap.js")];
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(PathBuf::from))
+    {
+        // Windows: resources unpack next to the executable.
+        candidates.push(
+            exe_dir
+                .join("extensions")
+                .join("plugin-sandbox-bootstrap.js"),
+        );
+        // macOS: Contents/MacOS/<exe> -> Contents/Resources/extensions/.
+        if let Some(contents_dir) = exe_dir.parent() {
+            candidates.push(
+                contents_dir
+                    .join("Resources")
+                    .join("extensions")
+                    .join("plugin-sandbox-bootstrap.js"),
+            );
+        }
+    }
+    candidates.into_iter().find(|path| path.exists())
+}
+
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         let mut command = Command::new(binary_path);
@@ -367,6 +405,10 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
             context.workspace_root, context.launch_cwd
         ));
     };
+
+    if let Some(bootstrap_path) = resolve_plugin_sandbox_bootstrap_path(context) {
+        command.env("CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH", bootstrap_path);
+    }
 
     command
         .stdin(Stdio::null())

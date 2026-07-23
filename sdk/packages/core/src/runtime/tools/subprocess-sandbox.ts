@@ -56,6 +56,29 @@ function asError(value: unknown): Error {
 
 export const CLINE_JS_RUNTIME_PATH_ENV = "CLINE_JS_RUNTIME_PATH";
 
+/**
+ * Whether this process is a Bun single-file executable (`bun build --compile`)
+ * whose binary name is not a plain runtime. Such binaries can still act as a
+ * `bun` runtime for child processes when spawned with `BUN_BE_BUN=1`.
+ */
+function isCompiledBunExecutable(execPath: string | undefined): boolean {
+	return (
+		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined" &&
+		!!execPath &&
+		execPath === process.execPath &&
+		!isRuntimeExecutable(execPath)
+	);
+}
+
+/**
+ * Whether spawning `executable` requires `BUN_BE_BUN=1` in the child env so a
+ * compiled Bun binary re-executes as the plain `bun` runtime instead of its
+ * embedded entrypoint.
+ */
+export function subprocessRuntimeNeedsBunBeBun(executable: string): boolean {
+	return isCompiledBunExecutable(executable);
+}
+
 function isRuntimeExecutable(value: string | undefined): boolean {
 	const trimmed = value?.trim();
 	if (!trimmed) {
@@ -98,6 +121,13 @@ export function resolveSubprocessRuntimeExecutable(
 		if (trimmed && isRuntimeExecutable(trimmed)) {
 			return trimmed;
 		}
+	}
+
+	// A compiled Bun binary (e.g. the packaged desktop sidecar) can serve as
+	// its own runtime via BUN_BE_BUN=1, so prefer self-exec over hoping a
+	// `node` exists on PATH.
+	if (isCompiledBunExecutable(execPath)) {
+		return execPath;
 	}
 
 	return "node";
@@ -164,16 +194,17 @@ export class SubprocessSandbox {
 			name: this.options.name,
 			runtimeExecutable: this.options.runtimeExecutable,
 		});
-		const child = spawn(
-			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
-			command.slice(1),
-			{
-				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
-				// Prevent a console window from flashing on Windows.
-				windowsHide: true,
-			},
-		);
+		const executable =
+			command[0] ?? resolveSubprocessRuntimeExecutable(this.options);
+		const env = withResolvedClineBuildEnv(process.env);
+		const child = spawn(executable, command.slice(1), {
+			stdio: ["ignore", "ignore", "pipe", "ipc"],
+			env: subprocessRuntimeNeedsBunBeBun(executable)
+				? { ...env, BUN_BE_BUN: "1" }
+				: env,
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
+		});
 		this.process = child;
 		let stderrBuffer = "";
 		const appendStderr = (chunk: string) => {

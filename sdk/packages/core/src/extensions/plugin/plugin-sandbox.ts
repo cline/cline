@@ -137,6 +137,27 @@ function getPlatformPackageName(): string {
 	return `@cline/cli-${platform}-${process.arch}`;
 }
 
+/**
+ * Explicit override for hosts whose bundle layout none of the automatic
+ * candidates match (e.g. the packaged desktop app ships a self-contained
+ * bootstrap as a Tauri resource and points this at it).
+ */
+function resolveBootstrapFromEnv(): string | undefined {
+	const envPath = process.env.CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH?.trim();
+	if (!envPath) {
+		return undefined;
+	}
+	if (!existsSync(envPath)) {
+		// The env var is an explicit override, so a missing file is a
+		// misconfiguration worth surfacing before falling back to discovery.
+		console.warn(
+			`CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH points to a missing file, ignoring: ${envPath}`,
+		);
+		return undefined;
+	}
+	return envPath;
+}
+
 function resolveBootstrapFromWrapper(): string | undefined {
 	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
 	if (!wrapperPath) {
@@ -187,6 +208,7 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
 	const candidates = [
+		resolveBootstrapFromEnv(),
 		join(dir, "plugin-sandbox-bootstrap.js"),
 		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
