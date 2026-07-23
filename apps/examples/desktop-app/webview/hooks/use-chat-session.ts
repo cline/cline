@@ -700,6 +700,7 @@ export function useChatSession() {
 				} = {};
 				try {
 					parsed = JSON.parse(payload.chunk) as {
+						promptId?: string;
 						prompt?: string;
 						attachmentCount?: number;
 						userImages?: string[];
@@ -725,26 +726,19 @@ export function useChatSession() {
 					attachedFileCount > 0
 						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 						: prompt;
+				const promptId = parsed.promptId?.trim();
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("running");
 				if (userLabel || userImages.length > 0) {
 					setMessages((prev) => {
-						const lastVisible = [...prev]
-							.reverse()
-							.find(
-								(message) =>
-									message.sessionId === listeningSessionId &&
-									message.role !== "status",
-							);
-						if (
-							lastVisible?.role === "user" &&
-							lastVisible.content === userLabel
-						) {
+						const userMessageId = promptId
+							? `queued_user_${promptId}`
+							: makeId("user");
+						if (prev.some((message) => message.id === userMessageId)) {
 							return prev;
 						}
-						const userMessageId = makeId("user");
 						const images = toChatMessageImages(userImages, userMessageId);
 						return sliceMessages([
 							...prev,

@@ -153,12 +153,14 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(
 			JSON.parse(
 				serializeQueuedPromptStart({
+					promptId: "queued-prompt-1",
 					prompt: "Describe this",
 					attachmentCount: 1,
 					userImages: ["data:image/png;base64,AQID"],
 				}),
 			),
 		).toEqual({
+			promptId: "queued-prompt-1",
 			prompt: "Describe this",
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],

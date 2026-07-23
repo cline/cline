@@ -112,21 +112,24 @@ export function broadcastChunk(
 
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
 	return session.promptsInQueue.map(
-		({ id, prompt, steer, attachmentCount }) => ({
+		({ id, prompt, steer, attachmentCount, userImages }) => ({
 			id,
 			prompt,
 			steer,
 			attachmentCount,
+			userImages,
 		}),
 	);
 }
 
 export function serializeQueuedPromptStart(input: {
+	promptId: string;
 	prompt: string;
 	attachmentCount?: number;
 	userImages?: string[];
 }): string {
 	return JSON.stringify({
+		promptId: input.promptId,
 		prompt: input.prompt,
 		attachmentCount: input.attachmentCount ?? 0,
 		userImages: input.userImages,
@@ -340,6 +343,7 @@ function handleCoreSessionEvent(
 						sessionId,
 						"chat_queued_prompt_start",
 						serializeQueuedPromptStart({
+							promptId: previous[0].id,
 							prompt: previous[0].prompt,
 							attachmentCount: previous[0].attachmentCount ?? 0,
 							userImages: previous[0].userImages,
@@ -351,12 +355,14 @@ function handleCoreSessionEvent(
 			break;
 		}
 		case "pending_prompt_submitted": {
-			const { sessionId, prompt, attachmentCount, userImages } = event.payload;
+			const { sessionId, id, prompt, attachmentCount, userImages } =
+				event.payload;
 			emitChunk(
 				ctx,
 				sessionId,
 				"chat_queued_prompt_start",
 				serializeQueuedPromptStart({
+					promptId: id,
 					prompt,
 					attachmentCount: attachmentCount ?? 0,
 					userImages,

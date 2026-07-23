@@ -345,7 +345,7 @@ describe("useChatSession", () => {
 		);
 	});
 
-	it("adds image previews when a queued prompt starts", async () => {
+	it("keeps distinct image previews for queued prompts with identical text", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -382,6 +382,7 @@ describe("useChatSession", () => {
 				sessionId: current.sessionId,
 				stream: "chat_queued_prompt_start",
 				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
 					prompt: "Describe this",
 					attachmentCount: 1,
 					userImages: ["data:image/png;base64,AQID"],
@@ -389,20 +390,46 @@ describe("useChatSession", () => {
 				ts: Date.now(),
 				index: 1,
 			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-2",
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,BAUG"],
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-2",
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,BAUG"],
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
 		});
 
-		expect(current.messages.at(-1)).toEqual(
-			expect.objectContaining({
-				role: "user",
-				content: "Describe this",
-				images: [
-					expect.objectContaining({
-						mediaType: "image/png",
-						data: "AQID",
-					}),
-				],
-			}),
+		const queuedMessages = current.messages.filter(
+			(message) =>
+				message.id === "queued_user_queued-prompt-1" ||
+				message.id === "queued_user_queued-prompt-2",
 		);
+		expect(queuedMessages).toHaveLength(2);
+		expect(queuedMessages.map((message) => message.content)).toEqual([
+			"Describe this",
+			"Describe this",
+		]);
+		expect(queuedMessages.map((message) => message.images?.[0]?.data)).toEqual([
+			"AQID",
+			"BAUG",
+		]);
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {
