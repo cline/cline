@@ -77,4 +77,26 @@ describe("@cline/ui controls", () => {
 		expect(link.getAttribute("tabindex")).toBe("-1");
 		expect(link.querySelector(".cline-ui-spinner")).toBeTruthy();
 	});
+
+	it("keeps a native button focused but inactive while loading", () => {
+		const onClick = vi.fn();
+		const { rerender } = render(
+			<Button onClick={onClick}>Connect GitHub</Button>,
+		);
+		const button = screen.getByRole("button", { name: "Connect GitHub" });
+		button.focus();
+
+		rerender(
+			<Button loading onClick={onClick}>
+				Connect GitHub
+			</Button>,
+		);
+
+		expect(document.activeElement).toBe(button);
+		expect((button as HTMLButtonElement).disabled).toBe(false);
+		expect(button.getAttribute("aria-busy")).toBe("true");
+		expect(button.getAttribute("aria-disabled")).toBe("true");
+		fireEvent.click(button);
+		expect(onClick).not.toHaveBeenCalled();
+	});
 });
