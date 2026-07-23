@@ -18,7 +18,9 @@ import { renderToString } from "react-dom/server";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { Button, SearchCombobox, SessionStatus } from "@cline/ui";
 
-if (!Button || !SearchCombobox || !SessionStatus || !Conversation || !Message) process.exit(1);
+if (!Button || !SearchCombobox || !SessionStatus || !Conversation || !Message) {
+	throw new Error("React exports are missing from the packed package");
+}
 
 const rendered = renderToString(createElement("div", null,
 	createElement(Button, null, "Continue"),
@@ -29,9 +31,13 @@ const rendered = renderToString(createElement("div", null,
 		value: "cline/cline",
 	}),
 ));
-if (!rendered.includes("Continue") || !rendered.includes("cline/cline")) process.exit(1);
+if (!rendered.includes("Continue") || !rendered.includes("cline/cline")) {
+	throw new Error("packed React components did not render on the server");
+}
 const entry = fileURLToPath(import.meta.resolve("@cline/ui"));
-if (!readFileSync(entry, "utf8").startsWith('"use client";')) process.exit(1);
+if (!readFileSync(entry, "utf8").startsWith('"use client";')) {
+	throw new Error("packed React entry point is missing the use client directive");
+}
 
 for (const specifier of [
 	"@cline/ui/components.css",
@@ -41,7 +47,9 @@ for (const specifier of [
 	"@cline/ui/theme/tokens.css",
 ]) {
 	const resolved = fileURLToPath(import.meta.resolve(specifier));
-	if (!existsSync(resolved)) process.exit(1);
+	if (!existsSync(resolved)) {
+		throw new Error("packed CSS export does not exist: " + specifier);
+	}
 }
 
 const packageRoot = dirname(
@@ -57,7 +65,9 @@ while (pending.length > 0) {
 		else if (entry.name.endsWith(".map")) maps.push(target);
 	}
 }
-if (maps.length === 0) process.exit(1);
+if (maps.length === 0) {
+	throw new Error("packed package contains no source maps");
+}
 for (const sourceMapPath of maps) {
 	const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
 	if (
@@ -67,7 +77,7 @@ for (const sourceMapPath of maps) {
 			existsSync(resolve(dirname(sourceMapPath), source)),
 		)
 	) {
-		process.exit(1);
+		throw new Error("packed source map has missing sources: " + sourceMapPath);
 	}
 }
 `;
