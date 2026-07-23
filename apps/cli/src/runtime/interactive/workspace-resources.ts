@@ -17,6 +17,7 @@ export interface InteractiveWorkspaceLocation {
 }
 
 export interface InteractiveWorkspaceCommandSnapshot {
+	location: InteractiveWorkspaceLocation;
 	workflowSlashCommands: InteractiveSlashCommand[];
 	pluginSlashCommands: InteractiveSlashCommand[];
 }
@@ -74,6 +75,7 @@ export function createInteractiveWorkspaceResources(input: {
 					})),
 		);
 	const snapshot = (): InteractiveWorkspaceCommandSnapshot => ({
+		location,
 		workflowSlashCommands: listInteractiveSlashCommands(
 			input.userInstructionService,
 		),
@@ -118,7 +120,9 @@ export function createInteractiveWorkspaceResources(input: {
 
 	const applyWorkspaceChange = async (
 		next: InteractiveWorkspaceLocation,
-		applySessionChange: () => Promise<void>,
+		applySessionChange: (
+			userInstructionService: UserInstructionConfigService,
+		) => Promise<void>,
 	): Promise<void> => {
 		if (disposed) {
 			throw new Error("interactive workspace resources are disposed");
@@ -130,7 +134,10 @@ export function createInteractiveWorkspaceResources(input: {
 			await nextService.start();
 			input.userInstructionService.assertCompatible(nextService);
 			nextPluginCommands = await createPluginCommands(next);
-			await applySessionChange();
+			// The replacement session receives the staged service directly, so it
+			// snapshots the new workspace without exposing that delegate elsewhere
+			// before the session transition commits.
+			await applySessionChange(nextService);
 		} catch (error) {
 			try {
 				nextService.stop();
@@ -161,7 +168,9 @@ export function createInteractiveWorkspaceResources(input: {
 
 	const changeWorkspace = (
 		next: InteractiveWorkspaceLocation,
-		applySessionChange: () => Promise<void>,
+		applySessionChange: (
+			userInstructionService: UserInstructionConfigService,
+		) => Promise<void>,
 	): Promise<void> => {
 		let change: Promise<void>;
 		change = (async () => {

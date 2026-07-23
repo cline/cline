@@ -265,8 +265,8 @@ export async function runInteractive(
 	const changeInteractiveWorkingDirectory = async (
 		next: ChatCommandState,
 	): Promise<void> => {
-		const applySessionChange = () =>
-			sessionRuntime.changeWorkingDirectory(next);
+		const applySessionChange = (service = activeUserInstructionService) =>
+			sessionRuntime.changeWorkingDirectory(next, service);
 		if (!workspaceResources) {
 			await applySessionChange();
 			return;

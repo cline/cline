@@ -92,10 +92,12 @@ function App(props: TuiProps) {
 	const [workflowSlashCommands, setWorkflowSlashCommands] = useState(
 		props.workflowSlashCommands,
 	);
+	const [workspaceRoot, setWorkspaceRoot] = useState(
+		() => props.config.workspaceRoot?.trim() || props.config.cwd,
+	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
 
-	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
 	const terminalTitle = useMemo(
 		() =>
@@ -125,6 +127,7 @@ function App(props: TuiProps) {
 
 	useEffect(() => {
 		props.setWorkspaceCommandNotifier((snapshot) => {
+			setWorkspaceRoot(snapshot.location.workspaceRoot);
 			setWorkflowSlashCommands(snapshot.workflowSlashCommands);
 			setAdditionalSlashCommands(snapshot.pluginSlashCommands);
 		});

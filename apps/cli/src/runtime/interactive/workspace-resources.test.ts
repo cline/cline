@@ -82,7 +82,16 @@ describe("interactive workspace resources", () => {
 			expect.objectContaining({ name: "plugin-a" }),
 		]);
 
-		const applySessionChange = vi.fn(async () => {});
+		const applySessionChange = vi.fn(
+			async (service: UserInstructionConfigService) => {
+				expect(service.resolveRuntimeSlashCommand("/workflow-a")).toBe(
+					"/workflow-a",
+				);
+				expect(service.resolveRuntimeSlashCommand("/workflow-b")).toBe(
+					"Run workflow-b.",
+				);
+			},
+		);
 		await resources.changeWorkspace(
 			{ cwd: workspaceB, workspaceRoot: workspaceB },
 			applySessionChange,
@@ -96,6 +105,7 @@ describe("interactive workspace resources", () => {
 			"Run workflow-b.",
 		);
 		expect(onCommandsChanged).toHaveBeenLastCalledWith({
+			location: { cwd: workspaceB, workspaceRoot: workspaceB },
 			workflowSlashCommands: expect.arrayContaining([
 				expect.objectContaining({ name: "workflow-b" }),
 			]),
@@ -130,7 +140,13 @@ describe("interactive workspace resources", () => {
 		await expect(
 			resources.changeWorkspace(
 				{ cwd: workspaceB, workspaceRoot: workspaceB },
-				async () => {
+				async (service) => {
+					expect(service.resolveRuntimeSlashCommand("/workflow-b")).toBe(
+						"Run workflow-b.",
+					);
+					expect(mutableService.resolveRuntimeSlashCommand("/workflow-a")).toBe(
+						"Run workflow-a.",
+					);
 					throw new Error("session restart failed");
 				},
 			),

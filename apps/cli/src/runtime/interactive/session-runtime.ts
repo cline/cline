@@ -225,6 +225,7 @@ export function createInteractiveSessionRuntime(input: {
 		// Restarting an old session associate with this ID,
 		// For continuing the same conversation, e.g. after a config change.
 		sessionId?: string,
+		userInstructionService = input.userInstructionService,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
@@ -241,6 +242,7 @@ export function createInteractiveSessionRuntime(input: {
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
 				onTeamRestored: () => {},
+				userInstructionService,
 			},
 		});
 		if (generation !== sessionStartGeneration) {
@@ -267,6 +269,7 @@ export function createInteractiveSessionRuntime(input: {
 			initialMessages: initial,
 			localRuntime: {
 				onTeamRestored: () => {},
+				userInstructionService: input.userInstructionService,
 			},
 		});
 		if (generation !== sessionStartGeneration) {
@@ -433,7 +436,11 @@ export function createInteractiveSessionRuntime(input: {
 		messages: Message[],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
-		options?: { preserveSessionId?: boolean; sessionId?: string },
+		options?: {
+			preserveSessionId?: boolean;
+			sessionId?: string;
+			userInstructionService?: UserInstructionConfigService;
+		},
 	): Promise<void> => {
 		// Config-only restarts (model/mode/account changes) continue the same
 		// conversation, so they must keep the session id — otherwise each
@@ -457,6 +464,7 @@ export function createInteractiveSessionRuntime(input: {
 				sessionMetadata,
 				initialCompactionState,
 				reuseSessionId,
+				options?.userInstructionService,
 			);
 		})().catch((error) => {
 			startupError = error;
@@ -505,6 +513,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const changeWorkingDirectory = async (
 		next: ChatCommandState,
+		userInstructionService = input.userInstructionService,
 	): Promise<void> => {
 		await ensureReady();
 		const manager = sessionManager;
@@ -571,6 +580,7 @@ export function createInteractiveSessionRuntime(input: {
 		try {
 			await restartWithMessages(messages, undefined, initialCompactionState, {
 				preserveSessionId: true,
+				userInstructionService,
 			});
 		} catch (error) {
 			Object.assign(input.chatCommandState, previousState);
@@ -901,6 +911,7 @@ export function createInteractiveSessionRuntime(input: {
 				interactive: true,
 				localRuntime: {
 					onTeamRestored: () => {},
+					userInstructionService: input.userInstructionService,
 				},
 			},
 		});

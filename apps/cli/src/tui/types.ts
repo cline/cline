@@ -224,6 +224,7 @@ export interface TuiProps {
 	setWorkspaceCommandNotifier: (
 		handler:
 			| ((snapshot: {
+					location: { cwd: string; workspaceRoot: string };
 					workflowSlashCommands: InteractiveSlashCommand[];
 					pluginSlashCommands: InteractiveSlashCommand[];
 			  }) => void)
