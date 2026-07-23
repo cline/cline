@@ -29,9 +29,18 @@ describe("@cline/ui agent interactions", () => {
 		});
 		expect(onSubmit).not.toHaveBeenCalled();
 
-		fireEvent.keyDown(screen.getByRole("textbox"), {
+		const textbox = screen.getByRole("textbox");
+		fireEvent.compositionStart(textbox);
+		fireEvent.compositionEnd(textbox);
+		fireEvent.keyDown(textbox, {
 			key: "Enter",
 			keyCode: 229,
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+
+		fireEvent.keyDown(screen.getByRole("textbox"), {
+			key: "Enter",
+			repeat: true,
 		});
 		expect(onSubmit).not.toHaveBeenCalled();
 
@@ -41,6 +50,68 @@ describe("@cline/ui agent interactions", () => {
 			"off",
 		);
 		expect(screen.getByRole("textbox").getAttribute("name")).toBe("prompt");
+		expect(screen.getByRole("textbox").getAttribute("enterkeyhint")).toBe(
+			"send",
+		);
+	});
+
+	it("supports multiline Enter semantics", () => {
+		const onSubmit = vi.fn();
+		render(
+			<AgentComposer
+				onSubmit={onSubmit}
+				onValueChange={vi.fn()}
+				submitOnEnter={false}
+				value="Build the feature"
+			/>,
+		);
+
+		const textbox = screen.getByRole("textbox");
+		expect(fireEvent.keyDown(textbox, { key: "Enter" })).toBe(true);
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(textbox.getAttribute("enterkeyhint")).toBe("enter");
+	});
+
+	it("auto-resizes as its controlled value grows", () => {
+		const { rerender } = render(
+			<AgentComposer
+				onSubmit={vi.fn()}
+				onValueChange={vi.fn()}
+				value="One line"
+			/>,
+		);
+		const textbox = screen.getByRole("textbox") as HTMLTextAreaElement;
+		Object.defineProperty(textbox, "scrollHeight", {
+			configurable: true,
+			value: 120,
+		});
+
+		rerender(
+			<AgentComposer
+				onSubmit={vi.fn()}
+				onValueChange={vi.fn()}
+				value={"One line\nTwo lines"}
+			/>,
+		);
+		expect(textbox.style.height).toBe("120px");
+	});
+
+	it("preserves draft focus while loading", () => {
+		const props = {
+			onSubmit: vi.fn(),
+			onValueChange: vi.fn(),
+			value: "Build the feature",
+		};
+		const { rerender } = render(<AgentComposer {...props} />);
+		const textbox = screen.getByRole("textbox") as HTMLTextAreaElement;
+		textbox.focus();
+
+		rerender(<AgentComposer {...props} loading />);
+
+		expect(document.activeElement).toBe(textbox);
+		expect(textbox.disabled).toBe(false);
+		expect(textbox.readOnly).toBe(true);
+		expect(textbox.getAttribute("aria-busy")).toBe("true");
 	});
 
 	it("renders a stop action while an agent is running", () => {
@@ -51,13 +122,12 @@ describe("@cline/ui agent interactions", () => {
 				onSubmit={vi.fn()}
 				onValueChange={vi.fn()}
 				running
+				stopLabel="Stop generation"
 				value=""
 			/>,
 		);
 
-		fireEvent.click(
-			screen.getByRole("button", { name: "Stop the current run" }),
-		);
+		fireEvent.click(screen.getByRole("button", { name: "Stop generation" }));
 		expect(onStop).toHaveBeenCalledOnce();
 	});
 
@@ -82,6 +152,22 @@ describe("@cline/ui agent interactions", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("does not show a disabled stop control when stopping is unsupported", () => {
+		render(
+			<AgentComposer
+				onSubmit={vi.fn()}
+				onValueChange={vi.fn()}
+				running
+				value="Continue working"
+			/>,
+		);
+
+		expect(screen.queryByRole("button")).toBeNull();
+		expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(
+			false,
+		);
+	});
+
 	it("disables every composer action when the composer is disabled", () => {
 		const onSubmit = vi.fn();
 		render(
@@ -99,10 +185,23 @@ describe("@cline/ui agent interactions", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("routes approval decisions without owning transport", () => {
+	it("disables empty submissions", () => {
+		render(
+			<AgentComposer onSubmit={vi.fn()} onValueChange={vi.fn()} value="   " />,
+		);
+		expect(
+			(
+				screen.getByRole("button", {
+					name: "Send message",
+				}) as HTMLButtonElement
+			).disabled,
+		).toBe(true);
+	});
+
+	it("claims one approval decision without owning transport", () => {
 		const onApprove = vi.fn();
 		const onReject = vi.fn();
-		render(
+		const first = render(
 			<AgentApprovalCard
 				onApprove={onApprove}
 				onReject={onReject}
@@ -111,10 +210,22 @@ describe("@cline/ui agent interactions", () => {
 		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 		fireEvent.click(screen.getByRole("button", { name: "Reject" }));
 		expect(onApprove).toHaveBeenCalledOnce();
-		expect(onReject).toHaveBeenCalledOnce();
+		expect(onReject).not.toHaveBeenCalled();
 		expect(screen.getByRole("region", { name: "Run a command?" })).toBeTruthy();
+
+		first.unmount();
+		render(
+			<AgentApprovalCard
+				onApprove={onApprove}
+				onReject={onReject}
+				title="Delete a file?"
+			/>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+		expect(onReject).toHaveBeenCalledOnce();
 	});
 
 	it.each([

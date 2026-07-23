@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { Button } from "./button.js";
 import { cx } from "./utils.js";
 
@@ -28,6 +28,17 @@ export function AgentApprovalCard({
 }: AgentApprovalCardProps) {
 	const titleId = useId();
 	const descriptionId = useId();
+	const decisionClaimed = useRef(false);
+	const respond = (action: () => void) => {
+		if (decisionClaimed.current || responding) return;
+		decisionClaimed.current = true;
+		try {
+			action();
+		} catch (error) {
+			decisionClaimed.current = false;
+			throw error;
+		}
+	};
 
 	return (
 		<section
@@ -50,18 +61,18 @@ export function AgentApprovalCard({
 			) : null}
 			<div className="cline-ui-approval__actions">
 				<Button
-					disabled={Boolean(responding)}
+					disabled={responding === "approve"}
 					loading={responding === "reject"}
-					onClick={onReject}
+					onClick={() => respond(onReject)}
 					size="sm"
 					variant="secondary"
 				>
 					{rejectLabel}
 				</Button>
 				<Button
-					disabled={Boolean(responding)}
+					disabled={responding === "reject"}
 					loading={responding === "approve"}
-					onClick={onApprove}
+					onClick={() => respond(onApprove)}
 					size="sm"
 					variant="primary"
 				>

@@ -177,7 +177,9 @@ import { AgentApprovalCard, AgentComposer, AgentSurface } from "@cline/ui";
 
 `AgentComposer` and `AgentApprovalCard` are controlled presentation components.
 The consuming app owns draft state, submission, streaming, permission decisions,
-and transport. Attachments, mentions, commands, and queueing remain host-owned.
+and transport. The composer auto-sizes, preserves focus while loading, and lets
+hosts choose submit-on-Enter behavior and localized action labels. Attachments,
+mentions, commands, and queueing remain host-owned.
 For transcript messages, reasoning, and tool execution, continue to use
 `@cline/ui/components/agent-chat`; do not create a second activity model in the
 root component surface.

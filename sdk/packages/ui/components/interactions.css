@@ -28,6 +28,7 @@
 	min-height: 2.5rem;
 	max-height: 16rem;
 	box-sizing: border-box;
+	overflow-y: auto;
 	resize: none;
 	border: 0;
 	outline: none;
