@@ -989,4 +989,39 @@ describe("createProviderConfigStore", () => {
 		// the SDK's writeModelsFileSync enforces.
 		expect(() => StoredModelEntrySchema.parse(entry)).not.toThrow()
 	})
+
+	// Regression for #12302: a Bedrock Custom-ARN / application-inference-profile
+	// selection stores the raw ARN as its model id, which never matches a catalog
+	// entry. Without inheriting the configured base model's catalog capabilities,
+	// the resolved selection carries no "tools" capability, so no tool schema is
+	// sent while native tool_use/tool_result blocks still are, and Bedrock's
+	// Converse API rejects the request with a toolConfig-required 400.
+	it("inherits base-model capabilities for a Bedrock custom-ARN selection (#12302)", async () => {
+		const arn = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123"
+		mocks.setGeneratedModels("bedrock", {
+			"anthropic.claude-opus-4-1": {
+				name: "Claude Opus 4.1",
+				contextWindow: 200_000,
+				maxTokens: 8_192,
+				supportsPromptCache: true,
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
+			} as ModelInfo,
+		})
+		mocks.setApiConfiguration({
+			actModeApiProvider: "bedrock",
+			actModeApiModelId: arn,
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-opus-4-1",
+		} as ApiConfiguration)
+
+		const { resolveRuntimeModelSelection } = await import("./store")
+		const selection = resolveRuntimeModelSelection(parseProviderId("bedrock"), arn)
+
+		const capabilities = (selection.modelInfo as unknown as { capabilities?: string[] }).capabilities
+		expect(capabilities).toContain("tools")
+		// Capabilities are inherited from the base model, but the routed model id
+		// must remain the ARN — a Custom-ARN model is used precisely so requests
+		// route through the application-inference-profile (for AIP routing and
+		// billing attribution). Substituting the base id here would break that.
+		expect(selection.modelId).toBe(arn)
+	})
 })
