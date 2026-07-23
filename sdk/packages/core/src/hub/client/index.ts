@@ -284,6 +284,8 @@ export function rememberRecoverableLocalHubUrl(
 		RECOVERABLE_LOCAL_HUB_URLS.add(key);
 		if (authToken?.trim()) {
 			LOCAL_HUB_AUTH_TOKENS.set(key, authToken);
+		} else {
+			LOCAL_HUB_AUTH_TOKENS.delete(key);
 		}
 	}
 	return url;
