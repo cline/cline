@@ -46,7 +46,6 @@ describe("distinctId", () => {
 
 			HostProvider.initialize(
 				() => null as any, // createWebviewProvider
-				() => null as any, // createDiffViewProvider
 				() => null as any, // createEditPreview
 				() => null as any, // createCommentReviewController
 				mockHostBridge,

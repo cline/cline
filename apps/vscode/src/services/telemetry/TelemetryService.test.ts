@@ -99,6 +99,49 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			await localService.dispose()
 		})
 
+		it("should derive host_plugin_version from the host's clineVersion", async () => {
+			const cases = [
+				{
+					hostVersion: {
+						platform: "IntelliJ IDEA Ultimate",
+						version: "2026.1.1",
+						clineType: "Cline for JetBrains",
+						clineVersion: "1.1.61",
+					},
+					expectedHostPluginVersion: "1.1.61" as string | undefined,
+				},
+				{
+					hostVersion: {
+						platform: "VS Code",
+						version: "1.103.0",
+						clineType: "VSCode Extension",
+					},
+					expectedHostPluginVersion: undefined,
+				},
+			]
+
+			for (const { hostVersion, expectedHostPluginVersion } of cases) {
+				const sandbox = sinon.createSandbox()
+				let service: TelemetryService | undefined
+				try {
+					const provider = new NoOpTelemetryProvider()
+					const logSpy = sandbox.spy(provider, "log")
+					sandbox.stub(HostProvider.env, "getHostVersion").resolves(hostVersion)
+					sandbox.stub(TelemetryProviderFactory, "createProviders").resolves([provider])
+
+					service = await TelemetryService.create()
+					logSpy.resetHistory()
+					service.captureTaskCreated("task-123", "openai")
+
+					assert.ok(logSpy.calledOnce, `service should emit an event (${hostVersion.clineType})`)
+					assert.strictEqual(logSpy.firstCall.args[1]?.host_plugin_version, expectedHostPluginVersion)
+				} finally {
+					sandbox.restore()
+					await service?.dispose()
+				}
+			}
+		})
+
 		it("should include remote workspace metadata on workspace.initialized events", async () => {
 			const noOpProvider = new NoOpTelemetryProvider()
 			const logSpy = sinon.spy(noOpProvider, "log")
