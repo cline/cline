@@ -46,10 +46,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			const child = Children.only(children) as ReactElement<{
 				children?: ReactNode;
 				onClick?: unknown;
+				type?: ButtonHTMLAttributes<HTMLButtonElement>["type"];
 			}>;
 			const slottedChild = cloneElement(
 				child,
-				inactive ? { onClick: undefined } : undefined,
+				{
+					...(inactive ? { onClick: undefined } : {}),
+					...(child.type === "button" && child.props.type === undefined
+						? { type }
+						: {}),
+				},
 				loading ? (
 					<>
 						<span aria-hidden="true" className="cline-ui-spinner" />
