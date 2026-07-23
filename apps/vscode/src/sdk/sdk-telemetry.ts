@@ -35,6 +35,9 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 			...createClineTelemetryServiceConfig({
 				metadata: {
 					extension_version: ExtensionRegistryInfo.version,
+					// cline_type/platform/platform_version are fallbacks for when the host
+					// version lookup fails; VscodeTelemetryPolicyService replaces them with
+					// the authoritative getHostVersion values before any event is emitted.
 					cline_type: "VSCode Extension",
 					platform: "VS Code",
 					platform_version: "unknown",
@@ -148,11 +151,11 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	private initializeHostTelemetryState(): void {
 		// Resolve host-derived metadata together with the telemetry setting and apply
 		// it first: events stay gated until the setting is applied, so this ordering
-		// guarantees no event is emitted before host_plugin_version is in place.
-		Promise.all([this.resolveHostPluginVersion(), HostProvider.env.getTelemetrySettings({})])
-			.then(([hostPluginVersion, settings]) => {
-				if (hostPluginVersion) {
-					this.handle.telemetry.updateMetadata({ host_plugin_version: hostPluginVersion })
+		// guarantees no event is emitted before the host identity metadata is in place.
+		Promise.all([this.resolveHostMetadata(), HostProvider.env.getTelemetrySettings({})])
+			.then(([hostMetadata, settings]) => {
+				if (Object.keys(hostMetadata).length > 0) {
+					this.handle.telemetry.updateMetadata(hostMetadata)
 				}
 				this.applyHostTelemetrySetting(settings.isEnabled)
 			})
@@ -177,13 +180,21 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 		}
 	}
 
-	private async resolveHostPluginVersion(): Promise<string | undefined> {
+	// Mirrors the classic TelemetryService.create() mapping of GetHostVersionResponse
+	// fields, so both pipelines report the same host identity. Fields the host does not
+	// report are left out to keep the handle's construction-time fallbacks.
+	private async resolveHostMetadata(): Promise<Partial<TelemetryMetadata>> {
 		try {
 			const hostVersion = await HostProvider.env.getHostVersion({})
-			return hostVersion.clineVersion || undefined
+			return {
+				...(hostVersion.clineVersion ? { host_plugin_version: hostVersion.clineVersion } : {}),
+				...(hostVersion.clineType ? { cline_type: hostVersion.clineType } : {}),
+				...(hostVersion.platform ? { platform: hostVersion.platform } : {}),
+				...(hostVersion.version ? { platform_version: hostVersion.version } : {}),
+			}
 		} catch (error) {
 			Logger.warn("[SdkTelemetry] Failed to resolve host version for telemetry metadata", error)
-			return undefined
+			return {}
 		}
 	}
 

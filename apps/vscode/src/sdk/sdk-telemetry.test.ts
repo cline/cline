@@ -20,7 +20,7 @@ const telemetryState = vi.hoisted(() => ({
 		platform: "VS Code",
 		version: "1.103.0",
 		clineType: "VSCode Extension",
-	} as { platform: string; version: string; clineType: string; clineVersion?: string },
+	} as { platform?: string; version?: string; clineType?: string; clineVersion?: string },
 	hostVersionError: undefined as Error | undefined,
 	subscribeCallback: undefined as ((event: { isEnabled: number }) => void) | undefined,
 	unsubscribe: vi.fn(),
@@ -174,7 +174,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.recordCounter).toHaveBeenCalledWith("required", 1, undefined, undefined, true)
 	})
 
-	it("applies host_plugin_version metadata before enabling events when the host reports one", async () => {
+	it("applies the full host identity metadata before enabling events", async () => {
 		telemetryState.hostVersion = {
 			platform: "IntelliJ IDEA Ultimate",
 			version: "2026.1.1",
@@ -187,14 +187,36 @@ describe("VscodeTelemetryPolicyService", () => {
 
 		service.capture({ event: "task.created" })
 
-		expect(handle.telemetry.updateMetadata).toHaveBeenCalledWith({ host_plugin_version: "1.1.61" })
+		expect(handle.telemetry.updateMetadata).toHaveBeenCalledWith({
+			host_plugin_version: "1.1.61",
+			cline_type: "Cline for JetBrains",
+			platform: "IntelliJ IDEA Ultimate",
+			platform_version: "2026.1.1",
+		})
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
 		const updateOrder = handle.telemetry.updateMetadata.mock.invocationCallOrder[0]
 		const captureOrder = handle.telemetry.capture.mock.invocationCallOrder[0]
 		expect(updateOrder).toBeLessThan(captureOrder)
 	})
 
-	it("omits host_plugin_version metadata when the host does not report one", async () => {
+	it("omits the metadata fields the host does not report", async () => {
+		// The default host version has no clineVersion, so host_plugin_version must be absent.
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
+		service.capture({ event: "task.created" })
+
+		expect(handle.telemetry.updateMetadata).toHaveBeenCalledWith({
+			cline_type: "VSCode Extension",
+			platform: "VS Code",
+			platform_version: "1.103.0",
+		})
+		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
+	})
+
+	it("skips the metadata update entirely when the host reports no identity fields", async () => {
+		telemetryState.hostVersion = {}
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
