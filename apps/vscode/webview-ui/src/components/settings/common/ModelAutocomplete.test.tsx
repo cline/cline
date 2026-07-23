@@ -51,10 +51,10 @@ describe("ModelAutocomplete", () => {
 		const onChange = vi.fn()
 		render(<ModelAutocomplete models={models} onChange={onChange} selectedModelId="gpt-4o" />)
 
-		const input = screen.getBy角色("combobox")
+		const input = screen.getByRole("combobox")
 		fireEvent.focus(input)
 
-		const option = screen.getAllBy角色("option").find((element) => element.textContent === "gpt-4o-mini")
+		const option = screen.getAllByRole("option").find((element) => element.textContent === "gpt-4o-mini")
 		if (!option) {
 			throw new Error("Expected gpt-4o-mini option to be rendered")
 		}
@@ -71,7 +71,7 @@ describe("ModelAutocomplete", () => {
 		const onChange = vi.fn()
 		render(<ModelAutocomplete models={models} onChange={onChange} selectedModelId="gpt-4o" />)
 
-		const input = screen.getBy角色("combobox")
+		const input = screen.getByRole("combobox")
 		fireEvent.focus(input)
 		fireEvent.change(input, { target: { value: "custom-model" } })
 		fireEvent.blur(input)

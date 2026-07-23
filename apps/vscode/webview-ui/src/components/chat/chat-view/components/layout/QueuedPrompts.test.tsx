@@ -41,7 +41,7 @@ describe("QueuedPrompts", () => {
 	it("cancels a queued prompt from the row action", async () => {
 		render(<QueuedPrompts items={queuedPrompts} />)
 
-		const cancelButtons = screen.getAllBy角色("button", { name: "Cancel queued message" })
+		const cancelButtons = screen.getAllByRole("button", { name: "Cancel queued message" })
 		fireEvent.click(cancelButtons[0])
 
 		expect(cancelQueuedPromptMock).toHaveBeenCalledTimes(1)

@@ -20,8 +20,8 @@ describe("OptionsButtons", () => {
 
 		render(<OptionsButtons isActive options={["Use this", "Use that"]} />)
 
-		const selectedButton = screen.getBy角色("button", { name: "Use this" })
-		const otherButton = screen.getBy角色("button", { name: "Use that" })
+		const selectedButton = screen.getByRole("button", { name: "Use this" })
+		const otherButton = screen.getByRole("button", { name: "Use that" })
 
 		expect(getComputedStyle(otherButton).cursor).toBe("pointer")
 
@@ -44,8 +44,8 @@ describe("OptionsButtons", () => {
 
 		render(<OptionsButtons isActive options={["Use this", "Use that"]} />)
 
-		const selectedButton = screen.getBy角色("button", { name: "Use this" })
-		const otherButton = screen.getBy角色("button", { name: "Use that" })
+		const selectedButton = screen.getByRole("button", { name: "Use this" })
+		const otherButton = screen.getByRole("button", { name: "Use that" })
 
 		fireEvent.click(selectedButton)
 

@@ -133,7 +133,7 @@ describe("ClineModelPicker", () => {
 
 		render(<ClineModelPicker currentMode="act" />)
 
-		expect(screen.getBy角色("combobox")).toHaveValue("cline-next")
+		expect(screen.getByRole("combobox")).toHaveValue("cline-next")
 	})
 
 	it("uses live catalog reasoning support when the saved Cline model snapshot is stale", () => {
