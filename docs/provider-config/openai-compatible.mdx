@@ -36,6 +36,22 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 
 **Note:** If you are using a different OpenAI-compatible provider (such as Together AI, Anyscale, etc.), the available model IDs will differ. Always refer to your specific provider's documentation for their supported model names and any unique configuration details.
 
+### Auxen in Cline:
+
+-   [Auxen](https://auxen.ai) hosts per-customer **dedicated** LLM endpoints (Llama 3.1/3.2, Qwen 2.5, Mistral, Gemma 2, Mixtral, Phi-3, Command R) with an OpenAI-compatible `/v1/chat/completions` API. Each instance is a dedicated GPU billed per-minute of runtime — no token charges, no monthly minimums.
+
+-   Auxen can be used in Cline with the OpenAI Compatible provider.
+
+-   ### Quickstart
+
+-   1. Provision an Auxen instance at [auxen.ai](https://auxen.ai). You will be issued a per-instance base URL of the form `https://api.auxen.ai/v1/inst_xxx/v1` and an API key prefixed `auxk_`.
+-   2. With the OpenAI Compatible provider selected, set the Base URL to your Auxen instance URL (e.g., `https://api.auxen.ai/v1/inst_xxx/v1`).
+-   3. Paste in your `auxk_*` API Key.
+-   4. Set the Model ID to the model your instance is serving (e.g., `llama-3.1-8b`, `qwen2.5-14b`, `mistral-nemo-12b`).
+-   5. Click Verify to confirm the connection.
+
+-   **Cost estimates:** Auxen bills per-minute of GPU runtime rather than per token. Set **Input Price** and **Output Price** to `0` in Cline's Model Configuration panel — the token-based cost estimates inside Cline do not apply to Auxen instances.
+
 ### v0 (Vercel SDK) in Cline:
 
 -   For developers working with v0, their [AI SDK documentation](https://vercel.com/docs/v0/cline) provides valuable insights and examples for integrating various models, many of which are OpenAI-compatible. This can be a helpful resource for understanding how to structure calls and manage configurations when using Cline with services deployed on or integrated with Vercel.
