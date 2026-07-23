@@ -140,10 +140,51 @@ describe("MemoizedMarkdown interactions", () => {
 		await click(getButton("Open link"));
 
 		expect(openWindow).toHaveBeenCalledTimes(1);
-		expect(openWindow).toHaveBeenCalledWith(url, "_blank", "noreferrer");
+		expect(openWindow).toHaveBeenCalledWith(
+			url,
+			"_blank",
+			"noopener,noreferrer",
+		);
 		await vi.waitFor(() => {
 			expect(document.querySelector('[role="alertdialog"]')).toBeNull();
 		});
+	});
+
+	// The open_external_url sidecar command only opens http(s)/mailto/tel, and
+	// relies on Streamdown's harden step blocking every other scheme before it
+	// reaches SafeMarkdownLink. If a Streamdown upgrade starts letting other
+	// schemes through, confirming those links would silently open nothing.
+	test("blocks link schemes the sidecar cannot open before they render", async () => {
+		for (const url of ["vscode://settings/editor", "ftp://example.com/f"]) {
+			await renderMarkdown({ content: `[Open app](${url})` });
+			await vi.waitFor(() => {
+				expect(container.textContent).toContain("Open app");
+			});
+			expect(container.querySelector('[data-streamdown="link"]')).toBeNull();
+		}
+	});
+
+	test("keeps mailto links confirmable", async () => {
+		await renderMarkdown({ content: "[Email us](mailto:hi@cline.bot)" });
+		const link = await vi.waitFor(() => {
+			const renderedLink = container.querySelector<HTMLElement>(
+				'[data-streamdown="link"]',
+			);
+			expect(renderedLink).not.toBeNull();
+			return renderedLink as HTMLElement;
+		});
+
+		expect(link.tagName).toBe("A");
+		await click(link);
+		await vi.waitFor(() => {
+			expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+		});
+		await click(getButton("Open link"));
+		expect(openWindow).toHaveBeenCalledWith(
+			"mailto:hi@cline.bot",
+			"_blank",
+			"noopener,noreferrer",
+		);
 	});
 
 	test("keeps same-document links navigable without a confirmation", async () => {

@@ -91,6 +91,10 @@ describe("CronRunner", () => {
 				modelSelection: { providerId: "p", modelId: "m" },
 			},
 		});
+		store.updateSpecNextRunAt(
+			upserted.record.specId,
+			new Date(Date.now() - 1_000).toISOString(),
+		);
 		const runner = new CronRunner({
 			store,
 			materializer,
@@ -110,6 +114,7 @@ describe("CronRunner", () => {
 			store.listRuns({ specId: upserted.record.specId })[0],
 		);
 		expect(run.status).toBe("done");
+		expect(store.getSpec(upserted.record.specId)?.nextRunAt).toBeUndefined();
 		const reportPath = requireValue(run.reportPath);
 		expect(existsSync(reportPath)).toBe(true);
 	});

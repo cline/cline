@@ -326,6 +326,9 @@ export interface ScheduleExecutionRecord {
 	costUsd?: number;
 }
 
+export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
+export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
+
 export interface HubScheduleCreateInput {
 	name: string;
 	cronPattern: string;
