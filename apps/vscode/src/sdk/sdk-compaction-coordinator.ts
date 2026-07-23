@@ -4,10 +4,21 @@
 // VSCode compact button or slash command. This mirrors the CLI's
 // `compactCurrentSession` (apps/cli/src/runtime/interactive/session-runtime.ts):
 //
-//   1. Read the active session's transcript.
+//   1. Read the session's transcript.
 //   2. Run a manual SDK compaction over it (sdk-compaction.ts).
 //   3. Persist the SDK compaction sidecar so the next turn and resumes keep
 //      using the compacted working context.
+//
+// Compaction always runs against an active session. When the user compacts a
+// task opened from history (a displayed, non-running task with no active
+// session, including a legacy task not yet migrated), we first resume it into
+// an idle session — the same resume the follow-up path uses, which also
+// migrates legacy tasks — then compact that active session through the single
+// path below and end the transient session so the task stays "displayed only"
+// with its compaction sidecar on disk. Resuming and compaction both run inside
+// the session-rebuild mutex, so a concurrent follow-up (which awaits that mutex
+// before choosing a host) cannot interleave with the read/compact/persist
+// sequence.
 //
 // Before this, the VSCode button sent the literal text "/compact" to the model,
 // which the SDK does not treat as a runtime command, so the model improvised a
@@ -23,16 +34,27 @@ import { compactSessionMessages } from "./sdk-compaction"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
+import type { SdkTaskHistory } from "./sdk-task-history"
+import { prepareTaskResumeStartInput } from "./sdk-task-resume"
 import type { SdkSessionHost } from "./session-host"
 
 const COMPACTION_FAILURE_MESSAGE = "Couldn't compact the conversation. Please try again."
 const COMPACTION_UNSUPPORTED_MESSAGE = "Compaction is not supported by this runtime yet. Please update Cline and try again."
+const COMPACTION_TURN_RUNNING_MESSAGE =
+	"Cannot compact while a response is in progress. Try again once the current turn finishes."
 
 export interface SdkCompactionCoordinatorOptions {
 	stateManager: StateManager
 	sessions: SdkSessionLifecycle
+	rebuilds: SdkSessionRebuildScheduler
 	messages: SdkMessageCoordinator
+	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
+	/** The task currently shown in the webview (may have no active session). */
+	getDisplayedTaskId: () => string | undefined
+	createTempSessionHost: () => Promise<SdkSessionHost>
+	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	getWorkspaceRoot: () => Promise<string>
 	postStateToWebview: () => Promise<void>
 }
@@ -43,9 +65,9 @@ export class SdkCompactionCoordinator {
 	constructor(private readonly options: SdkCompactionCoordinatorOptions) {}
 
 	/**
-	 * Compact the active session's conversation. Mirrors the CLI's `/compact`
+	 * Compact the displayed task's conversation. Mirrors the CLI's `/compact`
 	 * (alias `/smol`) local command. No-ops with a status message when there is
-	 * no active session or nothing to compact.
+	 * nothing to compact or a turn is running.
 	 */
 	async compactTask(): Promise<void> {
 		if (this.compactInFlight) {
@@ -54,34 +76,84 @@ export class SdkCompactionCoordinator {
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()
-		if (!activeSession) {
-			Logger.warn("[SdkController] compactTask: No active session to compact")
-			this.emitInfo("There is no active task to compact.")
-			await this.options.postStateToWebview()
+		if (activeSession) {
+			// A turn is still running; compacting mid-turn would race the live agent
+			// loop's own message persistence. Ask the user to wait until it finishes.
+			if (activeSession.isRunning) {
+				this.emitInfo(COMPACTION_TURN_RUNNING_MESSAGE, activeSession.sessionId)
+				await this.options.postStateToWebview()
+				return
+			}
+
+			this.compactInFlight = true
+			try {
+				await this.runCompaction(activeSession.sdkHost, activeSession.sessionId)
+			} catch (error) {
+				Logger.error("[SdkController] compactTask failed:", error)
+				this.emitInfo(COMPACTION_FAILURE_MESSAGE, activeSession.sessionId)
+				await this.options.postStateToWebview()
+			} finally {
+				this.compactInFlight = false
+			}
 			return
 		}
 
-		// A turn is still running; compacting mid-turn would race the live agent
-		// loop's own message persistence. Ask the user to wait until it finishes.
-		if (activeSession.isRunning) {
-			this.emitInfo(
-				"Cannot compact while a response is in progress. Try again once the current turn finishes.",
-				activeSession.sessionId,
-			)
+		const displayedTaskId = this.options.getDisplayedTaskId()
+		if (!displayedTaskId) {
+			Logger.warn("[SdkController] compactTask: No active session or displayed task to compact")
+			this.emitInfo("There is no task to compact.")
 			await this.options.postStateToWebview()
 			return
 		}
 
 		this.compactInFlight = true
 		try {
-			await this.runCompaction(activeSession.sdkHost, activeSession.sessionId)
+			await this.compactDisplayedTask(displayedTaskId)
 		} catch (error) {
 			Logger.error("[SdkController] compactTask failed:", error)
-			this.emitInfo(COMPACTION_FAILURE_MESSAGE, activeSession.sessionId)
+			this.emitInfo(COMPACTION_FAILURE_MESSAGE, displayedTaskId)
 			await this.options.postStateToWebview()
 		} finally {
 			this.compactInFlight = false
 		}
+	}
+
+	/**
+	 * Resume a displayed history task into an idle session, compact it, then end
+	 * the transient session so the task stays "displayed only". Runs inside the
+	 * session-rebuild mutex so a concurrent follow-up cannot resume the same task
+	 * in parallel; the follow-up waits, then reads the sidecar this persisted.
+	 */
+	private async compactDisplayedTask(taskId: string): Promise<void> {
+		await this.options.rebuilds.runExclusive(async () => {
+			// Another path may have made this task active while we waited for the
+			// mutex. If so, compact that live session instead of resuming a second.
+			const active = this.options.sessions.getActiveSession()
+			if (active?.sessionId === taskId) {
+				if (active.isRunning) {
+					this.emitInfo(COMPACTION_TURN_RUNNING_MESSAGE, taskId)
+					await this.options.postStateToWebview()
+					return
+				}
+				await this.runCompaction(active.sdkHost, taskId)
+				return
+			}
+
+			const resumeStart = await prepareTaskResumeStartInput(this.options, taskId)
+			const { startResult, sdkHost } = await this.options.sessions.startNewSession({
+				...resumeStart,
+				interactive: true,
+			})
+			this.options.sessions.setRunning(false)
+			try {
+				await this.runCompaction(sdkHost, startResult.sessionId)
+			} finally {
+				// The task returns to "displayed only": ending the session leaves the
+				// sidecar on disk, so reopening or sending a follow-up reads the
+				// compacted working context via the normal resume path.
+				await this.options.sessions.endActiveSession("compactDisplayedTask", { awaitStop: true })
+			}
+		})
 	}
 
 	private async runCompaction(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
@@ -178,8 +250,8 @@ export class SdkCompactionCoordinator {
 
 	/** Append or update-in-place (same ts) the compaction divider row. */
 	private emitCompactionRow(info: ClineCompactionInfo, ts: number, sessionId: string): void {
-		const activeSessionId = this.options.sessions.getActiveSession()?.sessionId
-		if (activeSessionId !== sessionId) {
+		const targetSessionId = this.getTargetSessionId()
+		if (targetSessionId !== sessionId) {
 			Logger.warn(`[SdkController] compactTask: skipped compaction row for inactive session ${sessionId}`)
 			return
 		}
@@ -190,12 +262,11 @@ export class SdkCompactionCoordinator {
 	}
 
 	private emitInfo(text: string, sessionId?: string): void {
-		const activeSessionId = this.options.sessions.getActiveSession()?.sessionId
-		if (sessionId && activeSessionId !== sessionId) {
+		const targetSessionId = this.getTargetSessionId()
+		if (sessionId && targetSessionId !== sessionId) {
 			Logger.warn(`[SdkController] compactTask: skipped info for inactive session ${sessionId}`)
 			return
 		}
-		const targetSessionId = sessionId ?? activeSessionId ?? ""
 		const infoMessage: ClineMessage = {
 			ts: Date.now(),
 			type: "say",
@@ -205,7 +276,16 @@ export class SdkCompactionCoordinator {
 		}
 		this.options.messages.appendAndEmit([infoMessage], {
 			type: "status",
-			payload: { sessionId: targetSessionId, status: "running" },
+			payload: { sessionId: sessionId ?? targetSessionId ?? "", status: "running" },
 		})
+	}
+
+	/**
+	 * The session a compaction row belongs to: the active session if one exists,
+	 * otherwise the displayed task. The fallback lets the displayed-task path's
+	 * terminal failure message land after its transient session has been ended.
+	 */
+	private getTargetSessionId(): string | undefined {
+		return this.options.sessions.getActiveSession()?.sessionId ?? this.options.getDisplayedTaskId()
 	}
 }

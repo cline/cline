@@ -570,8 +570,13 @@ export class Controller {
 		this.compaction = new SdkCompactionCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
+			rebuilds: this.sessionRebuilds,
 			messages: this.messages,
+			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
+			getDisplayedTaskId: () => this.task?.taskId,
+			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})

@@ -8,13 +8,13 @@ import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
+import type { SdkTaskHistory } from "./sdk-task-history"
+import { prepareTaskResumeStartInput } from "./sdk-task-resume"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
-type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
 export interface SdkFollowupCoordinatorOptions {
@@ -146,28 +146,13 @@ export class SdkFollowupCoordinator {
 		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
 
 		const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
-		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.options.getWorkspaceRoot())
+		const resumeStart = await prepareTaskResumeStartInput(this.options, taskId)
 
-		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")
-		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
-		const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
-		config.sessionId = taskId
-
-		const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
-		const tempManager = await this.options.createTempSessionHost()
-		const persistedInitialMessages = await this.options.loadInitialMessages(tempManager, taskId)
-		await tempManager.dispose("readMessages")
-		const initialMessages = isLegacyTask
-			? await this.options.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
-			: persistedInitialMessages
-
-		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
+		Logger.log(`[SdkController] Resuming with ${resumeStart.initialMessages?.length ?? 0} initial messages`)
 
 		const { startResult, sdkHost } = await this.options.sessions.startNewSession({
-			config,
+			...resumeStart,
 			interactive: true,
-			...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
-			...(historyItem ? { sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId) } : {}),
 		})
 
 		const task = this.options.getTask()
@@ -179,7 +164,7 @@ export class SdkFollowupCoordinator {
 
 		if (historyItem) {
 			historyItem.ts = Date.now()
-			historyItem.modelId = config.modelId
+			historyItem.modelId = resumeStart.config.modelId
 			await this.options.taskHistory.updateTaskHistoryItem(historyItem)
 		}
 
