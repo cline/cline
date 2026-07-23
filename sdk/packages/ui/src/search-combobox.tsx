@@ -1,7 +1,7 @@
 import * as Popover from "@radix-ui/react-popover";
 import { Command } from "cmdk";
 import type { ReactNode } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cx } from "./utils.js";
 
 export interface SearchComboboxOption {
@@ -38,21 +38,31 @@ export function SearchCombobox({
 }: SearchComboboxProps) {
 	const [open, setOpen] = useState(false);
 	const [listboxId, setListboxId] = useState<string>();
+	const unavailable = disabled || loading;
+	const visiblyOpen = open && !unavailable;
+	useEffect(() => {
+		if (unavailable) setOpen(false);
+	}, [unavailable]);
 	const captureListbox = useCallback((node: HTMLDivElement | null) => {
 		setListboxId(node?.id);
 	}, []);
 	const selected = options.find((option) => option.value === value);
 
 	return (
-		<Popover.Root onOpenChange={setOpen} open={open}>
+		<Popover.Root
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen || !unavailable) setOpen(nextOpen);
+			}}
+			open={visiblyOpen}
+		>
 			<Popover.Trigger asChild>
 				<button
-					aria-controls={open ? listboxId : undefined}
+					aria-controls={visiblyOpen ? listboxId : undefined}
 					aria-haspopup="listbox"
 					aria-label={ariaLabel}
-					aria-expanded={open}
+					aria-expanded={visiblyOpen}
 					className={cx("cline-ui-combobox__trigger", className)}
-					disabled={disabled || loading}
+					disabled={unavailable}
 					role="combobox"
 					type="button"
 				>

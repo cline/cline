@@ -1,60 +1,13 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { FormEvent } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Button, ConfirmDialog, SessionStatus } from "../src/index.js";
+import { Button, SessionStatus } from "../src/index.js";
 
 afterEach(cleanup);
 
 describe("@cline/ui controls", () => {
-	it("confirms destructive actions without owning state", () => {
-		const onConfirm = vi.fn();
-		const onOpenChange = vi.fn();
-		render(
-			<ConfirmDialog
-				danger
-				description="This cannot be undone."
-				onConfirm={onConfirm}
-				onOpenChange={onOpenChange}
-				open
-				title="Delete session?"
-			/>,
-		);
-
-		fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
-		expect(onConfirm).toHaveBeenCalledOnce();
-		expect(screen.getByText("This cannot be undone.")).toBeTruthy();
-		expect(screen.getByRole("dialog").classList).toContain("cline-ui-theme");
-	});
-
-	it("keeps a loading confirmation dialog open during dismissal attempts", () => {
-		const onOpenChange = vi.fn();
-		const { rerender } = render(
-			<ConfirmDialog
-				loading
-				onConfirm={vi.fn()}
-				onOpenChange={onOpenChange}
-				open
-				title="Delete session?"
-			/>,
-		);
-
-		fireEvent.keyDown(document, { key: "Escape" });
-		expect(onOpenChange).not.toHaveBeenCalled();
-		expect(screen.getByRole("dialog")).toBeTruthy();
-
-		rerender(
-			<ConfirmDialog
-				onConfirm={vi.fn()}
-				onOpenChange={onOpenChange}
-				open
-				title="Delete session?"
-			/>,
-		);
-		fireEvent.keyDown(document, { key: "Escape" });
-		expect(onOpenChange).toHaveBeenCalledWith(false);
-	});
-
 	it("supports an accessible dot-only session status", () => {
 		render(<SessionStatus label="Running" showLabel={false} tone="running" />);
 		expect(screen.getByRole("status", { name: "Running" })).toBeTruthy();
@@ -68,6 +21,22 @@ describe("@cline/ui controls", () => {
 			</Button>,
 		);
 		expect(screen.getByRole("link", { name: "Connect GitHub" })).toBeTruthy();
+	});
+
+	it("keeps slotted native buttons from submitting forms by default", () => {
+		const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+		render(
+			<form onSubmit={onSubmit}>
+				<Button asChild>
+					<button>Open</button>
+				</Button>
+			</form>,
+		);
+
+		const button = screen.getByRole("button", { name: "Open" });
+		expect(button.getAttribute("type")).toBe("button");
+		fireEvent.click(button);
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("prevents disabled slot links from navigating or firing handlers", () => {
