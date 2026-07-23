@@ -72,7 +72,6 @@
 		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts"
 	},
 	"dependencies": {
-		"@radix-ui/react-dialog": "1.1.15",
 		"@radix-ui/react-slot": "1.2.4"
 	},
 	"peerDependencies": {
