@@ -1,4 +1,5 @@
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { ModelsDevProviderModels } from "@shared/models-dev"
 import {
 	ApiHandlerSettingsKeys,
 	type GlobalState,
@@ -102,6 +103,7 @@ export class StateManager {
 		liteLlmModels: null,
 		vercelModels: null,
 	}
+	private modelsDevProviderModelsCache: { data: ModelsDevProviderModels; timestamp: number } | null = null
 
 	// Debounced persistence state
 	private pendingGlobalState = new Set<GlobalStateAndSettingsKey>()
@@ -496,6 +498,24 @@ export class StateManager {
 		// Check if cache has expired
 		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
 			this.modelInfoCache[cacheKey] = null
+			return null
+		}
+
+		return cached.data
+	}
+
+	setModelsDevProviderModelsCache(models: ModelsDevProviderModels): void {
+		this.modelsDevProviderModelsCache = { data: models, timestamp: Date.now() }
+	}
+
+	getModelsDevProviderModelsCache(): ModelsDevProviderModels | null {
+		const cached = this.modelsDevProviderModelsCache
+		if (!cached) {
+			return null
+		}
+
+		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
+			this.modelsDevProviderModelsCache = null
 			return null
 		}
 

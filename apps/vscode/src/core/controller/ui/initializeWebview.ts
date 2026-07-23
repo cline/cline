@@ -11,6 +11,7 @@ import { refreshClineModels } from "../models/refreshClineModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
 import { refreshLiteLlmModels } from "../models/refreshLiteLlmModels"
+import { refreshModelsDevProviderModels } from "../models/refreshModelsDevProviderModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
@@ -27,6 +28,14 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		if (lastCachedModels) {
 			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: lastCachedModels }))
 		}
+
+		refreshModelsDevProviderModels()
+			.then(async (models) => {
+				if (models && Object.keys(models).length > 0) {
+					await controller.postStateToWebview()
+				}
+			})
+			.catch((error) => Logger.error("Failed to refresh models.dev provider models:", error))
 
 		// Refresh OpenRouter models from API
 		refreshOpenRouterModels(controller).then(async (models) => {
