@@ -39,6 +39,7 @@ function commandTurnResult(commandOutput?: string): InteractiveTurnResult {
 export async function runInteractiveChatCommand(input: {
 	prompt: string;
 	enabled: boolean;
+	delivery?: "queue" | "steer";
 	config: Config;
 	host: ChatCommandHost;
 	chatCommandState: ChatCommandState;
@@ -79,6 +80,14 @@ export async function runInteractiveChatCommand(input: {
 				next.cwd !== input.chatCommandState.cwd ||
 				next.workspaceRoot !== input.chatCommandState.workspaceRoot
 			) {
+				// Workspace resources and the replacement session change together at
+				// an immediate submission boundary; deferred prompts cannot replay CLI
+				// commands after the active turn finishes.
+				if (input.delivery) {
+					throw new Error(
+						"Cannot change working directory while a turn is running. Wait for it to finish or abort it first.",
+					);
+				}
 				await input.changeWorkingDirectory(next);
 			} else {
 				Object.assign(input.chatCommandState, next);
