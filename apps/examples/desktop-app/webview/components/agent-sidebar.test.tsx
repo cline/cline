@@ -124,7 +124,6 @@ describe("AgentSidebar session organization", () => {
 				<SidebarProvider>
 					<AgentSidebar
 						activeSessionId={null}
-						isHomeActive
 						onHome={vi.fn()}
 						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
@@ -214,7 +213,6 @@ describe("AgentSidebar session organization", () => {
 				<SidebarProvider>
 					<AgentSidebar
 						activeSessionId={null}
-						isHomeActive
 						onHome={vi.fn()}
 						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
@@ -293,7 +291,6 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-							isHomeActive
 							onHome={vi.fn()}
 							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
@@ -325,7 +322,6 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-							isHomeActive
 							onHome={vi.fn()}
 							onNewThread={vi.fn()}
 							onSettingsSectionChange={onSettingsSectionChange}
@@ -346,7 +342,7 @@ describe("AgentSidebar session organization", () => {
 		await click(accountButton as Element);
 
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
-		expect(setView).toHaveBeenCalledWith("settings");
+		expect(setView).not.toHaveBeenCalled();
 	});
 
 	it("shows the desktop app version in a popover when the Cline logo is clicked", async () => {
@@ -364,7 +360,6 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-							isHomeActive
 							onHome={onHome}
 							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
@@ -391,6 +386,99 @@ describe("AgentSidebar session organization", () => {
 		expect(invoke).toHaveBeenCalledWith("get_process_context");
 	});
 
+	it("hosts back and forward navigation in the draggable sidebar title bar", async () => {
+		const onNavigateBack = vi.fn();
+		const onNavigateForward = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							canNavigateBack
+							canNavigateForward
+							onHome={vi.fn()}
+							onNavigateBack={onNavigateBack}
+							onNavigateForward={onNavigateForward}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const titleBar = container.querySelector("[data-tauri-drag-region]");
+		expect(titleBar).not.toBeNull();
+		expect(titleBar?.textContent).not.toContain("Cline Code");
+
+		await click(
+			container.querySelector('[aria-label="Previous page"]') as Element,
+		);
+		await click(container.querySelector('[aria-label="Next page"]') as Element);
+		expect(onNavigateBack).toHaveBeenCalledOnce();
+		expect(onNavigateForward).toHaveBeenCalledOnce();
+	});
+
+	it("places the logo and icon-only new-session action below the title bar", async () => {
+		const onNewThread = vi.fn();
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onNewThread={onNewThread}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const logo = container.querySelector('[aria-label="Cline home"]');
+		const newSession = container.querySelector('[aria-label="New Session"]');
+		expect(logo).not.toBeNull();
+		expect(newSession).not.toBeNull();
+		expect(newSession?.textContent).toBe("");
+		await click(newSession as Element);
+		expect(onNewThread).toHaveBeenCalledOnce();
+	});
+
+	it("uses only the Cline logo for home in the collapsed sidebar", async () => {
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider defaultOpen={false}>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
+		expect(container.querySelector('[aria-label="New Session"]')).toBeNull();
+	});
+
 	it("falls back to a signed-out footer without account data", async () => {
 		await act(async () => {
 			root.render(
@@ -398,7 +486,6 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-							isHomeActive
 							onHome={vi.fn()}
 							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}

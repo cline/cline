@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import {
@@ -40,6 +47,10 @@ import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
+	createNavigationHistory,
+	navigationHistoryReducer,
+} from "@/lib/navigation-history";
+import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
@@ -64,6 +75,22 @@ type Thread = {
 	hasStarted?: boolean;
 };
 
+type AppView = "chat" | "sessions" | "settings";
+
+type AppLocation = {
+	activeThreadId: string;
+	settingsSection: SettingsSection;
+	view: AppView;
+};
+
+function areLocationsEqual(a: AppLocation, b: AppLocation): boolean {
+	return (
+		a.activeThreadId === b.activeThreadId &&
+		a.settingsSection === b.settingsSection &&
+		a.view === b.view
+	);
+}
+
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
 	if (preferredTitle) {
@@ -75,15 +102,39 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
-	const [view, setView] = useState<"chat" | "sessions" | "settings">("chat");
-	const [settingsSection, setSettingsSection] =
-		useState<SettingsSection>("General");
+	const [initialThreadId] = useState(makeThreadId);
 	const [threads, setThreads] = useState<Thread[]>(() => [
-		{ id: makeThreadId() },
+		{ id: initialThreadId },
 	]);
-	const [activeThreadId, setActiveThreadId] = useState<string>(
-		() => threads[0]?.id,
+	const [navigation, dispatchNavigation] = useReducer(
+		navigationHistoryReducer<AppLocation>,
+		createNavigationHistory<AppLocation>({
+			activeThreadId: initialThreadId,
+			settingsSection: "General",
+			view: "chat",
+		}),
 	);
+	const { activeThreadId, settingsSection, view } = navigation.current;
+
+	const navigate = useCallback(
+		(destination: AppLocation) => {
+			if (areLocationsEqual(navigation.current, destination)) return;
+			dispatchNavigation({ type: "navigate", destination });
+		},
+		[navigation.current],
+	);
+	const navigateWith = useCallback(
+		(destination: Partial<AppLocation>) => {
+			navigate({ ...navigation.current, ...destination });
+		},
+		[navigate, navigation.current],
+	);
+	const handleNavigateBack = useCallback(() => {
+		dispatchNavigation({ type: "back" });
+	}, []);
+	const handleNavigateForward = useCallback(() => {
+		dispatchNavigation({ type: "forward" });
+	}, []);
 
 	useAppUpdate();
 
@@ -99,31 +150,32 @@ export default function Home() {
 	const handleNewThread = useCallback(() => {
 		const id = makeThreadId();
 		setThreads((prev) => [...prev, { id }]);
-		setActiveThreadId(id);
-		setView("chat");
-	}, []);
+		navigateWith({ activeThreadId: id, view: "chat" });
+	}, [navigateWith]);
 
-	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
-		const threadId = `session_${session.sessionId}`;
-		setThreads((prev) => {
-			const existingIdx = prev.findIndex((item) => item.id === threadId);
-			if (existingIdx >= 0) {
-				const next = [...prev];
-				next[existingIdx] = {
-					...next[existingIdx],
-					hasStarted: true,
-					historySession: session,
-				};
-				return next;
-			}
-			return [
-				...prev,
-				{ id: threadId, hasStarted: true, historySession: session },
-			];
-		});
-		setActiveThreadId(threadId);
-		setView("chat");
-	}, []);
+	const handleOpenSession = useCallback(
+		(session: SessionHistoryItem) => {
+			const threadId = `session_${session.sessionId}`;
+			setThreads((prev) => {
+				const existingIdx = prev.findIndex((item) => item.id === threadId);
+				if (existingIdx >= 0) {
+					const next = [...prev];
+					next[existingIdx] = {
+						...next[existingIdx],
+						hasStarted: true,
+						historySession: session,
+					};
+					return next;
+				}
+				return [
+					...prev,
+					{ id: threadId, hasStarted: true, historySession: session },
+				];
+			});
+			navigateWith({ activeThreadId: threadId, view: "chat" });
+		},
+		[navigateWith],
+	);
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
@@ -150,14 +202,26 @@ export default function Home() {
 				return next;
 			});
 			if (fallback) {
-				setActiveThreadId(fallback.id);
+				dispatchNavigation({
+					type: "replace",
+					destination: {
+						...navigation.current,
+						activeThreadId: fallback.id,
+					},
+				});
 				return;
 			}
 			if (emptyFallbackId) {
-				setActiveThreadId(emptyFallbackId);
+				dispatchNavigation({
+					type: "replace",
+					destination: {
+						...navigation.current,
+						activeThreadId: emptyFallbackId,
+					},
+				});
 			}
 		},
-		[activeThreadId],
+		[activeThreadId, navigation.current],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
@@ -206,8 +270,20 @@ export default function Home() {
 			handleNewThread();
 			return;
 		}
-		setView("chat");
-	}, [activeThread, handleNewThread]);
+		navigateWith({ view: "chat" });
+	}, [activeThread, handleNewThread, navigateWith]);
+	const handleViewChange = useCallback(
+		(nextView: AppView) => {
+			navigateWith({ view: nextView });
+		},
+		[navigateWith],
+	);
+	const handleSettingsSectionChange = useCallback(
+		(section: SettingsSection) => {
+			navigateWith({ settingsSection: section, view: "settings" });
+		},
+		[navigateWith],
+	);
 	const handleThreadStarted = useCallback((threadId: string) => {
 		setThreads((current) =>
 			current.map((thread) =>
@@ -266,18 +342,17 @@ export default function Home() {
 					>
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
-							isHomeActive={
-								view === "chat" &&
-								!activeThread?.historySession &&
-								!activeThread?.hasStarted
-							}
 							onHome={handleHome}
+							onNavigateBack={handleNavigateBack}
+							onNavigateForward={handleNavigateForward}
 							onNewThread={handleNewThread}
-							onSettingsSectionChange={setSettingsSection}
+							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}
-							setView={setView}
+							setView={handleViewChange}
 							settingsSection={settingsSection}
 							view={view}
+							canNavigateBack={navigation.back.length > 0}
+							canNavigateForward={navigation.forward.length > 0}
 						/>
 						<SidebarRail />
 					</Sidebar>
@@ -310,7 +385,7 @@ export default function Home() {
 						{view === "settings" ? (
 							<div className="absolute inset-0 z-30 bg-background text-foreground">
 								<SettingsView
-									onNavigateSection={setSettingsSection}
+									onNavigateSection={handleSettingsSectionChange}
 									onOpenSession={handleOpenSessionById}
 									section={settingsSection}
 								/>
