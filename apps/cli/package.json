@@ -50,7 +50,6 @@
 	],
 	"scripts": {
 		"build": "bun run bun.mts",
-		"build:tgz": "bun script/build.ts --single && cd dist/cli-linux-x64 && bun pm pack --destination ..",
 		"build:platforms": "bun script/build.ts --install-native-variants",
 		"build:platforms:single": "bun script/build.ts --single",
 		"prepack": "bun script/guard-direct-publish.ts",
