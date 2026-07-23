@@ -24,6 +24,8 @@ export function AgentQuickActions({
 	onSelect,
 	trailingIcon,
 }: AgentQuickActionsProps) {
+	if (actions.length === 0) return null;
+
 	return (
 		<div className={cx("cline-ui-quick-actions", className)}>
 			{actions.map((action) => (

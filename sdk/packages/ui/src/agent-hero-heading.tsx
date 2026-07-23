@@ -4,6 +4,7 @@ import { cx } from "./utils.js";
 const DEFAULT_VERBS = ["build", "create", "fix", "know"] as const;
 
 export interface AgentHeroHeadingProps {
+	ariaLabel?: string;
 	className?: string;
 	cycleMs?: number;
 	verbs?: readonly string[];
@@ -11,6 +12,7 @@ export interface AgentHeroHeadingProps {
 
 /** The shared Cline welcome heading used by agent start surfaces. */
 export function AgentHeroHeading({
+	ariaLabel,
 	className,
 	cycleMs = 2600,
 	verbs = DEFAULT_VERBS,
@@ -50,10 +52,12 @@ export function AgentHeroHeading({
 	}, [availableVerbs.length, cycleMs]);
 
 	const verb = availableVerbs[verbIndex % availableVerbs.length] ?? "build";
+	const accessibleText =
+		ariaLabel ?? `What would you like to ${availableVerbs[0] ?? "build"}?`;
 
 	return (
 		<h1 className={cx("cline-ui-hero-heading", className)}>
-			<span className="cline-ui-sr-only">What would you like to build?</span>
+			<span className="cline-ui-sr-only">{accessibleText}</span>
 			<span aria-hidden="true">
 				What would you like to{" "}
 				<span className="cline-ui-hero-heading__word" key={verb}>

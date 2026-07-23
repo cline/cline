@@ -13,5 +13,5 @@ export interface AgentQuickActionsProps {
     onSelect: (action: AgentQuickAction) => void;
     trailingIcon?: ReactNode;
 }
-export declare function AgentQuickActions({ actions, className, disabled, onSelect, trailingIcon, }: AgentQuickActionsProps): import("react/jsx-runtime").JSX.Element;
+export declare function AgentQuickActions({ actions, className, disabled, onSelect, trailingIcon, }: AgentQuickActionsProps): import("react/jsx-runtime").JSX.Element | null;
 //# sourceMappingURL=quick-actions.d.ts.map
