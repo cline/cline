@@ -116,6 +116,7 @@ const TUI_LOCAL_COMMANDS: Array<{
 
 const SYSTEM_COMMAND_ORDER = [
 	"settings",
+	"cd",
 	"model",
 	"theme",
 	"account",
@@ -130,7 +131,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"history",
 	"help",
 	"quit",
-] satisfies ReadonlyArray<LocalSlashCommandName | "team">;
+] satisfies ReadonlyArray<LocalSlashCommandName | "cd" | "team">;
 
 const SYSTEM_COMMAND_PRIORITY = new Map<string, number>(
 	SYSTEM_COMMAND_ORDER.map((name, index) => [name, index]),
