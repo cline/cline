@@ -8,6 +8,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname } from "node:path";
+import { isOAuthProviderId } from "@cline/shared";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
 import { getLiveModelsCatalog } from "../..";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
@@ -59,6 +60,25 @@ function inferLegacyDataDir(filePath: string): string | undefined {
 		return undefined;
 	}
 	return dirname(settingsDir);
+}
+
+function preserveOAuthAuthFields(
+	next: ProviderSettings,
+	previous: ProviderSettings | undefined,
+): ProviderSettings {
+	if (!isOAuthProviderId(next.provider) || !previous?.auth) {
+		return next;
+	}
+	if (!next.auth) {
+		return { ...next, auth: previous.auth };
+	}
+	return {
+		...next,
+		auth: {
+			...previous.auth,
+			...next.auth,
+		},
+	};
 }
 
 export class ProviderSettingsManager {
@@ -149,11 +169,15 @@ export class ProviderSettingsManager {
 		settings: unknown,
 		options: SaveProviderSettingsOptions = {},
 	): StoredProviderSettings {
-		const validatedSettings = ProviderSettingsSchema.parse(settings);
+		const parsedSettings = ProviderSettingsSchema.parse(settings);
 		const previous = this.read();
-		const providerId = validatedSettings.provider;
+		const providerId = parsedSettings.provider;
 		const shouldSetLastUsed = options.setLastUsed !== false;
 		const previousEntry = previous.providers[providerId];
+		const validatedSettings = preserveOAuthAuthFields(
+			parsedSettings,
+			previousEntry?.settings,
+		);
 		const tokenSource =
 			options.tokenSource ?? previousEntry?.tokenSource ?? "manual";
 		const next: StoredProviderSettings = {

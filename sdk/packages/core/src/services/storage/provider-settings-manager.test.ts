@@ -526,6 +526,87 @@ describe("ProviderSettingsManager", () => {
 		expect(manager.read().providers["openai-codex"]?.tokenSource).toBe("oauth");
 	});
 
+	it("preserves OAuth auth when updating only Cline model settings", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				auth: {
+					accessToken: "workos:access-old",
+					refreshToken: "refresh-old",
+					expiresAt: 4_000_000_000_000,
+					accountId: "acct-old",
+				},
+			},
+			{ tokenSource: "oauth" },
+		);
+
+		manager.saveProviderSettings({
+			provider: "cline",
+			model: "anthropic/claude-haiku-4.5",
+			reasoning: { enabled: false },
+		});
+
+		expect(manager.getProviderSettings("cline")).toEqual({
+			provider: "cline",
+			model: "anthropic/claude-haiku-4.5",
+			reasoning: { enabled: false },
+			auth: {
+				accessToken: "workos:access-old",
+				refreshToken: "refresh-old",
+				expiresAt: 4_000_000_000_000,
+				accountId: "acct-old",
+			},
+		});
+		expect(manager.read().providers.cline?.tokenSource).toBe("oauth");
+	});
+
+	it("merges partial OAuth auth updates with existing refresh metadata", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "openai-codex",
+				auth: {
+					accessToken: "access-old",
+					refreshToken: "refresh-old",
+					expiresAt: 4_000_000_000_000,
+					accountId: "acct-old",
+				},
+			},
+			{ tokenSource: "oauth" },
+		);
+
+		manager.saveProviderSettings(
+			{
+				provider: "openai-codex",
+				auth: {
+					accessToken: "access-new",
+				},
+			},
+			{ tokenSource: "oauth" },
+		);
+
+		expect(manager.getProviderSettings("openai-codex")?.auth).toEqual({
+			accessToken: "access-new",
+			refreshToken: "refresh-old",
+			expiresAt: 4_000_000_000_000,
+			accountId: "acct-old",
+		});
+	});
+
 	it("ignores invalid persisted JSON and falls back to empty state", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),
