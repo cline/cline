@@ -1,4 +1,8 @@
-import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	CLINE_ENVIRONMENT_ENV,
+	CLINE_ENVIRONMENTS,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
@@ -52,6 +56,10 @@ describe("cline builtin spec defaults.baseUrl", () => {
 });
 
 describe("cline builtin models", () => {
+	it("exposes its canonical default model ID", () => {
+		expect(findClineSpec().defaultModelId).toBe(CLINE_DEFAULT_MODEL_ID);
+	});
+
 	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {
 		const models = await getModelsForProvider("cline");
 
