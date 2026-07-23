@@ -1,7 +1,10 @@
 import type { KeyboardEvent, ReactNode, TextareaHTMLAttributes } from "react";
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Button } from "./button.js";
 import { cx } from "./utils.js";
+
+const useIsomorphicLayoutEffect =
+	typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 function ArrowIcon() {
 	return (
@@ -78,7 +81,7 @@ export function AgentComposer({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const empty = value.trim().length === 0;
 
-	useLayoutEffect(() => {
+	useIsomorphicLayoutEffect(() => {
 		const textarea = textareaRef.current;
 		if (!textarea) return;
 		textarea.style.height = "auto";
