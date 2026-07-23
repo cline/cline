@@ -1130,7 +1130,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "OpenCode SDK multi-provider runtime",
 		family: "opencode",
 		capabilities: ["reasoning", "oauth"],
-		defaultModelId: "openai/gpt-5.4",
+		defaultModelId: "gpt-5.4",
 		modelsProviderId: "opencode",
 		defaults: { baseUrl: "" },
 		configFields: [],
