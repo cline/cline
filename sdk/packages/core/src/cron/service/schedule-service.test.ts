@@ -291,7 +291,63 @@ describe("HubScheduleService", () => {
 				expect(createdReply.ok).toBe(true);
 				const created = createdReply.payload?.schedule as {
 					scheduleId: string;
+					mode: string;
 				};
+				expect(created.mode).toBe("yolo");
+
+				const planReply = await commands.handleCommand({
+					version: "v1",
+					command: "schedule.update",
+					payload: { scheduleId: created.scheduleId, mode: "plan" },
+				});
+				expect(planReply.ok).toBe(true);
+				expect((planReply.payload?.schedule as { mode: string }).mode).toBe(
+					"plan",
+				);
+
+				const omittedModeReply = await commands.handleCommand({
+					version: "v1",
+					command: "schedule.update",
+					payload: { scheduleId: created.scheduleId, name: "Renamed routine" },
+				});
+				expect(omittedModeReply.ok).toBe(true);
+				expect(
+					(omittedModeReply.payload?.schedule as { mode: string }).mode,
+				).toBe("plan");
+
+				for (const invalidMode of [null, "", "invalid"]) {
+					const invalidUpdateReply = await commands.handleCommand({
+						version: "v1",
+						command: "schedule.update",
+						payload: { scheduleId: created.scheduleId, mode: invalidMode },
+					});
+					expect(invalidUpdateReply).toMatchObject({
+						ok: false,
+						error: {
+							code: "schedule_command_failed",
+							message: "mode must be one of: act, plan, yolo",
+						},
+					});
+				}
+
+				const invalidCreateReply = await commands.handleCommand({
+					version: "v1",
+					command: "schedule.create",
+					payload: {
+						name: "Invalid routine",
+						cronPattern: "30 * * * *",
+						prompt: "Do not create",
+						workspaceRoot: "/workspace",
+						mode: "invalid",
+					},
+				});
+				expect(invalidCreateReply).toMatchObject({
+					ok: false,
+					error: {
+						code: "schedule_command_failed",
+						message: "mode must be one of: act, plan, yolo",
+					},
+				});
 
 				const listReply = await commands.handleCommand({
 					version: "v1",
@@ -299,11 +355,13 @@ describe("HubScheduleService", () => {
 					payload: { limit: 10 },
 				});
 				expect(listReply.ok).toBe(true);
-				expect(
-					(listReply.payload?.schedules as Array<{ scheduleId: string }>).some(
-						(item) => item.scheduleId === created.scheduleId,
-					),
-				).toBe(true);
+				const listedSchedule = (
+					listReply.payload?.schedules as Array<{
+						scheduleId: string;
+						mode: string;
+					}>
+				).find((item) => item.scheduleId === created.scheduleId);
+				expect(listedSchedule).toMatchObject({ mode: "plan" });
 			} finally {
 				await service.dispose();
 			}
