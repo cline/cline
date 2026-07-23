@@ -162,7 +162,11 @@ export class SdkCompactionCoordinator {
 
 			Logger.log(`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages`)
 		} catch (error) {
+			// Manual-mode counterpart of the translator's finalizeDanglingCompaction
+			// (message-translator.ts), which handles auto compaction from turn
+			// events — keep the terminal-state rules of the two in sync.
 			this.emitCompactionRow({ status: "failed", mode: "manual" }, compactionTs, sessionId)
+			await this.options.postStateToWebview()
 			throw error
 		}
 	}

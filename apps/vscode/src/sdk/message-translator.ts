@@ -980,6 +980,16 @@ function asFiniteNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
+/**
+ * Status notices that are internal diagnostics with no user-facing copy — their
+ * `message` is a slug, not prose. Only these are suppressed; an unlisted status
+ * notice renders as an info row so it doesn't vanish silently. Keep in sync
+ * with the `emitStatusNotice` call sites in
+ * sdk/packages/core/src/extensions/context/compaction.ts (the compaction phase
+ * slugs are handled above via parseCompactionNoticeMetadata instead).
+ */
+const INTERNAL_STATUS_NOTICES = new Set(["compaction-budget-adjusted"])
+
 /** Build the say:"compaction" divider message for a compaction status payload. */
 export function buildCompactionMessage(info: ClineCompactionInfo, ts: number): ClineMessage {
 	return {
@@ -994,6 +1004,11 @@ export function buildCompactionMessage(info: ClineCompactionInfo, ts: number): C
 /**
  * Finalize a dangling "started" compaction divider when the turn ends without
  * the completed/skipped notice (mid-compaction abort or error).
+ *
+ * This covers auto compaction (driven by turn events). Manual compaction runs
+ * outside a turn, so SdkCompactionCoordinator.runCompaction finalizes its own
+ * dangling divider in its catch block — if the terminal-state rules change
+ * here, change them there too.
  */
 function finalizeDanglingCompaction(
 	state: MessageTranslatorState,
@@ -1485,10 +1500,12 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "notice": {
-			// Status notices carry structured runtime progress (compaction phases,
-			// budget adjustments). Compaction ones become a live divider row that is
-			// updated in place from "started" to its terminal state; the rest are
-			// internal and would render as raw slugs ("auto-compacting"), so drop them.
+			// Status notices carry structured runtime progress. Compaction ones
+			// become a live divider row that is updated in place from "started" to
+			// its terminal state; the known-internal ones are diagnostics with no
+			// user-facing copy, so drop them explicitly. Any other status notice
+			// falls through to the info row below so a future one surfaces (as its
+			// raw slug) instead of silently vanishing.
 			if (event.noticeType === "status") {
 				const compaction = parseCompactionNoticeMetadata(event.metadata)
 				if (compaction) {
@@ -1497,11 +1514,14 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							? state.beginCompaction()
 							: (state.takeOpenCompactionTs() ?? state.nextTs())
 					messages.push(buildCompactionMessage(compaction, ts))
+					break
 				}
-				break
+				if (INTERNAL_STATUS_NOTICES.has(event.message ?? "")) {
+					break
+				}
 			}
 
-			// Non-status agent notices are informational
+			// Non-status agent notices (and unrecognized status notices) are informational
 			messages.push({
 				ts: state.nextTs(),
 				type: "say",

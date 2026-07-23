@@ -1696,13 +1696,23 @@ describe("translateSessionEvent — agent_event notice", () => {
 		})
 	})
 
-	it("suppresses non-compaction status notices instead of rendering raw slugs", () => {
+	it("suppresses known-internal status notices instead of rendering raw slugs", () => {
 		const state = new MessageTranslatorState()
 		const result = translateSessionEvent(
 			noticeEvent("compaction-budget-adjusted", { kind: "compaction_budget_emergency", actionCount: 1 }),
 			state,
 		)
 		expect(result.messages).toHaveLength(0)
+	})
+
+	it("renders an unrecognized status notice as an info row rather than dropping it", () => {
+		// Only the known-internal set is suppressed; a status notice added to the
+		// SDK later should surface (even as a raw slug) instead of vanishing.
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(noticeEvent("some-future-status", { kind: "something_new" }), state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("info")
+		expect(result.messages[0].text).toBe("some-future-status")
 	})
 
 	it("finalizes a dangling compaction divider as failed when the turn errors", () => {
