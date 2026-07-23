@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -490,6 +490,7 @@ function GeneralSettingsContent() {
 		return readStoredAppIcon();
 	});
 	const [appIconError, setAppIconError] = useState<string | null>(null);
+	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -577,12 +578,18 @@ function GeneralSettingsContent() {
 	};
 
 	const updateAppIcon = async (nextIcon: AppIconId) => {
+		const requestId = ++appIconRequestRef.current;
 		const previousIcon = appIcon;
 		setAppIcon(nextIcon);
 		setAppIconError(null);
 		try {
 			await setStoredAppIcon(nextIcon);
 		} catch (error) {
+			// A newer selection supersedes this request; rolling back now
+			// would clobber it.
+			if (appIconRequestRef.current !== requestId) {
+				return;
+			}
 			setAppIcon(previousIcon);
 			setAppIconError(error instanceof Error ? error.message : String(error));
 			// Storage was written before the native call failed; roll it back
