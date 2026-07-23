@@ -24,7 +24,10 @@
 				"title": "Cline Code",
 				"width": 1500,
 				"height": 980,
-				"resizable": true
+				"resizable": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
+				"dragDropEnabled": false
 			}
 		],
 		"security": {
