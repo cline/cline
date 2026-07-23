@@ -5,9 +5,11 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isCompactionEnabledGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	setAutoUpdateEnabledGlobally,
+	setCompactionEnabledGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
@@ -212,6 +214,25 @@ describe("global-settings", () => {
 			expect(readCompactionStrategyGlobally()).toBe("agentic");
 			setCompactionStrategyGlobally("agentic");
 			expect(readCompactionStrategyGlobally()).toBe("agentic");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("persists disabled compaction independently from its strategy", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+
+			expect(isCompactionEnabledGlobally()).toBe(true);
+			setCompactionStrategyGlobally("basic");
+			setCompactionEnabledGlobally(false);
+
+			expect(isCompactionEnabledGlobally()).toBe(false);
+			expect(readCompactionStrategyGlobally()).toBe("basic");
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

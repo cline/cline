@@ -143,6 +143,9 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		defaultToolAutoApprove: true,
 		id: opts.id,
 	};
+	if (opts.plan || opts.act || opts.yolo || opts.zen) {
+		result.modeExplicitlySet = true;
+	}
 
 	// Approval: last-wins semantics
 	if (opts.autoApprove !== undefined) {
