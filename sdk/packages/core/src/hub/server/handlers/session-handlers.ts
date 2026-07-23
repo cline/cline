@@ -21,6 +21,7 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
+import { cloneJsonRecord } from "../../../utils/json-record";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	asPlainRecord,
@@ -171,7 +172,7 @@ export async function handleSessionCreate(
 			: {};
 	const metadata =
 		payload.metadata && typeof payload.metadata === "object"
-			? JSON.parse(JSON.stringify(payload.metadata))
+			? (cloneJsonRecord(payload.metadata as Record<string, unknown>) ?? {})
 			: {};
 	const sessionConfig =
 		payload.sessionConfig && typeof payload.sessionConfig === "object"
@@ -464,7 +465,7 @@ export async function handleSessionRestore(
 		);
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
-				? JSON.parse(JSON.stringify(payload.metadata))
+				? (cloneJsonRecord(payload.metadata as Record<string, unknown>) ?? {})
 				: {};
 		if (typeof sessionConfig?.mode === "string") {
 			metadata.mode = sessionConfig.mode;
