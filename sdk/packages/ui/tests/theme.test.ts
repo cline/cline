@@ -149,9 +149,9 @@ function block(source: string, selector: string): string {
 
 describe("@cline/ui theme contract", () => {
 	it("keeps the shared agent surface vertically composed", () => {
-		expect(block(readComponent("welcome.css"), ".cline-ui-agent-surface")).toContain(
-			"flex-direction: column",
-		);
+		expect(
+			block(readComponent("welcome.css"), ".cline-ui-agent-surface"),
+		).toContain("flex-direction: column");
 	});
 
 	it("gives reduced-motion aurora layers a calm resting opacity", () => {
