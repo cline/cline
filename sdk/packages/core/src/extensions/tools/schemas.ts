@@ -112,6 +112,11 @@ export const SearchCodebaseInputSchema = z.object({
 		.describe("Array of regex search queries to execute"),
 });
 
+const LegacySearchFilesInputSchema = z.object({
+	regex: z.string(),
+	path: z.string().optional(),
+});
+
 /**
  * Union schema for search_codebase tool input, allowing either a single string, an array of strings, or the full object schema
  */
@@ -120,6 +125,7 @@ export const SearchCodebaseUnionInputSchema = z.union([
 	z.array(z.string()),
 	z.string(),
 	z.object({ queries: z.string() }),
+	LegacySearchFilesInputSchema,
 ]);
 
 const CommandInputSchema = z

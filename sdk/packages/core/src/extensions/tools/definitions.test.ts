@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -411,6 +412,43 @@ describe("default search_codebase tool", () => {
 				success: false,
 			},
 		]);
+	});
+
+	it("preserves Windows absolute paths from legacy search_files input", async () => {
+		const execute = vi.fn(async () => "ok");
+		const tool = createSearchTool(execute, { cwd: "/workspace" });
+
+		await tool.execute(
+			{ regex: "needle", path: "C:\\ProgramData\\SDK" } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledWith(
+			"needle",
+			"C:\\ProgramData\\SDK",
+			expect.objectContaining({ agentId: "agent-1" }),
+		);
+	});
+
+	it("resolves relative paths from legacy search_files input under cwd", async () => {
+		const execute = vi.fn(async () => "ok");
+		const tool = createSearchTool(execute, { cwd: "/workspace" });
+
+		await tool.execute({ regex: "needle", path: "src" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+
+		expect(execute).toHaveBeenCalledWith(
+			"needle",
+			path.resolve("/workspace", "src"),
+			expect.objectContaining({ agentId: "agent-1" }),
+		);
 	});
 });
 
