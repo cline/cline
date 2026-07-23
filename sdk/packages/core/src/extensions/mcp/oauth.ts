@@ -13,6 +13,7 @@ import type {
 	OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import {
 	type OAuthServerCloseInfo,
 	type OAuthServerListeningInfo,
@@ -218,7 +219,7 @@ export function createMcpOAuthProviderContext(
 		markError: async (errorMessage) => {
 			await patch((current) => ({
 				...current,
-				lastError: errorMessage,
+				lastError: sanitizeMcpDiagnosticText(errorMessage),
 			}));
 		},
 		clearError: async () => {
@@ -391,7 +392,7 @@ export async function authorizeMcpServerOAuth(
 			};
 		}
 	} catch (error) {
-		const message = toErrorMessage(error);
+		const message = sanitizeMcpDiagnosticText(toErrorMessage(error));
 		await oauthContext.markError(message);
 		throw new Error(message);
 	} finally {

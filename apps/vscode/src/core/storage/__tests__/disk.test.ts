@@ -6,6 +6,7 @@ import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 // bun loads real ESM, so sinon cannot stub the `@utils/fs` namespace export
@@ -19,7 +20,13 @@ const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
 mock.module("@utils/fs", fsUtilsMock)
 mock.module("@/utils/fs", fsUtilsMock)
 
-import { getAllHooksDirs, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
+import {
+	ensureSettingsDirectoryExists,
+	getAllHooksDirs,
+	getMcpSettingsFilePath,
+	getWorkspaceHooksDirs,
+	setRuntimeHooksDir,
+} from "../disk"
 import { StateManager } from "../StateManager"
 
 describe("disk - hooks functionality", () => {
@@ -279,5 +286,61 @@ describe("disk - atomic writes", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+	})
+
+	it("creates private MCP settings without changing a pre-existing parent", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "secure-mcp-settings")
+		const settingsPath = await getMcpSettingsFilePath(settingsDir)
+
+		if (process.platform !== "win32") {
+			const directoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			const fileMode = (await fs.stat(settingsPath)).mode & 0o777
+			directoryMode.should.equal(0o700)
+			fileMode.should.equal(0o600)
+
+			await fs.chmod(settingsDir, 0o755)
+			await fs.chmod(settingsPath, 0o644)
+			await getMcpSettingsFilePath(settingsDir)
+			const repairedDirectoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			const repairedMode = (await fs.stat(settingsPath)).mode & 0o777
+			repairedDirectoryMode.should.equal(0o755)
+			repairedMode.should.equal(0o600)
+		}
+	})
+
+	it("creates the host settings directory with owner-only permissions", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "settings")
+		await fs.rm(settingsDir, { recursive: true, force: true })
+
+		const created = await ensureSettingsDirectoryExists()
+
+		created.should.equal(settingsDir)
+		if (process.platform !== "win32") {
+			const directoryMode = (await fs.stat(created)).mode & 0o777
+			directoryMode.should.equal(0o700)
+		}
+	})
+
+	it.skipIf(process.platform === "win32")("skips chmod when settings permissions are already private", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "already-private-mcp-settings")
+		await getMcpSettingsFilePath(settingsDir)
+		const chmod = sandbox.spy(fs, "chmod")
+
+		await getMcpSettingsFilePath(settingsDir)
+
+		chmod.notCalled.should.equal(true)
+	})
+
+	it.skipIf(process.platform === "win32")("warns and continues when permission repair fails", async () => {
+		const warn = sandbox.stub(Logger, "warn")
+		const permissionError = Object.assign(new Error("permission denied"), { code: "EACCES" })
+		await fs.chmod(path.join(testGlobalStorageDir, "settings"), 0o755)
+		sandbox.stub(fs, "chmod").rejects(permissionError)
+
+		const created = await ensureSettingsDirectoryExists()
+
+		created.should.equal(path.join(testGlobalStorageDir, "settings"))
+		warn.calledOnce.should.equal(true)
+		warn.firstCall.args[0].should.match(/Unable to set permissions 700.*EACCES/)
 	})
 })

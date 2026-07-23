@@ -167,6 +167,13 @@ cline auth --provider openai-native --apikey sk-... --modelid gpt-5 --baseurl ht
 
 Manage MCP servers with the interactive wizard:
 
+> **Security:** `~/.cline/data/settings/cline_mcp_settings.json` may contain OAuth tokens, client credentials,
+> API keys, environment variables, and authorization headers. Treat it as credential-bearing state: do not
+> publish it in logs, support bundles, or configuration exports without redacting secrets. On POSIX systems,
+> Cline creates settings directories it owns with `0700` permissions and repairs the settings file to `0600`
+> when it is loaded or updated. Cline does not change permissions on a pre-existing custom parent directory;
+> group-shared MCP settings files are not supported.
+
 ```sh
 cline mcp
 cline config mcp

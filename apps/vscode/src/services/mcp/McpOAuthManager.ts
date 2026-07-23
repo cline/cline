@@ -23,6 +23,7 @@ import {
 	type McpServerOAuthState,
 	updateMcpServerOAuthStateAsync,
 } from "@cline/core"
+import { sanitizeMcpDiagnosticText } from "@cline/shared"
 import { StateManager } from "@core/storage/StateManager"
 import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
@@ -78,7 +79,7 @@ async function patchOAuthState(
 	try {
 		await updateMcpServerOAuthStateAsync(serverName, updater, { filePath: settingsPath })
 	} catch (error) {
-		Logger.warn(`[McpOAuth] Failed to persist OAuth state for ${serverName}: ${error}`)
+		Logger.warn(`[McpOAuth] Failed to persist OAuth state for ${serverName}: ${sanitizeMcpDiagnosticText(String(error))}`)
 	}
 }
 
@@ -316,7 +317,7 @@ export class McpOAuthManager {
 			delete secrets[serverHash]
 			StateManager.get().setSecret("mcpOAuthSecrets", Object.keys(secrets).length ? JSON.stringify(secrets) : undefined)
 		} catch (error) {
-			Logger.warn(`[McpOAuth] Legacy OAuth migration failed for ${serverName}: ${error}`)
+			Logger.warn(`[McpOAuth] Legacy OAuth migration failed for ${serverName}: ${sanitizeMcpDiagnosticText(String(error))}`)
 		}
 	}
 }

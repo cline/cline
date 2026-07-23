@@ -1,4 +1,9 @@
+import { sanitizeMcpDiagnosticText } from "@cline/shared"
 import { Logger } from "@/shared/services/Logger"
+
+function toMcpDiagnosticText(error: unknown): string {
+	return sanitizeMcpDiagnosticText(error instanceof Error ? (error.stack ?? error.message) : String(error))
+}
 
 /**
  * Callbacks that the reconnect handler uses to interact with McpHub.
@@ -75,7 +80,7 @@ export class StreamableHttpReconnectHandler {
 	 * Handle a transport error. Call this from `transport.onerror`.
 	 */
 	async handleError(error: unknown): Promise<void> {
-		Logger.error(`Transport error for "${this.serverName}":`, error)
+		Logger.error(`Transport error for "${this.serverName}":`, toMcpDiagnosticText(error))
 
 		const connection = this.callbacks.findConnection()
 		if (!connection) {
@@ -133,7 +138,7 @@ export class StreamableHttpReconnectHandler {
 				this.attempts = 0
 				return
 			} catch (reconnectError) {
-				Logger.error(`StreamableHTTP reconnect failed for "${this.serverName}":`, reconnectError)
+				Logger.error(`StreamableHTTP reconnect failed for "${this.serverName}":`, toMcpDiagnosticText(reconnectError))
 				if (this.attempts < this.config.maxAttempts) {
 					const retryDelay = this.config.getDelayMs(this.attempts)
 					this.attempts++

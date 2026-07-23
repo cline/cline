@@ -1,4 +1,5 @@
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readdirSync,
@@ -14,15 +15,16 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	hasMcpSettingsFile,
+	isSettingsLockContentionError,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpSettingsMutatorPurityError,
 	registerMcpServersFromSettingsFile,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsMutatorPurityError,
 } from "./config-loader";
 
 describe("mcp config loader", () => {
@@ -36,6 +38,173 @@ describe("mcp config loader", () => {
 		);
 		tempRoots.length = 0;
 	});
+
+	it.each([
+		"EEXIST",
+		"ENOTEMPTY",
+	])("treats %s from lock-directory publication as contention", (code) => {
+		expect(isSettingsLockContentionError({ code })).toBe(true);
+	});
+
+	it("does not hide unrelated lock-directory errors", () => {
+		expect(isSettingsLockContentionError({ code: "EACCES" })).toBe(false);
+		expect(isSettingsLockContentionError(null)).toBe(false);
+		expect(isSettingsLockContentionError(undefined)).toBe(false);
+	});
+
+	it("does not create a directory when loading a missing settings file", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const settingsDir = join(tempRoot, "missing", "settings");
+		const filePath = join(settingsDir, "cline_mcp_settings.json");
+
+		expect(() => loadMcpSettingsFile({ filePath })).toThrow();
+		expect(existsSync(settingsDir)).toBe(false);
+	});
+
+	it.skipIf(process.platform === "win32")(
+		"does not warn when the settings path has a non-directory ancestor",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const notDirectory = join(tempRoot, "not-a-directory");
+			await writeFile(notDirectory, "not a directory", "utf8");
+			const filePath = join(notDirectory, "cline_mcp_settings.json");
+			const emitWarning = vi
+				.spyOn(process, "emitWarning")
+				.mockImplementation(() => {});
+
+			try {
+				expect(() => loadMcpSettingsFile({ filePath })).toThrow();
+				expect(emitWarning).not.toHaveBeenCalled();
+			} finally {
+				emitWarning.mockRestore();
+			}
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"checks for a settings file without changing its permissions",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const settingsDir = join(tempRoot, "settings");
+			mkdirSync(settingsDir, { mode: 0o755 });
+			const filePath = join(settingsDir, "cline_mcp_settings.json");
+			await writeFile(filePath, JSON.stringify({ mcpServers: {} }), "utf8");
+			chmodSync(filePath, 0o644);
+
+			expect(hasMcpSettingsFile({ filePath })).toBe(true);
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o755);
+			expect(statSync(filePath).mode & 0o777).toBe(0o644);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"hardens an existing settings file without changing its parent permissions",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const settingsDir = join(tempRoot, "settings");
+			mkdirSync(settingsDir, { mode: 0o755 });
+			const nestedFilePath = join(settingsDir, "cline_mcp_settings.json");
+			await writeFile(
+				nestedFilePath,
+				JSON.stringify({ mcpServers: {} }),
+				"utf8",
+			);
+			chmodSync(nestedFilePath, 0o644);
+
+			loadMcpSettingsFile({ filePath: nestedFilePath });
+
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o755);
+			expect(statSync(nestedFilePath).mode & 0o777).toBe(0o600);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"does not change metadata when settings permissions are already private",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const filePath = join(tempRoot, "cline_mcp_settings.json");
+			await writeFile(filePath, JSON.stringify({ mcpServers: {} }), "utf8");
+			chmodSync(filePath, 0o600);
+			const before = statSync(filePath, { bigint: true }).ctimeNs;
+
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			loadMcpSettingsFile({ filePath });
+
+			expect(statSync(filePath, { bigint: true }).ctimeNs).toBe(before);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"writes settings without changing existing parent permissions",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const sharedDir = join(tempRoot, "shared");
+			mkdirSync(sharedDir, { mode: 0o755 });
+			const filePath = join(sharedDir, "cline_mcp_settings.json");
+
+			updateMcpSettingsFileSync(filePath, (settings) => {
+				settings.mcpServers = {};
+			});
+
+			expect(statSync(sharedDir).mode & 0o777).toBe(0o755);
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"creates the settings directory and file with owner-only permissions",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const settingsDir = join(tempRoot, "fresh", "settings");
+			const filePath = join(settingsDir, "cline_mcp_settings.json");
+
+			updateMcpSettingsFileSync(filePath, (settings) => {
+				settings.mcpServers = {};
+			});
+
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o700);
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"publishes and cleans the settings lock under a restrictive umask",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const settingsDir = join(tempRoot, "settings");
+			const filePath = join(settingsDir, "cline_mcp_settings.json");
+			const previousUmask = process.umask(0o777);
+
+			try {
+				updateMcpSettingsFileSync(filePath, (settings) => {
+					settings.mcpServers = {};
+				});
+			} finally {
+				process.umask(previousUmask);
+				if (existsSync(settingsDir)) {
+					for (const entry of readdirSync(settingsDir)) {
+						if (entry.includes(".lock.tmp.")) {
+							chmodSync(join(settingsDir, entry), 0o700);
+						}
+					}
+				}
+			}
+
+			expect(statSync(settingsDir).mode & 0o777).toBe(0o700);
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
+			expect(
+				readdirSync(settingsDir).some((entry) => entry.includes(".lock.tmp.")),
+			).toBe(false);
+		},
+	);
 
 	it("loads and validates mcp server registrations from JSON", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
@@ -321,6 +490,7 @@ describe("mcp config loader", () => {
 									access_token: "old-token",
 									token_type: "Bearer",
 								},
+								lastError: "access_token=legacy-secret",
 								lastAuthenticatedAt: 123,
 							},
 						},
@@ -334,12 +504,13 @@ describe("mcp config loader", () => {
 
 		const registrations = resolveMcpServerRegistrations({ filePath });
 		expect(registrations[0]?.oauth?.tokens?.access_token).toBe("old-token");
+		expect(registrations[0]?.oauth?.lastError).toBe("access_token=[REDACTED]");
 		expect(listMcpServerOAuthStatuses({ filePath })).toEqual([
 			{
 				serverName: "linear",
 				oauthSupported: true,
 				oauthConfigured: true,
-				lastError: undefined,
+				lastError: "access_token=[REDACTED]",
 				lastAuthenticatedAt: 123,
 			},
 		]);
@@ -371,6 +542,9 @@ describe("mcp config loader", () => {
 			"new-token",
 		);
 		expect(written.mcpServers.linear.oauth?.lastAuthenticatedAt).toBe(123);
+		if (process.platform !== "win32") {
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
+		}
 	});
 
 	it("rejects inherited server names when updating oauth state", async () => {

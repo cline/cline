@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMcpOAuthProviderContext } from "./oauth";
 
@@ -75,5 +76,37 @@ describe("mcp oauth", () => {
 		});
 
 		await expect(readFile(settingsPath, "utf8")).resolves.toBe(before);
+	});
+
+	it("redacts secret-bearing OAuth diagnostics before persisting them", async () => {
+		const settingsPath = await createSettingsFile();
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+		const message =
+			"Request https://auth.example.com/authorize?state=state-secret failed with Bearer bearer-secret access_token=token-secret clientSecret=client-secret API_KEY=api-secret Authorization: Basic auth-secret";
+
+		await context.markError(message);
+
+		const written = await readFile(settingsPath, "utf8");
+		expect(written).not.toContain("state-secret");
+		expect(written).not.toContain("bearer-secret");
+		expect(written).not.toContain("token-secret");
+		expect(written).not.toContain("client-secret");
+		expect(written).not.toContain("api-secret");
+		expect(written).not.toContain("auth-secret");
+		expect(written).toContain("[REDACTED]");
+	});
+
+	it("preserves non-sensitive OAuth error context", () => {
+		expect(
+			sanitizeMcpDiagnosticText(
+				"OAuth request to https://auth.example.com/token failed with status 500",
+			),
+		).toBe(
+			"OAuth request to https://auth.example.com/token failed with status 500",
+		);
 	});
 });

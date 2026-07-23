@@ -102,4 +102,125 @@ describe("InMemoryMcpManager", () => {
 			}),
 		).rejects.toThrow(/disabled/i);
 	});
+
+	it("redacts secret-bearing connection diagnostics", async () => {
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () =>
+				createClient({
+					connect: vi.fn(async () => {
+						throw new Error("Failed with access_token=token-secret");
+					}),
+				}),
+		});
+		await manager.registerServer({
+			name: "secret-error",
+			transport: { type: "sse", url: "https://example.test/sse" },
+		});
+
+		await expect(manager.connectServer("secret-error")).rejects.toThrow(
+			"Failed with access_token=[REDACTED]",
+		);
+
+		expect(manager.listServers()[0]?.lastError).toBe(
+			"Failed with access_token=[REDACTED]",
+		);
+	});
+
+	it("redacts secret-bearing tool list errors returned to callers", async () => {
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () =>
+				createClient({
+					listTools: vi.fn(async () => {
+						throw new Error("stderr: password=tool-list-secret");
+					}),
+				}),
+		});
+		await manager.registerServer({
+			name: "list-error",
+			transport: { type: "stdio", command: "mcp-server" },
+		});
+
+		await expect(manager.listTools("list-error")).rejects.toThrow(
+			"stderr: password=[REDACTED]",
+		);
+	});
+
+	it("preserves error identity and metadata while redacting diagnostics", async () => {
+		class CodedMcpError extends Error {
+			readonly code = "MCP_AUTH_FAILED";
+		}
+
+		const cause = new Error("cause password=cause-secret");
+		const originalError = new CodedMcpError(
+			"request failed: Bearer caller-secret",
+			{ cause },
+		);
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () =>
+				createClient({
+					listTools: vi.fn(async () => {
+						throw originalError;
+					}),
+				}),
+		});
+		await manager.registerServer({
+			name: "typed-error",
+			transport: { type: "stdio", command: "mcp-server" },
+		});
+
+		let caught: unknown;
+		try {
+			await manager.listTools("typed-error");
+		} catch (error) {
+			caught = error;
+		}
+
+		expect(caught).toBe(originalError);
+		expect(caught).toBeInstanceOf(CodedMcpError);
+		expect((caught as CodedMcpError).code).toBe("MCP_AUTH_FAILED");
+		expect((caught as Error).message).toBe("request failed: Bearer [REDACTED]");
+		expect((caught as Error).stack).not.toContain("caller-secret");
+		expect((caught as Error).cause).toBe(cause);
+		expect(cause.message).toBe("cause password=[REDACTED]");
+		expect(cause.stack).not.toContain("cause-secret");
+	});
+
+	it("redacts secret-bearing tool call errors returned to callers", async () => {
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () =>
+				createClient({
+					callTool: vi.fn(async () => {
+						throw new Error("request failed: Bearer tool-call-secret");
+					}),
+				}),
+		});
+		await manager.registerServer({
+			name: "call-error",
+			transport: { type: "stdio", command: "mcp-server" },
+		});
+
+		await expect(
+			manager.callTool({ serverName: "call-error", toolName: "search" }),
+		).rejects.toThrow("request failed: Bearer [REDACTED]");
+	});
+
+	it("redacts secret-bearing disconnect errors returned to callers", async () => {
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () =>
+				createClient({
+					disconnect: vi.fn(async () => {
+						throw new Error("disconnect failed: session_token=session-secret");
+					}),
+				}),
+		});
+		await manager.registerServer({
+			name: "disconnect-error",
+			transport: { type: "stdio", command: "mcp-server" },
+		});
+		await manager.connectServer("disconnect-error");
+
+		await expect(manager.disconnectServer("disconnect-error")).rejects.toThrow(
+			"disconnect failed: session_token=[REDACTED]",
+		);
+	});
 });

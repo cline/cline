@@ -3,6 +3,7 @@ import { StringDecoder } from "node:string_decoder";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import {
 	createMcpOAuthProviderContext,
 	createMcpSdkTransport,
@@ -480,12 +481,11 @@ class SdkUrlMcpClient implements McpServerClient {
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
-			const message =
+			const message = sanitizeMcpDiagnosticText(
 				error instanceof UnauthorizedError
-					? this.formatUnauthorizedMessage(
-							authContext.getLastAuthorizationUrl(),
-						)
-					: toErrorMessage(error);
+					? this.formatUnauthorizedMessage()
+					: toErrorMessage(error),
+			);
 			await authContext.markError(message);
 			throw new Error(message);
 		}
@@ -543,12 +543,9 @@ class SdkUrlMcpClient implements McpServerClient {
 		return this.client;
 	}
 
-	private formatUnauthorizedMessage(authUrl: string | undefined): string {
+	private formatUnauthorizedMessage(): string {
 		const base = `MCP server "${this.registration.name}" requires OAuth authorization.`;
-		if (!authUrl) {
-			return `${base} Run authorizeMcpServerOAuth for this server.`;
-		}
-		return `${base} Run authorizeMcpServerOAuth for this server and complete this URL: ${authUrl}`;
+		return `${base} Run authorizeMcpServerOAuth for this server.`;
 	}
 
 	private async handleOperationError(error: unknown): Promise<never> {
@@ -560,10 +557,11 @@ class SdkUrlMcpClient implements McpServerClient {
 				redirectUrl:
 					this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
 			});
-		const message =
+		const message = sanitizeMcpDiagnosticText(
 			error instanceof UnauthorizedError
-				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
-				: toErrorMessage(error);
+				? this.formatUnauthorizedMessage()
+				: toErrorMessage(error),
+		);
 		await authContext.markError(message);
 		throw new Error(message);
 	}

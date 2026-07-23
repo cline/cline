@@ -1,6 +1,6 @@
-import { setTimeout as delay } from "node:timers/promises"
 import { randomUUID } from "node:crypto"
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -12,6 +12,7 @@ import {
 	writeFileSync,
 } from "node:fs"
 import * as path from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { Logger } from "@/shared/services/Logger"
 
 const SETTINGS_LOCK_STALE_MS = 10_000
@@ -57,12 +58,58 @@ interface AcquiredSettingsLock {
 	ownerFile: string
 }
 
+export function isSettingsLockContentionError(error: unknown): boolean {
+	if (error === null || typeof error !== "object") {
+		return false
+	}
+	const code = (error as NodeJS.ErrnoException).code
+	return code === "EEXIST" || code === "ENOTEMPTY"
+}
+
+function ensurePrivateSettingsDirectory(directoryPath: string): void {
+	const createdPath = mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
+	// A configured settings path may live in a shared directory. Harden only
+	// directories this operation created; the settings file is hardened separately.
+	if (createdPath !== undefined && process.platform !== "win32") {
+		try {
+			if ((statSync(directoryPath).mode & 0o7777) !== 0o700) {
+				chmodSync(directoryPath, 0o700)
+			}
+		} catch (error) {
+			warnPermissionRepairFailure(directoryPath, 0o700, error)
+		}
+	}
+}
+
+function warnPermissionRepairFailure(targetPath: string, mode: number, error: unknown): void {
+	const fsError = error as NodeJS.ErrnoException
+	if (fsError?.code === "ENOENT" || fsError?.code === "ENOTDIR") {
+		return
+	}
+	const details = fsError?.code ?? (error instanceof Error ? error.message : String(error))
+	Logger.warn(`[mcp-settings] Unable to set permissions ${mode.toString(8)} on ${targetPath}: ${details}`)
+}
+
+function hardenExistingSettingsFile(settingsPath: string): void {
+	if (process.platform === "win32") {
+		return
+	}
+	try {
+		if ((statSync(settingsPath).mode & 0o7777) !== 0o600) {
+			chmodSync(settingsPath, 0o600)
+		}
+	} catch (error) {
+		warnPermissionRepairFailure(settingsPath, 0o600, error)
+	}
+}
+
 function atomicWriteSettingsFile(settingsPath: string, contents: string): void {
 	const tempPath = `${settingsPath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
-	mkdirSync(path.dirname(settingsPath), { recursive: true })
+	ensurePrivateSettingsDirectory(path.dirname(settingsPath))
 	try {
-		writeFileSync(tempPath, contents, { encoding: "utf-8", flag: "wx" })
+		writeFileSync(tempPath, contents, { encoding: "utf-8", flag: "wx", mode: 0o600 })
 		renameSync(tempPath, settingsPath)
+		hardenExistingSettingsFile(settingsPath)
 	} catch (error) {
 		try {
 			unlinkSync(tempPath)
@@ -85,19 +132,28 @@ function atomicWriteSettingsFile(settingsPath: string, contents: string): void {
  * Node's portable fs APIs on Windows and POSIX.
  */
 function tryAcquireSettingsLock(lockDir: string, token: string): AcquiredSettingsLock | undefined {
-	mkdirSync(path.dirname(lockDir), { recursive: true })
+	ensurePrivateSettingsDirectory(path.dirname(lockDir))
 	const stagingDir = `${lockDir}.tmp.${token}`
 	rmSync(stagingDir, { recursive: true, force: true })
-	mkdirSync(stagingDir, { recursive: true })
+	ensurePrivateSettingsDirectory(stagingDir)
 	const ownerFileName = `owner.${token}`
 	const stagingOwnerFile = path.join(stagingDir, ownerFileName)
-	writeFileSync(stagingOwnerFile, token, { encoding: "utf8", flag: "wx" })
+	let attemptedPublication = false
 	try {
+		writeFileSync(stagingOwnerFile, token, { encoding: "utf8", flag: "wx" })
+		attemptedPublication = true
 		renameSync(stagingDir, lockDir)
 		return { lockDir, ownerFile: path.join(lockDir, ownerFileName) }
 	} catch (error) {
-		rmSync(stagingDir, { recursive: true, force: true })
-		if (existsSync(lockDir)) {
+		try {
+			rmSync(stagingDir, { recursive: true, force: true })
+		} catch {
+			// Preserve the original lock-publication error.
+		}
+		// On POSIX, renaming a directory over another populated directory may
+		// report either EEXIST or ENOTEMPTY. The winning writer can release the
+		// lock before existsSync runs, so classify the original error first.
+		if (attemptedPublication && (isSettingsLockContentionError(error) || existsSync(lockDir))) {
 			return undefined
 		}
 		throw error
@@ -157,6 +213,7 @@ function checkAbort(signal: AbortSignal | undefined, lockDir: string): void {
 function readSettingsObject(settingsPath: string): Record<string, unknown> {
 	let settings: Record<string, unknown>
 	try {
+		hardenExistingSettingsFile(settingsPath)
 		settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>
 	} catch (error) {
 		// A missing file bootstraps to an empty object so the first locked write

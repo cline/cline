@@ -90,6 +90,7 @@ describe("MCP wizard settings", () => {
 								tokens: {
 									access_token: "oauth-token",
 								},
+								lastError: "access_token=cli-secret",
 								lastAuthenticatedAt: 123,
 							},
 						},
@@ -101,6 +102,7 @@ describe("MCP wizard settings", () => {
 		);
 
 		expect(loadServers()[0]?.oauth?.tokens?.access_token).toBe("oauth-token");
+		expect(loadServers()[0]?.oauth?.lastError).toBe("access_token=[REDACTED]");
 
 		clearServerOAuth("linear");
 
