@@ -99,6 +99,55 @@ describe("mcp config loader", () => {
 		]);
 	});
 
+	it("loads MCP settings files with a leading UTF-8 BOM", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			`\uFEFF${JSON.stringify({
+				mcpServers: {
+					docs: {
+						transport: {
+							type: "stdio",
+							command: "node",
+						},
+					},
+				},
+			})}`,
+			"utf8",
+		);
+
+		expect(loadMcpSettingsFile({ filePath }).mcpServers.docs.transport).toEqual({
+			type: "stdio",
+			command: "node",
+		});
+	});
+
+	it("updates MCP settings files with a leading UTF-8 BOM", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			`\uFEFF${JSON.stringify({
+				mcpServers: {
+					docs: {
+						transport: {
+							type: "stdio",
+							command: "node",
+						},
+					},
+				},
+			})}`,
+			"utf8",
+		);
+
+		setMcpServerDisabled({ filePath, name: "docs", disabled: true });
+
+		expect(loadMcpSettingsFile({ filePath }).mcpServers.docs.disabled).toBe(true);
+	});
+
 	it("registers loaded servers with an mcp manager", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);

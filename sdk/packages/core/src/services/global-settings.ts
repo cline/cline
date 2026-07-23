@@ -75,6 +75,10 @@ export interface WriteGlobalSettingsOptions {
 	telemetry?: ITelemetryService;
 }
 
+function stripJsonBom(raw: string): string {
+	return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+}
+
 function defaultGlobalSettings(): GlobalSettings {
 	return GlobalSettingsSchema.parse({});
 }
@@ -110,7 +114,7 @@ function loadSettingsFromDisk(filePath: string): GlobalSettings {
 		return defaultGlobalSettings();
 	}
 	try {
-		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
+		const result = GlobalSettingsSchema.safeParse(JSON.parse(stripJsonBom(raw)));
 		return result.success ? result.data : defaultGlobalSettings();
 	} catch {
 		return defaultGlobalSettings();
