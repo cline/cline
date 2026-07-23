@@ -15,6 +15,38 @@ describe("createShellExecutor", () => {
 		expect(output.trim()).toBe("hello");
 	});
 
+	it("sets non-interactive command defaults while honoring overrides", async () => {
+		const shell = createShellExecutor();
+		const output = await shell(
+			{
+				command: process.execPath,
+				args: [
+					"-e",
+					"process.stdout.write(JSON.stringify({ pager: process.env.PAGER, gitPager: process.env.GIT_PAGER, gitPrompt: process.env.GIT_TERMINAL_PROMPT }))",
+				],
+			},
+			process.cwd(),
+			ctx,
+		);
+
+		expect(JSON.parse(output)).toEqual({
+			pager: "cat",
+			gitPager: "cat",
+			gitPrompt: "0",
+		});
+
+		const overridden = createShellExecutor({ env: { PAGER: "less" } });
+		const overriddenOutput = await overridden(
+			{
+				command: process.execPath,
+				args: ["-e", "process.stdout.write(process.env.PAGER || '')"],
+			},
+			process.cwd(),
+			ctx,
+		);
+		expect(overriddenOutput).toBe("less");
+	});
+
 	it("rejects on non-zero exit code", async () => {
 		const shell = createShellExecutor();
 		await expect(shell("exit 1", process.cwd(), ctx)).rejects.toThrow();

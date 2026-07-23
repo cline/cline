@@ -18,6 +18,16 @@ import {
 	truncateCommandOutput,
 } from "./output-limits";
 
+// Agent commands must not block waiting for terminal input. Callers can still
+// override these values through ShellExecutorOptions.env when needed.
+const NON_INTERACTIVE_ENV = {
+	GIT_PAGER: "cat",
+	GIT_TERMINAL_PROMPT: "0",
+	GH_PAGER: "cat",
+	PAGER: "cat",
+	SYSTEMD_PAGER: "cat",
+} as const;
+
 export class CommandExitError extends Error {
 	constructor(
 		readonly exitCode: number,
@@ -280,9 +290,10 @@ export function createShellExecutor(
 	const {
 		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,
-		env = {},
+		env: optionsEnv = {},
 		combineOutput = true,
 	} = options;
+	const env = { ...NON_INTERACTIVE_ENV, ...optionsEnv };
 	const maxOutputChars =
 		options.maxOutputChars ??
 		options.maxOutputBytes ??
