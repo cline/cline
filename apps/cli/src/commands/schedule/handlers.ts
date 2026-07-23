@@ -1,3 +1,4 @@
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -9,6 +10,7 @@ import {
 	mergeScheduleMetadata,
 	parseJsonObjectFlag,
 	parseList,
+	parseMode,
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
@@ -63,8 +65,8 @@ export function registerScheduleCommands(
 		.option("--disabled", "Create in disabled state")
 		.option("--max-parallel <n>", "Max parallel executions", "1")
 		.option("--metadata-json <json>", "Metadata as JSON object")
-		.option("--mode <act|plan>", "Execution mode")
-		.option("--model <model>", "Model to use", "openai/gpt-5.3-codex")
+		.option("--mode <act|plan|yolo>", "Execution mode", "yolo")
+		.option("--model <model>", "Model to use", CLINE_DEFAULT_MODEL_ID)
 		.option("--provider <id>", "Provider ID", "cline")
 		.option("--system-prompt <text>", "System prompt override")
 		.option("--tags <list>", "Comma-separated tags")
@@ -96,7 +98,7 @@ export function registerScheduleCommands(
 					prompt: opts.prompt,
 					provider: opts.provider,
 					model: opts.model,
-					mode: opts.mode === "plan" ? "plan" : "act",
+					mode: parseMode(opts.mode) ?? "yolo",
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,

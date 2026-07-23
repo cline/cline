@@ -773,12 +773,14 @@ export {
 } from "./settings";
 export type {
 	ChatMessage,
+	ChatMessageImage,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
 	ChatViewState,
 } from "./types/chat-schema";
 export {
+	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
 	ChatSessionConfigSchema,

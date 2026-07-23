@@ -257,6 +257,7 @@ export type ClineSay =
 	| "use_subagents"
 	| "subagent_usage"
 	| "conditional_rules_applied"
+	| "compaction" // context compaction progress/result divider
 
 export interface ClineSayTool {
 	tool:
@@ -374,6 +375,20 @@ export interface ClineApiReqInfo {
 		delaySec: number
 		errorSnippet?: string
 	}
+}
+
+/**
+ * JSON payload of a say:"compaction" message. Mirrors the CLI's compaction
+ * divider (apps/cli/src/tui/utils/compaction-status.ts): a "started" row shows
+ * a spinner and is later updated in place (same ts) to its terminal status.
+ */
+export interface ClineCompactionInfo {
+	status: "started" | "completed" | "skipped" | "failed" | "cancelled"
+	mode: "auto" | "manual"
+	tokensBefore?: number
+	tokensAfter?: number
+	messagesBefore?: number
+	messagesAfter?: number
 }
 
 export interface ClineSubagentUsageInfo {
