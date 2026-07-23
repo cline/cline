@@ -113,12 +113,17 @@ export interface ClineOAuthCredentials extends OAuthCredentials {
 class ClineOAuthTokenError extends Error {
 	public readonly status?: number;
 	public readonly errorCode?: string;
+	public readonly requestId?: string;
 
-	constructor(message: string, opts?: { status?: number; errorCode?: string }) {
+	constructor(
+		message: string,
+		opts?: { status?: number; errorCode?: string; requestId?: string },
+	) {
 		super(message);
 		this.name = "ClineOAuthTokenError";
 		this.status = opts?.status;
 		this.errorCode = opts?.errorCode;
+		this.requestId = opts?.requestId;
 	}
 
 	public isLikelyInvalidGrant(): boolean {
@@ -301,7 +306,11 @@ async function requestWorkOSDeviceAuthorization(
 	if (!response.ok) {
 		throw new ClineOAuthTokenError(
 			`Device authorization failed: ${response.status}${json.error_description ? ` - ${json.error_description}` : ""}`,
-			{ status: response.status, errorCode: json.error },
+			{
+				status: response.status,
+				errorCode: json.error,
+				requestId: response.headers.get("x-request-id") ?? undefined,
+			},
 		);
 	}
 	if (!json.device_code || !json.user_code || !json.verification_uri) {
@@ -387,6 +396,7 @@ async function pollWorkOSTokens(options: {
 					{
 						status: response.status,
 						errorCode: payload.error,
+						requestId: response.headers.get("x-request-id") ?? undefined,
 					},
 				);
 			}
@@ -396,6 +406,7 @@ async function pollWorkOSTokens(options: {
 					{
 						status: response.status,
 						errorCode: payload.error,
+						requestId: response.headers.get("x-request-id") ?? undefined,
 					},
 				);
 			}
@@ -437,7 +448,11 @@ async function registerWorkOSTokens(
 		const details = parseOAuthError(text);
 		throw new ClineOAuthTokenError(
 			`Token registration failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code },
+			{
+				status: response.status,
+				errorCode: details.code,
+				requestId: response.headers.get("x-request-id") ?? undefined,
+			},
 		);
 	}
 
@@ -483,7 +498,11 @@ async function exchangeAuthorizationCode(
 		const details = parseOAuthError(text);
 		throw new ClineOAuthTokenError(
 			`Token exchange failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code },
+			{
+				status: response.status,
+				errorCode: details.code,
+				requestId: response.headers.get("x-request-id") ?? undefined,
+			},
 		);
 	}
 
@@ -610,6 +629,10 @@ export async function loginClineOAuth(
 			options.telemetry,
 			options.provider ?? "cline",
 			error instanceof Error ? error.message : String(error),
+			{
+				requestId:
+					error instanceof ClineOAuthTokenError ? error.requestId : undefined,
+			},
 		);
 		throw error;
 	} finally {
@@ -680,6 +703,10 @@ export async function completeClineDeviceAuth(options: {
 			options.telemetry,
 			providerName,
 			error instanceof Error ? error.message : String(error),
+			{
+				requestId:
+					error instanceof ClineOAuthTokenError ? error.requestId : undefined,
+			},
 		);
 		throw error;
 	}
@@ -714,12 +741,13 @@ export async function refreshClineToken(
 	if (!response.ok) {
 		const text = await response.text().catch(() => "");
 		const details = parseOAuthError(text);
+		const requestId = response.headers.get("x-request-id") ?? undefined;
 		sdkDebug(
-			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"}`,
+			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"} requestId=${requestId ?? "none"}`,
 		);
 		throw new ClineOAuthTokenError(
 			`Token refresh failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code },
+			{ status: response.status, errorCode: details.code, requestId },
 		);
 	}
 
@@ -778,10 +806,15 @@ export async function getValidClineCredentials(
 		return await refreshClineToken(currentCredentials, providerOptions);
 	} catch (error) {
 		const authTelemetryDetails = getAuthTelemetryDetails(currentCredentials);
+		const requestIdDetails =
+			error instanceof ClineOAuthTokenError && error.requestId
+				? { request_id: error.requestId }
+				: {};
 		const failureDetails = {
 			status: error instanceof ClineOAuthTokenError ? error.status : undefined,
 			errorCode:
 				error instanceof ClineOAuthTokenError ? error.errorCode : undefined,
+			...requestIdDetails,
 			...authTelemetryDetails,
 			errorName: error instanceof Error ? error.name : undefined,
 		};
@@ -796,6 +829,7 @@ export async function getValidClineCredentials(
 				{
 					status: error.status,
 					errorCode: error.errorCode,
+					...requestIdDetails,
 					...authTelemetryDetails,
 				},
 			);
