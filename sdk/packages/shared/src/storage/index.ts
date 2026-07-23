@@ -20,6 +20,7 @@ export {
 	resolveConfiguredPluginModulePaths,
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
+	resolveConnectorsDbPath,
 	resolveCronDbPath,
 	resolveCronEventsDir,
 	resolveCronReportsDir,

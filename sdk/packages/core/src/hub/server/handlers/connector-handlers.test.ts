@@ -1,7 +1,11 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HubCommandEnvelope } from "@cline/shared";
+import {
+	type ConnectorConfigRecord,
+	withConnectorStore,
+} from "@cline/shared/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { __test__, handleConnectorCommand } from "./connector-handlers";
 import type { HubTransportContext } from "./context";
@@ -53,15 +57,16 @@ describe("connector hub handlers", () => {
 		};
 	}
 
+	function readPersistedConnector(
+		channel: string,
+	): ConnectorConfigRecord | undefined {
+		return withConnectorStore((store) => store.get(channel));
+	}
+
 	function readPersistedConnectorValues(
 		channel: string,
 	): Record<string, string> {
-		const persisted = JSON.parse(
-			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
-		) as {
-			connectors: Record<string, { values: Record<string, string> }>;
-		};
-		return persisted.connectors[channel]?.values ?? {};
+		return readPersistedConnector(channel)?.values ?? {};
 	}
 
 	it("configures a connector through hub settings without starting it", () => {
@@ -78,20 +83,9 @@ describe("connector hub handlers", () => {
 			expect.objectContaining({ id: "telegram", type: "telegram" }),
 		]);
 
-		const persisted = JSON.parse(
-			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
-		) as {
-			connectors: {
-				telegram: {
-					values: Record<string, string>;
-					security: { enabled: boolean; values: Record<string, string> };
-				};
-			};
-		};
-		expect(persisted.connectors.telegram.values["-k"]).toBe(
-			"123456:fake-token",
-		);
-		expect(persisted.connectors.telegram.security).toEqual({
+		const persisted = readPersistedConnector("telegram");
+		expect(persisted?.values["-k"]).toBe("123456:fake-token");
+		expect(persisted?.security).toEqual({
 			enabled: true,
 			values: { userId: "123456789" },
 		});
@@ -110,7 +104,7 @@ describe("connector hub handlers", () => {
 		expect(__test__.connectorChannelsPayload().configured).toEqual([]);
 	});
 
-	it("deletes a connector config and removes an empty settings file", () => {
+	it("deletes a connector config from the store", () => {
 		useTempDataDir();
 
 		__test__.configureConnector({
@@ -133,17 +127,12 @@ describe("connector hub handlers", () => {
 			expect.objectContaining({ id: "slack", type: "slack" }),
 		]);
 
-		const persisted = JSON.parse(
-			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
-		) as {
-			connectors: Record<string, unknown>;
-		};
-		expect(persisted.connectors).not.toHaveProperty("telegram");
-		expect(persisted.connectors).toHaveProperty("slack");
+		expect(readPersistedConnector("telegram")).toBeUndefined();
+		expect(readPersistedConnector("slack")).toBeDefined();
 
 		const deleteSlack = __test__.deleteConnectorConfig({ channel: "slack" });
 		expect(deleteSlack.configured).toEqual([]);
-		expect(existsSync(__test__.resolveConnectorSettingsPath())).toBe(false);
+		expect(readPersistedConnector("slack")).toBeUndefined();
 	});
 
 	it("validates only included conditional connector fields", () => {

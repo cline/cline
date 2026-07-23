@@ -1,12 +1,5 @@
-import {
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
 	ActiveConnectorRecord,
 	ConfiguredConnectorRecord,
@@ -22,35 +15,15 @@ import {
 	listConnectorCatalog,
 	shouldIncludeConnectorField,
 } from "@cline/shared";
-import {
-	resolveConnectorDataDir,
-	resolveConnectorSettingsPath,
-} from "@cline/shared/storage";
+import { withConnectorStore } from "@cline/shared/db";
+import { resolveConnectorDataDir } from "@cline/shared/storage";
 import { captureToolUsage } from "../../../services/telemetry/core-events";
 import { errorReply, type HubTransportContext, okReply } from "./context";
-
-type ConnectorSettingsEntry = {
-	type: string;
-	values: Record<string, string>;
-	security?: {
-		enabled: boolean;
-		values: Record<string, string>;
-	};
-	configuredAt: string;
-	updatedAt: string;
-};
-
-type ConnectorSettingsFile = {
-	version: 1;
-	connectors: Record<string, ConnectorSettingsEntry>;
-};
 
 type ConnectorFieldKey = keyof Omit<
 	ActiveConnectorRecord,
 	"id" | "type" | "pid" | "hubUrl"
 >;
-
-const CONNECTOR_SETTINGS_VERSION = 1;
 
 const connectorFieldExtractors: Record<
 	ConnectorFieldKey,
@@ -112,38 +85,6 @@ function readJsonRecord(path: string): Record<string, unknown> | undefined {
 	} catch {
 		return undefined;
 	}
-}
-
-function readConnectorSettings(): ConnectorSettingsFile {
-	const parsed = readJsonRecord(resolveConnectorSettingsPath());
-	const connectors = isRecord(parsed?.connectors) ? parsed.connectors : {};
-	const normalized: Record<string, ConnectorSettingsEntry> = {};
-	for (const [id, value] of Object.entries(connectors)) {
-		if (!isRecord(value)) {
-			continue;
-		}
-		const type = asString(value.type);
-		const configuredAt = asString(value.configuredAt);
-		const updatedAt = asString(value.updatedAt);
-		if (!type || !configuredAt || !updatedAt) {
-			continue;
-		}
-		const values = normalizeStringRecord(value.values);
-		const security = isRecord(value.security)
-			? {
-					enabled: value.security.enabled === true,
-					values: normalizeStringRecord(value.security.values),
-				}
-			: undefined;
-		normalized[id] = { type, values, security, configuredAt, updatedAt };
-	}
-	return { version: CONNECTOR_SETTINGS_VERSION, connectors: normalized };
-}
-
-function writeConnectorSettings(settings: ConnectorSettingsFile): void {
-	const path = resolveConnectorSettingsPath();
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
 function normalizeStringRecord(value: unknown): Record<string, string> {
@@ -265,10 +206,9 @@ function listActiveConnectors(): ActiveConnectorRecord[] {
 }
 
 function listConfiguredConnectors(): ConfiguredConnectorRecord[] {
-	const settings = readConnectorSettings();
-	return Object.entries(settings.connectors)
-		.map(([id, entry]) => ({
-			id,
+	return withConnectorStore((store) => store.list())
+		.map((entry) => ({
+			id: entry.channel,
 			type: entry.type,
 			configuredAt: entry.configuredAt,
 			updatedAt: entry.updatedAt,
@@ -349,19 +289,16 @@ function configureConnector(payload: unknown): ConnectorChannelsResponse {
 		}
 	}
 
-	const settings = readConnectorSettings();
-	const now = new Date().toISOString();
-	const existing = settings.connectors[channel];
-	settings.connectors[channel] = {
-		type: channel,
-		values: fieldValues,
-		security: securityEnabled
-			? { enabled: true, values: securityValues }
-			: { enabled: false, values: {} },
-		configuredAt: existing?.configuredAt ?? now,
-		updatedAt: now,
-	};
-	writeConnectorSettings(settings);
+	withConnectorStore((store) =>
+		store.upsertConfig({
+			channel,
+			type: channel,
+			values: fieldValues,
+			security: securityEnabled
+				? { enabled: true, values: securityValues }
+				: { enabled: false, values: {} },
+		}),
+	);
 	return connectorChannelsPayload();
 }
 
@@ -373,13 +310,7 @@ function deleteConnectorConfig(payload: unknown): ConnectorChannelsResponse {
 	if (!channel) {
 		throw new Error("channel is required");
 	}
-	const settings = readConnectorSettings();
-	delete settings.connectors[channel];
-	if (Object.keys(settings.connectors).length > 0) {
-		writeConnectorSettings(settings);
-	} else {
-		rmSync(resolveConnectorSettingsPath(), { force: true });
-	}
+	withConnectorStore((store) => store.delete(channel));
 	return connectorChannelsPayload();
 }
 
@@ -443,5 +374,4 @@ export const __test__ = {
 	configureConnector,
 	connectorChannelsPayload,
 	deleteConnectorConfig,
-	resolveConnectorSettingsPath,
 };

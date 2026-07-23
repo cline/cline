@@ -170,6 +170,19 @@ export function resolveDbDataDir(): string {
 }
 
 /**
+ * Path to the dedicated connector configuration database.
+ * Lives alongside `sessions.db` but is a separate file so connector
+ * credentials/config stay decoupled from session storage.
+ */
+export function resolveConnectorsDbPath(): string {
+	const explicitPath = process.env.CLINE_CONNECTORS_DB_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveDbDataDir(), "connectors.db");
+}
+
+/**
  * Path to the dedicated cron/automation database.
  * Lives alongside `sessions.db` but is a separate file so cron lifecycle,
  * retention, and query patterns stay decoupled from session storage.

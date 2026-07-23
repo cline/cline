@@ -225,6 +225,35 @@ export async function startConnectorChannel(
 	return connectorChannelsPayload();
 }
 
+/**
+ * Reconnect connectors that were connected before the hub was restarted.
+ * Uses the CLI subprocess to start each channel because this process's
+ * entrypoint is the dashboard server, not the CLI.
+ */
+export async function reconnectConfiguredConnectors(
+	log: (message: string) => void = console.error,
+): Promise<void> {
+	const { reconnectPersistedConnectors } = await import(
+		"../../../cli/src/connectors/autostart"
+	);
+	await reconnectPersistedConnectors({
+		start: async (channel, args) => {
+			const result = await runCliConnectCommand([channel, ...args]);
+			if (result.code !== 0) {
+				log(
+					normalizeConnectorError(
+						result.stderr || result.stdout,
+						`connector ${channel} reconnect failed`,
+					),
+				);
+				return false;
+			}
+			return true;
+		},
+		log,
+	});
+}
+
 export const __test__ = {
 	buildCliConnectCommand,
 	normalizeConnectorError,
@@ -241,7 +270,9 @@ export async function stopConnectorChannel(
 	if (!supported.has(channel)) {
 		throw new Error(`unknown connector channel: ${channel}`);
 	}
-	const result = await runCliConnectCommand([channel, "--stop"]);
+	// `--stop` must precede the channel: the connect command uses
+	// passThroughOptions, so flags after the channel go to the adapter.
+	const result = await runCliConnectCommand(["--stop", channel]);
 	if (result.code !== 0) {
 		throw new Error(
 			normalizeConnectorError(
