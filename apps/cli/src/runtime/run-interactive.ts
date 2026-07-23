@@ -19,7 +19,6 @@ import type {
 	LoadInteractiveConfigDataOptions,
 } from "../tui/interactive-config";
 import {
-	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
 	resolveClineWelcomeLine,
 } from "../tui/interactive-welcome";
@@ -32,12 +31,12 @@ import {
 	zeroCliAgentEventCost,
 	zeroCliUsageCost,
 } from "../utils/free-model-cost";
+import type { MutableUserInstructionConfigService } from "../utils/mutable-user-instruction-service";
 import {
 	prepareTerminalForPostTuiOutput,
 	writeErr,
 	writeln,
 } from "../utils/output";
-import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import {
@@ -63,6 +62,11 @@ import {
 } from "./interactive/mode";
 import { assertInteractivePreflight } from "./interactive/preflight";
 import { createInteractiveSessionRuntime } from "./interactive/session-runtime";
+import {
+	createInteractiveWorkspaceResources,
+	type InteractiveWorkspaceCommandSnapshot,
+	type InteractiveWorkspaceLocation,
+} from "./interactive/workspace-resources";
 import { buildUserInputMessage } from "./prompt";
 import { getUIEventEmitter } from "./session-events";
 
@@ -140,55 +144,56 @@ export async function runInteractive(
 		initialNotice?: CliMigrationNotice;
 		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
 		explicitSystemPrompt?: string;
+		mutableUserInstructionService?: MutableUserInstructionConfigService;
+		createUserInstructionService?: (
+			location: InteractiveWorkspaceLocation,
+		) => UserInstructionConfigService;
 	},
 ): Promise<void> {
 	assertInteractivePreflight(config);
 
 	const initialRepoStatus = await readRepoStatus(config.cwd);
-	const workflowSlashCommands = listInteractiveSlashCommands(
-		userInstructionService,
-	);
-	let interactiveChatCommandHost = chatCommandHost;
-	let pluginChatCommandHostLoaded = false;
-	let pluginChatSlashCommands: InteractiveSlashCommand[] = [];
-	let pluginChatCommandHostShutdown: (() => Promise<void>) | undefined;
-	let pluginChatCommandHostPromise:
-		| Promise<InteractiveSlashCommand[]>
+	const mutableUserInstructionService = options?.mutableUserInstructionService;
+	const createUserInstructionService = options?.createUserInstructionService;
+	const activeUserInstructionService =
+		mutableUserInstructionService ?? userInstructionService;
+	if (
+		(mutableUserInstructionService === undefined) !==
+		(createUserInstructionService === undefined)
+	) {
+		throw new Error(
+			"interactive workspace resources require both the mutable instruction service and its factory",
+		);
+	}
+	let workspaceCommandNotifier:
+		| ((snapshot: InteractiveWorkspaceCommandSnapshot) => void)
 		| undefined;
+	const workspaceResources =
+		mutableUserInstructionService && createUserInstructionService
+			? createInteractiveWorkspaceResources({
+					initialLocation: {
+						cwd: config.cwd,
+						workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
+					},
+					userInstructionService: mutableUserInstructionService,
+					createUserInstructionService,
+					logger: config.logger,
+					onCommandsChanged: (snapshot) => workspaceCommandNotifier?.(snapshot),
+				})
+			: undefined;
+	const initialCommandSnapshot = workspaceResources?.getCommandSnapshot() ?? {
+		workflowSlashCommands: listInteractiveSlashCommands(
+			activeUserInstructionService,
+		),
+		pluginSlashCommands: [],
+	};
 	const configDataLoader = createInteractiveConfigDataLoader({
 		config,
-		userInstructionService,
+		userInstructionService: activeUserInstructionService,
 	});
-	const ensurePluginChatCommandHost = async (): Promise<
-		InteractiveSlashCommand[]
-	> => {
-		if (pluginChatCommandHostLoaded) {
-			return pluginChatSlashCommands;
-		}
-		pluginChatCommandHostPromise ??= createWorkspaceChatCommandHost({
-			cwd: config.cwd,
-			workspaceRoot: config.workspaceRoot,
-			logger: config.logger,
-		})
-			.then(({ host, pluginSlashCommands, shutdown }) => {
-				interactiveChatCommandHost = host;
-				pluginChatCommandHostShutdown = shutdown;
-				pluginChatSlashCommands = pluginSlashCommands.map((cmd) => ({
-					name: cmd.name,
-					instructions: "",
-					description: cmd.description ?? "Plugin command",
-				}));
-				return pluginChatSlashCommands;
-			})
-			.finally(() => {
-				pluginChatCommandHostLoaded = true;
-				pluginChatCommandHostPromise = undefined;
-			});
-		return await pluginChatCommandHostPromise;
-	};
-	const loadAdditionalSlashCommands = async (): Promise<
-		InteractiveSlashCommand[]
-	> => await ensurePluginChatCommandHost();
+	const loadAdditionalSlashCommands = workspaceResources
+		? workspaceResources.loadPluginSlashCommands
+		: undefined;
 	const shouldTryPluginChatCommands = (prompt: string): boolean => {
 		return prompt.trimStart().startsWith("/");
 	};
@@ -244,7 +249,7 @@ export async function runInteractive(
 	const sessionRuntime = createInteractiveSessionRuntime({
 		config,
 		providerSettingsManager,
-		userInstructionService,
+		userInstructionService: activeUserInstructionService,
 		explicitSystemPrompt: options?.explicitSystemPrompt,
 		resumeSessionId,
 		chatCommandState,
@@ -266,6 +271,20 @@ export async function runInteractive(
 			uiEvents.emit("pending-prompt-submitted", event);
 		},
 	});
+	const changeInteractiveWorkingDirectory = async (
+		next: ChatCommandState,
+	): Promise<void> => {
+		const applySessionChange = () =>
+			sessionRuntime.changeWorkingDirectory(next);
+		if (!workspaceResources) {
+			await applySessionChange();
+			return;
+		}
+		await workspaceResources.changeWorkspace(
+			{ cwd: next.cwd, workspaceRoot: next.workspaceRoot },
+			applySessionChange,
+		);
+	};
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;
 	const modeSwitchNotice = createModeSwitchNoticeTracker();
@@ -347,11 +366,7 @@ export async function runInteractive(
 			try {
 				exitSummary = await sessionRuntime.cleanup();
 			} finally {
-				await pluginChatCommandHostPromise?.catch(() => []);
-				await pluginChatCommandHostShutdown?.().catch(() => {
-					// Best effort cleanup for plugin command discovery sandbox.
-				});
-				pluginChatCommandHostShutdown = undefined;
+				await workspaceResources?.dispose();
 				setActiveRuntimeAbort(undefined);
 				setActiveRuntimeCleanup(undefined);
 			}
@@ -484,7 +499,7 @@ export async function runInteractive(
 		onInitialNoticeShown: options?.onInitialNoticeShown,
 		loadDeferredInitialMessages,
 		initialRepoStatus,
-		workflowSlashCommands,
+		workflowSlashCommands: initialCommandSnapshot.workflowSlashCommands,
 		loadAdditionalSlashCommands,
 		loadWelcomeLine: async () =>
 			await resolveClineWelcomeLine({
@@ -544,11 +559,12 @@ export async function runInteractive(
 					prompt: input,
 					enabled: enableChatCommands,
 					config,
-					host: interactiveChatCommandHost,
+					host: workspaceResources?.getChatCommandHost() ?? chatCommandHost,
 					chatCommandState,
 					autoApproveAllRef,
 					setInteractiveAutoApprove,
 					sessionRuntime,
+					changeWorkingDirectory: changeInteractiveWorkingDirectory,
 					stop: () => tuiApp?.destroy(),
 					onCommandOutput,
 				});
@@ -557,18 +573,20 @@ export async function runInteractive(
 				}
 				if (
 					shouldTryPluginChatCommands(input) &&
-					!pluginChatCommandHostLoaded
+					workspaceResources &&
+					!workspaceResources.arePluginCommandsLoaded()
 				) {
-					await ensurePluginChatCommandHost();
+					await workspaceResources.loadPluginSlashCommands();
 					chatCommandResult = await runInteractiveChatCommand({
 						prompt: input,
 						enabled: enableChatCommands,
 						config,
-						host: interactiveChatCommandHost,
+						host: workspaceResources.getChatCommandHost(),
 						chatCommandState,
 						autoApproveAllRef,
 						setInteractiveAutoApprove,
 						sessionRuntime,
+						changeWorkingDirectory: changeInteractiveWorkingDirectory,
 						stop: () => tuiApp?.destroy(),
 						onCommandOutput,
 					});
@@ -586,7 +604,7 @@ export async function runInteractive(
 					userFiles,
 				} = await buildUserInputMessage(
 					input,
-					userInstructionService,
+					activeUserInstructionService,
 					config.cwd,
 				);
 				const mergedUserImages = [
@@ -808,6 +826,12 @@ export async function runInteractive(
 		},
 		setModeChangeNotifier: (fn) => {
 			tuiModeChanged.current = fn;
+		},
+		setWorkspaceCommandNotifier: (fn) => {
+			workspaceCommandNotifier = fn ?? undefined;
+			if (fn && workspaceResources) {
+				fn(workspaceResources.getCommandSnapshot());
+			}
 		},
 	});
 

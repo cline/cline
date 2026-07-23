@@ -39,7 +39,9 @@ function makeState(config: Config): ChatCommandState {
 	};
 }
 
-function makeRuntime(): InteractiveChatCommandRuntime {
+function makeRuntime(): InteractiveChatCommandRuntime & {
+	changeWorkingDirectory: (next: ChatCommandState) => Promise<void>;
+} {
 	return {
 		forkCurrentSession: vi.fn(async () => undefined),
 		getActiveSessionId: vi.fn(() => "session-1"),
@@ -63,6 +65,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -91,6 +94,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -117,6 +121,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -150,6 +155,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef,
 			setInteractiveAutoApprove,
 			sessionRuntime: runtime,
+			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -187,6 +193,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -221,6 +228,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 			onCommandOutput,
 		});
