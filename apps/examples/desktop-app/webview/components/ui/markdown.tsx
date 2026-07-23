@@ -79,8 +79,10 @@ function extractLinkText(children: ReactNode): string {
 	return "";
 }
 
+// Tolerates one trailing dot after the TLD: browsers treat a fully qualified
+// "github.com." the same as "github.com", so the label must too.
 const urlLikeTextPattern =
-	/^(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:[/:?#]\S*)?$/i;
+	/^(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}\.?(?:[/:?#]\S*)?$/i;
 
 type LinkParts = {
 	protocol: string;
@@ -93,7 +95,10 @@ function parseLinkParts(value: string): LinkParts | null {
 	const explicitScheme = /^[a-z][a-z\d+.-]*:/i.test(value);
 	try {
 		const parsed = new URL(explicitScheme ? value : `https://${value}`);
-		const hostname = parsed.hostname.replace(/^www\./, "").toLowerCase();
+		const hostname = parsed.hostname
+			.toLowerCase()
+			.replace(/\.+$/, "")
+			.replace(/^www\./, "");
 		if (!hostname) return null;
 		return {
 			explicitScheme,
