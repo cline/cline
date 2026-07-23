@@ -9,6 +9,8 @@ on:
             - ".github/workflows/sdk-test.yml"
     workflow_dispatch:
     pull_request:
+        branches:
+            - main
         paths:
             - "sdk/**"
             - ".github/workflows/sdk-test.yml"
