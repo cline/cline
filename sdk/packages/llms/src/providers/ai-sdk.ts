@@ -27,6 +27,7 @@ import {
 	recordProviderRequestCapture,
 	wrapFetchForProviderRequestCapture,
 } from "./provider-request-capture";
+import { isRecoverableAiSdkStreamPartError } from "./middleware/ensure-stream-part-start";
 import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
@@ -1024,6 +1025,9 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "error") {
+					if (isRecoverableAiSdkStreamPartError(part.error)) {
+						continue;
+					}
 					streamError =
 						capturedError?.current ?? extractErrorMessage(part.error);
 					break;
