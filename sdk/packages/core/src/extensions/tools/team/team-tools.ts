@@ -542,7 +542,7 @@ export function createAgentTeamsTools(
 						validateWithZod(TeamRunTaskToolResultSchema, {
 							agentId: validatedInput.agentId,
 							mode: "sync" as const,
-							status: "running" as const,
+							status: "completed" as const,
 							dispatched: true,
 							message: `Task dispatched to ${validatedInput.agentId} and completed in sync mode.`,
 							text: result.text,
