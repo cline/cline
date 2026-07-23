@@ -22,7 +22,6 @@ export type InteractiveChatCommandRuntime = Pick<
 	| "getActiveSessionId"
 	| "resetForNewSession"
 	| "restartEmpty"
-	| "changeWorkingDirectory"
 >;
 
 export type InteractiveChatCommandResult =
@@ -46,6 +45,7 @@ export async function runInteractiveChatCommand(input: {
 	autoApproveAllRef: AutoApproveRef;
 	setInteractiveAutoApprove: (enabled: boolean) => void;
 	sessionRuntime: InteractiveChatCommandRuntime;
+	changeWorkingDirectory: (next: ChatCommandState) => Promise<void>;
 	stop: () => void;
 	onCommandOutput?: (text: string) => void;
 }): Promise<InteractiveChatCommandResult> {
@@ -79,7 +79,7 @@ export async function runInteractiveChatCommand(input: {
 				next.cwd !== input.chatCommandState.cwd ||
 				next.workspaceRoot !== input.chatCommandState.workspaceRoot
 			) {
-				await input.sessionRuntime.changeWorkingDirectory(next);
+				await input.changeWorkingDirectory(next);
 			} else {
 				Object.assign(input.chatCommandState, next);
 			}

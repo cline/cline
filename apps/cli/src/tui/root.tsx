@@ -116,11 +116,20 @@ function App(props: TuiProps) {
 		systemCommands,
 		skillCommands,
 		invokableSkillCommands,
+		setAdditionalSlashCommands,
 	} = useSlashCommands({
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
 	});
+
+	useEffect(() => {
+		props.setWorkspaceCommandNotifier((snapshot) => {
+			setWorkflowSlashCommands(snapshot.workflowSlashCommands);
+			setAdditionalSlashCommands(snapshot.pluginSlashCommands);
+		});
+		return () => props.setWorkspaceCommandNotifier(null);
+	}, [props.setWorkspaceCommandNotifier, setAdditionalSlashCommands]);
 
 	const autocomplete = useAutocomplete({
 		workspaceRoot,
