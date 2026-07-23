@@ -170,7 +170,7 @@ describe("AgentRuntime", () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "stop" }],
 		]);
-		const runtime = new AgentRuntime({ model });
+		const runtime = new AgentRuntime({ model, modelEmptyResponseRetries: 0 });
 
 		const result = await runtime.run("Hi");
 
@@ -178,6 +178,60 @@ describe("AgentRuntime", () => {
 		expect(result.error?.message).toBe("Model returned empty response");
 		expect(result.messages).toHaveLength(1);
 		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("retries an empty model response once by default without persisting it", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const notices: string[] = [];
+		const addedMessages: AgentMessage[] = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") notices.push(event.message);
+			if (event.type === "message-added") addedMessages.push(event.message);
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(result.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+		]);
+		expect(addedMessages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+		]);
+		expect(JSON.stringify(result.messages)).not.toContain(
+			"ERROR: EMPTY CONTENT",
+		);
+		expect(notices).toEqual(["Model returned empty response; retrying (1/1)"]);
+	});
+
+	it("fails after the empty-response retry budget without persisting an assistant", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		expect(model.requests).toHaveLength(2);
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+		expect(JSON.stringify(result.messages)).not.toContain(
+			"ERROR: EMPTY CONTENT",
+		);
 	});
 
 	it("executes a tool call and continues the loop", async () => {

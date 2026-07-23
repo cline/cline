@@ -427,6 +427,11 @@ export interface AgentRuntimeConfig {
 	telemetry?: ITelemetryService;
 	initialMessages?: readonly AgentMessage[];
 	maxIterations?: number;
+	/**
+	 * Number of times to retry a model call that finishes successfully but
+	 * produces no assistant content. Defaults to 1 in AgentRuntime.
+	 */
+	modelEmptyResponseRetries?: number;
 	completionPolicy?: {
 		requireCompletionTool?: boolean;
 		completionGuard?: () => string | undefined;
