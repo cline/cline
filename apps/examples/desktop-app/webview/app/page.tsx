@@ -180,48 +180,55 @@ export default function Home() {
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
 			const historyThreadId = `session_${deletedSessionId}`;
-			const deletedWasActive =
-				activeThreadId === deletedThreadId ||
-				activeThreadId === historyThreadId;
-			const fallback = deletedWasActive ? { id: makeThreadId() } : null;
-			let emptyFallbackId: string | null = null;
-			setThreads((prev) => {
-				const next = prev.filter(
-					(thread) =>
-						thread.id !== deletedThreadId &&
-						thread.id !== historyThreadId &&
-						thread.historySession?.sessionId !== deletedSessionId,
-				);
-				if (fallback) {
-					return [...next, fallback];
-				}
-				if (next.length === 0) {
-					emptyFallbackId = makeThreadId();
-					return [{ id: emptyFallbackId }];
-				}
-				return next;
+			const deletedThreadIds = new Set(
+				threads
+					.filter(
+						(thread) =>
+							thread.id === deletedThreadId ||
+							thread.id === historyThreadId ||
+							thread.historySession?.sessionId === deletedSessionId,
+					)
+					.map((thread) => thread.id),
+			);
+			if (deletedThreadId) {
+				deletedThreadIds.add(deletedThreadId);
+			}
+			deletedThreadIds.add(historyThreadId);
+
+			let nextThreads = threads.filter(
+				(thread) => !deletedThreadIds.has(thread.id),
+			);
+			const deletedWasActive = deletedThreadIds.has(activeThreadId);
+			let replacementThreadId = nextThreads[0]?.id;
+			if (deletedWasActive || !replacementThreadId) {
+				replacementThreadId = makeThreadId();
+				nextThreads = [...nextThreads, { id: replacementThreadId }];
+			}
+			setThreads(nextThreads);
+
+			const fallback: AppLocation = {
+				...navigation.current,
+				activeThreadId: replacementThreadId,
+				view: "chat",
+			};
+			dispatchNavigation({
+				type: "reconcile",
+				fallback,
+				reconcile: (location) => {
+					if (!deletedThreadIds.has(location.activeThreadId)) {
+						return location;
+					}
+					if (location.view === "chat") {
+						return null;
+					}
+					return {
+						...location,
+						activeThreadId: replacementThreadId,
+					};
+				},
 			});
-			if (fallback) {
-				dispatchNavigation({
-					type: "replace",
-					destination: {
-						...navigation.current,
-						activeThreadId: fallback.id,
-					},
-				});
-				return;
-			}
-			if (emptyFallbackId) {
-				dispatchNavigation({
-					type: "replace",
-					destination: {
-						...navigation.current,
-						activeThreadId: emptyFallbackId,
-					},
-				});
-			}
 		},
-		[activeThreadId, navigation.current],
+		[activeThreadId, navigation.current, threads],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(

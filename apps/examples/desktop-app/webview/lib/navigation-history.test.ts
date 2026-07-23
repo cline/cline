@@ -64,4 +64,47 @@ describe("navigationHistoryReducer", () => {
 		});
 		expect(history.forward).toEqual([]);
 	});
+
+	it("removes invalidated destinations from both history stacks", () => {
+		let history = createNavigationHistory(welcome);
+		history = navigationHistoryReducer(history, {
+			type: "navigate",
+			destination: oldSession,
+		});
+		history = navigationHistoryReducer(history, {
+			type: "navigate",
+			destination: account,
+		});
+		history = navigationHistoryReducer(history, { type: "back" });
+
+		history = navigationHistoryReducer(history, {
+			type: "reconcile",
+			fallback: welcome,
+			reconcile: (location) =>
+				location.thread === oldSession.thread ? null : location,
+		});
+
+		expect(history.current).toEqual(welcome);
+		expect(history.back).toEqual([welcome]);
+		expect(history.forward).toEqual([account]);
+	});
+
+	it("can preserve non-chat destinations while replacing an invalid thread", () => {
+		const settingsOnDeletedThread = {
+			...account,
+			thread: oldSession.thread,
+		};
+		let history = createNavigationHistory(settingsOnDeletedThread);
+
+		history = navigationHistoryReducer(history, {
+			type: "reconcile",
+			fallback: welcome,
+			reconcile: (location) =>
+				location.view === "settings"
+					? { ...location, thread: welcome.thread }
+					: null,
+		});
+
+		expect(history.current).toEqual(account);
+	});
 });

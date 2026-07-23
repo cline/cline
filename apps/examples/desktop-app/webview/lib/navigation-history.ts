@@ -8,7 +8,22 @@ export type NavigationHistoryAction<T> =
 	| { type: "navigate"; destination: T }
 	| { type: "back" }
 	| { type: "forward" }
-	| { type: "replace"; destination: T };
+	| { type: "replace"; destination: T }
+	| {
+			type: "reconcile";
+			fallback: T;
+			reconcile: (location: T) => T | null;
+	  };
+
+function reconcileLocations<T>(
+	locations: T[],
+	reconcile: (location: T) => T | null,
+): T[] {
+	return locations.flatMap((location) => {
+		const reconciled = reconcile(location);
+		return reconciled === null ? [] : [reconciled];
+	});
+}
 
 export function createNavigationHistory<T>(
 	initialLocation: T,
@@ -53,6 +68,12 @@ export function navigationHistoryReducer<T>(
 			return {
 				...state,
 				current: action.destination,
+			};
+		case "reconcile":
+			return {
+				back: reconcileLocations(state.back, action.reconcile),
+				current: action.reconcile(state.current) ?? action.fallback,
+				forward: reconcileLocations(state.forward, action.reconcile),
 			};
 	}
 }
