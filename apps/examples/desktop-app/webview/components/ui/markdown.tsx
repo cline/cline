@@ -1,5 +1,5 @@
 import { cjk } from "@streamdown/cjk";
-import type { ComponentProps, MouseEvent } from "react";
+import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { memo, useState } from "react";
 import {
 	type Components,
@@ -62,6 +62,46 @@ export function MarkdownLinkSafetyModal({
 
 type MarkdownLinkProps = ComponentProps<"a"> & ExtraProps;
 
+function extractLinkText(children: ReactNode): string {
+	if (typeof children === "string" || typeof children === "number") {
+		return String(children);
+	}
+	if (Array.isArray(children)) {
+		return children.map(extractLinkText).join("");
+	}
+	return "";
+}
+
+const urlLikeTextPattern =
+	/^(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:[/:?#]\S*)?$/i;
+
+function hostnameOf(value: string): string | null {
+	const withScheme = /^[a-z][a-z\d+.-]*:/i.test(value)
+		? value
+		: `https://${value}`;
+	try {
+		const hostname = new URL(withScheme).hostname
+			.replace(/^www\./, "")
+			.toLowerCase();
+		return hostname || null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * A link is deceptive when its visible text reads as a URL pointing at a
+ * different host than the real destination — the one shape where a click
+ * genuinely surprises the user. Only those links get the confirmation
+ * dialog; ordinary external links open directly.
+ */
+function isDeceptiveLink(children: ReactNode, url: string): boolean {
+	const text = extractLinkText(children).trim();
+	if (!text || !urlLikeTextPattern.test(text)) return false;
+	const textHost = hostnameOf(text);
+	return textHost !== null && textHost !== hostnameOf(url);
+}
+
 function SafeMarkdownLink({
 	children,
 	className,
@@ -109,6 +149,36 @@ function SafeMarkdownLink({
 		);
 	}
 
+	// Streamdown's harden step only lets http(s), mailto, tel, and
+	// protocol-relative URLs reach this component, matching the sidecar's
+	// open_external_url allowlist. Protocol-relative URLs fail the sidecar's
+	// `new URL()` parse, so pin them to https before handing them off.
+	const externalUrl = url.startsWith("//") ? `https:${url}` : url;
+	const openExternally = () => void openExternalUrl(externalUrl);
+
+	if (!isDeceptiveLink(children, externalUrl)) {
+		const openDirectly = (event: MouseEvent<HTMLAnchorElement>) => {
+			event.preventDefault();
+			openExternally();
+		};
+		return (
+			<a
+				{...props}
+				className={`wrap-anywhere font-medium text-primary underline ${className ?? ""}`}
+				data-streamdown="link"
+				href={externalUrl}
+				onAuxClick={(event) => {
+					if (event.button === 1) openDirectly(event);
+				}}
+				onClick={openDirectly}
+				rel="noreferrer"
+				title={title ?? externalUrl}
+			>
+				{children}
+			</a>
+		);
+	}
+
 	const openConfirmation = (event: MouseEvent<HTMLAnchorElement>) => {
 		event.preventDefault();
 		setIsOpen(true);
@@ -116,11 +186,6 @@ function SafeMarkdownLink({
 	const confirmMiddleClick = (event: MouseEvent<HTMLAnchorElement>) => {
 		if (event.button === 1) openConfirmation(event);
 	};
-	// Streamdown's harden step only lets http(s), mailto, tel, and
-	// protocol-relative URLs reach this component, matching the sidecar's
-	// open_external_url allowlist. Protocol-relative URLs fail the sidecar's
-	// `new URL()` parse, so pin them to https before handing them off.
-	const externalUrl = url.startsWith("//") ? `https:${url}` : url;
 
 	return (
 		<>
@@ -133,14 +198,14 @@ function SafeMarkdownLink({
 				href="#confirm-external-link"
 				onAuxClick={confirmMiddleClick}
 				onClick={openConfirmation}
-				title={title ?? url}
+				title={title ?? externalUrl}
 			>
 				{children}
 			</a>
 			<MarkdownLinkSafetyModal
 				isOpen={isOpen}
 				onClose={() => setIsOpen(false)}
-				onConfirm={() => void openExternalUrl(externalUrl)}
+				onConfirm={openExternally}
 				url={externalUrl}
 			/>
 		</>
@@ -208,7 +273,7 @@ export const MemoizedMarkdown = memo(
 			controls={streamdownControls}
 			dir="auto"
 			isAnimating={streaming}
-			lineNumbers
+			lineNumbers={false}
 			mode={streaming ? "streaming" : "static"}
 			normalizeHtmlIndentation
 			parseIncompleteMarkdown={streaming}

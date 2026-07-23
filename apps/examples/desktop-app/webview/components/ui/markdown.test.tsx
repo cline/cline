@@ -55,16 +55,35 @@ const ready = true;
 		expect(html).toContain("stillStreaming");
 	});
 
-	test("routes external links through confirmation controls", () => {
+	test("renders honest external links with their real destination", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown content="[Review](https://example.com/review)" />,
 		);
 
 		expect(html).toContain('data-streamdown="link"');
 		expect(html).toContain("Review");
+		expect(html).toContain('href="https://example.com/review"');
+		expect(html).not.toContain('aria-haspopup="dialog"');
+	});
+
+	test("keeps external links whose URL text matches the destination direct", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[example.com/review](https://www.example.com/review)" />,
+		);
+
+		expect(html).toContain('href="https://www.example.com/review"');
+		expect(html).not.toContain('aria-haspopup="dialog"');
+	});
+
+	test("routes deceptive URL-text links through confirmation controls", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[github.com/cline](https://evil.example/payload)" />,
+		);
+
+		expect(html).toContain('data-streamdown="link"');
 		expect(html).toContain('href="#confirm-external-link"');
 		expect(html).toContain('aria-haspopup="dialog"');
-		expect(html).not.toContain('href="https://example.com/review"');
+		expect(html).not.toContain('href="https://evil.example/payload"');
 	});
 
 	test("leaves app-local and fragment links navigable", () => {
