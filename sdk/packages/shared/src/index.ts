@@ -500,4 +500,9 @@ export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
+export {
+	CONTEXT_WINDOW_ERROR_PATTERNS,
+	isContextWindowExceededError,
+	parseContextWindowLimitFromError,
+} from "./types/context-window";
 export { initVcr } from "./vcr";
