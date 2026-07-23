@@ -208,7 +208,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<Select
 									disabled={!useAutoCondense}
 									onValueChange={(value) => updateSetting("compactionStrategy", value)}
-									value={compactionStrategy ?? "basic"}>
+									value={compactionStrategy ?? "agentic"}>
 									<SelectTrigger className="w-full">
 										<SelectValue />
 									</SelectTrigger>
