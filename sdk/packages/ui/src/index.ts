@@ -1,3 +1,5 @@
+"use client";
+
 export { Button, type ButtonProps } from "./button.js";
 export {
 	SearchCombobox,

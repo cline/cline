@@ -8,6 +8,15 @@ import { Button, SessionStatus } from "../src/index.js";
 afterEach(cleanup);
 
 describe("@cline/ui controls", () => {
+	it("names icon-only controls", () => {
+		render(
+			<Button aria-label="Create session" iconOnly>
+				<span aria-hidden="true">+</span>
+			</Button>,
+		);
+		expect(screen.getByRole("button", { name: "Create session" })).toBeTruthy();
+	});
+
 	it("supports an accessible dot-only session status", () => {
 		render(<SessionStatus label="Running" showLabel={false} tone="running" />);
 		expect(screen.getByRole("status", { name: "Running" })).toBeTruthy();

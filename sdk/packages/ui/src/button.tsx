@@ -1,14 +1,64 @@
 import { Slot } from "@radix-ui/react-slot";
 import type {
 	ButtonHTMLAttributes,
+	HTMLAttributes,
 	MouseEvent,
+	MouseEventHandler,
 	ReactElement,
 	ReactNode,
+	RefAttributes,
 } from "react";
 import { Children, cloneElement, forwardRef } from "react";
 import { cx } from "./utils.js";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonStyleProps {
+	disabled?: boolean;
+	loading?: boolean;
+	size?: "sm" | "md" | "lg";
+	type?: ButtonHTMLAttributes<HTMLButtonElement>["type"];
+	variant?: "primary" | "secondary" | "ghost" | "danger";
+}
+
+type IconAccessibility =
+	| {
+			"aria-label": string;
+			"aria-labelledby"?: string;
+			iconOnly: true;
+	  }
+	| {
+			"aria-label"?: string;
+			"aria-labelledby": string;
+			iconOnly: true;
+	  }
+	| {
+			"aria-label"?: string;
+			"aria-labelledby"?: string;
+			iconOnly?: false;
+	  };
+
+export type NativeButtonProps = ButtonStyleProps &
+	IconAccessibility &
+	Omit<
+		ButtonHTMLAttributes<HTMLButtonElement>,
+		"aria-label" | "aria-labelledby"
+	> & {
+		asChild?: false;
+	};
+
+export type SlottedButtonProps = ButtonStyleProps &
+	IconAccessibility &
+	Omit<
+		HTMLAttributes<HTMLElement>,
+		"aria-label" | "aria-labelledby" | "children" | "onClick"
+	> & {
+		asChild: true;
+		children: ReactElement;
+		onClick?: MouseEventHandler<HTMLElement>;
+	};
+
+export type ButtonProps = NativeButtonProps | SlottedButtonProps;
+
+interface InternalButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 	asChild?: boolean;
 	iconOnly?: boolean;
 	loading?: boolean;
@@ -16,7 +66,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 	variant?: "primary" | "secondary" | "ghost" | "danger";
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+interface ButtonComponent {
+	(props: SlottedButtonProps & RefAttributes<HTMLElement>): ReactElement | null;
+	(
+		props: NativeButtonProps & RefAttributes<HTMLButtonElement>,
+	): ReactElement | null;
+	displayName?: string;
+}
+
+const ButtonImpl = forwardRef<HTMLButtonElement, InternalButtonProps>(
 	function Button(
 		{
 			asChild = false,
@@ -105,3 +163,5 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 		);
 	},
 );
+
+export const Button = ButtonImpl as ButtonComponent;

@@ -8,6 +8,10 @@ chat language without adopting another product's routes, state, or runtime.
 release cycle. Its API is still pre-stable, so consumers should pin an exact
 version and review compatibility notes when updating.
 
+The scoped-token and standalone Markdown exports documented below are part of
+the upcoming `0.2` release. Until a `next` preview is published, use them from
+the Cline workspace rather than expecting them in the current npm release.
+
 See the [adoption primer](./ADOPTION.md) for complete setup instructions,
 component examples, boundaries, and release status.
 
