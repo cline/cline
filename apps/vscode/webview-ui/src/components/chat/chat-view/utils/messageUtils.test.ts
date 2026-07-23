@@ -1,6 +1,12 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { canRestoreWorkspaceFromMessage, filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
+import {
+	canRestoreWorkspaceFromMessage,
+	filterVisibleMessages,
+	findReasoningForApiReq,
+	groupLowStakesTools,
+	isToolGroup,
+} from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
@@ -52,6 +58,34 @@ const createAskMessage = (
 })
 
 describe("filterVisibleMessages", () => {
+	it("hides reasoning from a request cancelled by a mode change", () => {
+		const messages: ClineMessage[] = [
+			{
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ cancelReason: "mode_changed" }),
+				ts: 1,
+			},
+			createReasoningMessage(2, "stale thinking"),
+		]
+
+		expect(filterVisibleMessages(messages)).toEqual([messages[0]])
+	})
+
+	it("keeps reasoning from a regular user-cancelled request", () => {
+		const messages: ClineMessage[] = [
+			{
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ cancelReason: "user_cancelled" }),
+				ts: 1,
+			},
+			createReasoningMessage(2, "user-visible thinking"),
+		]
+
+		expect(filterVisibleMessages(messages)).toEqual(messages)
+	})
+
 	it("hides exact user feedback echoes for selected follow-up options", () => {
 		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
 		const visible = filterVisibleMessages([askMessage, createUserFeedbackMessage(2, "Use this")])
@@ -90,6 +124,22 @@ describe("filterVisibleMessages", () => {
 		const visible = filterVisibleMessages([askMessage, userMessage])
 
 		expect(visible).toEqual([askMessage, userMessage])
+	})
+})
+
+describe("findReasoningForApiReq", () => {
+	it("does not report reasoning from a request cancelled by a mode change", () => {
+		const messages: ClineMessage[] = [
+			{
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ cancelReason: "mode_changed" }),
+				ts: 1,
+			},
+			createReasoningMessage(2, "stale thinking"),
+		]
+
+		expect(findReasoningForApiReq(1, messages)).toEqual({ reasoning: undefined, responseStarted: false })
 	})
 })
 

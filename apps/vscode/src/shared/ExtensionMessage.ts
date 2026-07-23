@@ -400,6 +400,6 @@ export interface ClineSubagentUsageInfo {
 	cost: number
 }
 
-type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
+type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "mode_changed" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"
