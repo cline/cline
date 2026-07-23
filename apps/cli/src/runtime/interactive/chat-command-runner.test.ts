@@ -207,6 +207,36 @@ describe("runInteractiveChatCommand", () => {
 		});
 	});
 
+	it("does not run /cd when the submission is queued behind an active turn", async () => {
+		const config = makeConfig();
+		const state = makeState(config);
+		const runtime = makeRuntime();
+		const target = process.cwd();
+		state.cwd = "/tmp";
+		state.workspaceRoot = "/tmp";
+
+		await expect(
+			runInteractiveChatCommand({
+				prompt: `/cd ${target}`,
+				enabled: true,
+				delivery: "queue",
+				config,
+				host: chatCommandHost,
+				chatCommandState: state,
+				autoApproveAllRef: { current: false },
+				setInteractiveAutoApprove: () => {},
+				sessionRuntime: runtime,
+				changeWorkingDirectory: runtime.changeWorkingDirectory,
+				stop: () => {},
+			}),
+		).rejects.toThrow(
+			"Cannot change working directory while a turn is running. Wait for it to finish or abort it first.",
+		);
+
+		expect(runtime.changeWorkingDirectory).not.toHaveBeenCalled();
+		expect(state).toMatchObject({ cwd: "/tmp", workspaceRoot: "/tmp" });
+	});
+
 	it("returns plugin command submit prompts as model input", async () => {
 		const config = makeConfig();
 		const runtime = makeRuntime();
