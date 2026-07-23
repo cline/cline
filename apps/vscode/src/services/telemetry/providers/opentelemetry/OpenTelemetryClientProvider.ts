@@ -52,13 +52,21 @@ export class OpenTelemetryClientProvider {
 			const headerCount = Object.keys(config.otlpHeaders).length
 			// In debug mode, show that headers are configured and their total length
 			Logger.log(`[OTEL DEBUG]   - OTLP Headers: ${headerCount} headers configured`)
+		}
+
+		if (isDebugMode) {
+			if (config.resourceAttributes) {
+				const attrCount = Object.keys(config.resourceAttributes).length
+				Logger.log(`[OTEL DEBUG]   - Resource Attributes: ${attrCount} attribute(s) configured`)
+			}
 			Logger.log("[OTEL DEBUG] ================================================")
 		}
 
-		// Create resource with service information
+		// Create resource with service information, merged with any user-supplied resource attributes
 		const resource = new Resource({
 			[ATTR_SERVICE_NAME]: "cline",
 			[ATTR_SERVICE_VERSION]: ExtensionRegistryInfo.version,
+			...config.resourceAttributes,
 		})
 
 		// Initialize metrics if configured
