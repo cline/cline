@@ -70,7 +70,6 @@
         "@opentui/core": "0.4.3",
         "@opentui/react": "0.4.3",
         "tar-fs": ">=3.1.1",
-        "tar": "^7.5.2",
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
         "protobufjs": "7.6.5",
@@ -80,7 +79,9 @@
         "@sap-cloud-sdk/http-client": "4.6.0",
         "@sap-cloud-sdk/openapi": "4.6.0",
         "@sap-cloud-sdk/resilience": "4.6.0",
-        "@sap-cloud-sdk/util": "4.6.0"
+        "@sap-cloud-sdk/util": "4.6.0",
+        "inline-style-parser": "0.2.9",
+        "tar": "7.5.21"
     },
     "trustedDependencies": [
         "better-sqlite3",
