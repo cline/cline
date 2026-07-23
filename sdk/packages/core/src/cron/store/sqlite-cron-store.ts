@@ -391,7 +391,7 @@ function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
 		title: input.name.trim(),
 		prompt: input.prompt,
 		workspaceRoot: input.workspaceRoot.trim(),
-		mode: input.mode ?? "act",
+		mode: input.mode ?? "yolo",
 		systemPrompt: input.systemPrompt,
 		modelSelection: input.modelSelection
 			? JSON.parse(JSON.stringify(input.modelSelection))
@@ -491,9 +491,9 @@ function cronSpecRecordToHubScheduleInput(
 			updates.mode ??
 			(current.mode === "plan"
 				? "plan"
-				: current.mode === "yolo"
-					? "yolo"
-					: "act"),
+				: current.mode === "act"
+					? "act"
+					: "yolo"),
 		systemPrompt:
 			updates.systemPrompt === null
 				? undefined
