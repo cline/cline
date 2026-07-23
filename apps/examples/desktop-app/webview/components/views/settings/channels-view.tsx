@@ -205,18 +205,6 @@ function fieldDomId(
 	return `channel-${channelId}-${kind}-${normalizedKey}`;
 }
 
-function ChannelIcon({ channel }: { channel: ConnectorChannel }) {
-	return (
-		<span
-			aria-hidden="true"
-			className="hidden flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white"
-			style={{ backgroundColor: channelColor(channel) }}
-		>
-			{channelLetter(channel)}
-		</span>
-	);
-}
-
 function CredentialField({
 	description,
 	disabled,
@@ -246,10 +234,10 @@ function CredentialField({
 	const descriptionId = `${id}-description`;
 
 	useEffect(() => {
-		if (disabled) {
+		if (disabled || value.length === 0) {
 			setRevealed(false);
 		}
-	}, [disabled]);
+	}, [disabled, value]);
 
 	const revealButton = (className: string) =>
 		secret ? (
@@ -365,9 +353,6 @@ export function ChannelsContent() {
 		ActiveConnectorRecord[]
 	>([]);
 	const [drafts, setDrafts] = useState<Record<string, ConnectorDraft>>({});
-	const [addingAnotherByChannel, setAddingAnotherByChannel] = useState<
-		Record<string, boolean | undefined>
-	>({});
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [isLoading, setIsLoading] = useState(true);
@@ -484,26 +469,6 @@ export function ChannelsContent() {
 		updateChannelError(channel.id);
 	};
 
-	const setAddingAnother = (
-		channel: ConnectorChannel,
-		addingAnother: boolean,
-	) => {
-		setAddingAnotherByChannel((current) => {
-			const next = { ...current };
-			if (addingAnother) {
-				next[channel.id] = true;
-			} else {
-				delete next[channel.id];
-			}
-			return next;
-		});
-		setDrafts((current) => ({
-			...current,
-			[channel.id]: createDraft(channel),
-		}));
-		updateChannelError(channel.id);
-	};
-
 	const connectChannel = async (channel: ConnectorChannel) => {
 		if (pendingAction || isLoading) {
 			return;
@@ -533,8 +498,8 @@ export function ChannelsContent() {
 					},
 				);
 			applyResponse(response);
-			setAddingAnother(channel, false);
 		} catch (error) {
+			setExpandedId(channel.id);
 			updateChannelError(
 				channel.id,
 				error instanceof Error ? error.message : String(error),
@@ -559,7 +524,6 @@ export function ChannelsContent() {
 					{ channel: channel.id },
 				);
 			applyResponse(response);
-			setAddingAnother(channel, false);
 		} catch (error) {
 			updateChannelError(
 				channel.id,
@@ -681,7 +645,6 @@ export function ChannelsContent() {
 						(connector) => connector.type === channel.id,
 					);
 					const isConnected = activeForChannel.length > 0;
-					const isAddingAnother = addingAnotherByChannel[channel.id] === true;
 					const pendingType =
 						pendingAction?.channelId === channel.id
 							? pendingAction.type
@@ -712,7 +675,6 @@ export function ChannelsContent() {
 									}
 									type="button"
 								>
-									<ChannelIcon channel={channel} />
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
 											<Circle
@@ -817,7 +779,7 @@ export function ChannelsContent() {
 										{visibleFields.map((field) => (
 											<CredentialField
 												description={fieldDescription(field)}
-												disabled={isBusy || (isConnected && !isAddingAnother)}
+												disabled={isBusy}
 												id={fieldDomId(channel.id, field.flag)}
 												key={field.flag}
 												label={field.label}
@@ -850,7 +812,7 @@ export function ChannelsContent() {
 												</div>
 												<Switch
 													checked={draft.securityEnabled}
-													disabled={isBusy || (isConnected && !isAddingAnother)}
+													disabled={isBusy}
 													id={`channel-${channel.id}-security-toggle`}
 													onCheckedChange={(checked) =>
 														setSecurityEnabled(channel, checked)
@@ -862,9 +824,7 @@ export function ChannelsContent() {
 													{channel.security.fields.map((field) => (
 														<CredentialField
 															description={fieldDescription(field)}
-															disabled={
-																isBusy || (isConnected && !isAddingAnother)
-															}
+															disabled={isBusy}
 															id={fieldDomId(channel.id, field.key, "security")}
 															key={field.key}
 															label={field.label}
@@ -886,44 +846,32 @@ export function ChannelsContent() {
 										</div>
 									) : null}
 
-									<div className="mt-5 flex items-center justify-between gap-3">
-										<p className="text-xs text-muted-foreground">
-											{isAddingAnother &&
-												"Add another connection to this channel."}
-										</p>
+									<div className="mt-5 flex justify-end gap-2">
 										<div className="flex shrink-0 justify-end gap-2">
 											<button
-												className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+												className={cn(
+													"rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors",
+													isConnected
+														? "border-destructive/40 text-destructive hover:bg-destructive/10"
+														: "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+												)}
 												onClick={() => {
-													if (isAddingAnother) {
-														setAddingAnother(channel, false);
+													if (isConnected) {
+														setDisconnectTargetId(channel.id);
 													} else {
 														setExpandedId(null);
 													}
 												}}
 												type="button"
 											>
-												{isAddingAnother ? "Cancel" : "Close"}
+												{isConnected ? "Reset" : "Close"}
 											</button>
 											<button
 												className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
 												disabled={isBusy}
-												onClick={
-													isConnected && !isAddingAnother
-														? () => setAddingAnother(channel, true)
-														: undefined
-												}
-												type={
-													isConnected && !isAddingAnother ? "button" : "submit"
-												}
+												type="submit"
 											>
-												{pendingType === "connecting"
-													? "Connecting..."
-													: isConnected && isAddingAnother
-														? "Connect another"
-														: isConnected
-															? "New Connection"
-															: "Save"}
+												{pendingType === "connecting" ? "Saving..." : "Save"}
 											</button>
 										</div>
 									</div>
@@ -953,14 +901,14 @@ export function ChannelsContent() {
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
-							Disconnect {disconnectTarget?.name ?? "channel"}?
+							Reset {disconnectTarget?.name ?? "channel"}?
 						</AlertDialogTitle>
 						<AlertDialogDescription>
 							This stops{" "}
 							{disconnectTargetConnectors.length === 1
 								? `the active ${disconnectTarget?.name ?? "channel"} connector`
 								: `all ${disconnectTargetConnectors.length} active ${disconnectTarget?.name ?? "channel"} connectors`}
-							. You will need to reconnect it with its credentials.
+							. You will need to save its credentials to connect it again.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -976,7 +924,7 @@ export function ChannelsContent() {
 								}
 							}}
 						>
-							Disconnect
+							Reset
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

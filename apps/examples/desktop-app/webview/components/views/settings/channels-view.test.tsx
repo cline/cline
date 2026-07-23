@@ -259,6 +259,7 @@ describe("ChannelsContent", () => {
 			).toBe("true");
 			expect(channelListIds()).toEqual(["telegram", "slack"]);
 			expect(tokenInput.type).toBe("password");
+			expect(tokenInput.value).toBe("7123456789:test-token");
 		});
 	});
 
@@ -310,32 +311,60 @@ describe("ChannelsContent", () => {
 				security: { enabled: false, values: {} },
 			});
 			expect(textarea.className).toContain("[-webkit-text-security:disc]");
-			expect(textarea.disabled).toBe(true);
+			expect(textarea.disabled).toBe(false);
 		});
 	});
 
-	it("allows another active connector of the same channel type", async () => {
-		const firstConnector = {
+	it("retains submitted credentials when connecting fails", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_connector_channels") {
+				return { available: [telegramChannel], active: [] };
+			}
+			if (command === "start_connector_channel") {
+				throw new Error("connector failed to start");
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+
+		await renderChannels();
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Telegram");
+		});
+		await click(buttonWithText("Telegram"));
+		const tokenInput = container.querySelector<HTMLInputElement>(
+			"#channel-telegram-credential--k",
+		) as HTMLInputElement;
+		await changeInput(tokenInput, "7123456789:retry-token");
+		await click(buttonWithText("Save"));
+
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("connector failed to start");
+			expect(tokenInput.value).toBe("7123456789:retry-token");
+			expect(tokenInput.disabled).toBe(false);
+			expect(
+				container
+					.querySelector("#channel-telegram-trigger")
+					?.getAttribute("aria-expanded"),
+			).toBe("true");
+		});
+	});
+
+	it("saves edited configuration for an active channel", async () => {
+		const activeConnector = {
 			id: "telegram:first_bot",
 			type: "telegram",
 			pid: 41,
 			hubUrl: "ws://127.0.0.1:4317",
 			botUsername: "first_bot",
 		};
-		const secondConnector = {
-			...firstConnector,
-			id: "telegram:second_bot",
-			pid: 42,
-			botUsername: "second_bot",
-		};
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "list_connector_channels") {
-				return { available: [telegramChannel], active: [firstConnector] };
+				return { available: [telegramChannel], active: [activeConnector] };
 			}
 			if (command === "start_connector_channel") {
 				return {
 					available: [telegramChannel],
-					active: [firstConnector, secondConnector],
+					active: [activeConnector],
 				};
 			}
 			throw new Error(`Unexpected command: ${command}`);
@@ -346,23 +375,29 @@ describe("ChannelsContent", () => {
 			expect(container.textContent).toContain("Telegram");
 		});
 		await click(buttonWithText("Telegram"));
-		await click(buttonWithText("New Connection"));
 		const tokenInput = container.querySelector<HTMLInputElement>(
 			"#channel-telegram-credential--k",
 		) as HTMLInputElement;
 		expect(tokenInput.disabled).toBe(false);
-		await changeInput(tokenInput, "7123456789:second-token");
-		await click(buttonWithText("Connect another"));
+		expect(
+			(
+				container.querySelector(
+					"#channel-telegram-security-toggle",
+				) as HTMLButtonElement
+			).disabled,
+		).toBe(false);
+		expect(container.textContent).not.toContain("New Connection");
+		await changeInput(tokenInput, "7123456789:updated-token");
+		await click(buttonWithText("Save"));
 
 		await vi.waitFor(() => {
 			expect(invokeMock).toHaveBeenCalledWith("start_connector_channel", {
 				channel: "telegram",
-				values: { "-k": "7123456789:second-token" },
+				values: { "-k": "7123456789:updated-token" },
 				security: { enabled: false, values: {} },
 			});
 			expect(container.textContent).toContain("@first_bot");
-			expect(container.textContent).toContain("@second_bot");
-			expect(container.textContent).toContain("Active connections");
+			expect(container.textContent).toContain("Active connection");
 		});
 	});
 
@@ -402,7 +437,7 @@ describe("ChannelsContent", () => {
 		);
 	});
 
-	it("confirms a type-scoped disconnect and reconciles the returned active state", async () => {
+	it("resets the active connection from the expanded channel footer", async () => {
 		const activeConnector = {
 			id: "telegram:test_bot",
 			type: "telegram",
@@ -424,16 +459,21 @@ describe("ChannelsContent", () => {
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("Telegram");
 		});
-		await click(
-			container.querySelector(
-				'button[aria-label="Disconnect Telegram"]',
-			) as Element,
-		);
+		await click(buttonWithText("Telegram"));
+		expect(
+			container.querySelector('button[aria-label^="Disconnect @"]'),
+		).toBeNull();
+		await click(buttonWithText("Reset"));
 
 		await vi.waitFor(() => {
-			expect(document.body.textContent).toContain("Disconnect Telegram?");
+			expect(document.body.textContent).toContain("Reset Telegram?");
 		});
-		await click(buttonWithText("Disconnect", document.body));
+		await click(
+			buttonWithText(
+				"Reset",
+				document.querySelector('[role="alertdialog"]') as Element,
+			),
+		);
 
 		await vi.waitFor(() => {
 			expect(invokeMock).toHaveBeenCalledWith("stop_connector_channel", {
