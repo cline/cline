@@ -125,9 +125,7 @@ export function SearchCombobox({
 						/>
 						<Command.List className="cline-ui-combobox__list">
 							<Command.Empty className="cline-ui-combobox__empty">
-								<span aria-live="polite" role="status">
-									{emptyText}
-								</span>
+								<output aria-live="polite">{emptyText}</output>
 							</Command.Empty>
 							{options.map((option) => (
 								<Command.Item
