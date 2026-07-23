@@ -67,8 +67,10 @@ export function isSettingsLockContentionError(error: unknown): boolean {
 }
 
 function ensurePrivateSettingsDirectory(directoryPath: string): void {
-	mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
-	if (process.platform !== "win32") {
+	const createdPath = mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
+	// A configured settings path may live in a shared directory. Harden only
+	// directories this operation created; the settings file is hardened separately.
+	if (createdPath !== undefined && process.platform !== "win32") {
 		try {
 			if ((statSync(directoryPath).mode & 0o7777) !== 0o700) {
 				chmodSync(directoryPath, 0o700)

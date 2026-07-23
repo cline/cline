@@ -5,6 +5,7 @@ import {
 	resolveDefaultMcpSettingsPath,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 
 export interface McpServerEntry {
 	name: string;
@@ -39,12 +40,22 @@ export function loadServers(): McpServerEntry[] {
 		return Object.entries(servers).map(([name, value]) => {
 			const entry = value as Record<string, unknown>;
 			const transport = (entry.transport ?? entry) as McpTransport;
-			const oauth =
+			const oauthState =
 				entry.oauth &&
 				typeof entry.oauth === "object" &&
 				!Array.isArray(entry.oauth)
 					? (entry.oauth as McpServerOAuthState)
 					: undefined;
+			const oauth = oauthState
+				? {
+						...oauthState,
+						...(oauthState.lastError
+							? {
+									lastError: sanitizeMcpDiagnosticText(oauthState.lastError),
+								}
+							: {}),
+					}
+				: undefined;
 			return {
 				name,
 				transport,

@@ -504,6 +504,7 @@ describe("mcp config loader", () => {
 
 		const registrations = resolveMcpServerRegistrations({ filePath });
 		expect(registrations[0]?.oauth?.tokens?.access_token).toBe("old-token");
+		expect(registrations[0]?.oauth?.lastError).toBe("access_token=[REDACTED]");
 		expect(listMcpServerOAuthStatuses({ filePath })).toEqual([
 			{
 				serverName: "linear",

@@ -266,11 +266,7 @@ export class Controller {
 		// (shared across VSCode, CLI, and JetBrains clients).
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
-			async () => {
-				const settingsDir = path.dirname(resolveDefaultMcpSettingsPath())
-				await fs.mkdir(settingsDir, { recursive: true })
-				return settingsDir
-			},
+			async () => path.dirname(resolveDefaultMcpSettingsPath()),
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)

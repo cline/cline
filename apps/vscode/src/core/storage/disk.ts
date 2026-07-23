@@ -162,8 +162,12 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
  * @returns Path to the MCP settings file
  */
 export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
-	await fs.mkdir(settingsDirectoryPath, { recursive: true, mode: 0o700 })
-	await repairPrivatePermissions(settingsDirectoryPath, 0o700)
+	const createdPath = await fs.mkdir(settingsDirectoryPath, { recursive: true, mode: 0o700 })
+	// A configured settings path may live in a shared directory. Harden only
+	// directories this operation created; the settings file is hardened separately.
+	if (createdPath !== undefined) {
+		await repairPrivatePermissions(settingsDirectoryPath, 0o700)
+	}
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
 	const tempPath = `${mcpSettingsFilePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
 	try {

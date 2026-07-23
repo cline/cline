@@ -288,7 +288,7 @@ describe("disk - atomic writes", () => {
 		sandbox.restore()
 	})
 
-	it("creates and repairs MCP settings with owner-only permissions", async () => {
+	it("creates private MCP settings without changing a pre-existing parent", async () => {
 		const settingsDir = path.join(testGlobalStorageDir, "secure-mcp-settings")
 		const settingsPath = await getMcpSettingsFilePath(settingsDir)
 
@@ -303,7 +303,7 @@ describe("disk - atomic writes", () => {
 			await getMcpSettingsFilePath(settingsDir)
 			const repairedDirectoryMode = (await fs.stat(settingsDir)).mode & 0o777
 			const repairedMode = (await fs.stat(settingsPath)).mode & 0o777
-			repairedDirectoryMode.should.equal(0o700)
+			repairedDirectoryMode.should.equal(0o755)
 			repairedMode.should.equal(0o600)
 		}
 	})

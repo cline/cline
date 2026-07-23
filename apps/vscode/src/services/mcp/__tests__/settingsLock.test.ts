@@ -72,7 +72,7 @@ describe("updateMcpSettingsFile", () => {
 		}
 	})
 
-	it.skipIf(process.platform === "win32")("hardens an insecure file when replacing it", async () => {
+	it.skipIf(process.platform === "win32")("hardens an insecure file without changing its existing parent", async () => {
 		await fs.chmod(tempDir, 0o755)
 		await fs.chmod(settingsPath, 0o644)
 
@@ -80,7 +80,7 @@ describe("updateMcpSettingsFile", () => {
 			settings.mcpServers = { alpha: { type: "stdio", command: "node" } }
 		})
 
-		expect((await fs.stat(tempDir)).mode & 0o777).toBe(0o700)
+		expect((await fs.stat(tempDir)).mode & 0o777).toBe(0o755)
 		expect((await fs.stat(settingsPath)).mode & 0o777).toBe(0o600)
 	})
 })

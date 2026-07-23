@@ -238,6 +238,8 @@ function ensurePrivateSettingsDirectory(directoryPath: string): void {
 		recursive: true,
 		mode: 0o700,
 	});
+	// A configured settings path may live in a shared directory. Harden only
+	// directories this operation created; the settings file is hardened separately.
 	if (createdPath !== undefined) {
 		hardenExistingSettingsDirectory(directoryPath);
 	}
@@ -730,7 +732,9 @@ export function normalizeMcpServerOAuthState(
 		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
 		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
 		...(value.redirectUrl ? { redirectUrl: value.redirectUrl } : {}),
-		...(value.lastError ? { lastError: value.lastError } : {}),
+		...(value.lastError
+			? { lastError: sanitizeMcpDiagnosticText(value.lastError) }
+			: {}),
 		...(value.lastAuthenticatedAt
 			? { lastAuthenticatedAt: value.lastAuthenticatedAt }
 			: {}),
@@ -765,7 +769,7 @@ export function resolveMcpServerRegistrations(
 		transport: value.transport,
 		disabled: value.disabled,
 		metadata: value.metadata,
-		oauth: value.oauth,
+		oauth: normalizeMcpServerOAuthState(value.oauth),
 	}));
 }
 
