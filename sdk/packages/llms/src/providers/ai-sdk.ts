@@ -11,6 +11,7 @@ import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	captureSdkError,
+	estimateTokens,
 	formatMessagesForAiSdk,
 	parseJsonStream,
 	sanitizeSurrogates,
@@ -18,6 +19,7 @@ import {
 import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { extractErrorMessage } from "./format";
+import { estimateRequestInputTokens } from "./gateway";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
@@ -918,6 +920,9 @@ async function* emitAiSdkEvents(
 	let streamError: string | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	// Accumulate streamed output text so we can estimate output tokens when the
+	// provider returns no usage (some OpenAI-compatible gateways send usage: null).
+	let accumulatedText = "";
 
 	try {
 		if (stream.fullStream) {
@@ -928,6 +933,7 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.delta as string | undefined);
 					if (text) {
+						accumulatedText += text;
 						yield { type: "text-delta", text };
 					}
 					continue;
@@ -939,6 +945,7 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.reasoning as string | undefined);
 					if (text) {
+						accumulatedText += text;
 						yield {
 							type: "reasoning-delta",
 							text,
@@ -1036,6 +1043,7 @@ async function* emitAiSdkEvents(
 			}
 		} else if (stream.textStream) {
 			for await (const text of stream.textStream) {
+				accumulatedText += text;
 				yield { type: "text-delta", text };
 			}
 		}
@@ -1071,6 +1079,21 @@ async function* emitAiSdkEvents(
 		yield {
 			type: "usage",
 			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue),
+		};
+	} else if (!streamError) {
+		// Some OpenAI-compatible gateways return usage: null on every response,
+		// so no usage event is ever produced and the context-window indicator
+		// stays at 0%. Fall back to an estimate from the serialised request
+		// (input) and the accumulated streamed text (output), using the shared
+		// chars-per-token heuristic.
+		yield {
+			type: "usage",
+			usage: {
+				inputTokens: estimateRequestInputTokens(request),
+				outputTokens: estimateTokens(accumulatedText.length),
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
 		};
 	}
 
