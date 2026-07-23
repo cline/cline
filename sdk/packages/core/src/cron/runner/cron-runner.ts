@@ -61,16 +61,20 @@ function cronExtensionEnabled(
 function buildToolPolicies(
 	spec: CronSpecRecord,
 	mode: "act" | "plan" | "yolo",
-): ChatStartSessionRequest["toolPolicies"] | undefined {
-	if (spec.tools === undefined) {
-		return { "*": { autoApprove: true } };
-	}
-	const policies: NonNullable<ChatStartSessionRequest["toolPolicies"]> = {
-		"*": { enabled: false, autoApprove: true },
-	};
-	for (const tool of spec.tools) {
+): NonNullable<ChatStartSessionRequest["toolPolicies"]> {
+	const policies: NonNullable<ChatStartSessionRequest["toolPolicies"]> =
+		spec.tools === undefined
+			? { "*": { autoApprove: true } }
+			: { "*": { enabled: false, autoApprove: true } };
+	for (const tool of spec.tools ?? []) {
 		policies[tool] = { enabled: true, autoApprove: true };
 	}
+	// Scheduled runs are headless, so they cannot wait for a human response.
+	policies[DefaultToolNames.ASK] = {
+		...policies[DefaultToolNames.ASK],
+		enabled: false,
+		autoApprove: true,
+	};
 	if (mode === "yolo") {
 		policies[DefaultToolNames.SUBMIT_AND_EXIT] = {
 			enabled: true,
