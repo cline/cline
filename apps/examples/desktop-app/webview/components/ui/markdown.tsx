@@ -1,6 +1,6 @@
 import { cjk } from "@streamdown/cjk";
-import type { ComponentProps, MouseEvent } from "react";
-import { memo, useState } from "react";
+import type { ComponentProps, MouseEvent, ReactNode } from "react";
+import { isValidElement, memo, useState } from "react";
 import {
 	type Components,
 	type ControlsConfig,
@@ -62,6 +62,82 @@ export function MarkdownLinkSafetyModal({
 
 type MarkdownLinkProps = ComponentProps<"a"> & ExtraProps;
 
+function extractLinkText(children: ReactNode): string {
+	if (typeof children === "string" || typeof children === "number") {
+		return String(children);
+	}
+	if (Array.isArray(children)) {
+		return children.map(extractLinkText).join("");
+	}
+	// Inline formatting (**bold**, `code`, …) nests the label text inside
+	// elements; recurse so styled hostnames can't dodge the deception check.
+	if (isValidElement(children)) {
+		return extractLinkText(
+			(children.props as { children?: ReactNode }).children,
+		);
+	}
+	return "";
+}
+
+// Tolerates one trailing dot after the TLD ("github.com." resolves the same
+// as "github.com" in browsers) and a protocol-relative "//" prefix, so those
+// label spellings can't slip past the deception check.
+const urlLikeTextPattern =
+	/^(?:https?:\/\/|\/\/)?(?:[\w-]+\.)+[a-z]{2,}\.?(?:[/:?#]\S*)?$/i;
+
+type LinkParts = {
+	protocol: string;
+	hostname: string;
+	port: string;
+	explicitScheme: boolean;
+};
+
+function parseLinkParts(value: string): LinkParts | null {
+	const explicitScheme = /^[a-z][a-z\d+.-]*:/i.test(value);
+	const withScheme = explicitScheme
+		? value
+		: value.startsWith("//")
+			? `https:${value}`
+			: `https://${value}`;
+	try {
+		const parsed = new URL(withScheme);
+		const hostname = parsed.hostname
+			.toLowerCase()
+			.replace(/\.+$/, "")
+			.replace(/^www\./, "");
+		if (!hostname) return null;
+		return {
+			explicitScheme,
+			hostname,
+			port: parsed.port,
+			protocol: parsed.protocol,
+		};
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * A link is deceptive when its visible text reads as a URL that does not
+ * match the real destination — the one shape where a click genuinely
+ * surprises the user. Only those links get the confirmation dialog;
+ * ordinary external links open directly. The label and destination must
+ * agree on hostname and port, and on scheme when the label states one.
+ */
+function isDeceptiveLink(children: ReactNode, url: string): boolean {
+	const text = extractLinkText(children).trim();
+	if (!text || !urlLikeTextPattern.test(text)) return false;
+	const textParts = parseLinkParts(text);
+	if (!textParts) return false;
+	const urlParts = parseLinkParts(url);
+	if (!urlParts) return true;
+	return (
+		textParts.hostname !== urlParts.hostname ||
+		textParts.port !== urlParts.port ||
+		(textParts.explicitScheme && textParts.protocol !== urlParts.protocol)
+	);
+}
+
 function SafeMarkdownLink({
 	children,
 	className,
@@ -109,6 +185,36 @@ function SafeMarkdownLink({
 		);
 	}
 
+	// Streamdown's harden step only lets http(s), mailto, tel, and
+	// protocol-relative URLs reach this component, matching the sidecar's
+	// open_external_url allowlist. Protocol-relative URLs fail the sidecar's
+	// `new URL()` parse, so pin them to https before handing them off.
+	const externalUrl = url.startsWith("//") ? `https:${url}` : url;
+	const openExternally = () => void openExternalUrl(externalUrl);
+
+	if (!isDeceptiveLink(children, externalUrl)) {
+		const openDirectly = (event: MouseEvent<HTMLAnchorElement>) => {
+			event.preventDefault();
+			openExternally();
+		};
+		return (
+			<a
+				{...props}
+				className={`wrap-anywhere font-medium text-primary underline ${className ?? ""}`}
+				data-streamdown="link"
+				href={externalUrl}
+				onAuxClick={(event) => {
+					if (event.button === 1) openDirectly(event);
+				}}
+				onClick={openDirectly}
+				rel="noreferrer"
+				title={title ?? externalUrl}
+			>
+				{children}
+			</a>
+		);
+	}
+
 	const openConfirmation = (event: MouseEvent<HTMLAnchorElement>) => {
 		event.preventDefault();
 		setIsOpen(true);
@@ -116,11 +222,6 @@ function SafeMarkdownLink({
 	const confirmMiddleClick = (event: MouseEvent<HTMLAnchorElement>) => {
 		if (event.button === 1) openConfirmation(event);
 	};
-	// Streamdown's harden step only lets http(s), mailto, tel, and
-	// protocol-relative URLs reach this component, matching the sidecar's
-	// open_external_url allowlist. Protocol-relative URLs fail the sidecar's
-	// `new URL()` parse, so pin them to https before handing them off.
-	const externalUrl = url.startsWith("//") ? `https:${url}` : url;
 
 	return (
 		<>
@@ -133,14 +234,14 @@ function SafeMarkdownLink({
 				href="#confirm-external-link"
 				onAuxClick={confirmMiddleClick}
 				onClick={openConfirmation}
-				title={title ?? url}
+				title={title ?? externalUrl}
 			>
 				{children}
 			</a>
 			<MarkdownLinkSafetyModal
 				isOpen={isOpen}
 				onClose={() => setIsOpen(false)}
-				onConfirm={() => void openExternalUrl(externalUrl)}
+				onConfirm={openExternally}
 				url={externalUrl}
 			/>
 		</>
@@ -208,7 +309,7 @@ export const MemoizedMarkdown = memo(
 			controls={streamdownControls}
 			dir="auto"
 			isAnimating={streaming}
-			lineNumbers
+			lineNumbers={false}
 			mode={streaming ? "streaming" : "static"}
 			normalizeHtmlIndentation
 			parseIncompleteMarkdown={streaming}
