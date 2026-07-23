@@ -37,6 +37,7 @@ import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -50,7 +51,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
 	mergeWorkspacePaths,
@@ -106,7 +107,14 @@ export default function Home() {
 
 	useEffect(() => {
 		syncHubTheme();
+		syncHubAccent();
 		return watchSystemHubTheme();
+	}, []);
+
+	useEffect(() => {
+		// The dock reverts to the bundled icon every launch; re-apply the
+		// user's choice once the shell is up.
+		void syncAppIcon();
 	}, []);
 
 	useEffect(() => {

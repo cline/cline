@@ -214,3 +214,84 @@
 		will-change: auto;
 	}
 }
+
+/*
+ * Accent palettes (Settings -> General -> Accent color). The default
+ * "violet" accent is the @cline/ui brand tokens untouched; each block below
+ * re-anchors the interactive tokens on the html[data-cline-accent] attribute
+ * set by lib/theme.ts. Values follow the brand token pattern: emphasis is a
+ * pressed/hover shade of primary, ring is a softer focus shade, and dark
+ * mode lifts lightness so the accent stays legible on dark surfaces.
+ * Tokens like --chart-1 and --sidebar-primary alias var(--primary), so they
+ * follow automatically.
+ */
+
+:root[data-cline-accent="graphite"] {
+	--primary: oklch(0.27 0.012 248);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.2 0.012 248);
+	--ring: oklch(0.55 0.012 248);
+}
+
+:root.dark[data-cline-accent="graphite"] {
+	--primary: oklch(0.92 0.006 248);
+	--primary-foreground: oklch(0.18 0.01 248);
+	--primary-emphasis: oklch(0.97 0.004 248);
+	--ring: oklch(0.7 0.008 248);
+}
+
+:root[data-cline-accent="cyan"] {
+	--primary: oklch(0.6 0.12 222);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.52 0.13 222);
+	--ring: oklch(0.66 0.1 222);
+}
+
+:root.dark[data-cline-accent="cyan"] {
+	--primary: oklch(0.7 0.12 222);
+	--primary-foreground: oklch(0.16 0.02 222);
+	--primary-emphasis: oklch(0.77 0.11 222);
+	--ring: oklch(0.7 0.1 222);
+}
+
+:root[data-cline-accent="pink"] {
+	--primary: oklch(0.75 0.1 354);
+	--primary-foreground: oklch(0.28 0.08 354);
+	--primary-emphasis: oklch(0.68 0.12 354);
+	--ring: oklch(0.79 0.08 354);
+}
+
+:root.dark[data-cline-accent="pink"] {
+	--primary: oklch(0.78 0.1 354);
+	--primary-foreground: oklch(0.25 0.07 354);
+	--primary-emphasis: oklch(0.84 0.08 354);
+	--ring: oklch(0.78 0.08 354);
+}
+
+:root[data-cline-accent="espresso"] {
+	--primary: oklch(0.36 0.035 35);
+	--primary-foreground: oklch(0.98 0.005 35);
+	--primary-emphasis: oklch(0.29 0.035 35);
+	--ring: oklch(0.55 0.03 35);
+}
+
+:root.dark[data-cline-accent="espresso"] {
+	--primary: oklch(0.72 0.045 45);
+	--primary-foreground: oklch(0.22 0.03 40);
+	--primary-emphasis: oklch(0.79 0.04 45);
+	--ring: oklch(0.72 0.04 45);
+}
+
+:root[data-cline-accent="ember"] {
+	--primary: oklch(0.6 0.19 33);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.52 0.19 33);
+	--ring: oklch(0.66 0.16 33);
+}
+
+:root.dark[data-cline-accent="ember"] {
+	--primary: oklch(0.7 0.17 36);
+	--primary-foreground: oklch(0.17 0.03 33);
+	--primary-emphasis: oklch(0.77 0.15 36);
+	--ring: oklch(0.7 0.14 36);
+}
