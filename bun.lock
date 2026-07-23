@@ -738,9 +738,8 @@
     },
     "sdk/packages/ui": {
       "name": "@cline/ui",
-      "version": "0.1.0",
+      "version": "0.2.0-next.0",
       "dependencies": {
-        "@radix-ui/react-dialog": "1.1.15",
         "@radix-ui/react-popover": "1.1.15",
         "@radix-ui/react-slot": "1.2.4",
         "cmdk": "1.1.1",

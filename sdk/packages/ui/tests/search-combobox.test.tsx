@@ -55,4 +55,33 @@ describe("SearchCombobox", () => {
 			"",
 		);
 	});
+
+	it("closes when it becomes unavailable", () => {
+		const onValueChange = vi.fn();
+		const { rerender } = render(
+			<SearchCombobox
+				ariaLabel="Repository"
+				onValueChange={onValueChange}
+				options={[{ label: "cline/cline", value: "cline/cline" }]}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("combobox", { name: "Repository" }));
+		expect(screen.getByRole("listbox")).toBeTruthy();
+
+		rerender(
+			<SearchCombobox
+				ariaLabel="Repository"
+				disabled
+				onValueChange={onValueChange}
+				options={[{ label: "cline/cline", value: "cline/cline" }]}
+			/>,
+		);
+
+		expect(screen.queryByRole("listbox")).toBeNull();
+		expect(
+			screen.getByRole("combobox", { name: "Repository" }).hasAttribute("disabled"),
+		).toBe(true);
+		expect(onValueChange).not.toHaveBeenCalled();
+	});
 });

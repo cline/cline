@@ -7,7 +7,12 @@ export const Button = forwardRef(function Button({ asChild = false, children, cl
     if (asChild) {
         const inactive = disabled || loading;
         const child = Children.only(children);
-        const slottedChild = cloneElement(child, inactive ? { onClick: undefined } : undefined, loading ? (_jsxs(_Fragment, { children: [_jsx("span", { "aria-hidden": "true", className: "cline-ui-spinner" }), child.props.children] })) : (child.props.children));
+        const slottedChild = cloneElement(child, {
+            ...(inactive ? { onClick: undefined } : {}),
+            ...(child.type === "button" && child.props.type === undefined
+                ? { type }
+                : {}),
+        }, loading ? (_jsxs(_Fragment, { children: [_jsx("span", { "aria-hidden": "true", className: "cline-ui-spinner" }), child.props.children] })) : (child.props.children));
         return (_jsx(Slot, { "aria-busy": loading || undefined, "aria-disabled": inactive || undefined, className: classNames, tabIndex: inactive ? -1 : tabIndex, onClick: (event) => {
                 if (inactive) {
                     event.preventDefault();

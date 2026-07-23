@@ -47,11 +47,9 @@ without turning `@cline/ui` into a second agent runtime.
 
 ## Current status
 
-`@cline/ui` is configured for public npm publication with its own version and
-manual release workflow. Check availability with `npm view @cline/ui version`;
-an `E404` means the first release is still pending. The API is pre-stable, so
-production consumers should pin exact versions and review compatibility notes
-when updating.
+`@cline/ui@0.1.0` is publicly available. The package has its own version and
+manual release workflow. The API is pre-stable, so production consumers should
+pin exact versions and review compatibility notes when updating.
 
 Desktop is the first production-shaped consumer of both the theme and shared
 chat primitives. Storybook is the reference catalog for isolated component
@@ -93,8 +91,8 @@ manifest and lockfile.
 
 ## Install from npm in another repository
 
-After the initial release is available, install the latest production UI
-release. The `--exact` flag records the resolved version instead of a range:
+Install the latest production UI release. The `--exact` flag records the
+resolved version instead of a range:
 
 ```bash
 bun add --exact @cline/ui
