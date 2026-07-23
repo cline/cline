@@ -76,6 +76,24 @@ describe("VscodeTelemetryPolicyService", () => {
 		vi.unstubAllEnvs()
 	})
 
+	it("constructs the handle with unknown host identity fallbacks", () => {
+		// The policy service overrides these from getHostVersion before any event is
+		// emitted; "unknown" must survive a failed lookup instead of a VSCode mislabel.
+		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+
+		createVscodeSdkTelemetryHandle()
+
+		expect(coreTelemetryMocks.createConfig).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					cline_type: "unknown",
+					platform: "unknown",
+					platform_version: "unknown",
+				}),
+			}),
+		)
+	})
+
 	it("adds rollout metadata as SDK common properties", () => {
 		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "next")
 		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())

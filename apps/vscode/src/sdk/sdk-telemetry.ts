@@ -35,11 +35,11 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 			...createClineTelemetryServiceConfig({
 				metadata: {
 					extension_version: ExtensionRegistryInfo.version,
-					// cline_type/platform/platform_version are fallbacks for when the host
-					// version lookup fails; VscodeTelemetryPolicyService replaces them with
-					// the authoritative getHostVersion values before any event is emitted.
-					cline_type: "VSCode Extension",
-					platform: "VS Code",
+					// VscodeTelemetryPolicyService replaces these with the authoritative
+					// getHostVersion values before any event is emitted. "unknown" surfaces
+					// a failed host version lookup instead of mislabeling the host as VSCode.
+					cline_type: "unknown",
+					platform: "unknown",
 					platform_version: "unknown",
 					os_type: process.platform,
 					os_version: os.version(),
@@ -182,7 +182,7 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 
 	// Mirrors the classic TelemetryService.create() mapping of GetHostVersionResponse
 	// fields, so both pipelines report the same host identity. Fields the host does not
-	// report are left out to keep the handle's construction-time fallbacks.
+	// report are left out to keep the handle's construction-time "unknown" fallbacks.
 	private async resolveHostMetadata(): Promise<Partial<TelemetryMetadata>> {
 		try {
 			const hostVersion = await HostProvider.env.getHostVersion({})
