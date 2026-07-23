@@ -135,6 +135,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-cd",
+		key: "/cd <directory>",
+		desc: "Change the working directory",
+	},
+	{
+		kind: "entry",
 		id: "c-mcp",
 		key: "/mcp",
 		desc: "Manage MCP servers",
