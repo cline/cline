@@ -100,6 +100,20 @@ const ready = true;
 		expect(honestHtml).not.toContain('aria-haspopup="dialog"');
 	});
 
+	test("treats protocol-relative labels like their https form", () => {
+		const deceptiveHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[//github.com](https://evil.example/payload)" />,
+		);
+		expect(deceptiveHtml).toContain('href="#confirm-external-link"');
+		expect(deceptiveHtml).not.toContain('href="https://evil.example/payload"');
+
+		const honestHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[//github.com](https://github.com/cline)" />,
+		);
+		expect(honestHtml).toContain('href="https://github.com/cline"');
+		expect(honestHtml).not.toContain('aria-haspopup="dialog"');
+	});
+
 	test("sees through inline formatting inside deceptive URL text", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown content="[**github.com**/cline](https://evil.example/payload)" />,
