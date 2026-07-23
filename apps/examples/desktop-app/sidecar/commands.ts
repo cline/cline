@@ -65,7 +65,11 @@ import {
 	startConnectorChannel,
 	stopConnectorChannel,
 } from "./connectors";
-import { broadcastEvent, resolveSidecarAskQuestion } from "./context";
+import {
+	broadcastEvent,
+	resolveSidecarAskQuestion,
+	startSessionManagerInitialization,
+} from "./context";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -1162,6 +1166,21 @@ export async function handleCommand(
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
+	if (command === "get_bootstrap_status") {
+		return ctx.bootstrapStatus;
+	}
+	if (command === "retry_bootstrap") {
+		if (ctx.bootstrapStatus.phase !== "error") {
+			return ctx.bootstrapStatus;
+		}
+		try {
+			await startSessionManagerInitialization(ctx);
+		} catch (error) {
+			ctx.logger?.error?.("Desktop runtime bootstrap retry failed", { error });
+		}
+		return ctx.bootstrapStatus;
+	}
+
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
 		const { handleChatSessionCommand } = await import("./chat-session");

@@ -37,3 +37,19 @@ export type DesktopBackendReadyPayload = {
 	pid: number;
 	mode: "bun";
 };
+
+export type DesktopBootstrapPhase =
+	| "starting_sidecar"
+	| "starting_hub"
+	| "connecting_core"
+	| "connecting_event_client"
+	| "ready"
+	| "error";
+
+export type DesktopBootstrapStatus = {
+	phase: DesktopBootstrapPhase;
+	revision: number;
+	updatedAt: string;
+	message?: string;
+	failedPhase?: Exclude<DesktopBootstrapPhase, "ready" | "error">;
+};

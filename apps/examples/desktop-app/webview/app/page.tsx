@@ -25,6 +25,7 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
+import { LoadingScreen } from "@/components/views/loading-screen";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
 import {
 	type SettingsSection,
@@ -77,6 +78,7 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 
 export default function Home() {
 	const [view, setView] = useState<"chat" | "sessions" | "settings">("chat");
+	const [isLoading, setIsLoading] = useState(true);
 	const [settingsSection, setSettingsSection] =
 		useState<SettingsSection>("General");
 	const [threads, setThreads] = useState<Thread[]>(() => [
@@ -256,6 +258,10 @@ export default function Home() {
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
 	);
+
+	if (isLoading) {
+		return <LoadingScreen onComplete={() => setIsLoading(false)} />;
+	}
 
 	return (
 		<AccountProvider>

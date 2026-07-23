@@ -212,10 +212,19 @@ export function createFetchHandler(
 	};
 }
 
-function createWebSocketHandler(ctx: SidecarContext) {
+export function createWebSocketHandler(ctx: SidecarContext) {
 	return {
 		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
+			ws.send(
+				JSON.stringify({
+					type: "event",
+					event: {
+						name: "bootstrap_status",
+						payload: ctx.bootstrapStatus,
+					},
+				}),
+			);
 			sendEvent(ctx, "host_ready", {
 				pid: process.pid,
 				mode: SIDECAR_MODE,

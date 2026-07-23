@@ -83,7 +83,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 			className="pointer-events-none absolute inset-0 overflow-hidden"
 		>
 			<div
-				className="aurora-horizon absolute inset-x-[-8%] bottom-[-3%] h-[40%] opacity-60 blur-[64px]"
+				className="aurora-horizon absolute inset-x-[-8%] bottom-[-3%] h-[40%] opacity-60 blur-3xl"
 				style={{
 					background:
 						"linear-gradient(90deg, color-mix(in oklab, var(--brand-lilac) 58%, transparent), color-mix(in oklab, var(--brand-magenta) 62%, transparent) 42%, color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 78%, color-mix(in oklab, var(--brand-cyan) 58%, transparent))",
@@ -110,7 +110,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 			{BLOBS.map((blob) => (
 				<div
 					key={blob.id}
-					className={`aurora-motion absolute blur-[64px] ${blob.reverse ? "aurora-motion-reverse" : ""} ${blob.position}`}
+					className={`aurora-motion absolute blur-3xl ${blob.reverse ? "aurora-motion-reverse" : ""} ${blob.position}`}
 					style={{
 						background: blob.gradient,
 						animationDuration: blob.duration,

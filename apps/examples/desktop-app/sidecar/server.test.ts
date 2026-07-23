@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFetchHandler } from "./server";
+import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
 
 function createTestServer() {
@@ -80,5 +80,30 @@ describe("sidecar HTTP origin checks", () => {
 		expect(response?.headers.get("access-control-allow-origin")).toBe(
 			"tauri://localhost",
 		);
+	});
+});
+
+describe("sidecar bootstrap protocol", () => {
+	it("sends the current bootstrap snapshot when a webview connects", () => {
+		const send = vi.fn();
+		const client = { send };
+		const ctx = {
+			wsClients: new Set(),
+			bootstrapStatus: {
+				phase: "connecting_core",
+				revision: 2,
+				updatedAt: "2026-07-21T00:00:00.000Z",
+			},
+		} as unknown as SidecarContext;
+
+		createWebSocketHandler(ctx).open(client);
+
+		expect(JSON.parse(String(send.mock.calls[0]?.[0]))).toEqual({
+			type: "event",
+			event: {
+				name: "bootstrap_status",
+				payload: ctx.bootstrapStatus,
+			},
+		});
 	});
 });
