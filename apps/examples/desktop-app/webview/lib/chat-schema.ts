@@ -41,11 +41,18 @@ export const ChatMessageRoleSchema = z.enum([
 	"error",
 ]);
 
+export const ChatMessageImageSchema = z.object({
+	id: z.string().min(1),
+	mediaType: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+	data: z.string().min(1),
+});
+
 export const ChatMessageSchema = z.object({
 	id: z.string().min(1),
 	sessionId: z.string().nullable(),
 	role: ChatMessageRoleSchema,
 	content: z.string(),
+	images: z.array(ChatMessageImageSchema).optional(),
 	reasoning: z.string().optional(),
 	reasoningRedacted: z.boolean().optional(),
 	createdAt: z.number().int().nonnegative(),
@@ -95,6 +102,7 @@ export const ChatViewStateSchema = z.object({
 
 export type ChatSessionConfig = z.infer<typeof ChatSessionConfigSchema>;
 export type ChatSessionStatus = z.infer<typeof ChatSessionStatusSchema>;
+export type ChatMessageImage = z.infer<typeof ChatMessageImageSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSummary = z.infer<typeof ChatSummarySchema>;
 export type ChatViewState = z.infer<typeof ChatViewStateSchema>;

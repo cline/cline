@@ -25,6 +25,8 @@
 				"width": 1500,
 				"height": 980,
 				"resizable": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
 				"dragDropEnabled": false
 			}
 		],

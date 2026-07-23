@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { validateImageMedia } from "@cline/shared";
 import {
 	readSessionManifest,
 	sharedSessionMessagesPath,
@@ -119,6 +120,20 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 
 function trimNonEmptyString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function extractImageBlock(
+	record: JsonRecord,
+): { mediaType: string; data: string } | undefined {
+	const mediaType = trimNonEmptyString(record.mediaType);
+	const data = trimNonEmptyString(record.data);
+	if (!data) {
+		return undefined;
+	}
+	const validation = validateImageMedia(mediaType, data);
+	return validation.ok
+		? { mediaType: validation.mediaType, data: validation.base64 }
+		: undefined;
 }
 
 export function readPersistedChatMessages(sessionId: string): unknown[] | null {
@@ -367,6 +382,7 @@ export async function readSessionMessages(
 		}
 
 		const textParts: string[] = [];
+		const images: Array<{ id: string; mediaType: string; data: string }> = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -476,6 +492,16 @@ export async function readSessionMessages(
 				reasoningRedacted = true;
 				continue;
 			}
+			if (blockType === "image") {
+				const image = extractImageBlock(record);
+				if (image) {
+					images.push({
+						id: `${messageIdBase}_image_${blockIdx}`,
+						...image,
+					});
+				}
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -483,6 +509,25 @@ export async function readSessionMessages(
 		}
 
 		flushTextParts();
+		if (images.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.images = images;
+			} else {
+				out.push({
+					id: `${messageIdBase}_images`,
+					sessionId,
+					role,
+					content: "",
+					images,
+					createdAt: nextCreatedAt++,
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
 		if (reasoningParts.length > 0 || reasoningRedacted) {
 			const reasoning = reasoningParts.join("\n").trim();
 			const target = out

@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
@@ -687,11 +690,17 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_queued_prompt_start") {
-				let parsed: { prompt?: string; attachmentCount?: number } = {};
+				let parsed: {
+					prompt?: string;
+					attachmentCount?: number;
+					userImages?: string[];
+				} = {};
 				try {
 					parsed = JSON.parse(payload.chunk) as {
+						promptId?: string;
 						prompt?: string;
 						attachmentCount?: number;
+						userImages?: string[];
 					};
 				} catch {
 					parsed = { prompt: payload.chunk };
@@ -701,36 +710,41 @@ export function useChatSession() {
 					typeof parsed.attachmentCount === "number"
 						? parsed.attachmentCount
 						: 0;
+				const userImages = Array.isArray(parsed.userImages)
+					? parsed.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: [];
+				const attachedFileCount = Math.max(
+					0,
+					attachmentCount - userImages.length,
+				);
 				const userLabel =
-					attachmentCount > 0
-						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
+					attachedFileCount > 0
+						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 						: prompt;
+				const promptId = parsed.promptId?.trim();
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("running");
-				if (userLabel) {
+				if (userLabel || userImages.length > 0) {
 					setMessages((prev) => {
-						const lastVisible = [...prev]
-							.reverse()
-							.find(
-								(message) =>
-									message.sessionId === listeningSessionId &&
-									message.role !== "status",
-							);
-						if (
-							lastVisible?.role === "user" &&
-							lastVisible.content === userLabel
-						) {
+						const userMessageId = promptId
+							? `queued_user_${promptId}`
+							: makeId("user");
+						if (prev.some((message) => message.id === userMessageId)) {
 							return prev;
 						}
+						const images = toChatMessageImages(userImages, userMessageId);
 						return sliceMessages([
 							...prev,
 							{
-								id: makeId("user"),
+								id: userMessageId,
 								sessionId: listeningSessionId,
 								role: "user",
 								content: userLabel,
+								images: images.length > 0 ? images : undefined,
 								createdAt: chunkCreatedAt(payload),
 							},
 						]);
@@ -1101,9 +1115,12 @@ export function useChatSession() {
 				(attachments) => ({ ok: true as const, attachments }),
 				(error: unknown) => ({ ok: false as const, error }),
 			);
+			const attachedFileCount = attachedFiles.filter(
+				(file) => !file.type.startsWith("image/"),
+			).length;
 			const userLabel =
-				attachedFiles.length > 0
-					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}]`
+				attachedFileCount > 0
+					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 					: trimmed;
 			const shouldQueue =
 				Boolean(activeSessionId) &&
@@ -1113,11 +1130,12 @@ export function useChatSession() {
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
+			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
-			if (!shouldQueue) {
+			if (optimisticUserMessageId) {
 				addMessage({
-					id: makeId("user"),
+					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
 					role: "user",
 					content: userLabel,
@@ -1216,6 +1234,23 @@ export function useChatSession() {
 				const hasAttachments =
 					serializedAttachments.userImages.length > 0 ||
 					serializedAttachments.userFiles.length > 0;
+				if (
+					optimisticUserMessageId &&
+					serializedAttachments.userImages.length > 0
+				) {
+					const images = toChatMessageImages(
+						serializedAttachments.userImages,
+						optimisticUserMessageId,
+					);
+					if (images.length > 0) {
+						setMessages((prev) =>
+							updateMessageById(prev, optimisticUserMessageId, (message) => ({
+								...message,
+								images,
+							})),
+						);
+					}
+				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					setStatus("starting");
