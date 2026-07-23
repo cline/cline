@@ -120,22 +120,24 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			]
 
 			for (const { hostVersion, expectedHostPluginVersion } of cases) {
-				const provider = new NoOpTelemetryProvider()
-				const logSpy = sinon.spy(provider, "log")
-				const hostVersionStub = sinon.stub(HostProvider.env, "getHostVersion").resolves(hostVersion)
-				const createProvidersStub = sinon.stub(TelemetryProviderFactory, "createProviders").resolves([provider])
+				const sandbox = sinon.createSandbox()
+				let service: TelemetryService | undefined
+				try {
+					const provider = new NoOpTelemetryProvider()
+					const logSpy = sandbox.spy(provider, "log")
+					sandbox.stub(HostProvider.env, "getHostVersion").resolves(hostVersion)
+					sandbox.stub(TelemetryProviderFactory, "createProviders").resolves([provider])
 
-				const service = await TelemetryService.create()
-				logSpy.resetHistory()
-				service.captureTaskCreated("task-123", "openai")
+					service = await TelemetryService.create()
+					logSpy.resetHistory()
+					service.captureTaskCreated("task-123", "openai")
 
-				assert.ok(logSpy.calledOnce, `service should emit an event (${hostVersion.clineType})`)
-				assert.strictEqual(logSpy.firstCall.args[1]?.host_plugin_version, expectedHostPluginVersion)
-
-				hostVersionStub.restore()
-				createProvidersStub.restore()
-				logSpy.restore()
-				await service.dispose()
+					assert.ok(logSpy.calledOnce, `service should emit an event (${hostVersion.clineType})`)
+					assert.strictEqual(logSpy.firstCall.args[1]?.host_plugin_version, expectedHostPluginVersion)
+				} finally {
+					sandbox.restore()
+					await service?.dispose()
+				}
 			}
 		})
 
