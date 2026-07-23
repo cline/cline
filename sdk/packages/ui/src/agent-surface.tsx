@@ -8,7 +8,7 @@ export const AgentSurface = forwardRef<
 >(function AgentSurface({ className, ...props }, ref) {
 	return (
 		<div
-			className={cx("cline-ui-agent-surface", className)}
+			className={cx("cline-ui-theme", "cline-ui-agent-surface", className)}
 			ref={ref}
 			{...props}
 		/>

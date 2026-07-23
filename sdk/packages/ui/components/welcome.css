@@ -80,7 +80,7 @@
 
 .cline-ui-quick-actions__item:focus-visible {
 	outline: 2px solid var(--ring);
-	outline-offset: 2px;
+	outline-offset: -2px;
 }
 
 .cline-ui-quick-actions__item:disabled {
@@ -148,7 +148,6 @@
 .cline-ui-aurora__current,
 .cline-ui-aurora__blob {
 	position: absolute;
-	will-change: opacity, transform;
 }
 
 .cline-ui-aurora__horizon {

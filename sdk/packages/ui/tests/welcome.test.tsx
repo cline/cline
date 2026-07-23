@@ -22,13 +22,22 @@ afterEach(() => {
 
 describe("@cline/ui welcome experience", () => {
 	it("exposes a stable accessible welcome heading", () => {
-		const { container } = render(<AgentHeroHeading verbs={["build", "fix"]} />);
+		const { container, rerender } = render(
+			<AgentHeroHeading verbs={["build", "fix"]} />,
+		);
 		expect(
 			screen.getByRole("heading", { name: "What would you like to build?" }),
 		).toBeTruthy();
 		expect(
 			container.querySelector(".cline-ui-hero-heading__word")?.textContent,
 		).toBe("build");
+
+		rerender(<AgentHeroHeading verbs={["review"]} />);
+		expect(
+			screen.getByRole("heading", {
+				name: "What would you like to review?",
+			}),
+		).toBeTruthy();
 	});
 
 	it("responds when reduced-motion preference changes", () => {
@@ -73,7 +82,7 @@ describe("@cline/ui welcome experience", () => {
 
 	it("routes quick actions without owning task state", () => {
 		const onSelect = vi.fn();
-		render(
+		const { container } = render(
 			<AgentSurface>
 				<AgentQuickActions
 					actions={[
@@ -89,9 +98,17 @@ describe("@cline/ui welcome experience", () => {
 			</AgentSurface>,
 		);
 
+		expect(container.firstElementChild?.classList).toContain("cline-ui-theme");
 		fireEvent.click(screen.getByText("Review this repository"));
 		expect(onSelect).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "review" }),
 		);
+	});
+
+	it("does not render an empty quick-action shell", () => {
+		const { container } = render(
+			<AgentQuickActions actions={[]} onSelect={vi.fn()} />,
+		);
+		expect(container.firstElementChild).toBeNull();
 	});
 });

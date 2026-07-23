@@ -1,3 +1,5 @@
+"use client";
+
 export {
 	AgentApprovalCard,
 	type AgentApprovalCardProps,

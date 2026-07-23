@@ -235,7 +235,7 @@ describe("@cline/ui theme contract", () => {
 		}
 		expect(base).toContain('@import "../components/markdown.css";');
 		expect(markdown).toContain(".cline-markdown");
-		expect(markdown).not.toContain(":is(.markdown");
+		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
 		expect(markdown).not.toContain("@apply");
 		for (const token of [
 			"--text-sm",

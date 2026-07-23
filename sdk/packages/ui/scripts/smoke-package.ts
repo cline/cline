@@ -13,6 +13,8 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { AgentApprovalCard, AgentComposer, AgentHeroHeading, AgentQuickActions, AgentSurface, Button, SearchCombobox, SessionStatus } from "@cline/ui";
 const controlsCss = import.meta.resolve("@cline/ui/components.css");
@@ -21,7 +23,18 @@ const markdown = import.meta.resolve("@cline/ui/components/markdown.css");
 const scopedTokens = import.meta.resolve("@cline/ui/theme/scoped-tokens.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (!AgentApprovalCard || !AgentComposer || !AgentHeroHeading || !AgentQuickActions || !AgentSurface || !Button || !SearchCombobox || !SessionStatus || !Conversation || !Message || !controlsCss || !css || !markdown || !scopedTokens || !tokens) process.exit(1);
+const rendered = renderToString(createElement("div", null,
+	createElement(Button, null, "Continue"),
+	createElement(SearchCombobox, {
+		ariaLabel: "Repository",
+		onValueChange() {},
+		options: [{ label: "cline/cline", value: "cline/cline" }],
+		value: "cline/cline",
+	}),
+));
+if (!rendered.includes("Continue") || !rendered.includes("cline/cline")) process.exit(1);
 const entry = fileURLToPath(import.meta.resolve("@cline/ui"));
+if (!readFileSync(entry, "utf8").startsWith('"use client";')) process.exit(1);
 const sourceMapPath = entry + ".map";
 const sourceMap = JSON.parse(readFileSync(sourceMapPath, "utf8"));
 if (!sourceMap.sources.every((source) => existsSync(resolve(dirname(sourceMapPath), source)))) process.exit(1);
@@ -75,9 +88,17 @@ try {
 	const bunConsumer = join(temporaryRoot, "bun-consumer");
 	createConsumer(bunConsumer);
 	await run(
-		[process.execPath, "add", "--ignore-scripts", archive, "react@19.2.4"],
+		[
+			process.execPath,
+			"add",
+			"--ignore-scripts",
+			archive,
+			"react@19.2.4",
+			"react-dom@19.2.4",
+		],
 		bunConsumer,
 	);
+	await run([process.execPath, "pm", "ls", "--all"], bunConsumer);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
 
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
@@ -91,9 +112,11 @@ try {
 			"--no-fund",
 			archive,
 			"react@18.3.1",
+			"react-dom@18.3.1",
 		],
 		npmConsumer,
 	);
+	await run(["npm", "ls", "react", "react-dom", "--all"], npmConsumer);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
 	console.log(
 		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18`,
