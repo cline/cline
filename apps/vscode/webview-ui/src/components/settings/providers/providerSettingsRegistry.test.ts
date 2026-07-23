@@ -55,6 +55,7 @@ describe("providerSettingsRegistry", () => {
 		const migratedProviders = [
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
+			["chutes", "Chutes", "https://chutes.ai/app/api"],
 			["doubao", "Doubao", "https://console.volcengine.com/home"],
 			["fireworks", "Fireworks", "https://fireworks.ai/"],
 			["groq", "Groq", "https://console.groq.com/keys"],
