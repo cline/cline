@@ -1,7 +1,7 @@
 import * as Popover from "@radix-ui/react-popover";
 import { Command } from "cmdk";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { cx } from "./utils.js";
 
 export interface SearchComboboxOption {
@@ -20,6 +20,8 @@ export interface SearchComboboxProps {
 	onValueChange: (value: string) => void;
 	options: SearchComboboxOption[];
 	placeholder?: string;
+	/** Portal root inside the host theme scope; defaults to the document body. */
+	portalContainer?: HTMLElement | null;
 	searchPlaceholder?: string;
 	value?: string;
 }
@@ -33,37 +35,44 @@ export function SearchCombobox({
 	onValueChange,
 	options,
 	placeholder = "Select an option…",
+	portalContainer,
 	searchPlaceholder = "Search…",
 	value,
 }: SearchComboboxProps) {
 	const [open, setOpen] = useState(false);
-	const [listboxId, setListboxId] = useState<string>();
+	const [commandValue, setCommandValue] = useState(value ?? "");
 	const unavailable = disabled || loading;
 	const visiblyOpen = open && !unavailable;
 	useEffect(() => {
 		if (unavailable) setOpen(false);
 	}, [unavailable]);
-	const captureListbox = useCallback((node: HTMLDivElement | null) => {
-		setListboxId(node?.id);
-	}, []);
+	useEffect(() => {
+		if (!open) setCommandValue(value ?? "");
+	}, [open, value]);
 	const selected = options.find((option) => option.value === value);
+	const displayedValue = loading
+		? "Loading…"
+		: (selected?.label ?? placeholder);
 
 	return (
 		<Popover.Root
 			onOpenChange={(nextOpen) => {
+				if (nextOpen && !unavailable) setCommandValue(value ?? "");
 				if (!nextOpen || !unavailable) setOpen(nextOpen);
 			}}
 			open={visiblyOpen}
 		>
 			<Popover.Trigger asChild>
 				<button
-					aria-controls={visiblyOpen ? listboxId : undefined}
+					aria-busy={loading || undefined}
+					aria-disabled={unavailable || undefined}
 					aria-haspopup="listbox"
-					aria-label={ariaLabel}
+					aria-label={`${ariaLabel}: ${displayedValue}`}
 					aria-expanded={visiblyOpen}
 					className={cx("cline-ui-combobox__trigger", className)}
-					disabled={unavailable}
-					role="combobox"
+					onClick={(event) => {
+						if (unavailable) event.preventDefault();
+					}}
 					type="button"
 				>
 					{loading ? (
@@ -71,9 +80,7 @@ export function SearchCombobox({
 					) : (
 						selected?.icon
 					)}
-					<span className="cline-ui-combobox__value">
-						{loading ? "Loading…" : (selected?.label ?? placeholder)}
-					</span>
+					<span className="cline-ui-combobox__value">{displayedValue}</span>
 					<svg
 						aria-hidden="true"
 						className="cline-ui-combobox__chevrons"
@@ -90,23 +97,24 @@ export function SearchCombobox({
 					</svg>
 				</button>
 			</Popover.Trigger>
-			<Popover.Portal>
+			<Popover.Portal container={portalContainer ?? undefined}>
 				<Popover.Content
 					align="start"
 					className="cline-ui-theme cline-ui-combobox__popover"
 					collisionPadding={8}
 					sideOffset={6}
 				>
-					<Command className="cline-ui-combobox__command" label={ariaLabel}>
+					<Command
+						className="cline-ui-combobox__command"
+						label={`Search ${ariaLabel.toLowerCase()}`}
+						onValueChange={setCommandValue}
+						value={commandValue}
+					>
 						<Command.Input
-							aria-label={`Search ${ariaLabel.toLowerCase()}`}
 							className="cline-ui-combobox__search"
 							placeholder={searchPlaceholder}
 						/>
-						<Command.List
-							className="cline-ui-combobox__list"
-							ref={captureListbox}
-						>
+						<Command.List className="cline-ui-combobox__list">
 							<Command.Empty className="cline-ui-combobox__empty">
 								{emptyText}
 							</Command.Empty>
@@ -114,11 +122,12 @@ export function SearchCombobox({
 								<Command.Item
 									className="cline-ui-combobox__option"
 									key={option.value}
+									keywords={[option.label, option.description ?? ""]}
 									onSelect={() => {
 										onValueChange(option.value);
 										setOpen(false);
 									}}
-									value={`${option.label} ${option.description ?? ""} ${option.value}`}
+									value={option.value}
 								>
 									{option.icon}
 									<span className="cline-ui-combobox__option-copy">

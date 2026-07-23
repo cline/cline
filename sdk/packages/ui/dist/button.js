@@ -2,7 +2,7 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
 import { Slot } from "@radix-ui/react-slot";
 import { Children, cloneElement, forwardRef } from "react";
 import { cx } from "./utils.js";
-export const Button = forwardRef(function Button({ asChild = false, children, className, disabled, iconOnly = false, loading = false, onClick, size = "md", tabIndex, type = "button", variant = "secondary", ...props }, ref) {
+const ButtonImpl = forwardRef(function Button({ asChild = false, children, className, disabled, iconOnly = false, loading = false, onClick, size = "md", tabIndex, type = "button", variant = "secondary", ...props }, ref) {
     const classNames = cx("cline-ui-button", `cline-ui-button--${variant}`, `cline-ui-button--${size}`, iconOnly && "cline-ui-button--icon", className);
     if (asChild) {
         const inactive = disabled || loading;
@@ -24,4 +24,5 @@ export const Button = forwardRef(function Button({ asChild = false, children, cl
     }
     return (_jsxs("button", { "aria-busy": loading || undefined, className: classNames, disabled: disabled || loading, onClick: onClick, ref: ref, tabIndex: tabIndex, type: type, ...props, children: [loading ? (_jsx("span", { "aria-hidden": "true", className: "cline-ui-spinner" })) : null, children] }));
 });
+export const Button = ButtonImpl;
 //# sourceMappingURL=button.js.map

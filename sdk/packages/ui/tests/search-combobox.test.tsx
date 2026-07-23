@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchCombobox } from "../src/index.js";
 
@@ -32,17 +38,17 @@ describe("SearchCombobox", () => {
 			/>,
 		);
 
-		const trigger = screen.getByRole("combobox", { name: "Repository" });
+		const trigger = screen.getByRole("button", {
+			name: "Repository: Select an option…",
+		});
 		expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
 		fireEvent.click(trigger);
 		const listbox = screen.getByRole("listbox");
-		expect(trigger.getAttribute("aria-controls")).toBe(listbox.id);
+		expect(listbox).toBeTruthy();
 		expect(listbox.closest(".cline-ui-theme")).toBeTruthy();
-
-		const search = document.querySelector(
-			".cline-ui-combobox__search",
-		) as HTMLInputElement | null;
-		if (!search) throw new Error("Search input was not rendered");
+		const search = screen.getByRole("combobox", {
+			name: "Search repository",
+		});
 		fireEvent.change(search, { target: { value: "core-platform" } });
 		fireEvent.click(screen.getByText("cline/core-platform"));
 		expect(onValueChange).toHaveBeenCalledWith(
@@ -56,7 +62,37 @@ describe("SearchCombobox", () => {
 		);
 	});
 
-	it("closes when it becomes unavailable", () => {
+	it("opens with the committed option active", () => {
+		const onValueChange = vi.fn();
+		render(
+			<SearchCombobox
+				ariaLabel="Repository"
+				onValueChange={onValueChange}
+				options={[
+					{ label: "cline/cline", value: "cline/cline" },
+					{ label: "cline/core-platform", value: "cline/core-platform" },
+				]}
+				value="cline/core-platform"
+			/>,
+		);
+
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: "Repository: cline/core-platform",
+			}),
+		);
+		const selectedOption = screen.getByRole("option", {
+			name: /cline\/core-platform/,
+		});
+		expect(selectedOption.getAttribute("aria-selected")).toBe("true");
+		fireEvent.keyDown(
+			screen.getByRole("combobox", { name: "Search repository" }),
+			{ key: "Enter" },
+		);
+		expect(onValueChange).toHaveBeenCalledWith("cline/core-platform");
+	});
+
+	it("closes and restores focus when it becomes unavailable", async () => {
 		const onValueChange = vi.fn();
 		const { rerender } = render(
 			<SearchCombobox
@@ -66,8 +102,14 @@ describe("SearchCombobox", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("combobox", { name: "Repository" }));
+		const trigger = screen.getByRole("button", {
+			name: "Repository: Select an option…",
+		});
+		fireEvent.click(trigger);
 		expect(screen.getByRole("listbox")).toBeTruthy();
+		expect(document.activeElement).toBe(
+			screen.getByRole("combobox", { name: "Search repository" }),
+		);
 
 		rerender(
 			<SearchCombobox
@@ -79,9 +121,35 @@ describe("SearchCombobox", () => {
 		);
 
 		expect(screen.queryByRole("listbox")).toBeNull();
-		expect(
-			screen.getByRole("combobox", { name: "Repository" }).hasAttribute("disabled"),
-		).toBe(true);
+		await waitFor(() => expect(document.activeElement).toBe(trigger));
+		expect(trigger.getAttribute("aria-disabled")).toBe("true");
 		expect(onValueChange).not.toHaveBeenCalled();
+	});
+
+	it("can portal into a scoped dark theme boundary", () => {
+		const themeRoot = document.createElement("div");
+		themeRoot.className = "cline-ui-theme dark";
+		document.body.append(themeRoot);
+		render(
+			<SearchCombobox
+				ariaLabel="Repository"
+				onValueChange={vi.fn()}
+				options={[{ label: "cline/cline", value: "cline/cline" }]}
+				portalContainer={themeRoot}
+			/>,
+			{ container: themeRoot },
+		);
+
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: "Repository: Select an option…",
+			}),
+		);
+		expect(
+			screen
+				.getByRole("listbox")
+				.closest(".cline-ui-combobox__popover")
+				?.closest(".dark"),
+		).toBe(themeRoot);
 	});
 });

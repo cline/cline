@@ -23,12 +23,12 @@
 	outline-offset: 2px;
 }
 
-.cline-ui-combobox__trigger:disabled {
+.cline-ui-combobox__trigger[aria-disabled="true"] {
 	cursor: not-allowed;
 	opacity: 0.5;
 }
 
-.cline-ui-combobox__trigger:hover:not(:disabled) {
+.cline-ui-combobox__trigger:hover:not([aria-disabled="true"]) {
 	background: var(--accent);
 }
 
@@ -74,6 +74,11 @@
 	font: inherit;
 	font-size: var(--text-sm);
 	padding: 0 0.875rem;
+}
+
+.cline-ui-combobox__search:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
 }
 
 .cline-ui-combobox__search::placeholder {

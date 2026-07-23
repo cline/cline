@@ -1,3 +1,4 @@
+"use client";
 export { AgentHeroHeading, } from "./agent-hero-heading.js";
 export { AgentSurface } from "./agent-surface.js";
 export { AgentAurora } from "./aurora.js";
