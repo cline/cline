@@ -138,11 +138,15 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 
 describe("getDefaultModelIdForProvider", () => {
 	it("uses the SDK provider catalog for the Cline default model", () => {
-		expect(getDefaultModelIdForProvider("cline")).toBe("anthropic/claude-sonnet-4.6")
+		expect(getDefaultModelIdForProvider("cline")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline.provider.defaultModelId,
+		)
 	})
 
-	it("falls back to the first generated model when the SDK manifest default is not in the model catalog", () => {
-		expect(getDefaultModelIdForProvider("gemini")).toBe("gemini-3.5-flash")
+	it("uses the generated Gemini provider default", () => {
+		expect(getDefaultModelIdForProvider("gemini")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.gemini.provider.defaultModelId,
+		)
 	})
 
 	it("returns undefined for unknown providers", () => {
@@ -766,27 +770,7 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
-	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
-		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
-			if (key === "useAutoCondense") {
-				return true
-			}
-			if (key === "subagentsEnabled") {
-				return false
-			}
-			return undefined
-		})
-
-		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-
-		expect(config.compaction).toEqual({
-			enabled: true,
-			strategy: "basic",
-		})
-	})
-
-	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "agentic" })
+	it("enables agentic SDK compaction when global useAutoCondense is true", async () => {
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -805,8 +789,8 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
-	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "basic" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -822,6 +806,26 @@ describe("buildSessionConfig", () => {
 		expect(config.compaction).toEqual({
 			enabled: true,
 			strategy: "basic",
+		})
+	})
+
+	it("falls back to agentic SDK compaction for an invalid stored strategy", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
 		})
 	})
 
@@ -859,7 +863,7 @@ describe("buildSessionConfig", () => {
 		expect(disabledConfig.compaction).toBeUndefined()
 		expect(enabledConfig.compaction).toEqual({
 			enabled: true,
-			strategy: "basic",
+			strategy: "agentic",
 		})
 	})
 

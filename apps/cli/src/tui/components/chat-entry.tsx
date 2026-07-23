@@ -134,7 +134,7 @@ function formatToolParams(
 				const el = f.endLine != null ? String(f.endLine) : "undefined";
 				const sep = i > 0 ? "; " : "";
 				return (
-					<span key={`${i}:${f.path}`}>
+					<span key={`${f.path}:${sl}:${el}`}>
 						{sep}
 						{shortenPath(f.path)}
 						<span fg="gray">

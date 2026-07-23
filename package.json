@@ -66,6 +66,7 @@
         "typescript": "^5.9.3"
     },
     "overrides": {
+        "axios": "1.18.0",
         "@opentui/core": "0.4.3",
         "@opentui/react": "0.4.3",
         "tar-fs": ">=3.1.1",

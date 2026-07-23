@@ -75,9 +75,11 @@ let providerCatalogCache: {
 export function SettingsView({
 	section,
 	onNavigateSection,
+	onOpenSession,
 }: {
 	section: SettingsSection;
 	onNavigateSection: (section: SettingsSection) => void;
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
@@ -431,7 +433,7 @@ export function SettingsView({
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
-			<RoutineSchedulesContent />
+			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
