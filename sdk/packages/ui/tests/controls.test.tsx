@@ -37,6 +37,7 @@ describe("@cline/ui controls", () => {
 		render(
 			<form onSubmit={onSubmit}>
 				<Button asChild>
+					{/* biome-ignore lint/a11y/useButtonType: verifies Button supplies the safe default */}
 					<button>Open</button>
 				</Button>
 			</form>,
