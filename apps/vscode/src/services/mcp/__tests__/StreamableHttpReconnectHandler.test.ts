@@ -31,7 +31,6 @@ function makeCallbacks(connection?: ReturnType<typeof makeConnection>): Reconnec
 		connectToServer: sinon.stub().resolves(),
 		notifyWebviewOfServerChanges: sinon.stub().resolves(),
 		appendErrorMessage: sinon.stub(),
-		deleteServerKey: sinon.stub(),
 		delay: sinon.stub().resolves(), // instant — no real waiting in tests
 	}
 	return { ...(stubs as unknown as ReconnectCallbacks), stubs }
@@ -170,7 +169,6 @@ describe("StreamableHttpReconnectHandler", () => {
 
 		// The partial connection should be marked disconnected
 		partialConn.server.status.should.equal("disconnected")
-		cbs.stubs.deleteServerKey.calledWith("uid-partial").should.be.true()
 		cbs.stubs.appendErrorMessage.calledOnce.should.be.true()
 		cbs.stubs.appendErrorMessage.firstCall.args[1].should.equal("transport error")
 	})
@@ -207,7 +205,6 @@ describe("StreamableHttpReconnectHandler", () => {
 		await handler.handleError(new Error("final error"))
 
 		conn.server.status.should.equal("disconnected")
-		cbs.stubs.deleteServerKey.calledWith("uid-123").should.be.true()
 		cbs.stubs.appendErrorMessage.calledOnce.should.be.true()
 		cbs.stubs.connectToServer.called.should.be.false()
 	})
