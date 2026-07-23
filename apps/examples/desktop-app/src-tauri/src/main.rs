@@ -613,6 +613,63 @@ fn restart_to_apply_update(
     app.restart();
 }
 
+/// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
+/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
+/// resource at icons/dock/<id>.png.
+const APP_DOCK_ICONS: [&str; 4] = ["classic", "sunrise", "steel", "midnight"];
+
+#[tauri::command]
+fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
+    if !APP_DOCK_ICONS.contains(&icon.as_str()) {
+        return Err(format!("unknown app icon: {icon}"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // "classic" also ships as a dock resource, so every choice loads the
+        // same way; setApplicationIconImage's binding warns that passing nil
+        // to restore the bundled icon may not be allowed.
+        let icon_path = app
+            .path()
+            .resolve(
+                format!("icons/dock/{icon}.png"),
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|e| format!("failed resolving dock icon resource: {e}"))?;
+        if !icon_path.exists() {
+            return Err(format!(
+                "dock icon resource missing: {}",
+                icon_path.display()
+            ));
+        }
+        app.run_on_main_thread(move || {
+            use objc2::{AllocAnyThread, MainThreadMarker};
+            use objc2_app_kit::{NSApplication, NSImage};
+            use objc2_foundation::NSString;
+
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
+            let ns_app = NSApplication::sharedApplication(mtm);
+            let Some(image) = NSImage::initWithContentsOfFile(
+                NSImage::alloc(),
+                &NSString::from_str(&icon_path.to_string_lossy()),
+            ) else {
+                eprintln!("[dock-icon] failed loading image: {}", icon_path.display());
+                return;
+            };
+            // SAFETY: called on the main thread with a valid, non-nil image.
+            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+        })
+        .map_err(|e| format!("failed switching dock icon: {e}"))?;
+        Ok(true)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(false)
+    }
+}
+
 #[tauri::command]
 fn open_mcp_settings_file() -> Result<String, String> {
     let settings_path = resolve_mcp_settings_path()?;
@@ -681,7 +738,8 @@ fn main() {
             pick_workspace_directory,
             open_mcp_settings_file,
             get_update_status,
-            restart_to_apply_update
+            restart_to_apply_update,
+            set_app_icon
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
