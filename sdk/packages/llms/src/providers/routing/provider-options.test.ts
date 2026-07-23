@@ -308,32 +308,36 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			name: "Opus 4.6 -> adaptive thinking with effort",
+			name: "Opus 4.6 clamps unsupported xhigh effort to max",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-opus-4-6",
-				reasoning: { enabled: true, effort: "high" },
+				reasoning: { enabled: true, effort: "xhigh" },
 			},
 			context: { family: "claude-opus" },
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+					has: { thinking: ADAPTIVE_THINKING, effort: "max" },
 				},
 			],
 		},
 		{
-			name: "Opus 4.7 -> adaptive thinking with effort",
+			name: "Opus 4.7 preserves supported xhigh effort",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-opus-4-7",
-				reasoning: { enabled: true, effort: "high" },
+				reasoning: { enabled: true, effort: "xhigh" },
 			},
 			context: { family: "claude-opus" },
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+					has: { thinking: ADAPTIVE_THINKING, effort: "xhigh" },
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { effort: "xhigh", reasoningEffort: "xhigh" },
 				},
 			],
 		},
@@ -369,17 +373,17 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			name: "future Claude major (Sonnet 5.0) -> adaptive thinking",
+			name: "Sonnet 5 preserves supported xhigh effort",
 			request: {
 				providerId: "anthropic",
-				modelId: "claude-sonnet-5-0",
-				reasoning: { enabled: true, effort: "high" },
+				modelId: "claude-sonnet-5",
+				reasoning: { enabled: true, effort: "xhigh" },
 			},
 			context: { family: "claude-sonnet" },
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+					has: { thinking: ADAPTIVE_THINKING, effort: "xhigh" },
 				},
 			],
 		},
@@ -613,6 +617,22 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				{
 					bucket: "openaiCompatible",
 					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter preserves supported Anthropic xhigh effort",
+			request: {
+				providerId: "openrouter",
+				modelId: "anthropic/claude-opus-4-7",
+				reasoning: { effort: "xhigh" },
+			},
+			context: { family: "claude-opus" },
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "xhigh" } },
+					lacks: ["thinking", "reasoningEffort"],
 				},
 			],
 		},

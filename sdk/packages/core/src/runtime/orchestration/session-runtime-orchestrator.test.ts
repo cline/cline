@@ -2339,6 +2339,72 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("still aborts repeated built-in failures whose error output changes", async () => {
+		const failedCall = (i: number): AgentRuntimeEvent[] => {
+			const toolCall = {
+				type: "tool-call" as const,
+				toolCallId: `failed-${i}`,
+				toolName: "run_commands",
+				input: { commands: ["false"] },
+			};
+			return [
+				{
+					type: "tool-started",
+					iteration: i,
+					toolCall,
+					snapshot: makeSnapshot(),
+				},
+				{
+					type: "tool-finished",
+					iteration: i,
+					toolCall,
+					message: {
+						id: `failed-message-${i}`,
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: toolCall.toolCallId,
+								toolName: toolCall.toolName,
+								output: [
+									{
+										query: "false",
+										result: "",
+										error: `command failed on attempt ${i}`,
+										success: false,
+									},
+								],
+							},
+						],
+						createdAt: i,
+					},
+					snapshot: makeSnapshot(),
+				},
+			];
+		};
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: [
+				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+				...failedCall(1),
+				...failedCall(2),
+				...failedCall(3),
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: {
+					maxConsecutiveMistakes: 6,
+					loopDetection: { softThreshold: 2, hardThreshold: 3 },
+				},
+			}),
+			deps,
+		);
+
+		await session.run("repeat a failing command");
+
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
 	it("resets loop detection when run() starts a fresh conversation", async () => {
 		const identical = (i: number): AgentRuntimeEvent => ({
 			type: "tool-started",

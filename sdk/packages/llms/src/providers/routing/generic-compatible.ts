@@ -75,6 +75,8 @@ function buildCompatibleThinkingOptions(options: {
 
 function buildCompatibleEffortOptions(options: {
 	reasoning: GatewayStreamRequest["reasoning"];
+	modelId: string;
+	family?: string;
 	usesAnthropicReasoningRoute: boolean;
 	suppressEffortOptions: boolean;
 	suppressions: ProviderOptionSuppression;
@@ -98,7 +100,10 @@ function buildCompatibleEffortOptions(options: {
 		return {};
 	}
 	const effort = options.usesAnthropicReasoningRoute
-		? toAnthropicAdaptiveEffort(rawEffort)
+		? toAnthropicAdaptiveEffort(rawEffort, {
+				modelId: options.modelId,
+				family: options.family,
+			})
 		: rawEffort;
 	return {
 		effort,
@@ -143,6 +148,8 @@ export function buildCompatibleProviderOptions(options: {
 		...buildCompatibleThinkingOptions({ request, context, suppressions }),
 		...buildCompatibleEffortOptions({
 			reasoning: request.reasoning,
+			modelId: request.modelId,
+			family,
 			usesAnthropicReasoningRoute,
 			suppressEffortOptions: suppressCompatibleReasoningOptions,
 			suppressions,
