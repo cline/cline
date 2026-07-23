@@ -66,7 +66,6 @@ export function SearchCombobox({
 				<button
 					aria-busy={loading || undefined}
 					aria-disabled={unavailable || undefined}
-					aria-haspopup="listbox"
 					aria-label={`${ariaLabel}: ${displayedValue}`}
 					aria-expanded={visiblyOpen}
 					className={cx("cline-ui-combobox__trigger", className)}

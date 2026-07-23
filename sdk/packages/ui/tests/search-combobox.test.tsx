@@ -41,7 +41,7 @@ describe("SearchCombobox", () => {
 		const trigger = screen.getByRole("button", {
 			name: "Repository: Select an option…",
 		});
-		expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
+		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
 		fireEvent.click(trigger);
 		const listbox = screen.getByRole("listbox");
 		expect(listbox).toBeTruthy();
