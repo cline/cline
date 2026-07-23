@@ -1,6 +1,10 @@
+import { existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SidecarContext } from "./types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { materializeUserFiles } from "./attachments";
+import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.hoisted(() => vi.fn());
@@ -301,5 +305,55 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(
 			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
 		).toEqual([]);
+	});
+});
+
+describe("disposeSidecarContext attachment cleanup", () => {
+	let previousSessionDataDir: string | undefined;
+	let testSessionDataDir: string;
+
+	beforeEach(() => {
+		previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		testSessionDataDir = join(
+			tmpdir(),
+			`cline-desktop-dispose-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		);
+		process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
+	});
+
+	afterEach(() => {
+		if (previousSessionDataDir === undefined) {
+			delete process.env.CLINE_SESSION_DATA_DIR;
+		} else {
+			process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+		}
+		rmSync(testSessionDataDir, { recursive: true, force: true });
+	});
+
+	it("deletes tracked attachments for all live sessions on shutdown", async () => {
+		const { createSidecarContext, disposeSidecarContext } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+
+		const sessionId = "dispose-session";
+		const [queuedFile] = materializeUserFiles(sessionId, [
+			{ name: "queued.txt", content: "q" },
+		]) as string[];
+		const session: LiveSession = {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			startedAt: Date.now(),
+			status: "idle",
+			queuedAttachmentFiles: new Map([["pending_1", [queuedFile]]]),
+		};
+		ctx.liveSessions.set(sessionId, session);
+
+		await disposeSidecarContext(ctx, "test_shutdown");
+
+		expect(existsSync(queuedFile)).toBe(false);
+		expect(ctx.liveSessions.size).toBe(0);
 	});
 });

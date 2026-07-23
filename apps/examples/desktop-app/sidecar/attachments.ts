@@ -94,7 +94,10 @@ export function trackQueuedAttachments(
 	if (match) {
 		queuedFilesMap(session).set(match.id, userFiles);
 	} else {
-		consumedFilesMap(session).set(userFiles[0] ?? randomUUID(), userFiles);
+		// Not in the queue → already being consumed by the running turn. Key by a
+		// fresh id so it never collides with a prompt-id key used elsewhere in the
+		// consumed bucket.
+		consumedFilesMap(session).set(randomUUID(), userFiles);
 	}
 }
 

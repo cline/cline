@@ -17,6 +17,7 @@ import type { Message } from "@cline/llms";
 import { buildClineSystemPrompt } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
+	discardAllTrackedAttachments,
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
@@ -167,6 +168,8 @@ function createLiveSession(
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
+		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
 }
 
@@ -567,6 +570,11 @@ async function handleAttach(
 				existing?.title,
 			endedAt: isoTimestampToMs(session.endedAt),
 			attachedViaHub: true,
+			// Preserve tracked attachment files so re-attach (called on every
+			// webview hydrate) does not orphan materialized files still awaiting
+			// cleanup.
+			queuedAttachmentFiles: existing?.queuedAttachmentFiles,
+			consumedAttachmentFiles: existing?.consumedAttachmentFiles,
 		}),
 	);
 
@@ -990,6 +998,10 @@ async function handleFork(
 		toolPolicies: resolveToolPolicies(forkConfig),
 	});
 	const newSessionId = startResult.sessionId;
+	discardAllTrackedAttachments(
+		sourceSessionId,
+		ctx.liveSessions.get(sourceSessionId),
+	);
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		newSessionId,
@@ -1029,6 +1041,7 @@ async function handleReset(
 		) {
 			await getSessionManager(ctx).stop(sessionId);
 		}
+		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
@@ -1079,6 +1092,10 @@ async function handleRestoreCheckpoint(
 	if (!sessionId || !restoredMessages) {
 		throw new Error("Checkpoint restore did not return a new session");
 	}
+	discardAllTrackedAttachments(
+		sourceSessionId,
+		ctx.liveSessions.get(sourceSessionId),
+	);
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		sessionId,

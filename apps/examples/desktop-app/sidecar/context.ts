@@ -460,6 +460,11 @@ export async function disposeSidecarContext(
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
 
+	for (const [sessionId, session] of ctx.liveSessions) {
+		discardAllTrackedAttachments(sessionId, session);
+	}
+	ctx.liveSessions.clear();
+
 	for (const client of ctx.wsClients) {
 		try {
 			client.close?.();

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
@@ -369,6 +370,95 @@ describe("first-send connection updates", () => {
 			expect(
 				ctx.liveSessions.get(sessionId)?.queuedAttachmentFiles?.size ?? 0,
 			).toBe(0);
+		} finally {
+			if (previousSessionDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			}
+			rmSync(testSessionDataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("deletes tracked attachments when a session is reset", async () => {
+		const { ctx, sessionId } = createContext();
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		const testSessionDataDir = join(
+			tmpdir(),
+			`cline-desktop-attachments-reset-${Date.now()}`,
+		);
+
+		try {
+			process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
+			const [queuedFile] = materializeUserFiles(sessionId, [
+				{ name: "queued.txt", content: "q" },
+			]) as string[];
+			const [consumedFile] = materializeUserFiles(sessionId, [
+				{ name: "consumed.txt", content: "c" },
+			]) as string[];
+			const session = ctx.liveSessions.get(sessionId);
+			if (!session) throw new Error("missing session");
+			session.queuedAttachmentFiles = new Map([["pending_1", [queuedFile]]]);
+			session.consumedAttachmentFiles = new Map([
+				["pending_2", [consumedFile]],
+			]);
+
+			await handleChatSessionCommand(ctx, {
+				action: "reset",
+				sessionId,
+			});
+
+			expect(existsSync(queuedFile)).toBe(false);
+			expect(existsSync(consumedFile)).toBe(false);
+			expect(ctx.liveSessions.has(sessionId)).toBe(false);
+		} finally {
+			if (previousSessionDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			}
+			rmSync(testSessionDataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("preserves tracked attachments across re-attach", async () => {
+		const { ctx, sessionId } = createContext();
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		const testSessionDataDir = join(
+			tmpdir(),
+			`cline-desktop-attachments-attach-${Date.now()}`,
+		);
+
+		try {
+			process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
+			const [queuedFile] = materializeUserFiles(sessionId, [
+				{ name: "queued.txt", content: "q" },
+			]) as string[];
+			const session = ctx.liveSessions.get(sessionId);
+			if (!session) throw new Error("missing session");
+			const queuedMap = new Map([["pending_1", [queuedFile]]]);
+			session.queuedAttachmentFiles = queuedMap;
+			(ctx.sessionManager as unknown as { get: unknown }).get = vi.fn(
+				async () => ({
+					status: "idle",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				}),
+			);
+
+			await handleChatSessionCommand(ctx, {
+				action: "attach",
+				sessionId,
+			});
+
+			expect(existsSync(queuedFile)).toBe(true);
+			expect(
+				ctx.liveSessions
+					.get(sessionId)
+					?.queuedAttachmentFiles?.get("pending_1"),
+			).toEqual([queuedFile]);
 		} finally {
 			if (previousSessionDataDir === undefined) {
 				delete process.env.CLINE_SESSION_DATA_DIR;
