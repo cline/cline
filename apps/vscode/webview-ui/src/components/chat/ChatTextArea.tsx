@@ -108,6 +108,11 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	transform-origin: right center;
 	margin-left: 0;
 	user-select: none; // Prevent text selection
+
+	&:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: 1px;
+	}
 `
 
 const Slider = styled.div.withConfig({
@@ -1638,20 +1643,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
-						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<TooltipTrigger asChild>
+							<SwitchContainer
+								aria-checked={mode === "act"}
+								aria-label="Act mode"
+								data-testid="mode-switch"
+								disabled={false}
+								onClick={onModeToggle}
+								onKeyDown={(e) => {
+									// Binary toggle exposed as a single switch: Space/Enter flips
+									// between Plan (unchecked) and Act (checked). preventDefault stops
+									// Space from also scrolling the page.
+									if (e.key === " " || e.key === "Enter") {
+										e.preventDefault()
+										onModeToggle()
+									}
+								}}
+								role="switch"
+								tabIndex={0}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
-										aria-checked={mode === m.toLowerCase()}
+										aria-hidden="true"
 										className={cn(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
 										)}
 										key={m}
 										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
+										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}>
 										{m}
 									</div>
 								))}

@@ -23,18 +23,16 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(sidebar.getByText("Recent")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
-	// Makes sure the act and plan switches are working correctly
-	// Aria-checked state should be true for Act and false for Plan
-	const actButton = sidebar.getByRole("switch", { name: "Act" })
-	const planButton = sidebar.getByRole("switch", { name: "Plan" })
+	// Makes sure the Plan/Act mode switch is working correctly.
+	// It's exposed as a single switch: aria-checked is true in Act mode and
+	// false in Plan mode, and clicking it toggles between the two.
+	const modeSwitch = sidebar.getByTestId("mode-switch")
 
-	// Act button should be active. It doesn't have c
-	await expect(actButton).toHaveAttribute("aria-checked", "true")
-	await expect(planButton).not.toHaveAttribute("aria-checked", "true")
+	// Act mode is active by default, so the switch reads as checked.
+	await expect(modeSwitch).toHaveAttribute("aria-checked", "true")
 
-	await planButton.click()
-	await expect(planButton).toHaveAttribute("aria-checked", "true")
-	await expect(actButton).not.toHaveAttribute("aria-checked", "true")
+	await modeSwitch.click()
+	await expect(modeSwitch).toHaveAttribute("aria-checked", "false")
 
 	// === slash commands preserve following text ===
 	await expect(inputbox).toHaveValue("")
