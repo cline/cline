@@ -25,6 +25,18 @@ const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (!AgentApprovalCard || !AgentComposer || !AgentHeroHeading || !AgentQuickActions || !AgentSurface || !Button || !SearchCombobox || !SessionStatus || !Conversation || !Message || !controlsCss || !css || !markdown || !scopedTokens || !tokens) process.exit(1);
 const rendered = renderToString(createElement("div", null,
 	createElement(Button, null, "Continue"),
+	createElement(AgentSurface, null,
+		createElement(AgentComposer, {
+			onSubmit() {},
+			onValueChange() {},
+			value: "Review this repository",
+		}),
+		createElement(AgentApprovalCard, {
+			onApprove() {},
+			onReject() {},
+			title: "Run command?",
+		}),
+	),
 	createElement(SearchCombobox, {
 		ariaLabel: "Repository",
 		onValueChange() {},
@@ -32,7 +44,7 @@ const rendered = renderToString(createElement("div", null,
 		value: "cline/cline",
 	}),
 ));
-if (!rendered.includes("Continue") || !rendered.includes("cline/cline")) process.exit(1);
+if (!rendered.includes("Continue") || !rendered.includes("Run command?") || !rendered.includes("cline/cline")) process.exit(1);
 const entry = fileURLToPath(import.meta.resolve("@cline/ui"));
 if (!readFileSync(entry, "utf8").startsWith('"use client";')) process.exit(1);
 const sourceMapPath = entry + ".map";

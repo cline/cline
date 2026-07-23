@@ -14,10 +14,13 @@ export function AgentComposer({ actions, className, disabled, footer, loading = 
             return;
         if (event.key === "Enter" &&
             !event.shiftKey &&
-            !event.nativeEvent.isComposing) {
+            !event.nativeEvent.isComposing &&
+            !disabled &&
+            !submitDisabled &&
+            !loading &&
+            !running) {
             event.preventDefault();
-            if (!disabled && !submitDisabled && !loading && !running)
-                onSubmit();
+            onSubmit();
         }
     }
     return (_jsxs("div", { className: cx("cline-ui-composer", `cline-ui-composer--${variant}`, className), children: [_jsx("textarea", { "aria-label": textareaProps["aria-label"] ?? "Message the agent", autoComplete: textareaProps.autoComplete ?? "off", className: "cline-ui-composer__input", disabled: disabled || loading, name: textareaProps.name ?? "prompt", onChange: (event) => onValueChange(event.target.value), onKeyDown: handleKeyDown, placeholder: placeholder, rows: textareaProps.rows ?? (variant === "welcome" ? 2 : 1), value: value, ...textareaProps }), _jsxs("div", { className: "cline-ui-composer__toolbar", children: [_jsx("div", { className: "cline-ui-composer__actions", children: actions }), running ? (_jsx(Button, { "aria-label": "Stop the current run", disabled: disabled || !onStop, iconOnly: true, onClick: onStop, size: "sm", variant: "secondary", children: _jsx(StopIcon, {}) })) : (_jsx(Button, { "aria-label": submitLabel, disabled: disabled || submitDisabled, iconOnly: true, loading: loading, onClick: onSubmit, size: "sm", variant: "primary", children: loading ? null : _jsx(ArrowIcon, {}) }))] }), footer ? (_jsx("div", { className: "cline-ui-composer__footer", children: footer })) : null] }));

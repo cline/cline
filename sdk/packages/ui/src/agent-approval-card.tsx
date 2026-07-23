@@ -11,7 +11,7 @@ export interface AgentApprovalCardProps {
 	onApprove: () => void;
 	onReject: () => void;
 	rejectLabel?: string;
-	responding?: boolean;
+	responding?: "approve" | "reject";
 	title: ReactNode;
 }
 
@@ -23,7 +23,7 @@ export function AgentApprovalCard({
 	onApprove,
 	onReject,
 	rejectLabel = "Reject",
-	responding = false,
+	responding,
 	title,
 }: AgentApprovalCardProps) {
 	const titleId = useId();
@@ -31,7 +31,7 @@ export function AgentApprovalCard({
 
 	return (
 		<section
-			aria-busy={responding || undefined}
+			aria-busy={responding ? true : undefined}
 			aria-describedby={description ? descriptionId : undefined}
 			aria-labelledby={titleId}
 			className={cx("cline-ui-approval", className)}
@@ -50,7 +50,8 @@ export function AgentApprovalCard({
 			) : null}
 			<div className="cline-ui-approval__actions">
 				<Button
-					disabled={responding}
+					disabled={Boolean(responding)}
+					loading={responding === "reject"}
 					onClick={onReject}
 					size="sm"
 					variant="secondary"
@@ -58,7 +59,8 @@ export function AgentApprovalCard({
 					{rejectLabel}
 				</Button>
 				<Button
-					loading={responding}
+					disabled={Boolean(responding)}
+					loading={responding === "approve"}
 					onClick={onApprove}
 					size="sm"
 					variant="primary"

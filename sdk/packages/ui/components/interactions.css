@@ -99,6 +99,10 @@
 	gap: 0.625rem;
 }
 
+.cline-ui-approval__header > div {
+	min-width: 0;
+}
+
 .cline-ui-approval__mark {
 	display: inline-flex;
 	width: 1.5rem;
@@ -115,6 +119,7 @@
 .cline-ui-approval h3,
 .cline-ui-approval p {
 	margin: 0;
+	overflow-wrap: anywhere;
 }
 
 .cline-ui-approval h3 {
@@ -144,8 +149,14 @@
 
 .cline-ui-approval__actions {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: flex-end;
 	gap: 0.5rem;
+}
+
+.cline-ui-approval__actions .cline-ui-button {
+	max-width: 100%;
+	white-space: normal;
 }
 
 @media (prefers-reduced-motion: reduce) {

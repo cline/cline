@@ -7,7 +7,7 @@ export interface AgentApprovalCardProps {
     onApprove: () => void;
     onReject: () => void;
     rejectLabel?: string;
-    responding?: boolean;
+    responding?: "approve" | "reject";
     title: ReactNode;
 }
 export declare function AgentApprovalCard({ approveLabel, className, description, detail, onApprove, onReject, rejectLabel, responding, title, }: AgentApprovalCardProps): import("react/jsx-runtime").JSX.Element;

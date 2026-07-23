@@ -38,7 +38,7 @@ The root component surface adds reusable agent setup and interaction controls:
 - Controlled repository or model selection
 - Controlled prompt composition and stop affordance
 - Transport-neutral approval decisions
-- Shared buttons, confirmation dialogs, and session status
+- Shared buttons and session status
 
 Each application continues to own:
 
@@ -56,9 +56,11 @@ without turning `@cline/ui` into a second agent runtime.
 
 ## Current status
 
-`@cline/ui@0.1.0` is publicly available. The package has its own version and
-manual release workflow. The API is pre-stable, so production consumers should
-pin exact versions and review compatibility notes when updating.
+`@cline/ui@0.1.0` is publicly available. The root setup and interaction
+controls described below are upcoming `0.2` APIs available from the workspace,
+not the current npm release. The package has its own version and manual release
+workflow. The API is pre-stable, so production consumers should pin exact
+versions and review compatibility notes when updating.
 
 The scoped-token and standalone Markdown exports in this guide are part of the
 upcoming `0.2` release. Until a `next` preview is published, consume them from

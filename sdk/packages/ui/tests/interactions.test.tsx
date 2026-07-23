@@ -55,6 +55,27 @@ describe("@cline/ui agent interactions", () => {
 		expect(onStop).toHaveBeenCalledOnce();
 	});
 
+	it("allows a newline instead of swallowing Enter while running", () => {
+		const onKeyDown = vi.fn();
+		const onSubmit = vi.fn();
+		render(
+			<AgentComposer
+				onKeyDown={onKeyDown}
+				onSubmit={onSubmit}
+				onValueChange={vi.fn()}
+				running
+				value="Continue working"
+			/>,
+		);
+
+		const accepted = fireEvent.keyDown(screen.getByRole("textbox"), {
+			key: "Enter",
+		});
+		expect(accepted).toBe(true);
+		expect(onKeyDown.mock.calls[0][0].defaultPrevented).toBe(false);
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("disables every composer action when the composer is disabled", () => {
 		const onSubmit = vi.fn();
 		render(
@@ -88,5 +109,32 @@ describe("@cline/ui agent interactions", () => {
 		expect(onApprove).toHaveBeenCalledOnce();
 		expect(onReject).toHaveBeenCalledOnce();
 		expect(screen.getByRole("region", { name: "Run a command?" })).toBeTruthy();
+	});
+
+	it.each([
+		["approve", "Approve", "Reject"],
+		["reject", "Reject", "Approve"],
+	] as const)("shows progress on the %s action", (responding, busyAction, inactiveAction) => {
+		render(
+			<AgentApprovalCard
+				onApprove={vi.fn()}
+				onReject={vi.fn()}
+				responding={responding}
+				title="Run a command?"
+			/>,
+		);
+
+		expect(
+			screen
+				.getByRole("button", { name: busyAction })
+				.getAttribute("aria-busy"),
+		).toBe("true");
+		expect(
+			(
+				screen.getByRole("button", {
+					name: inactiveAction,
+				}) as HTMLButtonElement
+			).disabled,
+		).toBe(true);
 	});
 });

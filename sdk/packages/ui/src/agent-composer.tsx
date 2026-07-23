@@ -74,10 +74,14 @@ export function AgentComposer({
 		if (
 			event.key === "Enter" &&
 			!event.shiftKey &&
-			!event.nativeEvent.isComposing
+			!event.nativeEvent.isComposing &&
+			!disabled &&
+			!submitDisabled &&
+			!loading &&
+			!running
 		) {
 			event.preventDefault();
-			if (!disabled && !submitDisabled && !loading && !running) onSubmit();
+			onSubmit();
 		}
 	}
 

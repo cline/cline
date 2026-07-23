@@ -4,8 +4,10 @@ Shared visual foundations and reusable React presentation primitives for Cline
 web products. The package lets teams adopt the same semantic theme and agent
 chat language without adopting another product's routes, state, or runtime.
 
-`@cline/ui@0.1.0` is publicly available. The package has its own version and
-release cycle. Its API is still pre-stable, so consumers should pin an exact
+`@cline/ui@0.1.0` is publicly available. The additions documented as upcoming
+`0.2` APIs—including the root setup and interaction controls—are available
+from this workspace but are not in the current npm release. The package has
+its own release cycle and a pre-stable API, so consumers should pin an exact
 version and review compatibility notes when updating.
 
 The scoped-token and standalone Markdown exports documented below are part of
@@ -30,15 +32,13 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Button and session-status React primitives | React 18.3 or 19 |
-| `@cline/ui/components.css` | Framework-neutral styles for the root React primitives | Theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
 | `@cline/ui/components/markdown.css` | Optional framework-neutral Markdown and Streamdown treatment | Theme tokens |
 | `@cline/ui/theme/base.css` | Optional document, Markdown, scrollbar, selection, and cursor styles | Tailwind v4 |
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
-| `@cline/ui` | Host-safe agent setup, input, approval, and base control primitives | React 18.3 or 19 |
+| `@cline/ui` | Upcoming `0.2`: host-safe agent setup, input, approval, and base controls | React 18.3 or 19 |
 | `@cline/ui/components.css` | Framework-neutral styles for root component primitives | Scoped theme tokens |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
