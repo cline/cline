@@ -22,6 +22,7 @@ export type InteractiveChatCommandRuntime = Pick<
 	| "getActiveSessionId"
 	| "resetForNewSession"
 	| "restartEmpty"
+	| "changeWorkingDirectory"
 >;
 
 export type InteractiveChatCommandResult =
@@ -74,10 +75,14 @@ export async function runInteractiveChatCommand(input: {
 			autoApproveTools: input.autoApproveAllRef.current,
 		}),
 		setState: async (next) => {
-			input.chatCommandState.enableTools = next.enableTools;
-			input.chatCommandState.autoApproveTools = next.autoApproveTools;
-			input.chatCommandState.cwd = next.cwd;
-			input.chatCommandState.workspaceRoot = next.workspaceRoot;
+			if (
+				next.cwd !== input.chatCommandState.cwd ||
+				next.workspaceRoot !== input.chatCommandState.workspaceRoot
+			) {
+				await input.sessionRuntime.changeWorkingDirectory(next);
+			} else {
+				Object.assign(input.chatCommandState, next);
+			}
 			input.setInteractiveAutoApprove(next.autoApproveTools);
 		},
 		reply: async (text) => {

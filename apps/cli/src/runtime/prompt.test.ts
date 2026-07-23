@@ -42,4 +42,19 @@ describe("buildUserInputMessage", () => {
 		expect(result.userImages).toEqual([]);
 		expect(result.userFiles).toEqual([filePath]);
 	});
+
+	it("resolves relative file mentions from the configured working directory", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cli-prompt-cwd-"));
+		const filePath = join(dir, "notes.md");
+		writeFileSync(filePath, "# Notes\n");
+
+		const result = await buildUserInputMessage(
+			"summarize @./notes.md",
+			undefined,
+			dir,
+		);
+
+		expect(result.prompt).toBe("summarize [file: notes.md]");
+		expect(result.userFiles).toEqual([filePath]);
+	});
 });
