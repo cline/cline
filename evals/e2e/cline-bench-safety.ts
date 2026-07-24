@@ -198,7 +198,7 @@ export function reserveBudget(
 }
 
 export function settleBudget(ledger: BudgetLedger, runKey: string, actualUsd: number): BudgetLedger {
-	if (!Number.isFinite(actualUsd) || actualUsd <= 0) throw new Error("actual run cost must be positive")
+	if (!Number.isFinite(actualUsd) || actualUsd < 0) throw new Error("actual run cost cannot be negative")
 	const existing = ledger.entries.find((entry) => entry.runKey === runKey)
 	if (existing?.status === "settled") {
 		if (Math.abs((existing.actualUsd || 0) - actualUsd) > 1e-9) {
@@ -255,6 +255,7 @@ function usageSnapshot(value: unknown): UsageSnapshot | null {
 	const event = recordValue(parsed.event)
 	let usage: Record<string, unknown>
 	let allowMissingTokens = false
+	let allowZeroNoSpendFailure = false
 	if (event?.type === "usage") {
 		allowMissingTokens = true
 		usage = {
@@ -264,6 +265,7 @@ function usageSnapshot(value: unknown): UsageSnapshot | null {
 			totalOutputTokens: event.totalOutputTokens,
 		}
 	} else if (parsed.type === "run_result") {
+		allowZeroNoSpendFailure = parsed.finishReason === "error"
 		const cumulative = recordValue(parsed.aggregateUsage ?? parsed.usage)
 		if (!cumulative) {
 			throw new Error("interrupted run_result has no cumulative usage")
@@ -281,16 +283,30 @@ function usageSnapshot(value: unknown): UsageSnapshot | null {
 	const timestampMs = typeof parsed.ts === "string" ? Date.parse(parsed.ts) : Number.NaN
 	if (!Number.isFinite(timestampMs)) throw new Error("interrupted cost telemetry has invalid timestamp")
 	const totalCost = usage.totalCost
-	if (typeof totalCost !== "number" || !Number.isFinite(totalCost) || totalCost <= 0) {
+	if (
+		typeof totalCost !== "number" ||
+		!Number.isFinite(totalCost) ||
+		totalCost < 0 ||
+		(totalCost === 0 && !allowZeroNoSpendFailure)
+	) {
 		throw new Error("interrupted cost telemetry has invalid totalCost")
 	}
-	return {
+	const snapshot = {
 		timestamp: new Date(timestampMs).toISOString(),
 		totalCost,
 		totalInputTokens: requireUsageNumber(usage.totalInputTokens, "totalInputTokens", allowMissingTokens),
 		totalCacheReadTokens: requireUsageNumber(usage.totalCacheReadTokens, "totalCacheReadTokens", allowMissingTokens),
 		totalOutputTokens: requireUsageNumber(usage.totalOutputTokens, "totalOutputTokens", allowMissingTokens),
 	}
+	if (
+		totalCost === 0 &&
+		(snapshot.totalInputTokens !== 0 ||
+			snapshot.totalCacheReadTokens !== 0 ||
+			snapshot.totalOutputTokens !== 0)
+	) {
+		throw new Error("zero-cost failed run reported nonzero tokens")
+	}
+	return snapshot
 }
 
 function sameUsage(left: UsageSnapshot, right: UsageSnapshot): boolean {

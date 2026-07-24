@@ -290,6 +290,16 @@ describe("Cline benchmark lock and budget ledger", () => {
 				exposureUsd: 39,
 			}),
 		).toThrow("campaign lacks room")
+
+		let noSpend = createBudgetLedger(5)
+		noSpend = reserveBudget(noSpend, {
+			runKey: "no-spend",
+			model: "cline/auto",
+			wave: 1,
+			exposureUsd: 1,
+		})
+		noSpend = settleBudget(noSpend, "no-spend", 0)
+		expect(ledgerExposure(noSpend)).toBe(0)
 	})
 })
 
@@ -345,6 +355,41 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 					ts: "2026-01-01T00:00:02Z",
 					type: "run_result",
 					aggregateUsage: { inputTokens: 10, cacheReadTokens: 5, totalCost: 1 },
+				}),
+			]),
+		).toThrow("malformed usage record")
+		expect(
+			recoverLatestUsage([
+				JSON.stringify({
+					ts: "2026-01-01T00:00:04Z",
+					type: "run_result",
+					finishReason: "error",
+					aggregateUsage: {
+						inputTokens: 0,
+						cacheReadTokens: 0,
+						outputTokens: 0,
+						totalCost: 0,
+					},
+				}),
+			]),
+		).toMatchObject({
+			totalCost: 0,
+			totalInputTokens: 0,
+			totalCacheReadTokens: 0,
+			totalOutputTokens: 0,
+		})
+		expect(() =>
+			recoverLatestUsage([
+				JSON.stringify({
+					ts: "2026-01-01T00:00:05Z",
+					type: "run_result",
+					finishReason: "error",
+					aggregateUsage: {
+						inputTokens: 1,
+						cacheReadTokens: 0,
+						outputTokens: 0,
+						totalCost: 0,
+					},
 				}),
 			]),
 		).toThrow("malformed usage record")
