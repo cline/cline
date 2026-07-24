@@ -3726,6 +3726,41 @@ describe("sdk-gateway", () => {
 		expect(geminiEvents[0]).toEqual({ type: "text-delta", text: "Gemini" });
 	});
 
+	it("adds a user turn after assistant history for Gemini models without prefilling", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 6, outputTokens: 2 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-3.5-flash-lite",
+				messages: [
+					...baseMessages,
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [{ type: "text", text: "Working on it." }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			messages: Array<{ role: string; content: unknown }>;
+		};
+		expect(call.messages.at(-1)).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "Continue." }],
+		});
+	});
+
 	it("normalizes models.dev catalogs into ModelInfo", () => {
 		const result = normalizeModelsDevProviderModels({
 			openai: {

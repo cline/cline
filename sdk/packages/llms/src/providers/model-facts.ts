@@ -146,6 +146,22 @@ export function isGeminiFlashModel(input: {
 	);
 }
 
+export function requiresGeminiContinuationTurn(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	if (
+		input.context.provider.id !== "gemini" &&
+		input.context.provider.id !== "vertex"
+	) {
+		return false;
+	}
+
+	return /(^|[/\s])gemini-(?:3\.5-flash-lite|3\.6-flash)(?:[-\s]|$)/.test(
+		geminiModelDescriptor(input),
+	);
+}
+
 export function supportsGeminiThinking(input: {
 	request: Pick<GatewayStreamRequest, "modelId">;
 	context: GatewayProviderContext;
