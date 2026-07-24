@@ -22,7 +22,24 @@ The startup update script already runs `bun install` and `bun run build:sdk`, an
 - Known cloud-env test artifact: `@cline/core` test `src/services/workspace/workspace-manifest.test.ts > readGitWorkspaceState > prefers origin and returns the current branch` fails because cloud VMs configure git `insteadOf` rules that rewrite GitHub remotes to `https://x-access-token:...@github.com/...`. This is an environment artifact, not a code bug.
 - Some `@cline/cli` e2e assertions (`bun -F @cline/cli test:e2e`) may fail on exact tool-listing string formats; treat as pre-existing test drift, not an environment problem.
 
-### Optional heavier products (not set up here)
-- VS Code extension (`apps/vscode`): needs `bun run protos` (gRPC/protobuf codegen) and, for its Playwright/vscode-test e2e, GUI system libs + `xvfb` (see `CONTRIBUTING.md`).
-- Tauri desktop/menubar (`apps/examples/desktop-app`, `apps/examples/menubar`): require Rust/Cargo.
-- Docs (`docs/`): Mintlify (`npm`/`mintlify dev`).
+### GUI display
+- A virtual X display is live at **`DISPLAY=:1`** (the same desktop used for screenshots). GUI apps (VS Code, the Tauri desktop window) launched with `DISPLAY=:1` render there and can be screenshotted — no need to start your own `xvfb`. Prefer starting long-running GUI/dev processes in a `tmux` session (see the tmux guidance) so they survive.
+
+### VS Code extension (`apps/vscode`, package `claude-dev`)
+Toolchain is pre-installed and persisted in the VM: generated gRPC/proto code, the bundled `ripgrep` binaries (`apps/vscode/bin/`), the built webview (`webview-ui/build`), the esbuild bundle (`dist/extension.js`), VS Code itself (`/usr/bin/code`), and the GUI system libraries its tests need.
+- **Codegen prerequisite:** `bun run protos` (from `apps/vscode`) regenerates `src/generated/*` and the webview grpc client. The `dev`, `build:webview`, and `check-types` scripts already run it, so proto changes are picked up by those commands; run it manually only if you edit `.proto` files without a full build.
+- **Build:** `bun run build:webview` (webview UI, ~15s) then `bun esbuild.mjs` (extension bundle). `bun run package` does the full production build.
+- **Run it (dev host):** `DISPLAY=:1 code --no-sandbox --user-data-dir=/tmp/vscode-userdata --extensionDevelopmentPath=/workspace/apps/vscode <some-folder>`, then click the Cline icon in the Activity Bar to open the webview. (`--no-sandbox` is required in this container.)
+- **Test:** `bun run test:unit` (bun-based, ~984 tests, no VS Code host needed). `bun run test:integration` (`@vscode/test-electron`, downloads a VS Code build, runs under the GUI libs) and `bun run test:e2e` (Playwright) exercise a real extension host — heavier, and the GUI libs for them are already installed.
+- One-time deps (already installed, listed here in case they must be recreated): ripgrep via `bun run download-ripgrep`; VS Code test GUI libs per `CONTRIBUTING.md` (`libnss3`, `libatk*`, `libgbm1`, `xvfb`, etc.).
+
+### Desktop app (`apps/examples/desktop-app`, package `@cline/code`)
+A Tauri v2 (Rust) shell + Next.js webview + a Bun "sidecar" backend. Rust and the Tauri Linux system libs are pre-installed and persisted.
+- **Headless (no Rust/window):** run the backend and UI separately — `bun run dev:sidecar` (Bun backend on `127.0.0.1:3126`, serves `ws://.../transport`) and `bun run dev:web` (Next.js UI on `http://localhost:3125`). This is the easiest way to develop/test the UI; open `:3125` in a browser.
+- **Native window:** `bun run dev` (`tauri dev`) — its `beforeDevCommand` builds the sidecar binary and starts `dev:web` (`:3125`), then Rust `main.rs` spawns the sidecar; so free ports `3125`/`3126` first. Launch with `DISPLAY=:1` to see the window. A `libEGL: DRI3 error` warning is benign (software rendering) — the WebKitGTK window still renders.
+- **Rust version caveat:** the crate graph needs Cargo's `edition2024` feature, so **Rust ≥1.85** is required (the VM's base 1.83 fails with "feature `edition2024` is required"). The toolchain here was updated via `rustup default stable` (currently 1.97). First `cargo` build downloads/compiles the full Tauri crate graph (a few minutes); subsequent builds are cached.
+- **System libs (already installed):** `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libxdo-dev`, `libssl-dev`, `build-essential`.
+- **Test/typecheck:** `bun run typecheck`, `bun run test:chat-ui` (Vitest). Both trigger `build:ui` first.
+
+### Not set up
+- JetBrains plugin and Kanban board (separate repos). Menubar Tauri app (`apps/examples/menubar`) — same Rust/WebKitGTK toolchain as the desktop app if needed. Docs (`docs/`): Mintlify via `npm`.
