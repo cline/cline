@@ -73,6 +73,7 @@ function coreConfigFromLocalRuntime(
 		userInstructionService: _userInstructionService,
 		configExtensions: _configExtensions,
 		onTeamRestored: _onTeamRestored,
+		pluginRuntime: _pluginRuntime,
 		...localConfig
 	} = localRuntime;
 	return localConfig;

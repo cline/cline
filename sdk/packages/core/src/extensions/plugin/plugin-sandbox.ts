@@ -15,6 +15,7 @@ import type {
 	WorkspaceInfo,
 } from "@cline/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
+import { CLINE_PLUGIN_RUNTIME_DIR_ENV } from "./plugin-module-import";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
 
@@ -53,6 +54,10 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	user?: SandboxedPluginSetupContext["user"];
 	/** Enables a logger bridge that forwards sandbox log calls to the host. */
 	logger?: SandboxedPluginSetupContext["logger"];
+	/** Runtime executable used for the isolated plugin process. */
+	runtimeExecutable?: string;
+	/** Child-only environment overrides. `undefined` removes an inherited key. */
+	env?: Record<string, string | undefined>;
 }
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -171,6 +176,33 @@ function resolveBootstrapFromExecutable(): string | undefined {
 	return existsSync(candidate) ? candidate : undefined;
 }
 
+function resolveBootstrapFromPluginRuntime(): string | undefined {
+	const runtimeDir = process.env[CLINE_PLUGIN_RUNTIME_DIR_ENV]?.trim();
+	if (!runtimeDir) return undefined;
+	const candidate = join(
+		runtimeDir,
+		"core",
+		"src",
+		"extensions",
+		"plugin",
+		"plugin-sandbox-bootstrap.js",
+	);
+	return existsSync(candidate) ? candidate : undefined;
+}
+
+function resolveBootstrapBesideHostBundle(): string | undefined {
+	const candidate = join(
+		dirname(fileURLToPath(import.meta.url)),
+		"plugin-runtime",
+		"core",
+		"src",
+		"extensions",
+		"plugin",
+		"plugin-sandbox-bootstrap.js",
+	);
+	return existsSync(candidate) ? candidate : undefined;
+}
+
 /**
  * Resolve the bootstrap for the sandbox subprocess.
  *
@@ -187,9 +219,11 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
 	const candidates = [
+		resolveBootstrapFromPluginRuntime(),
 		join(dir, "plugin-sandbox-bootstrap.js"),
 		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
+		resolveBootstrapBesideHostBundle(),
 		resolveBootstrapFromWrapper(),
 		resolveBootstrapFromExecutable(),
 	];
@@ -254,6 +288,8 @@ export async function loadSandboxedPlugins(
 > {
 	const sandbox = new SubprocessSandbox({
 		name: "plugin-sandbox",
+		runtimeExecutable: options.runtimeExecutable,
+		env: options.env,
 		...("file" in BOOTSTRAP
 			? { bootstrapFile: BOOTSTRAP.file }
 			: { bootstrapScript: BOOTSTRAP.script }),

@@ -33,6 +33,8 @@ export interface SubprocessSandboxOptions {
 	bootstrapFile?: string;
 	/** Runtime executable for internal JavaScript helpers. Defaults to node/bun instead of packaged CLI binaries. */
 	runtimeExecutable?: string;
+	/** Environment overrides applied only to the child process. `undefined` removes a key. */
+	env?: Record<string, string | undefined>;
 	name?: string;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 }
@@ -125,6 +127,21 @@ export function buildSubprocessSandboxCommand(
 	});
 }
 
+export function buildSubprocessSandboxEnv(
+	base: NodeJS.ProcessEnv,
+	overrides: Record<string, string | undefined> = {},
+): NodeJS.ProcessEnv {
+	const env = { ...base };
+	for (const [key, value] of Object.entries(overrides)) {
+		if (value === undefined) {
+			delete env[key];
+		} else {
+			env[key] = value;
+		}
+	}
+	return withResolvedClineBuildEnv(env);
+}
+
 export class SubprocessSandbox {
 	private readonly options: SubprocessSandboxOptions;
 	private process: ChildProcess | null = null;
@@ -169,7 +186,7 @@ export class SubprocessSandbox {
 			command.slice(1),
 			{
 				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
+				env: buildSubprocessSandboxEnv(process.env, this.options.env),
 				// Prevent a console window from flashing on Windows.
 				windowsHide: true,
 			},

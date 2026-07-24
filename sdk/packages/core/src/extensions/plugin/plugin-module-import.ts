@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
-import { dirname, extname, isAbsolute, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_FILE_EXTENSIONS } from "@cline/shared";
 
@@ -10,6 +10,7 @@ const HOST_REQUIRE = createRequire(import.meta.url);
 // walking up five levels lands at the repo root.
 const WORKSPACE_ROOT = resolve(MODULE_DIR, "..", "..", "..", "..", "..");
 const WORKSPACE_ALIASES = collectWorkspaceAliases(WORKSPACE_ROOT);
+export const CLINE_PLUGIN_RUNTIME_DIR_ENV = "CLINE_PLUGIN_RUNTIME_DIR";
 const HOST_PROVIDED_SDK_SPECIFIERS = [
 	"@cline/sdk",
 	"@cline/agents",
@@ -26,6 +27,40 @@ const HOST_PROVIDED_SDK_SPECIFIERS = [
 	"@cline/shared/db",
 	"@cline/shared/types",
 ];
+
+function collectPackagedRuntimeAliases(): Record<string, string> {
+	const runtimeDir = process.env[CLINE_PLUGIN_RUNTIME_DIR_ENV]?.trim();
+	if (!runtimeDir) return {};
+	const root = resolve(runtimeDir);
+	const manifestPath = resolve(root, "aliases.json");
+	try {
+		const parsed = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+		const aliases: Record<string, string> = {};
+		for (const [specifier, target] of Object.entries(parsed)) {
+			if (
+				!HOST_PROVIDED_SDK_SPECIFIERS.includes(specifier) ||
+				typeof target !== "string"
+			) {
+				continue;
+			}
+			const resolvedTarget = resolve(root, target);
+			const pathFromRoot = relative(root, resolvedTarget);
+			if (
+				pathFromRoot.startsWith("..") ||
+				isAbsolute(pathFromRoot) ||
+				!existsSync(resolvedTarget)
+			) {
+				continue;
+			}
+			aliases[specifier] = resolvedTarget;
+		}
+		return aliases;
+	} catch {
+		return {};
+	}
+}
+
 const BUILTIN_MODULES = new Set(
 	builtinModules.flatMap((id) => [id, id.replace(/^node:/, "")]),
 );
@@ -512,6 +547,11 @@ function collectPluginImportAliases(
 ): Record<string, string> {
 	const pluginRequire = createRequire(pluginPath);
 	const aliases: Record<string, string> = {};
+	for (const [specifier, target] of Object.entries(collectPackagedRuntimeAliases())) {
+		if (!hasInstalledDependency(pluginPath, specifier)) {
+			aliases[specifier] = target;
+		}
+	}
 	const staticSpecifiers = collectPluginStaticModuleSpecifiers(pluginPath);
 	const hostRuntimeSpecifiers = new Set(HOST_PROVIDED_SDK_SPECIFIERS);
 	for (const [specifier, sourcePath] of Object.entries(WORKSPACE_ALIASES)) {
@@ -598,7 +638,14 @@ function loadJitiBabelTransform(): JitiTransform | null {
 	// <wrapper>/node_modules/jiti/dist/babel.cjs, so locate it on disk via
 	// our host-package resolver and createRequire from an actual on-disk
 	// path. Returning null falls back to jiti's own loader (works in dev).
-	const jitiRoot = findHostPackageRoot("jiti");
+	const pluginRuntimeDir = process.env[CLINE_PLUGIN_RUNTIME_DIR_ENV]?.trim();
+	const packagedJitiRoot = pluginRuntimeDir
+		? resolve(pluginRuntimeDir, "vendor", "jiti")
+		: undefined;
+	const jitiRoot =
+		packagedJitiRoot && existsSync(resolve(packagedJitiRoot, "dist", "babel.cjs"))
+			? packagedJitiRoot
+			: findHostPackageRoot("jiti");
 	if (!jitiRoot) {
 		cachedJitiTransform = null;
 		return null;
@@ -668,7 +715,10 @@ export async function importPluginModule(
 		requireCache: options.useCache,
 		esmResolve: true,
 		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
+		nativeModules: [
+			...BUILTIN_MODULES,
+			...new Set(HOST_PROVIDED_SDK_SPECIFIERS.map(getPackageName)),
+		],
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns

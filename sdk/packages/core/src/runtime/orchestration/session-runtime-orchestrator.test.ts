@@ -260,6 +260,80 @@ describe("SessionRuntime construction", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.getExtensionRegistry", () => {
+	it("lists and executes commands from one initialized registry", async () => {
+		const setup = vi.fn();
+		const handler = vi.fn(async (input: string) => ({
+			reply: `reply:${input}`,
+			submitPrompt: `prompt:${input}`,
+		}));
+		const extension: AgentExtension = {
+			name: "command-ext",
+			manifest: { capabilities: ["commands"] },
+			setup(api) {
+				setup();
+				api.registerCommand({
+					name: " /Goal ",
+					description: "Set a goal",
+					handler,
+				});
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			withFakeRuntime().deps,
+		);
+
+		const [left, right] = await Promise.all([
+			session.listExtensionCommands(),
+			session.listExtensionCommands(),
+		]);
+
+		expect(setup).toHaveBeenCalledOnce();
+		expect(left).toEqual([{ name: "goal", description: "Set a goal" }]);
+		expect(right).toEqual(left);
+		expect(await session.executeExtensionCommand("GOAL", "ship it")).toEqual({
+			handled: true,
+			reply: "reply:ship it",
+			submitPrompt: "prompt:ship it",
+		});
+		expect(handler).toHaveBeenCalledWith("ship it");
+		expect(setup).toHaveBeenCalledOnce();
+	});
+
+	it("distinguishes reply-only, prompt-only, empty, and unknown command results", async () => {
+		const extension: AgentExtension = {
+			name: "command-results",
+			manifest: { capabilities: ["commands"] },
+			setup(api) {
+				api.registerCommand({ name: "reply", handler: () => " hello " });
+				api.registerCommand({
+					name: "prompt",
+					handler: () => ({ submitPrompt: " continue " }),
+				});
+				api.registerCommand({ name: "empty", handler: () => "   " });
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			withFakeRuntime().deps,
+		);
+
+		expect(await session.executeExtensionCommand("reply", "")).toEqual({
+			handled: true,
+			reply: "hello",
+		});
+		expect(await session.executeExtensionCommand("prompt", "")).toEqual({
+			handled: true,
+			submitPrompt: "continue",
+		});
+		expect(await session.executeExtensionCommand("empty", "")).toEqual({
+			handled: true,
+		});
+		expect(await session.executeExtensionCommand("missing", "")).toEqual({
+			handled: false,
+		});
+	});
+
 	it("returns tools/commands registered by extension setup() after the first run", async () => {
 		const extTool: AgentTool = {
 			name: "ext-echo",
