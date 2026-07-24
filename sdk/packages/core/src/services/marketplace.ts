@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
+import { resolveShellFreeInvocation } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import { updateMcpSettingsFileSync } from "../extensions/mcp";
 import { parseMcpInstallArgs } from "./mcp-install";
@@ -132,12 +133,24 @@ const defaultMarketplaceSpawnCommand: MarketplaceSpawnCommand = async (
 	new Promise<MarketplaceSpawnResult>((resolve, reject) => {
 		let settled = false;
 		let timedOut = false;
-		const child = spawn(command, args, {
-			env: process.env,
-			shell: platform() === "win32",
-			stdio: ["ignore", "pipe", "pipe"],
-			windowsHide: true,
-		});
+		// Prefer a shell-free invocation so catalog arguments (e.g. an npm semver
+		// range like `mongodb-mcp-server@<3`) reach the child as literal argv
+		// rather than being reinterpreted by cmd.exe. `npx` always resolves this
+		// way on a real Node install; fall back to a shell only when Windows
+		// exposes the command exclusively as a `.cmd`/`.bat` shim (e.g. a global
+		// `cline.cmd`), which spawn() cannot execute directly.
+		const invocation = resolveShellFreeInvocation(command, args);
+		const useShellFallback = platform() === "win32" && !invocation;
+		const child = spawn(
+			invocation?.command ?? command,
+			invocation?.args ?? args,
+			{
+				env: process.env,
+				shell: useShellFallback,
+				stdio: ["ignore", "pipe", "pipe"],
+				windowsHide: true,
+			},
+		);
 		let stdout = "";
 		let stderr = "";
 		const forceKillTimeout = setTimeout(() => {

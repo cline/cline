@@ -46,6 +46,7 @@ export default defineConfig({
 			// Vite's fallback Node resolution does not read the package `exports` map
 			// here, so subpath imports fail with "Cannot find package". Keep the more
 			// specific subpath alias(es) before the bare package alias.
+			"@cline/shared/node": path.resolve(__dirname, "node_modules/@cline/shared/dist/node.js"),
 			"@cline/shared/storage": path.resolve(__dirname, "node_modules/@cline/shared/dist/storage/index.js"),
 			"@cline/shared": path.resolve(__dirname, "node_modules/@cline/shared/dist/index.js"),
 			vscode: path.resolve(__dirname, "src/test/vscode-vitest-stub.ts"),
