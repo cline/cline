@@ -70,10 +70,12 @@ and is graded by the task's deterministic verifier.
   amount. A provider-side/prepaid account limit is the **only true dollar hard
   stop**. The wall timeout is the active-run bound.
 - Optional `--local-core-url http://localhost:7777` is deliberately narrow. It
+  applies only to the virtual `cline/auto` and `cline-pass/auto` arms,
   normalizes to `host.docker.internal:7777`, forwards only
   `CLINE_API_BASE_URL`, and adds only that hostname to Harbor's environment and
-  agent-phase allowlists. Arbitrary URLs and environment passthrough are
-  rejected.
+  agent-phase allowlists. Fixed-model comparators continue to call Cline
+  directly so provider-reported usage and cost remain authoritative. Arbitrary
+  URLs and environment passthrough are rejected.
 - Virtual-model reports retain `requestedModel`, hashed benchmark task/session
   identifiers, and privacy-safe route evidence. Fixed-model results remain
   backward compatible.

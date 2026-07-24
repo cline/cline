@@ -1086,6 +1086,11 @@ export function localCoreHarborArguments(localCoreUrl?: string): string[] {
 	]
 }
 
+export function modelTransportHarborArguments(modelId: string, localCoreUrl?: string): string[] {
+	const usesLocalRouter = modelId === "cline/auto" || modelId === "cline-pass/auto"
+	return usesLocalRouter ? localCoreHarborArguments(localCoreUrl) : []
+}
+
 async function runHarborProcess(args: string[], config: PilotConfig): Promise<HarborProcessResult> {
 	const child = spawn("harbor", args, {
 		cwd: clineBenchDir,
@@ -1213,7 +1218,7 @@ async function runOne(
 		"--yes",
 	]
 	args.push(...verifierHarborArguments())
-	args.push(...localCoreHarborArguments(localCoreUrl))
+	args.push(...modelTransportHarborArguments(model.id, localCoreUrl))
 
 	console.log(`\n[${runNumber}] ${model.id} × ${task}`)
 	const started = Date.now()

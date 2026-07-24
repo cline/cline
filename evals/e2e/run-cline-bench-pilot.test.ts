@@ -25,6 +25,7 @@ import {
 	hashDirectoryTree,
 	localCoreHarborArguments,
 	matchRouteTraces,
+	modelTransportHarborArguments,
 	type PilotConfig,
 	type PilotReport,
 	prepareTaskPath,
@@ -588,6 +589,15 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 			"--allow-environment-host",
 			"host.docker.internal",
 		])
+		expect(modelTransportHarborArguments("cline/auto", "http://localhost:7777")).toEqual(
+			localCoreHarborArguments("http://localhost:7777"),
+		)
+		expect(modelTransportHarborArguments("cline-pass/auto", "http://localhost:17777")).toEqual(
+			localCoreHarborArguments("http://localhost:17777"),
+		)
+		expect(modelTransportHarborArguments("moonshotai/kimi-k3", "http://localhost:7777")).toEqual([])
+		expect(modelTransportHarborArguments("z-ai/glm-5.2", "http://localhost:7777")).toEqual([])
+		expect(modelTransportHarborArguments("openai/gpt-5.4", "http://localhost:7777")).toEqual([])
 		expect(() => normalizeLocalCoreUrl("https://localhost:7777")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://localhost:7778")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://localhost:17778")).toThrow("only accepts")
