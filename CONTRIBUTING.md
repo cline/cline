@@ -107,9 +107,29 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
       bash scripts/run-extension-host.sh
     ```
 
+    The launcher builds the extension, opens an isolated VS Code profile, and
+    starts all three watchers. It uses a four-pane `tmux` session when `tmux` is
+    installed and automatically falls back to the current terminal with private
+    watcher logs when it is not. Close the Extension Development Host window or
+    press Ctrl+C in the launcher to stop only the processes and temporary
+    profile created by that run.
+
+    Before the demo, validate the local settings without building, launching VS
+    Code, or contacting the API:
+
+    ```bash
+    CLINE_ENVIRONMENT=local \
+      CLINE_LOCAL_API_BASE_URL=http://localhost:17777 \
+      CLINE_AUTO_MODEL_PICKER_ENABLED=true \
+      CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true \
+      bash scripts/run-extension-host.sh --check
+    ```
+
     Select the **Cline** provider in the launched Extension Development Host.
     The loopback-only override targets the isolated Core launcher on port
-    `17777`; omit it to use the standard local Core port `7777`.
+    `17777`; omit it to use the standard local Core port `7777`. The auto-router
+    options only become usable after that Core API is healthy and the Cline
+    account is signed in; merely opening the picker does not make a model call.
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
