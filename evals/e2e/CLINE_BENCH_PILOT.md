@@ -27,8 +27,12 @@ environment and is graded by the task's deterministic verifier.
   its matching Cline CLI provider.
 - Config, model, and pricing objects reject unknown fields, so accidentally
   adding a credential cannot copy it into the retained report.
-- Reused job roots carry a provider/model/task/CLI fingerprint, and every reused
-  result revalidates task, CLI version, served provider, and served model.
+- Reused job roots carry a content-addressed execution fingerprint covering the
+  provider/model/task/CLI matrix, the exact `cline-bench` submodule commit, and
+  SHA-256 hashes of the effective task trees Harbor receives (including the
+  private Telegram verifier overlay). Completed reused results also revalidate
+  task, CLI version, served provider, and served model. Reports from before these
+  corpus hashes existed fail closed and require a new jobs root.
 - The private jobs-root boundary is canonicalized through symlinks. If Harbor's
   outer process times out or exits abnormally, the runner removes only Docker
   containers whose trial IDs belong to that job and recovers usage when
@@ -81,3 +85,5 @@ Use `--stop-after N` to end cleanly after a matrix position; rerunning with the
 same `--jobs-root` reuses verified completed work.
 Use `--only-run N` to execute one missing matrix position while still loading
 completed prior costs into the budget ledger.
+If the `cline-bench` commit, a selected task, or its effective verifier overlay
+changes, the runner rejects that jobs root instead of reusing stale results.

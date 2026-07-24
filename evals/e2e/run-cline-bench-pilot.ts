@@ -21,10 +21,13 @@ import {
 	chmodSync,
 	cpSync,
 	existsSync,
+	lstatSync,
 	mkdirSync,
-	realpathSync,
 	readdirSync,
 	readFileSync,
+	readlinkSync,
+	realpathSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs"
 import { homedir, tmpdir } from "node:os"
@@ -42,7 +45,7 @@ type ModelConfig = {
 	}
 }
 
-type PilotConfig = {
+export type PilotConfig = {
 	routerProfile: "cline-router" | "cline-pass-router"
 	provider: string
 	globalBudgetUsd: number
@@ -51,6 +54,15 @@ type PilotConfig = {
 	clineVersion: string
 	models: ModelConfig[]
 	tasks: string[]
+}
+
+export type ExecutionProvenance = {
+	schemaVersion: 2
+	clineBenchCommit: string
+	tasks: Array<{
+		id: string
+		effectiveContentSha256: string
+	}>
 }
 
 type RunResult = {
@@ -78,6 +90,7 @@ type PilotReport = {
 	mode: "dry-run" | "execute"
 	config: PilotConfig
 	executionFingerprint: string
+	executionProvenance: ExecutionProvenance
 	jobsRoot: string
 	results: RunResult[]
 	stoppedReason?: string
@@ -309,16 +322,107 @@ function createPrivateJobsRoot(requested?: string): string {
 	return canonicalBase
 }
 
-function executionFingerprint(config: PilotConfig): string {
+function appendHashField(hash: ReturnType<typeof createHash>, value: string | Uint8Array) {
+	hash.update(String(typeof value === "string" ? Buffer.byteLength(value) : value.byteLength))
+	hash.update(":")
+	hash.update(value)
+}
+
+// Hash the exact directory tree Harbor receives. Relative names, entry types,
+// executable bits, symlink targets, and file bytes are framed separately so
+// renames and concatenation ambiguities cannot collide accidentally.
+export function hashDirectoryTree(root: string): string {
+	if (!existsSync(root) || !lstatSync(root).isDirectory()) {
+		fail(`cannot fingerprint missing task directory: ${root}`)
+	}
+	const hash = createHash("sha256")
+
+	function visit(directory: string, relativeDirectory: string) {
+		const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) =>
+			left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+		)
+		for (const entry of entries) {
+			const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
+			const absolutePath = join(directory, entry.name)
+			if (entry.isDirectory()) {
+				appendHashField(hash, "directory")
+				appendHashField(hash, relativePath)
+				visit(absolutePath, relativePath)
+			} else if (entry.isFile()) {
+				const content = readFileSync(absolutePath)
+				appendHashField(hash, "file")
+				appendHashField(hash, relativePath)
+				appendHashField(hash, String(lstatSync(absolutePath).mode & 0o111))
+				appendHashField(hash, content)
+			} else if (entry.isSymbolicLink()) {
+				appendHashField(hash, "symlink")
+				appendHashField(hash, relativePath)
+				appendHashField(hash, readlinkSync(absolutePath))
+			} else {
+				fail(`cannot fingerprint unsupported task entry: ${absolutePath}`)
+			}
+		}
+	}
+
+	visit(root, "")
+	return hash.digest("hex")
+}
+
+export function fingerprintExecution(config: PilotConfig, provenance: ExecutionProvenance): string {
 	const executionConfig = {
+		fingerprintSchemaVersion: provenance.schemaVersion,
 		routerProfile: config.routerProfile,
 		provider: config.provider,
 		timeoutSeconds: config.timeoutSeconds,
 		clineVersion: config.clineVersion,
 		models: config.models.map((model) => model.id),
 		tasks: config.tasks,
+		clineBenchCommit: provenance.clineBenchCommit,
+		effectiveTasks: provenance.tasks,
 	}
 	return createHash("sha256").update(JSON.stringify(executionConfig)).digest("hex")
+}
+
+export function assertReusableFingerprint(existing: Partial<PilotReport>, expectedFingerprint: string) {
+	if (!existing.executionFingerprint) {
+		fail("jobs-root report predates content-addressed task fingerprints; use a new jobs-root")
+	}
+	if (existing.executionFingerprint !== expectedFingerprint) {
+		fail("jobs-root belongs to a different execution matrix, cline-bench commit, or effective task corpus")
+	}
+}
+
+function readClineBenchCommit(): string {
+	const result = spawnSync("git", ["-C", clineBenchDir, "rev-parse", "--verify", "HEAD^{commit}"], {
+		encoding: "utf8",
+		env: infrastructureEnvironment(),
+	})
+	const commit = (result.stdout || "").trim()
+	if (result.status !== 0 || !/^[0-9a-f]{40,64}$/.test(commit)) {
+		fail(
+			`could not resolve exact cline-bench submodule commit: ${(result.stderr || "").trim() || "unknown error"}`,
+		)
+	}
+	return commit
+}
+
+function executionIdentity(config: PilotConfig, jobsRoot: string) {
+	const provenance: ExecutionProvenance = {
+		schemaVersion: 2,
+		clineBenchCommit: readClineBenchCommit(),
+		tasks: config.tasks.map((task) => {
+			const taskPath = prepareTaskPath(task, jobsRoot)
+			const effectivePath = isAbsolute(taskPath) ? taskPath : join(clineBenchDir, taskPath)
+			return {
+				id: task,
+				effectiveContentSha256: hashDirectoryTree(effectivePath),
+			}
+		}),
+	}
+	return {
+		fingerprint: fingerprintExecution(config, provenance),
+		provenance,
+	}
 }
 
 function safeEnvironment(provider: string): NodeJS.ProcessEnv {
@@ -614,19 +718,21 @@ export function prepareTaskPath(task: string, jobsRoot: string): string {
 	}
 	const source = join(clineBenchDir, "tasks", task)
 	const overlay = join(jobsRoot, "task-overlays", task)
-	if (!existsSync(overlay)) {
-		mkdirSync(dirname(overlay), { recursive: true, mode: 0o700 })
-		cpSync(source, overlay, { recursive: true })
-		const verifier = join(overlay, "tests", "test.sh")
-		const original = readFileSync(verifier, "utf8")
-		if (!original.includes('export PATH="/root/.local/bin:$PATH"')) {
-			const patched = original.replace(
-				"#!/bin/bash\n",
-				'#!/bin/bash\n\nexport PATH="/root/.local/bin:$PATH"\n',
-			)
-			if (patched === original) fail(`could not patch Telegram verifier: ${verifier}`)
-			writeFileSync(verifier, patched, { mode: 0o755 })
-		}
+	// Refresh this generated-only directory before fingerprinting or execution.
+	// Otherwise an old jobs root could retain a verifier copied from an earlier
+	// submodule checkout even when the source task changed.
+	rmSync(overlay, { recursive: true, force: true })
+	mkdirSync(dirname(overlay), { recursive: true, mode: 0o700 })
+	cpSync(source, overlay, { recursive: true })
+	const verifier = join(overlay, "tests", "test.sh")
+	const original = readFileSync(verifier, "utf8")
+	if (!original.includes('export PATH="/root/.local/bin:$PATH"')) {
+		const patched = original.replace(
+			"#!/bin/bash\n",
+			'#!/bin/bash\n\nexport PATH="/root/.local/bin:$PATH"\n',
+		)
+		if (patched === original) fail(`could not patch Telegram verifier: ${verifier}`)
+		writeFileSync(verifier, patched, { mode: 0o755 })
 	}
 	return overlay
 }
@@ -768,15 +874,19 @@ function main() {
 	}
 
 	const jobsRoot = createPrivateJobsRoot(args.jobsRoot)
-	const fingerprint = executionFingerprint(config)
+	const identity = executionIdentity(config, jobsRoot)
+	const fingerprint = identity.fingerprint
 	const existingReportPath = join(jobsRoot, "pilot-report.json")
 	if (existsSync(existingReportPath)) {
 		const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as Partial<PilotReport>
-		const existingFingerprint =
-			existing.executionFingerprint ||
-			(existing.config ? executionFingerprint(existing.config) : undefined)
-		if (existingFingerprint !== fingerprint) {
-			fail("jobs-root belongs to a different provider/model/task/CLI execution matrix")
+		assertReusableFingerprint(existing, fingerprint)
+	} else {
+		const hasUnboundResult = buildRunMatrix(config).some((run, index) => {
+			const jobName = `${String(index + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
+			return existsSync(join(jobsRoot, jobName, "result.json"))
+		})
+		if (hasUnboundResult) {
+			fail("jobs-root contains result artifacts without a content-addressed pilot report; use a new jobs-root")
 		}
 	}
 	const report: PilotReport = {
@@ -784,9 +894,14 @@ function main() {
 		mode: "execute",
 		config,
 		executionFingerprint: fingerprint,
+		executionProvenance: identity.provenance,
 		jobsRoot,
 		results: [],
 	}
+	// Bind the jobs root to this exact corpus before Harbor can create result
+	// artifacts. A crash during the first run must not leave reusable,
+	// provenance-free output behind.
+	writeReport(report)
 	const modelSpend = new Map(config.models.map((model) => [model.id, 0]))
 	let globalSpend = 0
 
