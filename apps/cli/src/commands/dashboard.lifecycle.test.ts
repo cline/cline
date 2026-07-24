@@ -26,6 +26,7 @@ const { spawn, coreMocks, buildCliSubcommandCommand } = vi.hoisted(() => ({
 			ownerId: "hub-shared",
 			discoveryPath: "/tmp/hub.json",
 		})),
+		stopManagedHubDashboardProcess: vi.fn(async () => false),
 		writeHubDashboardDiscovery: vi.fn(async () => undefined),
 	},
 	buildCliSubcommandCommand: vi.fn(() => ({
@@ -71,6 +72,8 @@ describe("dashboard command lifecycle", () => {
 		);
 		coreMocks.readHubDashboardDiscovery.mockReset();
 		coreMocks.readHubDiscovery.mockReset();
+		coreMocks.stopManagedHubDashboardProcess.mockReset();
+		coreMocks.stopManagedHubDashboardProcess.mockResolvedValue(false);
 		coreMocks.writeHubDashboardDiscovery.mockClear();
 		vi.stubGlobal(
 			"fetch",
@@ -159,5 +162,34 @@ describe("dashboard command lifecycle", () => {
 			["serve"],
 			expect.any(Object),
 		);
+	});
+
+	it("does not spawn a replacement when the existing dashboard cannot stop", async () => {
+		const existingHub = {
+			url: "ws://127.0.0.1:25463/hub",
+			pid: 777,
+			startedAt: "2026-06-22T20:00:00.000Z",
+		};
+		coreMocks.readHubDiscovery
+			.mockResolvedValueOnce(existingHub)
+			.mockResolvedValueOnce(existingHub);
+		coreMocks.readHubDashboardDiscovery.mockResolvedValueOnce(undefined);
+		coreMocks.stopManagedHubDashboardProcess.mockRejectedValueOnce(
+			new Error("dashboard process did not stop"),
+		);
+		const errors: string[] = [];
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const exitCode = await runDashboardCommand({
+			io: {
+				writeln: () => {},
+				writeErr: (message) => errors.push(message),
+			},
+			openUrl: async () => {},
+		});
+
+		expect(exitCode).toBe(1);
+		expect(errors).toEqual(["dashboard process did not stop"]);
+		expect(spawn).not.toHaveBeenCalled();
 	});
 });

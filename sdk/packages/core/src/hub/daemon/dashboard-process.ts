@@ -11,6 +11,12 @@ const DASHBOARD_ARGS_ENV = "CLINE_HUB_DASHBOARD_ARGS";
 const DASHBOARD_STOP_TIMEOUT_MS = 3_000;
 const DASHBOARD_STOP_POLL_MS = 100;
 
+/**
+ * Set on a replacement hub daemon when the dashboard initiating the restart
+ * must remain alive and attached to the new daemon.
+ */
+export const CLINE_HUB_PRESERVE_DASHBOARD_ENV = "CLINE_HUB_PRESERVE_DASHBOARD";
+
 async function waitForPidToExit(pid: number): Promise<boolean> {
 	const deadline = Date.now() + DASHBOARD_STOP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
@@ -19,7 +25,7 @@ async function waitForPidToExit(pid: number): Promise<boolean> {
 		}
 		await new Promise((resolve) => setTimeout(resolve, DASHBOARD_STOP_POLL_MS));
 	}
-	return false;
+	return !isHubDashboardPidAlive(pid);
 }
 
 function parseDashboardArgs(env: NodeJS.ProcessEnv): string[] | undefined {
@@ -51,13 +57,21 @@ export async function stopManagedHubDashboardProcess(
 	}
 	try {
 		process.kill(discovered.pid, "SIGTERM");
-	} catch {
+	} catch (error) {
+		if (isHubDashboardPidAlive(discovered.pid)) {
+			throw error;
+		}
 		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
 		return false;
 	}
 	const stopped = await waitForPidToExit(discovered.pid);
+	if (!stopped) {
+		throw new Error(
+			`Timed out waiting for dashboard process ${discovered.pid} to stop.`,
+		);
+	}
 	await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
-	return stopped;
+	return true;
 }
 
 export async function restartManagedHubDashboardProcess(options: {
@@ -66,14 +80,15 @@ export async function restartManagedHubDashboardProcess(options: {
 	env?: NodeJS.ProcessEnv;
 }): Promise<void> {
 	const env = options.env ?? process.env;
+	if (env[CLINE_HUB_PRESERVE_DASHBOARD_ENV]?.trim() === "1") {
+		return;
+	}
 	const launcher = env[DASHBOARD_LAUNCHER_ENV]?.trim();
 	const args = parseDashboardArgs(env);
 	if (!launcher || !args) {
 		return;
 	}
-	await stopManagedHubDashboardProcess(options.discoveryPath).catch(
-		() => undefined,
-	);
+	await stopManagedHubDashboardProcess(options.discoveryPath);
 	const childEnv: NodeJS.ProcessEnv = {
 		...env,
 		CLINE_HUB_DASHBOARD_DISCOVERY_PATH: options.discoveryPath,

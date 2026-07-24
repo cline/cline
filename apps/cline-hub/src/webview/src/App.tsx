@@ -63,6 +63,7 @@ import type {
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
+import { sameHubUrl } from "./lib/hub-url";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -248,20 +249,6 @@ function replaceLegacyCustomizationRoute(): void {
 function currentPathWithSearch(): string {
 	if (typeof window === "undefined") return "/";
 	return `${window.location.pathname}${window.location.search}`;
-}
-
-function sameHubUrl(left: string, right: string): boolean {
-	try {
-		const leftUrl = new URL(left);
-		const rightUrl = new URL(right);
-		leftUrl.search = "";
-		leftUrl.hash = "";
-		rightUrl.search = "";
-		rightUrl.hash = "";
-		return leftUrl.toString() === rightUrl.toString();
-	} catch {
-		return left.trim() === right.trim();
-	}
 }
 
 function ViewLoading() {

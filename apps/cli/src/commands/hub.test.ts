@@ -128,8 +128,10 @@ describe("createHubCommand", () => {
 
 		expect(exitCode).toBe(0);
 		expect(mockStopLocalHubServerGracefully).toHaveBeenCalledWith({
-			ownerId: "hub-owner",
-			discoveryPath: "/tmp/cline-data/locks/hub/owners/hub-owner.json",
+			owner: {
+				ownerId: "hub-owner",
+				discoveryPath: "/tmp/cline-data/locks/hub/owners/hub-owner.json",
+			},
 		});
 		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
 	});

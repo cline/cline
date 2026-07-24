@@ -13,6 +13,7 @@ import {
 	readHubDiscovery,
 	resolveDefaultHubOwnerContext,
 	resolveHubDashboardDiscoveryPath,
+	stopManagedHubDashboardProcess,
 	writeHubDashboardDiscovery,
 } from "@cline/core";
 import open from "open";
@@ -58,8 +59,6 @@ const DASHBOARD_DISCOVERY_PATH_ENV = "CLINE_HUB_DASHBOARD_DISCOVERY_PATH";
 const DEFAULT_HOSTED_DASHBOARD_WEB_URL = "https://cline.bot/dashboard";
 const DASHBOARD_STARTUP_TIMEOUT_MS = 8_000;
 const DASHBOARD_STARTUP_POLL_MS = 200;
-const DASHBOARD_STOP_TIMEOUT_MS = 3_000;
-const DASHBOARD_STOP_POLL_MS = 100;
 const DASHBOARD_LAUNCHER_ENV = "CLINE_HUB_DASHBOARD_LAUNCHER";
 const DASHBOARD_ARGS_ENV = "CLINE_HUB_DASHBOARD_ARGS";
 
@@ -188,17 +187,6 @@ function resolveDashboardDiscoveryPath(): string {
 	);
 }
 
-async function waitForPidToExit(pid: number): Promise<boolean> {
-	const deadline = Date.now() + DASHBOARD_STOP_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		if (!isHubDashboardPidAlive(pid)) {
-			return true;
-		}
-		await new Promise((resolve) => setTimeout(resolve, DASHBOARD_STOP_POLL_MS));
-	}
-	return false;
-}
-
 async function isDashboardHealthy(
 	record: HubDashboardDiscoveryRecord,
 ): Promise<boolean> {
@@ -214,21 +202,7 @@ async function isDashboardHealthy(
 }
 
 async function stopDefaultDashboard(): Promise<boolean> {
-	const discoveryPath = resolveDashboardDiscoveryPath();
-	const discovered = await readHubDashboardDiscovery(discoveryPath);
-	if (!discovered?.pid) {
-		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
-		return false;
-	}
-	try {
-		process.kill(discovered.pid, "SIGTERM");
-	} catch {
-		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
-		return false;
-	}
-	const stopped = await waitForPidToExit(discovered.pid);
-	await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
-	return stopped;
+	return await stopManagedHubDashboardProcess(resolveDashboardDiscoveryPath());
 }
 
 function spawnDetachedDashboardServer(cwd: string): void {
@@ -307,7 +281,7 @@ async function ensureDefaultDashboard(
 		) {
 			return await waitForDashboardDiscovery(discoveryPath);
 		}
-		await stopDefaultDashboard().catch(() => undefined);
+		await stopDefaultDashboard();
 		spawnDetachedDashboardServer(cwd);
 		return await waitForDashboardDiscovery(discoveryPath);
 	});

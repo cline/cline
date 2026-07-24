@@ -10,7 +10,9 @@ const {
 	mockResolveHubEndpointOptions,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
+	mockRestartManagedHubDashboardProcess,
 	mockStartHubWebSocketServer,
+	mockStopManagedHubDashboardProcess,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
 		startSession: vi.fn(),
@@ -38,9 +40,14 @@ const {
 		ownerId: "shared",
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
+	mockRestartManagedHubDashboardProcess: vi.fn(async () => undefined),
 	mockStartHubWebSocketServer: vi.fn(async () => ({
 		close: vi.fn(async () => undefined),
+		shutdownRequested: new Promise<{ preserveDashboard: boolean }>(
+			() => undefined,
+		),
 	})),
+	mockStopManagedHubDashboardProcess: vi.fn(async () => true),
 }));
 
 const {
@@ -68,6 +75,11 @@ vi.mock("@cline/shared", () => ({
 vi.mock("../daemon/runtime-handlers", () => ({
 	createLocalHubScheduleRuntimeHandlers:
 		mockCreateLocalHubScheduleRuntimeHandlers,
+}));
+
+vi.mock("../daemon/dashboard-process", () => ({
+	restartManagedHubDashboardProcess: mockRestartManagedHubDashboardProcess,
+	stopManagedHubDashboardProcess: mockStopManagedHubDashboardProcess,
 }));
 
 vi.mock("../discovery/defaults", () => ({
@@ -105,7 +117,9 @@ describe("hub daemon entry", () => {
 		mockResolveHubEndpointOptions.mockClear();
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
+		mockRestartManagedHubDashboardProcess.mockClear();
 		mockStartHubWebSocketServer.mockClear();
+		mockStopManagedHubDashboardProcess.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
 		for (const dir of tempDirs.splice(0)) {
@@ -168,6 +182,56 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+	});
+
+	it("stops the managed dashboard after an HTTP shutdown request", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		const close = vi.fn(async () => undefined);
+		mockStartHubWebSocketServer.mockResolvedValueOnce({
+			close,
+			shutdownRequested: Promise.resolve({ preserveDashboard: false }),
+		} as never);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+
+		expect(mockStopManagedHubDashboardProcess).toHaveBeenCalledWith(
+			join("/tmp/cline-data/locks/hub", "dashboard.json"),
+		);
+		expect(close).toHaveBeenCalledOnce();
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+	});
+
+	it("preserves the managed dashboard for a dashboard-initiated hub restart", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		const close = vi.fn(async () => undefined);
+		mockStartHubWebSocketServer.mockResolvedValueOnce({
+			close,
+			shutdownRequested: Promise.resolve({ preserveDashboard: true }),
+		} as never);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+
+		expect(mockStopManagedHubDashboardProcess).not.toHaveBeenCalled();
+		expect(close).toHaveBeenCalledOnce();
 		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
 	});
 });

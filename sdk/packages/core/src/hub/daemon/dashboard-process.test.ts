@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { spawn, clearHubDashboardDiscovery, readHubDashboardDiscovery } =
-	vi.hoisted(() => ({
-		spawn: vi.fn(() => ({ unref: vi.fn() })),
-		clearHubDashboardDiscovery: vi.fn(async () => undefined),
-		readHubDashboardDiscovery: vi.fn(),
-	}));
+const {
+	spawn,
+	clearHubDashboardDiscovery,
+	isHubDashboardPidAlive,
+	readHubDashboardDiscovery,
+} = vi.hoisted(() => ({
+	spawn: vi.fn(() => ({ unref: vi.fn() })),
+	clearHubDashboardDiscovery: vi.fn(async () => undefined),
+	isHubDashboardPidAlive: vi.fn(() => false),
+	readHubDashboardDiscovery: vi.fn(),
+}));
 
 vi.mock("node:child_process", () => ({
 	spawn,
@@ -13,6 +18,7 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("../dashboard-discovery", () => ({
 	clearHubDashboardDiscovery,
+	isHubDashboardPidAlive,
 	readHubDashboardDiscovery,
 }));
 
@@ -21,11 +27,14 @@ describe("managed hub dashboard process", () => {
 		spawn.mockReset();
 		spawn.mockImplementation(() => ({ unref: vi.fn() }));
 		clearHubDashboardDiscovery.mockClear();
+		isHubDashboardPidAlive.mockReset();
+		isHubDashboardPidAlive.mockReturnValue(false);
 		readHubDashboardDiscovery.mockReset();
 		readHubDashboardDiscovery.mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -81,5 +90,62 @@ describe("managed hub dashboard process", () => {
 		});
 
 		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("preserves the existing dashboard for a hub restart", async () => {
+		readHubDashboardDiscovery.mockResolvedValue({
+			pid: 4242,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			startedAt: "2026-06-22T20:00:00.000Z",
+			updatedAt: "2026-06-22T20:00:00.000Z",
+		});
+		const { restartManagedHubDashboardProcess } = await import(
+			"./dashboard-process"
+		);
+
+		await restartManagedHubDashboardProcess({
+			discoveryPath: "/tmp/dashboard.json",
+			cwd: "/workspace",
+			env: {
+				CLINE_HUB_DASHBOARD_LAUNCHER: "bun",
+				CLINE_HUB_DASHBOARD_ARGS: JSON.stringify([
+					"cline",
+					"dashboard",
+					"serve",
+				]),
+				CLINE_HUB_PRESERVE_DASHBOARD: "1",
+			},
+		});
+
+		expect(readHubDashboardDiscovery).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("keeps discovery and rejects when the dashboard ignores SIGTERM", async () => {
+		vi.useFakeTimers();
+		vi.spyOn(process, "kill").mockImplementation(() => true);
+		isHubDashboardPidAlive.mockReturnValue(true);
+		readHubDashboardDiscovery.mockResolvedValue({
+			pid: 4242,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			startedAt: "2026-06-22T20:00:00.000Z",
+			updatedAt: "2026-06-22T20:00:00.000Z",
+		});
+		const { stopManagedHubDashboardProcess } = await import(
+			"./dashboard-process"
+		);
+
+		const stopping = stopManagedHubDashboardProcess("/tmp/dashboard.json");
+		const expectedRejection = expect(stopping).rejects.toThrow(
+			"Timed out waiting for dashboard process 4242 to stop.",
+		);
+		await vi.advanceTimersByTimeAsync(3_000);
+
+		await expectedRejection;
+		expect(clearHubDashboardDiscovery).not.toHaveBeenCalled();
 	});
 });

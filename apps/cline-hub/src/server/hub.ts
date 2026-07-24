@@ -93,6 +93,7 @@ export async function syncHubClientsAndSessions(
 export interface HubAttachmentOverride {
 	hubUrl?: string;
 	authToken?: string;
+	preserveDashboard?: boolean;
 }
 
 function resolveHubAttachmentOverride(
@@ -131,13 +132,11 @@ export async function attachHub(
 				),
 				authToken: resolvedOverride.authToken,
 			}
-		: await ensureDetachedHubServer(workspaceRoot);
+		: await ensureDetachedHubServer(workspaceRoot, {
+				preserveDashboard: override?.preserveDashboard,
+			});
 
-	await detachHub(ctx);
-	ctx.hubUrl = hub.url;
-	ctx.hubAuthToken = hub.authToken;
-
-	ctx.cline = await ClineCore.create({
+	const nextCline = await ClineCore.create({
 		clientName: "cline-hub",
 		backendMode: "hub",
 		capabilities: {
@@ -145,21 +144,37 @@ export async function attachHub(
 				requestToolApprovalFromWebview(ctx, request),
 		},
 		hub: {
-			endpoint: ctx.hubUrl,
-			authToken: ctx.hubAuthToken,
+			endpoint: hub.url,
+			authToken: hub.authToken,
 			clientType: "cline-hub-chat",
 			displayName: "Cline Hub Chat",
 			workspaceRoot,
 		},
 	});
 
-	ctx.uiClient = new HubUIClient({
-		address: ctx.hubUrl,
-		authToken: ctx.hubAuthToken,
+	const nextUiClient = new HubUIClient({
+		address: hub.url,
+		authToken: hub.authToken,
 		clientType: "cline-hub-server",
 		displayName: "Cline Hub Server",
 	});
-	await ctx.uiClient.connect();
+	try {
+		await nextUiClient.connect();
+	} catch (error) {
+		try {
+			nextUiClient.close();
+		} catch {
+			// Preserve the connection error while cleanup remains best-effort.
+		}
+		await nextCline.dispose().catch(() => undefined);
+		throw error;
+	}
+
+	await detachHub(ctx);
+	ctx.hubUrl = hub.url;
+	ctx.hubAuthToken = hub.authToken;
+	ctx.cline = nextCline;
+	ctx.uiClient = nextUiClient;
 
 	ctx.uiClient.subscribeUI({
 		onNotify(payload: HubUINotifyPayload) {
@@ -299,13 +314,16 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 		body: "Shutting down and respawning hub...",
 		severity: "warn",
 	});
-	await detachHub(ctx);
-	try {
-		await stopLocalHubServerGracefully();
-	} catch (error) {
+	const stopped = await stopLocalHubServerGracefully({
+		preserveDashboard: true,
+	}).catch((error) => {
 		console.warn("stopLocalHubServerGracefully failed:", error);
+		return false;
+	});
+	if (!stopped) {
+		throw new Error("Unable to stop the current Cline Hub.");
 	}
-	await attachHub(ctx);
+	await attachHub(ctx, { preserveDashboard: true });
 	broadcastHubState(ctx);
 	ctx.broadcast({
 		type: "notification",

@@ -315,7 +315,9 @@ async function restartHubServerIfRunning(): Promise<void> {
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
 
-	let stopped = await stopLocalHubServerGracefully(owner).catch(() => false);
+	let stopped = await stopLocalHubServerGracefully({ owner }).catch(
+		() => false,
+	);
 	if (!stopped && pid) {
 		try {
 			process.kill(pid, "SIGTERM");

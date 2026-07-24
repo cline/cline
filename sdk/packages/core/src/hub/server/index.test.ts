@@ -225,11 +225,20 @@ describe("hub server startup", () => {
 		}
 		expect(discovery.authToken).toMatch(/^[a-f0-9]{64}$/);
 		const authToken = discovery.authToken;
+		const shutdownRequested = expect(server.shutdownRequested).resolves.toEqual(
+			{
+				preserveDashboard: true,
+			},
+		);
 		const response = await fetch(shutdownUrl, {
 			method: "POST",
-			headers: { authorization: `Bearer ${authToken}` },
+			headers: {
+				authorization: `Bearer ${authToken}`,
+				"x-cline-preserve-dashboard": "1",
+			},
 		});
 		expect(response.status).toBe(202);
+		await shutdownRequested;
 
 		for (let index = 0; index < 50; index += 1) {
 			if ((await readHubDiscovery(owner.discoveryPath)) === undefined) {

@@ -214,6 +214,17 @@ describe("ensureDetachedHubServer", () => {
 		expect(openSync).not.toHaveBeenCalled();
 	});
 
+	it("marks a replacement daemon to preserve the active dashboard", async () => {
+		const { CLINE_HUB_PRESERVE_DASHBOARD_ENV, spawnDetachedHubServer } =
+			await import(".");
+
+		spawnDetachedHubServer("/workspace", { preserveDashboard: true });
+
+		const spawnOptions = (spawn as unknown as { mock: { calls: unknown[][] } })
+			.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+		expect(spawnOptions?.env?.[CLINE_HUB_PRESERVE_DASHBOARD_ENV]).toBe("1");
+	});
+
 	it("does not prewarm another detached daemon from inside the hub daemon process", async () => {
 		process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = "1";
 

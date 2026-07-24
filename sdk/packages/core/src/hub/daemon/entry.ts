@@ -98,10 +98,14 @@ async function main(): Promise<void> {
 		process.stderr.write(`[hub-daemon] dashboard restart failed: ${message}\n`);
 	});
 
-	const shutdown = async (): Promise<void> => {
-		await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
-			() => undefined,
-		);
+	const shutdown = async (
+		options: { preserveDashboard?: boolean } = {},
+	): Promise<void> => {
+		if (!options.preserveDashboard) {
+			await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
+				() => undefined,
+			);
+		}
 		await server.close();
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
@@ -157,9 +161,8 @@ async function main(): Promise<void> {
 		shutdownFatal("unhandledRejection", reason);
 	});
 
-	await new Promise<void>(() => {
-		// keep daemon process alive
-	});
+	const shutdownRequest = await server.shutdownRequested;
+	await shutdown(shutdownRequest);
 }
 
 void main().catch((error) => {

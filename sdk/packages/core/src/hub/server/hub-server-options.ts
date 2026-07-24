@@ -55,6 +55,8 @@ export interface HubWebSocketServer {
 	port: number;
 	url: string;
 	authToken: string;
+	/** Resolves when the authenticated HTTP shutdown endpoint is invoked. */
+	shutdownRequested: Promise<{ preserveDashboard: boolean }>;
 	close(): Promise<void>;
 }
 

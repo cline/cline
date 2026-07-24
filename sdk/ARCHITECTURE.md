@@ -174,6 +174,10 @@ owner-permissioned dashboard discovery; `cline dashboard stop` and
 `cline dashboard restart` use that same discovery record for manual lifecycle
 control. Dashboard children never inherit the hub-daemon marker environment, so
 they start the dashboard command instead of recursively entering the hub daemon.
+Dashboard-initiated hub restarts preserve the current dashboard through both
+the old daemon's authenticated shutdown and the replacement daemon's startup,
+then transactionally swap the dashboard's hub clients after the new connection
+is established.
 
 Local hub discovery also carries the authentication contract for the shared
 daemon. On startup, the hub server generates a cryptographically random
