@@ -2,11 +2,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
 	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
 	HOOKS_CONFIG_DIRECTORY_NAME,
+	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
+	resolveChatWorkspacePath,
 	resolveClineDataDir,
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
@@ -217,5 +221,60 @@ describe("storage path resolution", () => {
 			join("/tmp/home", ".cline", "workflows"),
 			join(workspacePath, ".cline", "workflows"),
 		]);
+	});
+});
+
+describe("chat workspace paths", () => {
+	let snapshot: EnvSnapshot = captureEnv();
+
+	afterEach(() => {
+		restoreEnv(snapshot);
+	});
+
+	it("exports the canonical path segments", () => {
+		expect(CLINE_WORKSPACES_DIRECTORY_NAME).toBe("workspaces");
+		expect(CLINE_CHAT_WORKSPACE_DIRECTORY_NAME).toBe("chat");
+	});
+
+	it("resolves the shared chat workspace under the cline data dir", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_DATA_DIR;
+		process.env.CLINE_DIR = "/tmp/home/.cline";
+
+		expect(resolveChatWorkspacePath()).toBe(
+			join("/tmp/home/.cline", "data", "workspaces", "chat"),
+		);
+	});
+
+	it("honors the CLINE_DATA_DIR override", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveChatWorkspacePath()).toBe(
+			join("/tmp/cline-data", "workspaces", "chat"),
+		);
+	});
+
+	it.each([
+		"/home/user/.cline/data/workspaces/chat",
+		"//home//user//.cline//data//workspaces//chat//",
+		"C:\\Users\\dev\\.cline\\data\\workspaces\\chat\\",
+		"\\\\server\\share\\.cline\\data\\workspaces\\chat",
+	])("recognizes chat workspace root %s", (path) => {
+		expect(isChatWorkspacePath(path)).toBe(true);
+	});
+
+	it.each([
+		".cline/data/workspaces/chat",
+		"/tmp/chat",
+		"/tmp/cline/sessions/session-a1b2c3-temp/project",
+		"/home/user/cline/data/workspaces/chat",
+		"/home/user/.cline/workspaces/chat",
+		"/home/user/.cline/data/other/chat",
+		"/home/user/.cline/data/workspaces/Chat",
+		"/home/user/.cline/data/workspaces/chat/my-app",
+		"/home/user/.cline/data/workspaces",
+	])("rejects non-chat workspace path %s", (path) => {
+		expect(isChatWorkspacePath(path)).toBe(false);
 	});
 });

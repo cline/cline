@@ -9,10 +9,116 @@ import {
 	fetchModelsDevProviderModels,
 	type ModelsDevPayload,
 	normalizeModelsDevProviderModels,
+	normalizeModelsDevProviderSpecs,
 	resolveMaxInputTokens,
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("normalizes current built-ins and providers using supported AI SDK packages", () => {
+		const payload: ModelsDevPayload = {
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				npm: "@ai-sdk/openai",
+				env: ["OPENAI_API_KEY"],
+				doc: "https://platform.openai.com/docs/models",
+				models: {
+					"gpt-test": {
+						tool_call: true,
+						reasoning: true,
+						cost: { cache_read: 1 },
+					},
+				},
+			},
+			poolside: {
+				id: "poolside",
+				name: "Poolside",
+				npm: "@ai-sdk/openai-compatible",
+				api: "https://inference.poolside.ai/v1/",
+				env: ["POOLSIDE_API_KEY"],
+				doc: "https://platform.poolside.ai",
+				models: {
+					"poolside/laguna-m.1": {
+						tool_call: true,
+						reasoning: true,
+					},
+				},
+			},
+			"extra-router": {
+				id: "extra-router",
+				name: "Extra Router",
+				npm: "@ai-sdk/openai-compatible",
+				api: "https://extra.example/v1",
+				env: ["EXTRA_ROUTER_API_KEY"],
+				doc: "https://extra.example/docs",
+				models: {
+					"extra-model": {
+						tool_call: true,
+					},
+				},
+			},
+			"extra-anthropic": {
+				id: "extra-anthropic",
+				name: "Extra Anthropic",
+				npm: "@ai-sdk/anthropic",
+				models: {
+					"claude-extra": {
+						tool_call: true,
+					},
+				},
+			},
+			cohere: {
+				id: "cohere",
+				name: "Cohere",
+				npm: "@ai-sdk/cohere",
+				env: ["COHERE_API_KEY"],
+				models: {
+					command: {
+						tool_call: true,
+					},
+				},
+			},
+		};
+
+		const providerModels = normalizeModelsDevProviderModels(payload);
+		const providerSpecs = normalizeModelsDevProviderSpecs(
+			payload,
+			providerModels,
+		);
+
+		expect(providerSpecs["openai-native"]).toMatchObject({
+			id: "openai-native",
+			name: "OpenAI",
+			family: "openai",
+			modelsProviderId: "openai-native",
+			defaultModelId: "gpt-test",
+			apiKeyEnv: ["OPENAI_API_KEY"],
+			docsUrl: "https://platform.openai.com/docs/models",
+			capabilities: ["tools", "reasoning", "prompt-cache"],
+		});
+		expect(providerSpecs.poolside).toMatchObject({
+			id: "poolside",
+			family: "openai-compatible",
+			modelsProviderId: "poolside",
+			defaultModelId: "poolside/laguna-m.1",
+			defaults: { baseUrl: "https://inference.poolside.ai/v1" },
+		});
+		expect(providerSpecs["extra-router"]).toMatchObject({
+			id: "extra-router",
+			family: "openai-compatible",
+			modelsProviderId: "extra-router",
+			defaultModelId: "extra-model",
+		});
+		expect(providerSpecs["extra-anthropic"]).toMatchObject({
+			id: "extra-anthropic",
+			family: "anthropic",
+			modelsProviderId: "extra-anthropic",
+			defaultModelId: "claude-extra",
+		});
+		expect(providerSpecs.cohere).toBeUndefined();
+		expect(providerModels.cohere).toBeUndefined();
+	});
+
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{

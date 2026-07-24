@@ -263,6 +263,24 @@ export async function startConnectorChannel(
 ): Promise<WebviewConnectorChannelsResponse> {
 	const cliArgs = buildConnectorStartArgs(args);
 	const channel = cliArgs[0] ?? "";
+	if (listActiveConnectors().some((connector) => connector.type === channel)) {
+		const stopResult = await runCliConnectCommand(workspaceRoot, [
+			"--stop",
+			channel,
+		]);
+		if (stopResult.code !== 0) {
+			throw new Error(
+				normalizeConnectorError(
+					stopResult.stderr || stopResult.stdout,
+					"connector stop failed",
+				),
+			);
+		}
+		await waitForConnectorState(
+			() =>
+				!listActiveConnectors().some((connector) => connector.type === channel),
+		);
+	}
 	const result = await runCliConnectCommand(workspaceRoot, cliArgs);
 	if (result.code !== 0) {
 		throw new Error(
@@ -290,7 +308,7 @@ export async function stopConnectorChannel(
 	if (!supported.has(channel)) {
 		throw new Error(`unknown connector channel: ${channel}`);
 	}
-	const result = await runCliConnectCommand(workspaceRoot, [channel, "--stop"]);
+	const result = await runCliConnectCommand(workspaceRoot, ["--stop", channel]);
 	if (result.code !== 0) {
 		throw new Error(
 			normalizeConnectorError(

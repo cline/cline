@@ -4,8 +4,10 @@ import {
 	HubScheduleService,
 } from "@cline/core";
 import {
+	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+	readHubScheduleMode,
 } from "@cline/shared";
 import { asTrimmedString, toPositiveInt } from "./utils";
 
@@ -65,10 +67,6 @@ function asTrimmedStringArray(value: unknown): string[] | undefined {
 	return values.length > 0 ? values : undefined;
 }
 
-function routineScheduleMode(value: unknown): "act" | "plan" | "yolo" {
-	return value === "plan" || value === "yolo" ? value : "act";
-}
-
 export async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
@@ -123,9 +121,9 @@ export async function handleRoutineScheduleCommand(
 			prompt,
 			modelSelection: {
 				providerId: asTrimmedString(args?.provider) ?? "cline",
-				modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
 			},
-			mode: routineScheduleMode(args?.mode),
+			mode: readHubScheduleMode(args, "yolo"),
 			workspaceRoot: routineWorkspaceRoot,
 			cwd: asTrimmedString(args?.cwd),
 			systemPrompt: asTrimmedString(args?.system_prompt),
@@ -141,6 +139,7 @@ export async function handleRoutineScheduleCommand(
 	const scheduleId = asTrimmedString(args?.schedule_id);
 	if (!scheduleId) throw new Error(`${command} requires schedule_id`);
 	if (command === "update_routine_schedule") {
+		const mode = readHubScheduleMode(args);
 		const name = asTrimmedString(args?.name);
 		const timing = routineScheduleTiming(args);
 		const prompt = asTrimmedString(args?.prompt);
@@ -157,9 +156,9 @@ export async function handleRoutineScheduleCommand(
 			prompt,
 			modelSelection: {
 				providerId: asTrimmedString(args?.provider) ?? "cline",
-				modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
 			},
-			mode: routineScheduleMode(args?.mode),
+			...(mode === undefined ? {} : { mode }),
 			workspaceRoot: routineWorkspaceRoot,
 			cwd: asTrimmedString(args?.cwd) ?? null,
 			systemPrompt:

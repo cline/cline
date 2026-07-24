@@ -222,6 +222,7 @@ export interface ConfiguredTelemetryHandle {
 	readonly telemetry: ITelemetryService
 	flush(): Promise<void>
 	dispose(): Promise<void>
+	emitProviderCreated?(): void
 }
 
 function createNoopTelemetry(): ITelemetryService {

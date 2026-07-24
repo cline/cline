@@ -9,6 +9,7 @@ import type {
 	HubScheduleRuntimeHandlers,
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
+import type { VerifySubmitExecutor } from "../../extensions/tools";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
@@ -72,8 +73,14 @@ export interface CreateLocalHubScheduleRuntimeHandlersOptions
 export function createLocalHubScheduleRuntimeHandlers(
 	options: CreateLocalHubScheduleRuntimeHandlersOptions = {},
 ): HubScheduleRuntimeHandlers {
+	const submitScheduledRun: VerifySubmitExecutor = async (summary) => summary;
 	const sessionHost = new LocalRuntimeHost({
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
+		capabilities: {
+			toolExecutors: {
+				submit: submitScheduledRun,
+			},
+		},
 		fetch: options.fetch,
 		telemetry: options.telemetry,
 	});

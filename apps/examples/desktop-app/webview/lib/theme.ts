@@ -34,6 +34,64 @@ export function setStoredHubTheme(theme: HubTheme): HubTheme {
 	return applyHubTheme(theme);
 }
 
+export const HUB_ACCENT_STORAGE_KEY = "cline.code.accent.v1";
+
+/**
+ * Accent palettes selectable in Settings. "violet" is the built-in brand
+ * accent from @cline/ui tokens; the others override the interactive tokens
+ * via `[data-cline-accent]` blocks in globals.css.
+ */
+export const HUB_ACCENTS = [
+	"violet",
+	"graphite",
+	"cyan",
+	"pink",
+	"espresso",
+	"ember",
+] as const;
+
+export type HubAccent = (typeof HUB_ACCENTS)[number];
+
+export const DEFAULT_HUB_ACCENT: HubAccent = "violet";
+
+export function isHubAccent(value: unknown): value is HubAccent {
+	return (
+		typeof value === "string" &&
+		(HUB_ACCENTS as readonly string[]).includes(value)
+	);
+}
+
+export function readStoredHubAccent(): HubAccent {
+	try {
+		const stored = window.localStorage.getItem(HUB_ACCENT_STORAGE_KEY);
+		return isHubAccent(stored) ? stored : DEFAULT_HUB_ACCENT;
+	} catch {
+		return DEFAULT_HUB_ACCENT;
+	}
+}
+
+export function applyHubAccent(accent: HubAccent): HubAccent {
+	if (accent === DEFAULT_HUB_ACCENT) {
+		delete document.documentElement.dataset.clineAccent;
+	} else {
+		document.documentElement.dataset.clineAccent = accent;
+	}
+	return accent;
+}
+
+export function syncHubAccent(): HubAccent {
+	return applyHubAccent(readStoredHubAccent());
+}
+
+export function setStoredHubAccent(accent: HubAccent): HubAccent {
+	try {
+		window.localStorage.setItem(HUB_ACCENT_STORAGE_KEY, accent);
+	} catch {
+		// Accent falls back to default next launch; applying still works now.
+	}
+	return applyHubAccent(accent);
+}
+
 /**
  * Follow OS light/dark changes while the user has no stored preference.
  * Returns a cleanup function that removes the listener.

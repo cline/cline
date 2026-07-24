@@ -105,6 +105,12 @@ export type TelemetryMetadata = {
 	 * all use the same extension or plugin.
 	 */
 	cline_type: string
+	/**
+	 * The version of the host-side Cline distribution package: the JetBrains plugin version
+	 * (e.g. 1.1.61) on JetBrains, the extension version on VSCode (where it matches
+	 * `extension_version`). Absent when the host does not report one (e.g. CLI).
+	 */
+	host_plugin_version?: string
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
@@ -410,6 +416,7 @@ export class TelemetryService {
 		const hostVersion = await HostProvider.env.getHostVersion({})
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
+			...(hostVersion.clineVersion ? { host_plugin_version: hostVersion.clineVersion } : {}),
 			platform: hostVersion.platform || "unknown",
 			platform_version: hostVersion.version || "unknown",
 			cline_type: hostVersion.clineType || "unknown",

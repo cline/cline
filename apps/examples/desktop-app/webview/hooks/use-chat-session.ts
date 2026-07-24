@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
@@ -70,29 +73,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"stopping",
 ]);
 
-const WORKSPACE_SELECTION_REQUIRED_MESSAGE =
-	"Select a workspace before trying again.";
-
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
 // ---------------------------------------------------------------------------
 
-function userFacingMessage(message: string): string {
-	const normalized = message.toLowerCase();
-	const isWorkspaceManifestValidationError =
-		normalized.includes("workspaces") &&
-		(normalized.includes("too_small") ||
-			normalized.includes("expected string to have >=1"));
-	const isMissingWorkspaceConfig = normalized.includes(
-		"config.cwd or config.workspaceroot is required",
-	);
-	return isWorkspaceManifestValidationError || isMissingWorkspaceConfig
-		? WORKSPACE_SELECTION_REQUIRED_MESSAGE
-		: message;
-}
-
 function errorMessage(err: unknown): string {
-	return userFacingMessage(err instanceof Error ? err.message : String(err));
+	return err instanceof Error ? err.message : String(err);
 }
 
 function makeErrorChatMessage(
@@ -113,9 +99,6 @@ function validateConfig(
 ):
 	| { parsed: ChatSessionConfig; error: null }
 	| { parsed: null; error: string } {
-	if (!config.workspaceRoot.trim()) {
-		return { parsed: null, error: WORKSPACE_SELECTION_REQUIRED_MESSAGE };
-	}
 	const runtimeConfig = normalizeRuntimeConfig(config);
 	const result = ChatSessionConfigSchema.safeParse(runtimeConfig);
 	if (!result.success) {
@@ -265,6 +248,7 @@ export function useChatSession() {
 		null,
 	);
 	const hydrationRequestIdRef = useRef(0);
+	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
@@ -284,6 +268,16 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+
+	const setWorkspacePath = useCallback((workspacePath: string): void => {
+		workspaceSelectionRequestRef.current += 1;
+		const normalized = workspacePath.trim();
+		setConfig((previous) => ({
+			...previous,
+			workspaceRoot: normalized,
+			cwd: normalized,
+		}));
+	}, []);
 
 	// ---- Shared state reset helpers ----
 
@@ -331,6 +325,8 @@ export function useChatSession() {
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
 		return await desktopClient.invoke<{
 			sessionId?: string;
+			cwd?: string;
+			workspaceRoot?: string;
 			result?: ChatApiResult;
 			ok?: boolean;
 			queued?: boolean;
@@ -492,6 +488,7 @@ export function useChatSession() {
 	// ---- Process context ----
 
 	const applyProcessContext = useCallback(async () => {
+		const requestId = workspaceSelectionRequestRef.current;
 		try {
 			const ctx = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
@@ -508,6 +505,9 @@ export function useChatSession() {
 						})
 						.catch(() => ({ valid: false }))
 				: { valid: false };
+			if (requestId !== workspaceSelectionRequestRef.current) {
+				return;
+			}
 			setConfig((prev) => {
 				const currentWorkspace = (prev.workspaceRoot || prev.cwd || "").trim();
 				const selectionChangedWhileLoading = Boolean(
@@ -690,11 +690,17 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_queued_prompt_start") {
-				let parsed: { prompt?: string; attachmentCount?: number } = {};
+				let parsed: {
+					prompt?: string;
+					attachmentCount?: number;
+					userImages?: string[];
+				} = {};
 				try {
 					parsed = JSON.parse(payload.chunk) as {
+						promptId?: string;
 						prompt?: string;
 						attachmentCount?: number;
+						userImages?: string[];
 					};
 				} catch {
 					parsed = { prompt: payload.chunk };
@@ -704,36 +710,41 @@ export function useChatSession() {
 					typeof parsed.attachmentCount === "number"
 						? parsed.attachmentCount
 						: 0;
+				const userImages = Array.isArray(parsed.userImages)
+					? parsed.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: [];
+				const attachedFileCount = Math.max(
+					0,
+					attachmentCount - userImages.length,
+				);
 				const userLabel =
-					attachmentCount > 0
-						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
+					attachedFileCount > 0
+						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 						: prompt;
+				const promptId = parsed.promptId?.trim();
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("running");
-				if (userLabel) {
+				if (userLabel || userImages.length > 0) {
 					setMessages((prev) => {
-						const lastVisible = [...prev]
-							.reverse()
-							.find(
-								(message) =>
-									message.sessionId === listeningSessionId &&
-									message.role !== "status",
-							);
-						if (
-							lastVisible?.role === "user" &&
-							lastVisible.content === userLabel
-						) {
+						const userMessageId = promptId
+							? `queued_user_${promptId}`
+							: makeId("user");
+						if (prev.some((message) => message.id === userMessageId)) {
 							return prev;
 						}
+						const images = toChatMessageImages(userImages, userMessageId);
 						return sliceMessages([
 							...prev,
 							{
-								id: makeId("user"),
+								id: userMessageId,
 								sessionId: listeningSessionId,
 								role: "user",
 								content: userLabel,
+								images: images.length > 0 ? images : undefined,
 								createdAt: chunkCreatedAt(payload),
 							},
 						]);
@@ -977,6 +988,13 @@ export function useChatSession() {
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
+			const workspaceRoot =
+				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
+			const cwd =
+				payload.cwd?.trim() || validatedConfig.cwd?.trim() || workspaceRoot;
+			if (!workspaceRoot || !cwd) {
+				throw new Error("Missing resolved workspace from server");
+			}
 			setSessionId(id);
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
@@ -984,7 +1002,12 @@ export function useChatSession() {
 			if (!options.preserveStatus) {
 				setStatus("idle");
 			}
-			setConfig(validatedConfig);
+			workspaceSelectionRequestRef.current += 1;
+			setConfig({
+				...validatedConfig,
+				cwd,
+				workspaceRoot,
+			});
 			setHydratedHistorySessionId(null);
 			return id;
 		},
@@ -1092,9 +1115,12 @@ export function useChatSession() {
 				(attachments) => ({ ok: true as const, attachments }),
 				(error: unknown) => ({ ok: false as const, error }),
 			);
+			const attachedFileCount = attachedFiles.filter(
+				(file) => !file.type.startsWith("image/"),
+			).length;
 			const userLabel =
-				attachedFiles.length > 0
-					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}]`
+				attachedFileCount > 0
+					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 					: trimmed;
 			const shouldQueue =
 				Boolean(activeSessionId) &&
@@ -1104,11 +1130,12 @@ export function useChatSession() {
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
+			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
-			if (!shouldQueue) {
+			if (optimisticUserMessageId) {
 				addMessage({
-					id: makeId("user"),
+					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
 					role: "user",
 					content: userLabel,
@@ -1207,6 +1234,23 @@ export function useChatSession() {
 				const hasAttachments =
 					serializedAttachments.userImages.length > 0 ||
 					serializedAttachments.userFiles.length > 0;
+				if (
+					optimisticUserMessageId &&
+					serializedAttachments.userImages.length > 0
+				) {
+					const images = toChatMessageImages(
+						serializedAttachments.userImages,
+						optimisticUserMessageId,
+					);
+					if (images.length > 0) {
+						setMessages((prev) =>
+							updateMessageById(prev, optimisticUserMessageId, (message) => ({
+								...message,
+								images,
+							})),
+						);
+					}
+				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					setStatus("starting");
@@ -1246,10 +1290,7 @@ export function useChatSession() {
 					result?.messages,
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
-				const resolvedAssistantText =
-					result?.finishReason === "error"
-						? userFacingMessage(rawAssistantText)
-						: rawAssistantText;
+				const resolvedAssistantText = rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1403,9 +1444,7 @@ export function useChatSession() {
 						addMessage(
 							makeErrorChatMessage(
 								activeSessionId,
-								(toolError?.trim()
-									? userFacingMessage(toolError.trim())
-									: undefined) ||
+								toolError?.trim() ||
 									"Runtime turn failed before an assistant response was produced.",
 							),
 						);
@@ -1906,6 +1945,7 @@ export function useChatSession() {
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,
+		setWorkspacePath,
 		start,
 		hydrateSession,
 		sendPrompt,

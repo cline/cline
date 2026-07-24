@@ -79,6 +79,7 @@ function summarizeClient(client: TrackedClient): {
 	if (
 		normalizedType === "code-sidecar" ||
 		normalizedType === "code-sidecar-approvals" ||
+		normalizedType === "code-sidecar-observer" ||
 		normalizedType === "code-sidecar-list"
 	) {
 		return { key: "code-app", label: "Code App", name: "Code App" };

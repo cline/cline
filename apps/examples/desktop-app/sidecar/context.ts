@@ -7,17 +7,21 @@ import {
 	type BasicLogger,
 	ClineCore,
 	type CoreSessionEvent,
-	createLocalHubScheduleRuntimeHandlers,
+	ensureCompatibleLocalHubUrl,
 	type ITelemetryService,
 	NodeHubClient,
 	type RuntimeCapabilities,
-	resolveHubOwnerContext,
 	setHomeDirIfUnset,
-	startHubWebSocketServer,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
 import type { AgentEvent } from "@cline/shared";
+import {
+	discardAllTrackedAttachments,
+	flushConsumedAttachments,
+	markQueuedAttachmentsSubmitted,
+	reconcileQueuedAttachments,
+} from "./attachments";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -28,6 +32,10 @@ import type {
 } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
+const hubClientInitialization = new WeakMap<
+	SidecarContext,
+	Promise<NodeHubClient>
+>();
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -111,7 +119,29 @@ export function broadcastChunk(
 // ---------------------------------------------------------------------------
 
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
-	return session.promptsInQueue;
+	return session.promptsInQueue.map(
+		({ id, prompt, steer, attachmentCount, userImages }) => ({
+			id,
+			prompt,
+			steer,
+			attachmentCount,
+			userImages,
+		}),
+	);
+}
+
+export function serializeQueuedPromptStart(input: {
+	promptId: string;
+	prompt: string;
+	attachmentCount?: number;
+	userImages?: string[];
+}): string {
+	return JSON.stringify({
+		promptId: input.promptId,
+		prompt: input.prompt,
+		attachmentCount: input.attachmentCount ?? 0,
+		userImages: input.userImages,
+	});
 }
 
 function sendPromptsInQueueSnapshot(
@@ -303,9 +333,16 @@ function handleCoreSessionEvent(
 					prompt: item.prompt ?? "",
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
+					userImages: item.userImages,
 				}))
-				.filter((item) => item.id && item.prompt);
+				.filter(
+					(item) => item.id && (item.prompt || (item.attachmentCount ?? 0) > 0),
+				);
 			if (session) {
+				reconcileQueuedAttachments(
+					session,
+					mapped.map((item) => item.id),
+				);
 				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
 				if (
@@ -317,9 +354,11 @@ function handleCoreSessionEvent(
 						ctx,
 						sessionId,
 						"chat_queued_prompt_start",
-						JSON.stringify({
+						serializeQueuedPromptStart({
+							promptId: previous[0].id,
 							prompt: previous[0].prompt,
 							attachmentCount: previous[0].attachmentCount ?? 0,
+							userImages: previous[0].userImages,
 						}),
 					);
 				}
@@ -328,14 +367,18 @@ function handleCoreSessionEvent(
 			break;
 		}
 		case "pending_prompt_submitted": {
-			const { sessionId, prompt, attachmentCount } = event.payload;
+			const { sessionId, id, prompt, attachmentCount, userImages } =
+				event.payload;
+			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
 			emitChunk(
 				ctx,
 				sessionId,
 				"chat_queued_prompt_start",
-				JSON.stringify({
+				serializeQueuedPromptStart({
+					promptId: id,
 					prompt,
 					attachmentCount: attachmentCount ?? 0,
+					userImages,
 				}),
 			);
 			break;
@@ -348,6 +391,7 @@ function handleCoreSessionEvent(
 				session.endedAt = nowMs();
 				session.status = reason || "ended";
 			}
+			discardAllTrackedAttachments(sessionId, session);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -367,6 +411,10 @@ function handleCoreSessionEvent(
 			if (session) {
 				session.status = status;
 				session.busy = status === "running";
+				if (status !== "running") {
+					// The turn that consumed submitted attachments has finished.
+					flushConsumedAttachments(sessionId, session);
+				}
 			}
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
 			break;
@@ -397,7 +445,6 @@ export function createSidecarContext(
 		pendingQuestions: new Map(),
 		sessionManager: null,
 		hubClient: null,
-		hubServer: null,
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
@@ -413,6 +460,11 @@ export async function disposeSidecarContext(
 
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
+
+	for (const [sessionId, session] of ctx.liveSessions) {
+		discardAllTrackedAttachments(sessionId, session);
+	}
+	ctx.liveSessions.clear();
 
 	for (const client of ctx.wsClients) {
 		try {
@@ -442,12 +494,6 @@ export async function disposeSidecarContext(
 	ctx.sessionManager = null;
 	if (sessionManager) {
 		cleanup.push(sessionManager.dispose(reason));
-	}
-
-	const hubServer = ctx.hubServer;
-	ctx.hubServer = null;
-	if (hubServer) {
-		cleanup.push(hubServer.close());
 	}
 
 	const results = await Promise.allSettled(cleanup);
@@ -702,15 +748,6 @@ export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
 	setHomeDirIfUnset(homedir());
-	const hubServer = await startHubWebSocketServer({
-		port: 0,
-		owner: resolveHubOwnerContext(
-			`code-sidecar:${process.pid}:${randomUUID()}`,
-		),
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		logger: ctx.logger,
-		telemetry: ctx.telemetry,
-	});
 	const sessionManager = await ClineCore.create({
 		clientName: "cline-code",
 		backendMode: "hub",
@@ -718,8 +755,7 @@ export async function initializeSessionManager(
 		logger: ctx.logger,
 		telemetry: ctx.telemetry,
 		hub: {
-			endpoint: hubServer.url,
-			authToken: hubServer.authToken,
+			strategy: "require-hub",
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			clientType: "code-sidecar",
@@ -732,25 +768,64 @@ export async function initializeSessionManager(
 		handleCoreSessionEvent(ctx, event);
 	});
 
-	const runtimeAddress = sessionManager.runtimeAddress?.trim();
-	let hubClient: NodeHubClient | null = null;
-	if (runtimeAddress) {
-		hubClient = new NodeHubClient({
-			url: runtimeAddress,
-			authToken: hubServer.authToken,
-			clientType: "code-sidecar-approvals",
-			displayName: "Code App approvals",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-		});
-		await hubClient.connect();
-		hubClient.subscribe((event) => {
-			handleHubLiveEvent(ctx, event);
-		});
+	try {
+		await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+	} catch (error) {
+		unsubscribe();
+		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
+		throw error;
 	}
 
 	ctx.sessionManager = sessionManager;
-	ctx.hubClient = hubClient;
-	ctx.hubServer = hubServer;
 	ctx.unsubscribeSessionEvents = unsubscribe;
+}
+
+export async function ensureSharedHubClient(
+	ctx: SidecarContext,
+	preferredUrl?: string,
+): Promise<NodeHubClient> {
+	if (ctx.hubClient) {
+		return ctx.hubClient;
+	}
+	const pending = hubClientInitialization.get(ctx);
+	if (pending) {
+		return await pending;
+	}
+
+	const initialization = (async () => {
+		const url =
+			preferredUrl?.trim() ||
+			(await ensureCompatibleLocalHubUrl({
+				strategy: "require-hub",
+				workspaceRoot: ctx.workspaceRoot,
+				cwd: ctx.workspaceRoot,
+			}));
+		if (!url) {
+			throw new Error("Unable to start or connect to the shared Cline Hub.");
+		}
+
+		const client = new NodeHubClient({
+			url,
+			clientType: "code-sidecar-observer",
+			displayName: "Code App observer",
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+		});
+		try {
+			await client.connect();
+			client.subscribe((event) => {
+				handleHubLiveEvent(ctx, event);
+			});
+			ctx.hubClient = client;
+			return client;
+		} catch (error) {
+			await client.dispose().catch(() => undefined);
+			throw error;
+		}
+	})().finally(() => {
+		hubClientInitialization.delete(ctx);
+	});
+
+	hubClientInitialization.set(ctx, initialization);
+	return await initialization;
 }

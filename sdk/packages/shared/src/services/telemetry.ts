@@ -82,6 +82,12 @@ export interface CaptureTaskLifecycleEventInput {
 
 export interface TelemetryMetadata {
 	extension_version: string;
+	/**
+	 * The version of the host-side Cline distribution package: the JetBrains plugin version
+	 * (e.g. 1.1.61) on JetBrains, the extension version on VSCode (where it matches
+	 * `extension_version`). Absent when the host does not report one.
+	 */
+	host_plugin_version?: string;
 	cline_type: string;
 	platform: string;
 	platform_version: string;

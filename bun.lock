@@ -75,6 +75,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
+        "@cline/shared": "workspace:*",
         "@fontsource-variable/schibsted-grotesk": "^5.2.8",
         "@radix-ui/react-use-controllable-state": "^1.2.2",
         "@rive-app/react-webgl2": "^4.27.2",
@@ -771,6 +772,9 @@
     "better-sqlite3",
     "grpc-tools",
   ],
+  "patchedDependencies": {
+    "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch",
+  },
   "overrides": {
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",

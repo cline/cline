@@ -100,4 +100,133 @@ describe("getLastApiReqTotalTokens", () => {
 		const total = getLastApiReqTotalTokens(messages)
 		assert.equal(total, 23)
 	})
+
+	it("scales the last request by the shrink ratio of a compaction completed after it", () => {
+		// The compaction counters are the SDK's estimate — a different scale from
+		// the provider-reported request total. Only the ratio carries over.
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 90_000, tokensOut: 5_000, cacheReads: 5_000 }),
+			},
+			{
+				ts: 2,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "manual", tokensBefore: 200_000, tokensAfter: 50_000 }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 25_000)
+	})
+
+	it("compounds multiple compactions completed since the last request", () => {
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 100_000 }),
+			},
+			{
+				ts: 2,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "manual", tokensBefore: 200_000, tokensAfter: 100_000 }),
+			},
+			{
+				ts: 3,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "manual", tokensBefore: 100_000, tokensAfter: 50_000 }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 25_000)
+	})
+
+	it("leaves the request total unscaled when a completed compaction lacks token counters", () => {
+		// The coordinator's fallback divider carries only message counts.
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 40_000, tokensOut: 2_000 }),
+			},
+			{
+				ts: 2,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "manual", messagesBefore: 40, messagesAfter: 6 }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 42_000)
+	})
+
+	it("returns 0 when a compaction completed but no request preceded it", () => {
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "manual", tokensBefore: 95_000, tokensAfter: 30_000 }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 0)
+	})
+
+	it("ignores compaction rows without a usable compacted size", () => {
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 11, tokensOut: 7, cacheWrites: 2, cacheReads: 3 }),
+			},
+			{
+				ts: 2,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "started", mode: "auto" }),
+			},
+			{
+				ts: 3,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "failed", mode: "auto" }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 23)
+	})
+
+	it("prefers a request newer than the last compaction", () => {
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "auto", tokensBefore: 95_000, tokensAfter: 30_000 }),
+			},
+			{
+				ts: 2,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 31_000, tokensOut: 1_000 }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 32_000)
+	})
 })

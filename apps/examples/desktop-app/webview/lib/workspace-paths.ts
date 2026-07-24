@@ -1,3 +1,5 @@
+import { isChatWorkspacePath } from "@cline/shared/browser";
+
 export const WORKSPACE_SELECTION_STORAGE_KEY =
 	"cline.code.workspace-selection.v1";
 
@@ -107,6 +109,9 @@ export function isExcludedWorkspacePath(path: string): boolean {
 	if (!normalized) {
 		return false;
 	}
+	if (isChatWorkspacePath(normalized)) {
+		return true;
+	}
 	if (normalized.split(/[\\/]/).includes(".cline")) {
 		return true;
 	}
@@ -168,10 +173,13 @@ export function parseWorkspaceSelectionStorage(
 			lastWorkspace?: unknown;
 			workspaces?: unknown;
 		};
-		const lastWorkspace =
+		const parsedLastWorkspace =
 			typeof parsed?.lastWorkspace === "string"
 				? parsed.lastWorkspace.trim()
 				: "";
+		const lastWorkspace = isChatWorkspacePath(parsedLastWorkspace)
+			? ""
+			: parsedLastWorkspace;
 		const workspaces = Array.isArray(parsed?.workspaces)
 			? parsed.workspaces.filter(
 					(workspace): workspace is string => typeof workspace === "string",
@@ -208,12 +216,15 @@ export function writeWorkspaceSelectionToWindow(
 		return;
 	}
 	try {
+		const lastWorkspace = isChatWorkspacePath(value.lastWorkspace)
+			? ""
+			: value.lastWorkspace.trim();
 		window.localStorage.setItem(
 			WORKSPACE_SELECTION_STORAGE_KEY,
 			JSON.stringify({
-				lastWorkspace: value.lastWorkspace.trim(),
+				lastWorkspace,
 				workspaces: filterWorkspacePaths(
-					mergeWorkspacePaths(value.workspaces, [value.lastWorkspace]),
+					mergeWorkspacePaths(value.workspaces, [lastWorkspace]),
 				),
 			}),
 		);

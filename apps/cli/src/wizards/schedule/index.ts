@@ -1,4 +1,5 @@
 import * as p from "@clack/prompts";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import {
 	ensureSchedulerHub,
 	type HubScheduleClient,
@@ -135,10 +136,11 @@ async function actionCreate(client: HubScheduleClient): Promise<void> {
 	const mode = await p.select({
 		message: "Agent mode",
 		options: [
+			{ value: "yolo", label: "Yolo", hint: "execute without approvals" },
 			{ value: "act", label: "Act", hint: "execute tasks" },
 			{ value: "plan", label: "Plan", hint: "plan only" },
 		],
-		initialValue: "act",
+		initialValue: "yolo",
 	});
 	if (isCancel(mode)) return;
 
@@ -214,8 +216,8 @@ async function actionCreate(client: HubScheduleClient): Promise<void> {
 		cronPattern,
 		prompt: (prompt as string).trim(),
 		provider: provider ?? "cline",
-		model: model ?? "openai/gpt-5.3-codex",
-		mode: (mode as string) === "plan" ? "plan" : "act",
+		model: model ?? CLINE_DEFAULT_MODEL_ID,
+		mode: mode as "act" | "plan" | "yolo",
 		workspaceRoot: (workspace as string).trim(),
 		systemPrompt,
 		maxIterations,

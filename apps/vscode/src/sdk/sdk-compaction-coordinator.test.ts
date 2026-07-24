@@ -84,7 +84,7 @@ describe("SdkCompactionCoordinator", () => {
 		)
 	})
 
-	it("reports when the strategy declines to compact", async () => {
+	it("shows a skipped divider when the strategy declines to compact", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
 		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(vi.fn().mockResolvedValue(undefined))
@@ -93,10 +93,11 @@ describe("SdkCompactionCoordinator", () => {
 
 		expect(mockCreateContextCompactionPrepareTurn).toHaveBeenCalledOnce()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "info", text: "No compaction needed." })],
-			expect.anything(),
-		)
+		const rows = compactionRows(options)
+		expect(rows[0].info.status).toBe("started")
+		expect(rows[1].info.status).toBe("skipped")
+		// The terminal row updates the started row in place (same ts).
+		expect(rows[1].ts).toBe(rows[0].ts)
 	})
 
 	it("compacts and persists the sidecar without rebuilding the session", async () => {
@@ -118,10 +119,40 @@ describe("SdkCompactionCoordinator", () => {
 			messages: [{ role: "user", content: "summary" }],
 		})
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "info", text: "Compacted 3 messages to 1." })],
-			expect.anything(),
+		const rows = compactionRows(options)
+		expect(rows[0].info).toMatchObject({ status: "started", mode: "manual" })
+		expect(rows[1].info).toMatchObject({ status: "completed", mode: "manual", messagesBefore: 3, messagesAfter: 1 })
+		expect(rows[1].ts).toBe(rows[0].ts)
+	})
+
+	it("prefers the SDK's token counters from its status notice for the completed divider", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
+			vi.fn().mockImplementation((context: { emitStatusNotice?: (message: string, metadata?: unknown) => void }) => {
+				context.emitStatusNotice?.("compacted", {
+					kind: "manual_compaction",
+					phase: "completed",
+					tokensBefore: 25_000,
+					tokensAfter: 6_000,
+					messagesBefore: 42,
+					messagesAfter: 5,
+				})
+				return Promise.resolve({ messages: [{ role: "user", content: "summary" }] })
+			}),
 		)
+
+		await coordinator.compactTask()
+
+		const rows = compactionRows(options)
+		expect(rows[1].info).toMatchObject({
+			status: "completed",
+			mode: "manual",
+			tokensBefore: 25_000,
+			tokensAfter: 6_000,
+			messagesBefore: 42,
+			messagesAfter: 5,
+		})
 	})
 
 	it("does not append compaction status to a different active session", async () => {
@@ -129,7 +160,7 @@ describe("SdkCompactionCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({ activeSession })
 		options.sessions.getActiveSession
 			.mockReturnValueOnce(activeSession)
-			.mockReturnValueOnce(makeActiveSession({ sessionId: "other-session" }))
+			.mockReturnValue(makeActiveSession({ sessionId: "other-session" }))
 		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
 			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
 		)
@@ -151,6 +182,8 @@ describe("SdkCompactionCoordinator", () => {
 		await coordinator.compactTask()
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		const rows = compactionRows(options)
+		expect(rows[rows.length - 1].info.status).toBe("failed")
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "Couldn't compact the conversation. Please try again." })],
 			expect.anything(),
@@ -165,12 +198,22 @@ describe("SdkCompactionCoordinator", () => {
 		await coordinator.compactTask()
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		const rows = compactionRows(options)
+		expect(rows[rows.length - 1].info.status).toBe("failed")
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "Couldn't compact the conversation. Please try again." })],
 			expect.anything(),
 		)
 	})
 })
+
+/** Collect all say:"compaction" rows emitted through appendAndEmit, in order. */
+function compactionRows(options: { messages: { appendAndEmit: ReturnType<typeof vi.fn> } }) {
+	return options.messages.appendAndEmit.mock.calls
+		.flatMap((call) => call[0] as Array<{ say?: string; text?: string; ts: number }>)
+		.filter((message) => message.say === "compaction")
+		.map((message) => ({ ts: message.ts, info: JSON.parse(message.text ?? "{}") }))
+}
 
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession> | undefined

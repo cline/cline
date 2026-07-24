@@ -210,18 +210,7 @@ export async function handleSessionCreate(
 			? payload.workspaceRoot.trim()
 			: typeof payload.cwd === "string" && payload.cwd.trim()
 				? payload.cwd.trim()
-				: "";
-	if (!workspaceRoot) {
-		logHubMessage("warn", "session.create.invalid", {
-			...baseLogContext,
-			reason: "missing_workspace_root",
-		});
-		return errorReply(
-			envelope,
-			"invalid_session_create",
-			"session.create requires workspaceRoot or cwd",
-		);
-	}
+				: undefined;
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const clientContributions = parseHubClientContributions(
 		runtimeOptions.clientContributions,
