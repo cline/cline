@@ -62,9 +62,10 @@ and is graded by the task's deterministic verifier.
   ClinePass is subscription-billed, so its per-run dollar telemetry is useful
   for quota/economic comparisons but is not an invoice.
 - Paid execution fetches Cline's public recommended-model catalog before
-  creating the jobs root or reserving budget. Direct arms must be present in the
-  relevant live catalog; virtual Auto candidates keep Core's internal IDs and
-  are not compared to public picker identifiers.
+  creating the jobs root or reserving budget. Fixed comparator IDs must be
+  present in the relevant live catalog, regardless of transport; virtual Auto
+  candidates keep Core's internal IDs and are not compared to public picker
+  identifiers.
 - The timeout is enforced both in Cline and at Harbor's outer agent boundary.
   Harbor runs in its own process group; timeout and termination signals stop the
   group and task-scoped containers are removed. Interrupted usage is accepted
@@ -80,13 +81,16 @@ and is graded by the task's deterministic verifier.
   result file. One in-flight model call can still land after the last usage
   event, so a provider-side/prepaid account limit remains the only true dollar
   hard stop.
-- Optional `--local-core-url http://localhost:7777` is deliberately narrow. It
-  applies only to the virtual `cline/auto` and `cline-pass/auto` arms,
-  normalizes to `host.docker.internal:7777`, forwards only
-  `CLINE_API_BASE_URL`, and adds only that hostname to Harbor's environment and
-  agent-phase allowlists. Fixed-model comparators continue to call Cline
-  directly so provider-reported usage and cost remain authoritative. Arbitrary
-  URLs and environment passthrough are rejected.
+- Optional model-level `transport` is either `cline-api` or `local-core`.
+  Explicit `local-core` arms require `--local-core-url` before the jobs root is
+  created or budget is reserved. The URL remains deliberately narrow: it
+  normalizes localhost ports 7777 or 17777 to `host.docker.internal`, forwards
+  only `CLINE_API_BASE_URL`, and adds only that hostname to Harbor's environment
+  and agent-phase allowlists. This lets fixed comparators and Auto share one
+  controlled Core transport while other arms can continue to call Cline
+  directly. Arbitrary URLs and environment passthrough are rejected. For
+  backward compatibility, an unspecified transport still applies a supplied
+  local Core URL only to `cline/auto` and `cline-pass/auto`.
 - Virtual-model reports retain `requestedModel`, hashed benchmark task/session
   identifiers, and privacy-safe route evidence. Fixed-model results remain
   backward compatible.
@@ -136,30 +140,28 @@ bun evals/e2e/run-cline-bench-pilot.ts \
 ```
 
 Wave 1 runs `cline/auto` on all eight tasks and Kimi K3 plus GLM 5.2 on
-Axios, Telegram, Every Plugin, and V-Edit. It reserves no more than $35.20:
+Axios, Telegram, Every Plugin, and V-Edit. All three arms use the same local
+Core transport. It reserves no more than $35.20:
 
 ```bash
 CLINE_API_KEY="$CLINE_API_KEY" \
   bun evals/e2e/run-cline-bench-pilot.ts --execute --wave 1 \
   --config evals/e2e/cline-bench-router-checkpoint.config.json \
-  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint"
-```
-
-For a local Core API, add:
-
-```bash
---local-core-url http://localhost:7777
+  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint" \
+  --local-core-url http://localhost:17777
 ```
 
 Inspect wave 1 outcomes, route evidence, and the provider-side account limit
 before releasing wave 2. Wave 2 adds GPT-5.6 Sol on all eight tasks, reserves
-no more than another $14.40, and shares the same $50 campaign ledger:
+no more than another $14.40 through the direct Cline API, and shares the same
+$50 campaign ledger and execution fingerprint:
 
 ```bash
 CLINE_API_KEY="$CLINE_API_KEY" \
   bun evals/e2e/run-cline-bench-pilot.ts --execute --wave 2 \
   --config evals/e2e/cline-bench-router-checkpoint.config.json \
-  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint"
+  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint" \
+  --local-core-url http://localhost:17777
 ```
 
 Core route traces can be attached directly from the benchmark JSONL sink. The

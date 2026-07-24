@@ -19,6 +19,7 @@ import {
 import {
 	assertDirectModelsInLiveCatalog,
 	assertLocalClineVersion,
+	assertModelTransportPrerequisites,
 	assertReusableFingerprint,
 	assertTraceIngestionCompatibility,
 	buildRunMatrix,
@@ -152,6 +153,16 @@ describe("Cline benchmark execution fingerprints", () => {
 				{ ...base, effectiveConfig: { ...config(), globalBudgetUsd: 9 } },
 			),
 		).not.toBe(first)
+		const localCoreConfig = {
+			...config(),
+			models: config().models.map((model) => ({ ...model, transport: "local-core" as const })),
+		}
+		expect(
+			fingerprintExecution(localCoreConfig, {
+				...base,
+				effectiveConfig: localCoreConfig,
+			}),
+		).not.toBe(first)
 	})
 
 	test("rejects legacy and mismatched reports instead of blessing stale results", () => {
@@ -194,6 +205,16 @@ describe("Cline benchmark configuration and matrix", () => {
 		source.globalBudgetUsd = 51
 		writeFileSync(path, JSON.stringify(source))
 		expect(() => readConfig(path)).toThrow("at most 50")
+	})
+
+	test("rejects unknown model transports", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-bench-config-"))
+		temporaryDirectories.push(root)
+		const path = join(root, "config.json")
+		const source = JSON.parse(readFileSync(join(import.meta.dir, "cline-bench-pilot.config.json"), "utf8"))
+		source.models[0].transport = "other-proxy"
+		writeFileSync(path, JSON.stringify(source))
+		expect(() => readConfig(path)).toThrow('invalid transport for moonshotai/kimi-k3: "other-proxy"')
 	})
 
 	test("builds model-specific staged arms without duplicate tasks", () => {
@@ -259,6 +280,10 @@ describe("Cline benchmark configuration and matrix", () => {
 		expect(matrix.filter((run) => run.model.id === "openai/gpt-5.6-sol")).toHaveLength(8)
 		expect(matrix.filter((run) => run.model.id === "moonshotai/kimi-k3")).toHaveLength(4)
 		expect(matrix.filter((run) => run.model.id === "zai/glm-5.2")).toHaveLength(4)
+		expect(checkpoint.models.find((model) => model.id === "cline/auto")?.transport).toBe("local-core")
+		expect(checkpoint.models.find((model) => model.id === "moonshotai/kimi-k3")?.transport).toBe("local-core")
+		expect(checkpoint.models.find((model) => model.id === "zai/glm-5.2")?.transport).toBe("local-core")
+		expect(checkpoint.models.find((model) => model.id === "openai/gpt-5.6-sol")?.transport).toBe("cline-api")
 		for (const wave of [1, 2]) {
 			const exposure = matrix
 				.filter((run) => run.wave === wave)
@@ -899,10 +924,38 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 		expect(modelTransportHarborArguments("moonshotai/kimi-k3", "http://localhost:7777")).toEqual([])
 		expect(modelTransportHarborArguments("z-ai/glm-5.2", "http://localhost:7777")).toEqual([])
 		expect(modelTransportHarborArguments("openai/gpt-5.4", "http://localhost:7777")).toEqual([])
+		expect(modelTransportHarborArguments("moonshotai/kimi-k3", "http://localhost:7777", "local-core")).toEqual(
+			localCoreHarborArguments("http://localhost:7777"),
+		)
+		expect(modelTransportHarborArguments("zai/glm-5.2", "http://localhost:17777", "local-core")).toEqual(
+			localCoreHarborArguments("http://localhost:17777"),
+		)
+		expect(modelTransportHarborArguments("cline/auto", "http://localhost:7777", "cline-api")).toEqual([])
+		expect(() => modelTransportHarborArguments("zai/glm-5.2", undefined, "local-core")).toThrow(
+			"requires --local-core-url",
+		)
 		expect(() => normalizeLocalCoreUrl("https://localhost:7777")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://localhost:7778")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://localhost:17778")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://example.com:7777")).toThrow("only accepts")
+	})
+
+	test("requires local Core transport before jobs-root creation and budget reservation", () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		expect(() => assertModelTransportPrerequisites(checkpoint)).toThrow(
+			"model cline/auto requires --local-core-url for transport=local-core before jobs-root creation and budget reservation",
+		)
+		expect(() => assertModelTransportPrerequisites(checkpoint, "http://host.docker.internal:17777")).not.toThrow()
+		expect(() => assertModelTransportPrerequisites(checkpoint, "http://example.com:17777")).toThrow("only accepts")
+		expect(() =>
+			assertModelTransportPrerequisites(
+				{
+					...checkpoint,
+					models: checkpoint.models.map((model) => ({ ...model, transport: "cline-api" as const })),
+				},
+				undefined,
+			),
+		).not.toThrow()
 	})
 
 	test("parses privacy-safe route traces and rejects unknown fields", () => {

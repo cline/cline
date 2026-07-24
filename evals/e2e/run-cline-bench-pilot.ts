@@ -55,6 +55,7 @@ import {
 
 export type ModelConfig = {
 	id: string
+	transport?: "cline-api" | "local-core"
 	perTaskBudgetUsd: number
 	perModelBudgetUsd: number
 	tasks?: string[]
@@ -253,7 +254,16 @@ export function readConfig(configPath: string): PilotConfig {
 	const models = raw.models.map((value, index): ModelConfig => {
 		assertOnlyKeys(
 			value,
-			["id", "perTaskBudgetUsd", "perModelBudgetUsd", "pricing", "tasks", "wave", "allowedCandidates"],
+			[
+				"id",
+				"transport",
+				"perTaskBudgetUsd",
+				"perModelBudgetUsd",
+				"pricing",
+				"tasks",
+				"wave",
+				"allowedCandidates",
+			],
 			`models[${index}]`,
 		)
 		let pricing: ModelConfig["pricing"]
@@ -267,6 +277,7 @@ export function readConfig(configPath: string): PilotConfig {
 		}
 		return {
 			id: value.id,
+			...(value.transport !== undefined ? { transport: value.transport } : {}),
 			perTaskBudgetUsd: value.perTaskBudgetUsd,
 			perModelBudgetUsd: value.perModelBudgetUsd,
 			...(value.tasks !== undefined ? { tasks: value.tasks } : {}),
@@ -316,6 +327,13 @@ export function readConfig(configPath: string): PilotConfig {
 		}
 		if (seenModels.has(model.id)) fail(`duplicate model: ${model.id}`)
 		seenModels.add(model.id)
+		if (
+			model.transport !== undefined &&
+			model.transport !== "cline-api" &&
+			model.transport !== "local-core"
+		) {
+			fail(`invalid transport for ${model.id}: ${JSON.stringify(model.transport)}`)
+		}
 		if (config.routerProfile === "cline-pass-router" && !model.id.startsWith("cline-pass/")) {
 			fail(`cline-pass-router model must use a public cline-pass/* id: ${model.id}`)
 		}
@@ -1341,9 +1359,32 @@ export function localCoreHarborArguments(localCoreUrl?: string): string[] {
 	]
 }
 
-export function modelTransportHarborArguments(modelId: string, localCoreUrl?: string): string[] {
-	const usesLocalRouter = modelId === "cline/auto" || modelId === "cline-pass/auto"
-	return usesLocalRouter ? localCoreHarborArguments(localCoreUrl) : []
+export function modelTransportHarborArguments(
+	modelId: string,
+	localCoreUrl?: string,
+	transport?: ModelConfig["transport"],
+): string[] {
+	const isVirtualRouter = modelId === "cline/auto" || modelId === "cline-pass/auto"
+	const usesLocalCore = transport === "local-core" || (transport === undefined && isVirtualRouter)
+	if (transport === "cline-api" || !usesLocalCore) return []
+	if (!localCoreUrl) {
+		if (transport === "local-core") {
+			fail(`model ${modelId} requires --local-core-url for transport=local-core`)
+		}
+		return []
+	}
+	return localCoreHarborArguments(localCoreUrl)
+}
+
+export function assertModelTransportPrerequisites(config: PilotConfig, localCoreUrl?: string): void {
+	if (localCoreUrl) normalizeLocalCoreUrl(localCoreUrl)
+	for (const model of config.models) {
+		if (model.transport === "local-core" && !localCoreUrl) {
+			fail(
+				`model ${model.id} requires --local-core-url for transport=local-core before jobs-root creation and budget reservation`,
+			)
+		}
+	}
 }
 
 export function liveCostStopUsd(perTaskBudgetUsd: number): number {
@@ -1646,7 +1687,7 @@ async function runOne(
 		"--yes",
 	]
 	args.push(...verifierHarborArguments())
-	args.push(...modelTransportHarborArguments(model.id, localCoreUrl))
+	args.push(...modelTransportHarborArguments(model.id, localCoreUrl, model.transport))
 
 	console.log(`\n[${runNumber}] ${model.id} × ${task}`)
 	const startedAt = new Date().toISOString()
@@ -1790,7 +1831,7 @@ function printMatrix(config: PilotConfig) {
 	}
 	for (const model of config.models) {
 		console.log(
-			`  ${model.id} [wave ${model.wave ?? 1}]: $${model.perTaskBudgetUsd.toFixed(2)}/task exposure, $${model.perModelBudgetUsd.toFixed(2)}/model stop`,
+			`  ${model.id} [wave ${model.wave ?? 1}, transport ${model.transport ?? "default"}]: $${model.perTaskBudgetUsd.toFixed(2)}/task exposure, $${model.perModelBudgetUsd.toFixed(2)}/model stop`,
 		)
 	}
 	console.log("Latin-square run order:")
@@ -1832,6 +1873,7 @@ async function main() {
 		return
 	}
 	if (args.execute) {
+		assertModelTransportPrerequisites(config, args.localCoreUrl)
 		assertLocalClineVersion(config)
 		console.log(`Local Cline ${config.clineVersion} preflight passed before jobs-root creation and budget reservation.`)
 		await assertDirectModelsInLiveCatalog(config)

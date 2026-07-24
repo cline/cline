@@ -12,6 +12,7 @@
 	"models": [
 		{
 			"id": "cline/auto",
+			"transport": "local-core",
 			"wave": 1,
 			"perTaskBudgetUsd": 2.2,
 			"perModelBudgetUsd": 17.6,
@@ -23,6 +24,7 @@
 		},
 		{
 			"id": "moonshotai/kimi-k3",
+			"transport": "local-core",
 			"wave": 1,
 			"perTaskBudgetUsd": 2.2,
 			"perModelBudgetUsd": 8.8,
@@ -40,6 +42,7 @@
 		},
 		{
 			"id": "zai/glm-5.2",
+			"transport": "local-core",
 			"wave": 1,
 			"perTaskBudgetUsd": 2.2,
 			"perModelBudgetUsd": 8.8,
@@ -57,6 +60,7 @@
 		},
 		{
 			"id": "openai/gpt-5.6-sol",
+			"transport": "cline-api",
 			"wave": 2,
 			"perTaskBudgetUsd": 1.8,
 			"perModelBudgetUsd": 14.4,
