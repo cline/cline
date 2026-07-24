@@ -122,8 +122,8 @@ bun evals/e2e/run-cline-bench-pilot.ts \
   --config evals/e2e/cline-bench-router-checkpoint.config.json
 ```
 
-Wave 1 runs `cline/auto` on all eight tasks and Kimi K2.7 Code plus GLM 5.2 on
-Axios, Telegram, Every Plugin, and V-Edit. It reserves no more than $35:
+Wave 1 runs `cline/auto` on all eight tasks and Kimi K3 plus GLM 5.2 on
+Axios, Telegram, Every Plugin, and V-Edit. It reserves no more than $35.20:
 
 ```bash
 CLINE_API_KEY="$CLINE_API_KEY" \

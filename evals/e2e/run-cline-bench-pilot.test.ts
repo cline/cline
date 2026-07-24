@@ -250,7 +250,7 @@ describe("Cline benchmark configuration and matrix", () => {
 		expect(new Set(checkpoint.tasks).size).toBe(8)
 		expect(matrix.filter((run) => run.model.id === "cline/auto")).toHaveLength(8)
 		expect(matrix.filter((run) => run.model.id === "openai/gpt-5.4")).toHaveLength(8)
-		expect(matrix.filter((run) => run.model.id === "moonshotai/kimi-k2.7-code")).toHaveLength(4)
+		expect(matrix.filter((run) => run.model.id === "moonshotai/kimi-k3")).toHaveLength(4)
 		expect(matrix.filter((run) => run.model.id === "z-ai/glm-5.2")).toHaveLength(4)
 		for (const wave of [1, 2]) {
 			const exposure = matrix

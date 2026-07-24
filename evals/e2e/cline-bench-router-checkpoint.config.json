@@ -3,8 +3,8 @@
 	"provider": "cline",
 	"globalBudgetUsd": 50,
 	"waveBudgetsUsd": {
-		"1": 35,
-		"2": 15
+		"1": 35.2,
+		"2": 14.41
 	},
 	"maxRunsPerModel": 8,
 	"timeoutSeconds": 1500,
@@ -13,19 +13,19 @@
 		{
 			"id": "cline/auto",
 			"wave": 1,
-			"perTaskBudgetUsd": 1.5,
-			"perModelBudgetUsd": 12,
+			"perTaskBudgetUsd": 2.2,
+			"perModelBudgetUsd": 17.6,
 			"allowedCandidates": [
-				"moonshotai/kimi-k2.7-code",
+				"moonshotai/kimi-k3",
 				"z-ai/glm-5.2",
 				"openai/gpt-5.4"
 			]
 		},
 		{
-			"id": "moonshotai/kimi-k2.7-code",
+			"id": "moonshotai/kimi-k3",
 			"wave": 1,
-			"perTaskBudgetUsd": 2.5,
-			"perModelBudgetUsd": 10,
+			"perTaskBudgetUsd": 2.2,
+			"perModelBudgetUsd": 8.8,
 			"tasks": [
 				"01k6rkmyfgbwpvf7h81gh4pdgd-intercept-axios-error-handling",
 				"01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor",
@@ -33,16 +33,16 @@
 				"01k8mwgj1z6kr0a7q59r6ek2ar-v-edit-workspace-tests"
 			],
 			"pricing": {
-				"inputPerMTok": 1,
-				"cachedInputPerMTok": 0.18,
-				"outputPerMTok": 4.16
+				"inputPerMTok": 3,
+				"cachedInputPerMTok": 0.3,
+				"outputPerMTok": 15
 			}
 		},
 		{
 			"id": "z-ai/glm-5.2",
 			"wave": 1,
-			"perTaskBudgetUsd": 2.5,
-			"perModelBudgetUsd": 10,
+			"perTaskBudgetUsd": 2.2,
+			"perModelBudgetUsd": 8.8,
 			"tasks": [
 				"01k6rkmyfgbwpvf7h81gh4pdgd-intercept-axios-error-handling",
 				"01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor",
