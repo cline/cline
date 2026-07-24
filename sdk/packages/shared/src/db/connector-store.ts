@@ -169,44 +169,59 @@ export class SqliteConnectorStore {
 		type?: string;
 		values: Record<string, string>;
 		security?: ConnectorSecurityConfig;
-		connectArgs?: string[];
+		updateConnectArgs?: (existing: ConnectorConfigRecord) => string[];
 		configuredAt?: string;
 		updatedAt?: string;
 	}): void {
 		const now = nowIso();
-		const connectArgsJson = entry.connectArgs
-			? JSON.stringify(entry.connectArgs)
-			: null;
-		this.getRawDb()
-			.prepare(
+		const db = this.getRawDb();
+		db.exec("BEGIN IMMEDIATE;");
+		try {
+			const existingRow = db
+				.prepare(`SELECT * FROM connectors WHERE channel = ?`)
+				.get(entry.channel);
+			const existing = existingRow ? rowToRecord(existingRow) : undefined;
+			const connectArgs =
+				existing?.connectArgs && entry.updateConnectArgs
+					? entry.updateConnectArgs(existing)
+					: existing?.connectArgs;
+			db.prepare(
 				`INSERT INTO connectors (
 					channel, type, configured, values_json, security_enabled, security_values_json,
 					connect_args_json, enabled, configured_at, updated_at, last_connected_at
-				) VALUES (?, ?, 1, ?, ?, ?, NULL, 0, ?, ?, NULL)
+				) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(channel) DO UPDATE SET
 					type = excluded.type,
 					configured = 1,
 					values_json = excluded.values_json,
 					security_enabled = excluded.security_enabled,
 					security_values_json = excluded.security_values_json,
-					connect_args_json = CASE
-						WHEN connectors.connect_args_json IS NOT NULL AND ? IS NOT NULL
-							THEN ?
-						ELSE connectors.connect_args_json
-					END,
+					connect_args_json = excluded.connect_args_json,
+					enabled = excluded.enabled,
+					configured_at = excluded.configured_at,
+					last_connected_at = excluded.last_connected_at,
 					updated_at = excluded.updated_at`,
-			)
-			.run(
+			).run(
 				entry.channel,
 				entry.type ?? entry.channel,
 				JSON.stringify(entry.values),
 				toBoolInt(entry.security?.enabled === true),
 				JSON.stringify(entry.security?.values ?? {}),
-				entry.configuredAt ?? now,
+				connectArgs ? JSON.stringify(connectArgs) : null,
+				toBoolInt(existing?.enabled ?? false),
+				entry.configuredAt ?? existing?.configuredAt ?? now,
 				entry.updatedAt ?? now,
-				connectArgsJson,
-				connectArgsJson,
+				existing?.lastConnectedAt ?? null,
 			);
+			db.exec("COMMIT;");
+		} catch (error) {
+			try {
+				db.exec("ROLLBACK;");
+			} catch {
+				// Preserve the original transaction failure.
+			}
+			throw error;
+		}
 	}
 
 	/**

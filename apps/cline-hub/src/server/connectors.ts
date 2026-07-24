@@ -2,13 +2,14 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import process from "node:process";
+import { listActiveConnectors } from "@cline/core";
 import {
 	buildConnectorConnectArgs,
 	CONNECTOR_PLATFORMS,
 	listConnectorCatalog,
+	setConnectorCliLaunchSpec,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
-import { listActiveConnectors } from "../../../cli/src/connectors/status";
 import type {
 	WebviewConnectorChannel,
 	WebviewConnectorChannelsResponse,
@@ -76,6 +77,15 @@ function buildCliConnectCommand(
 		? ["--conditions=development", cliPath, "connect", ...args]
 		: ["connect", ...args];
 	return { launcher, childArgs };
+}
+
+export function configureConnectorCliLaunch(): void {
+	const command = buildCliConnectCommand([]);
+	setConnectorCliLaunchSpec({
+		launcher: command.launcher,
+		connectArgsPrefix: command.childArgs,
+		cwd: workspaceRoot,
+	});
 }
 
 export function connectorChannelsPayload(): WebviewConnectorChannelsResponse {

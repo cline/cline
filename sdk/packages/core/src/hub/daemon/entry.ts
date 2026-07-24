@@ -1,5 +1,6 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { reconnectDaemonConnectors } from "../../services/connectors/daemon-connector-reconnect";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
@@ -159,6 +160,15 @@ async function main(): Promise<void> {
 	});
 
 	resolveHubDaemonReady();
+	try {
+		await reconnectDaemonConnectors();
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(
+			`[hub-daemon] connector reconnect failed: ${message}\n`,
+		);
+	}
 	await new Promise<void>(() => {
 		// keep daemon process alive
 	});

@@ -82,7 +82,7 @@ describe("SqliteConnectorStore", () => {
 			store.upsertConfig({
 				channel: "telegram",
 				values: { "-k": "456:rotated" },
-				connectArgs: ["-k", "456:rotated"],
+				updateConnectArgs: () => ["-k", "456:rotated"],
 			});
 			const record = store.get("telegram");
 			expect(record?.values).toEqual({ "-k": "456:rotated" });

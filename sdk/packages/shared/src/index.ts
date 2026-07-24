@@ -35,6 +35,7 @@ export {
 	CONNECTOR_PLATFORMS,
 	connectorChannelsFromPlatforms,
 	listConnectorCatalog,
+	mergeConnectorConnectArgs,
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type {
@@ -427,9 +428,13 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
+export type { ConnectorCliLaunchSpec } from "./runtime/hub-daemon-env";
 export {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
+	readConnectorCliLaunchSpec,
+	setConnectorCliLaunchSpec,
 } from "./runtime/hub-daemon-env";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,

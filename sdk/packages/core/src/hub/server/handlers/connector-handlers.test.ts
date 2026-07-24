@@ -108,8 +108,13 @@ describe("connector hub handlers", () => {
 		useTempDataDir();
 		withConnectorStore((store) => {
 			store.recordConnected("telegram", [
-				"-k",
+				"--provider",
+				"openrouter",
+				"--bot-token",
 				"123456:old-token",
+				"--cwd",
+				"/workspace",
+				"--no-tools",
 				"--allowed-user-id",
 				"1",
 			]);
@@ -124,6 +129,11 @@ describe("connector hub handlers", () => {
 
 		const persisted = readPersistedConnector("telegram");
 		expect(persisted?.connectArgs).toEqual([
+			"--provider",
+			"openrouter",
+			"--cwd",
+			"/workspace",
+			"--no-tools",
 			"-k",
 			"123456:rotated-token",
 			"--allowed-user-id",

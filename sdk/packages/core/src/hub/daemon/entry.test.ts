@@ -9,6 +9,7 @@ const {
 	mockResolveHubEndpointOptions,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
+	mockReconnectDaemonConnectors,
 	mockStartHubWebSocketServer,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
@@ -33,6 +34,7 @@ const {
 		ownerId: "shared",
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
+	mockReconnectDaemonConnectors: vi.fn(async () => []),
 	mockStartHubWebSocketServer: vi.fn(async () => ({
 		close: vi.fn(async () => undefined),
 	})),
@@ -82,6 +84,10 @@ vi.mock("../server", () => ({
 	startHubWebSocketServer: mockStartHubWebSocketServer,
 }));
 
+vi.mock("../../services/connectors/daemon-connector-reconnect", () => ({
+	reconnectDaemonConnectors: mockReconnectDaemonConnectors,
+}));
+
 vi.mock("./telemetry", () => ({
 	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
 }));
@@ -102,6 +108,7 @@ describe("hub daemon entry", () => {
 		mockResolveHubEndpointOptions.mockClear();
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
+		mockReconnectDaemonConnectors.mockClear();
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
@@ -144,6 +151,7 @@ describe("hub daemon entry", () => {
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
 			telemetry: mockDaemonTelemetryService,
 		});
+		expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
 	});
 
 	it("does not signal readiness before the WebSocket server is listening", async () => {
@@ -171,6 +179,9 @@ describe("hub daemon entry", () => {
 		releaseServer();
 		await hubDaemonReady;
 		expect(ready).toBe(true);
+		await vi.waitFor(() => {
+			expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
+		});
 	});
 
 	it("disposes telemetry and exits when server startup fails", async () => {

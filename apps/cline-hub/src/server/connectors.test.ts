@@ -1,7 +1,33 @@
-import { describe, expect, it } from "vitest";
-import { __test__ } from "./connectors";
+import {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
+	readConnectorCliLaunchSpec,
+} from "@cline/shared";
+import { afterEach, describe, expect, it } from "vitest";
+import { __test__, configureConnectorCliLaunch } from "./connectors";
 
 describe("connector launch command", () => {
+	const originalLaunchSpec = process.env[CLINE_CONNECTOR_CLI_LAUNCH_ENV];
+
+	afterEach(() => {
+		if (originalLaunchSpec === undefined) {
+			delete process.env[CLINE_CONNECTOR_CLI_LAUNCH_ENV];
+		} else {
+			process.env[CLINE_CONNECTOR_CLI_LAUNCH_ENV] = originalLaunchSpec;
+		}
+	});
+
+	it("registers the CLI connect command for the detached daemon", () => {
+		const expected = __test__.buildCliConnectCommand([]);
+
+		configureConnectorCliLaunch();
+
+		expect(readConnectorCliLaunchSpec()).toEqual({
+			launcher: expected.launcher,
+			connectArgsPrefix: expected.childArgs,
+			cwd: expect.any(String),
+		});
+	});
+
 	it("uses Bun conditions when launching the source CLI from Bun", () => {
 		expect(
 			__test__.buildCliConnectCommand(["telegram", "--bot-token", "token"], {
