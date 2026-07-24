@@ -34,6 +34,9 @@ environment and is graded by the task's deterministic verifier.
   telemetry is useful for quota/economic comparisons but is not an invoice.
 - The timeout is enforced both in Cline and at Harbor's outer agent boundary;
   interrupted runs count as timed-out failures and retain their usage totals.
+- The Telegram verifier is copied to a private per-run overlay that adds
+  `/root/.local/bin` to PATH. This fixes its upstream `uv` lookup bug without
+  dirtying or forking the `cline-bench` submodule.
 - Harbor exposes cost telemetry after a task completes, not while it is
   running. Therefore dollar limits stop subsequent work, and the 25-minute
   wall timeout is the proactive in-task bound.

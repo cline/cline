@@ -16,7 +16,15 @@
  */
 
 import { spawnSync } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+	chmodSync,
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -465,6 +473,34 @@ function taskAgentTimeoutSeconds(task: string): number {
 	return configuredTimeout
 }
 
+// The upstream Telegram verifier installs uv under /root/.local/bin but does
+// not add that directory to PATH. Harbor's verifier container then reports
+// "uv: command not found" after a valid agent run. Materialize a private task
+// overlay with only that infrastructure correction so the submodule remains
+// clean and the benchmark is reproducible from this branch.
+export function prepareTaskPath(task: string, jobsRoot: string): string {
+	if (task !== "01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor") {
+		return `tasks/${task}`
+	}
+	const source = join(clineBenchDir, "tasks", task)
+	const overlay = join(jobsRoot, "task-overlays", task)
+	if (!existsSync(overlay)) {
+		mkdirSync(dirname(overlay), { recursive: true, mode: 0o700 })
+		cpSync(source, overlay, { recursive: true })
+		const verifier = join(overlay, "tests", "test.sh")
+		const original = readFileSync(verifier, "utf8")
+		if (!original.includes('export PATH="/root/.local/bin:$PATH"')) {
+			const patched = original.replace(
+				"#!/bin/bash\n",
+				'#!/bin/bash\n\nexport PATH="/root/.local/bin:$PATH"\n',
+			)
+			if (patched === original) fail(`could not patch Telegram verifier: ${verifier}`)
+			writeFileSync(verifier, patched, { mode: 0o755 })
+		}
+	}
+	return overlay
+}
+
 function runOne(
 	config: PilotConfig,
 	model: ModelConfig,
@@ -476,10 +512,11 @@ function runOne(
 	const jobDir = join(jobsRoot, jobName)
 	const harborModel = `${config.provider}:${model.id}`
 	const timeoutMultiplier = Math.min(1, config.timeoutSeconds / taskAgentTimeoutSeconds(task))
+	const taskPath = prepareTaskPath(task, jobsRoot)
 	const args = [
 		"run",
 		"-p",
-		`tasks/${task}`,
+		taskPath,
 		"-a",
 		"cline-cli",
 		"-m",
@@ -648,4 +685,6 @@ function main() {
 	}
 }
 
-main()
+if (import.meta.main) {
+	main()
+}
