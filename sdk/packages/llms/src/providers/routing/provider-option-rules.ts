@@ -13,6 +13,10 @@ import {
 	supportsGeminiThinking,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
+import {
+	buildChutesThinkingProviderOptionsPatch,
+	usesChutesChatTemplateReasoning,
+} from "./chutes-thinking";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {
 	buildNativeGlmThinkingProviderOptionsPatch,
@@ -287,6 +291,22 @@ const openRouterReasoningRule: ProviderOptionRule = {
 		),
 };
 
+const chutesChatTemplateReasoningRule: ProviderOptionRule = {
+	id: "provider.chutes.chat-template-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Chutes Kimi and hybrid Qwen families use chat_template_kwargs thinking controls.",
+	applies: (input) =>
+		usesChutesChatTemplateReasoning(input.request, input.context),
+	suppresses: { genericThinking: true, genericEffort: true },
+	build: (input) =>
+		buildChutesThinkingProviderOptionsPatch(
+			input.request,
+			input.context,
+			input.providerOptionsKey,
+		),
+};
+
 const clineMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
 	id: "provider.cline.minimax-m3.gateway-reasoning",
 	phase: "provider-reasoning",
@@ -496,6 +516,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	genericProviderFanoutRule,
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,
+	chutesChatTemplateReasoningRule,
 	clineMiniMaxM3GatewayReasoningRule,
 	vercelMiniMaxM3GatewayReasoningRule,
 	geminiThinkingRule,

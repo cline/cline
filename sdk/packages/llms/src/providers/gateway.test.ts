@@ -3470,6 +3470,157 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("passes Chutes Kimi K2.6 TEE reasoning controls through provider options", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "chutes", apiKey: "chutes-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+				messages: baseMessages,
+				reasoning: { enabled: true, effort: "high" },
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+				messages: baseMessages,
+				reasoning: { enabled: false, effort: "high" },
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					chutes: expect.objectContaining({
+						chat_template_kwargs: {
+							thinking: true,
+							preserve_thinking: true,
+						},
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					chutes: expect.objectContaining({
+						chat_template_kwargs: { thinking: false },
+					}),
+				}),
+			}),
+		);
+
+		const defaultProviderOptions = (
+			streamTextSpy.mock.calls[2]?.[0] as {
+				providerOptions?: Record<string, Record<string, unknown>>;
+			}
+		).providerOptions;
+		for (const bucket of ["chutes", "openaiCompatible"] as const) {
+			expect(defaultProviderOptions?.[bucket]).not.toHaveProperty(
+				"chat_template_kwargs",
+			);
+		}
+
+		for (const call of streamTextSpy.mock.calls) {
+			const providerOptions = (
+				call[0] as {
+					providerOptions?: Record<string, Record<string, unknown>>;
+				}
+			).providerOptions;
+			for (const bucket of ["chutes", "openaiCompatible"] as const) {
+				expect(providerOptions?.[bucket]).not.toHaveProperty("thinking");
+				expect(providerOptions?.[bucket]).not.toHaveProperty("reasoningEffort");
+				expect(providerOptions?.[bucket]).not.toHaveProperty("effort");
+			}
+		}
+	});
+
+	it("routes Chutes Kimi and Qwen reasoning controls by model family", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "chutes", apiKey: "chutes-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.5-TEE",
+				messages: baseMessages,
+				reasoning: { enabled: false },
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "chutes",
+				modelId: "Qwen/Qwen3-32B-TEE",
+				messages: baseMessages,
+				reasoning: { enabled: true },
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "chutes",
+				modelId: "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
+				messages: baseMessages,
+				reasoning: { enabled: false },
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					chutes: expect.objectContaining({
+						chat_template_kwargs: { thinking: false },
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					chutes: expect.objectContaining({
+						chat_template_kwargs: { enable_thinking: true },
+					}),
+				}),
+			}),
+		);
+
+		const thinkingOnlyProviderOptions = (
+			streamTextSpy.mock.calls[2]?.[0] as {
+				providerOptions?: Record<string, Record<string, unknown>>;
+			}
+		).providerOptions;
+		expect(thinkingOnlyProviderOptions?.chutes).not.toHaveProperty(
+			"chat_template_kwargs",
+		);
+	});
+
 	it("does not apply generic thinking to non-GLM native Z.AI custom models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
