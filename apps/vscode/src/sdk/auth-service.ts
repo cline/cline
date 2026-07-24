@@ -70,6 +70,22 @@ export interface ClineAccountOrganization {
 	roles: string[]
 }
 
+export function summarizeAuthFetchError(error: unknown): {
+	name: string
+	message: string
+	code?: string
+	status?: number
+} {
+	const value = error && typeof error === "object" ? (error as Record<string, unknown>) : null
+	const response = value?.response && typeof value.response === "object" ? (value.response as Record<string, unknown>) : null
+	return {
+		name: typeof value?.name === "string" ? value.name : "Error",
+		message: typeof value?.message === "string" ? value.message : "Failed to fetch user info",
+		...(typeof value?.code === "string" ? { code: value.code } : {}),
+		...(typeof response?.status === "number" ? { status: response.status } : {}),
+	}
+}
+
 /** Logout reason for telemetry */
 export enum LogoutReason {
 	USER_INITIATED = "user_initiated",
@@ -319,7 +335,10 @@ export class AuthService {
 			sdkDebug(`[SdkAuthService] fetchUserInfoFromApi: response status=${response.status}`)
 			return response.data?.data ?? null
 		} catch (error) {
-			Logger.error("[SdkAuthService] Failed to fetch user info from API:", error)
+			// Axios errors include the full request config, including Authorization.
+			// Log only non-sensitive diagnostics so a local/backend failure cannot
+			// copy an access token into extension-host logs.
+			Logger.error("[SdkAuthService] Failed to fetch user info from API:", summarizeAuthFetchError(error))
 			return null
 		}
 	}
