@@ -187,7 +187,7 @@ Options:
   --stop-after <n>    Stop cleanly after matrix run n
   --only-run <n>      Reuse prior work but execute only matrix run n
   --wave <n>          Execute only the selected staged wave
-  --local-core-url    Local Core URL (strictly localhost:7777)
+  --local-core-url    Local Core URL (strictly localhost:7777 or :17777)
   --route-traces      Privacy-safe Core route trace JSON/JSONL
   --ingest-route-traces
                       Attach traces to an existing report without model calls
