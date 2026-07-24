@@ -16,6 +16,8 @@ export const PATCH_MARKERS = {
 } as const;
 
 export const BASH_WRAPPERS = ["%%bash", "apply_patch", "EOF", "```"] as const;
+// Avoid allocating extremely large Levenshtein matrices for oversized contexts.
+const MAX_FUZZY_MATCH_CELLS = 1_000_000;
 
 export enum PatchActionType {
 	ADD = "add",
@@ -310,11 +312,42 @@ export class PatchParser {
 }
 
 function calculateSimilarity(str1: string, str2: string): number {
+	if (str1 === str2) {
+		return 1;
+	}
+
 	const longer = str1.length > str2.length ? str1 : str2;
 	const shorter = str1.length > str2.length ? str2 : str1;
+
 	if (longer.length === 0) {
 		return 1;
 	}
+
+	// Avoid allocating a huge Levenshtein matrix for oversized comparisons,
+	// but still preserve a meaningful similarity score for large near-matches.
+	if (str1.length * str2.length > MAX_FUZZY_MATCH_CELLS) {
+		let prefix = 0;
+		while (
+			prefix < shorter.length &&
+			prefix < longer.length &&
+			shorter[prefix] === longer[prefix]
+		) {
+			prefix++;
+		}
+
+		let suffix = 0;
+		while (
+			suffix < shorter.length - prefix &&
+			suffix < longer.length - prefix &&
+			shorter[shorter.length - 1 - suffix] ===
+				longer[longer.length - 1 - suffix]
+		) {
+			suffix++;
+		}
+
+		return (prefix + suffix) / longer.length;
+	}
+
 	const editDistance = levenshteinDistance(shorter, longer);
 	return (longer.length - editDistance) / longer.length;
 }
