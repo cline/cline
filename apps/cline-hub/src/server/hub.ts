@@ -1,4 +1,5 @@
 import {
+	CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV,
 	ClineCore,
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
@@ -133,11 +134,10 @@ export async function attachHub(
 			}
 		: await ensureDetachedHubServer(workspaceRoot);
 
-	await detachHub(ctx);
-	ctx.hubUrl = hub.url;
-	ctx.hubAuthToken = hub.authToken;
-
-	ctx.cline = await ClineCore.create({
+	// Establish the new hub connection before detaching the current one so a
+	// failed connect_hub / attach attempt cannot leave the dashboard bridge
+	// permanently disconnected.
+	const nextCline = await ClineCore.create({
 		clientName: "cline-hub",
 		backendMode: "hub",
 		capabilities: {
@@ -145,21 +145,41 @@ export async function attachHub(
 				requestToolApprovalFromWebview(ctx, request),
 		},
 		hub: {
-			endpoint: ctx.hubUrl,
-			authToken: ctx.hubAuthToken,
+			endpoint: hub.url,
+			authToken: hub.authToken,
 			clientType: "cline-hub-chat",
 			displayName: "Cline Hub Chat",
 			workspaceRoot,
 		},
 	});
 
-	ctx.uiClient = new HubUIClient({
-		address: ctx.hubUrl,
-		authToken: ctx.hubAuthToken,
+	const nextUiClient = new HubUIClient({
+		address: hub.url,
+		authToken: hub.authToken,
 		clientType: "cline-hub-server",
 		displayName: "Cline Hub Server",
 	});
-	await ctx.uiClient.connect();
+	try {
+		await nextUiClient.connect();
+	} catch (error) {
+		try {
+			nextUiClient.close();
+		} catch {
+			// ignore
+		}
+		try {
+			await nextCline.dispose();
+		} catch {
+			// ignore
+		}
+		throw error;
+	}
+
+	await detachHub(ctx);
+	ctx.hubUrl = hub.url;
+	ctx.hubAuthToken = hub.authToken;
+	ctx.cline = nextCline;
+	ctx.uiClient = nextUiClient;
 
 	ctx.uiClient.subscribeUI({
 		onNotify(payload: HubUINotifyPayload) {
@@ -305,7 +325,19 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 	} catch (error) {
 		console.warn("stopLocalHubServerGracefully failed:", error);
 	}
-	await attachHub(ctx);
+	// Prevent the replacement hub daemon from SIGTERM-ing this dashboard
+	// process during startup; restartHub reattaches in-process afterward.
+	const previousSkip = process.env[CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV];
+	process.env[CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV] = "1";
+	try {
+		await attachHub(ctx);
+	} finally {
+		if (previousSkip === undefined) {
+			delete process.env[CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV];
+		} else {
+			process.env[CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV] = previousSkip;
+		}
+	}
 	broadcastHubState(ctx);
 	ctx.broadcast({
 		type: "notification",

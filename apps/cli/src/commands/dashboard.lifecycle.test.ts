@@ -26,6 +26,7 @@ const { spawn, coreMocks, buildCliSubcommandCommand } = vi.hoisted(() => ({
 			ownerId: "hub-shared",
 			discoveryPath: "/tmp/hub.json",
 		})),
+		stopManagedHubDashboardProcess: vi.fn(async () => false),
 		writeHubDashboardDiscovery: vi.fn(async () => undefined),
 	},
 	buildCliSubcommandCommand: vi.fn(() => ({
@@ -71,6 +72,8 @@ describe("dashboard command lifecycle", () => {
 		);
 		coreMocks.readHubDashboardDiscovery.mockReset();
 		coreMocks.readHubDiscovery.mockReset();
+		coreMocks.stopManagedHubDashboardProcess.mockClear();
+		coreMocks.stopManagedHubDashboardProcess.mockResolvedValue(false);
 		coreMocks.writeHubDashboardDiscovery.mockClear();
 		vi.stubGlobal(
 			"fetch",

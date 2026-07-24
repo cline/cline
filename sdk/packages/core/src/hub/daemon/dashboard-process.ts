@@ -11,6 +11,10 @@ const DASHBOARD_ARGS_ENV = "CLINE_HUB_DASHBOARD_ARGS";
 const DASHBOARD_STOP_TIMEOUT_MS = 3_000;
 const DASHBOARD_STOP_POLL_MS = 100;
 
+/** When set to "1", hub daemon startup skips replacing the dashboard process. */
+export const CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV =
+	"CLINE_HUB_SKIP_DASHBOARD_RESTART";
+
 async function waitForPidToExit(pid: number): Promise<boolean> {
 	const deadline = Date.now() + DASHBOARD_STOP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
@@ -56,8 +60,13 @@ export async function stopManagedHubDashboardProcess(
 		return false;
 	}
 	const stopped = await waitForPidToExit(discovered.pid);
+	if (!stopped) {
+		// Keep discovery so callers can see the still-running PID and avoid
+		// spawning a second serve process against the same port.
+		return false;
+	}
 	await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
-	return stopped;
+	return true;
 }
 
 export async function restartManagedHubDashboardProcess(options: {
@@ -66,14 +75,25 @@ export async function restartManagedHubDashboardProcess(options: {
 	env?: NodeJS.ProcessEnv;
 }): Promise<void> {
 	const env = options.env ?? process.env;
+	if (env[CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV]?.trim() === "1") {
+		return;
+	}
 	const launcher = env[DASHBOARD_LAUNCHER_ENV]?.trim();
 	const args = parseDashboardArgs(env);
 	if (!launcher || !args) {
 		return;
 	}
-	await stopManagedHubDashboardProcess(options.discoveryPath).catch(
-		() => undefined,
-	);
+	const stopped = await stopManagedHubDashboardProcess(
+		options.discoveryPath,
+	).catch(() => false);
+	if (!stopped) {
+		const remaining = await readHubDashboardDiscovery(options.discoveryPath);
+		if (remaining?.pid && isHubDashboardPidAlive(remaining.pid)) {
+			throw new Error(
+				"Timed out waiting for the previous dashboard process to stop.",
+			);
+		}
+	}
 	const childEnv: NodeJS.ProcessEnv = {
 		...env,
 		CLINE_HUB_DASHBOARD_DISCOVERY_PATH: options.discoveryPath,

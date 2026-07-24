@@ -54,7 +54,9 @@ process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
 console.log(`[cline-hub:dev] Vite webview: ${webviewDevServerUrl}`);
-console.log("[cline-hub:dev] Hub dashboard: http://127.0.0.1:8787/");
+console.log(
+	"[cline-hub:dev] Hub dashboard: use the invite URL printed by the server (includes roomSecret).",
+);
 
 spawn(
 	"webview",

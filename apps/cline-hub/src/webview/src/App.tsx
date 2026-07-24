@@ -254,11 +254,15 @@ function sameHubUrl(left: string, right: string): boolean {
 	try {
 		const leftUrl = new URL(left);
 		const rightUrl = new URL(right);
+		const leftToken = leftUrl.searchParams.get("authToken")?.trim() || "";
+		const rightToken = rightUrl.searchParams.get("authToken")?.trim() || "";
 		leftUrl.search = "";
 		leftUrl.hash = "";
 		rightUrl.search = "";
 		rightUrl.hash = "";
-		return leftUrl.toString() === rightUrl.toString();
+		return (
+			leftUrl.toString() === rightUrl.toString() && leftToken === rightToken
+		);
 	} catch {
 		return left.trim() === right.trim();
 	}

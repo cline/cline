@@ -32,6 +32,12 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 
+export {
+	CLINE_HUB_SKIP_DASHBOARD_RESTART_ENV,
+	restartManagedHubDashboardProcess,
+	stopManagedHubDashboardProcess,
+} from "./dashboard-process";
+
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
