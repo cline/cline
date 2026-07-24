@@ -183,6 +183,37 @@ describe("dashboard command lifecycle", () => {
 		expect(coreMocks.readHubDashboardDiscovery).toHaveBeenCalledTimes(4);
 	});
 
+	it("accepts a healthy dashboard whose optional hub URL is absent", async () => {
+		const existingHub = {
+			url: "ws://127.0.0.1:25463/hub",
+			pid: 777,
+			startedAt: "2026-06-22T20:00:00.000Z",
+		};
+		const dashboardWithoutHubUrl = {
+			...dashboardRecord(888),
+			hubUrl: undefined,
+		};
+		coreMocks.readHubDiscovery
+			.mockResolvedValueOnce(existingHub)
+			.mockResolvedValueOnce(existingHub);
+		coreMocks.readHubDashboardDiscovery
+			.mockResolvedValueOnce(dashboardWithoutHubUrl)
+			.mockResolvedValueOnce(dashboardWithoutHubUrl);
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const exitCode = await runDashboardCommand({
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			openUrl: async () => {},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(spawn).not.toHaveBeenCalled();
+		expect(coreMocks.stopManagedHubDashboardProcess).not.toHaveBeenCalled();
+	});
+
 	it("falls back when a newly started hub never publishes a healthy dashboard", async () => {
 		vi.useFakeTimers();
 		coreMocks.readHubDiscovery

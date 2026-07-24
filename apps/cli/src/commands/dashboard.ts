@@ -125,8 +125,9 @@ async function withDashboardEnvironment<T>(
 }
 
 function resolveDefaultWebviewDistDir(): string | undefined {
-	if (process.env[WEBVIEW_DIST_ENV]?.trim()) {
-		return undefined;
+	const configuredWebviewDistDir = process.env[WEBVIEW_DIST_ENV]?.trim();
+	if (configuredWebviewDistDir) {
+		return configuredWebviewDistDir;
 	}
 
 	const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -292,7 +293,7 @@ function isExpectedDashboard(
 	) {
 		return false;
 	}
-	if (options.hubUrl && record.hubUrl !== options.hubUrl) {
+	if (options.hubUrl && record.hubUrl && record.hubUrl !== options.hubUrl) {
 		return false;
 	}
 	return true;

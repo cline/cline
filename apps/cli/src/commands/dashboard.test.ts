@@ -20,6 +20,7 @@ const ENV_KEYS = [
 	"PUBLIC_URL",
 	"ROOM_SECRET",
 	"CLINE_HUB_WEBVIEW_DIST_DIR",
+	"CLINE_HUB_DASHBOARD_WEB_URL",
 	"CLINE_HUB_DASHBOARD_DISCOVERY_PATH",
 	"CLINE_WRAPPER_PATH",
 ] as const;
@@ -55,11 +56,13 @@ describe("runDashboardCommand", () => {
 					publicUrl: string | undefined;
 					roomSecret: string | undefined;
 					webviewDistDir: string | undefined;
+					dashboardWebUrl: string | undefined;
 			  }
 			| undefined;
 		const webviewDistDir = mkdtempSync(join(tmpdir(), "cline-webview-dist-"));
 		mkdirSync(webviewDistDir, { recursive: true });
 		process.env.CLINE_HUB_WEBVIEW_DIST_DIR = webviewDistDir;
+		delete process.env.CLINE_HUB_DASHBOARD_WEB_URL;
 
 		const exitCode = await runDashboardCommand({
 			action: "serve",
@@ -85,6 +88,7 @@ describe("runDashboardCommand", () => {
 					publicUrl: process.env.PUBLIC_URL,
 					roomSecret: process.env.ROOM_SECRET,
 					webviewDistDir: process.env.CLINE_HUB_WEBVIEW_DIST_DIR,
+					dashboardWebUrl: process.env.CLINE_HUB_DASHBOARD_WEB_URL,
 				};
 				return {
 					listenUrl: "http://127.0.0.1:9090/",
@@ -114,6 +118,7 @@ describe("runDashboardCommand", () => {
 			publicUrl: "http://127.0.0.1:9090",
 			roomSecret: "secret",
 			webviewDistDir,
+			dashboardWebUrl: undefined,
 		});
 		expect(stop).toHaveBeenCalledTimes(1);
 		expect(output.join("\n")).toContain("Cline dashboard listening at");
