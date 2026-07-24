@@ -30,12 +30,20 @@ tmux -f /exec-daemon/tmux.portal.conf new-session -d -s fault-proxy -- \
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-config -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
-Open the Cline panel, go to Settings → **API Configuration**, choose **OpenAI Compatible**, and point it at
-`http://127.0.0.1:8788/v1` with any non-empty API key and model `fault/ok`.
+Open the Cline panel with the Cline icon in the VS Code Activity Bar. On an empty data directory you get
+onboarding: choose **Bring my own API key**, then **Continue**. Afterwards the same form lives behind the gear icon
+in the Cline navbar, and **Done** closes it.
+
+Choose **OpenAI Compatible** in the *API Provider* field and point it at `http://127.0.0.1:8788/v1` with any
+non-empty API key and model `fault/ok`.
+
+One trap worth knowing before you start: the Model ID field is an autocomplete, not a plain text box. Typing a
+value that is a prefix of another model id can commit the longer one — typing `fault/ok` will happily leave you on
+`fault/ok-no-cache`. Always read back the committed value before sending.
 
 Read what the provider received with:
 
@@ -44,7 +52,10 @@ tail -1 /tmp/fault-proxy.jsonl | python3 -m json.tool
 ```
 
 That gives you the full URL path, every header, and the exact JSON body — which is your ground truth for whether a
-setting took effect.
+setting took effect. A confirmed-good baseline looks like this: `path` is `/v1/chat/completions`,
+`headers.authorization` is `Bearer <your key>`, `body.model` is the model id you selected, and `body.tools` lists
+the agent tools (`read_files`, `search_codebase`, `fetch_web_content`, `editor`, `ask_question`,
+`attempt_completion`, `run_commands`).
 
 ## The check that every field gets
 

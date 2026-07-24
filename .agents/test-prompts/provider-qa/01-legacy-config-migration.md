@@ -36,20 +36,22 @@ node /workspace/.agents/test-prompts/provider-qa/fixtures/seed-legacy-config.mjs
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-migration -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
-Then click the Cline icon in the VS Code Activity Bar to open the panel, and the gear/Settings icon in the Cline
-navbar to reach the **API Configuration** tab.
+Open the Cline panel with the Cline icon in the VS Code Activity Bar, then the gear icon in the Cline navbar to
+reach **API Configuration**; **Done** closes it. If the data directory has no usable config Cline shows onboarding
+instead — choose **Bring my own API key**, then **Continue**, which lands on the same provider form. Which of the
+two you get is itself a signal here: a successfully migrated config should never drop you into onboarding.
 
 `--shape --list` shows all shapes. Optionally pass `--key <real key>` to any shape so the migrated config can also
 send a live request.
 
-For a fast headless pre-check of what migration produced, before opening the UI:
+For a fast headless pre-check of what migration produced, before opening the UI (needs `bun run build:sdk`):
 
 ```bash
-cd /workspace/sdk && bun ../.agents/test-prompts/provider-qa/fixtures/run-migration.ts "$QA/data"
+bun /workspace/.agents/test-prompts/provider-qa/fixtures/run-migration.ts "$QA/data"
 ```
 
 ## What to test
@@ -87,7 +89,7 @@ This one already reproduces headlessly; confirm it in the UI and file it with th
 ```bash
 node /workspace/.agents/test-prompts/provider-qa/fixtures/seed-legacy-config.mjs \
   --shape split-plan-act --dir /tmp/cline-qa/split/data --force
-cd /workspace/sdk && bun ../.agents/test-prompts/provider-qa/fixtures/run-migration.ts /tmp/cline-qa/split/data
+bun /workspace/.agents/test-prompts/provider-qa/fixtures/run-migration.ts /tmp/cline-qa/split/data
 ```
 
 The seeded config is plan = anthropic / `claude-opus-4-1-20250805`, act = openrouter / `z-ai/glm-4.6`, with

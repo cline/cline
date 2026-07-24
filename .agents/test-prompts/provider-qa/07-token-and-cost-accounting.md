@@ -32,7 +32,7 @@ cd /workspace/apps/vscode && bun run build:webview && bun esbuild.mjs
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-cost -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
@@ -57,6 +57,12 @@ Configure OpenAI Compatible against `http://127.0.0.1:8788/v1` and work through 
 
 Compare `fault/ok` and `fault/big-usage`: the token ratio is known, so the cost ratio tells you immediately whether
 the units are right.
+
+A dry run of `fault/ok` showed the task header rendering `$0.0000` alongside `4.3k` tokens and a `128.0k` context
+window. The zero is expected there — a synthetic model id carries no pricing — but it makes the point that a
+displayed `$0.0000` tells you nothing on its own. When you see it on a *real* model, first check whether the model
+info panel has prices for that model at all; a missing catalog price and a broken cost calculation look identical
+in the UI and need different fixes.
 
 ## Part 2 — Real providers
 

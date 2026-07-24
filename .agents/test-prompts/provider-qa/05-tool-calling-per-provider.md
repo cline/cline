@@ -45,7 +45,7 @@ cd /workspace/apps/vscode && bun run build:webview && bun esbuild.mjs
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-tools -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
@@ -125,6 +125,11 @@ node /workspace/.agents/test-prompts/provider-qa/fixtures/fault-proxy.mjs
 - `fault/tool-split-args` — arguments streamed one character per delta, to exercise reassembly.
 - `fault/tool-unicode-args` — quotes, newlines, tabs, a backslash, an em dash and an emoji in `new_text`. Compare
   the resulting file byte for byte.
+
+The proxy also logs the outbound request, so `tail -1 /tmp/fault-proxy.jsonl` shows you the exact tool schemas
+Cline advertised. A confirmed-good baseline for `body.tools` is `read_files`, `search_codebase`,
+`fetch_web_content`, `editor`, `ask_question`, `attempt_completion`, `run_commands`. If a provider misbehaves,
+check this first — a tool missing from the request is a different bug from a tool the model called wrongly.
 
 The proxy speaks chat-completions faithfully. Its `/v1/responses` support is deliberately minimal, so use **real**
 OpenAI or Codex credentials for Responses-API tool-calling semantics — that is precisely the surface that should

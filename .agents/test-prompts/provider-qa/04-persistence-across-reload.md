@@ -43,7 +43,7 @@ tmux -f /exec-daemon/tmux.portal.conf new-session -d -s fault-proxy -- \
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-persist -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 

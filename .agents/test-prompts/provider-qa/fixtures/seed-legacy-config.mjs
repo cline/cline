@@ -18,10 +18,10 @@
  * shape when you want the migrated config to also be able to send a request.
  */
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
-const PLACEHOLDER = "sk-legacy-placeholder-do-not-use"
+const PLACEHOLDER = "sk-legacy-placeholder-do-not-use";
 
 /**
  * Each shape is a `{ globalState, secrets }` pair written verbatim to disk.
@@ -46,7 +46,8 @@ const SHAPES = {
 	},
 
 	openrouter: {
-		description: "Provider-specific model id field (planModeOpenRouterModelId) rather than apiModelId",
+		description:
+			"Provider-specific model id field (planModeOpenRouterModelId) rather than apiModelId",
 		globalState: {
 			mode: "act",
 			planModeApiProvider: "openrouter",
@@ -59,7 +60,8 @@ const SHAPES = {
 	},
 
 	"openai-compatible": {
-		description: "Legacy `openai` provider id (maps to openai-compatible) with base URL and custom headers",
+		description:
+			"Legacy `openai` provider id (maps to openai-compatible) with base URL and custom headers",
 		globalState: {
 			mode: "act",
 			planModeApiProvider: "openai",
@@ -75,7 +77,8 @@ const SHAPES = {
 	},
 
 	"split-plan-act": {
-		description: "Different provider AND model per mode — must survive as two distinct selections",
+		description:
+			"Different provider AND model per mode — must survive as two distinct selections",
 		globalState: {
 			mode: "plan",
 			planModeApiProvider: "anthropic",
@@ -88,7 +91,8 @@ const SHAPES = {
 	},
 
 	bedrock: {
-		description: "Non-API-key credentials (AWS) plus region and prompt-cache flags",
+		description:
+			"Non-API-key credentials (AWS) plus region and prompt-cache flags",
 		globalState: {
 			mode: "act",
 			planModeApiProvider: "bedrock",
@@ -109,7 +113,8 @@ const SHAPES = {
 	},
 
 	ollama: {
-		description: "Local provider with a custom base URL and no credential at all",
+		description:
+			"Local provider with a custom base URL and no credential at all",
 		globalState: {
 			mode: "act",
 			planModeApiProvider: "ollama",
@@ -123,7 +128,8 @@ const SHAPES = {
 	},
 
 	"many-keys": {
-		description: "Selected provider is one of many stored credentials — the rest must migrate without becoming selected",
+		description:
+			"Selected provider is one of many stored credentials — the rest must migrate without becoming selected",
 		globalState: {
 			mode: "act",
 			planModeApiProvider: "gemini",
@@ -147,67 +153,81 @@ const SHAPES = {
 		},
 		keyField: ["secrets", "geminiApiKey"],
 	},
-}
+};
 
 function parseArgs(argv) {
-	const args = { shape: "anthropic", dir: null, key: null, list: false, force: false }
+	const args = {
+		shape: "anthropic",
+		dir: null,
+		key: null,
+		list: false,
+		force: false,
+	};
 	for (let i = 0; i < argv.length; i++) {
-		const arg = argv[i]
-		if (arg === "--list") args.list = true
-		else if (arg === "--force") args.force = true
-		else if (arg === "--shape") args.shape = argv[++i]
-		else if (arg === "--dir") args.dir = argv[++i]
-		else if (arg === "--key") args.key = argv[++i]
-		else if (arg === "--help" || arg === "-h") args.list = true
-		else throw new Error(`Unknown argument: ${arg}`)
+		const arg = argv[i];
+		if (arg === "--list") args.list = true;
+		else if (arg === "--force") args.force = true;
+		else if (arg === "--shape") args.shape = argv[++i];
+		else if (arg === "--dir") args.dir = argv[++i];
+		else if (arg === "--key") args.key = argv[++i];
+		else if (arg === "--help" || arg === "-h") args.list = true;
+		else throw new Error(`Unknown argument: ${arg}`);
 	}
-	return args
+	return args;
 }
 
 function main() {
-	const args = parseArgs(process.argv.slice(2))
+	const args = parseArgs(process.argv.slice(2));
 
 	if (args.list) {
-		console.log("Available shapes:\n")
+		console.log("Available shapes:\n");
 		for (const [name, shape] of Object.entries(SHAPES)) {
-			console.log(`  ${name.padEnd(18)} ${shape.description}`)
+			console.log(`  ${name.padEnd(18)} ${shape.description}`);
 		}
-		console.log("\nUsage: node seed-legacy-config.mjs --shape <name> --dir <dataDir> [--key <apiKey>] [--force]")
-		console.log("Then launch a host with CLINE_DATA_DIR=<dataDir>.")
-		return
+		console.log(
+			"\nUsage: node seed-legacy-config.mjs --shape <name> --dir <dataDir> [--key <apiKey>] [--force]",
+		);
+		console.log("Then launch a host with CLINE_DATA_DIR=<dataDir>.");
+		return;
 	}
 
-	const shape = SHAPES[args.shape]
+	const shape = SHAPES[args.shape];
 	if (!shape) {
-		throw new Error(`Unknown shape "${args.shape}". Run with --list to see the available shapes.`)
+		throw new Error(
+			`Unknown shape "${args.shape}". Run with --list to see the available shapes.`,
+		);
 	}
 	if (!args.dir) {
-		throw new Error("--dir is required (point it at the data dir you will pass as CLINE_DATA_DIR)")
+		throw new Error(
+			"--dir is required (point it at the data dir you will pass as CLINE_DATA_DIR)",
+		);
 	}
 
-	const globalState = structuredClone(shape.globalState)
-	const secrets = structuredClone(shape.secrets)
+	const globalState = structuredClone(shape.globalState);
+	const secrets = structuredClone(shape.secrets);
 	if (args.key && shape.keyField) {
-		const [bucket, field] = shape.keyField
-		;(bucket === "secrets" ? secrets : globalState)[field] = args.key
+		const [bucket, field] = shape.keyField;
+		(bucket === "secrets" ? secrets : globalState)[field] = args.key;
 	}
 
 	if (args.force) {
-		rmSync(args.dir, { recursive: true, force: true })
+		rmSync(args.dir, { recursive: true, force: true });
 	}
-	mkdirSync(join(args.dir, "settings"), { recursive: true })
+	mkdirSync(join(args.dir, "settings"), { recursive: true });
 
-	const globalStatePath = join(args.dir, "globalState.json")
-	const secretsPath = join(args.dir, "secrets.json")
-	mkdirSync(dirname(globalStatePath), { recursive: true })
-	writeFileSync(globalStatePath, `${JSON.stringify(globalState, null, 2)}\n`)
-	writeFileSync(secretsPath, `${JSON.stringify(secrets, null, 2)}\n`)
+	const globalStatePath = join(args.dir, "globalState.json");
+	const secretsPath = join(args.dir, "secrets.json");
+	mkdirSync(dirname(globalStatePath), { recursive: true });
+	writeFileSync(globalStatePath, `${JSON.stringify(globalState, null, 2)}\n`);
+	writeFileSync(secretsPath, `${JSON.stringify(secrets, null, 2)}\n`);
 
-	console.log(`Seeded legacy shape "${args.shape}" into ${args.dir}`)
-	console.log(`  ${globalStatePath}`)
-	console.log(`  ${secretsPath}`)
-	console.log(`  settings/providers.json intentionally absent — migration must create it`)
-	console.log(`\nLaunch with: CLINE_DATA_DIR=${args.dir}`)
+	console.log(`Seeded legacy shape "${args.shape}" into ${args.dir}`);
+	console.log(`  ${globalStatePath}`);
+	console.log(`  ${secretsPath}`);
+	console.log(
+		`  settings/providers.json intentionally absent — migration must create it`,
+	);
+	console.log(`\nLaunch with: CLINE_DATA_DIR=${args.dir}`);
 }
 
-main()
+main();

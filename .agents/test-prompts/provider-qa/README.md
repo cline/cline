@@ -54,11 +54,36 @@ Configure it in the UI as **OpenAI Compatible**, base URL `http://127.0.0.1:8788
 ### `fixtures/run-migration.ts`
 
 Triggers the legacy migration headlessly and prints the resulting `providers.json`, for a fast pre-check before
-spending time in the UI. Must be run from `/workspace/sdk` so the workspace packages resolve:
+spending time in the UI. Needs the SDK built (`bun run build:sdk`):
 
 ```bash
-cd /workspace/sdk && bun ../.agents/test-prompts/provider-qa/fixtures/run-migration.ts /tmp/cline-qa/data
+bun .agents/test-prompts/provider-qa/fixtures/run-migration.ts /tmp/cline-qa/data
 ```
+
+## Reaching the provider settings
+
+Every prompt launches its own VS Code with the extension in development mode. The click path, confirmed by running
+prompt 08 end to end:
+
+Cline icon in the Activity Bar → onboarding (only on an empty data directory) → **Bring my own API key** →
+**Continue** → the provider form. Afterwards the same form is behind the gear icon in the Cline navbar, and
+**Done** closes it. The provider field is labelled *API Provider* with the placeholder *Search and select
+provider…*.
+
+Launch with `--disable-workspace-trust`; without it VS Code opens in Restricted Mode and the prompts that execute
+commands will be blocked by a trust banner rather than by a real bug.
+
+## What the pack has already found
+
+Two findings came out of building and dry-running these prompts, and both are written up in place with a
+reproduction:
+
+- **Migration drops a per-mode model id.** With plan and act on different providers, `migrateLegacyProviderSettings`
+  reads a single `mode` from `globalState.mode` and applies it to every candidate provider, so the other mode's
+  model id is never read and the provider silently lands on a catalog default. Repro in
+  [prompt 01](./01-legacy-config-migration.md).
+- **The Model ID autocomplete commits the wrong model on a prefix match.** Typing `fault/ok` commits
+  `fault/ok-no-cache`. Repro in [prompt 06](./06-model-dropdown-behavior.md).
 
 ## Conventions every prompt follows
 

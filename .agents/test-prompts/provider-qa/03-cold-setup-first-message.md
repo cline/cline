@@ -25,7 +25,7 @@ printf 'export const name = "john"\n' > "$QA/workspace/qa.txt"
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s "vscode-cold-$P" -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
@@ -33,13 +33,15 @@ Build first if needed: `cd /workspace/apps/vscode && bun run build:webview && bu
 
 ## The sequence for one provider
 
-1. Open the Cline panel. With an empty data dir you should get onboarding, not the chat view. Note it if you don't
-   — landing straight in chat with no provider is a bug on its own.
-2. Go through onboarding to the bring-your-own-provider step. Select the provider from the **API Provider** search
+1. Open the Cline panel with the Cline icon in the VS Code Activity Bar. With an empty data dir you should get
+   onboarding, not the chat view. Note it if you don't — landing straight in chat with no provider is a bug on its
+   own.
+2. Choose **Bring my own API key**, then **Continue**. Select the provider from the **API Provider** search
    dropdown. Type to filter; confirm the provider is findable by a partial name a user would actually type.
 3. Paste the credential. Confirm it masks.
 4. Pick a model. For providers that fetch their list live, confirm the list populates before you pick — if it is
-   empty, that is a finding for prompt 06 but note it here too.
+   empty, that is a finding for prompt 06 but note it here too. The Model ID field is an autocomplete, and typing a
+   model id that is a prefix of another can commit the longer one, so read back the committed value.
 5. Finish onboarding and land in chat.
 6. Send: `Reply with exactly the single word PONG and nothing else.` You want a real completion, streamed into the
    chat, with the task header showing a token count.

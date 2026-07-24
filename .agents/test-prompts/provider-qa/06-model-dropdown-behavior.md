@@ -37,12 +37,21 @@ tmux -f /exec-daemon/tmux.portal.conf new-session -d -s fault-proxy -- \
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-dropdowns -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
-Settings → **API Configuration**. The provider dropdown is the field labelled *API Provider* with the placeholder
-*Search and select provider…*.
+Open the Cline panel from the Activity Bar. On an empty data directory you get onboarding: **Bring my own API key**
+→ **Continue**. Afterwards the same form is behind the gear icon in the Cline navbar; **Done** closes it. The
+provider dropdown is the field labelled *API Provider* with the placeholder *Search and select provider…*.
+
+**Start here — a confirmed autocomplete defect.** With OpenAI Compatible pointed at the fault proxy, click the
+Model ID field, type `fault/ok`, and commit it the way a user would. The field commits `fault/ok-no-cache`: typing
+a model id that is a strict prefix of another id selects the longer one. Both ids exist in the fetched list, and
+the wrong one is chosen silently. Reproduce it, establish which interaction commits it (Enter, blur, click
+elsewhere), check whether it also happens with catalog-backed providers where two real model ids share a prefix —
+`gpt-4.1` and `gpt-4.1-mini` are the obvious pair — and confirm whether the committed value is what actually gets
+sent. Everything else in Part 2 depends on this field behaving, so pin it down first.
 
 ## Part 1 — Live-fetched model lists
 

@@ -36,7 +36,7 @@ tmux -f /exec-daemon/tmux.portal.conf new-session -d -s fault-proxy -- \
 
 tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-errors -- \
   env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --user-data-dir="$QA/vscode-userdata" \
+  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
        --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
 ```
 
@@ -56,6 +56,28 @@ results comparable — and it costs nothing.
 | `fault/hang` | never responds | Must time out with a message. Note how long it took. An indefinite spinner is a bug. |
 | `fault/truncated-stream` | stream cut mid-token | The partial text should be kept and the truncation reported, not silently treated as a complete reply. |
 | `fault/slow-stream` | one token every 3s | Cancel mid-stream and confirm the session is usable afterwards. |
+
+### Baseline already observed
+
+A dry run of the 401, 429 and context-overflow cases established the following, so you are looking for deviations
+from it rather than starting cold.
+
+All three rendered the provider's message verbatim as red text in the chat, with no stack trace, no raw JSON and no
+`[object Object]` — for example, the 401 showed exactly *"Incorrect API key provided. You can find your API key at
+https://example.invalid/keys."* Retry counts differed by fault, which is the correct shape: the 429 produced three
+requests at the proxy, while the 401 and the context overflow produced one each. Nothing hammered the endpoint.
+
+Two things that dry run did *not* settle, and that you should:
+
+- **No Retry button appeared on any of the three error rows.** Establish whether that is intended — `ErrorRow.tsx`
+  and its siblings render different affordances per error type — or whether the generic branch is missing one. A
+  401 in particular should give the user a route to the settings that caused it.
+- **Nothing distinguished the three errors visually.** All three fell through to the same plain red text, including
+  the 402-adjacent and rate-limit cases that have dedicated components. Check whether `ClineError` classified them
+  at all, and if not, whether that is because the classifier keys off provider-specific message patterns that a
+  generic OpenAI-compatible provider does not produce.
+
+### Per-fault checklist
 
 For each: capture the exact on-screen text, confirm there is no stack trace, and confirm a Retry affordance exists
 and works. After a failure, fix the config (switch to `fault/ok`) and retry — the error state must clear and the
