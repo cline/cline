@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
-	workspaceRoot: z.string().min(1),
+	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
 	provider: z.string().min(1),
 	model: z.string().min(1),

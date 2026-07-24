@@ -8,9 +8,12 @@ import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.hoisted(() => vi.fn());
+const ensureCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
+const hubCommandMock = vi.hoisted(() => vi.fn());
+const hubGetConnectionErrorMock = vi.hoisted(() => vi.fn());
+const hubGetUrlMock = vi.hoisted(() => vi.fn());
+const hubIsConnectedMock = vi.hoisted(() => vi.fn());
 const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
-const resolveHubOwnerContextMock = vi.hoisted(() => vi.fn());
-const startHubWebSocketServerMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@cline/core", async () => {
@@ -21,19 +24,16 @@ vi.mock("@cline/core", async () => {
 		ClineCore: {
 			create: createCoreMock,
 		},
-		createLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
-			startSession: vi.fn(),
-			sendSession: vi.fn(),
-			abortSession: vi.fn(),
-			stopSession: vi.fn(),
-		})),
-		resolveHubOwnerContext: resolveHubOwnerContextMock,
-		startHubWebSocketServer: startHubWebSocketServerMock,
+		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,
 		NodeHubClient: class {
 			constructor(options: unknown) {
 				nodeHubClientCtorMock(options);
 			}
 			connect = connectMock;
+			command = hubCommandMock;
+			getConnectionError = hubGetConnectionErrorMock;
+			getUrl = hubGetUrlMock;
+			isConnected = hubIsConnectedMock;
 			subscribe = subscribeMock;
 			dispose = vi.fn();
 		},
@@ -57,20 +57,21 @@ describe("Code sidecar runtime capabilities", () => {
 	beforeEach(() => {
 		createCoreMock.mockReset();
 		connectMock.mockReset();
+		ensureCompatibleLocalHubUrlMock.mockReset();
+		hubCommandMock.mockReset();
+		hubGetConnectionErrorMock.mockReset();
+		hubGetUrlMock.mockReset();
+		hubIsConnectedMock.mockReset();
 		nodeHubClientCtorMock.mockReset();
-		resolveHubOwnerContextMock.mockReset();
-		startHubWebSocketServerMock.mockReset();
 		subscribeMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
-		resolveHubOwnerContextMock.mockReturnValue({
-			ownerId: "code-sidecar-test",
-			discoveryPath: "/tmp/code-sidecar-test.json",
-		});
-		startHubWebSocketServerMock.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "test-token",
-			close: vi.fn(),
-		});
+		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
+			"ws://127.0.0.1:25463/hub",
+		);
+		hubCommandMock.mockResolvedValue({ ok: true, payload: {} });
+		hubGetConnectionErrorMock.mockReturnValue(null);
+		hubGetUrlMock.mockReturnValue("ws://127.0.0.1:25463/hub");
+		hubIsConnectedMock.mockReturnValue(true);
 		subscribeMock.mockReturnValue(() => {});
 		createCoreMock.mockResolvedValue({
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
@@ -87,15 +88,6 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 		await initializeSessionManager(ctx);
 
-		expect(startHubWebSocketServerMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				port: 0,
-				owner: {
-					ownerId: "code-sidecar-test",
-					discoveryPath: "/tmp/code-sidecar-test.json",
-				},
-			}),
-		);
 		expect(createCoreMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				backendMode: "hub",
@@ -106,23 +98,27 @@ describe("Code sidecar runtime capabilities", () => {
 					requestToolApproval: expect.any(Function),
 				}),
 				hub: expect.objectContaining({
-					endpoint: "ws://127.0.0.1:25463/hub",
-					authToken: "test-token",
+					strategy: "require-hub",
+					workspaceRoot: "/workspace/project",
+					cwd: "/workspace/project",
 					clientType: "code-sidecar",
 					displayName: "Code App sidecar",
 				}),
 			}),
 		);
+		const hubOptions = createCoreMock.mock.calls[0][0].hub;
+		expect(hubOptions).not.toHaveProperty("endpoint");
+		expect(hubOptions).not.toHaveProperty("authToken");
 		expect(nodeHubClientCtorMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				url: "ws://127.0.0.1:25463/hub",
-				authToken: "test-token",
-				clientType: "code-sidecar-approvals",
+				clientType: "code-sidecar-observer",
+				displayName: "Code App observer",
 			}),
 		);
 	});
 
-	it("wires the desktop logger and telemetry through the client and embedded hub", async () => {
+	it("wires the desktop logger and telemetry through the shared Hub client", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
 		);
@@ -139,9 +135,6 @@ describe("Code sidecar runtime capabilities", () => {
 
 		await initializeSessionManager(ctx);
 
-		expect(startHubWebSocketServerMock).toHaveBeenCalledWith(
-			expect.objectContaining({ logger, telemetry }),
-		);
 		expect(createCoreMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				clientName: "cline-code",
@@ -149,6 +142,49 @@ describe("Code sidecar runtime capabilities", () => {
 				telemetry,
 			}),
 		);
+	});
+
+	it("reports the connected shared Hub endpoint in process context", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+
+		await initializeSessionManager(ctx);
+
+		await expect(handleCommand(ctx, "get_process_context")).resolves.toEqual(
+			expect.objectContaining({
+				hub: {
+					status: "connected",
+					url: "ws://127.0.0.1:25463/hub",
+					error: null,
+				},
+			}),
+		);
+	});
+
+	it("starts or reuses the shared Hub when a command needs a client", async () => {
+		const { createSidecarContext, ensureSharedHubClient } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+
+		const hubClient = await ensureSharedHubClient(ctx);
+		expect(hubClient).toBe(ctx.hubClient);
+
+		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
+			strategy: "require-hub",
+			workspaceRoot: "/workspace/project",
+			cwd: "/workspace/project",
+		});
+		expect(nodeHubClientCtorMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				url: "ws://127.0.0.1:25463/hub",
+				clientType: "code-sidecar-observer",
+			}),
+		);
+		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
 	it("serializes queued image data when a queued prompt starts", async () => {
@@ -245,8 +281,7 @@ describe("Code sidecar runtime capabilities", () => {
 					requestToolApproval: expect.any(Function),
 				}),
 				hub: expect.objectContaining({
-					endpoint: "ws://127.0.0.1:25463/hub",
-					authToken: "test-token",
+					strategy: "require-hub",
 					clientType: "code-sidecar",
 					displayName: "Code App sidecar",
 				}),
@@ -305,6 +340,31 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(
 			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
 		).toEqual([]);
+	});
+
+	it("routes routine commands through the connected shared Hub client", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "schedule-1", enabled: false } },
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+
+		await expect(
+			handleCommand(ctx, "pause_routine_schedule", {
+				schedule_id: "schedule-1",
+			}),
+		).resolves.toEqual({
+			schedule: { scheduleId: "schedule-1", enabled: false },
+		});
+		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
+			scheduleId: "schedule-1",
+		});
 	});
 });
 
