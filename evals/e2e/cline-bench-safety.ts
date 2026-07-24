@@ -330,7 +330,13 @@ export function recoverLatestUsage(logDocuments: readonly string[]): UsageSnapsh
 			const snapshot = usageSnapshot(parsed)
 			if (snapshot) snapshots.push(snapshot)
 		} catch {
-			if (line.includes('"type":"usage"') || line.includes('"type":"run_result"')) {
+			// Harbor exception/result records can embed a truncated copy of the
+			// agent stdout, including telemetry-looking strings. Only classify
+			// canonical top-level Cline event lines as malformed telemetry.
+			if (
+				/^\{"ts":"[^"]+","type":"run_result"/.test(line) ||
+				/^\{"ts":"[^"]+","type":"agent_event","event":\{"type":"usage"/.test(line)
+			) {
 				throw new Error("interrupted cost telemetry contains a malformed usage record")
 			}
 		}

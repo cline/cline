@@ -393,6 +393,27 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 				}),
 			]),
 		).toThrow("malformed usage record")
+		expect(
+			recoverLatestUsage([
+				[
+					JSON.stringify({
+						exception_message:
+							'stdout: {"ts":"2026-01-01T00:00:03Z","type":"run_result" ... [truncated]',
+					}),
+					JSON.stringify({
+						ts: "2026-01-01T00:00:06Z",
+						type: "run_result",
+						finishReason: "error",
+						aggregateUsage: {
+							inputTokens: 0,
+							cacheReadTokens: 0,
+							outputTokens: 0,
+							totalCost: 0,
+						},
+					}),
+				].join("\n"),
+			]),
+		).toMatchObject({ totalCost: 0 })
 	})
 
 	test("records an ApiRateLimitError as failed, settles its reservation, and reuses it without respending", () => {
