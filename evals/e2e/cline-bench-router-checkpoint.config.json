@@ -39,7 +39,7 @@
 			}
 		},
 		{
-			"id": "z-ai/glm-5.2",
+			"id": "zai/glm-5.2",
 			"wave": 1,
 			"perTaskBudgetUsd": 2.2,
 			"perModelBudgetUsd": 8.8,
@@ -50,20 +50,20 @@
 				"01k8mwgj1z6kr0a7q59r6ek2ar-v-edit-workspace-tests"
 			],
 			"pricing": {
-				"inputPerMTok": 1.2,
-				"cachedInputPerMTok": 0.3,
+				"inputPerMTok": 1.4,
+				"cachedInputPerMTok": 0.26,
 				"outputPerMTok": 4.4
 			}
 		},
 		{
-			"id": "openai/gpt-5.4",
+			"id": "openai/gpt-5.6-sol",
 			"wave": 2,
 			"perTaskBudgetUsd": 1.8,
 			"perModelBudgetUsd": 14.4,
 			"pricing": {
-				"inputPerMTok": 2.5,
-				"cachedInputPerMTok": 0.25,
-				"outputPerMTok": 15
+				"inputPerMTok": 5,
+				"cachedInputPerMTok": 0.5,
+				"outputPerMTok": 30
 			}
 		}
 	],

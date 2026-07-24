@@ -54,9 +54,17 @@ and is graded by the task's deterministic verifier.
   environment value; neither value is written to disk or command arguments.
 - Optional per-model token prices add cache-read ratio, estimated warm cost,
   cold-equivalent cost, and estimated cache savings to each report result.
-- `costBasis` distinguishes ordinary reported inference cost from ClinePass
-  reference-quota cost. ClinePass is subscription-billed, so its per-run dollar
-  telemetry is useful for quota/economic comparisons but is not an invoice.
+- `costBasis` distinguishes ordinary reported inference cost, ClinePass
+  reference-quota cost, and conservative `reserved-exposure`. A completed trial
+  with no cost telemetry is failed and charged at its full reservation rather
+  than reported as free or retried. A canonical terminal error with explicit
+  zero cumulative usage remains a legitimate zero-spend infrastructure failure.
+  ClinePass is subscription-billed, so its per-run dollar telemetry is useful
+  for quota/economic comparisons but is not an invoice.
+- Paid execution fetches Cline's public recommended-model catalog before
+  creating the jobs root or reserving budget. Direct arms must be present in the
+  relevant live catalog; virtual Auto candidates keep Core's internal IDs and
+  are not compared to public picker identifiers.
 - The timeout is enforced both in Cline and at Harbor's outer agent boundary.
   Harbor runs in its own process group; timeout and termination signals stop the
   group and task-scoped containers are removed. Interrupted usage is accepted
@@ -144,8 +152,8 @@ For a local Core API, add:
 ```
 
 Inspect wave 1 outcomes, route evidence, and the provider-side account limit
-before releasing wave 2. Wave 2 adds GPT-5.4 on all eight tasks, reserves no more
-than another $15, and shares the same $50 campaign ledger:
+before releasing wave 2. Wave 2 adds GPT-5.6 Sol on all eight tasks, reserves
+no more than another $14.40, and shares the same $50 campaign ledger:
 
 ```bash
 CLINE_API_KEY="$CLINE_API_KEY" \

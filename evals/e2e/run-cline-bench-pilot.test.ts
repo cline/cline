@@ -17,6 +17,7 @@ import {
 	sha256,
 } from "./cline-bench-safety"
 import {
+	assertDirectModelsInLiveCatalog,
 	assertReusableFingerprint,
 	assertTraceIngestionCompatibility,
 	buildRunMatrix,
@@ -253,15 +254,38 @@ describe("Cline benchmark configuration and matrix", () => {
 		expect(matrix).toHaveLength(24)
 		expect(new Set(checkpoint.tasks).size).toBe(8)
 		expect(matrix.filter((run) => run.model.id === "cline/auto")).toHaveLength(8)
-		expect(matrix.filter((run) => run.model.id === "openai/gpt-5.4")).toHaveLength(8)
+		expect(matrix.filter((run) => run.model.id === "openai/gpt-5.6-sol")).toHaveLength(8)
 		expect(matrix.filter((run) => run.model.id === "moonshotai/kimi-k3")).toHaveLength(4)
-		expect(matrix.filter((run) => run.model.id === "z-ai/glm-5.2")).toHaveLength(4)
+		expect(matrix.filter((run) => run.model.id === "zai/glm-5.2")).toHaveLength(4)
 		for (const wave of [1, 2]) {
 			const exposure = matrix
 				.filter((run) => run.wave === wave)
 				.reduce((total, run) => total + run.model.perTaskBudgetUsd, 0)
 			expect(exposure).toBeLessThanOrEqual(checkpoint.waveBudgetsUsd?.[String(wave)] || 0)
 		}
+	})
+
+	test("preflights direct arms against the live catalog but leaves Core Auto candidates internal", async () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		const fetchCatalog = (async () =>
+			new Response(
+				JSON.stringify({
+					recommended: [{ id: "moonshotai/kimi-k3" }, { id: "zai/glm-5.2" }, { id: "openai/gpt-5.6-sol" }],
+					free: [],
+					clinePass: [],
+				}),
+				{ status: 200 },
+			)) as typeof fetch
+		await expect(assertDirectModelsInLiveCatalog(checkpoint, fetchCatalog)).resolves.toBeUndefined()
+
+		const staleDirect = {
+			...checkpoint,
+			models: checkpoint.models.map((model) => (model.id === "zai/glm-5.2" ? { ...model, id: "z-ai/glm-5.2" } : model)),
+		}
+		await expect(assertDirectModelsInLiveCatalog(staleDirect, fetchCatalog)).rejects.toThrow(
+			"absent from the live Cline cline-router catalog: z-ai/glm-5.2",
+		)
+		expect(checkpoint.models.find((model) => model.id === "cline/auto")?.allowedCandidates).toContain("z-ai/glm-5.2")
 	})
 })
 
@@ -573,6 +597,150 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 		expect(resumed).toEqual(failed)
 		ledger = settleBudget(ledger, "1:1:cline/auto:task-a", resumed?.costUsd || 0)
 		expect(ledgerExposure(ledger)).toBe(0.25)
+	})
+
+	test("charges completed no-telemetry work at its reservation and never reruns it", () => {
+		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-no-telemetry-"))
+		temporaryDirectories.push(jobsRoot)
+		const task = "task-a"
+		const model = {
+			id: "z-ai/glm-5.2",
+			perTaskBudgetUsd: 2.2,
+			perModelBudgetUsd: 2.2,
+		}
+		const noTelemetryConfig: PilotConfig = {
+			...config(),
+			models: [model],
+			tasks: [task],
+		}
+		const jobDir = join(jobsRoot, "01-z-ai-glm-5.2-task-a")
+		const trialName = "task-a__cline__attempt-1"
+		const agentDir = join(jobDir, trialName, "agent")
+		mkdirSync(agentDir, { recursive: true })
+		writeFileSync(
+			join(jobDir, "result.json"),
+			JSON.stringify({
+				started_at: "2026-01-01T00:00:00Z",
+				finished_at: "2026-01-01T00:00:02Z",
+				trial_results: null,
+				stats: {
+					n_input_tokens: null,
+					n_cache_tokens: null,
+					n_output_tokens: null,
+					cost_usd: null,
+				},
+			}),
+		)
+		writeFileSync(
+			join(jobDir, trialName, "result.json"),
+			JSON.stringify({
+				task_name: task,
+				started_at: "2026-01-01T00:00:00Z",
+				finished_at: "2026-01-01T00:00:02Z",
+				agent_info: {
+					version: noTelemetryConfig.clineVersion,
+					model_info: { name: "glm-5.2", provider: "cline:z-ai" },
+				},
+				exception_info: null,
+				verifier_result: { rewards: { reward: 0 } },
+			}),
+		)
+		writeFileSync(join(agentDir, "cline.txt"), "__CLINE_EXIT=0\n")
+
+		const recovered = reuseCompletedRun(noTelemetryConfig, model, task, jobsRoot, 1)
+		expect(recovered).toMatchObject({
+			outcome: "failed",
+			failureClassification: "CompletedWithoutCostTelemetry",
+			passed: false,
+			reward: null,
+			costUsd: 2.2,
+			costBasis: "reserved-exposure",
+			inputTokens: null,
+			cacheTokens: null,
+			outputTokens: null,
+		})
+
+		let ledger = reserveBudget(createBudgetLedger(10), {
+			runKey: "1:1:z-ai/glm-5.2:task-a",
+			model: model.id,
+			wave: 1,
+			exposureUsd: model.perTaskBudgetUsd,
+		})
+		ledger = settleBudget(ledger, "1:1:z-ai/glm-5.2:task-a", recovered?.costUsd || 0)
+		expect(ledgerExposure(ledger)).toBe(2.2)
+
+		const resumed = reuseCompletedRun(noTelemetryConfig, model, task, jobsRoot, 1)
+		expect(resumed).toEqual(recovered)
+	})
+
+	test("keeps a canonical terminal no-spend infrastructure failure at zero", () => {
+		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-zero-spend-"))
+		temporaryDirectories.push(jobsRoot)
+		const task = "task-a"
+		const model = {
+			id: "z-ai/glm-5.2",
+			perTaskBudgetUsd: 2.2,
+			perModelBudgetUsd: 2.2,
+		}
+		const zeroSpendConfig: PilotConfig = {
+			...config(),
+			models: [model],
+			tasks: [task],
+		}
+		const jobDir = join(jobsRoot, "01-z-ai-glm-5.2-task-a")
+		const trialName = "task-a__cline__attempt-1"
+		const agentDir = join(jobDir, trialName, "agent")
+		mkdirSync(agentDir, { recursive: true })
+		writeFileSync(
+			join(jobDir, "result.json"),
+			JSON.stringify({
+				started_at: "2026-01-01T00:00:00Z",
+				finished_at: "2026-01-01T00:00:02Z",
+				trial_results: [],
+				stats: {
+					n_input_tokens: 0,
+					n_cache_tokens: 0,
+					n_output_tokens: 0,
+					cost_usd: 0,
+				},
+			}),
+		)
+		writeFileSync(
+			join(jobDir, trialName, "result.json"),
+			JSON.stringify({
+				task_name: task,
+				started_at: "2026-01-01T00:00:00Z",
+				finished_at: "2026-01-01T00:00:02Z",
+				agent_info: {
+					version: zeroSpendConfig.clineVersion,
+					model_info: { name: "glm-5.2", provider: "cline:z-ai" },
+				},
+				exception_info: { exception_type: "ApiAuthenticationError" },
+				verifier_result: null,
+			}),
+		)
+		writeFileSync(
+			join(agentDir, "cline.txt"),
+			`${JSON.stringify({
+				ts: "2026-01-01T00:00:01Z",
+				type: "run_result",
+				finishReason: "error",
+				aggregateUsage: {
+					inputTokens: 0,
+					cacheReadTokens: 0,
+					outputTokens: 0,
+					totalCost: 0,
+				},
+			})}\n`,
+		)
+
+		const recovered = reuseCompletedRun(zeroSpendConfig, model, task, jobsRoot, 1)
+		expect(recovered).toMatchObject({
+			outcome: "failed",
+			failureClassification: "ApiAuthenticationError",
+			costUsd: 0,
+			costBasis: "reported-inference",
+		})
 	})
 
 	test("recovers a private live-cost marker without a Harbor result and never respends it", () => {

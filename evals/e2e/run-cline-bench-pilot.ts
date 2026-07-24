@@ -109,7 +109,7 @@ export type RunResult = {
 	passed: boolean
 	reward: number | null
 	costUsd: number
-	costBasis: "reported-inference" | "cline-pass-reference-quota"
+	costBasis: "reported-inference" | "cline-pass-reference-quota" | "reserved-exposure"
 	durationSeconds: number
 	inputTokens: number | null
 	cacheTokens: number | null
@@ -422,6 +422,72 @@ function validatePrerequisites(execute: boolean) {
 		if (!process.env.CLINE_API_KEY?.trim()) {
 			fail("CLINE_API_KEY must be inherited from the shell for --execute")
 		}
+	}
+}
+
+type ClineRecommendedCatalog = {
+	recommended?: unknown
+	free?: unknown
+	clinePass?: unknown
+}
+
+function catalogModelIds(value: unknown, field: string): string[] {
+	if (!Array.isArray(value)) fail(`live Cline catalog has no valid ${field} model list`)
+	return value.map((entry, index) => {
+		if (
+			!entry ||
+			typeof entry !== "object" ||
+			Array.isArray(entry) ||
+			typeof (entry as Record<string, unknown>).id !== "string" ||
+			!(entry as Record<string, unknown>).id
+		) {
+			fail(`live Cline catalog has an invalid ${field}[${index}] model`)
+		}
+		return (entry as Record<string, unknown>).id as string
+	})
+}
+
+export async function assertDirectModelsInLiveCatalog(
+	config: PilotConfig,
+	fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+	const virtualModel = config.routerProfile === "cline-pass-router" ? "cline-pass/auto" : "cline/auto"
+	const directModels = config.models.filter((model) => model.id !== virtualModel)
+	if (directModels.length === 0) return
+
+	const controller = new AbortController()
+	const timeout = setTimeout(() => controller.abort(), 5_000)
+	timeout.unref()
+	let response: Response
+	try {
+		response = await fetchImpl("https://api.cline.bot/api/v1/ai/cline/recommended-models", {
+			signal: controller.signal,
+		})
+	} catch {
+		fail("live Cline catalog preflight request failed before budget reservation")
+	} finally {
+		clearTimeout(timeout)
+	}
+	if (!response.ok) {
+		fail(`live Cline catalog preflight returned HTTP ${response.status} before budget reservation`)
+	}
+	let raw: ClineRecommendedCatalog
+	try {
+		raw = (await response.json()) as ClineRecommendedCatalog
+	} catch {
+		fail("live Cline catalog preflight returned invalid JSON before budget reservation")
+	}
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		fail("live Cline catalog preflight returned an invalid document before budget reservation")
+	}
+
+	const allowed =
+		config.routerProfile === "cline-pass-router"
+			? new Set([...catalogModelIds(raw.clinePass, "clinePass"), ...catalogModelIds(raw.free, "free")])
+			: new Set([...catalogModelIds(raw.recommended, "recommended"), ...catalogModelIds(raw.free, "free")])
+	const unavailable = directModels.map((model) => model.id).filter((id) => !allowed.has(id))
+	if (unavailable.length > 0) {
+		fail(`direct model(s) absent from the live Cline ${config.routerProfile} catalog: ${unavailable.join(", ")}`)
 	}
 }
 
@@ -799,11 +865,6 @@ function readJobResult(
 		)
 	}
 
-	const costUsd = doc.stats?.cost_usd
-	if (!Number.isFinite(costUsd) || costUsd <= 0) {
-		fail(`missing or zero cost telemetry for ${expectedModel}`)
-	}
-
 	const rewards = trial.verifier_result?.rewards
 	const rewardValues = rewards && typeof rewards === "object" ? Object.values(rewards) : []
 	const numericRewards = rewardValues.filter((value): value is number => typeof value === "number")
@@ -821,6 +882,48 @@ function readJobResult(
 	const cacheTokens = doc.stats?.n_cache_tokens ?? null
 	const outputTokens = doc.stats?.n_output_tokens ?? null
 	const sessionIdentity = nestedTrial ? readTrialSessionIdentity(jobDir, nestedTrial.trialName) : null
+	const costUsd = doc.stats?.cost_usd
+	if (costUsd === null || costUsd === undefined || costUsd === 0) {
+		// A completed Harbor trial without an exception is not the same thing as
+		// a canonical zero-spend infrastructure failure. Those failures take the
+		// exception path above and must carry Cline's terminal error run_result.
+		//
+		// Some Cline CLI no-op exits instead look "completed" to Harbor while
+		// producing no session, usage, or cost telemetry. Never report those as
+		// free model work or retry the position. Charge the full declared
+		// reservation as conservative exposure and make the missing telemetry a
+		// terminal benchmark failure.
+		return {
+			model: expectedModel,
+			requestedModel: expectedModel,
+			task: trial.task_name,
+			taskHash: hashPrivateIdentifier("cline-bench-task", trial.task_name),
+			sessionHash: sessionIdentity?.sessionHash ?? null,
+			sessionIdSha256: sessionIdentity?.sessionIdSha256 ?? null,
+			routeTraces: [],
+			routeEvidence: virtualModel ? "missing" : "not-applicable",
+			outcome: "failed",
+			failureClassification: "CompletedWithoutCostTelemetry",
+			passed: false,
+			reward: null,
+			costUsd: model.perTaskBudgetUsd,
+			costBasis: "reserved-exposure",
+			durationSeconds: measuredDurationSeconds,
+			inputTokens: Number.isInteger(inputTokens) && inputTokens >= 0 ? inputTokens : null,
+			cacheTokens: Number.isInteger(cacheTokens) && cacheTokens >= 0 ? cacheTokens : null,
+			outputTokens: Number.isInteger(outputTokens) && outputTokens >= 0 ? outputTokens : null,
+			...tokenEconomics(
+				model,
+				Number.isInteger(inputTokens) && inputTokens >= 0 ? inputTokens : null,
+				Number.isInteger(cacheTokens) && cacheTokens >= 0 ? cacheTokens : null,
+				Number.isInteger(outputTokens) && outputTokens >= 0 ? outputTokens : null,
+			),
+			jobDir,
+		}
+	}
+	if (!Number.isFinite(costUsd) || costUsd < 0) {
+		fail(`invalid cost telemetry for ${expectedModel}`)
+	}
 	return {
 		model: expectedModel,
 		requestedModel: expectedModel,
@@ -1692,6 +1795,10 @@ async function main() {
 	if (!args.execute && !args.ingestRouteTraces) {
 		console.log("\nDry run complete. No model was called. Pass --execute to spend.")
 		return
+	}
+	if (args.execute) {
+		await assertDirectModelsInLiveCatalog(config)
+		console.log("Live Cline catalog preflight passed before budget reservation.")
 	}
 
 	const jobsRoot = createPrivateJobsRoot(args.jobsRoot)
