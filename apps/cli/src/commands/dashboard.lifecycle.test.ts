@@ -72,6 +72,10 @@ describe("dashboard command lifecycle", () => {
 		);
 		coreMocks.readHubDashboardDiscovery.mockReset();
 		coreMocks.readHubDiscovery.mockReset();
+		coreMocks.resolveHubDashboardDiscoveryPath.mockReset();
+		coreMocks.resolveHubDashboardDiscoveryPath.mockReturnValue(
+			"/tmp/dashboard.json",
+		);
 		coreMocks.stopManagedHubDashboardProcess.mockReset();
 		coreMocks.stopManagedHubDashboardProcess.mockResolvedValue(false);
 		coreMocks.writeHubDashboardDiscovery.mockClear();
@@ -100,6 +104,7 @@ describe("dashboard command lifecycle", () => {
 			process.env.CLINE_HUB_DASHBOARD_ARGS =
 				originalEnv.CLINE_HUB_DASHBOARD_ARGS;
 		}
+		vi.useRealTimers();
 		vi.unstubAllGlobals();
 	});
 
@@ -132,6 +137,68 @@ describe("dashboard command lifecycle", () => {
 		expect(opened).toEqual(["http://127.0.0.1:8787"]);
 	});
 
+	it("ignores a stale pre-hub dashboard while waiting for hub replacement", async () => {
+		const opened: string[] = [];
+		const stale = dashboardRecord(888);
+		const replacement = dashboardRecord(999);
+		coreMocks.readHubDiscovery
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				pid: 777,
+				startedAt: "2026-06-22T20:00:00.000Z",
+			});
+		coreMocks.readHubDashboardDiscovery
+			.mockResolvedValueOnce(stale)
+			.mockResolvedValueOnce(stale)
+			.mockResolvedValueOnce(stale)
+			.mockResolvedValueOnce(replacement);
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const exitCode = await runDashboardCommand({
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			openUrl: async (url) => {
+				opened.push(url);
+			},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(spawn).not.toHaveBeenCalled();
+		expect(opened).toEqual(["http://127.0.0.1:8787"]);
+		expect(coreMocks.readHubDashboardDiscovery).toHaveBeenCalledTimes(4);
+	});
+
+	it("falls back to CLI spawn when a newly started hub never publishes a dashboard", async () => {
+		vi.useFakeTimers();
+		coreMocks.readHubDiscovery
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				pid: 777,
+				startedAt: "2026-06-22T20:00:00.000Z",
+			});
+		coreMocks.readHubDashboardDiscovery.mockResolvedValue(undefined);
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const pending = runDashboardCommand({
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			openUrl: async () => {},
+		});
+		await vi.advanceTimersByTimeAsync(8_000);
+		coreMocks.readHubDashboardDiscovery.mockResolvedValue(dashboardRecord(999));
+		await vi.advanceTimersByTimeAsync(200);
+		const exitCode = await pending;
+
+		expect(exitCode).toBe(0);
+		expect(spawn).toHaveBeenCalledTimes(1);
+	});
+
 	it("allows CLI fallback only when the hub was already running", async () => {
 		const existingHub = {
 			url: "ws://127.0.0.1:25463/hub",
@@ -161,6 +228,47 @@ describe("dashboard command lifecycle", () => {
 			"dashboard",
 			["serve"],
 			expect.any(Object),
+		);
+	});
+
+	it("writes and clears dashboard discovery inside the sandbox environment", async () => {
+		const dataDirs: Array<string | undefined> = [];
+		coreMocks.resolveHubDashboardDiscoveryPath.mockImplementation(() => {
+			dataDirs.push(process.env.CLINE_DATA_DIR);
+			return "/tmp/dashboard.json";
+		});
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const exitCode = await runDashboardCommand({
+			action: "serve",
+			cwd: "/tmp/dashboard-serve-cwd",
+			dataDir: "/tmp/dashboard-serve-data",
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			startServer: async () => ({
+				listenUrl: "http://127.0.0.1:8787/",
+				publicUrl: "http://127.0.0.1:8787",
+				inviteUrl: "http://127.0.0.1:8787",
+				stop: vi.fn(),
+			}),
+			waitForShutdown: async () => {},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(dataDirs.length).toBeGreaterThanOrEqual(2);
+		expect(dataDirs.every((dir) => dir === "/tmp/dashboard-serve-data")).toBe(
+			true,
+		);
+		expect(coreMocks.writeHubDashboardDiscovery).toHaveBeenCalledWith(
+			"/tmp/dashboard.json",
+			expect.objectContaining({
+				listenUrl: "http://127.0.0.1:8787/",
+			}),
+		);
+		expect(coreMocks.clearHubDashboardDiscovery).toHaveBeenCalledWith(
+			"/tmp/dashboard.json",
 		);
 	});
 

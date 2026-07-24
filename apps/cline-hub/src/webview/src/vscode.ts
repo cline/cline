@@ -54,10 +54,12 @@ export function readBrowserConnectionTarget(): BrowserConnectionTarget {
 			fragment.get("bridge")?.trim() ||
 			search.get("bridgeUrl")?.trim() ||
 			persisted.bridgeUrl,
+		// Room secrets are per-dashboard-process and rotate on restart; only
+		// accept them from the current invite URL, never from localStorage.
 		roomSecret:
 			fragment.get("roomSecret")?.trim() ||
 			search.get("roomSecret")?.trim() ||
-			persisted.roomSecret,
+			undefined,
 	};
 }
 
@@ -65,10 +67,12 @@ export function writeBrowserConnectionTarget(
 	target: BrowserConnectionTarget,
 ): void {
 	if (typeof window === "undefined") return;
-	const next = {
+	const next: BrowserConnectionTarget = {
 		...readPersistedBrowserConnection(),
 		...target,
 	};
+	// Drop rotatable invite secrets so a replaced dashboard cannot reuse them.
+	delete next.roomSecret;
 	try {
 		window.localStorage.setItem(browserConnectionKey, JSON.stringify(next));
 	} catch {
@@ -79,10 +83,9 @@ export function writeBrowserConnectionTarget(
 function resolveBrowserSocketUrl(): string {
 	const target = readBrowserConnectionTarget();
 	const bridgeUrl = target.bridgeUrl?.trim();
-	if (bridgeUrl || target.roomSecret?.trim()) {
+	if (bridgeUrl) {
 		writeBrowserConnectionTarget({
 			bridgeUrl,
-			roomSecret: target.roomSecret?.trim(),
 		});
 	}
 	const base = bridgeUrl ? new URL(bridgeUrl) : new URL(window.location.href);
