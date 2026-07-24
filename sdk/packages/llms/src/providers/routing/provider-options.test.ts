@@ -875,6 +875,277 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				{ bucket: "openaiCompatible", lacks: ["thinking", "reasoning"] },
 			],
 		},
+		{
+			name: "Chutes Kimi K2.6 TEE reasoning.enabled=true -> explicit thinking chat template",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: {
+						chat_template_kwargs: {
+							thinking: true,
+							preserve_thinking: true,
+						},
+					},
+					lacks: ["thinking", "reasoningEffort", "effort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes Kimi K2.6 TEE reasoning.enabled=false -> instant chat template",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/kimi-k2.6-tee",
+				reasoning: { enabled: false, effort: "high" },
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { thinking: false } },
+					lacks: ["thinking", "reasoningEffort", "effort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes Kimi K2.6 TEE unset reasoning -> no chat template patch",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes future Kimi K2 family reasoning.enabled=false -> instant chat template",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.7-TEE",
+				reasoning: { enabled: false, effort: "high" },
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { thinking: false } },
+					lacks: ["thinking", "reasoningEffort", "effort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes hybrid Qwen family reasoning.enabled=true -> enabled chat template",
+			request: {
+				providerId: "chutes",
+				modelId: "Qwen/Qwen4-Example-TEE",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { enable_thinking: true } },
+					lacks: ["thinking", "reasoningEffort", "effort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes hybrid Qwen family reasoning.enabled=false -> disabled chat template",
+			request: {
+				providerId: "chutes",
+				modelId: "Qwen/Qwen4-Example-TEE",
+				reasoning: { enabled: false, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { enable_thinking: false } },
+					lacks: ["thinking", "reasoningEffort", "effort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes thinking-only Qwen family ignores explicit disable",
+			request: {
+				providerId: "chutes",
+				modelId: "Qwen/Qwen4-Example-Thinking-TEE",
+				reasoning: { enabled: false, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes unknown reasoning family keeps standard compatible reasoning",
+			request: {
+				providerId: "chutes",
+				modelId: "future/reasoner-1",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "future-reasoner",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: {
+						thinking: { type: "adaptive" },
+						reasoningEffort: "high",
+					},
+					lacks: ["chat_template_kwargs"],
+				},
+			],
+		},
+		{
+			name: "Chutes Claude family keeps standard Anthropic-compatible reasoning",
+			request: {
+				providerId: "chutes",
+				modelId: "anthropic/claude-future",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "claude-sonnet",
+				capabilities: ["text", "reasoning"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["chat_template_kwargs", "thinking", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "Chutes Kimi family without reasoning capability keeps standard options",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.7-TEE",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text"],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: {
+						thinking: { type: "adaptive" },
+						reasoningEffort: "high",
+					},
+					lacks: ["chat_template_kwargs"],
+				},
+			],
+		},
 		// Kimi K2.6 family: explicit enabled/disabled and unset defaults to enabled
 		{
 			name: "cline Kimi K2.6 family reasoning.enabled=false -> thinking.type=disabled",
