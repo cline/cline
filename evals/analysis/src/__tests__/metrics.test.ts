@@ -233,6 +233,27 @@ describe("MetricsCalculator", () => {
 			expect(metrics.passAt3).toBe(0)
 			expect(metrics.passCaret3).toBe(0)
 		})
+
+		it("does not set passAt3 when first success is after trial 3", () => {
+			// Fail fail fail pass, then early-exit with trialsRequested > 4
+			const observed = [false, false, false, true]
+			const base = calc.calculateTaskMetrics(observed)
+			const metrics = calc.applyEarlyExitPassAtK(base, 4, 5, true)
+
+			expect(metrics.passAt1).toBe(base.passAt1)
+			expect(metrics.passAt3).toBe(base.passAt3)
+			expect(metrics.passAt3).not.toBe(1.0)
+			expect(metrics.passCaret3).toBe(base.passCaret3)
+		})
+
+		it("sets passAt3 when first success is on trial 2 of 5", () => {
+			const observed = [false, true]
+			const metrics = calc.applyEarlyExitPassAtK(calc.calculateTaskMetrics(observed), 2, 5, true)
+
+			expect(metrics.passAt1).toBe(1.0)
+			expect(metrics.passAt3).toBe(1.0)
+			expect(metrics.passCaret3).toBe(0)
+		})
 	})
 
 	describe("getTaskStatus", () => {

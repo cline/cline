@@ -185,12 +185,13 @@ export class MetricsCalculator {
 	}
 
 	/**
-	 * After early-exit on a passing trial, set pass@k to 1 without inventing
-	 * unobserved successes for pass^k or flakiness.
+	 * After early-exit on a passing trial, set pass@k to 1 only when the first
+	 * success occurred within k attempts, without inventing unobserved
+	 * successes for pass^k or flakiness.
 	 *
-	 * pass@k means "found a solution within k trials". If we stop after the
-	 * first pass, that probability is 1 for any requested k. pass^k and
-	 * flakinessScore must still reflect only trials that actually ran.
+	 * pass@k means "found a solution within k trials". `trialsRan` is the
+	 * 1-based trial index of the first pass when early-exit stops after that
+	 * pass. pass^k and flakinessScore still reflect only trials that ran.
 	 */
 	applyEarlyExitPassAtK(
 		metrics: {
@@ -209,8 +210,11 @@ export class MetricsCalculator {
 		flakinessScore: number
 	} {
 		if (trialsRan < trialsRequested && lastTrialPassed) {
-			metrics.passAt1 = 1
-			if (trialsRequested >= 3) {
+			// First success was on attempt `trialsRan` (early-exit after pass).
+			if (trialsRan <= 1) {
+				metrics.passAt1 = 1
+			}
+			if (trialsRequested >= 3 && trialsRan <= 3) {
 				metrics.passAt3 = 1
 			}
 		}
