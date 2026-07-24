@@ -18,6 +18,7 @@ import {
 } from "./cline-bench-safety"
 import {
 	assertReusableFingerprint,
+	assertTraceIngestionCompatibility,
 	buildRunMatrix,
 	type ExecutionProvenance,
 	fingerprintExecution,
@@ -25,6 +26,7 @@ import {
 	localCoreHarborArguments,
 	matchRouteTraces,
 	type PilotConfig,
+	type PilotReport,
 	prepareTaskPath,
 	readConfig,
 	readRecoveredFailedRun,
@@ -152,6 +154,28 @@ describe("Cline benchmark execution fingerprints", () => {
 			"different execution matrix",
 		)
 		expect(() => assertReusableFingerprint({ executionFingerprint: "current" }, "current")).not.toThrow()
+	})
+
+	test("allows parser-only upgrades for offline trace ingestion", () => {
+		const cfg = config()
+		const stored = provenance("a".repeat(64))
+		const existing = {
+			config: cfg,
+			executionProvenance: stored,
+			executionFingerprint: fingerprintExecution(cfg, stored),
+		} as PilotReport
+		const upgradedParser = {
+			...stored,
+			runnerContentSha256: "b".repeat(64),
+			runnerGitCommit: "c".repeat(40),
+		}
+		expect(() => assertTraceIngestionCompatibility(existing, cfg, upgradedParser)).not.toThrow()
+		expect(() =>
+			assertTraceIngestionCompatibility(existing, cfg, {
+				...upgradedParser,
+				clineBenchCommit: "d".repeat(40),
+			}),
+		).toThrow("matrix, endpoint, or task corpus")
 	})
 })
 
@@ -635,7 +659,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 				savings_ratio: 0.67,
 			},
 			features: {
-				schema_version: 1,
+				schema_version: 2,
 				message_count: 4,
 				user_instruction_count: 1,
 				assistant_message_count: 2,

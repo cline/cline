@@ -118,7 +118,7 @@ export type RunResult = {
 	jobDir: string
 }
 
-type PilotReport = {
+export type PilotReport = {
 	startedAt: string
 	finishedAt?: string
 	mode: "dry-run" | "execute"
@@ -503,6 +503,31 @@ export function assertReusableFingerprint(existing: Partial<PilotReport>, expect
 	}
 	if (existing.executionFingerprint !== expectedFingerprint) {
 		fail("jobs-root belongs to a different execution matrix, cline-bench commit, or effective task corpus")
+	}
+}
+
+export function assertTraceIngestionCompatibility(
+	existing: PilotReport,
+	config: PilotConfig,
+	currentProvenance: ExecutionProvenance,
+) {
+	if (
+		!existing.executionFingerprint ||
+		!existing.executionProvenance ||
+		existing.executionFingerprint !==
+			fingerprintExecution(existing.config, existing.executionProvenance)
+	) {
+		fail("route trace ingestion requires a self-consistent content-addressed pilot report")
+	}
+	const stored = existing.executionProvenance
+	if (
+		JSON.stringify(existing.config) !== JSON.stringify(config) ||
+		JSON.stringify(stored.effectiveConfig) !== JSON.stringify(config) ||
+		JSON.stringify(stored.executionOptions) !== JSON.stringify(currentProvenance.executionOptions) ||
+		stored.clineBenchCommit !== currentProvenance.clineBenchCommit ||
+		JSON.stringify(stored.tasks) !== JSON.stringify(currentProvenance.tasks)
+	) {
+		fail("route trace ingestion does not match the paid run's matrix, endpoint, or task corpus")
 	}
 }
 
@@ -1355,7 +1380,11 @@ async function main() {
 		const existingReportPath = join(jobsRoot, "pilot-report.json")
 		if (existsSync(existingReportPath)) {
 			const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as Partial<PilotReport>
-			assertReusableFingerprint(existing, fingerprint)
+			if (args.ingestRouteTraces) {
+				assertTraceIngestionCompatibility(existing as PilotReport, config, identity.provenance)
+			} else {
+				assertReusableFingerprint(existing, fingerprint)
+			}
 		} else {
 			const hasUnboundResult = buildRunMatrix(config).some((run, index) => {
 				const jobName = `${String(index + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
@@ -1370,7 +1399,6 @@ async function main() {
 		if (args.ingestRouteTraces) {
 			if (!existsSync(existingReportPath)) fail("route trace ingestion requires an existing pilot report")
 			const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as PilotReport
-			assertReusableFingerprint(existing, fingerprint)
 			existing.results = existing.results.map((result) =>
 				attachRouteEvidence(result, modelForResult(config, result), traces),
 			)

@@ -551,7 +551,7 @@ export function parseRouteTraces(text: string): RouteTrace[] {
 				throw new Error(`Core route trace ${index} has invalid gate fields`)
 			}
 			if (
-				features.schema_version !== 1 ||
+				features.schema_version !== 2 ||
 				!finiteNumber(features.message_count) ||
 				!finiteNumber(features.user_instruction_count) ||
 				!finiteNumber(features.assistant_message_count) ||
