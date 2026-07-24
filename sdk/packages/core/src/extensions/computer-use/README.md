@@ -78,8 +78,10 @@ avoiding protocol overhead, not about avoiding the plugin system.
             "get_display_info",
   "coordinate": [x, y],            // optional, pixel coordinate
   "startCoordinate": [x, y],       // optional, for left_click_drag
-  "text": "hello world",           // optional, for "type"
-  "keys": "ctrl+alt+delete",       // optional, for "key" / "hold_key"
+  "text": "hello world",           // optional: text for "type", key combo
+                                   // (e.g. "ctrl+alt+delete") for "key" /
+                                   // "hold_key" — matching the backend's
+                                   // serde types (qwanban computer_use.rs)
   "durationSeconds": 0.5,          // optional, for "hold_key" / "wait"
   "scrollDirection": "down",       // optional, for "scroll"
   "scrollAmount": 3,               // optional, for "scroll"
@@ -141,10 +143,29 @@ also `async` for the same reason:
 | `CLINE_COMPUTER_USE_DISPLAY_WIDTH` | no | queried from backend | Override display width, px |
 | `CLINE_COMPUTER_USE_DISPLAY_HEIGHT` | no | queried from backend | Override display height, px |
 
+## The asynchronous computer user
+
+The raw `computer` tool is one layer. The preferred driver-facing shape is
+the **computer user** (`src/extensions/computer-user/`): a persistent helper
+session on the Anthropic provider that owns this tool plus the normal
+built-ins, works in the background, and reports to the driver agent through
+`computer_user_*` tools. The CLI wires it up in
+`apps/cli/src/runtime/interactive/computer-user.ts` when
+`CLINE_COMPUTER_USE_PORT` is set and the Anthropic provider is configured;
+without Anthropic credentials it falls back to giving the driver this raw
+tool directly.
+
+Action lifecycles are observable (`ComputerUseClientOptions.observer`) and
+cancellable (`ComputerUseSendOptions.signal`); the observability contract
+that streams actions, screenshots, and transcripts to the qwanban
+observatory lives in `src/extensions/computer-observability/`.
+
 ## Not yet done
 
 - No auth/handshake — this assumes the backend is a locally-spawned trusted
   process on loopback. Do not bind the backend to a non-loopback address.
+  (The observatory's WebSocket side currently binds externally; the artifact
+  ingress must not copy that.)
 - No reconnect/backoff policy in the client; a dropped connection fails all
   in-flight requests and reconnects lazily on the next call.
 - No persisted setting/UI toggle; env-var opt-in only, matching this being a
@@ -154,3 +175,6 @@ also `async` for the same reason:
   `sdk/packages/llms/src/providers/routing/anthropic-compatible.ts`) rather
   than gated on whether the `computer` tool is actually part of the current
   request. Fine for this proof of concept; revisit before shipping.
+- The artifact event stream has no Rust ingress yet; `ArtifactEventSink`
+  implementations and the `artifact_event`/`artifact_ack` wire protocol land
+  with the qwanban side.

@@ -8,10 +8,14 @@
  * ./protocol.ts for the wire format and ./README.md for the backend
  * contract and design rationale.
  */
-export { ComputerUseClient, type ComputerUseClientOptions } from "./client";
 export {
-	createComputerUseToolFromEnv,
-} from "./env";
+	ComputerUseClient,
+	type ComputerUseClientEvent,
+	type ComputerUseClientObserver,
+	type ComputerUseClientOptions,
+	type ComputerUseSendOptions,
+} from "./client";
+export { createComputerUseToolFromEnv } from "./env";
 export type {
 	ComputerUseAction,
 	ComputerUseCoordinate,
@@ -21,4 +25,4 @@ export type {
 	ComputerUseResponse,
 } from "./protocol";
 export { GET_DISPLAY_INFO_ACTION, isComputerUseResponse } from "./protocol";
-export { createComputerUseTool, type ComputerUseToolOptions } from "./tool";
+export { type ComputerUseToolOptions, createComputerUseTool } from "./tool";
