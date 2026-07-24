@@ -1,7 +1,7 @@
 {
 	"routerProfile": "cline-pass-router",
 	"provider": "cline-pass",
-	"globalBudgetUsd": 60,
+	"globalBudgetUsd": 50,
 	"maxRunsPerModel": 2,
 	"timeoutSeconds": 1500,
 	"clineVersion": "3.0.46",
@@ -21,9 +21,9 @@
 			"perTaskBudgetUsd": 4,
 			"perModelBudgetUsd": 8,
 			"pricing": {
-				"inputPerMTok": 1.4,
-				"cachedInputPerMTok": 0.26,
-				"outputPerMTok": 4.4
+				"inputPerMTok": 0.8078,
+				"cachedInputPerMTok": 0.15002,
+				"outputPerMTok": 2.5388
 			}
 		},
 		{
@@ -31,9 +31,9 @@
 			"perTaskBudgetUsd": 3,
 			"perModelBudgetUsd": 6,
 			"pricing": {
-				"inputPerMTok": 0.14,
-				"cachedInputPerMTok": 0.0028,
-				"outputPerMTok": 0.28
+				"inputPerMTok": 0.0938,
+				"cachedInputPerMTok": 0.01876,
+				"outputPerMTok": 0.1876
 			}
 		},
 		{
@@ -41,9 +41,9 @@
 			"perTaskBudgetUsd": 3,
 			"perModelBudgetUsd": 6,
 			"pricing": {
-				"inputPerMTok": 0.4,
-				"cachedInputPerMTok": 0.04,
-				"outputPerMTok": 1.6
+				"inputPerMTok": 0.32,
+				"cachedInputPerMTok": 0.064,
+				"outputPerMTok": 1.28
 			}
 		},
 		{
@@ -51,9 +51,9 @@
 			"perTaskBudgetUsd": 4,
 			"perModelBudgetUsd": 8,
 			"pricing": {
-				"inputPerMTok": 1.74,
-				"cachedInputPerMTok": 0.0145,
-				"outputPerMTok": 3.48
+				"inputPerMTok": 0.435,
+				"cachedInputPerMTok": 0.003625,
+				"outputPerMTok": 0.87
 			}
 		}
 	],

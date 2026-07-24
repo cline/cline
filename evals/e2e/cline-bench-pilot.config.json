@@ -7,13 +7,13 @@
 	"clineVersion": "3.0.46",
 	"models": [
 		{
-			"id": "moonshotai/kimi-k3",
+			"id": "moonshotai/kimi-k2.7-code",
 			"perTaskBudgetUsd": 5,
 			"perModelBudgetUsd": 15,
 			"pricing": {
-				"inputPerMTok": 3,
-				"cachedInputPerMTok": 0.3,
-				"outputPerMTok": 15
+				"inputPerMTok": 1,
+				"cachedInputPerMTok": 0.18,
+				"outputPerMTok": 4.16
 			}
 		},
 		{
@@ -21,8 +21,8 @@
 			"perTaskBudgetUsd": 4,
 			"perModelBudgetUsd": 10,
 			"pricing": {
-				"inputPerMTok": 1.4,
-				"cachedInputPerMTok": 0.26,
+				"inputPerMTok": 1.2,
+				"cachedInputPerMTok": 0.3,
 				"outputPerMTok": 4.4
 			}
 		},

@@ -1,38 +1,50 @@
 # Cline SDLC benchmark pilot
 
-This pilot uses three deterministic, production-derived `cline-bench` tasks:
+The small default smoke pilot uses three deterministic, production-derived
+`cline-bench` tasks:
 
 1. reproduce and fix an Axios/React Query error-handling bug, including tests;
 2. create oRPC infrastructure and migrate a Next.js application across files;
 3. refactor a TypeScript monorepo plugin and remove obsolete architecture.
 
-The run order is interleaved as a Latin square so each model sees every task in
-a different position. Each task runs once, sequentially, inside its own Docker
-environment and is graded by the task's deterministic verifier.
+The staged router checkpoint uses eight tasks across TypeScript, Python, C++,
+and Go, with easy, medium, and hard debugging, migration, refactoring, and
+implementation work. Its checked-in configuration is
+`cline-bench-router-checkpoint.config.json`.
+
+Run order is interleaved so each model sees its assigned task set in a different
+position. Each task runs once, sequentially, inside its own Docker environment
+and is graded by the task's deterministic verifier.
 
 ## Safety
 
 - Dry-run is the default. Paid calls require `--execute`.
-- The config rejects 100 or more tasks or dollars per model.
+- The campaign checkpoint cannot exceed $50. Wave 1 reserves at most $35 and
+  wave 2 reserves at most $15.
+- `--execute` requires an explicit jobs root. Rerunning without intentionally
+  naming the same root cannot silently start a second full campaign.
+- A jobs-root lock rejects concurrent runners. Dead local owners are recovered
+  atomically; ambiguous or live owners fail closed.
+- Every run writes a durable declared-cost reservation before Harbor starts.
+  An interrupted reservation with no unambiguous usage artifact blocks resume.
 - Harbor receives a small environment allowlist, not the host environment.
 - Jobs and traces are written outside the repository with private permissions.
 - Authentication is inherited only through `CLINE_API_KEY`; it is never stored
   in the config, command arguments, report, or repository.
 - The Cline CLI version is pinned in configuration for reproducibility. Its
   built-in consecutive-mistake limit remains enabled.
-- The default pilot is bounded to 3 tasks/model, $15/model or less, and $40
-  globally.
+- The default smoke pilot is bounded to 3 tasks/model, $15/model or less, and
+  $40 globally.
 - `routerProfile` is validated. A `cline-pass-router` experiment rejects every
   model that does not use a public `cline-pass/*` ID, and each profile requires
   its matching Cline CLI provider.
 - Config, model, and pricing objects reject unknown fields, so accidentally
   adding a credential cannot copy it into the retained report.
 - Reused job roots carry a content-addressed execution fingerprint covering the
-  provider/model/task/CLI matrix, the exact `cline-bench` submodule commit, and
-  SHA-256 hashes of the effective task trees Harbor receives (including the
-  private Telegram verifier overlay). Completed reused results also revalidate
-  task, CLI version, served provider, and served model. Reports from before these
-  corpus hashes existed fail closed and require a new jobs root.
+  complete effective config, runner source hash, runner git commit, Harbor
+  version, exact `cline-bench` submodule commit, and SHA-256 hashes of the
+  exact task trees Harbor receives. The manifest is written before Harbor starts. Completed reused
+  results also revalidate task, CLI version, served provider, and served model.
 - The private jobs-root boundary is canonicalized through symlinks. If Harbor's
   outer process times out or exits abnormally, the runner removes only Docker
   containers whose trial IDs belong to that job and recovers usage when
@@ -45,14 +57,26 @@ environment and is graded by the task's deterministic verifier.
 - `costBasis` distinguishes ordinary reported inference cost from ClinePass
   reference-quota cost. ClinePass is subscription-billed, so its per-run dollar
   telemetry is useful for quota/economic comparisons but is not an invoice.
-- The timeout is enforced both in Cline and at Harbor's outer agent boundary;
-  interrupted runs count as timed-out failures and retain their usage totals.
-- The Telegram verifier is copied to a private per-run overlay that adds
-  `/root/.local/bin` to PATH. This fixes its upstream `uv` lookup bug without
-  dirtying or forking the `cline-bench` submodule.
+- The timeout is enforced both in Cline and at Harbor's outer agent boundary.
+  Harbor runs in its own process group; timeout and termination signals stop the
+  group and task-scoped containers are removed. Interrupted usage is accepted
+  only from exactly one attempt and the timestamp-latest cumulative snapshot.
+- Harbor receives a verifier-only `PATH` containing `/root/.local/bin`. This
+  fixes inconsistent `uv` lookup across the selected verifiers without changing
+  the agent environment, task instructions, tests, or `cline-bench` submodule.
 - Harbor exposes cost telemetry after a task completes, not while it is
-  running. Therefore dollar limits stop subsequent work, and the 25-minute
-  wall timeout is the proactive in-task bound.
+  running. Reservations prevent starting work whose declared exposure would
+  cross a checkpoint, but they cannot stop an active request at an exact dollar
+  amount. A provider-side/prepaid account limit is the **only true dollar hard
+  stop**. The wall timeout is the active-run bound.
+- Optional `--local-core-url http://localhost:7777` is deliberately narrow. It
+  normalizes to `host.docker.internal:7777`, forwards only
+  `CLINE_API_BASE_URL`, and adds only that hostname to Harbor's environment and
+  agent-phase allowlists. Arbitrary URLs and environment passthrough are
+  rejected.
+- Virtual-model reports retain `requestedModel`, hashed benchmark task/session
+  identifiers, and privacy-safe route evidence. Fixed-model results remain
+  backward compatible.
 
 ## Usage
 
@@ -66,7 +90,8 @@ Run it after securely exporting a Cline credential:
 
 ```bash
 CLINE_API_KEY="$CLINE_API_KEY" \
-  bun evals/e2e/run-cline-bench-pilot.ts --execute
+  bun evals/e2e/run-cline-bench-pilot.ts --execute \
+  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/smoke-$(date +%Y%m%d)"
 ```
 
 Models, task IDs, timeouts, and budget limits are data in
@@ -87,3 +112,54 @@ Use `--only-run N` to execute one missing matrix position while still loading
 completed prior costs into the budget ledger.
 If the `cline-bench` commit, a selected task, or its effective verifier overlay
 changes, the runner rejects that jobs root instead of reusing stale results.
+
+## Staged router checkpoint
+
+Validate the 24-run matrix without spending:
+
+```bash
+bun evals/e2e/run-cline-bench-pilot.ts \
+  --config evals/e2e/cline-bench-router-checkpoint.config.json
+```
+
+Wave 1 runs `cline/auto` on all eight tasks and Kimi K2.7 Code plus GLM 5.2 on
+Axios, Telegram, Every Plugin, and V-Edit. It reserves no more than $35:
+
+```bash
+CLINE_API_KEY="$CLINE_API_KEY" \
+  bun evals/e2e/run-cline-bench-pilot.ts --execute --wave 1 \
+  --config evals/e2e/cline-bench-router-checkpoint.config.json \
+  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint"
+```
+
+For a local Core API, add:
+
+```bash
+--local-core-url http://localhost:7777
+```
+
+Inspect wave 1 outcomes, route evidence, and the provider-side account limit
+before releasing wave 2. Wave 2 adds GPT-5.4 on all eight tasks, reserves no more
+than another $15, and shares the same $50 campaign ledger:
+
+```bash
+CLINE_API_KEY="$CLINE_API_KEY" \
+  bun evals/e2e/run-cline-bench-pilot.ts --execute --wave 2 \
+  --config evals/e2e/cline-bench-router-checkpoint.config.json \
+  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint"
+```
+
+Core route traces can be attached directly from the benchmark JSONL sink. The
+runner validates the exact schema (including the privacy-safe routing features
+and cache/switch gate), reads Cline's `session_id` from Harbor's private
+`agent/trajectory.json`, and correlates it with Core's raw
+`task_id_sha256 = SHA256(session_id)`. Reports retain only hashes, never the raw
+session ID. The earlier camelCase six-field export remains accepted for
+backward compatibility. Attach a trace export without calling a model:
+
+```bash
+bun evals/e2e/run-cline-bench-pilot.ts --ingest-route-traces \
+  --route-traces /absolute/private/path/router-traces.jsonl \
+  --config evals/e2e/cline-bench-router-checkpoint.config.json \
+  --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint"
+```

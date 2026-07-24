@@ -1,0 +1,80 @@
+{
+	"routerProfile": "cline-router",
+	"provider": "cline",
+	"globalBudgetUsd": 50,
+	"waveBudgetsUsd": {
+		"1": 35,
+		"2": 15
+	},
+	"maxRunsPerModel": 8,
+	"timeoutSeconds": 1500,
+	"clineVersion": "3.0.46",
+	"models": [
+		{
+			"id": "cline/auto",
+			"wave": 1,
+			"perTaskBudgetUsd": 1.5,
+			"perModelBudgetUsd": 12,
+			"allowedCandidates": [
+				"moonshotai/kimi-k2.7-code",
+				"z-ai/glm-5.2",
+				"openai/gpt-5.4"
+			]
+		},
+		{
+			"id": "moonshotai/kimi-k2.7-code",
+			"wave": 1,
+			"perTaskBudgetUsd": 2.5,
+			"perModelBudgetUsd": 10,
+			"tasks": [
+				"01k6rkmyfgbwpvf7h81gh4pdgd-intercept-axios-error-handling",
+				"01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor",
+				"01k6kr5hbv8za80v8vnze3at8h-every-plugin-api-migration",
+				"01k8mwgj1z6kr0a7q59r6ek2ar-v-edit-workspace-tests"
+			],
+			"pricing": {
+				"inputPerMTok": 1,
+				"cachedInputPerMTok": 0.18,
+				"outputPerMTok": 4.16
+			}
+		},
+		{
+			"id": "z-ai/glm-5.2",
+			"wave": 1,
+			"perTaskBudgetUsd": 2.5,
+			"perModelBudgetUsd": 10,
+			"tasks": [
+				"01k6rkmyfgbwpvf7h81gh4pdgd-intercept-axios-error-handling",
+				"01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor",
+				"01k6kr5hbv8za80v8vnze3at8h-every-plugin-api-migration",
+				"01k8mwgj1z6kr0a7q59r6ek2ar-v-edit-workspace-tests"
+			],
+			"pricing": {
+				"inputPerMTok": 1.2,
+				"cachedInputPerMTok": 0.3,
+				"outputPerMTok": 4.4
+			}
+		},
+		{
+			"id": "openai/gpt-5.4",
+			"wave": 2,
+			"perTaskBudgetUsd": 1.8,
+			"perModelBudgetUsd": 14.4,
+			"pricing": {
+				"inputPerMTok": 2.5,
+				"cachedInputPerMTok": 0.25,
+				"outputPerMTok": 15
+			}
+		}
+	],
+	"tasks": [
+		"01k7a12sd1nk15j08e6x0x7v9e-discord-trivia-approval-keyerror",
+		"01k6rkmyfgbwpvf7h81gh4pdgd-intercept-axios-error-handling",
+		"01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor",
+		"01k6kr5hbv8za80v8vnze3at8h-every-plugin-api-migration",
+		"01k8251zmv88p0hztas8htr6hw-orpc-client-migration",
+		"01k6n26zm27ffa7qqbcx0prrnw-police-sync-segfault",
+		"01k8mwgj1z6kr0a7q59r6ek2ar-v-edit-workspace-tests",
+		"01k7x8zyeg4nzx6ehdb0fg5gfx-terraform-azurerm-deployment-stacks"
+	]
+}

@@ -1,13 +1,34 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { hostname, tmpdir } from "node:os"
 import { join } from "node:path"
 import {
-	type ExecutionProvenance,
+	acquireRunLock,
+	createBudgetLedger,
+	hashPrivateIdentifier,
+	ledgerExposure,
+	normalizeLocalCoreUrl,
+	parseRouteTraces,
+	recoverLatestUsage,
+	redactSecrets,
+	releaseRunLock,
+	reserveBudget,
+	settleBudget,
+	sha256,
+} from "./cline-bench-safety"
+import {
 	assertReusableFingerprint,
+	buildRunMatrix,
+	type ExecutionProvenance,
 	fingerprintExecution,
 	hashDirectoryTree,
+	localCoreHarborArguments,
+	matchRouteTraces,
 	type PilotConfig,
+	prepareTaskPath,
+	readConfig,
+	readTrialSessionIdentity,
+	verifierHarborArguments,
 } from "./run-cline-bench-pilot"
 
 const temporaryDirectories: string[] = []
@@ -24,7 +45,9 @@ function taskTree() {
 	mkdirSync(join(root, "tests"))
 	writeFileSync(join(root, "task.toml"), "[agent]\ntimeout_sec = 900\n")
 	writeFileSync(join(root, "instruction.md"), "Fix the production bug.\n")
-	writeFileSync(join(root, "tests", "test.sh"), "#!/bin/bash\nexit 0\n", { mode: 0o755 })
+	writeFileSync(join(root, "tests", "test.sh"), "#!/bin/bash\nexit 0\n", {
+		mode: 0o755,
+	})
 	return root
 }
 
@@ -43,7 +66,12 @@ function config(): PilotConfig {
 
 function provenance(contentHash: string, commit = "a".repeat(40)): ExecutionProvenance {
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
+		runnerContentSha256: "b".repeat(64),
+		runnerGitCommit: "c".repeat(40),
+		harborVersion: "0.20.0",
+		effectiveConfig: config(),
+		executionOptions: { localCoreUrl: null },
 		clineBenchCommit: commit,
 		tasks: [{ id: "task-a", effectiveContentSha256: contentHash }],
 	}
@@ -54,10 +82,14 @@ describe("Cline benchmark execution fingerprints", () => {
 		const root = taskTree()
 		const original = hashDirectoryTree(root)
 
-		writeFileSync(join(root, "tests", "test.sh"), "#!/bin/bash\nexit 1\n", { mode: 0o755 })
+		writeFileSync(join(root, "tests", "test.sh"), "#!/bin/bash\nexit 1\n", {
+			mode: 0o755,
+		})
 		expect(hashDirectoryTree(root)).not.toBe(original)
 
-		writeFileSync(join(root, "tests", "test.sh"), "#!/bin/bash\nexit 0\n", { mode: 0o755 })
+		writeFileSync(join(root, "tests", "test.sh"), "#!/bin/bash\nexit 0\n", {
+			mode: 0o755,
+		})
 		expect(hashDirectoryTree(root)).toBe(original)
 
 		chmodSync(join(root, "tests", "test.sh"), 0o644)
@@ -85,15 +117,318 @@ describe("Cline benchmark execution fingerprints", () => {
 		expect(second).not.toBe(first)
 	})
 
+	test("changes with runner, Harbor, and complete config", () => {
+		const contentHash = hashDirectoryTree(taskTree())
+		const base = provenance(contentHash)
+		const first = fingerprintExecution(config(), base)
+		expect(
+			fingerprintExecution(config(), {
+				...base,
+				runnerContentSha256: "d".repeat(64),
+			}),
+		).not.toBe(first)
+		expect(fingerprintExecution(config(), { ...base, harborVersion: "0.21.0" })).not.toBe(first)
+		expect(
+			fingerprintExecution(config(), {
+				...base,
+				executionOptions: {
+					localCoreUrl: "http://host.docker.internal:7777",
+				},
+			}),
+		).not.toBe(first)
+		expect(
+			fingerprintExecution(
+				{ ...config(), globalBudgetUsd: 9 },
+				{ ...base, effectiveConfig: { ...config(), globalBudgetUsd: 9 } },
+			),
+		).not.toBe(first)
+	})
+
 	test("rejects legacy and mismatched reports instead of blessing stale results", () => {
-		expect(() => assertReusableFingerprint({}, "current")).toThrow(
-			"predates content-addressed task fingerprints",
+		expect(() => assertReusableFingerprint({}, "current")).toThrow("predates content-addressed task fingerprints")
+		expect(() => assertReusableFingerprint({ executionFingerprint: "old" }, "current")).toThrow(
+			"different execution matrix",
 		)
+		expect(() => assertReusableFingerprint({ executionFingerprint: "current" }, "current")).not.toThrow()
+	})
+})
+
+describe("Cline benchmark configuration and matrix", () => {
+	test("rejects checkpoints above fifty dollars", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-bench-config-"))
+		temporaryDirectories.push(root)
+		const path = join(root, "config.json")
+		const source = JSON.parse(readFileSync(join(import.meta.dir, "cline-bench-pilot.config.json"), "utf8"))
+		source.globalBudgetUsd = 51
+		writeFileSync(path, JSON.stringify(source))
+		expect(() => readConfig(path)).toThrow("at most 50")
+	})
+
+	test("builds model-specific staged arms without duplicate tasks", () => {
+		const staged: PilotConfig = {
+			...config(),
+			maxRunsPerModel: 3,
+			tasks: ["a", "b", "c"],
+			models: [
+				{
+					id: "cline/auto",
+					perTaskBudgetUsd: 1,
+					perModelBudgetUsd: 3,
+					wave: 1,
+					allowedCandidates: ["x/y"],
+				},
+				{
+					id: "openai/gpt-5.4",
+					perTaskBudgetUsd: 1,
+					perModelBudgetUsd: 2,
+					wave: 2,
+					tasks: ["a", "c"],
+				},
+			],
+		}
+		const matrix = buildRunMatrix(staged)
+		expect(matrix).toHaveLength(5)
+		expect(
+			matrix
+				.filter((run) => run.model.id === "cline/auto")
+				.map((run) => run.task)
+				.sort(),
+		).toEqual(["a", "b", "c"])
+		expect(
+			matrix
+				.filter((run) => run.wave === 2)
+				.map((run) => run.task)
+				.sort(),
+		).toEqual(["a", "c"])
+	})
+
+	test("provides uv PATH to every selected verifier without changing task content or agent environment", () => {
+		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-overlays-"))
+		temporaryDirectories.push(jobsRoot)
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		for (const task of checkpoint.tasks) {
+			const source = join(import.meta.dir, "..", "cline-bench", "tasks", task)
+			expect(readFileSync(join(source, "tests", "test.sh"), "utf8")).toMatch(/^\s*uv\s/m)
+			expect(prepareTaskPath(task, jobsRoot)).toBe(`tasks/${task}`)
+		}
+		expect(verifierHarborArguments()).toEqual([
+			"--ve",
+			"PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		])
+	})
+
+	test("keeps the checked-in 8-task checkpoint within its staged reservations", () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		const matrix = buildRunMatrix(checkpoint)
+		expect(matrix).toHaveLength(24)
+		expect(new Set(checkpoint.tasks).size).toBe(8)
+		expect(matrix.filter((run) => run.model.id === "cline/auto")).toHaveLength(8)
+		expect(matrix.filter((run) => run.model.id === "openai/gpt-5.4")).toHaveLength(8)
+		expect(matrix.filter((run) => run.model.id === "moonshotai/kimi-k2.7-code")).toHaveLength(4)
+		expect(matrix.filter((run) => run.model.id === "z-ai/glm-5.2")).toHaveLength(4)
+		for (const wave of [1, 2]) {
+			const exposure = matrix
+				.filter((run) => run.wave === wave)
+				.reduce((total, run) => total + run.model.perTaskBudgetUsd, 0)
+			expect(exposure).toBeLessThanOrEqual(checkpoint.waveBudgetsUsd?.[String(wave)] || 0)
+		}
+	})
+})
+
+describe("Cline benchmark lock and budget ledger", () => {
+	test("holds an exclusive lock and recovers a dead local owner", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-bench-lock-"))
+		temporaryDirectories.push(root)
+		const lock = acquireRunLock(root)
+		expect(() => acquireRunLock(root)).toThrow("already active")
+		releaseRunLock(lock)
+
+		const lockDir = join(root, ".pilot-run.lock")
+		mkdirSync(lockDir)
+		writeFileSync(
+			join(lockDir, "owner.json"),
+			JSON.stringify({
+				schemaVersion: 1,
+				pid: 999_999_999,
+				host: hostname(),
+				token: "stale",
+				acquiredAt: new Date(0).toISOString(),
+			}),
+		)
+		const recovered = acquireRunLock(root)
+		releaseRunLock(recovered)
+	})
+
+	test("reserves before spend and enforces campaign and wave checkpoints", () => {
+		let ledger = createBudgetLedger(50)
+		ledger = reserveBudget(ledger, {
+			runKey: "1",
+			model: "cline/auto",
+			wave: 1,
+			exposureUsd: 20,
+			waveBudgetUsd: 35,
+		})
+		expect(ledgerExposure(ledger)).toBe(20)
+		ledger = settleBudget(ledger, "1", 12)
+		expect(ledgerExposure(ledger)).toBe(12)
 		expect(() =>
-			assertReusableFingerprint({ executionFingerprint: "old" }, "current"),
-		).toThrow("different execution matrix")
+			reserveBudget(ledger, {
+				runKey: "2",
+				model: "cline/auto",
+				wave: 1,
+				exposureUsd: 24,
+				waveBudgetUsd: 35,
+			}),
+		).toThrow("wave 1 lacks room")
 		expect(() =>
-			assertReusableFingerprint({ executionFingerprint: "current" }, "current"),
-		).not.toThrow()
+			reserveBudget(ledger, {
+				runKey: "3",
+				model: "openai/gpt-5.4",
+				wave: 2,
+				exposureUsd: 39,
+			}),
+		).toThrow("campaign lacks room")
+	})
+})
+
+describe("Cline benchmark recovery, privacy, and routing evidence", () => {
+	test("recovers timestamp-max usage and rejects multiple attempts", () => {
+		const usage = (ts: string, totalCost: number) =>
+			JSON.stringify({
+				ts,
+				event: {
+					type: "usage",
+					totalCost,
+					totalInputTokens: 10,
+					totalCacheReadTokens: 5,
+					totalOutputTokens: 2,
+				},
+			})
+		const latest = recoverLatestUsage([`${usage("2026-01-01T00:00:02Z", 2)}\n${usage("2026-01-01T00:00:01Z", 1)}\n`])
+		expect(latest.totalCost).toBe(2)
+		expect(() => recoverLatestUsage(["{}", "{}"])).toThrow("exactly one attempt")
+	})
+
+	test("redacts all exact secrets and hashes private identifiers", () => {
+		expect(redactSecrets("alpha secret beta token", ["secret", "token"])).toBe("alpha [REDACTED] beta [REDACTED]")
+		expect(hashPrivateIdentifier("task", "raw-id")).toMatch(/^[0-9a-f]{64}$/)
+		expect(hashPrivateIdentifier("task", "raw-id")).not.toContain("raw-id")
+	})
+
+	test("strictly normalizes only the local Core endpoint", () => {
+		expect(normalizeLocalCoreUrl("http://localhost:7777")).toBe("http://host.docker.internal:7777")
+		expect(localCoreHarborArguments("http://localhost:7777")).toEqual([
+			"--ae",
+			"CLINE_API_BASE_URL=http://host.docker.internal:7777",
+			"--allow-agent-host",
+			"host.docker.internal",
+			"--allow-environment-host",
+			"host.docker.internal",
+		])
+		expect(() => normalizeLocalCoreUrl("https://localhost:7777")).toThrow("only accepts")
+		expect(() => normalizeLocalCoreUrl("http://localhost:7778")).toThrow("only accepts")
+		expect(() => normalizeLocalCoreUrl("http://example.com:7777")).toThrow("only accepts")
+	})
+
+	test("parses privacy-safe route traces and rejects unknown fields", () => {
+		const taskHash = "a".repeat(64)
+		const traces = parseRouteTraces(
+			JSON.stringify({
+				taskHash,
+				requestedModel: "cline/auto",
+				selectedModel: "z-ai/glm-5.2",
+				timestamp: "2026-01-01T00:00:00Z",
+			}),
+		)
+		expect(traces).toHaveLength(1)
+		expect(() =>
+			parseRouteTraces(
+				JSON.stringify({
+					taskHash,
+					requestedModel: "cline/auto",
+					selectedModel: "z-ai/glm-5.2",
+					timestamp: "2026-01-01T00:00:00Z",
+					rawTaskId: "secret",
+				}),
+			),
+		).toThrow("unknown route trace field")
+	})
+
+	test("correlates an exact Core JSONL trace with the Cline session recorded by Harbor", () => {
+		const jobRoot = mkdtempSync(join(tmpdir(), "cline-bench-route-correlation-"))
+		temporaryDirectories.push(jobRoot)
+		const trialName = "task__cline__trial-1"
+		const agentDir = join(jobRoot, trialName, "agent")
+		mkdirSync(agentDir, { recursive: true })
+		const sessionId = "1784094124598_ymnl2"
+		writeFileSync(join(agentDir, "trajectory.json"), JSON.stringify({ session_id: sessionId }))
+
+		const identity = readTrialSessionIdentity(jobRoot, trialName)
+		expect(identity).toEqual({
+			sessionHash: hashPrivateIdentifier("cline-bench-session", sessionId),
+			sessionIdSha256: sha256(sessionId),
+		})
+
+		const coreLine = {
+			schema_version: 1,
+			timestamp: "2026-07-24T12:34:56Z",
+			task_id_sha256: sha256(sessionId),
+			product: "cline-router",
+			action: "route",
+			requested_model: "cline/auto",
+			selected_concrete_model: "z-ai/glm-5.2",
+			tier: "medium",
+			mode: "cost-aware",
+			reason: "classifier",
+			score: 0.84,
+			task_score: 0.71,
+			gate: {
+				evaluated: true,
+				candidate_model: "z-ai/glm-5.2",
+				incumbent_model: "openai/gpt-5.4",
+				keep_incumbent: false,
+				light_call_usd: 0.02,
+				switch_back_penalty_usd: 0.01,
+				light_usd: 0.04,
+				incumbent_usd: 0.12,
+				savings_usd: 0.08,
+				savings_ratio: 0.67,
+			},
+			features: {
+				schema_version: 1,
+				message_count: 4,
+				user_instruction_count: 1,
+				assistant_message_count: 2,
+				tool_result_count: 1,
+				tool_failure_count: 0,
+				total_chars: 1200,
+				user_instruction_chars: 300,
+				has_tools: true,
+				history_tokens: 420,
+				incumbent_state_unavailable: false,
+				incumbent_cache_status_known: true,
+				incumbent_cold_likely: false,
+			},
+		}
+		const traces = parseRouteTraces(`${JSON.stringify(coreLine)}\n`)
+		expect(traces[0]?.source).toBe("core")
+		expect(traces[0]?.features?.historyTokens).toBe(420)
+
+		const matched = matchRouteTraces(traces, {
+			requestedModel: "cline/auto",
+			taskHash: hashPrivateIdentifier("cline-bench-task", "harbor-task-slug"),
+			sessionHash: identity?.sessionHash ?? null,
+			sessionIdSha256: identity?.sessionIdSha256 ?? null,
+		})
+		expect(matched).toHaveLength(1)
+		expect(
+			matchRouteTraces(traces, {
+				requestedModel: "cline/auto",
+				taskHash: hashPrivateIdentifier("cline-bench-task", "harbor-task-slug"),
+				sessionHash: identity?.sessionHash ?? null,
+				sessionIdSha256: sha256("different-session"),
+			}),
+		).toHaveLength(0)
+		expect(JSON.stringify({ identity, traces })).not.toContain(sessionId)
 	})
 })

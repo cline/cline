@@ -15,11 +15,10 @@
  * is the proactive bound during a run.
  */
 
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import {
 	chmodSync,
-	cpSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -27,17 +26,37 @@ import {
 	readFileSync,
 	readlinkSync,
 	realpathSync,
-	rmSync,
+	renameSync,
 	writeFileSync,
 } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+	acquireRunLock,
+	type BudgetLedger,
+	createBudgetLedger,
+	hashPrivateIdentifier,
+	ledgerExposure,
+	MAX_CHECKPOINT_USD,
+	normalizeLocalCoreUrl,
+	parseRouteTraces,
+	type RouteTrace,
+	recoverLatestUsage,
+	redactSecrets,
+	releaseRunLock,
+	reserveBudget,
+	settleBudget,
+	sha256,
+} from "./cline-bench-safety"
 
 type ModelConfig = {
 	id: string
 	perTaskBudgetUsd: number
 	perModelBudgetUsd: number
+	tasks?: string[]
+	wave?: number
+	allowedCandidates?: string[]
 	pricing?: {
 		inputPerMTok: number
 		cachedInputPerMTok: number
@@ -54,10 +73,18 @@ export type PilotConfig = {
 	clineVersion: string
 	models: ModelConfig[]
 	tasks: string[]
+	waveBudgetsUsd?: Record<string, number>
 }
 
 export type ExecutionProvenance = {
-	schemaVersion: 2
+	schemaVersion: 3
+	runnerContentSha256: string
+	runnerGitCommit: string
+	harborVersion: string
+	effectiveConfig: PilotConfig
+	executionOptions: {
+		localCoreUrl: string | null
+	}
 	clineBenchCommit: string
 	tasks: Array<{
 		id: string
@@ -67,7 +94,13 @@ export type ExecutionProvenance = {
 
 type RunResult = {
 	model: string
+	requestedModel: string
 	task: string
+	taskHash: string
+	sessionHash: string | null
+	sessionIdSha256: string | null
+	routeTraces: RouteTrace[]
+	routeEvidence: "not-applicable" | "verified" | "missing"
 	outcome: "passed" | "failed" | "timed_out"
 	passed: boolean
 	reward: number | null
@@ -92,6 +125,7 @@ type PilotReport = {
 	executionFingerprint: string
 	executionProvenance: ExecutionProvenance
 	jobsRoot: string
+	budgetLedger: BudgetLedger
 	results: RunResult[]
 	stoppedReason?: string
 }
@@ -111,6 +145,10 @@ function parseArgs(argv: string[]) {
 	let jobsRoot: string | undefined
 	let stopAfter: number | undefined
 	let onlyRun: number | undefined
+	let wave: number | undefined
+	let localCoreUrl: string | undefined
+	let routeTracesPath: string | undefined
+	let ingestRouteTraces = false
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index]
@@ -128,6 +166,15 @@ function parseArgs(argv: string[]) {
 		} else if (arg === "--only-run") {
 			onlyRun = Number(argv[++index] ?? fail("--only-run requires a run number"))
 			if (!Number.isInteger(onlyRun) || onlyRun < 1) fail("--only-run must be a positive integer")
+		} else if (arg === "--wave") {
+			wave = Number(argv[++index] ?? fail("--wave requires a wave number"))
+			if (!Number.isInteger(wave) || wave < 1) fail("--wave must be a positive integer")
+		} else if (arg === "--local-core-url") {
+			localCoreUrl = normalizeLocalCoreUrl(argv[++index] ?? fail("--local-core-url requires a URL"))
+		} else if (arg === "--route-traces") {
+			routeTracesPath = resolve(argv[++index] ?? fail("--route-traces requires a path"))
+		} else if (arg === "--ingest-route-traces") {
+			ingestRouteTraces = true
 		} else if (arg === "--help" || arg === "-h") {
 			console.log(`Usage: bun evals/e2e/run-cline-bench-pilot.ts [options]
 
@@ -138,6 +185,11 @@ Options:
   --jobs-root <path>  Private output directory outside the repository
   --stop-after <n>    Stop cleanly after matrix run n
   --only-run <n>      Reuse prior work but execute only matrix run n
+  --wave <n>          Execute only the selected staged wave
+  --local-core-url    Local Core URL (strictly localhost:7777)
+  --route-traces      Privacy-safe Core route trace JSON/JSONL
+  --ingest-route-traces
+                      Attach traces to an existing report without model calls
   --help              Show this help`)
 			process.exit(0)
 		} else {
@@ -146,10 +198,28 @@ Options:
 	}
 
 	if (stopAfter && onlyRun) fail("--stop-after and --only-run cannot be combined")
-	return { execute, configPath: resolve(configPath), jobsRoot, stopAfter, onlyRun }
+	if (ingestRouteTraces && execute) fail("--ingest-route-traces cannot be combined with --execute")
+	if (ingestRouteTraces && !routeTracesPath) fail("--ingest-route-traces requires --route-traces")
+	if (ingestRouteTraces && !jobsRoot) fail("--ingest-route-traces requires --jobs-root")
+	if (execute && !jobsRoot) fail("--execute requires an explicit --jobs-root")
+	return {
+		execute,
+		configPath: resolve(configPath),
+		jobsRoot,
+		stopAfter,
+		onlyRun,
+		wave,
+		localCoreUrl,
+		routeTracesPath,
+		ingestRouteTraces,
+	}
 }
 
-function assertOnlyKeys(value: unknown, allowed: readonly string[], label: string): asserts value is Record<string, any> {
+function assertOnlyKeys(
+	value: unknown,
+	allowed: readonly string[],
+	label: string,
+): asserts value is Record<string, any> {
 	if (!value || typeof value !== "object" || Array.isArray(value)) fail(`${label} must be an object`)
 	const allowlist = new Set(allowed)
 	for (const key of Object.keys(value)) {
@@ -157,7 +227,7 @@ function assertOnlyKeys(value: unknown, allowed: readonly string[], label: strin
 	}
 }
 
-function readConfig(configPath: string): PilotConfig {
+export function readConfig(configPath: string): PilotConfig {
 	const raw: unknown = JSON.parse(readFileSync(configPath, "utf8"))
 	assertOnlyKeys(
 		raw,
@@ -170,20 +240,21 @@ function readConfig(configPath: string): PilotConfig {
 			"clineVersion",
 			"models",
 			"tasks",
+			"waveBudgetsUsd",
 		],
 		"config",
 	)
 	if (!Array.isArray(raw.models) || raw.models.length === 0) fail("at least one model is required")
 	if (!Array.isArray(raw.tasks) || raw.tasks.length === 0) fail("at least one task is required")
 	const models = raw.models.map((value, index): ModelConfig => {
-		assertOnlyKeys(value, ["id", "perTaskBudgetUsd", "perModelBudgetUsd", "pricing"], `models[${index}]`)
+		assertOnlyKeys(
+			value,
+			["id", "perTaskBudgetUsd", "perModelBudgetUsd", "pricing", "tasks", "wave", "allowedCandidates"],
+			`models[${index}]`,
+		)
 		let pricing: ModelConfig["pricing"]
 		if (value.pricing !== undefined) {
-			assertOnlyKeys(
-				value.pricing,
-				["inputPerMTok", "cachedInputPerMTok", "outputPerMTok"],
-				`models[${index}].pricing`,
-			)
+			assertOnlyKeys(value.pricing, ["inputPerMTok", "cachedInputPerMTok", "outputPerMTok"], `models[${index}].pricing`)
 			pricing = {
 				inputPerMTok: value.pricing.inputPerMTok,
 				cachedInputPerMTok: value.pricing.cachedInputPerMTok,
@@ -194,6 +265,9 @@ function readConfig(configPath: string): PilotConfig {
 			id: value.id,
 			perTaskBudgetUsd: value.perTaskBudgetUsd,
 			perModelBudgetUsd: value.perModelBudgetUsd,
+			...(value.tasks !== undefined ? { tasks: value.tasks } : {}),
+			...(value.wave !== undefined ? { wave: value.wave } : {}),
+			...(value.allowedCandidates !== undefined ? { allowedCandidates: value.allowedCandidates } : {}),
 			...(pricing ? { pricing } : {}),
 		}
 	})
@@ -206,6 +280,7 @@ function readConfig(configPath: string): PilotConfig {
 		clineVersion: raw.clineVersion,
 		models,
 		tasks: [...raw.tasks],
+		...(raw.waveBudgetsUsd !== undefined ? { waveBudgetsUsd: raw.waveBudgetsUsd } : {}),
 	}
 	if (config.routerProfile !== "cline-router" && config.routerProfile !== "cline-pass-router") {
 		fail("routerProfile must be cline-router or cline-pass-router")
@@ -214,8 +289,12 @@ function readConfig(configPath: string): PilotConfig {
 	if (config.provider !== expectedProvider) {
 		fail(`${config.routerProfile} requires provider=${expectedProvider}`)
 	}
-	if (!Number.isFinite(config.globalBudgetUsd) || config.globalBudgetUsd <= 0 || config.globalBudgetUsd >= 100) {
-		fail("globalBudgetUsd must be greater than 0 and less than 100")
+	if (
+		!Number.isFinite(config.globalBudgetUsd) ||
+		config.globalBudgetUsd <= 0 ||
+		config.globalBudgetUsd > MAX_CHECKPOINT_USD
+	) {
+		fail(`globalBudgetUsd must be greater than 0 and at most ${MAX_CHECKPOINT_USD}`)
 	}
 	if (!Number.isInteger(config.maxRunsPerModel) || config.maxRunsPerModel < 1 || config.maxRunsPerModel >= 100) {
 		fail("maxRunsPerModel must be an integer from 1 through 99")
@@ -223,16 +302,9 @@ function readConfig(configPath: string): PilotConfig {
 	if (!Number.isFinite(config.timeoutSeconds) || config.timeoutSeconds < 60 || config.timeoutSeconds > 1800) {
 		fail("timeoutSeconds must be between 60 and 1800")
 	}
-	if (
-		typeof config.clineVersion !== "string" ||
-		!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(config.clineVersion)
-	) {
+	if (typeof config.clineVersion !== "string" || !/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(config.clineVersion)) {
 		fail("clineVersion must be pinned")
 	}
-	if (config.tasks.length > config.maxRunsPerModel) {
-		fail(`configured ${config.tasks.length} tasks, exceeding maxRunsPerModel=${config.maxRunsPerModel}`)
-	}
-
 	const seenModels = new Set<string>()
 	for (const model of config.models) {
 		if (typeof model.id !== "string" || !model.id.trim() || model.id.includes(":")) {
@@ -243,18 +315,45 @@ function readConfig(configPath: string): PilotConfig {
 		if (config.routerProfile === "cline-pass-router" && !model.id.startsWith("cline-pass/")) {
 			fail(`cline-pass-router model must use a public cline-pass/* id: ${model.id}`)
 		}
+		const modelTasks = model.tasks ?? config.tasks
 		if (
-			!Number.isFinite(model.perTaskBudgetUsd) ||
-			model.perTaskBudgetUsd <= 0 ||
-			model.perTaskBudgetUsd >= 100
+			!Array.isArray(modelTasks) ||
+			modelTasks.length === 0 ||
+			modelTasks.some((task) => typeof task !== "string" || !config.tasks.includes(task))
 		) {
+			fail(`tasks for ${model.id} must be a non-empty subset of config.tasks`)
+		}
+		if (new Set(modelTasks).size !== modelTasks.length) fail(`duplicate task configured for ${model.id}`)
+		if (modelTasks.length > config.maxRunsPerModel) {
+			fail(`${model.id} has ${modelTasks.length} tasks, exceeding maxRunsPerModel=${config.maxRunsPerModel}`)
+		}
+		if (model.wave !== undefined && (!Number.isInteger(model.wave) || model.wave < 1)) {
+			fail(`wave for ${model.id} must be a positive integer`)
+		}
+		const isVirtual = model.id === "cline/auto" || model.id === "cline-pass/auto"
+		if (isVirtual) {
+			if (!Array.isArray(model.allowedCandidates) || model.allowedCandidates.length === 0) {
+				fail(`virtual model ${model.id} requires allowedCandidates`)
+			}
+			if (
+				model.allowedCandidates.some(
+					(candidate) =>
+						typeof candidate !== "string" ||
+						!candidate ||
+						(config.routerProfile === "cline-pass-router"
+							? !candidate.startsWith("cline-pass/")
+							: candidate.startsWith("cline-pass/")),
+				)
+			) {
+				fail(`virtual model ${model.id} has an invalid cross-product candidate`)
+			}
+		} else if (model.allowedCandidates !== undefined) {
+			fail(`fixed model ${model.id} cannot declare allowedCandidates`)
+		}
+		if (!Number.isFinite(model.perTaskBudgetUsd) || model.perTaskBudgetUsd <= 0 || model.perTaskBudgetUsd >= 100) {
 			fail(`invalid per-task budget for ${model.id}`)
 		}
-		if (
-			!Number.isFinite(model.perModelBudgetUsd) ||
-			model.perModelBudgetUsd <= 0 ||
-			model.perModelBudgetUsd >= 100
-		) {
+		if (!Number.isFinite(model.perModelBudgetUsd) || model.perModelBudgetUsd <= 0 || model.perModelBudgetUsd >= 100) {
 			fail(`per-model budget for ${model.id} must be greater than 0 and less than 100`)
 		}
 		if (model.perModelBudgetUsd > config.globalBudgetUsd) {
@@ -274,6 +373,18 @@ function readConfig(configPath: string): PilotConfig {
 			}
 			if (model.pricing.inputPerMTok <= 0 || model.pricing.outputPerMTok <= 0) {
 				fail(`input and output pricing must be positive for ${model.id}`)
+			}
+		}
+	}
+	if (config.waveBudgetsUsd !== undefined) {
+		assertOnlyKeys(
+			config.waveBudgetsUsd,
+			[...new Set(config.models.map((model) => String(model.wave ?? 1)))],
+			"waveBudgetsUsd",
+		)
+		for (const [wave, budget] of Object.entries(config.waveBudgetsUsd)) {
+			if (!/^[1-9][0-9]*$/.test(wave) || !Number.isFinite(budget) || budget <= 0 || budget > config.globalBudgetUsd) {
+				fail(`invalid wave budget for wave ${wave}`)
 			}
 		}
 	}
@@ -299,7 +410,10 @@ function validatePrerequisites(execute: boolean) {
 	if (!commandExists("harbor")) fail("Harbor is not installed")
 	if (!commandExists("docker")) fail("Docker is not installed")
 	if (execute) {
-		const docker = spawnSync("docker", ["info"], { stdio: "ignore", timeout: 15_000 })
+		const docker = spawnSync("docker", ["info"], {
+			stdio: "ignore",
+			timeout: 15_000,
+		})
 		if (docker.status !== 0) fail("Docker is not running")
 		if (!process.env.CLINE_API_KEY?.trim()) {
 			fail("CLINE_API_KEY must be inherited from the shell for --execute")
@@ -371,12 +485,11 @@ export function hashDirectoryTree(root: string): string {
 export function fingerprintExecution(config: PilotConfig, provenance: ExecutionProvenance): string {
 	const executionConfig = {
 		fingerprintSchemaVersion: provenance.schemaVersion,
-		routerProfile: config.routerProfile,
-		provider: config.provider,
-		timeoutSeconds: config.timeoutSeconds,
-		clineVersion: config.clineVersion,
-		models: config.models.map((model) => model.id),
-		tasks: config.tasks,
+		effectiveConfig: config,
+		runnerContentSha256: provenance.runnerContentSha256,
+		runnerGitCommit: provenance.runnerGitCommit,
+		harborVersion: provenance.harborVersion,
+		executionOptions: provenance.executionOptions,
 		clineBenchCommit: provenance.clineBenchCommit,
 		effectiveTasks: provenance.tasks,
 	}
@@ -399,16 +512,40 @@ function readClineBenchCommit(): string {
 	})
 	const commit = (result.stdout || "").trim()
 	if (result.status !== 0 || !/^[0-9a-f]{40,64}$/.test(commit)) {
-		fail(
-			`could not resolve exact cline-bench submodule commit: ${(result.stderr || "").trim() || "unknown error"}`,
-		)
+		fail(`could not resolve exact cline-bench submodule commit: ${(result.stderr || "").trim() || "unknown error"}`)
 	}
 	return commit
 }
 
-function executionIdentity(config: PilotConfig, jobsRoot: string) {
+function commandOutput(command: string, args: string[], label: string, pattern: RegExp): string {
+	const result = spawnSync(command, args, {
+		encoding: "utf8",
+		env: infrastructureEnvironment(),
+	})
+	const value = (result.stdout || "").trim()
+	if (result.status !== 0 || !pattern.test(value)) {
+		fail(`could not resolve ${label}: ${(result.stderr || "").trim() || "unknown error"}`)
+	}
+	return value
+}
+
+function executionIdentity(config: PilotConfig, jobsRoot: string, localCoreUrl?: string) {
 	const provenance: ExecutionProvenance = {
-		schemaVersion: 2,
+		schemaVersion: 3,
+		runnerContentSha256: sha256(
+			`${readFileSync(fileURLToPath(import.meta.url), "utf8")}\0${readFileSync(join(scriptDir, "cline-bench-safety.ts"), "utf8")}`,
+		),
+		runnerGitCommit: commandOutput(
+			"git",
+			["-C", repoRoot, "rev-parse", "HEAD"],
+			"runner git commit",
+			/^[0-9a-f]{40,64}$/,
+		),
+		harborVersion: commandOutput("harbor", ["--version"], "Harbor version", /^[0-9]+\.[0-9]+\.[0-9]+/),
+		effectiveConfig: config,
+		executionOptions: {
+			localCoreUrl: localCoreUrl ?? null,
+		},
 		clineBenchCommit: readClineBenchCommit(),
 		tasks: config.tasks.map((task) => {
 			const taskPath = prepareTaskPath(task, jobsRoot)
@@ -490,32 +627,68 @@ function cleanupJobContainers(jobDir: string): string[] {
 	return removed
 }
 
-function buildRunMatrix(config: PilotConfig) {
-	const runs: Array<{ model: ModelConfig; task: string }> = []
-	for (let round = 0; round < config.tasks.length; round += 1) {
+function cleanupJobsRootContainers(jobsRoot: string): string[] {
+	const removed = new Set<string>()
+	if (!existsSync(jobsRoot)) return []
+	for (const entry of readdirSync(jobsRoot, { withFileTypes: true })) {
+		if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+		for (const id of cleanupJobContainers(join(jobsRoot, entry.name))) removed.add(id)
+	}
+	return [...removed]
+}
+
+export function buildRunMatrix(config: PilotConfig) {
+	const runs: Array<{ model: ModelConfig; task: string; wave: number }> = []
+	const longestArm = Math.max(...config.models.map((model) => (model.tasks ?? config.tasks).length))
+	for (let round = 0; round < longestArm; round += 1) {
 		for (let modelIndex = 0; modelIndex < config.models.length; modelIndex += 1) {
-			const taskIndex = (round + modelIndex) % config.tasks.length
-			runs.push({ model: config.models[modelIndex], task: config.tasks[taskIndex] })
+			const model = config.models[modelIndex]
+			const modelTasks = model.tasks ?? config.tasks
+			if (round >= modelTasks.length) continue
+			const taskIndex = (round + modelIndex) % modelTasks.length
+			runs.push({ model, task: modelTasks[taskIndex], wave: model.wave ?? 1 })
 		}
 	}
 	return runs
 }
 
 function slug(value: string): string {
-	return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80)
+	return value
+		.replace(/[^a-zA-Z0-9._-]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 80)
 }
 
-function redact(value: string, secret: string): string {
-	return secret ? value.split(secret).join("[REDACTED]") : value
-}
-
-function findTrialResult(jobDir: string): any {
+function findTrialResult(jobDir: string): { document: any; trialName: string } | null {
+	const matches: Array<{ document: any; trialName: string }> = []
 	for (const entry of readdirSync(jobDir, { withFileTypes: true })) {
 		if (!entry.isDirectory()) continue
 		const nestedResultPath = join(jobDir, entry.name, "result.json")
-		if (existsSync(nestedResultPath)) return JSON.parse(readFileSync(nestedResultPath, "utf8"))
+		if (existsSync(nestedResultPath)) {
+			matches.push({
+				document: JSON.parse(readFileSync(nestedResultPath, "utf8")),
+				trialName: entry.name,
+			})
+		}
 	}
-	return null
+	if (matches.length > 1) fail(`job contains ambiguous multiple trial attempts: ${jobDir}`)
+	return matches[0] ?? null
+}
+
+export function readTrialSessionIdentity(
+	jobDir: string,
+	trialName: string,
+): { sessionHash: string; sessionIdSha256: string } | null {
+	const trajectoryPath = join(jobDir, trialName, "agent", "trajectory.json")
+	if (!existsSync(trajectoryPath)) return null
+	const trajectory = JSON.parse(readFileSync(trajectoryPath, "utf8")) as { session_id?: unknown }
+	if (typeof trajectory.session_id !== "string" || trajectory.session_id.length === 0) {
+		fail(`trajectory has no valid session_id: ${trajectoryPath}`)
+	}
+	return {
+		sessionHash: hashPrivateIdentifier("cline-bench-session", trajectory.session_id),
+		sessionIdSha256: sha256(trajectory.session_id),
+	}
 }
 
 function tokenEconomics(
@@ -526,12 +699,7 @@ function tokenEconomics(
 ) {
 	const cacheReadRatio =
 		inputTokens !== null && cacheTokens !== null && inputTokens > 0 ? cacheTokens / inputTokens : null
-	if (
-		!model.pricing ||
-		inputTokens === null ||
-		cacheTokens === null ||
-		outputTokens === null
-	) {
+	if (!model.pricing || inputTokens === null || cacheTokens === null || outputTokens === null) {
 		return {
 			cacheReadRatio,
 			estimatedTokenCostUsd: null,
@@ -547,8 +715,7 @@ function tokenEconomics(
 			outputTokens * model.pricing.outputPerMTok) /
 		1_000_000
 	const coldEquivalentCostUsd =
-		(inputTokens * model.pricing.inputPerMTok + outputTokens * model.pricing.outputPerMTok) /
-		1_000_000
+		(inputTokens * model.pricing.inputPerMTok + outputTokens * model.pricing.outputPerMTok) / 1_000_000
 	return {
 		cacheReadRatio,
 		estimatedTokenCostUsd,
@@ -567,14 +734,13 @@ function readJobResult(
 	const resultPath = join(jobDir, "result.json")
 	if (!existsSync(resultPath)) fail(`Harbor did not write ${resultPath}`)
 	const doc = JSON.parse(readFileSync(resultPath, "utf8")) as any
-	const trial = doc.trial_results?.[0] || findTrialResult(jobDir)
+	const nestedTrial = findTrialResult(jobDir)
+	const trial = doc.trial_results?.[0] || nestedTrial?.document
 	if (!trial) fail(`Harbor result has no nested trial: ${resultPath}`)
 	const exceptionType = trial.exception_info?.exception_type
 	const timedOut = exceptionType === "AgentTimeoutError"
 	if (trial.exception_info && !timedOut) {
-		fail(
-			`Harbor trial failed with ${trial.exception_info.exception_type}: ${trial.exception_info.exception_message}`,
-		)
+		fail(`Harbor trial failed with ${trial.exception_info.exception_type}: ${trial.exception_info.exception_message}`)
 	}
 	if (trial.task_name !== expectedTask) {
 		fail(`task mismatch: expected ${expectedTask}, result recorded ${JSON.stringify(trial.task_name)}`)
@@ -590,11 +756,15 @@ function readJobResult(
 	const expectedModel = model.id
 	const [expectedVendor, ...expectedNameParts] = expectedModel.split("/")
 	const expectedName = expectedNameParts.join("/")
-	const exactSplitMatch =
-		servedProvider === `${config.provider}:${expectedVendor}` && servedModel === expectedName
+	const exactSplitMatch = servedProvider === `${config.provider}:${expectedVendor}` && servedModel === expectedName
 	const acceptedCombinedNames = new Set([expectedModel, `${config.provider}:${expectedModel}`])
 	const combinedMatch = servedProvider === config.provider && acceptedCombinedNames.has(servedModel)
-	if (!exactSplitMatch && !combinedMatch) {
+	const virtualModel = expectedModel === "cline/auto" || expectedModel === "cline-pass/auto"
+	const requestedVirtualMatch =
+		virtualModel &&
+		((servedProvider === `${config.provider}:cline` && servedModel === "auto") ||
+			(servedProvider === config.provider && acceptedCombinedNames.has(servedModel)))
+	if (!exactSplitMatch && !combinedMatch && !requestedVirtualMatch) {
 		fail(
 			`served-model mismatch: expected ${expectedModel}, result recorded provider=${JSON.stringify(servedProvider)} model=${JSON.stringify(servedModel)}`,
 		)
@@ -621,17 +791,21 @@ function readJobResult(
 	const inputTokens = doc.stats?.n_input_tokens ?? null
 	const cacheTokens = doc.stats?.n_cache_tokens ?? null
 	const outputTokens = doc.stats?.n_output_tokens ?? null
+	const sessionIdentity = nestedTrial ? readTrialSessionIdentity(jobDir, nestedTrial.trialName) : null
 	return {
 		model: expectedModel,
+		requestedModel: expectedModel,
 		task: trial.task_name,
+		taskHash: hashPrivateIdentifier("cline-bench-task", trial.task_name),
+		sessionHash: sessionIdentity?.sessionHash ?? null,
+		sessionIdSha256: sessionIdentity?.sessionIdSha256 ?? null,
+		routeTraces: [],
+		routeEvidence: virtualModel ? "missing" : "not-applicable",
 		outcome: timedOut ? "timed_out" : reward === 1 ? "passed" : "failed",
 		passed: reward === 1,
 		reward,
 		costUsd,
-		costBasis:
-			config.routerProfile === "cline-pass-router"
-				? "cline-pass-reference-quota"
-				: "reported-inference",
+		costBasis: config.routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
 		durationSeconds: measuredDurationSeconds,
 		inputTokens,
 		cacheTokens,
@@ -649,51 +823,87 @@ function readInterruptedRun(
 ): RunResult {
 	const rootResult = JSON.parse(readFileSync(join(jobDir, "result.json"), "utf8")) as any
 	const startedAt = Date.parse(rootResult.started_at)
-	let latestUsage: any = null
-	let latestUsageAt: number | null = null
+	const logDocuments: string[] = []
+	let trialName: string | null = null
 	for (const entry of readdirSync(jobDir, { withFileTypes: true })) {
 		if (!entry.isDirectory()) continue
 		const clineLog = join(jobDir, entry.name, "agent", "cline.txt")
 		if (!existsSync(clineLog)) continue
-		for (const line of readFileSync(clineLog, "utf8").split("\n")) {
-			if (!line.startsWith("{") || !line.includes('"type":"usage"')) continue
-			try {
-				const parsed = JSON.parse(line)
-				if (parsed.event?.type === "usage") {
-					latestUsage = parsed.event
-					const parsedTimestamp = Date.parse(parsed.ts)
-					latestUsageAt = Number.isFinite(parsedTimestamp) ? parsedTimestamp : latestUsageAt
-				}
-			} catch {
-				// Ignore partial JSON from a force-stopped final line.
-			}
-		}
+		logDocuments.push(readFileSync(clineLog, "utf8"))
+		trialName = entry.name
 	}
-	const costUsd = latestUsage?.totalCost
-	if (!Number.isFinite(costUsd) || costUsd <= 0) {
-		fail(`interrupted run has no usable cost telemetry: ${jobDir}`)
-	}
-	const inputTokens = latestUsage?.totalInputTokens ?? null
-	const cacheTokens = latestUsage?.totalCacheReadTokens ?? null
-	const outputTokens = latestUsage?.totalOutputTokens ?? null
+	const latestUsage = recoverLatestUsage(logDocuments)
+	const costUsd = latestUsage.totalCost
+	const inputTokens = latestUsage.totalInputTokens
+	const cacheTokens = latestUsage.totalCacheReadTokens
+	const outputTokens = latestUsage.totalOutputTokens
+	const virtualModel = model.id === "cline/auto" || model.id === "cline-pass/auto"
+	const sessionIdentity = trialName ? readTrialSessionIdentity(jobDir, trialName) : null
 	return {
 		model: model.id,
+		requestedModel: model.id,
 		task,
+		taskHash: hashPrivateIdentifier("cline-bench-task", task),
+		sessionHash: sessionIdentity?.sessionHash ?? null,
+		sessionIdSha256: sessionIdentity?.sessionIdSha256 ?? null,
+		routeTraces: [],
+		routeEvidence: virtualModel ? "missing" : "not-applicable",
 		outcome: "timed_out",
 		passed: false,
 		reward: null,
 		costUsd,
-		costBasis:
-			routerProfile === "cline-pass-router"
-				? "cline-pass-reference-quota"
-				: "reported-inference",
-		durationSeconds:
-			Number.isFinite(startedAt) && latestUsageAt !== null ? (latestUsageAt - startedAt) / 1000 : 0,
+		costBasis: routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
+		durationSeconds: Number.isFinite(startedAt) ? (Date.parse(latestUsage.timestamp) - startedAt) / 1000 : 0,
 		inputTokens,
 		cacheTokens,
 		outputTokens,
 		...tokenEconomics(model, inputTokens, cacheTokens, outputTokens),
 		jobDir,
+	}
+}
+
+export function matchRouteTraces(
+	traces: readonly RouteTrace[],
+	identity: {
+		requestedModel: string
+		taskHash: string
+		sessionHash: string | null
+		sessionIdSha256: string | null
+	},
+): RouteTrace[] {
+	return traces.filter(
+		(trace) =>
+			trace.requestedModel === identity.requestedModel &&
+			(trace.source === "core"
+				? Boolean(identity.sessionIdSha256) && trace.taskIdSha256 === identity.sessionIdSha256
+				: trace.taskHash === identity.taskHash &&
+					(!trace.sessionHash || !identity.sessionHash || trace.sessionHash === identity.sessionHash)),
+	)
+}
+
+function attachRouteEvidence(result: RunResult, model: ModelConfig, traces: readonly RouteTrace[]): RunResult {
+	result = {
+		...result,
+		requestedModel: result.requestedModel || result.model,
+		taskHash: result.taskHash || hashPrivateIdentifier("cline-bench-task", result.task),
+		sessionHash: result.sessionHash ?? null,
+		sessionIdSha256: result.sessionIdSha256 ?? null,
+		routeTraces: result.routeTraces || [],
+		routeEvidence: result.routeEvidence || "not-applicable",
+	}
+	const virtualModel = model.id === "cline/auto" || model.id === "cline-pass/auto"
+	if (!virtualModel) return { ...result, routeTraces: [], routeEvidence: "not-applicable" }
+	const matched = matchRouteTraces(traces, result)
+	const allowedCandidates = new Set(model.allowedCandidates || [])
+	for (const trace of matched) {
+		if (!allowedCandidates.has(trace.selectedModel)) {
+			fail(`route trace selected disallowed candidate ${trace.selectedModel} for ${model.id} × ${result.task}`)
+		}
+	}
+	return {
+		...result,
+		routeTraces: [...matched].sort((left, right) => Date.parse(left.timestamp) - Date.parse(right.timestamp)),
+		routeEvidence: matched.length > 0 ? "verified" : "missing",
 	}
 }
 
@@ -707,43 +917,132 @@ function taskAgentTimeoutSeconds(task: string): number {
 	return configuredTimeout
 }
 
-// The upstream Telegram verifier installs uv under /root/.local/bin but does
-// not add that directory to PATH. Harbor's verifier container then reports
-// "uv: command not found" after a valid agent run. Materialize a private task
-// overlay with only that infrastructure correction so the submodule remains
-// clean and the benchmark is reproducible from this branch.
 export function prepareTaskPath(task: string, jobsRoot: string): string {
-	if (task !== "01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor") {
-		return `tasks/${task}`
-	}
-	const source = join(clineBenchDir, "tasks", task)
-	const overlay = join(jobsRoot, "task-overlays", task)
-	// Refresh this generated-only directory before fingerprinting or execution.
-	// Otherwise an old jobs root could retain a verifier copied from an earlier
-	// submodule checkout even when the source task changed.
-	rmSync(overlay, { recursive: true, force: true })
-	mkdirSync(dirname(overlay), { recursive: true, mode: 0o700 })
-	cpSync(source, overlay, { recursive: true })
-	const verifier = join(overlay, "tests", "test.sh")
-	const original = readFileSync(verifier, "utf8")
-	if (!original.includes('export PATH="/root/.local/bin:$PATH"')) {
-		const patched = original.replace(
-			"#!/bin/bash\n",
-			'#!/bin/bash\n\nexport PATH="/root/.local/bin:$PATH"\n',
-		)
-		if (patched === original) fail(`could not patch Telegram verifier: ${verifier}`)
-		writeFileSync(verifier, patched, { mode: 0o755 })
-	}
-	return overlay
+	void jobsRoot
+	return `tasks/${task}`
 }
 
-function runOne(
+// All eight selected verifiers invoke uv, but their task images expose its
+// install directory inconsistently. Harbor's verifier-only environment flag
+// fixes PATH uniformly without changing the agent environment or task corpus.
+export function verifierHarborArguments(): string[] {
+	return ["--ve", "PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
+}
+
+type HarborProcessResult = {
+	status: number | null
+	stdout: string
+	stderr: string
+	timedOut: boolean
+	signal: NodeJS.Signals | null
+}
+
+export function localCoreHarborArguments(localCoreUrl?: string): string[] {
+	if (!localCoreUrl) return []
+	const normalized = normalizeLocalCoreUrl(localCoreUrl)
+	return [
+		"--ae",
+		`CLINE_API_BASE_URL=${normalized}`,
+		"--allow-agent-host",
+		"host.docker.internal",
+		"--allow-environment-host",
+		"host.docker.internal",
+	]
+}
+
+async function runHarborProcess(args: string[], config: PilotConfig): Promise<HarborProcessResult> {
+	const child = spawn("harbor", args, {
+		cwd: clineBenchDir,
+		env: safeEnvironment(config.provider),
+		detached: process.platform !== "win32",
+		stdio: ["ignore", "pipe", "pipe"],
+	})
+	const maxBuffer = 20 * 1024 * 1024
+	const stdoutChunks: Buffer[] = []
+	const stderrChunks: Buffer[] = []
+	let stdoutBytes = 0
+	let stderrBytes = 0
+	const append = (chunks: Buffer[], chunk: Buffer, current: number) => {
+		if (current >= maxBuffer) return current
+		const remaining = maxBuffer - current
+		chunks.push(chunk.subarray(0, remaining))
+		return current + Math.min(chunk.length, remaining)
+	}
+	child.stdout.on("data", (chunk: Buffer) => {
+		stdoutBytes = append(stdoutChunks, chunk, stdoutBytes)
+	})
+	child.stderr.on("data", (chunk: Buffer) => {
+		stderrBytes = append(stderrChunks, chunk, stderrBytes)
+	})
+
+	const terminateGroup = (signal: NodeJS.Signals) => {
+		if (!child.pid) return
+		try {
+			if (process.platform === "win32") child.kill(signal)
+			else process.kill(-child.pid, signal)
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+		}
+	}
+	let timedOut = false
+	let interruptedSignal: NodeJS.Signals | null = null
+	let forceKillTimeout: NodeJS.Timeout | undefined
+	const onSignal = (signal: NodeJS.Signals) => {
+		interruptedSignal = signal
+		terminateGroup("SIGTERM")
+		forceKillTimeout ||= setTimeout(() => terminateGroup("SIGKILL"), 5_000)
+		forceKillTimeout.unref()
+	}
+	const signalHandlers = (["SIGINT", "SIGTERM", "SIGHUP"] as const).map((signal) => {
+		const handler = () => onSignal(signal)
+		process.once(signal, handler)
+		return { signal, handler }
+	})
+	const timeout = setTimeout(
+		() => {
+			timedOut = true
+			terminateGroup("SIGTERM")
+			forceKillTimeout = setTimeout(() => terminateGroup("SIGKILL"), 5_000)
+			forceKillTimeout.unref()
+		},
+		(config.timeoutSeconds + 15 * 60) * 1000,
+	)
+	timeout.unref()
+	let outcome: { status: number | null; signal: NodeJS.Signals | null } | undefined
+	try {
+		outcome = await new Promise<{
+			status: number | null
+			signal: NodeJS.Signals | null
+		}>((resolvePromise, reject) => {
+			child.once("error", reject)
+			child.once("close", (status, signal) => resolvePromise({ status, signal }))
+		})
+	} finally {
+		clearTimeout(timeout)
+		if (forceKillTimeout) clearTimeout(forceKillTimeout)
+		for (const entry of signalHandlers) process.removeListener(entry.signal, entry.handler)
+	}
+	if (interruptedSignal) {
+		throw new Error(`benchmark interrupted by ${interruptedSignal}`)
+	}
+	if (!outcome) throw new Error("Harbor process exited without an outcome")
+	return {
+		status: outcome.status,
+		signal: outcome.signal,
+		timedOut,
+		stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+		stderr: Buffer.concat(stderrChunks).toString("utf8"),
+	}
+}
+
+async function runOne(
 	config: PilotConfig,
 	model: ModelConfig,
 	task: string,
 	jobsRoot: string,
 	runNumber: number,
-): RunResult {
+	localCoreUrl?: string,
+): Promise<RunResult> {
 	const jobName = `${String(runNumber).padStart(2, "0")}-${slug(model.id)}-${slug(task)}`
 	const jobDir = join(jobsRoot, jobName)
 	const harborModel = `${config.provider}:${model.id}`
@@ -777,26 +1076,23 @@ function runOne(
 		jobsRoot,
 		"--yes",
 	]
+	args.push(...verifierHarborArguments())
+	args.push(...localCoreHarborArguments(localCoreUrl))
 
 	console.log(`\n[${runNumber}] ${model.id} × ${task}`)
 	const started = Date.now()
-	const result = spawnSync("harbor", args, {
-		cwd: clineBenchDir,
-		env: safeEnvironment(config.provider),
-		encoding: "utf8",
-		timeout: (config.timeoutSeconds + 15 * 60) * 1000,
-		maxBuffer: 20 * 1024 * 1024,
-	})
+	const result = await runHarborProcess(args, config)
 	const durationSeconds = (Date.now() - started) / 1000
 	const secret = process.env.CLINE_API_KEY || ""
-	const sanitizedOutput = redact(`${result.stdout || ""}\n${result.stderr || ""}`, secret)
+	const sanitizedOutput = redactSecrets(`${result.stdout || ""}\n${result.stderr || ""}`, [secret])
 	mkdirSync(jobDir, { recursive: true, mode: 0o700 })
-	writeFileSync(join(jobDir, "harbor-console.log"), sanitizedOutput, { mode: 0o600 })
+	writeFileSync(join(jobDir, "harbor-console.log"), sanitizedOutput, {
+		mode: 0o600,
+	})
 
-	if (result.error) {
+	if (result.timedOut) {
 		const removed = cleanupJobContainers(jobDir)
-		const errorCode = (result.error as NodeJS.ErrnoException).code
-		if (errorCode === "ETIMEDOUT" && existsSync(join(jobDir, "result.json"))) {
+		if (existsSync(join(jobDir, "result.json"))) {
 			try {
 				return readInterruptedRun(jobDir, config.routerProfile, model, task)
 			} catch (usageError) {
@@ -805,15 +1101,13 @@ function runOne(
 				)
 			}
 		}
-		fail(
-			`Harbor failed for ${model.id} × ${task}: ${result.error.message}; cleaned ${removed.length} container(s)`,
-		)
+		fail(`Harbor timed out for ${model.id} × ${task}; cleaned ${removed.length} container(s)`)
 	}
 	if (result.status !== 0) {
 		const removed = cleanupJobContainers(jobDir)
 		const tail = sanitizedOutput.trim().split("\n").slice(-20).join("\n")
 		fail(
-			`Harbor exited ${result.status} for ${model.id} × ${task}; cleaned ${removed.length} container(s)\n${tail}`,
+			`Harbor exited ${result.status} (signal=${result.signal}) for ${model.id} × ${task}; cleaned ${removed.length} container(s)\n${tail}`,
 		)
 	}
 	return readJobResult(jobDir, config, model, task, durationSeconds)
@@ -842,8 +1136,34 @@ function reuseCompletedRun(
 	return result
 }
 
+function writePrivateJson(path: string, value: unknown) {
+	const temporary = `${path}.tmp-${process.pid}`
+	writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+		mode: 0o600,
+	})
+	renameSync(temporary, path)
+}
+
 function writeReport(report: PilotReport) {
-	writeFileSync(join(report.jobsRoot, "pilot-report.json"), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 })
+	writePrivateJson(join(report.jobsRoot, "pilot-report.json"), report)
+}
+
+function budgetLedgerPath(jobsRoot: string): string {
+	return join(jobsRoot, "budget-ledger.json")
+}
+
+function loadBudgetLedger(jobsRoot: string, checkpointUsd: number): BudgetLedger {
+	const path = budgetLedgerPath(jobsRoot)
+	if (!existsSync(path)) return createBudgetLedger(checkpointUsd)
+	const ledger = JSON.parse(readFileSync(path, "utf8")) as BudgetLedger
+	if (ledger.schemaVersion !== 1 || ledger.checkpointUsd !== checkpointUsd || !Array.isArray(ledger.entries)) {
+		fail("budget ledger is missing, incompatible, or belongs to a different checkpoint")
+	}
+	return ledger
+}
+
+function writeBudgetLedger(jobsRoot: string, ledger: BudgetLedger) {
+	writePrivateJson(budgetLedgerPath(jobsRoot), ledger)
 }
 
 function printMatrix(config: PilotConfig) {
@@ -852,73 +1172,160 @@ function printMatrix(config: PilotConfig) {
 	console.log(
 		`Limits: ${config.maxRunsPerModel} runs/model, $${config.globalBudgetUsd.toFixed(2)} global, ${config.timeoutSeconds}s/task`,
 	)
+	if (config.waveBudgetsUsd) {
+		console.log(
+			`Wave checkpoints: ${Object.entries(config.waveBudgetsUsd)
+				.map(([wave, budget]) => `${wave}=$${budget.toFixed(2)}`)
+				.join(", ")}`,
+		)
+	}
 	for (const model of config.models) {
 		console.log(
-			`  ${model.id}: $${model.perTaskBudgetUsd.toFixed(2)}/task stop, $${model.perModelBudgetUsd.toFixed(2)}/model stop`,
+			`  ${model.id} [wave ${model.wave ?? 1}]: $${model.perTaskBudgetUsd.toFixed(2)}/task exposure, $${model.perModelBudgetUsd.toFixed(2)}/model stop`,
 		)
 	}
 	console.log("Latin-square run order:")
 	for (const [index, run] of buildRunMatrix(config).entries()) {
-		console.log(`  ${index + 1}. ${run.model.id} × ${run.task}`)
+		console.log(`  ${index + 1}. [wave ${run.wave}] ${run.model.id} × ${run.task}`)
 	}
 }
 
-function main() {
+function loadRouteTraceFile(path?: string): RouteTrace[] {
+	if (!path) return []
+	if (!existsSync(path)) fail(`route trace file does not exist: ${path}`)
+	const canonicalPath = realpathSync(path)
+	const canonicalRepo = realpathSync(repoRoot)
+	if (canonicalPath === canonicalRepo || canonicalPath.startsWith(`${canonicalRepo}/`)) {
+		fail("route trace file must live outside the repository")
+	}
+	return parseRouteTraces(readFileSync(canonicalPath, "utf8"))
+}
+
+function runKey(index: number, run: ReturnType<typeof buildRunMatrix>[number]): string {
+	return `${index + 1}:${run.wave}:${run.model.id}:${run.task}`
+}
+
+function modelForResult(config: PilotConfig, result: RunResult): ModelConfig {
+	const requestedModel = result.requestedModel || result.model
+	return (
+		config.models.find((model) => model.id === requestedModel) ??
+		fail(`report references unknown requested model: ${requestedModel}`)
+	)
+}
+
+async function main() {
 	const args = parseArgs(process.argv.slice(2))
 	const config = readConfig(args.configPath)
 	validatePrerequisites(args.execute)
 	printMatrix(config)
-	if (!args.execute) {
+	if (!args.execute && !args.ingestRouteTraces) {
 		console.log("\nDry run complete. No model was called. Pass --execute to spend.")
 		return
 	}
 
 	const jobsRoot = createPrivateJobsRoot(args.jobsRoot)
-	const identity = executionIdentity(config, jobsRoot)
-	const fingerprint = identity.fingerprint
-	const existingReportPath = join(jobsRoot, "pilot-report.json")
-	if (existsSync(existingReportPath)) {
-		const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as Partial<PilotReport>
-		assertReusableFingerprint(existing, fingerprint)
-	} else {
-		const hasUnboundResult = buildRunMatrix(config).some((run, index) => {
-			const jobName = `${String(index + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
-			return existsSync(join(jobsRoot, jobName, "result.json"))
-		})
-		if (hasUnboundResult) {
-			fail("jobs-root contains result artifacts without a content-addressed pilot report; use a new jobs-root")
-		}
-	}
-	const report: PilotReport = {
-		startedAt: new Date().toISOString(),
-		mode: "execute",
-		config,
-		executionFingerprint: fingerprint,
-		executionProvenance: identity.provenance,
-		jobsRoot,
-		results: [],
-	}
-	// Bind the jobs root to this exact corpus before Harbor can create result
-	// artifacts. A crash during the first run must not leave reusable,
-	// provenance-free output behind.
-	writeReport(report)
-	const modelSpend = new Map(config.models.map((model) => [model.id, 0]))
-	let globalSpend = 0
-
+	const lock = acquireRunLock(jobsRoot)
+	let report: PilotReport | undefined
 	try {
-		for (const [index, run] of buildRunMatrix(config).entries()) {
+		const removedAtStartup = cleanupJobsRootContainers(jobsRoot)
+		if (removedAtStartup.length > 0) {
+			console.log(`Removed ${removedAtStartup.length} orphaned benchmark container(s) before resume.`)
+		}
+		const identity = executionIdentity(config, jobsRoot, args.localCoreUrl)
+		const fingerprint = identity.fingerprint
+		const existingReportPath = join(jobsRoot, "pilot-report.json")
+		if (existsSync(existingReportPath)) {
+			const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as Partial<PilotReport>
+			assertReusableFingerprint(existing, fingerprint)
+		} else {
+			const hasUnboundResult = buildRunMatrix(config).some((run, index) => {
+				const jobName = `${String(index + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
+				return existsSync(join(jobsRoot, jobName, "result.json"))
+			})
+			if (hasUnboundResult) {
+				fail("jobs-root contains result artifacts without a content-addressed pilot report; use a new jobs-root")
+			}
+		}
+		let budgetLedger = loadBudgetLedger(jobsRoot, config.globalBudgetUsd)
+		const traces = loadRouteTraceFile(args.routeTracesPath)
+		if (args.ingestRouteTraces) {
+			if (!existsSync(existingReportPath)) fail("route trace ingestion requires an existing pilot report")
+			const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as PilotReport
+			assertReusableFingerprint(existing, fingerprint)
+			existing.results = existing.results.map((result) =>
+				attachRouteEvidence(result, modelForResult(config, result), traces),
+			)
+			existing.finishedAt = new Date().toISOString()
+			writeReport(existing)
+			console.log(`Attached route evidence to ${existing.results.length} result(s). No model was called.`)
+			return
+		}
+		report = {
+			startedAt: new Date().toISOString(),
+			mode: "execute",
+			config,
+			executionFingerprint: fingerprint,
+			executionProvenance: identity.provenance,
+			jobsRoot,
+			budgetLedger,
+			results: [],
+		}
+		writePrivateJson(join(jobsRoot, "execution-manifest.json"), {
+			executionFingerprint: fingerprint,
+			...identity.provenance,
+		})
+		writeBudgetLedger(jobsRoot, budgetLedger)
+		writeReport(report)
+
+		const matrix = buildRunMatrix(config)
+		if (args.onlyRun && args.onlyRun > matrix.length) {
+			fail(`--only-run ${args.onlyRun} exceeds matrix size ${matrix.length}`)
+		}
+		const activeReservations = budgetLedger.entries.filter((entry) => entry.status === "reserved")
+		for (const entry of activeReservations) {
+			const matrixIndex = matrix.findIndex((run, index) => runKey(index, run) === entry.runKey)
+			if (matrixIndex < 0) fail(`budget ledger reservation is not in the execution matrix: ${entry.runKey}`)
+			const run = matrix[matrixIndex]
+			const jobName = `${String(matrixIndex + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
+			if (!existsSync(join(jobsRoot, jobName, "result.json"))) {
+				fail(`unsettled prior attempt has no recoverable usage; refusing to spend again: ${entry.runKey}`)
+			}
+		}
+
+		const modelSpend = new Map(config.models.map((model) => [model.id, 0]))
+		let globalSpend = 0
+		for (const [index, run] of matrix.entries()) {
 			if (args.stopAfter && index + 1 > args.stopAfter) {
 				report.stoppedReason = `operator stop-after ${args.stopAfter}`
 				break
 			}
-			const reused = reuseCompletedRun(config, run.model, run.task, jobsRoot, index + 1)
+			const key = runKey(index, run)
+			const reusedRaw = reuseCompletedRun(config, run.model, run.task, jobsRoot, index + 1)
+			const reused = reusedRaw ? attachRouteEvidence(reusedRaw, run.model, traces) : null
 			if (reused) {
 				report.results.push(reused)
 				modelSpend.set(run.model.id, (modelSpend.get(run.model.id) || 0) + reused.costUsd)
 				globalSpend += reused.costUsd
+				if (!budgetLedger.entries.some((entry) => entry.runKey === key)) {
+					budgetLedger = reserveBudget(budgetLedger, {
+						runKey: key,
+						model: run.model.id,
+						wave: run.wave,
+						exposureUsd: run.model.perTaskBudgetUsd,
+						waveBudgetUsd: config.waveBudgetsUsd?.[String(run.wave)],
+					})
+				}
+				budgetLedger = settleBudget(budgetLedger, key, reused.costUsd)
+				writeBudgetLedger(jobsRoot, budgetLedger)
+				report.budgetLedger = budgetLedger
 				writeReport(report)
+				const reusedWaveBudget = config.waveBudgetsUsd?.[String(run.wave)]
+				if (reusedWaveBudget !== undefined && ledgerExposure(budgetLedger, run.wave) > reusedWaveBudget) {
+					fail(`wave ${run.wave} exceeded its $${reusedWaveBudget.toFixed(2)} checkpoint`)
+				}
 				continue
 			}
+			if (args.wave && run.wave !== args.wave) continue
 			if (args.onlyRun && index + 1 !== args.onlyRun) continue
 			const currentModelSpend = modelSpend.get(run.model.id) || 0
 			if (currentModelSpend >= run.model.perModelBudgetUsd) {
@@ -934,8 +1341,27 @@ function main() {
 				fail("pilot lacks room for the next task's declared exposure")
 			}
 
-			const result = runOne(config, run.model, run.task, jobsRoot, index + 1)
+			budgetLedger = reserveBudget(budgetLedger, {
+				runKey: key,
+				model: run.model.id,
+				wave: run.wave,
+				exposureUsd: run.model.perTaskBudgetUsd,
+				waveBudgetUsd: config.waveBudgetsUsd?.[String(run.wave)],
+			})
+			writeBudgetLedger(jobsRoot, budgetLedger)
+			report.budgetLedger = budgetLedger
+			writeReport(report)
+
+			const rawResult = await runOne(config, run.model, run.task, jobsRoot, index + 1, args.localCoreUrl)
+			const result = attachRouteEvidence(rawResult, run.model, traces)
+			budgetLedger = settleBudget(budgetLedger, key, result.costUsd)
+			writeBudgetLedger(jobsRoot, budgetLedger)
+			const waveBudget = config.waveBudgetsUsd?.[String(run.wave)]
+			if (waveBudget !== undefined && ledgerExposure(budgetLedger, run.wave) > waveBudget) {
+				fail(`wave ${run.wave} exceeded its $${waveBudget.toFixed(2)} checkpoint`)
+			}
 			report.results.push(result)
+			report.budgetLedger = budgetLedger
 			modelSpend.set(run.model.id, currentModelSpend + result.costUsd)
 			globalSpend += result.costUsd
 			writeReport(report)
@@ -944,9 +1370,7 @@ function main() {
 			)
 
 			if (result.costUsd > run.model.perTaskBudgetUsd) {
-				fail(
-					`${run.model.id} exceeded its $${run.model.perTaskBudgetUsd.toFixed(2)} per-task stop after ${run.task}`,
-				)
+				fail(`${run.model.id} exceeded its $${run.model.perTaskBudgetUsd.toFixed(2)} per-task stop after ${run.task}`)
 			}
 			if ((modelSpend.get(run.model.id) || 0) > run.model.perModelBudgetUsd) {
 				fail(`${run.model.id} exceeded its $${run.model.perModelBudgetUsd.toFixed(2)} model budget`)
@@ -956,16 +1380,20 @@ function main() {
 			}
 		}
 		if (args.onlyRun) report.stoppedReason = `operator only-run ${args.onlyRun}`
+		if (args.wave) report.stoppedReason = `completed wave ${args.wave}`
 	} catch (error) {
-		report.stoppedReason = error instanceof Error ? error.message : String(error)
+		if (report) report.stoppedReason = error instanceof Error ? error.message : String(error)
 		throw error
 	} finally {
-		report.finishedAt = new Date().toISOString()
-		writeReport(report)
+		if (report) {
+			report.finishedAt = new Date().toISOString()
+			writeReport(report)
+		}
+		releaseRunLock(lock)
 		console.log(`\nReport: ${join(jobsRoot, "pilot-report.json")}`)
 	}
 }
 
 if (import.meta.main) {
-	main()
+	await main()
 }
