@@ -29,6 +29,47 @@ describe("PendingPromptService", () => {
 		expect(state.pendingPrompts).toHaveLength(2);
 	});
 
+	it("keeps steer prompts in submission order ahead of queued turns", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, { prompt: "later turn", delivery: "queue" });
+		service.enqueue(state, { prompt: "steer one", delivery: "steer" });
+		service.enqueue(state, { prompt: "steer two", delivery: "steer" });
+		service.enqueue(state, { prompt: "steer three", delivery: "steer" });
+
+		expect(service.list(state).map((prompt) => prompt.prompt)).toEqual([
+			"steer one",
+			"steer two",
+			"steer three",
+			"later turn",
+		]);
+		expect(service.consumeSteer(state).entry?.prompt).toBe("steer one");
+		expect(service.consumeSteer(state).entry?.prompt).toBe("steer two");
+	});
+
+	it("promotes a queued prompt behind prompts already steering", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, { prompt: "steering", delivery: "steer" });
+		service.enqueue(state, { prompt: "queued", delivery: "queue" });
+		const queuedId = service
+			.list(state)
+			.find((prompt) => prompt.prompt === "queued")?.id;
+
+		const promoted = service.update(state, {
+			sessionId: "sess-1",
+			promptId: queuedId,
+			delivery: "steer",
+		});
+
+		expect(promoted.prompts.map((prompt) => prompt.prompt)).toEqual([
+			"steering",
+			"queued",
+		]);
+	});
+
 	it("updates prompts and reorders when delivery changes", () => {
 		const service = new PendingPromptService();
 		const state = createState();
