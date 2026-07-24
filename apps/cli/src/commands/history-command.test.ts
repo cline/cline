@@ -79,4 +79,16 @@ describe("registerHistoryCommand", () => {
 		});
 		expect(setExitCode).toHaveBeenCalledWith(0);
 	});
+
+	it("returns an error when delete is missing --session-id", async () => {
+		const { program, io, setExitCode } = createHarness(false);
+
+		await program.parseAsync(["history", "delete"], { from: "user" });
+
+		expect(io.writeErr).toHaveBeenCalledWith(
+			"history delete requires --session-id <id>",
+		);
+		expect(historyMocks.runHistoryDelete).not.toHaveBeenCalled();
+		expect(setExitCode).toHaveBeenCalledWith(1);
+	});
 });
