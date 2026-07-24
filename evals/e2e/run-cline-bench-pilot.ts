@@ -75,16 +75,18 @@ export type PilotConfig = {
 	maxRunsPerModel: number
 	timeoutSeconds: number
 	clineVersion: string
+	localCoreRevision?: string
 	models: ModelConfig[]
 	tasks: string[]
 	waveBudgetsUsd?: Record<string, number>
 }
 
 export type ExecutionProvenance = {
-	schemaVersion: 3
+	schemaVersion: 4
 	runnerContentSha256: string
 	runnerGitCommit: string
 	harborVersion: string
+	localCoreRevision: string | null
 	effectiveConfig: PilotConfig
 	executionOptions: {
 		localCoreUrl: string | null
@@ -129,6 +131,7 @@ export type PilotReport = {
 	config: PilotConfig
 	executionFingerprint: string
 	executionProvenance: ExecutionProvenance
+	localCoreRevision: string | null
 	jobsRoot: string
 	budgetLedger: BudgetLedger
 	results: RunResult[]
@@ -243,6 +246,7 @@ export function readConfig(configPath: string): PilotConfig {
 			"maxRunsPerModel",
 			"timeoutSeconds",
 			"clineVersion",
+			"localCoreRevision",
 			"models",
 			"tasks",
 			"waveBudgetsUsd",
@@ -293,6 +297,7 @@ export function readConfig(configPath: string): PilotConfig {
 		maxRunsPerModel: raw.maxRunsPerModel,
 		timeoutSeconds: raw.timeoutSeconds,
 		clineVersion: raw.clineVersion,
+		...(raw.localCoreRevision !== undefined ? { localCoreRevision: raw.localCoreRevision } : {}),
 		models,
 		tasks: [...raw.tasks],
 		...(raw.waveBudgetsUsd !== undefined ? { waveBudgetsUsd: raw.waveBudgetsUsd } : {}),
@@ -319,6 +324,12 @@ export function readConfig(configPath: string): PilotConfig {
 	}
 	if (typeof config.clineVersion !== "string" || !/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(config.clineVersion)) {
 		fail("clineVersion must be pinned")
+	}
+	if (config.localCoreRevision !== undefined && !/^[0-9a-f]{40}$/.test(config.localCoreRevision)) {
+		fail("localCoreRevision must be an exact 40-character lowercase hexadecimal Git commit")
+	}
+	if (config.models.some((model) => model.transport === "local-core") && !config.localCoreRevision) {
+		fail("localCoreRevision is required when any model uses transport=local-core")
 	}
 	const seenModels = new Set<string>()
 	for (const model of config.models) {
@@ -612,6 +623,7 @@ export function fingerprintExecution(config: PilotConfig, provenance: ExecutionP
 		runnerContentSha256: provenance.runnerContentSha256,
 		runnerGitCommit: provenance.runnerGitCommit,
 		harborVersion: provenance.harborVersion,
+		localCoreRevision: provenance.localCoreRevision,
 		executionOptions: provenance.executionOptions,
 		clineBenchCommit: provenance.clineBenchCommit,
 		effectiveTasks: provenance.tasks,
@@ -624,7 +636,9 @@ export function assertReusableFingerprint(existing: Partial<PilotReport>, expect
 		fail("jobs-root report predates content-addressed task fingerprints; use a new jobs-root")
 	}
 	if (existing.executionFingerprint !== expectedFingerprint) {
-		fail("jobs-root belongs to a different execution matrix, cline-bench commit, or effective task corpus")
+		fail(
+			"jobs-root belongs to a different execution matrix, local Core revision, cline-bench commit, or effective task corpus",
+		)
 	}
 }
 
@@ -645,6 +659,7 @@ export function assertTraceIngestionCompatibility(
 	if (
 		JSON.stringify(existing.config) !== JSON.stringify(config) ||
 		JSON.stringify(stored.effectiveConfig) !== JSON.stringify(config) ||
+		stored.localCoreRevision !== currentProvenance.localCoreRevision ||
 		JSON.stringify(stored.executionOptions) !== JSON.stringify(currentProvenance.executionOptions) ||
 		stored.clineBenchCommit !== currentProvenance.clineBenchCommit ||
 		JSON.stringify(stored.tasks) !== JSON.stringify(currentProvenance.tasks)
@@ -679,7 +694,7 @@ function commandOutput(command: string, args: string[], label: string, pattern: 
 
 function executionIdentity(config: PilotConfig, jobsRoot: string, localCoreUrl?: string) {
 	const provenance: ExecutionProvenance = {
-		schemaVersion: 3,
+		schemaVersion: 4,
 		runnerContentSha256: sha256(
 			`${readFileSync(fileURLToPath(import.meta.url), "utf8")}\0${readFileSync(join(scriptDir, "cline-bench-safety.ts"), "utf8")}`,
 		),
@@ -690,6 +705,7 @@ function executionIdentity(config: PilotConfig, jobsRoot: string, localCoreUrl?:
 			/^[0-9a-f]{40,64}$/,
 		),
 		harborVersion: commandOutput("harbor", ["--version"], "Harbor version", /^[0-9]+\.[0-9]+\.[0-9]+/),
+		localCoreRevision: config.localCoreRevision ?? null,
 		effectiveConfig: config,
 		executionOptions: {
 			localCoreUrl: localCoreUrl ?? null,
@@ -1819,6 +1835,9 @@ function writeBudgetLedger(jobsRoot: string, ledger: BudgetLedger) {
 function printMatrix(config: PilotConfig) {
 	console.log(`Router profile: ${config.routerProfile}`)
 	console.log(`Provider: ${config.provider}`)
+	if (config.localCoreRevision) {
+		console.log(`Local Core revision: ${config.localCoreRevision}`)
+	}
 	console.log(
 		`Limits: ${config.maxRunsPerModel} runs/model, $${config.globalBudgetUsd.toFixed(2)} global, ${config.timeoutSeconds}s/task`,
 	)
@@ -1929,6 +1948,7 @@ async function main() {
 			config,
 			executionFingerprint: fingerprint,
 			executionProvenance: identity.provenance,
+			localCoreRevision: identity.provenance.localCoreRevision,
 			jobsRoot,
 			budgetLedger,
 			results: [],

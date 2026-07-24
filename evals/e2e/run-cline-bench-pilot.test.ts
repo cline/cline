@@ -77,10 +77,11 @@ function config(): PilotConfig {
 
 function provenance(contentHash: string, commit = "a".repeat(40)): ExecutionProvenance {
 	return {
-		schemaVersion: 3,
+		schemaVersion: 4,
 		runnerContentSha256: "b".repeat(64),
 		runnerGitCommit: "c".repeat(40),
 		harborVersion: "0.20.0",
+		localCoreRevision: null,
 		effectiveConfig: config(),
 		executionOptions: { localCoreUrl: null },
 		clineBenchCommit: commit,
@@ -155,14 +156,23 @@ describe("Cline benchmark execution fingerprints", () => {
 		).not.toBe(first)
 		const localCoreConfig = {
 			...config(),
+			localCoreRevision: "e".repeat(40),
 			models: config().models.map((model) => ({ ...model, transport: "local-core" as const })),
 		}
+		const localCoreFingerprint = fingerprintExecution(localCoreConfig, {
+			...base,
+			localCoreRevision: localCoreConfig.localCoreRevision,
+			effectiveConfig: localCoreConfig,
+		})
+		expect(localCoreFingerprint).not.toBe(first)
+		const changedRevisionConfig = { ...localCoreConfig, localCoreRevision: "f".repeat(40) }
 		expect(
-			fingerprintExecution(localCoreConfig, {
+			fingerprintExecution(changedRevisionConfig, {
 				...base,
-				effectiveConfig: localCoreConfig,
+				localCoreRevision: changedRevisionConfig.localCoreRevision,
+				effectiveConfig: changedRevisionConfig,
 			}),
-		).not.toBe(first)
+		).not.toBe(localCoreFingerprint)
 	})
 
 	test("rejects legacy and mismatched reports instead of blessing stale results", () => {
@@ -215,6 +225,34 @@ describe("Cline benchmark configuration and matrix", () => {
 		source.models[0].transport = "other-proxy"
 		writeFileSync(path, JSON.stringify(source))
 		expect(() => readConfig(path)).toThrow('invalid transport for moonshotai/kimi-k3: "other-proxy"')
+	})
+
+	test("requires a strict local Core revision only for explicit local-core transports", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-bench-config-"))
+		temporaryDirectories.push(root)
+		const source = JSON.parse(readFileSync(join(import.meta.dir, "cline-bench-pilot.config.json"), "utf8"))
+		source.models[0].transport = "local-core"
+		const path = join(root, "config.json")
+
+		writeFileSync(path, JSON.stringify(source))
+		expect(() => readConfig(path)).toThrow(
+			"localCoreRevision is required when any model uses transport=local-core",
+		)
+
+		for (const invalid of ["", "a".repeat(39), "a".repeat(41), "A".repeat(40), `${"a".repeat(39)}g`]) {
+			source.localCoreRevision = invalid
+			writeFileSync(path, JSON.stringify(source))
+			expect(() => readConfig(path)).toThrow("exact 40-character lowercase hexadecimal Git commit")
+		}
+
+		source.localCoreRevision = "a".repeat(40)
+		writeFileSync(path, JSON.stringify(source))
+		expect(readConfig(path).localCoreRevision).toBe("a".repeat(40))
+
+		delete source.models[0].transport
+		delete source.localCoreRevision
+		writeFileSync(path, JSON.stringify(source))
+		expect(readConfig(path).localCoreRevision).toBeUndefined()
 	})
 
 	test("builds model-specific staged arms without duplicate tasks", () => {
@@ -274,6 +312,7 @@ describe("Cline benchmark configuration and matrix", () => {
 		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
 		const matrix = buildRunMatrix(checkpoint)
 		expect(checkpoint.clineVersion).toBe("3.0.46-nightly.1784896623")
+		expect(checkpoint.localCoreRevision).toBe("587ebe82b3a2337b229d22ed097051215ba145f8")
 		expect(matrix).toHaveLength(24)
 		expect(new Set(checkpoint.tasks).size).toBe(8)
 		expect(matrix.filter((run) => run.model.id === "cline/auto")).toHaveLength(8)

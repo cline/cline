@@ -33,6 +33,10 @@ and is graded by the task's deterministic verifier.
   in the config, command arguments, report, or repository.
 - The Cline CLI version is pinned in configuration for reproducibility. Its
   built-in consecutive-mistake limit remains enabled.
+- Any explicit `local-core` transport also requires `localCoreRevision` to be
+  the exact 40-character lowercase hexadecimal Core Git commit. It is printed
+  in the dry-run summary and retained in the execution fingerprint, manifest,
+  and report, so a different local Core build cannot silently reuse results.
 - The default smoke pilot is bounded to 3 tasks/model, $15/model or less, and
   $40 globally.
 - `routerProfile` is validated. A `cline-pass-router` experiment rejects every
@@ -82,8 +86,9 @@ and is graded by the task's deterministic verifier.
   event, so a provider-side/prepaid account limit remains the only true dollar
   hard stop.
 - Optional model-level `transport` is either `cline-api` or `local-core`.
-  Explicit `local-core` arms require `--local-core-url` before the jobs root is
-  created or budget is reserved. The URL remains deliberately narrow: it
+  Explicit `local-core` arms require both the pinned config revision above and
+  `--local-core-url` before the jobs root is created or budget is reserved. The
+  URL remains deliberately narrow: it
   normalizes localhost ports 7777 or 17777 to `host.docker.internal`, forwards
   only `CLINE_API_BASE_URL`, and adds only that hostname to Harbor's environment
   and agent-phase allowlists. This lets fixed comparators and Auto share one
