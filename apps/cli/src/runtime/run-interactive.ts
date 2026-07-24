@@ -26,7 +26,7 @@ import {
 	resolveClineWelcomeLine,
 } from "../tui/interactive-welcome";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
-import type { QueuedPromptItem } from "../tui/types";
+import type { QueuedPromptItem, TuiStartupTarget } from "../tui/types";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
 import { applyCliCompactionMode } from "../utils/compaction-mode";
 import {
@@ -137,7 +137,7 @@ export async function runInteractive(
 	options?: {
 		clineApiBaseUrl?: string;
 		clineProviderSettings?: ProviderSettings;
-		initialView?: "chat" | "config" | "history";
+		startupTarget?: TuiStartupTarget;
 		initialPrompt?: string;
 		initialNotice?: CliMigrationNotice;
 		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
@@ -470,7 +470,7 @@ export async function runInteractive(
 
 	tuiApp = await renderOpenTui({
 		config,
-		initialView: options?.initialView,
+		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,
 		onInitialNoticeShown: options?.onInitialNoticeShown,
@@ -804,7 +804,7 @@ export async function runInteractive(
 		},
 	});
 
-	if (!loadDeferredInitialMessages && options?.initialView !== "history") {
+	if (!loadDeferredInitialMessages && options?.startupTarget !== "history") {
 		setTimeout(() => {
 			void sessionRuntime.ensureReady().catch((error) => {
 				if (sessionRuntime.isShutdownRequested() || startupErrorReported) {

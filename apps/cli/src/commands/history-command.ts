@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { TuiStartupTarget } from "../tui/types";
 import type { CliOutputMode } from "../utils/types";
 import {
 	runHistoryDelete,
@@ -16,7 +17,7 @@ type RegisterHistoryCommandOptions = {
 	program: Command;
 	io: HistoryCommandIo;
 	setExitCode: (code: number) => void;
-	launchHistoryView: () => void;
+	setStartupTarget: (target: TuiStartupTarget) => void;
 	isInteractiveTTY?: () => boolean;
 };
 
@@ -31,8 +32,9 @@ export function registerHistoryCommand({
 	program,
 	io,
 	setExitCode,
-	launchHistoryView,
-	isInteractiveTTY = () => process.stdin.isTTY && process.stdout.isTTY,
+	setStartupTarget,
+	isInteractiveTTY = () =>
+		process.stdin.isTTY === true && process.stdout.isTTY === true,
 }: RegisterHistoryCommandOptions): void {
 	const historyCmd = program
 		.command("history")
@@ -47,7 +49,7 @@ export function registerHistoryCommand({
 			const limit = Number.parseInt(opts.limit, 10);
 			const outputMode = resolveHistoryOutputMode(program, historyCmd);
 			if (outputMode === "text" && isInteractiveTTY()) {
-				launchHistoryView();
+				setStartupTarget("history");
 				return;
 			}
 			setExitCode(

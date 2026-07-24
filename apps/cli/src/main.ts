@@ -5,6 +5,7 @@ import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
+import { registerHistoryCommand } from "./commands/history-command";
 import {
 	CommanderError,
 	commanderToParsedArgs,
@@ -14,8 +15,8 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
-import { registerHistoryCommand } from "./commands/history-command";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import type { TuiStartupTarget } from "./tui/types";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -137,11 +138,19 @@ function writePromptArgError(args: string[]): void {
 	);
 }
 
+function startupTargetTakesPrecedenceOverMigrationNotice(
+	target: TuiStartupTarget | undefined,
+): boolean {
+	return target === "config" || target === "history";
+}
+
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
 
 	const cliArgs = process.argv.slice(2);
+	const isFullTTY =
+		process.stdin.isTTY === true && process.stdout.isTTY === true;
 	const configDir = resolveConfigDirArg(cliArgs);
 	const { setClineDir, setHomeDir } = await import("@cline/shared/storage");
 	if (configDir) {
@@ -155,13 +164,12 @@ export async function runCli(): Promise<void> {
 	// `--config <dir>` rather than the default home/config location.
 	captureCliExtensionActivated();
 
-	let launchConfigView = false;
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 
 	// Subcommand routing via Commander
 	const ctx: {
 		exitCode?: number;
-		launchHistoryView?: boolean;
+		startupTarget?: TuiStartupTarget;
 	} = {};
 	const io = { writeln, writeErr };
 	const program = createProgram();
@@ -253,7 +261,7 @@ export async function runCli(): Promise<void> {
 				ctx.exitCode = code;
 			},
 			() => {
-				launchConfigView = true;
+				ctx.startupTarget = "config";
 			},
 		);
 		return configCmd;
@@ -420,7 +428,7 @@ export async function runCli(): Promise<void> {
 					connectCmd.args.slice(1),
 					io,
 				);
-			} else if (process.stdin.isTTY && process.stdout.isTTY) {
+			} else if (isFullTTY) {
 				ctx.exitCode = await runConnectWizard();
 			} else {
 				writeln(`\nAdapters:\n${formatAdapterList()}`);
@@ -432,7 +440,7 @@ export async function runCli(): Promise<void> {
 		.command("mcp")
 		.description("Manage MCP servers")
 		.action(async () => {
-			if (process.stdin.isTTY && process.stdout.isTTY) {
+			if (isFullTTY) {
 				ctx.exitCode = await runMcpWizard();
 			} else {
 				writeln(
@@ -503,9 +511,10 @@ export async function runCli(): Promise<void> {
 		setExitCode: (code) => {
 			ctx.exitCode = code;
 		},
-		launchHistoryView: () => {
-			ctx.launchHistoryView = true;
+		setStartupTarget: (target) => {
+			ctx.startupTarget = target;
 		},
+		isInteractiveTTY: () => isFullTTY,
 	});
 
 	program
@@ -538,11 +547,7 @@ export async function runCli(): Promise<void> {
 		.allowExcessArguments()
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
-			if (
-				cmd.args.length === 0 &&
-				process.stdin.isTTY &&
-				process.stdout.isTTY
-			) {
+			if (cmd.args.length === 0 && isFullTTY) {
 				ctx.exitCode = await runScheduleWizard();
 				return;
 			}
@@ -690,15 +695,8 @@ export async function runCli(): Promise<void> {
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
 
+	let startupTarget = ctx.startupTarget;
 	let resumeSessionId: string | undefined;
-	if (ctx.launchHistoryView) {
-		args = {
-			...args,
-			interactive: true,
-			prompt: undefined,
-		};
-	}
-
 	if (args.id !== undefined) {
 		const sessionId = args.id.trim();
 		if (!sessionId) {
@@ -707,16 +705,12 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 		resumeSessionId = sessionId;
+		startupTarget = "chat";
 		process.env.CLINE_HOOK_AGENT_RESUME = "1";
-		args = {
-			...args,
-			interactive: true,
-			prompt: undefined,
-		};
 	} else {
 		delete process.env.CLINE_HOOK_AGENT_RESUME;
 	}
-	if (launchConfigView) {
+	if (startupTarget) {
 		args = {
 			...args,
 			interactive: true,
@@ -790,7 +784,7 @@ export async function runCli(): Promise<void> {
 			!args.prompt &&
 			!resumeSessionId &&
 			!stdinHasPipedInput() &&
-			(!process.stdin.isTTY || !process.stdout.isTTY)
+			!isFullTTY
 		) {
 			writeErr("--worktree without a prompt requires an interactive terminal.");
 			process.exitCode = 1;
@@ -1137,14 +1131,6 @@ export async function runCli(): Promise<void> {
 				return;
 			}
 			const runInteractive = await loadInteractiveRuntimeModule();
-			let initialView: "chat" | "config" | "history" | undefined;
-			if (launchConfigView) {
-				initialView = "config";
-			} else if (ctx.launchHistoryView) {
-				initialView = "history";
-			} else if (resumeSessionId) {
-				initialView = "chat";
-			}
 			const initialClineProviderSettings =
 				provider === "cline" ? selectedProviderSettings : undefined;
 			let initialNotice:
@@ -1156,10 +1142,8 @@ export async function runCli(): Promise<void> {
 				  ) => void)
 				| undefined;
 			if (
-				!launchConfigView &&
-				!ctx.launchHistoryView &&
-				process.stdin.isTTY &&
-				process.stdout.isTTY
+				!startupTargetTakesPrecedenceOverMigrationNotice(startupTarget) &&
+				isFullTTY
 			) {
 				const { getClineCliMigrationNotice, markClineCliMigrationNoticeShown } =
 					await import("./kanban-migration/notice");
@@ -1176,7 +1160,7 @@ export async function runCli(): Promise<void> {
 				initialPrompt: args.prompt,
 				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
 				clineProviderSettings: initialClineProviderSettings,
-				initialView,
+				startupTarget,
 				initialNotice,
 				onInitialNoticeShown: markInitialNoticeShown,
 			});

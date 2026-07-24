@@ -54,7 +54,7 @@ import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
 import { TerminalColorsContext } from "./hooks/use-terminal-background";
 import { useTerminalTitle } from "./hooks/use-terminal-title";
-import type { AppView, TuiProps } from "./types";
+import type { AppView, TuiProps, TuiStartupTarget } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
 import { createSelectionCopyHandler } from "./utils/selection-copy";
@@ -63,6 +63,13 @@ import { deriveTerminalTitle } from "./utils/terminal-title";
 import { ChatView } from "./views/chat-view";
 import { HomeView } from "./views/home-view";
 import { type OnboardingResult, OnboardingView } from "./views/onboarding";
+
+function isChatBackedStartupTarget(
+	target: TuiStartupTarget | undefined,
+): boolean {
+	// History is a dialog layered over chat, so dismissing it should reveal chat.
+	return target === "chat" || target === "history";
+}
 
 function App(props: TuiProps) {
 	const session = useSession();
@@ -84,8 +91,7 @@ function App(props: TuiProps) {
 	const [appView, setAppView] = useState<AppView>(() => {
 		if (process.env.CLINE_FORCE_ONBOARDING === "1") return "onboarding";
 		if (!isProviderConfigured(props.config)) return "onboarding";
-		return props.initialView === "chat" ||
-			props.initialView === "history" ||
+		return isChatBackedStartupTarget(props.startupTarget) ||
 			session.entries.length > 0
 			? "chat"
 			: "home";
@@ -629,13 +635,6 @@ function App(props: TuiProps) {
 		setSessionLastTotalTokens,
 	]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
-	useEffect(() => {
-		if (props.initialView === "config") {
-			openConfig();
-		}
-	}, []);
-
 	const { handleSlashCommand, openHistory } = useLocalCommandActions({
 		slashCommandRegistry,
 		canForkSession,
@@ -654,12 +653,15 @@ function App(props: TuiProps) {
 		onExit: exitCline,
 	});
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+	const startupActionsRef = useRef({ openConfig, openHistory });
+	startupActionsRef.current = { openConfig, openHistory };
 	useEffect(() => {
-		if (props.initialView === "history") {
-			void openHistory();
+		if (props.startupTarget === "config") {
+			void startupActionsRef.current.openConfig();
+		} else if (props.startupTarget === "history") {
+			void startupActionsRef.current.openHistory();
 		}
-	}, []);
+	}, [props.startupTarget]);
 
 	const runCommandPaletteResult = useCallback(
 		async (result: CommandPaletteResult) => {

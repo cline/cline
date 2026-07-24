@@ -123,6 +123,7 @@ export interface PendingPromptMutationResult {
 }
 
 export type AppView = "onboarding" | "home" | "chat";
+export type TuiStartupTarget = "chat" | "config" | "history";
 
 export type RuntimeToolInteraction =
 	| {
@@ -139,7 +140,7 @@ export type RuntimeToolInteraction =
 
 export interface TuiProps {
 	config: Config;
-	initialView?: "chat" | "config" | "history";
+	startupTarget?: TuiStartupTarget;
 	initialPrompt?: string;
 	initialNotice?: CliMigrationNotice;
 	onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
