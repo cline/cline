@@ -18,12 +18,7 @@ import { SyncQueue } from "./queue"
 import type { SyncWorkerOptions } from "./worker"
 import { disposeSyncWorker, initSyncWorker, SyncWorker } from "./worker"
 
-export type { SyncQueueItem, SyncQueueStatus } from "./queue"
 // Re-export types and functions
-export { SyncQueue } from "./queue"
-export type { SyncWorkerEvent, SyncWorkerOptions } from "./worker"
-export { disposeSyncWorker, SyncWorker } from "./worker"
-
 let syncQueueInstance: SyncQueue | null = null
 
 /**

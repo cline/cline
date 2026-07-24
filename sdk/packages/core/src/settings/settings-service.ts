@@ -1,5 +1,13 @@
-import { existsSync } from "node:fs";
-import { basename, isAbsolute, relative } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import {
 	createUserInstructionConfigService,
 	type RuleConfig,
@@ -14,6 +22,10 @@ import {
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 } from "../extensions/mcp";
+import {
+	resolveAgentPluginPaths,
+	resolvePluginSkillDirectoriesFromPaths,
+} from "../extensions/plugin/plugin-config-loader";
 import {
 	setToolDisabledGlobally,
 	toggleDisabledTool,
@@ -38,6 +50,97 @@ function detectSource(
 	return !relativePath.startsWith("..") && !isAbsolute(relativePath)
 		? "workspace"
 		: "global";
+}
+
+function detectPluginSource(
+	filePath: string,
+	workspaceRoot: string,
+): "global-plugin" | "workspace-plugin" {
+	return detectSource(filePath, workspaceRoot) === "workspace"
+		? "workspace-plugin"
+		: "global-plugin";
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+function readPackageName(packageJsonPath: string): string | undefined {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			name?: unknown;
+		};
+		return typeof packageJson.name === "string" && packageJson.name.trim()
+			? packageJson.name.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function getPluginDisplayName(filePath: string): string {
+	let current = dirname(filePath);
+	while (true) {
+		const packageJsonPath = join(current, "package.json");
+		if (existsSync(packageJsonPath)) {
+			const packageName = readPackageName(packageJsonPath);
+			if (packageName) {
+				return packageName;
+			}
+			break;
+		}
+		const parent = dirname(current);
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+	return basename(filePath, extname(filePath));
+}
+
+type PluginSkillOwner = {
+	directory: string;
+	pluginName: string;
+	pluginPath: string;
+	source: "global-plugin" | "workspace-plugin";
+};
+
+function buildPluginSkillOwners(input: {
+	workspaceRoot: string;
+	cwd?: string;
+}): PluginSkillOwner[] {
+	const owners: PluginSkillOwner[] = [];
+	for (const pluginPath of resolveAgentPluginPaths({
+		workspacePath: input.workspaceRoot || undefined,
+		cwd: input.cwd,
+	})) {
+		for (const directory of resolvePluginSkillDirectoriesFromPaths([
+			pluginPath,
+		])) {
+			owners.push({
+				directory,
+				pluginName: getPluginDisplayName(pluginPath),
+				pluginPath,
+				source: input.workspaceRoot
+					? detectPluginSource(pluginPath, input.workspaceRoot)
+					: "global-plugin",
+			});
+		}
+	}
+	return owners.sort(
+		(left, right) => right.directory.length - left.directory.length,
+	);
+}
+
+function findPluginSkillOwner(
+	filePath: string,
+	owners: readonly PluginSkillOwner[],
+): PluginSkillOwner | undefined {
+	return owners.find((owner) => isPathWithin(owner.directory, filePath));
 }
 
 function toSorted<T extends CoreSettingsItem>(items: T[]): T[] {
@@ -65,6 +168,13 @@ function resolveWorkspaceRoot(input: CoreSettingsListInput): string {
 	return input.workspaceRoot?.trim() || input.cwd?.trim() || "";
 }
 
+function resolveCwd(
+	input: CoreSettingsListInput,
+	workspaceRoot: string,
+): string {
+	return input.cwd?.trim() || workspaceRoot || process.cwd();
+}
+
 async function withUserInstructionService<T>(
 	input: CoreSettingsListInput,
 	run: (service?: UserInstructionConfigService) => Promise<T>,
@@ -73,18 +183,15 @@ async function withUserInstructionService<T>(
 		return await run(input.userInstructionService);
 	}
 	const workspaceRoot = resolveWorkspaceRoot(input);
-	if (!workspaceRoot) {
-		return await run(undefined);
-	}
-	const cwd = input.cwd?.trim() || workspaceRoot;
+	const cwd = resolveCwd(input, workspaceRoot);
 	const service = createUserInstructionConfigService({
 		skills: {
-			workspacePath: workspaceRoot,
+			workspacePath: workspaceRoot || undefined,
 			includePluginSkills: true,
 			cwd,
 		},
-		rules: { workspacePath: workspaceRoot },
-		workflows: { workspacePath: workspaceRoot },
+		rules: { workspacePath: workspaceRoot || undefined },
+		workflows: { workspacePath: workspaceRoot || undefined },
 	});
 	try {
 		await service.start();
@@ -124,6 +231,10 @@ export class CoreSettingsService {
 	async list(input: CoreSettingsListInput = {}): Promise<CoreSettingsSnapshot> {
 		return await withUserInstructionService(input, async (service) => {
 			const workspaceRoot = resolveWorkspaceRoot(input);
+			const pluginSkillOwners = buildPluginSkillOwners({
+				workspaceRoot,
+				cwd: resolveCwd(input, workspaceRoot),
+			});
 			const workflows: CoreSettingsItem[] = [];
 			const rules: CoreSettingsItem[] = [];
 			const skills: CoreSettingsItem[] = [];
@@ -159,14 +270,22 @@ export class CoreSettingsService {
 				}
 				for (const record of service.listRecords<SkillConfig>("skill")) {
 					const skill = record.item;
+					const pluginOwner = findPluginSkillOwner(
+						record.filePath,
+						pluginSkillOwners,
+					);
 					skills.push({
 						id: record.id,
 						name: skill.name,
 						path: record.filePath,
 						enabled: skill.disabled !== true,
 						kind: "skill",
-						source: detectSource(record.filePath, workspaceRoot),
+						source:
+							pluginOwner?.source ??
+							detectSource(record.filePath, workspaceRoot),
 						description: skill.description,
+						pluginName: pluginOwner?.pluginName,
+						pluginPath: pluginOwner?.pluginPath,
 						toggleable: true,
 					});
 				}

@@ -283,7 +283,7 @@ const openRouterReasoningRule: ProviderOptionRule = {
 	build: (input) =>
 		buildReasoningPatchForProvider(
 			input,
-			buildOpenRouterReasoningOptions(input.request),
+			buildOpenRouterReasoningOptions(input.request, input.context),
 		),
 };
 

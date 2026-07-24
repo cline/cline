@@ -47,14 +47,18 @@ OG Saoud Note:
  * A reusable component for selecting models from a dropdown
  */
 export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label = "Model" }: ModelSelectorProps) => {
+	const modelIds = Object.keys(models)
+	// Force VSCodeDropdown to re-initialize after async catalog/selection hydration.
+	const dropdownKey = `${selectedModelId ?? ""}:${modelIds.join("\u0000")}`
+
 	return (
 		<DropdownContainer className="dropdown-container" zIndex={zIndex}>
 			<label htmlFor="model-id">
 				<span className="font-medium">{label}</span>
 			</label>
-			<VSCodeDropdown className="w-full" id="model-id" onChange={onChange} value={selectedModelId}>
+			<VSCodeDropdown className="w-full" id="model-id" key={dropdownKey} onChange={onChange} value={selectedModelId}>
 				<VSCodeOption value="">Select a model...</VSCodeOption>
-				{Object.keys(models).map((modelId) => (
+				{modelIds.map((modelId) => (
 					<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
 						{modelId}
 					</VSCodeOption>

@@ -1,10 +1,8 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "./dist",
-		"rootDir": "./src",
-		"sourceMap": false,
-		"emitDeclarationOnly": true,
+		"rootDir": "..",
+		"noEmit": true,
 		"paths": {
 			"@cline/agents": ["../agents/src/index.ts"],
 			"@cline/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],

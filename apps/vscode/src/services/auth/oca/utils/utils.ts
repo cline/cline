@@ -4,13 +4,13 @@ import { type JwtPayload, jwtDecode } from "jwt-decode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import {
-    DEFAULT_EXTERNAL_IDCS_CLIENT_ID,
-    DEFAULT_EXTERNAL_IDCS_URL,
-    DEFAULT_EXTERNAL_IDSC_SCOPES,
-    DEFAULT_INTERNAL_IDCS_CLIENT_ID,
-    DEFAULT_INTERNAL_IDCS_URL,
-    DEFAULT_INTERNAL_IDSC_SCOPES,
-    OCA_CONFIG_PATH,
+	DEFAULT_EXTERNAL_IDCS_CLIENT_ID,
+	DEFAULT_EXTERNAL_IDCS_URL,
+	DEFAULT_EXTERNAL_IDSC_SCOPES,
+	DEFAULT_INTERNAL_IDCS_CLIENT_ID,
+	DEFAULT_INTERNAL_IDCS_URL,
+	DEFAULT_INTERNAL_IDSC_SCOPES,
+	OCA_CONFIG_PATH,
 } from "./constants"
 import type { OcaConfig } from "./types"
 
@@ -93,7 +93,7 @@ export function pkceChallengeFromVerifier(verifier: string): string {
  *
  * Use: Send this single value as the opc-request-id header.
  */
-export async function generateOpcRequestId(taskId: string, token: string): Promise<string> {
+async function generateOpcRequestId(taskId: string, token: string): Promise<string> {
 	async function hash8(str: string): Promise<string> {
 		const data = new TextEncoder().encode(str)
 		const hash = await crypto.subtle.digest("SHA-256", data)
@@ -142,7 +142,7 @@ export async function createOcaHeaders(accessToken: string, taskId: string): Pro
  * Use only for non-security, informational, or display purposes.
  * @param token JWT string
  */
-export function parseJwtPayload<T extends JwtPayload>(token: string): T | null {
+function parseJwtPayload<T extends JwtPayload>(token: string): T | null {
 	try {
 		const payload = jwtDecode<T>(token)
 		return payload

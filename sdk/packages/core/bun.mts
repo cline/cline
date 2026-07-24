@@ -18,11 +18,13 @@ const external = Object.keys({
 });
 
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+// minify: true keeps identifier mangling active even when sourcemaps are enabled.
+const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
 
 const buildConfig = {
 	target: "node",
 	format: "esm",
-	minify: true,
+	minify,
 	packages: "bundle",
 	sourcemap,
 	external,

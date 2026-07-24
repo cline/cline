@@ -4,9 +4,9 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import styled from "styled-components"
 import { highlight } from "../history/HistoryView"
 
-export const OLLAMA_MODEL_PICKER_Z_INDEX = 1_000
+const OLLAMA_MODEL_PICKER_Z_INDEX = 1_000
 
-export interface OllamaModelPickerProps {
+interface OllamaModelPickerProps {
 	ollamaModels: string[]
 	selectedModelId: string
 	onModelChange: (modelId: string) => void

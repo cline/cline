@@ -134,7 +134,7 @@ export function ProviderListContent({
 								isPanel ? "text-[24px]" : "text-[32px]",
 							)}
 						>
-							Models
+							Model Providers
 						</h1>
 						<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
 							Configure model providers and choose which ones are available.{" "}

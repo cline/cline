@@ -1,15 +1,33 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { getProviderCollectionSync } from "@cline/llms"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ANTHROPIC_MAX_THINKING_BUDGET, ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
 import { StateManager } from "@/core/storage/StateManager"
+import { adaptSdkModelInfo } from "@/sdk/model-catalog/shape-adapter"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { basetenModels } from "../../../shared/api"
 import { Controller } from ".."
+
+/**
+ * Baseten's curated model catalog from the SDK. Used as a fallback
+ * when the live API fetch fails. Adapted to the extension `ModelInfo`
+ * shape so the shape matches what `models` is collecting.
+ */
+function getBasetenSdkModels(): Record<string, ModelInfo> {
+	const collection = getProviderCollectionSync("baseten")
+	if (!collection) {
+		return {}
+	}
+	const result: Record<string, ModelInfo> = {}
+	for (const [modelId, sdkInfo] of Object.entries(collection.models)) {
+		result[modelId] = adaptSdkModelInfo(sdkInfo)
+	}
+	return result
+}
 
 // Track pending refresh promise to prevent duplicate concurrent fetches
 let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
@@ -19,6 +37,13 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
+// TODO(sdk-consolidation): Live-fetches Baseten's /models endpoint and parses
+// live pricing + reasoning support into ModelInfo. The SDK has a generic
+// models-URL fetcher but it returns ids-only and (for providers with a
+// registered modelsSourceUrl) REPLACES the curated catalog rather than merging,
+// so a naive migration would regress metadata. See the detailed note in
+// refreshGroqModels.ts; share via the SDK + delete this handler + RPC once the
+// SDK supports rich/merged per-provider live models for all clients.
 export async function refreshBasetenModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("baseten")
@@ -51,6 +76,10 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
 
 	const models: Record<string, Partial<ModelInfo> & { supportedFeatures?: string[] }> = {}
+	// The SDK catalog is Baseten's curated model list. Used here for
+	// pricing/capability defaults when the live API doesn't surface
+	// them, and as the offline fallback below when the API fetch fails.
+	const sdkModels = getBasetenSdkModels()
 	try {
 		if (basetenApiKey) {
 			// Ensure the API key is properly formatted
@@ -78,8 +107,8 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						continue
 					}
 
-					// Check if we have static pricing information for this model
-					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
+					// SDK pricing/capability defaults for this model id, if any.
+					const staticModelInfo = sdkModels[rawModel.id]
 					const supportThinking = rawModel?.supported_features?.some(
 						(p: string) => p === "reasoning_effort" || p === "reasoning",
 					)
@@ -143,8 +172,10 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 				models[modelId] = modelInfo
 			}
 		} else {
-			// Fall back to static models from shared/api.ts
-			for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
+			// Fall back to the SDK's curated Baseten catalog. Same shape
+			// the live-fetch path produces, just with no API response to
+			// merge.
+			for (const [modelId, modelInfo] of Object.entries(sdkModels)) {
 				models[modelId] = {
 					maxTokens: modelInfo.maxTokens,
 					contextWindow: modelInfo.contextWindow,
@@ -152,10 +183,10 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					supportsPromptCache: modelInfo.supportsPromptCache,
 					inputPrice: modelInfo.inputPrice,
 					outputPrice: modelInfo.outputPrice,
-					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
-					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: (modelInfo as any).description || `${modelId} model`,
-					supportsReasoning: modelInfo.supportsReasoning || false,
+					cacheWritesPrice: modelInfo.cacheWritesPrice ?? 0,
+					cacheReadsPrice: modelInfo.cacheReadsPrice ?? 0,
+					description: modelInfo.description ?? `${modelId} model`,
+					supportsReasoning: modelInfo.supportsReasoning ?? false,
 					thinkingConfig: modelInfo.supportsReasoning ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 				}
 			}

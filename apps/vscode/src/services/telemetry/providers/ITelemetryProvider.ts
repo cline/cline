@@ -8,23 +8,23 @@ import type { ClineAccountUserInfo } from "../../auth/AuthService"
 /**
  * JSON-serializable primitive types for telemetry properties
  */
-export type TelemetryPrimitive = string | number | boolean | null | undefined
+type TelemetryPrimitive = string | number | boolean | null | undefined
 
 /**
  * JSON-serializable value types for telemetry properties
  * Ensures all telemetry data can be properly serialized
  */
-export type TelemetryValue = TelemetryPrimitive | TelemetryObject | TelemetryArray
+type TelemetryValue = TelemetryPrimitive | TelemetryObject | TelemetryArray
 
 /**
  * JSON-serializable object for telemetry properties
  */
-export type TelemetryObject = { [key: string]: TelemetryValue }
+type TelemetryObject = { [key: string]: TelemetryValue }
 
 /**
  * JSON-serializable array for telemetry properties
  */
-export type TelemetryArray = Array<TelemetryValue>
+type TelemetryArray = Array<TelemetryValue>
 
 /**
  * Properties that can be safely passed to telemetry providers

@@ -8,7 +8,7 @@ import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 /**
  * Supported error provider types
  */
-export type ErrorProviderType = "posthog" | "no-op"
+type ErrorProviderType = "posthog" | "no-op"
 
 /**
  * Configuration for error providers

@@ -328,13 +328,6 @@ export function resolveWorkspacePath(
 }
 
 /**
- * Helper to check if we're in trace mode
- */
-export function isWorkspaceTraceEnabled(): boolean {
-	return process.env.MULTI_ROOT_TRACE === "true" || process.env.NODE_ENV === "development"
-}
-
-/**
  * Phase 0: Convenience function for path.basename with tracking
  * This is what we'll use to replace existing path.basename() calls
  */

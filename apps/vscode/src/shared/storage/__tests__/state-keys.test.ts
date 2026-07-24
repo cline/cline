@@ -31,12 +31,12 @@
  * ## Running Tests
  *
  * ```bash
- * npm run test:unit -- --grep "State Keys"
+ * bun run test:unit -- --grep "State Keys"
  * ```
  */
 
+import { describe, it } from "bun:test"
 import { expect } from "chai"
-import { describe, it } from "mocha"
 
 import {
 	applyTransform,

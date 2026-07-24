@@ -20,7 +20,7 @@ import { getBinaryLocation } from "@/utils/fs"
 export type FileSearchSource = "host_index" | "ripgrep"
 
 // Wrapper function for childProcess.spawn
-export type SpawnFunction = typeof childProcess.spawn
+type SpawnFunction = typeof childProcess.spawn
 export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 /** Thrown when ripgrep fails to spawn or exits non-zero. */

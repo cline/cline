@@ -1,6 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import ClineLogoSanta from "@/assets/ClineLogoSanta"
-import ClineLogoTired from "@/assets/ClineLogoTired"
 import ClineLogoVariable from "@/assets/ClineLogoVariable"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
@@ -10,7 +9,7 @@ interface HomeHeaderProps {
 }
 
 const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
-	const { environment, lazyTeammateModeEnabled } = useExtensionState()
+	const { environment } = useExtensionState()
 
 	const handleTakeATour = async () => {
 		try {
@@ -20,10 +19,9 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 		}
 	}
 
-	// Lazy Teammate Mode takes priority, then December festive logo, then default
 	const isDecember = new Date().getMonth() === 11 // 11 = December (0-indexed)
-	const LogoComponent = lazyTeammateModeEnabled ? ClineLogoTired : isDecember ? ClineLogoSanta : ClineLogoVariable
-	const headingText = lazyTeammateModeEnabled ? "I guess I'm here to help" : "What can I do for you?"
+	const LogoComponent = isDecember ? ClineLogoSanta : ClineLogoVariable
+	const headingText = "What can I do for you?"
 
 	return (
 		<div className="flex flex-col items-center mb-5">

@@ -13,6 +13,7 @@ import {
 import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
+import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
 import {
 	type ActiveConnectorRecord,
@@ -48,6 +49,8 @@ type SpawnedProcessRecord = {
 
 type DoctorStatus = {
 	cwd: string;
+	cliVersion: string;
+	coreVersion?: string;
 	hubUrl?: string;
 	hubHealthy: boolean;
 	hubPid?: number;
@@ -334,6 +337,8 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 	];
 	return {
 		cwd,
+		cliVersion,
+		coreVersion: health?.coreVersion ?? discovery?.coreVersion,
 		hubUrl: current?.url,
 		hubHealthy: !!health?.url,
 		hubPid: current?.pid,
@@ -416,6 +421,8 @@ export async function runDoctorCommand(
 			io.writeln(JSON.stringify(before));
 			return 0;
 		}
+		writeln(`cli version ${c.dim}${before.cliVersion}${c.reset}`);
+		writeln(`core version ${c.dim}${before.coreVersion ?? "n/a"}${c.reset}`);
 		writeln(`hub url ${c.dim}${before.hubUrl ?? "none"}${c.reset}`);
 		writeln(
 			`hub healthy ${c.dim}${before.hubHealthy ? "yes" : "no"}${before.hubPid ? ` (pid=${before.hubPid})` : ""}${c.reset}`,

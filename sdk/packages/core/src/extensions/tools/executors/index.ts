@@ -11,7 +11,7 @@ import {
 	type ApplyPatchExecutorOptions,
 	createApplyPatchExecutor,
 } from "./apply-patch";
-import { type BashExecutorOptions, createBashExecutor } from "./bash";
+import { createShellExecutor, type ShellExecutorOptions } from "./bash";
 import { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 import {
 	createFileReadExecutor,
@@ -26,11 +26,15 @@ import {
 // Re-export individual executors and their options types
 export {
 	type ApplyPatchExecutorOptions,
+	computePatchChanges,
 	createApplyPatchExecutor,
+	type PatchFileChange,
 } from "./apply-patch";
+export { PatchActionType } from "./apply-patch-parser";
 export {
-	type BashExecutorOptions,
-	createBashExecutor,
+	CommandExitError,
+	createShellExecutor,
+	type ShellExecutorOptions,
 } from "./bash";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 export {
@@ -49,10 +53,21 @@ export {
 export interface DefaultExecutorsOptions {
 	fileRead?: FileReadExecutorOptions;
 	search?: SearchExecutorOptions;
-	bash?: BashExecutorOptions;
+	bash?: ShellExecutorOptions;
 	webFetch?: WebFetchExecutorOptions;
 	applyPatch?: ApplyPatchExecutorOptions;
 	editor?: EditorExecutorOptions;
+}
+
+/**
+ * Create the default shell executor for the current platform.
+ *
+ * This is factored out from {@link createDefaultExecutors} so host integrations
+ * can reuse the SDK's cross-platform shell selection while supplying their own
+ * tool wrapper.
+ */
+export function createDefaultShellExecutor(options: ShellExecutorOptions = {}) {
+	return createShellExecutor(options);
 }
 
 /**
@@ -79,7 +94,7 @@ export function createDefaultExecutors(
 	return {
 		readFile: createFileReadExecutor(options.fileRead),
 		search: createSearchExecutor(options.search),
-		bash: createBashExecutor(options.bash),
+		bash: createDefaultShellExecutor(options.bash),
 		webFetch: createWebFetchExecutor(options.webFetch),
 		applyPatch: createApplyPatchExecutor(options.applyPatch),
 		editor: createEditorExecutor(options.editor),

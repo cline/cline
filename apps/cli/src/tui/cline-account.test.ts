@@ -12,6 +12,8 @@ const coreMocks = vi.hoisted(() => {
 		fetchMe: vi.fn(),
 		fetchBalance: vi.fn(),
 		fetchOrganizationBalance: vi.fn(),
+		fetchAvailableSubscriptionPlans: vi.fn(),
+		fetchCurrentUserPlan: vi.fn(),
 		serviceOptions,
 	};
 });
@@ -38,6 +40,14 @@ vi.mock("@cline/core", async (importOriginal) => {
 			}
 			fetchOrganizationBalance(organizationId: string) {
 				return coreMocks.fetchOrganizationBalance(organizationId);
+			}
+			fetchAvailableSubscriptionPlans(input?: {
+				type?: "individual" | "teams";
+			}) {
+				return coreMocks.fetchAvailableSubscriptionPlans(input);
+			}
+			fetchCurrentUserPlan() {
+				return coreMocks.fetchCurrentUserPlan();
 			}
 		},
 		ProviderSettingsManager: class {
@@ -100,6 +110,8 @@ describe("createClineAccountService", () => {
 		coreMocks.fetchMe.mockReset();
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.fetchCurrentUserPlan.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
@@ -196,6 +208,8 @@ describe("loadClineAccountSnapshot", () => {
 		coreMocks.fetchMe.mockReset();
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.fetchCurrentUserPlan.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
@@ -247,5 +261,110 @@ describe("loadClineAccountSnapshot", () => {
 			},
 			expect.any(Object),
 		);
+	});
+});
+
+describe("loadIndividualSubscriptionPlans", () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+		coreMocks.getProviderSettings.mockReset();
+		coreMocks.saveProviderSettings.mockReset();
+		coreMocks.fetchMe.mockReset();
+		coreMocks.fetchBalance.mockReset();
+		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.fetchCurrentUserPlan.mockReset();
+		coreMocks.serviceOptions.length = 0;
+		telemetryMocks.identifyTelemetryAccount.mockReset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	it("loads individual subscription plans through the authorized account service", async () => {
+		const plans = [
+			{
+				id: "plan-1",
+				interval: "Monthly",
+				features: { included: ["Major open-weights models"] },
+			},
+		];
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		coreMocks.fetchAvailableSubscriptionPlans.mockResolvedValue(plans);
+
+		const { loadIndividualSubscriptionPlans } = await import("./cline-account");
+		const result = await loadIndividualSubscriptionPlans({
+			config: makeConfig(),
+		});
+
+		expect(coreMocks.fetchAvailableSubscriptionPlans).toHaveBeenCalledWith({
+			type: "individual",
+		});
+		expect(result).toEqual(plans);
+	});
+});
+
+describe("isClineAccountCreditsErrorMessage", () => {
+	it("matches the raw insufficient_credits JSON payload from the Cline API 402", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				'{"code":"insufficient_credits","current_balance":-0.14,"message":"Not enough credits available"}',
+			),
+		).toBe(true);
+	});
+
+	it("matches the insufficient_credits payload wrapped in an error prefix", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				'Error: {"code":"insufficient_credits","current_balance":0,"message":"Not enough credits available"}',
+			),
+		).toBe(true);
+	});
+
+	it("matches the plain human-readable Cline API message", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage("Not enough credits available"),
+		).toBe(true);
+	});
+
+	it("matches the legacy insufficient balance phrasing", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				"Insufficient balance. Your Cline credits balance is $0.00.",
+			),
+		).toBe(true);
+	});
+
+	it("does not match unrelated errors", async () => {
+		const { isClineAccountCreditsErrorMessage } = await import(
+			"./cline-account"
+		);
+		expect(isClineAccountCreditsErrorMessage("Payment Required")).toBe(false);
+		expect(
+			isClineAccountCreditsErrorMessage(
+				"Your credit balance is too low to access the Anthropic API.",
+			),
+		).toBe(false);
+		expect(
+			isClineAccountCreditsErrorMessage("insufficient balance on gateway"),
+		).toBe(false);
 	});
 });

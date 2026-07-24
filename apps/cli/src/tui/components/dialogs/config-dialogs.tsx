@@ -90,7 +90,7 @@ export function ExtDetailContent(
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg="cyan">
+								<text fg={palette.act}>
 									<strong>{row.name}</strong>
 								</text>
 								<text

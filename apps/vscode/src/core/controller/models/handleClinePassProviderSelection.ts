@@ -22,7 +22,7 @@ export async function clearOrganizationForClinePassProviderSelection(
 	}
 
 	try {
-		await controller.accountService.switchAccount(null)
+		await controller.accountService.switchAccount(undefined)
 	} catch (error) {
 		Logger.debug("Failed to switch ClinePass to personal account", { error })
 	}

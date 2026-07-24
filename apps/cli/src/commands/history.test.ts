@@ -313,6 +313,45 @@ describe("runHistoryExport", () => {
 		await expect(readFile(outputPath, "utf8")).resolves.toContain("world");
 	});
 
+	it("exports run_commands history with structured command objects", async () => {
+		tempDir = await mkdtemp(join(tmpdir(), "cline-history-export-"));
+		const outputPath = join(tempDir, "export.html");
+		const artifact = {
+			version: 1,
+			updated_at: "2026-04-22T17:42:10.123Z",
+			sessionId: "sess_1",
+			messages: [
+				{
+					id: "m1",
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool_1",
+							name: "run_commands",
+							input: {
+								commands: [{ command: "cmd", args: ["/c", "dir"] }],
+							},
+						},
+					],
+				},
+			],
+		} satisfies NonNullable<
+			Awaited<ReturnType<typeof readSessionMessagesArtifact>>
+		>;
+		mockedReadSessionMessagesArtifact.mockResolvedValue(artifact);
+		const io = {
+			writeln: vi.fn(),
+			writeErr: vi.fn(),
+		};
+
+		const code = await runHistoryExport("sess_1", outputPath, "text", io);
+
+		expect(code).toBe(0);
+		expect(io.writeErr).not.toHaveBeenCalled();
+		await expect(readFile(outputPath, "utf8")).resolves.toContain("cmd /c dir");
+	});
+
 	it("fails when the session artifact is missing", async () => {
 		mockedReadSessionMessagesArtifact.mockResolvedValue(undefined);
 		const io = {

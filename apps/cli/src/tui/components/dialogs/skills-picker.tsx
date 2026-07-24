@@ -142,7 +142,7 @@ export function SkillsPickerContent(props: SkillsPickerContentProps) {
 									onMouseDown={() => resolve(SKILLS_MARKETPLACE_ACTION)}
 									height={1}
 								>
-									<text fg={isSelected ? palette.textOnSelection : "cyan"}>
+									<text fg={isSelected ? palette.textOnSelection : palette.act}>
 										{isSelected ? "❯ " : "  "}
 										Browse more skills at {SKILLS_MARKETPLACE_URL}
 									</text>

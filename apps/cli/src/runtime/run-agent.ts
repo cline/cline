@@ -204,7 +204,9 @@ export async function runAgent(
 			(!event.recoverable || config.verbose) &&
 			event.error.message.trim()
 		) {
-			displayedErrorMessages.add(event.error.message.trim());
+			displayedErrorMessages.add(
+				formatCliErrorMessage(event.error.message).trim(),
+			);
 		}
 		handleEvent(event, config);
 	};

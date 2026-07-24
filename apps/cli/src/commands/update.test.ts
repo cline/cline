@@ -101,6 +101,22 @@ describe("getInstallationInfo", () => {
 		});
 	});
 
+	it("detects bun global installs from the resolved install path", () => {
+		// bun symlinks ~/.bun/bin/cline -> ~/.bun/install/global/node_modules/...,
+		// and realpathSync resolves through the symlink before detection runs.
+		const wrapperPath = createTempFile(
+			".bun/install/global/node_modules/cline/bin/cline",
+		);
+		process.env.CLINE_WRAPPER_PATH = wrapperPath;
+		process.argv = ["bun", "/$bunfs/root/cline", "update", "--verbose"];
+
+		expect(getInstallationInfo("1.2.3")).toEqual({
+			packageManager: PackageManager.BUN,
+			packageName: "cline",
+			updateCommand: "bun add -g cline@latest",
+		});
+	});
+
 	it("falls back to unknown when only Bun's virtual compiled path is available", () => {
 		delete process.env.CLINE_WRAPPER_PATH;
 		process.argv = ["bun", "/$bunfs/root/cline", "update", "--verbose"];

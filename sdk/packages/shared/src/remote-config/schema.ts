@@ -186,10 +186,10 @@ export const RemoteConfigSchema = z.object({
 	kanbanEnabled: z.boolean().optional(),
 
 	// MCP settings
-	// If this is false, the MCP marketplace is disabled in the extension
+	// Legacy field name. If this is false, locally configured MCP servers are blocked.
 	mcpMarketplaceEnabled: z.boolean().optional(),
 
-	// If this is configured, the users only have access to these allowlisted MCP servers in the marketplace.
+	// If this is configured, users only have access to these allowlisted local MCP servers.
 	allowedMCPServers: z.array(AllowedMCPServerSchema).optional(),
 
 	// A list of pre-configured remote MCP servers.

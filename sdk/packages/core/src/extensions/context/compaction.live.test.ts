@@ -274,7 +274,6 @@ async function runOversizedToolResultCompaction(
 				enabled: true,
 				strategy: "agentic",
 				preserveRecentTokens: 1,
-				maxInputTokens: 16_000,
 			},
 		},
 		{ mode: "manual", manualTargetRatio: 0.1 },

@@ -33,7 +33,8 @@ export type GatewayModelCapability =
 	| "structured-output";
 
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
-export type GatewayUsageCostDisplay = "show" | "hide";
+export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
+export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
@@ -165,6 +166,14 @@ export interface GatewayStreamRequest {
 	tools?: readonly AgentToolDefinition[];
 	temperature?: number;
 	maxTokens?: number;
+	/**
+	 * Set by the gateway when `maxTokens` was synthesized from gateway/model
+	 * defaults rather than derived from an explicit caller cap. Providers can
+	 * use this to avoid forwarding synthesized caps to backends that reject
+	 * them, while still honoring explicit caps from any caller — including
+	 * ones that reach the provider without going through the gateway.
+	 */
+	defaultedMaxTokens?: boolean;
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;

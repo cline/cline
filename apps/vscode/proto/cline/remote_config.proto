@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+enum RemoteConfigType {
+  RULE = 0;
+  WORKFLOW = 1;
+  SKILL = 2;
+}
+
+message RemoteConfigSetting {
+  RemoteConfigType type = 1;
+  string name = 2;
+  string content = 3;
+  bool enabled = 4;
+  bool locked = 5;
+}
+
+message RemoteConfigSettingsResponse {
+  repeated RemoteConfigSetting settings = 1;
+}
+
+service RemoteConfigService {
+  rpc getRemoteConfigSettings(Empty) returns (RemoteConfigSettingsResponse);
+  rpc toggleRemoteConfigSetting(StringRequest) returns (RemoteConfigSetting);
+}

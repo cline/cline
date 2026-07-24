@@ -1,21 +1,36 @@
+import {
+	type McpInstallOptions as CoreMcpInstallOptions,
+	installMcpServer,
+	type McpInstallResult,
+	type McpServerTransportConfig,
+} from "@cline/core";
 import type { McpAddDefaults } from "../wizards/mcp";
 
+export { buildMcpInstallTransport } from "@cline/core";
+
 export interface McpCommandIo {
+	writeln?: (text: string) => void;
 	writeErr: (text: string) => void;
 }
 
-export interface McpInstallOptions {
-	name: string;
-	targetArgs?: string[];
-	transport?: string;
+export interface McpInstallOptions extends CoreMcpInstallOptions {
 	io?: McpCommandIo;
 	isTty?: boolean;
+	json?: boolean;
 	runWizard?: (defaults: McpAddDefaults) => Promise<number>;
+	yes?: boolean;
+}
+
+export interface McpInstallDirectResult {
+	name: string;
+	status: "installed";
+	transport: McpServerTransportConfig;
+	warnings: string[];
 }
 
 function normalizeTransportType(
 	value: string | undefined,
-): McpAddDefaults["type"] {
+): McpServerTransportConfig["type"] {
 	const normalized = (value ?? "stdio").trim();
 	if (normalized === "http" || normalized === "streamable-http") {
 		return "streamableHttp";
@@ -91,6 +106,18 @@ export function buildMcpInstallDefaults(options: {
 	};
 }
 
+export function installMcpServerDirect(
+	options: McpInstallOptions,
+): McpInstallDirectResult {
+	const result: McpInstallResult = installMcpServer(options);
+	return {
+		name: result.name,
+		status: result.status,
+		transport: result.transport,
+		warnings: result.warnings,
+	};
+}
+
 async function runPrefilledWizard(defaults: McpAddDefaults): Promise<number> {
 	const { runMcpWizard } = await import("../wizards/mcp");
 	return runMcpWizard({
@@ -104,11 +131,23 @@ export async function runMcpInstallCommand(
 	options: McpInstallOptions,
 ): Promise<number> {
 	try {
+		if (options.yes) {
+			const result = installMcpServerDirect(options);
+			if (options.json) {
+				options.io?.writeln?.(JSON.stringify(result));
+			} else {
+				options.io?.writeln?.(`Installed MCP server ${result.name}.`);
+				for (const warning of result.warnings) {
+					options.io?.writeErr(warning);
+				}
+			}
+			return 0;
+		}
 		const isTty =
 			options.isTty ?? (process.stdin.isTTY && process.stdout.isTTY);
 		if (!isTty) {
 			throw new Error(
-				"cline mcp install opens the MCP wizard and requires a TTY.",
+				"cline mcp install opens the MCP wizard and requires a TTY. Pass --yes to install noninteractively.",
 			);
 		}
 		const defaults = buildMcpInstallDefaults(options);

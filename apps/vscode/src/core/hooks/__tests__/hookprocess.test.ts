@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import { getHookLaunchConfig, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
 import { withPlatform } from "./test-utils"

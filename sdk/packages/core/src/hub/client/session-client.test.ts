@@ -190,6 +190,48 @@ describe("HubSessionClient", () => {
 		client.close();
 	});
 
+	it("maps session.notice events without dropping their payload", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+		const socket = MockWebSocket.instances[0];
+		if (!socket) throw new Error("expected websocket");
+		const received: unknown[] = [];
+		const unsubscribe = client.streamEvents(
+			{ sessionIds: ["session-1"] },
+			{ onEvent: (event) => received.push(event) },
+		);
+		const payload = {
+			message: "auto-compacted",
+			noticeType: "status",
+			metadata: { kind: "auto_compaction", phase: "completed" },
+			agent: { kind: "teammate", teamRole: "teammate" },
+		};
+		socket.emitFrame({
+			kind: "event",
+			envelope: {
+				version: "v1",
+				eventId: "evt-notice",
+				event: "session.notice",
+				timestamp: Date.now(),
+				sessionId: "session-1",
+				payload,
+			},
+		});
+		expect(received).toEqual([
+			{
+				sessionId: "session-1",
+				eventType: "runtime.chat.notice",
+				payload,
+			},
+		]);
+		unsubscribe();
+		client.close();
+	});
+
 	it("maps schedule execution events without requiring an envelope session id", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		const client = new HubSessionClient({

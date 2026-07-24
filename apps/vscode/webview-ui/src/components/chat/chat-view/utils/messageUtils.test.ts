@@ -1,6 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { groupLowStakesTools, isToolGroup } from "./messageUtils"
+import { canRestoreWorkspaceFromMessage, filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
@@ -23,21 +23,105 @@ const createReasoningMessage = (ts: number, text: string): ClineMessage => ({
 	ts,
 })
 
+const createUserFeedbackMessage = (ts: number, text: string): ClineMessage => ({
+	type: "say",
+	say: "user_feedback",
+	text,
+	ts,
+})
+
+const createTaskMessage = (ts: number, text: string): ClineMessage => ({
+	type: "say",
+	say: "task",
+	text,
+	ts,
+})
+
+const createAskMessage = (
+	ts: number,
+	ask: "followup" | "plan_mode_respond",
+	options: string[],
+	selected?: string,
+): ClineMessage => ({
+	type: "ask",
+	ask,
+	text: JSON.stringify(
+		ask === "followup" ? { question: "Pick one", options, selected } : { response: "Pick one", options, selected },
+	),
+	ts,
+})
+
+describe("filterVisibleMessages", () => {
+	it("hides exact user feedback echoes for selected follow-up options", () => {
+		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
+		const visible = filterVisibleMessages([askMessage, createUserFeedbackMessage(2, "Use this")])
+
+		expect(visible).toEqual([askMessage])
+	})
+
+	it("hides exact option echoes when selected has not been persisted on the ask row yet", () => {
+		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"])
+		const visible = filterVisibleMessages([askMessage, createUserFeedbackMessage(2, "Use this")])
+
+		expect(visible).toEqual([askMessage])
+	})
+
+	it("hides exact user feedback echoes for plan-mode response options", () => {
+		const askMessage = createAskMessage(1, "plan_mode_respond", ["Plan it", "Do it"], "Plan it")
+		const visible = filterVisibleMessages([askMessage, createUserFeedbackMessage(2, "Plan it")])
+
+		expect(visible).toEqual([askMessage])
+	})
+
+	it("keeps custom user feedback that extends a selected option", () => {
+		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
+		const userMessage = createUserFeedbackMessage(2, "Use this: include tests")
+		const visible = filterVisibleMessages([askMessage, userMessage])
+
+		expect(visible).toEqual([askMessage, userMessage])
+	})
+
+	it("keeps exact option feedback when it includes attachments", () => {
+		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
+		const userMessage: ClineMessage = {
+			...createUserFeedbackMessage(2, "Use this"),
+			images: ["data:image/png;base64,abc"],
+		}
+		const visible = filterVisibleMessages([askMessage, userMessage])
+
+		expect(visible).toEqual([askMessage, userMessage])
+	})
+})
+
+describe("canRestoreWorkspaceFromMessage", () => {
+	it("allows restore for user messages that start runs, but not ask answers", () => {
+		const messages = [
+			createTaskMessage(1, "start"),
+			createAskMessage(2, "followup", ["src/index.ts"]),
+			createTextMessage(3, "Which file should I inspect?"),
+			createUserFeedbackMessage(4, "src/index.ts"),
+			createUserFeedbackMessage(5, "next task"),
+		]
+
+		expect(canRestoreWorkspaceFromMessage(messages, 1)).toBe(true)
+		expect(canRestoreWorkspaceFromMessage(messages, 4)).toBe(false)
+		expect(canRestoreWorkspaceFromMessage(messages, 5)).toBe(true)
+		expect(canRestoreWorkspaceFromMessage(messages, 999)).toBe(false)
+	})
+})
+
 describe("groupLowStakesTools", () => {
-	it("ignores text that arrives after a low-stakes tool group has started", () => {
+	it("keeps text that arrives after a low-stakes tool group by finalizing the group first", () => {
 		const grouped = groupLowStakesTools([
 			createTextMessage(1, "Initial text"),
 			createToolMessage(2, "readFile"),
-			createTextMessage(3, "Late text that should be ignored"),
+			createTextMessage(3, "Post-tool summary text"),
 		])
 
-		expect(grouped).toHaveLength(2)
+		expect(grouped).toHaveLength(3)
 		expect(grouped[0]).toMatchObject({ type: "say", say: "text", text: "Initial text" })
 		expect(isToolGroup(grouped[1])).toBe(true)
-
-		if (isToolGroup(grouped[1])) {
-			expect(grouped[1].every((message) => message.say !== "text")).toBe(true)
-		}
+		expect(grouped[2]).toMatchObject({ type: "say", say: "text", text: "Post-tool summary text" })
 	})
 
 	it("keeps text when no low-stakes tool group is active", () => {

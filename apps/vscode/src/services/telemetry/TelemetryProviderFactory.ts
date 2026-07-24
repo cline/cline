@@ -13,11 +13,6 @@ import { PostHogClientProvider } from "./providers/posthog/PostHogClientProvider
 import { PostHogTelemetryProvider } from "./providers/posthog/PostHogTelemetryProvider"
 
 /**
- * Supported telemetry provider types
- */
-export type TelemetryProviderType = "posthog" | "no-op" | "opentelemetry"
-
-/**
  * Configuration for telemetry providers
  */
 export type TelemetryProviderConfig =

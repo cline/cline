@@ -1,9 +1,9 @@
-import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
+import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GroupedVirtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
@@ -35,6 +35,8 @@ const HISTORY_FILTERS = {
 	favoritesOnly: "Favorites Only",
 }
 
+const HISTORY_PAGE_SIZE = 50
+
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
 	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
@@ -50,51 +52,105 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 
 	// Load filtered task history with gRPC
-	const [tasks, setTasks] = useState<any[]>([])
+	const [tasks, setTasks] = useState<TaskItem[]>([])
+	const [hasMoreTasks, setHasMoreTasks] = useState(false)
+	const [nextHistoryOffset, setNextHistoryOffset] = useState(0)
+	const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+	const isLoadingHistoryRef = useRef(false)
+	const historyRequestIdRef = useRef(0)
+	const hasRequestedTotalTasksSizeRef = useRef(false)
 
 	// Load and refresh task history
-	const loadTaskHistory = useCallback(async () => {
-		try {
-			const response = await TaskServiceClient.getTaskHistory(
-				GetTaskHistoryRequest.create({
-					favoritesOnly: showFavoritesOnly,
-					searchQuery: searchQuery || undefined,
-					sortBy: sortOption,
-					currentWorkspaceOnly: showCurrentWorkspaceOnly,
-				}),
-			)
-			setTasks(response.tasks || [])
-		} catch (error) {
-			console.error("Error loading task history:", error)
+	const loadTaskHistory = useCallback(
+		async (offset = 0) => {
+			if (offset > 0 && isLoadingHistoryRef.current) {
+				return
+			}
+
+			const requestId = ++historyRequestIdRef.current
+			isLoadingHistoryRef.current = true
+			setIsLoadingHistory(true)
+			try {
+				const startedAt = performance.now()
+				const response = await TaskServiceClient.getTaskHistory(
+					GetTaskHistoryRequest.create({
+						favoritesOnly: showFavoritesOnly,
+						searchQuery: searchQuery || undefined,
+						sortBy: sortOption,
+						currentWorkspaceOnly: showCurrentWorkspaceOnly,
+						limit: HISTORY_PAGE_SIZE,
+						offset,
+					}),
+				)
+				console.log(
+					`[HistoryPerf] getTaskHistory offset=${offset} tasks=${response.tasks?.length ?? 0} hasMore=${response.hasMore} took ${Math.round(performance.now() - startedAt)}ms`,
+				)
+				if (requestId !== historyRequestIdRef.current) {
+					return
+				}
+				const pageTasks = response.tasks || []
+				setTasks((currentTasks) => {
+					if (offset === 0) {
+						return pageTasks
+					}
+
+					const mergedTasks = new Map(currentTasks.map((task) => [task.id, task]))
+					for (const task of pageTasks) {
+						mergedTasks.set(task.id, task)
+					}
+					return Array.from(mergedTasks.values())
+				})
+				setHasMoreTasks(response.hasMore)
+				setNextHistoryOffset(offset + HISTORY_PAGE_SIZE)
+			} catch (error) {
+				console.error("Error loading task history:", error)
+			} finally {
+				if (requestId === historyRequestIdRef.current) {
+					isLoadingHistoryRef.current = false
+					setIsLoadingHistory(false)
+				}
+			}
+		},
+		[showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption],
+	)
+
+	const loadMoreTaskHistory = useCallback(() => {
+		if (!hasMoreTasks || isLoadingHistory) {
+			return
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+		loadTaskHistory(nextHistoryOffset)
+	}, [hasMoreTasks, isLoadingHistory, loadTaskHistory, nextHistoryOffset])
 
 	// Load when filters change
 	useEffect(() => {
-		// Force a complete refresh when both filters are active
-		// to ensure proper combined filtering
-		if (showFavoritesOnly && showCurrentWorkspaceOnly) {
-			setTasks([])
-		}
-		loadTaskHistory()
+		setTasks([])
+		setHasMoreTasks(false)
+		setNextHistoryOffset(0)
+		loadTaskHistory(0)
 	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
+			const nextValue = !currentValue
+
 			// Optimistic UI update
-			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: !currentValue }))
+			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: nextValue }))
 
 			try {
 				await TaskServiceClient.toggleTaskFavorite(
 					TaskFavoriteRequest.create({
 						taskId,
-						isFavorited: !currentValue,
+						isFavorited: nextValue,
 					}),
+				)
+
+				setTasks((currentTasks) =>
+					currentTasks.map((task) => (task.id === taskId ? { ...task, isFavorited: nextValue } : task)),
 				)
 
 				// Refresh if either filter is active to ensure proper combined filtering
 				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
-					loadTaskHistory()
+					await loadTaskHistory(0)
 				}
 			} catch (err) {
 				console.error(`[FAVORITE_TOGGLE_UI] Error for task ${taskId}:`, err)
@@ -115,7 +171,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}, 1000)
 			}
 		},
-		[showFavoritesOnly, loadTaskHistory],
+		[showFavoritesOnly, showCurrentWorkspaceOnly, loadTaskHistory],
 	)
 
 	// Use the onRelinquishControl hook instead of message event
@@ -129,7 +185,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const fetchTotalTasksSize = useCallback(async () => {
 		try {
+			const startedAt = performance.now()
 			const response = await TaskServiceClient.getTotalTasksSize(EmptyRequest.create({}))
+			console.log(`[HistoryPerf] getTotalTasksSize took ${Math.round(performance.now() - startedAt)}ms`)
 			if (response && typeof response.value === "number") {
 				setTotalTasksSize?.(response.value || 0)
 			}
@@ -138,10 +196,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [setTotalTasksSize])
 
-	// Request total tasks size when component mounts
+	// Defer the expensive recursive task/checkpoint size scan until after the first
+	// history page loads, so it does not compete with the initial history request.
 	useEffect(() => {
-		fetchTotalTasksSize()
-	}, [fetchTotalTasksSize])
+		if (hasRequestedTotalTasksSizeRef.current || isLoadingHistory || nextHistoryOffset === 0 || totalTasksSize !== null) {
+			return
+		}
+
+		hasRequestedTotalTasksSizeRef.current = true
+		const timeout = window.setTimeout(() => {
+			void fetchTotalTasksSize()
+		}, 750)
+		return () => window.clearTimeout(timeout)
+	}, [fetchTotalTasksSize, isLoadingHistory, nextHistoryOffset, totalTasksSize])
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -157,32 +224,49 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setSelectedItems((prev) => {
 			if (checked) {
 				return [...prev, itemId]
-			} else {
-				return prev.filter((id) => id !== itemId)
 			}
+			return prev.filter((id) => id !== itemId)
 		})
 	}, [])
 
 	const handleDeleteHistoryItem = useCallback(
 		(id: string) => {
 			TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [id] }))
-				.then(() => fetchTotalTasksSize())
+				.then(async () => {
+					await loadTaskHistory(0)
+					await fetchTotalTasksSize()
+				})
 				.catch((error) => console.error("Error deleting task:", error))
 		},
-		[fetchTotalTasksSize],
+		[fetchTotalTasksSize, loadTaskHistory],
 	)
 
 	const handleDeleteSelectedHistoryItems = useCallback(
 		(ids: string[]) => {
 			if (ids.length > 0) {
 				TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: ids }))
-					.then(() => fetchTotalTasksSize())
+					.then(async () => {
+						await loadTaskHistory(0)
+						setSelectedItems([])
+						await fetchTotalTasksSize()
+					})
 					.catch((error) => console.error("Error deleting tasks:", error))
-				setSelectedItems([])
 			}
 		},
-		[fetchTotalTasksSize],
+		[fetchTotalTasksSize, loadTaskHistory],
 	)
+
+	const handleDeleteAllHistory = useCallback(() => {
+		setDeleteAllDisabled(true)
+		TaskServiceClient.deleteAllTaskHistory(EmptyRequest.create({}))
+			.then(async () => {
+				await loadTaskHistory(0)
+				setSelectedItems([])
+				await fetchTotalTasksSize()
+			})
+			.catch((error) => console.error("Error deleting task history:", error))
+			.finally(() => setDeleteAllDisabled(false))
+	}, [fetchTotalTasksSize, loadTaskHistory])
 
 	const fuse = useMemo(() => {
 		return new Fuse(tasks, {
@@ -275,8 +359,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			return 0
 		}
 
-		return taskHistory.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
-	}, [selectedItems, taskHistory])
+		return tasks.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
+	}, [selectedItems, tasks])
 
 	const handleBatchHistorySelect = useCallback(
 		(selectAll: boolean) => {
@@ -394,6 +478,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			<div className="flex-grow overflow-y-auto m-0 w-full py-2">
 				<GroupedVirtuoso
 					className="flex-grow overflow-y-scroll"
+					components={{
+						Footer: () =>
+							hasMoreTasks ? (
+								<div className="px-4 py-3 text-center text-xs text-description">
+									{isLoadingHistory ? "Loading..." : ""}
+								</div>
+							) : null,
+					}}
+					endReached={loadMoreTaskHistory}
 					groupContent={(index) => (
 						<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
 							{groupLabels[index]}
@@ -442,14 +535,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<Button
 						aria-label="Delete all history"
 						className="w-full"
-						disabled={deleteAllDisabled || taskHistory.length === 0}
-						onClick={() => {
-							setDeleteAllDisabled(true)
-							TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({}))
-								.then(() => fetchTotalTasksSize())
-								.catch((error) => console.error("Error deleting task history:", error))
-								.finally(() => setDeleteAllDisabled(false))
-						}}
+						disabled={deleteAllDisabled || (taskHistory.length === 0 && tasks.length === 0)}
+						onClick={handleDeleteAllHistory}
 						variant="danger">
 						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 					</Button>
@@ -460,7 +547,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number

@@ -8,6 +8,9 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	createTool,
+	getDefaultShell,
+	getShellKind,
+	type ShellKind,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
@@ -21,6 +24,7 @@ import {
 	MAX_SEARCH_OUTPUT_CHARS,
 } from "./executors/output-limits";
 import {
+	coalesceOrphanReadRanges,
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQueryPreview,
@@ -44,28 +48,25 @@ import {
 	type ReadFilesInput,
 	ReadFilesInputSchema,
 	ReadFilesInputUnionSchema,
-	type RunCommandsInput,
 	RunCommandsInputSchema,
-	RunCommandsInputUnionSchema,
 	type SearchCodebaseInput,
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
 	type SkillsInput,
 	SkillsInputSchema,
 	type StructuredCommandInput,
-	StructuredCommandsInputSchema,
 	type SubmitInput,
 	SubmitInputSchema,
 } from "./schemas";
 import type {
 	ApplyPatchExecutor,
 	AskQuestionExecutor,
-	BashExecutor,
 	CreateDefaultToolsOptions,
 	DefaultToolsConfig,
 	EditorExecutor,
 	FileReadExecutor,
 	SearchExecutor,
+	ShellExecutor,
 	SkillsExecutorWithMetadata,
 	ToolOperationResult,
 	VerifySubmitExecutor,
@@ -148,6 +149,89 @@ function coalesceSplitHeredocCommands(commands: string[]): string[] {
 	return coalesced;
 }
 
+function coalesceAdjacentStringHeredocs(
+	commands: Array<string | StructuredCommandInput>,
+): Array<string | StructuredCommandInput> {
+	const coalesced: Array<string | StructuredCommandInput> = [];
+	let stringRun: string[] = [];
+
+	const flushStringRun = () => {
+		if (stringRun.length > 0) {
+			coalesced.push(...coalesceSplitHeredocCommands(stringRun));
+			stringRun = [];
+		}
+	};
+
+	for (const command of commands) {
+		if (typeof command === "string") {
+			stringRun.push(command);
+			continue;
+		}
+
+		flushStringRun();
+		coalesced.push(command);
+	}
+
+	flushStringRun();
+	return coalesced;
+}
+
+async function executeShellCommands(
+	commands: Array<string | StructuredCommandInput>,
+	options: {
+		executor: ShellExecutor;
+		cwd: string;
+		context: AgentToolContext;
+		timeoutMs: number;
+		timeoutSource: "default_setting" | "configured_setting";
+	},
+): Promise<ToolOperationResult[]> {
+	const { executor, cwd, context, timeoutMs, timeoutSource } = options;
+
+	return Promise.all(
+		commands.map(async (command): Promise<ToolOperationResult> => {
+			const startedAt = Date.now();
+			const query = formatRunCommandQueryPreview(command);
+			try {
+				const output = await withTimeout(
+					executor(command, cwd, context),
+					timeoutMs,
+					`Command timed out after ${timeoutMs}ms`,
+				);
+				return {
+					query,
+					result: output,
+					success: true,
+				};
+			} catch (error) {
+				if (error instanceof TimeoutError) {
+					captureRunCommandsTimeoutFromContext(context, {
+						effectiveTimeoutMs: error.timeoutMs,
+						timeoutSource,
+						commandCount: commands.length,
+						durationMs: Date.now() - startedAt,
+					});
+				}
+				if (error instanceof CommandExitError) {
+					return {
+						query,
+						result: error.output,
+						error: error.message,
+						success: false,
+					};
+				}
+				const msg = formatError(error);
+				return {
+					query,
+					result: "",
+					error: `Command failed: ${msg}`,
+					success: false,
+				};
+			}
+		}),
+	);
+}
+
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -166,9 +250,9 @@ export function createReadFilesTool(
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
+			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
 			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
-			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line. ` +
+			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
 			"Binary files that are not image and large files are not supported. " +
 			"Returns file contents or error messages for each path. ",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
@@ -176,7 +260,10 @@ export function createReadFilesTool(
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+			const validate = validateWithZod(
+				ReadFilesInputUnionSchema,
+				coalesceOrphanReadRanges(input),
+			);
 			let requests: ReadFileRequest[];
 			if (typeof validate === "string") {
 				requests = [{ path: validate }];
@@ -307,172 +394,116 @@ export function createSearchTool(
 	});
 }
 
+const RUN_COMMANDS_SHARED_INSTRUCTIONS =
+	"Use for listing files, checking git status, running builds, executing tests, etc. " +
+	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. ";
+
 /**
- * Create the run_commands tool
- *
- * Executes shell commands in the project directory.
+ * Build the run_commands tool description for the shell that will actually
+ * execute the commands. The shell kind decides the syntax guidance (quoting,
+ * sequencing, heredocs), and isWindows adds environment context for POSIX
+ * shells running on a Windows host (e.g. Git Bash).
  */
-export function createBashTool(
-	executor: BashExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
-): AgentTool<RunCommandsInput, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
-	const timeoutSource =
-		config.bashTimeoutMs === undefined
-			? "default_setting"
-			: "configured_setting";
-	const cwd = config.cwd ?? process.cwd();
+export function buildRunCommandsDescription(
+	shellKind: ShellKind,
+	isWindows: boolean,
+): string {
+	if (shellKind === "powershell" || shellKind === "cmd") {
+		const shellName = shellKind === "powershell" ? "PowerShell" : "cmd.exe";
+		const sequencingOperator = shellKind === "powershell" ? "';'" : "'&&'";
+		return (
+			"Run non-interactive shell commands from the root of the workspace in Windows environment. " +
+			RUN_COMMANDS_SHARED_INSTRUCTIONS +
+			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
+			`Commands run through ${shellName}; quote paths and arguments for ${shellName} and use ${sequencingOperator} to sequence commands. ` +
+			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
+		);
+	}
 
-	return createTool<RunCommandsInput, ToolOperationResult[]>({
-		name: "run_commands",
-		description:
-			"Run shell commands from the root of the workspace. " +
-			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
-			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
-			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
-		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
-		timeoutMs: timeoutMs * 2,
-		retryable: false, // Shell commands often have side effects
-		maxRetries: 0,
-		execute: async (input, context) => {
-			const validate = validateWithZod(RunCommandsInputUnionSchema, input);
-			let commands: string[];
-			if (typeof validate === "string") {
-				commands = [validate];
-			} else if (Array.isArray(validate)) {
-				commands = validate;
-			} else if ("commands" in validate) {
-				commands = Array.isArray(validate.commands)
-					? validate.commands
-					: [validate.commands];
-			} else if ("command" in validate) {
-				commands = [validate.command];
-			} else {
-				commands = [validate.cmd];
-			}
-			commands = coalesceSplitHeredocCommands(commands);
-
-			return Promise.all(
-				commands.map(async (command: string): Promise<ToolOperationResult> => {
-					const startedAt = Date.now();
-					const query = formatRunCommandQueryPreview(command);
-					try {
-						const output = await withTimeout(
-							executor(command, cwd, context),
-							timeoutMs,
-							`Command timed out after ${timeoutMs}ms`,
-						);
-						return {
-							query,
-							result: output,
-							success: true,
-						};
-					} catch (error) {
-						if (error instanceof TimeoutError) {
-							captureRunCommandsTimeoutFromContext(context, {
-								effectiveTimeoutMs: error.timeoutMs,
-								timeoutSource,
-								commandCount: commands.length,
-								durationMs: Date.now() - startedAt,
-							});
-						}
-						if (error instanceof CommandExitError) {
-							return {
-								query,
-								result: error.output,
-								error: error.message,
-								success: false,
-							};
-						}
-						const msg = formatError(error);
-						return {
-							query,
-							result: "",
-							error: `Command failed: ${msg}`,
-							success: false,
-						};
-					}
-				}),
-			);
-		},
-	});
+	const environmentNote =
+		shellKind === "wsl"
+			? "Commands run through bash in WSL (wsl.exe); the Windows working directory is mounted under /mnt/<drive>. "
+			: isWindows
+				? "Commands run through a POSIX (bash-compatible) shell on Windows. "
+				: "";
+	return (
+		"Run non-interactive shell commands from the root of the workspace. " +
+		RUN_COMMANDS_SHARED_INSTRUCTIONS +
+		environmentNote +
+		"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
+		`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
+		"For long-running commands, run them in background and redirect output to a tmp file that you can read from later."
+	);
 }
 
 /**
- * Create the run_commands tool
+ * Create the run_commands shell tool for the current platform.
  *
- * Executes shell commands in the project directory.
+ * This preserves the SDK's platform-specific prompting/schema choices while
+ * exposing a single generic shell-tool factory for host integrations. Pass
+ * config.shell (matching the executor's shell) so the syntax guidance in the
+ * tool description matches the shell that actually runs the commands.
+ *
+ * config.shell may be a provider function instead of a string. The runtime
+ * reads `description` when building each model request, so a provider is
+ * consulted at that boundary: a shell change made while the model is
+ * generating does not affect the request in flight, and the next request
+ * names the new shell. The provider must return the shell the executor will
+ * use for tool calls issued by that next request.
  */
-export function createWindowsShellTool(
-	executor: BashExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
-): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
+export function createShellTool(
+	executor: ShellExecutor,
+	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> & {
+		shell?: string | (() => string);
+	} = {},
+): AgentTool<unknown, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
 			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
+	const isWindows = process.platform === "win32";
+	const configShell = config.shell;
+	const resolveShell =
+		typeof configShell === "function"
+			? configShell
+			: () => configShell ?? getDefaultShell(process.platform);
+	const describe = () =>
+		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows);
 
-	return createTool<StructuredCommandInput, ToolOperationResult[]>({
+	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
-		description:
-			"Run shell commands from the root of the workspace in Windows environment. " +
-			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response.",
-		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
+		description: describe(),
+		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
-		retryable: false, // Shell commands often have side effects
+		retryable: false,
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const commands = normalizeRunCommandsInput(input);
-
-			return Promise.all(
-				commands.map(async (command): Promise<ToolOperationResult> => {
-					const startedAt = Date.now();
-					const query = formatRunCommandQueryPreview(command);
-					try {
-						const output = await withTimeout(
-							executor(command, cwd, context),
-							timeoutMs,
-							`Command timed out after ${timeoutMs}ms`,
-						);
-						return {
-							query,
-							result: output,
-							success: true,
-						};
-					} catch (error) {
-						if (error instanceof TimeoutError) {
-							captureRunCommandsTimeoutFromContext(context, {
-								effectiveTimeoutMs: error.timeoutMs,
-								timeoutSource,
-								commandCount: commands.length,
-								durationMs: Date.now() - startedAt,
-							});
-						}
-						if (error instanceof CommandExitError) {
-							return {
-								query,
-								result: error.output,
-								error: error.message,
-								success: false,
-							};
-						}
-						const msg = formatError(error);
-						return {
-							query,
-							result: "",
-							error: `Command failed: ${msg}`,
-							success: false,
-						};
-					}
-				}),
+			const commands = coalesceAdjacentStringHeredocs(
+				normalizeRunCommandsInput(input),
 			);
+
+			return executeShellCommands(commands, {
+				executor,
+				cwd,
+				context,
+				timeoutMs,
+				timeoutSource,
+			});
 		},
 	});
+
+	if (typeof configShell === "function") {
+		// The runtime rebuilds tool definitions from this property for every
+		// model request, so a getter re-derives the description at exactly the
+		// send-to-model boundary. AgentTool consumers only read `description`.
+		Object.defineProperty(tool, "description", {
+			get: describe,
+			enumerable: true,
+		});
+	}
+	return tool;
 }
 
 /**
@@ -868,11 +899,7 @@ export function createDefaultTools(
 
 	// Add run_commands tool if enabled and executor provided
 	if (enableBash && executors.bash) {
-		if (process.platform === "win32") {
-			tools.push(createWindowsShellTool(executors.bash, config));
-		} else {
-			tools.push(createBashTool(executors.bash, config));
-		}
+		tools.push(createShellTool(executors.bash, config));
 	}
 
 	// Add fetch_web_content tool if enabled and executor provided

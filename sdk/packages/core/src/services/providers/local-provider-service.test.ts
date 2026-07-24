@@ -2,7 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -15,6 +17,7 @@ import {
 	deleteLocalProvider,
 	getLocalProviderModels,
 	listLocalProviders,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
@@ -47,6 +50,7 @@ function makeTempManager(): {
 // ---------------------------------------------------------------------------
 
 afterEach(() => {
+	clearLiveModelsCatalogCache();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -68,6 +72,12 @@ describe("models registry parsing", () => {
 						alpha: {
 							name: "Alpha",
 							capabilities: ["reasoning"],
+							inputPrice: 1.25,
+							outputPrice: 3.5,
+							cacheReadsPrice: 0.25,
+							cacheWritesPrice: 1.5,
+							temperature: 0.2,
+							isR1FormatRequired: true,
 						},
 					},
 				},
@@ -91,7 +101,81 @@ describe("models registry parsing", () => {
 		});
 		await expect(
 			LlmsModels.getModelsForProvider("schema-provider"),
-		).resolves.toHaveProperty("alpha");
+		).resolves.toMatchObject({
+			alpha: {
+				pricing: {
+					input: 1.25,
+					output: 3.5,
+					cacheRead: 0.25,
+					cacheWrite: 1.5,
+				},
+				temperature: 0.2,
+				apiFormat: "r1",
+			},
+		});
+	});
+
+	it("drops invalid model numbers and lets explicit capability booleans win", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"normalized-provider": {
+					provider: {
+						name: "Normalized Provider",
+						baseUrl: "https://normalized.example.invalid/v1",
+					},
+					models: {
+						alpha: {
+							maxTokens: -1,
+							contextWindow: Number.POSITIVE_INFINITY,
+							maxInputTokens: 0,
+							capabilities: ["images", "files", "reasoning", "tools"],
+							supportsVision: false,
+							supportsAttachments: false,
+							supportsReasoning: false,
+							inputPrice: Number.NaN,
+							outputPrice: 2,
+							cacheReadsPrice: -1,
+							temperature: -1,
+							apiFormat: "openai-responses",
+							isR1FormatRequired: false,
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["normalized-provider"];
+		expect(entry?.models?.alpha).toEqual({
+			capabilities: ["images", "files", "reasoning", "tools"],
+			supportsVision: false,
+			supportsAttachments: false,
+			supportsReasoning: false,
+			outputPrice: 2,
+			apiFormat: "openai-responses",
+			isR1FormatRequired: false,
+		});
+		if (!entry) {
+			throw new Error("expected normalized provider entry");
+		}
+
+		registerCustomProvider("normalized-provider", entry);
+
+		await expect(
+			LlmsModels.getModelsForProvider("normalized-provider"),
+		).resolves.toMatchObject({
+			alpha: {
+				capabilities: ["tools"],
+				apiFormat: "openai-responses",
+				pricing: { output: 2 },
+			},
+		});
+		const model = (await LlmsModels.getModelsForProvider("normalized-provider"))
+			.alpha;
+		expect(model).not.toHaveProperty("maxTokens");
+		expect(model).not.toHaveProperty("contextWindow");
+		expect(model).not.toHaveProperty("maxInputTokens");
+		expect(model).not.toHaveProperty("temperature");
 	});
 
 	it("skips malformed provider entries while preserving valid providers", () => {
@@ -222,6 +306,98 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("ollama-shaped-provider");
 		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
+	});
+
+	it("uses only live ClinePass models when live models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 256_000, input: 200_000, output: 32_000 },
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline-pass");
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(models.map((model) => model.id)).toEqual([
+			"cline-pass/live-pass-model",
+		]);
+		expect(models[0]).toMatchObject({
+			id: "cline-pass/live-pass-model",
+			name: "Live Pass Model",
+			supportsReasoning: true,
+		});
+	});
+
+	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-openrouter-model": {
+									name: "Live OpenRouter Model",
+									tool_call: true,
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify({ clinePass: [] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline-pass");
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(models.map((model) => model.id)).toContain(
+			"cline-pass/mimo-v2.5-pro",
+		);
+		expect(models.map((model) => model.id)).not.toContain(
+			"vendor/live-openrouter-model",
+		);
 	});
 
 	it("parses a { models: { id1: {}, id2: {} } } object-keyed payload", async () => {
@@ -598,7 +774,7 @@ describe("addLocalProvider – capabilities", () => {
 		expect(models[0].supportsReasoning).toBeFalsy();
 	});
 
-	it("merges LiteLLM private models into the provider model listing when auth is configured", async () => {
+	it("uses LiteLLM private models as the authoritative provider model listing when auth is configured", async () => {
 		manager.saveProviderSettings(
 			{
 				provider: "litellm",
@@ -632,14 +808,38 @@ describe("addLocalProvider – capabilities", () => {
 			manager.getProviderConfig("litellm"),
 		);
 
-		expect(models.map((model) => model.id)).toContain("private-proxy-model");
-		expect(models.map((model) => model.id)).toContain("openai/gpt-4o-mini");
+		expect(models.map((model) => model.id).sort()).toEqual([
+			"openai/gpt-4o-mini",
+			"private-proxy-model",
+		]);
+		expect(models.map((model) => model.id)).not.toContain("gpt-5.4");
 		expect(
 			models.find((model) => model.id === "private-proxy-model"),
 		).toMatchObject({
 			supportsVision: true,
 			supportsReasoning: true,
 		});
+	});
+
+	it("uses an empty LiteLLM model list when no private model list is fetched", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				baseUrl: "http://localhost:4010",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels(
+			"litellm",
+			manager.getProviderConfig("litellm"),
+		);
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(models).toEqual([]);
 	});
 });
 
@@ -684,7 +884,7 @@ describe("models.json model overlays", () => {
 			expect(provider).toMatchObject({
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
-				defaultModelId: "anthropic/claude-sonnet-4.6",
+				defaultModelId: CLINE_DEFAULT_MODEL_ID,
 			});
 
 			const { models } = await getLocalProviderModels("cline");
@@ -1117,6 +1317,53 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const p = providers.find((x) => x.id === "enabled-check-provider");
 		expect(p?.enabled).toBe(true);
+	});
+
+	it("marks alias providers enabled without copying shared OAuth credentials", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const state = manager.read();
+		expect(state.providers["cline-pass"]?.settings).toEqual({
+			provider: "cline-pass",
+		});
+		expect(state.providers["cline-pass"]?.tokenSource).toBe("oauth");
+	});
+
+	it("resolves shared OAuth metadata for ClinePass catalog entries", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			oauthAccessTokenPresent: true,
+		});
 	});
 
 	it("exposes model count", async () => {

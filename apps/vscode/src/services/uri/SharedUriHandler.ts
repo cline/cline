@@ -120,20 +120,6 @@ export class SharedUriHandler {
 					await visibleWebview.controller.handleTaskCreation(prompt)
 					return true
 				}
-				// Match /mcp-auth/callback/{hash}
-				case path.match(/^\/mcp-auth\/callback\/[^/]+$/)?.input: {
-					const serverHash = path.split("/").pop()
-					const code = query.get("code")
-					const state = query.get("state")
-
-					if (!code || !serverHash) {
-						Logger.warn("SharedUriHandler: Missing code or hash in MCP OAuth callback")
-						return false
-					}
-
-					await visibleWebview.controller.handleMcpOAuthCallback(serverHash, code, state)
-					return true
-				}
 				case "/hicap": {
 					const code = query.get("code")
 					if (code) {

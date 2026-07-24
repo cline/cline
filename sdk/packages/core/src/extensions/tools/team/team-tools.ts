@@ -230,6 +230,10 @@ function spawnTeamTeammate(
 			teammateConfigProvider: options.teammateConfigProvider,
 			createBaseTools: options.createBaseTools,
 			allowSpawn: false,
+			// Spawning is lead-only; exposing the tool to teammates just
+			// makes them burn turns on "Only the lead agent can manage
+			// teammates." rejections.
+			includeSpawnTool: false,
 		}),
 	);
 	options.runtime.spawnTeammate({

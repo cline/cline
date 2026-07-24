@@ -24,14 +24,14 @@ const buttonVariants = cva(
 					"bg-success/10 text-success border-[#176f2c] text-white hover:bg-[#197f31] hover:border-[#197f31] active:bg-[#156528] active:border-[#156528] hover:text-white",
 				danger: "bg-[#c42b2b] border-[#c42b2b]! text-white! hover:bg-[#a82424]! hover:border-[#a82424]! active:bg-[#8f1f1f]! active:border-[#8f1f1f]!",
 			},
-		size: {
-			default: "py-1.5 px-4 [&_svg]:size-3",
-			sm: "py-1 px-3 text-sm [&_svg]:size-2",
-			xs: "p-1 text-xs [&_svg]:size-2",
-			lg: "py-4 px-8 [&_svg]:size-4 font-medium",
-			icon: "px-0.5 m-0 [&_svg]:size-2",
-			header: "py-1 px-4 [&_svg]:size-2.5",
-		},
+			size: {
+				default: "py-1.5 px-4 [&_svg]:size-3",
+				sm: "py-1 px-3 text-sm [&_svg]:size-2",
+				xs: "p-1 text-xs [&_svg]:size-2",
+				lg: "py-4 px-8 [&_svg]:size-4 font-medium",
+				icon: "px-0.5 m-0 [&_svg]:size-2",
+				header: "py-1 px-4 [&_svg]:size-2.5",
+			},
 		},
 		defaultVariants: {
 			variant: "default",
@@ -40,10 +40,7 @@ const buttonVariants = cva(
 	},
 )
 
-// The variants name of buttonVariants
-export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"]
-
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
 	asChild?: boolean
 }
 
@@ -55,4 +52,4 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 )
 Button.displayName = "Button"
 
-export { Button, buttonVariants }
+export { Button }

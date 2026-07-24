@@ -1,14 +1,31 @@
-import { xaiModels } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
+
+const PROVIDER_ID = "xai"
+
+// VSCodeDropdown's onChange supplies `Event | React.FormEvent<HTMLElement>`,
+// so accept the same union here. We only read `target.value`, which is present
+// on both, so no narrowing of the event itself is required.
+function getEventValue(event: Event | React.FormEvent<HTMLElement>): string {
+	const target = event.target
+	if (target && "value" in target && typeof target.value === "string") {
+		return target.value
+	}
+	return ""
+}
 
 /**
  * Props for the XaiProvider component
@@ -21,22 +38,69 @@ interface XaiProviderProps {
 
 export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const {
+		models,
+		defaultModelId,
+		selectedModelId: legacySelectedModelId,
+		selectedModelInfo: legacySelectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection(PROVIDER_ID, apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(PROVIDER_ID, currentMode, {
+		models,
+		defaultModelId: legacySelectedModelId,
+		config,
+		commitSelection,
+		fallbackModelInfo: legacySelectedModelInfo,
+	})
 
 	// Local state for reasoning effort toggle
 	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "X AI",
+		write,
+	})
+
+	const handleModelChange = (modelId: string) => {
+		if (!modelId) {
+			return
+		}
+
+		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
+		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
+
+		void commitModelSelection({
+			modelId,
+			modelInfo,
+		}).catch((err) => console.error("Failed to commit X AI model selection:", err))
+	}
+
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({ reasoning: { enabled: true, effort } }).catch((err) =>
+			console.error("Failed to update X AI reasoning effort:", err),
+		)
+		handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, effort, currentMode)
+	}
+
+	const handleReasoningEffortDisabled = () => {
+		void write({ reasoning: { enabled: false, effort: "none" } }).catch((err) =>
+			console.error("Failed to disable X AI reasoning effort:", err),
+		)
+		handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, "", currentMode)
+	}
 
 	return (
 		<div>
 			<div>
 				<ApiKeyField
-					initialValue={apiConfiguration?.xaiApiKey || ""}
-					onChange={(value) => handleFieldChange("xaiApiKey", value)}
+					initialValue={savedApiKeyMask || apiConfiguration?.xaiApiKey || ""}
+					onChange={handleApiKeyChange}
 					providerName="X AI"
 					signupUrl="https://x.ai"
 				/>
@@ -47,7 +111,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						color: "var(--vscode-descriptionForeground)",
 					}}>
 					<span style={{ color: "var(--vscode-errorForeground)" }}>
-						(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+						(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts, so behavior can vary across
 						models. Less capable models may not work as expected.)
 					</span>
 				</p>
@@ -57,14 +121,8 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 				<>
 					<ModelSelector
 						label="Model"
-						models={xaiModels}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
+						models={models}
+						onChange={(event: Event) => handleModelChange(getEventValue(event))}
 						selectedModelId={selectedModelId}
 					/>
 
@@ -76,11 +134,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 									const isChecked = e.target.checked === true
 									setReasoningEffortSelected(isChecked)
 									if (!isChecked) {
-										handleModeFieldChange(
-											{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
-											"",
-											currentMode,
-										)
+										handleReasoningEffortDisabled()
 									}
 								}}
 								style={{ marginTop: 0 }}>
@@ -95,13 +149,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 									<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
 										<VSCodeDropdown
 											id="reasoning-effort-dropdown"
-											onChange={(e: any) => {
-												handleModeFieldChange(
-													{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
-													e.target.value,
-													currentMode,
-												)
-											}}
+											onChange={(event) => handleReasoningEffortChange(getEventValue(event))}
 											style={{ width: "100%", marginTop: 3 }}
 											value={modeFields.reasoningEffort || "high"}>
 											<VSCodeOption value="low">low</VSCodeOption>
@@ -122,7 +170,12 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						</>
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

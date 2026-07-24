@@ -2,13 +2,14 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
@@ -23,6 +24,7 @@ import {
 	groupMessages,
 	InputSection,
 	MessagesArea,
+	QueuedPrompts,
 	TaskSection,
 	useChatState,
 	useMessageHandlers,
@@ -41,35 +43,40 @@ interface ChatViewProps {
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
+const sameUserMessage = (left: ClineMessage, right: ClineMessage) => {
+	const leftImages = left.images ?? []
+	const rightImages = right.images ?? []
+	const leftFiles = left.files ?? []
+	const rightFiles = right.files ?? []
+
+	return (
+		left.type === "say" &&
+		left.say === "user_feedback" &&
+		right.type === "say" &&
+		right.say === "user_feedback" &&
+		left.text === right.text &&
+		leftImages.length === rightImages.length &&
+		leftImages.every((image, index) => image === rightImages[index]) &&
+		leftFiles.length === rightFiles.length &&
+		leftFiles.every((file, index) => file === rightFiles[index])
+	)
+}
+
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
 		version,
 		clineMessages: messages,
 		taskHistory,
-		apiConfiguration,
 		telemetrySetting,
 		mode,
 		userInfo,
-		currentFocusChainChecklist,
-		focusChainSettings,
 		hooksEnabled,
+		checkpointRestoreInput,
+		queuedPrompts,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
-
-	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
-	const modifiedMessages = useMemo(() => {
-		const slicedMessages = messages.slice(1)
-		// Only combine hook sequences if hooks are enabled
-		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
-		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
-	}, [messages, hooksEnabled])
-	// has to be after api_req_finished are all reduced into api_req_started messages
-	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
-
-	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(modifiedMessages) || undefined, [modifiedMessages])
 
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
@@ -83,8 +90,60 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		enableButtons,
 		expandedRows,
 		setExpandedRows,
+		pendingUserMessage,
+		setPendingUserMessage,
 		textAreaRef,
 	} = chatState
+
+	const displayMessages = useMemo(() => {
+		if (
+			!pendingUserMessage ||
+			messages.some(
+				(message) => message.ts > pendingUserMessage.afterTs && sameUserMessage(message, pendingUserMessage.message),
+			)
+		) {
+			return messages
+		}
+		return [...messages, pendingUserMessage.message]
+	}, [messages, pendingUserMessage])
+
+	useEffect(() => {
+		if (
+			pendingUserMessage &&
+			messages.some(
+				(message) => message.ts > pendingUserMessage.afterTs && sameUserMessage(message, pendingUserMessage.message),
+			)
+		) {
+			setPendingUserMessage(undefined)
+		}
+	}, [messages, pendingUserMessage, setPendingUserMessage])
+
+	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
+	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const modifiedMessages = useMemo(() => {
+		const slicedMessages = displayMessages.slice(1)
+		// Only combine hook sequences if hooks are enabled
+		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
+		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
+	}, [displayMessages, hooksEnabled])
+	// has to be after api_req_finished are all reduced into api_req_started messages
+	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
+
+	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(modifiedMessages) || undefined, [modifiedMessages])
+	const lastAppliedCheckpointRestoreSessionId = useRef<string | undefined>(checkpointRestoreInput?.sessionId)
+
+	useEffect(() => {
+		if (!checkpointRestoreInput || checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current) {
+			return
+		}
+		lastAppliedCheckpointRestoreSessionId.current = checkpointRestoreInput.sessionId
+		setInputValue(checkpointRestoreInput.text)
+		setSelectedImages(checkpointRestoreInput.images ?? [])
+		setSelectedFiles(checkpointRestoreInput.files ?? [])
+		setTimeout(() => {
+			textAreaRef.current?.focus()
+		}, 0)
+	}, [checkpointRestoreInput, setInputValue, setSelectedImages, setSelectedFiles, textAreaRef])
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -179,9 +238,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState)
 
-	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, mode)
-	}, [apiConfiguration, mode])
+	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
@@ -225,13 +282,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToShowWebview(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					// Only focus if not hidden and preserveEditorFocus is false
 					if (!isHidden && !event.preserveEditorFocus) {
 						textAreaRef.current?.focus()
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in showWebview subscription:", error)
 				},
 				onComplete: () => {
@@ -248,7 +305,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToAddToInput(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					if (event.value) {
 						setInputValue((prevValue) => {
 							const newText = event.value
@@ -265,7 +322,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}, 0)
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in addToInput subscription:", error)
 				},
 				onComplete: () => {
@@ -297,32 +354,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
-	const lastProgressMessageText = useMemo(() => {
-		if (!focusChainSettings.enabled) {
-			return undefined
-		}
-
-		// First check if we have a current focus chain list from the extension state
-		if (currentFocusChainChecklist) {
-			return currentFocusChainChecklist
-		}
-
-		// Fall back to the last task_progress message if no state focus chain list
-		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
-		return lastProgressMessage?.text
-	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
-
-	const showFocusChainPlaceholder = useMemo(() => {
-		// Show placeholder whenever focus chain is enabled and no checklist exists yet.
-		return focusChainSettings.enabled && !lastProgressMessageText
-	}, [focusChainSettings.enabled, lastProgressMessageText])
-
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
 	// Use scroll behavior hook
-	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
@@ -337,13 +374,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<TaskSection
 						apiMetrics={apiMetrics}
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
-						lastProgressMessageText={lastProgressMessageText}
 						messageHandlers={messageHandlers}
 						selectedModelInfo={{
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,
 						}}
-						showFocusChainPlaceholder={showFocusChainPlaceholder}
 						task={task}
 					/>
 				) : (
@@ -368,21 +403,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				)}
 			</div>
-			<footer className="bg-(--vscode-sidebar-background)" style={{ gridRow: "2" }}>
+			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}
 					messages={messages}
 					mode={mode}
-					scrollBehavior={{
-						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
-						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
-						showScrollToBottom: scrollBehavior.showScrollToBottom,
-						virtuosoRef: scrollBehavior.virtuosoRef,
-					}}
 					task={task}
 				/>
+				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}

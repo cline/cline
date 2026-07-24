@@ -1,15 +1,23 @@
+import { existsSync } from "fs"
 import { userInfo } from "os"
+import * as nodePath from "path"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
 export const WINDOWS_POWERSHELL_LEGACY_PATH = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+// WSL Bash is reached through the wsl.exe launcher, not the guest-side /bin/bash
+// path (which does not exist on the Windows host). wsl.exe runs the command in
+// the default distro and translates the Windows working directory to its
+// /mnt/<drive> mount automatically. getShellArgs() appends the `bash -c` form.
+export const WINDOWS_WSL_PATH = "C:\\Windows\\System32\\wsl.exe"
 
 const SHELL_PATHS = {
 	// Windows paths
 	POWERSHELL_7: WINDOWS_POWERSHELL_7_PATH,
 	POWERSHELL_LEGACY: WINDOWS_POWERSHELL_LEGACY_PATH,
 	CMD: "C:\\Windows\\System32\\cmd.exe",
-	WSL_BASH: "/bin/bash",
+	WSL_BASH: WINDOWS_WSL_PATH,
 	GIT_BASH: "C:\\Program Files\\Git\\bin\\bash.exe",
 	// Unix paths
 	MAC_DEFAULT: "/bin/zsh",
@@ -24,21 +32,24 @@ const SHELL_PATHS = {
 	FALLBACK: "/bin/sh",
 } as const
 
+// VS Code permits `path: string | string[]` in terminal profiles on every
+// platform (the stock Windows "Command Prompt" profile is an array), so all
+// three profile shapes model both forms.
 interface MacTerminalProfile {
-	path?: string
+	path?: string | string[]
 }
 
 type MacTerminalProfiles = Record<string, MacTerminalProfile>
 
 interface WindowsTerminalProfile {
-	path?: string
+	path?: string | string[]
 	source?: "PowerShell" | "WSL"
 }
 
 type WindowsTerminalProfiles = Record<string, WindowsTerminalProfile>
 
 interface LinuxTerminalProfile {
-	path?: string
+	path?: string | string[]
 }
 
 type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
@@ -84,6 +95,83 @@ function getLinuxTerminalConfig() {
 // 2) Platform-Specific VS Code Shell Retrieval
 // -----------------------------------------------------
 
+function isWindows(): boolean {
+	return process.platform === "win32"
+}
+
+/** The path module matching the host platform's separators and semantics. */
+function hostPath(): nodePath.PlatformPath {
+	return isWindows() ? nodePath.win32 : nodePath.posix
+}
+
+function getEnvironmentVariable(name: string): string | undefined {
+	// Windows environment variable names are case-insensitive; POSIX names
+	// are case-sensitive.
+	if (!isWindows()) {
+		return process.env[name]
+	}
+	const entry = Object.entries(process.env).find(([key]) => key.toLowerCase() === name.toLowerCase())
+	return entry?.[1]
+}
+
+/** Expands VS Code's `${env:NAME}` references in a profile path. */
+function expandShellPath(candidate: string): string {
+	return candidate.replace(/\$\{env:([^}]+)\}/gi, (reference, name: string) => {
+		return getEnvironmentVariable(name.trim()) ?? reference
+	})
+}
+
+/**
+ * Resolves a profile path candidate to an existing executable: absolute or
+ * relative paths are checked directly; bare names are searched on PATH
+ * (with PATHEXT on Windows, mirroring how VS Code launches profiles).
+ */
+function findExecutable(candidate: string): string | null {
+	const path = hostPath()
+	if (path.basename(candidate) !== candidate) {
+		const normalized = path.normalize(candidate)
+		return existsSync(normalized) ? normalized : null
+	}
+
+	const pathValue = getEnvironmentVariable("PATH")
+	if (!pathValue) {
+		return null
+	}
+
+	const extensions =
+		!isWindows() || path.extname(candidate) ? [""] : (getEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD").split(";")
+	for (const directory of pathValue.split(path.delimiter)) {
+		for (const extension of extensions) {
+			const executable = path.join(directory, `${candidate}${extension}`)
+			if (existsSync(executable)) {
+				return executable
+			}
+		}
+	}
+
+	return null
+}
+
+/** Resolves the first usable path in a VS Code terminal profile. */
+function resolveShellPath(configuredPath: string | string[] | undefined): string | null {
+	const candidates = typeof configuredPath === "string" ? [configuredPath] : configuredPath
+	for (const candidate of candidates ?? []) {
+		const expandedPath = expandShellPath(candidate)
+		if (expandedPath.includes("${")) {
+			// Only ${env:NAME} references are expanded here. VS Code resolves
+			// more variable kinds (e.g. ${workspaceFolder}); surface the gap
+			// instead of silently skipping the user's configured shell.
+			Logger.warn(`[shell] Skipping terminal profile path with unresolved variable reference: ${candidate}`)
+			continue
+		}
+		const executable = findExecutable(expandedPath)
+		if (executable) {
+			return executable
+		}
+	}
+	return null
+}
+
 /** Attempts to retrieve a shell path from VS Code config on Windows. */
 function getWindowsShellFromVSCode(): string | null {
 	const { defaultProfileName, profiles } = getWindowsTerminalConfig()
@@ -92,15 +180,17 @@ function getWindowsShellFromVSCode(): string | null {
 	}
 
 	const profile = profiles[defaultProfileName]
+	const configuredShell = resolveShellPath(profile?.path)
 
 	// If the profile name indicates PowerShell, do version-based detection.
 	// In testing it was found these typically do not have a path, and this
 	// implementation manages to deductively get the correct version of PowerShell
 	if (defaultProfileName.toLowerCase().includes("powershell")) {
-		if (profile?.path) {
+		if (configuredShell) {
 			// If there's an explicit PowerShell path, return that
-			return profile.path
-		} else if (profile?.source === "PowerShell") {
+			return configuredShell
+		}
+		if (profile?.source === "PowerShell") {
 			// If the profile is sourced from PowerShell, assume the newest
 			return SHELL_PATHS.POWERSHELL_7
 		}
@@ -109,8 +199,8 @@ function getWindowsShellFromVSCode(): string | null {
 	}
 
 	// If there's a specific path, return that immediately
-	if (profile?.path) {
-		return profile.path
+	if (configuredShell) {
+		return configuredShell
 	}
 
 	// If the profile indicates WSL
@@ -129,8 +219,7 @@ function getMacShellFromVSCode(): string | null {
 		return null
 	}
 
-	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+	return resolveShellPath(profiles[defaultProfileName]?.path)
 }
 
 /** Attempts to retrieve a shell path from VS Code config on Linux. */
@@ -140,8 +229,7 @@ function getLinuxShellFromVSCode(): string | null {
 		return null
 	}
 
-	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+	return resolveShellPath(profiles[defaultProfileName]?.path)
 }
 
 // -----------------------------------------------------
@@ -164,11 +252,6 @@ function getShellFromUserInfo(): string | null {
 /** Returns the environment-based shell variable, or null if not set. */
 function getShellFromEnv(): string | null {
 	const { env } = process
-
-	if (process.platform === "win32") {
-		// On Windows, COMSPEC typically holds cmd.exe
-		return env.COMSPEC || "C:\\Windows\\System32\\cmd.exe"
-	}
 
 	if (process.platform === "darwin") {
 		// On macOS/Linux, SHELL is commonly the environment variable
@@ -298,6 +381,35 @@ export function getShellForProfile(profileId: string): string {
 // 5) Publicly Exposed Shell Getter
 // -----------------------------------------------------
 
+/**
+ * Absolute paths where a modern PowerShell (pwsh) may be installed, most
+ * preferred first: MSI/ZIP installs under Program Files (either architecture),
+ * then the Microsoft Store install under LOCALAPPDATA. This is the single
+ * candidate list shared with the async prober in utils/powershell.ts.
+ */
+export function getWindowsPwshInstallPaths(): string[] {
+	const programFiles = process.env.ProgramW6432 || process.env.ProgramFiles || "C:\\Program Files"
+	const localAppData = process.env.LOCALAPPDATA
+	return [
+		`${programFiles}\\PowerShell\\7\\pwsh.exe`,
+		`${programFiles}\\PowerShell\\6\\pwsh.exe`,
+		SHELL_PATHS.POWERSHELL_7,
+		...(localAppData ? [`${localAppData}\\Microsoft\\WindowsApps\\pwsh.exe`] : []),
+	]
+}
+
+/**
+ * The shell VS Code launches on Windows when the user has not configured a
+ * default terminal profile: its built-in default is PowerShell (pwsh when
+ * installed, Windows PowerShell otherwise) — never cmd.exe. Mirroring that
+ * here keeps the "default" profile meaning the same shell whether commands
+ * run in a visible VS Code terminal or a background child process.
+ */
+function getWindowsDefaultShell(): string {
+	const pwsh = getWindowsPwshInstallPaths().find((candidate) => existsSync(candidate))
+	return pwsh ?? SHELL_PATHS.POWERSHELL_LEGACY
+}
+
 export function getShell(): string {
 	// 1. Check VS Code config first.
 	if (process.platform === "win32") {
@@ -306,7 +418,12 @@ export function getShell(): string {
 		if (windowsShell) {
 			return windowsShell
 		}
-	} else if (process.platform === "darwin") {
+		// No profile configured — match the shell VS Code's default terminal
+		// would launch. userInfo()/COMSPEC are not consulted: VS Code's own
+		// terminal ignores them too, and they would resolve to cmd.exe.
+		return getWindowsDefaultShell()
+	}
+	if (process.platform === "darwin") {
 		// macOS from VS Code
 		const macShell = getMacShellFromVSCode()
 		if (macShell) {
@@ -332,12 +449,6 @@ export function getShell(): string {
 		return envShell
 	}
 
-	// 4. Finally, fall back to a default
-	if (process.platform === "win32") {
-		// On Windows, if we got here, we have no config, no COMSPEC, and one very messed up operating system.
-		// Use CMD as a last resort
-		return SHELL_PATHS.CMD
-	}
-	// On macOS/Linux, fallback to a POSIX shell - This is the behavior of our old shell detection method.
+	// 4. Fall back to a POSIX shell - This is the behavior of our old shell detection method.
 	return SHELL_PATHS.FALLBACK
 }

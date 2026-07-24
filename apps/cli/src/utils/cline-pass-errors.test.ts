@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatCliErrorMessage,
+	getCliClinePassLimitMessage,
+	getCliNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClinePassSubscriptionUrl,
+	getClinePassLimitDetailMessage,
+	getCliSubscriptionUrl,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
+	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
 } from "./cline-pass-errors";
 
@@ -15,14 +19,18 @@ describe("cline-pass-errors", () => {
 			),
 		).toBe(true);
 
-		const formatted = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getClinePassSubscriptionUrl()}`;
+		const sdkFormatted =
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/dashboard/subscription?personal=true";
+		const formatted = getCliNotSubscribedMessage();
+		expect(isClinePassSubscriptionError(sdkFormatted)).toBe(true);
 		expect(isClinePassSubscriptionError(formatted)).toBe(true);
+		expect(formatCliErrorMessage(new Error(sdkFormatted))).toBe(formatted);
 		expect(formatCliErrorMessage(new Error(formatted))).toBe(formatted);
 	});
 
 	it("formats the ClinePass subscription URL", () => {
-		expect(getClinePassSubscriptionUrl()).toBe(
-			"https://app.cline.bot/dashboard/subscription?personal=true",
+		expect(getCliSubscriptionUrl()).toBe(
+			"https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
 		);
 	});
 
@@ -40,5 +48,23 @@ describe("cline-pass-errors", () => {
 			),
 		).toBe(true);
 		expect(formatCliErrorMessage(new Error(raw))).toBe(formatted);
+	});
+
+	it("recognizes and formats ClinePass period limit errors with usage-billing guidance", () => {
+		const raw =
+			"Error: You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
+		const detail =
+			"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
+
+		expect(isClinePassLimitErrorMessage(raw)).toBe(true);
+		expect(isClinePassLimitErrorMessage(new Error(raw))).toBe(true);
+		expect(getClinePassLimitDetailMessage(raw)).toBe(detail);
+		expect(formatCliErrorMessage(new Error(raw))).toBe(
+			getCliClinePassLimitMessage(raw),
+		);
+		expect(formatCliErrorMessage(new Error(raw))).toContain(
+			"Switch to Cline usage-based billing",
+		);
+		expect(formatCliErrorMessage(new Error(raw))).toContain("--provider cline");
 	});
 });

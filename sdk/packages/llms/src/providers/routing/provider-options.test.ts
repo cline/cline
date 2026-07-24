@@ -20,6 +20,7 @@ type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	maxOutputTokens?: number;
 	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
 	metadata?: GatewayProviderContext["provider"]["metadata"];
@@ -87,6 +88,7 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			id: modelId,
 			name: modelId,
 			providerId,
+			maxOutputTokens: options?.maxOutputTokens,
 			capabilities: options?.capabilities,
 			metadata: modelMetadata,
 		},
@@ -605,8 +607,84 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning enabled-only uses resolved output cap for reasoning budget",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				maxTokens: 10_000,
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 6_000 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning enabled-only uses model output cap when request cap is absent",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				reasoning: { enabled: true },
+			},
+			context: { maxOutputTokens: 12_000 },
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 7_200 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning effort sends only effort (no max_tokens, which OpenRouter rejects alongside effort)",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				reasoning: { effort: "high" },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "high" } },
+					lacks: ["thinking", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter unset reasoning -> no reasoning field",
+			request: {
+				providerId: "openrouter",
+				modelId: "deepseek/deepseek-v4-pro",
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					lacks: ["reasoning", "thinking", "effort", "reasoningEffort"],
 				},
 				{
 					bucket: "openaiCompatible",
@@ -648,7 +726,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking"],
 				},
 				{
@@ -721,14 +799,16 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 		},
 		// GLM/Z.AI routed reasoning — disabled
 		{
-			name: "openrouter GLM thinking-disabled -> reasoning.exclude in provider+compatible",
+			name: "openrouter GLM thinking-disabled -> reasoning.effort=none in provider+compatible",
 			request: {
 				providerId: "openrouter",
 				modelId: "z-ai/glm-4.7",
 				reasoning: { enabled: false },
 			},
 			expect: [
-				{ bucket: "openrouter", has: { reasoning: { exclude: true } } },
+				{ bucket: "openrouter", has: { reasoning: { effort: "none" } } },
+				// The OpenRouter bucket is authoritative on the wire; this residual
+				// compatible bucket remains for non-OpenRouter routed GLM paths.
 				{ bucket: "openaiCompatible", has: { reasoning: { exclude: true } } },
 			],
 		},
@@ -867,7 +947,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "openrouter Kimi K2.6 family reasoning.enabled=false -> reasoning.exclude",
+			name: "openrouter Kimi K2.6 family reasoning.enabled=false -> reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "moonshotai/kimi-k2.6",
@@ -877,7 +957,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { exclude: true } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
@@ -1149,7 +1229,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 		},
 		// OpenRouter owns the reasoning object regardless of Moonshot family.
 		{
-			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.exclude",
+			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "moonshotai/kimi-k2.5",
@@ -1158,7 +1238,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { exclude: true } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
@@ -1288,7 +1368,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking", "effort", "reasoningEffort"],
 				},
 				{
@@ -1298,7 +1378,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.exclude",
+			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "minimax/minimax-m3",
@@ -1311,7 +1391,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { exclude: true } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{

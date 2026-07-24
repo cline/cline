@@ -1,11 +1,11 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
-	title: "Agent Desktop",
-	description: "AI coding agent interface",
-	generator: "v0.app",
+	title: "Cline",
+	description: "Build software with Cline.",
 	icons: {
 		icon: [
 			{
@@ -34,6 +34,7 @@ export default function RootLayout({
 		<html className="h-full" lang="en">
 			<body className="h-full min-h-screen font-sans antialiased">
 				{children}
+				<Toaster />
 				<Analytics />
 			</body>
 		</html>

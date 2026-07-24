@@ -6,7 +6,7 @@ function normalizeModelId(modelId: string): string {
 
 const CLINE_FREE_MODEL_EXCEPTIONS = ["minimax-m2", "devstral-2512", "arcee-ai/trinity-large"]
 
-export function isClineFreeModelException(modelId: string): boolean {
+function isClineFreeModelException(modelId: string): boolean {
 	const normalizedModelId = normalizeModelId(modelId)
 	return CLINE_FREE_MODEL_EXCEPTIONS.some((token) => normalizedModelId.includes(token))
 }

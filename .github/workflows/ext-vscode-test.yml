@@ -45,13 +45,16 @@ jobs:
                           - 'apps/vscode/assets/**'
                           - 'apps/vscode/walkthrough/**'
                           - 'apps/vscode/package.json'
-                          - 'apps/vscode/package-lock.json'
+                          - 'apps/vscode/webview-ui/package.json'
+                          # Root bun lockfile is authoritative for the whole workspace (incl. apps/vscode).
+                          - 'bun.lock'
+                          # SDK source packages are local workspace symlinks (@cline/*), so SDK changes affect the build.
+                          - 'sdk/packages/**'
                           - 'apps/vscode/buf.yaml'
                           - 'apps/vscode/tsconfig*.json'
                           - 'apps/vscode/biome.jsonc'
                           - 'apps/vscode/esbuild.mjs'
-                          - 'apps/vscode/.mocharc.json'
-                          - 'apps/vscode/.nycrc*.json'
+                          - 'apps/vscode/bunfig.toml'
                           - 'apps/vscode/.vscode-test.mjs'
                           - 'apps/vscode/test-setup.js'
                           - '.github/workflows/ext-vscode-test.yml'
@@ -60,9 +63,13 @@ jobs:
                           - 'apps/vscode/proto/**'
                           - 'apps/vscode/standalone/**'
                           - 'apps/vscode/testing-platform/**'
+                          - 'apps/vscode/testing-platform/package.json'
                           - 'apps/vscode/tests/specs/**'
                           - 'apps/vscode/package.json'
-                          - 'apps/vscode/package-lock.json'
+                          # Root bun lockfile is authoritative for the whole workspace (incl. apps/vscode).
+                          - 'bun.lock'
+                          # SDK source packages are local workspace symlinks (@cline/*), so SDK changes affect the build.
+                          - 'sdk/packages/**'
                           - 'apps/vscode/buf.yaml'
                           - 'apps/vscode/tsconfig*.json'
                           - 'apps/vscode/esbuild.mjs'
@@ -82,33 +89,44 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      apps/vscode/package-lock.json
-                      apps/vscode/webview-ui/package-lock.json
+                  bun-version: 1.3.14
 
-            - name: Install extension dependencies
+            # Single root install resolves the entire bun workspace (apps/vscode,
+            # webview-ui, testing-platform and the @cline/* SDK symlinks) at once,
+            # so the previous per-package `npm ci` steps collapse into one.
+            - name: Install workspace dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode ci
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install webview-ui dependencies
+            # @cline/* are local workspace symlinks to source packages; their dist/
+            # output must be built before the extension can type-check/compile.
+            - name: Build SDK packages
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui ci
+              run: bun run build:sdk
+
+            - name: Assert better-sqlite3 native binary present
+              run: |
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
 
             - name: Run Quality Checks (Parallel)
-              run: npm run ci:check-all
+              run: bun run ci:check-all
 
     vscode-test:
         needs: [detect-changes, quality-checks]
         if: needs.detect-changes.outputs.vscode == 'true'
         env:
-            VSCODE_TEST_VERSION: 1.103.0
+            VSCODE_TEST_VERSION: 1.101.0
         strategy:
             fail-fast: false
             matrix:
@@ -123,30 +141,43 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      apps/vscode/package-lock.json
-                      apps/vscode/webview-ui/package-lock.json
+                  bun-version: 1.3.14
 
-            - name: Install extension dependencies
+            # Single root install resolves the entire bun workspace at once (replaces
+            # the per-package `npm ci` steps for apps/vscode + webview-ui).
+            - name: Install workspace dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode ci
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install webview-ui dependencies
+            # @cline/* are local workspace symlinks to source packages; build dist/
+            # before compiling/testing the extension.
+            - name: Build SDK packages
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui ci
+              run: bun run build:sdk
 
-            - name: Set up NPM on Windows
-              if: runner.os == 'Windows'
-              working-directory: ${{ github.workspace }}
+            - name: Assert better-sqlite3 native binary present
               run: |
-                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
+
+            # NOTE: The old `npm config set script-shell bash` step is intentionally
+            # removed. Scripts are now launched with `bun run`, which uses Bun's own
+            # built-in cross-platform shell rather than npm's configured script-shell,
+            # so that npm-specific Windows workaround no longer applies. Bash-dependent
+            # scripts (e.g. scripts/proto-lint.sh, standalone/runclinecore.sh) are
+            # invoked explicitly via `bash ...` from within the package scripts, and
+            # this job's `defaults.run.shell: bash` (Git Bash on Windows) still covers
+            # the workflow `run:` blocks below.
 
             - name: Cache VS Code test runtime
               if: runner.os == 'Windows'
@@ -158,24 +189,51 @@ jobs:
             # Build the extension and tests (without redundant checks)
             - name: Build Tests and Extension
               id: build_step
-              run: npm run ci:build
+              run: bun run ci:build
 
-            - name: Unit Tests with coverage - Linux
+            - name: Vitest Suites (SDK adapter + model catalog)
+              id: vitest_tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              # The vitest config sets passWithNoTests: true, so a broken glob/alias
+              # would "pass" with zero tests. Capture output and assert a non-zero
+              # test count to guard against silent skips.
+              run: |
+                  set -o pipefail
+                  bun run test:vitest 2>&1 | tee vitest-output.log
+                  # Strip ANSI color codes before matching — vitest colorizes the
+                  # "Tests  N passed" summary, so the count is not adjacent to the
+                  # "Tests" label in the raw bytes.
+                  if ! sed -r 's/\x1b\[[0-9;]*m//g' vitest-output.log | grep -Eq 'Tests[[:space:]]+[0-9]*[1-9][0-9]* (passed|failed)'; then
+                    echo "ERROR: vitest reported zero tests (possible silent skip)."
+                    exit 1
+                  fi
+
+            - name: Unit Tests (bun) - Linux
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
+              # The node-side unit suite (.mocharc spec set) now runs under `bun test`
+              # via scripts/run-bun-unit-tests.ts (one isolated bun process per file).
+              # The runner exits non-zero on any failure and prints a final
+              # "Files: N  Pass: P  Fail: F" summary; assert a non-zero pass count to
+              # guard against an empty glob silently "passing".
               run: |
-                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
+                  set -o pipefail
+                  bun run test:unit 2>&1 | tee unit-output.log
+                  if ! grep -Eq 'Pass:[[:space:]]+[0-9]*[1-9][0-9]*' unit-output.log; then
+                    echo "ERROR: bun unit runner reported zero passing tests (possible silent skip)."
+                    exit 1
+                  fi
 
-            - name: Unit Tests - Non-Linux
+            - name: Unit Tests (bun) - Non-Linux
               id: unit_tests_non_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
               run: |
-                  npm run test:unit
+                  bun run test:unit
 
             - name: Extension Integration Tests - Linux
               id: integration_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
-              run: xvfb-run -a npm run test:coverage
+              run: xvfb-run -a bun run test:coverage
 
             - name: Extension Integration Tests - Non-Linux
               id: integration_tests_non_linux
@@ -183,7 +241,7 @@ jobs:
               run: |
                   for attempt in 1 2 3; do
                     echo "Running extension integration tests (attempt ${attempt}/3)"
-                    if npm run test:integration; then
+                    if bun run test:integration; then
                       exit 0
                     fi
 
@@ -201,7 +259,7 @@ jobs:
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: |
                   cd webview-ui
-                  npm run test:coverage
+                  bun run test:coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
@@ -210,7 +268,6 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: |
-                      apps/vscode/coverage-unit/lcov.info
                       apps/vscode/webview-ui/coverage/lcov.info
 
     test-platform-integration:
@@ -224,39 +281,45 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      apps/vscode/package-lock.json
-                      apps/vscode/webview-ui/package-lock.json
-                      apps/vscode/testing-platform/package-lock.json
+                  bun-version: 1.3.14
 
-            - name: Install extension dependencies
+            # Single root install resolves the whole bun workspace, including the
+            # testing-platform package, so the separate per-package `npm ci` steps
+            # (extension + webview-ui + testing-platform) collapse into one.
+            - name: Install workspace dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode ci
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install webview-ui dependencies
+            # @cline/* are local workspace symlinks to source packages; build dist/
+            # before compiling the standalone core.
+            - name: Build SDK packages
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui ci
+              run: bun run build:sdk
+
+            - name: Assert better-sqlite3 native binary present
+              run: |
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
 
             - name: Download ripgrep binaries
-              run: npm run download-ripgrep
+              run: bun run download-ripgrep
 
             - name: Compile Standalone
-              run: npm run compile-standalone
-
-            - name: Install testing platform dependencies
-              working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/testing-platform ci
+              run: bun run compile-standalone
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
-              run: npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
+              run: bun run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4

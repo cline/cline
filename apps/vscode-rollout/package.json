@@ -1,0 +1,21 @@
+{
+	"name": "@cline/vscode-rollout",
+	"private": true,
+	"version": "0.1.0",
+	"description": "Loader + packaging tooling for the staged (A/B) rollout of the SDK-based VS Code extension alongside the legacy extension",
+	"type": "module",
+	"scripts": {
+		"build": "node esbuild.mjs",
+		"build:production": "node esbuild.mjs --production",
+		"typecheck": "tsc --noEmit",
+		"test": "bun test src scripts",
+		"stitch": "node scripts/stitch.mjs"
+	},
+	"devDependencies": {
+		"@types/node": "20.x",
+		"@types/vscode": "1.84.0",
+		"esbuild": "^0.25.0",
+		"node-machine-id": "^1.1.12",
+		"typescript": "^5.4.5"
+	}
+}

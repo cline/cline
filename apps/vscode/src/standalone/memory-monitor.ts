@@ -11,7 +11,7 @@ let memoryMonitorInterval: ReturnType<typeof setInterval> | null = null
  * other code can call it on-demand at important lifecycle moments
  * (e.g., after task completion, after context truncation).
  */
-export function logMemoryUsage(): void {
+function logMemoryUsage(): void {
 	const mem = process.memoryUsage()
 	const uptime = Math.round(process.uptime())
 

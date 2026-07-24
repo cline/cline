@@ -1,6 +1,6 @@
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import "should"
-import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
+import type { ApiHandlerModel } from "@core/api"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isClaude4PlusModelFamily,
@@ -8,7 +8,6 @@ import {
 	isGLMModelFamily,
 	isGPT5ModelFamily,
 	isGptOssModelFamily,
-	isNativeToolCallingConfig,
 	isNextGenModelFamily,
 	isPoolsideModelFamily,
 	modelDoesntSupportWebp,
@@ -17,11 +16,6 @@ import {
 
 // Minimal helper — modelDoesntSupportWebp only reads apiHandlerModel.id
 const m = (id: string): ApiHandlerModel => ({ id, info: { supportsPromptCache: false } })
-const providerInfo = (providerId: string, modelId: string): ApiProviderInfo => ({
-	providerId,
-	model: m(modelId),
-	mode: "act",
-})
 
 describe("shouldSkipReasoningForModel", () => {
 	it("should return true for grok-4 models", () => {
@@ -137,10 +131,8 @@ describe("isPoolsideModelFamily", () => {
 		isPoolsideModelFamily("claude-sonnet-4").should.equal(false)
 	})
 
-	it("should qualify Laguna models for next-gen and native tool calling paths", () => {
+	it("should qualify Laguna models for next-gen paths", () => {
 		isNextGenModelFamily("poolside/laguna-m.1").should.equal(true)
-		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), true).should.equal(true)
-		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), false).should.equal(false)
 	})
 })
 

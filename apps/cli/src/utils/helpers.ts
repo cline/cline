@@ -61,7 +61,7 @@ export function truncate(str: string, maxLen: number): string {
 	return `${oneLine.slice(0, maxLen - 3)}...`;
 }
 
-function formatStructuredCommand(cmd: unknown): string {
+export function formatStructuredCommand(cmd: unknown): string {
 	if (typeof cmd === "string") {
 		return cmd;
 	}

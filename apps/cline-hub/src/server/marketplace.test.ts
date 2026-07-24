@@ -51,18 +51,53 @@ describe("marketplace installer", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("maps remote MCP catalog args to the hub MCP upsert shape", () => {
+	function createInstalledOfficialPlugin(
+		clineDir: string,
+		slug: string,
+	): string {
+		const sourceKey = `official:https://github.com/cline/plugins.git#plugins/${slug}`;
+		const hash = createHash("sha256")
+			.update(sourceKey)
+			.digest("hex")
+			.slice(0, 12);
+		const installPath = join(
+			clineDir,
+			"plugins",
+			"_installed",
+			"official",
+			`${slug}-${hash}`,
+		);
+		mkdirSync(join(installPath, "package"), { recursive: true });
+		writeFileSync(
+			join(installPath, "package.json"),
+			JSON.stringify({ name: slug }, null, 2),
+			"utf8",
+		);
+		writeFileSync(
+			join(installPath, "package", "index.ts"),
+			`export default { name: "${slug}", manifest: { capabilities: ["tools"] } };`,
+			"utf8",
+		);
+		return installPath;
+	}
+
+	it("maps remote MCP catalog args to MCP settings shape", () => {
 		expect(
 			buildMarketplaceMcpInput([
 				"context7",
 				"--transport",
 				"http",
 				"https://mcp.context7.com/mcp",
+				"--header",
+				"Authorization: Bearer <token>",
 			]),
 		).toEqual({
 			name: "context7",
 			transportType: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
+			headers: {
+				Authorization: "Bearer <token>",
+			},
 			disabled: false,
 		});
 	});
@@ -283,8 +318,6 @@ describe("marketplace installer", () => {
 			"remove",
 			"cline-sdk",
 			"-g",
-			"-a",
-			"cline",
 			"-y",
 		]);
 	});
@@ -348,7 +381,7 @@ describe("marketplace installer", () => {
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 1,
 			stdout:
-				"Authorization: Bearer stdout-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
+				"Authorization: Bearer stdout-token\nAuthorization: Basic basic-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
 			stderr:
 				"TOKEN=stderr-token\npassword is stderr-password\nANTHROPIC_SECRET_KEY=anthropic-secret",
 		}));
@@ -370,13 +403,16 @@ describe("marketplace installer", () => {
 			message = error instanceof Error ? error.message : String(error);
 		}
 
+		expect(message).toContain("Authorization: Bearer [redacted]");
 		expect(message).toContain("Authorization: [redacted]");
+		expect(message).not.toContain("Authorization: Bearer [redacted]]");
 		expect(message).toContain("api key [redacted]");
 		expect(message).toContain("OPENAI_API_KEY=[redacted]");
 		expect(message).toContain("TOKEN=[redacted]");
 		expect(message).toContain("password is [redacted]");
 		expect(message).toContain("ANTHROPIC_SECRET_KEY=[redacted]");
 		expect(message).not.toContain("stdout-token");
+		expect(message).not.toContain("basic-token");
 		expect(message).not.toContain("stdout-key");
 		expect(message).not.toContain("compound-key");
 		expect(message).not.toContain("stderr-token");
@@ -465,16 +501,75 @@ describe("marketplace installer", () => {
 		]);
 	});
 
-	it("runs official plugin uninstalls through the current Cline CLI", async () => {
+	it("runs MCP installs through the current Cline CLI without prompts", async () => {
 		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
 			stdout: JSON.stringify({
-				name: "goal",
-				installPath: "/tmp/plugin",
-				removedPaths: ["/tmp/plugin"],
-				entryPaths: [],
+				name: "context7",
+				status: "installed",
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.context7.com/mcp",
+					headers: {
+						Authorization: "Bearer token",
+					},
+				},
 			}),
+			stderr: "",
+		}));
+
+		await expect(
+			installMarketplaceEntry(
+				{
+					entry: {
+						id: "context7",
+						type: "mcp",
+						name: "Context7",
+						install: {
+							args: [
+								"context7",
+								"--transport",
+								"http",
+								"https://mcp.context7.com/mcp",
+								"--header",
+								"Authorization: Bearer token",
+							],
+						},
+					},
+				},
+				{ spawnCommand },
+			),
+		).resolves.toMatchObject({
+			status: "installed",
+			message: "Installed Context7.",
+			details: {
+				name: "context7",
+				status: "installed",
+			},
+		});
+
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"mcp",
+			"install",
+			"--yes",
+			"--json",
+			"context7",
+			"--transport",
+			"http",
+			"https://mcp.context7.com/mcp",
+			"--header",
+			"Authorization: Bearer token",
+		]);
+	});
+
+	it("uninstalls official marketplace plugins through the shared core service", async () => {
+		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
+		process.env.CLINE_DIR = clineDir;
+		const installPath = createInstalledOfficialPlugin(clineDir, "goal");
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: "",
 			stderr: "",
 		}));
 
@@ -495,12 +590,8 @@ describe("marketplace installer", () => {
 			message: "Uninstalled Goal.",
 		});
 
-		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
-			"plugin",
-			"uninstall",
-			"goal",
-			"--json",
-		]);
+		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(existsSync(installPath)).toBe(false);
 	});
 
 	it("resolves desktop installs from the server catalog instead of browser-sent args", async () => {
@@ -544,15 +635,12 @@ describe("marketplace installer", () => {
 	});
 
 	it("resolves desktop uninstalls from the server catalog instead of browser-sent args", async () => {
-		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
+		process.env.CLINE_DIR = clineDir;
+		const installPath = createInstalledOfficialPlugin(clineDir, "goal");
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
-			stdout: JSON.stringify({
-				name: "goal",
-				installPath: "/tmp/plugin",
-				removedPaths: ["/tmp/plugin"],
-				entryPaths: [],
-			}),
+			stdout: "",
 			stderr: "",
 		}));
 
@@ -580,12 +668,8 @@ describe("marketplace installer", () => {
 			},
 		);
 
-		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
-			"plugin",
-			"uninstall",
-			"goal",
-			"--json",
-		]);
+		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(existsSync(installPath)).toBe(false);
 	});
 
 	it("uninstalls MCP marketplace entries from Cline MCP settings", async () => {

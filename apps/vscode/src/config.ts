@@ -4,12 +4,11 @@ import * as path from "path"
 import { Environment, type EnvironmentConfig } from "./shared/config-types"
 import { Logger } from "./shared/services/Logger"
 
-export { Environment, type EnvironmentConfig }
-
-/**
+export { Environment } /**
  * Schema for the endpoints.json configuration file used in on-premise deployments.
  * All fields are required and must be valid URLs.
  */
+
 interface EndpointsFileSchema {
 	appBaseUrl: string
 	apiBaseUrl: string
@@ -36,7 +35,7 @@ class ClineEndpoint {
 	private onPremiseConfig: EndpointsFileSchema | null = null
 	private environment: Environment = Environment.production
 	// Track if config came from bundled file (enterprise distribution)
-	private isBundled: boolean = false
+	private isBundled = false
 
 	private constructor() {
 		// Set environment at module load. Use override if provided.

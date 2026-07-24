@@ -2,6 +2,7 @@ import { StringArray } from "@shared/proto/cline/common"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import type { AxiosRequestConfig } from "axios"
 import axios from "axios"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -12,22 +13,28 @@ import { Controller } from ".."
  * @param request Request containing the base URL and API key
  * @returns Array of model names
  */
-export async function refreshOpenAiModels(_controller: Controller, request: OpenAiModelsRequest): Promise<StringArray> {
+export async function refreshOpenAiModels(controller: Controller, request: OpenAiModelsRequest): Promise<StringArray> {
 	try {
-		if (!request.baseUrl) {
+		const providerConfig = controller.getProviderConfigStore().read(parseProviderId(request.providerId || "openai"))
+		const baseUrl = providerConfig.baseUrl
+		const apiKey = providerConfig.apiKey
+
+		if (!baseUrl) {
 			return StringArray.create({ values: [] })
 		}
 
-		if (!URL.canParse(request.baseUrl)) {
+		if (!URL.canParse(baseUrl)) {
 			return StringArray.create({ values: [] })
 		}
 
-		const config: AxiosRequestConfig = {}
-		if (request.apiKey) {
-			config["headers"] = { Authorization: `Bearer ${request.apiKey}` }
+		const config: AxiosRequestConfig = {
+			headers: {
+				...(providerConfig.headers ?? {}),
+				...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+			},
 		}
 
-		const response = await axios.get(`${request.baseUrl}/models`, { ...config, ...getAxiosSettings() })
+		const response = await axios.get(`${baseUrl}/models`, { ...config, ...getAxiosSettings() })
 		const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 		const models = [...new Set<string>(modelsArray)]
 

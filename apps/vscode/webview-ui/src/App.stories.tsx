@@ -1,6 +1,6 @@
 import { HeroUIProvider } from "@heroui/react"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { type ApiConfiguration, bedrockModels } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Meta, StoryObj } from "@storybook/react-vite"
@@ -231,6 +231,19 @@ const mockStreamingMessages: ClineMessage[] = [
 ]
 
 // Reusable state and decorator factories
+// Minimal fixture for the `openRouterModels` storybook prop — the story
+// only needs a non-empty record to exercise the picker code paths.
+const STORYBOOK_OPENROUTER_MODELS: Record<string, ModelInfo> = {
+	"anthropic/claude-sonnet-4.6": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3,
+		outputPrice: 15,
+	},
+}
+
 const createMockState = (overrides: any = {}) => ({
 	...useExtensionState(),
 	useAutoCondense: true,
@@ -241,7 +254,7 @@ const createMockState = (overrides: any = {}) => ({
 	taskHistory: mockTaskHistory,
 	apiConfiguration: mockApiConfiguration,
 	onboardingModels: undefined,
-	openRouterModels: bedrockModels,
+	openRouterModels: STORYBOOK_OPENROUTER_MODELS,
 	showAnnouncement: false,
 	backgroundEditEnabled: false,
 	...overrides,
@@ -711,7 +724,7 @@ export const MistakeLimitReached = quickStory(
 export const CompletionResult = quickStory(
 	"Task Completion",
 	"completion_result",
-	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- View Changes\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
+	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
 	"Shows task completion state with Start New Task button.",
 )
 export const BrowserActionLaunch = quickStory(
@@ -885,124 +898,6 @@ export const ErrorRetryFailed: Story = {
 		docs: {
 			description: {
 				story: "Shows auto-retry failed after max attempts with manual intervention required.",
-			},
-		},
-	},
-}
-
-export const GenerateExplanationInProgress: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Explain my recent changes"),
-				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
-				createMessage(
-					4.5,
-					"say",
-					"generate_explanation",
-					JSON.stringify({
-						title: "Authentication refactor",
-						fromRef: "abc123def",
-						toRef: "working directory",
-						status: "generating",
-					}),
-				),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows explanation generation in progress with spinner.",
-			},
-		},
-	},
-}
-
-export const GenerateExplanationComplete: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Explain my recent changes"),
-				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
-				createMessage(
-					4.5,
-					"say",
-					"generate_explanation",
-					JSON.stringify({
-						title: "Authentication refactor",
-						fromRef: "abc123def",
-						toRef: "xyz789ghi",
-						status: "complete",
-					}),
-				),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows successfully generated explanation with git refs.",
-			},
-		},
-	},
-}
-
-export const GenerateExplanationError: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Explain my recent changes"),
-				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
-				createMessage(
-					4.5,
-					"say",
-					"generate_explanation",
-					JSON.stringify({
-						title: "Authentication refactor",
-						fromRef: "abc123def",
-						toRef: "",
-						status: "error",
-						error: "Failed to generate explanation: Git repository not found",
-					}),
-				),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows explanation generation error with error message.",
-			},
-		},
-	},
-}
-
-export const GenerateExplanationCancelled: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Explain my recent changes"),
-				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
-				createMessage(
-					4.5,
-					"say",
-					"generate_explanation",
-					JSON.stringify({
-						title: "Authentication refactor",
-						fromRef: "abc123def",
-						toRef: "",
-						status: "generating",
-					}),
-				),
-				createMessage(4.3, "ask", undefined, "Task was cancelled", { ask: "resume_task" }),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows explanation generation cancelled state (detected via resume_task message).",
 			},
 		},
 	},

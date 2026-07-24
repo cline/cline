@@ -23,7 +23,7 @@ message SlashCommandInfo {
   string name = 1; // Command name without slash, e.g., "newtask", "smol"
   string description = 2; // Human-readable description
   string section = 3; // "default", "custom", or "cli"
-  bool cli_compatible = 4; // false for VS Code-only commands like explain-changes
+  bool cli_compatible = 4; // false for VS Code-only commands
 }
 
 // Response containing all available slash commands

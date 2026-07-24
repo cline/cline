@@ -24,6 +24,8 @@ interface LegacyGlobalState {
 	actModeApiModelId?: string;
 	planModeReasoningEffort?: string;
 	actModeReasoningEffort?: string;
+	planModeOcaReasoningEffort?: string;
+	actModeOcaReasoningEffort?: string;
 	planModeThinkingBudgetTokens?: number;
 	actModeThinkingBudgetTokens?: number;
 	geminiPlanModeThinkingLevel?: string;
@@ -42,7 +44,7 @@ interface LegacyGlobalState {
 	openAiHeaders?: Record<string, string>;
 	requestTimeoutMs?: number;
 	awsRegion?: string;
-	awsAuthentication?: "iam" | "api-key" | "apikey" | "profile";
+	awsAuthentication?: "credentials" | "iam" | "api-key" | "apikey" | "profile";
 	awsUseProfile?: boolean;
 	awsProfile?: string;
 	awsUseCrossRegionInference?: boolean;
@@ -236,6 +238,12 @@ function trimNonEmpty(value: string | undefined): string | undefined {
 	return trimmed ? trimmed : undefined;
 }
 
+function normalizeLegacyBedrockAuthentication(
+	authentication: LegacyGlobalState["awsAuthentication"],
+): "iam" | "api-key" | "apikey" | "profile" | undefined {
+	return authentication === "credentials" ? "iam" : authentication;
+}
+
 function readJsonObject<T extends object>(filePath: string): T | undefined {
 	if (!existsSync(filePath)) {
 		return undefined;
@@ -331,25 +339,30 @@ function resolveReasoning(
 	providerId: string,
 	mode: LegacyMode,
 ): ProviderSettings["reasoning"] | undefined {
-	const effortCandidate =
-		mode === "plan"
-			? legacy.planModeReasoningEffort
-			: legacy.actModeReasoningEffort;
-	const geminiLevel =
-		mode === "plan"
-			? legacy.geminiPlanModeThinkingLevel
-			: legacy.geminiActModeThinkingLevel;
 	const budgetTokens =
 		mode === "plan"
 			? legacy.planModeThinkingBudgetTokens
 			: legacy.actModeThinkingBudgetTokens;
-	const rawEffort =
-		(providerId === "gemini" ? geminiLevel : undefined) ?? effortCandidate;
+	// ProviderSettings has one reasoning effort; legacy state had mode-specific
+	// fields, with OCA/Gemini using provider-specific variants.
+	const rawEffort = [
+		...(providerId === "oca"
+			? [legacy.actModeOcaReasoningEffort, legacy.planModeOcaReasoningEffort]
+			: []),
+		...(providerId === "gemini"
+			? [legacy.geminiActModeThinkingLevel, legacy.geminiPlanModeThinkingLevel]
+			: []),
+		legacy.actModeReasoningEffort,
+		legacy.planModeReasoningEffort,
+	]
+		.map(trimNonEmpty)
+		.find(Boolean);
 	const effort =
 		rawEffort === "none" ||
 		rawEffort === "low" ||
 		rawEffort === "medium" ||
-		rawEffort === "high"
+		rawEffort === "high" ||
+		rawEffort === "xhigh"
 			? rawEffort
 			: undefined;
 	const normalizedBudget =
@@ -403,6 +416,12 @@ function resolveLegacyCodexAuth(
 
 function getDefaultModelForProvider(providerId: string): string | undefined {
 	const builtInModels = LlmsModels.getGeneratedModelsForProvider(providerId);
+	const providerCollection = LlmsModels.getProviderCollectionSync(providerId);
+	const defaultModelId = providerCollection?.provider.defaultModelId;
+	if (defaultModelId && builtInModels[defaultModelId]) {
+		return defaultModelId;
+	}
+
 	const firstModelId = Object.keys(builtInModels)[0];
 	return firstModelId ?? undefined;
 }
@@ -498,15 +517,18 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
+		const bedrockAuthentication = normalizeLegacyBedrockAuthentication(
+			legacyGlobalState.awsAuthentication,
+		);
 		const useBedrockProfile =
-			legacyGlobalState.awsAuthentication === "profile" ||
+			bedrockAuthentication === "profile" ||
 			legacyGlobalState.awsUseProfile === true;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
-			authentication: legacyGlobalState.awsAuthentication,
+			authentication: bedrockAuthentication,
 			profile: useBedrockProfile
 				? trimNonEmpty(legacyGlobalState.awsProfile)
 				: undefined,
@@ -538,17 +560,21 @@ function buildLegacyProviderSettings(
 		};
 	}
 	if (providerId === "sapaicore") {
+		const useOrchestrationMode =
+			legacyGlobalState.sapAiCoreUseOrchestrationMode ?? true;
 		providerSpecific.sap = {
 			clientId: trimNonEmpty(legacySecrets.sapAiCoreClientId),
 			clientSecret: trimNonEmpty(legacySecrets.sapAiCoreClientSecret),
 			tokenUrl: trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl),
 			resourceGroup: trimNonEmpty(legacyGlobalState.sapAiResourceGroup),
-			deploymentId: trimNonEmpty(
-				mode === "plan"
-					? legacyGlobalState.planModeSapAiCoreDeploymentId
-					: legacyGlobalState.actModeSapAiCoreDeploymentId,
-			),
-			useOrchestrationMode: legacyGlobalState.sapAiCoreUseOrchestrationMode,
+			deploymentId: useOrchestrationMode
+				? undefined
+				: trimNonEmpty(
+						mode === "plan"
+							? legacyGlobalState.planModeSapAiCoreDeploymentId
+							: legacyGlobalState.actModeSapAiCoreDeploymentId,
+					),
+			useOrchestrationMode,
 		};
 	}
 	if (providerId === "oca") {

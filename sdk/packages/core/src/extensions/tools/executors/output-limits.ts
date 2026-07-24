@@ -17,6 +17,26 @@
 /** Max characters of command output kept; beyond this the middle is elided. */
 export const MAX_COMMAND_OUTPUT_CHARS = 48_000;
 
+export function truncateCommandOutput(
+	text: string,
+	options: { maxChars?: number; totalChars?: number } = {},
+): string {
+	const maxChars = options.maxChars ?? MAX_COMMAND_OUTPUT_CHARS;
+	const totalChars = options.totalChars ?? text.length;
+	if (text.length <= maxChars && totalChars <= maxChars) {
+		return text;
+	}
+
+	const headLimit = Math.ceil(maxChars / 2);
+	const tailLimit = Math.max(1, maxChars - headLimit);
+	return (
+		`${text.slice(0, headLimit)}\n` +
+		`[... output truncated: ${totalChars} chars total. ` +
+		"Refine the command (grep, head, tail) to view the elided middle ...]\n" +
+		text.slice(-tailLimit)
+	);
+}
+
 /** Max lines returned per file read when the range is larger or absent. */
 export const MAX_READ_LINES = 2_000;
 

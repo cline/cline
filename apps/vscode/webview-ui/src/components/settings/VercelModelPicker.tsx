@@ -15,7 +15,7 @@ import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, supportsReasoningEffortForModelId } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export interface VercelModelPickerProps {
+interface VercelModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 }
@@ -340,7 +340,7 @@ const DropdownWrapper = styled.div`
 	width: 100%;
 `
 
-export const VERCEL_MODEL_PICKER_Z_INDEX = 1_000
+const VERCEL_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
 	position: absolute;

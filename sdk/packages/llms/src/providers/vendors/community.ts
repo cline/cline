@@ -1,14 +1,23 @@
+import { accessSync, constants as fsConstants } from "node:fs";
+import { createRequire } from "node:module";
+import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
-import type { SAPAIProviderSettings } from "@jerome-benoit/sap-ai-provider";
-import { createClaudeCode } from "ai-sdk-provider-claude-code";
-import { createCodexExec } from "ai-sdk-provider-codex-cli";
+// Keep this import static so the VS Code extension bundle includes the SAP
+// provider. Hiding it behind a computed dynamic import leaves the published
+// extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
+// runtime, but VSIX packaging uses the bundled extension output.
+import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
-type SapAiProviderModule = typeof import("@jerome-benoit/sap-ai-provider");
-type SapDestination = NonNullable<SAPAIProviderSettings["destination"]>;
-const SAP_AI_PROVIDER_PACKAGE = "@jerome-benoit/sap-ai-provider";
+type SapModel = Record<PropertyKey, unknown>;
+const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
+	"doGenerate",
+	"doStream",
+	"doEmbed",
+]);
+let sapServiceKeyQueue: Promise<void> = Promise.resolve();
 
 function readOptions(
 	config: GatewayResolvedProviderConfig,
@@ -16,10 +25,94 @@ function readOptions(
 	return (config.options as Record<string, unknown> | undefined) ?? {};
 }
 
+function findExecutableOnPath(name: string): string | undefined {
+	const extensions =
+		process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+		if (!dir) continue;
+		for (const ext of extensions) {
+			const candidate = join(dir, `${name}${ext}`);
+			try {
+				accessSync(candidate, fsConstants.X_OK);
+				return candidate;
+			} catch {
+				// not here; keep looking
+			}
+		}
+	}
+	return undefined;
+}
+
+// The agent SDK spawns a `claude` executable shipped in per-platform optional
+// packages (@anthropic-ai/claude-agent-sdk-<platform>-<arch>[-musl]). Those
+// are no longer installed by default (~250MB), so resolve an explicit path:
+// the bundled platform binary when present, otherwise a user-installed
+// Claude Code from PATH. The SDK's own resolution cannot be relied on here:
+// inside a Bun-compiled binary it anchors on the virtual bunfs, where
+// node_modules lookups never see packages on disk.
+function resolveClaudeExecutable(): string | undefined {
+	const suffixes =
+		process.platform === "linux"
+			? [
+					`${process.platform}-${process.arch}`,
+					`${process.platform}-${process.arch}-musl`,
+				]
+			: [`${process.platform}-${process.arch}`];
+	const executableName = process.platform === "win32" ? "claude.exe" : "claude";
+	// Anchor on the real executable location first so resolution works from
+	// compiled binaries; fall back to this module's location for plain node.
+	const anchors = [
+		join(dirname(process.execPath), "noop.js"),
+		import.meta.url,
+	];
+	for (const anchor of anchors) {
+		for (const suffix of suffixes) {
+			try {
+				const manifest = createRequire(anchor).resolve(
+					`@anthropic-ai/claude-agent-sdk-${suffix}/package.json`,
+				);
+				const executable = join(dirname(manifest), executableName);
+				accessSync(executable, fsConstants.X_OK);
+				return executable;
+			} catch {
+				// keep looking
+			}
+		}
+	}
+	return findExecutableOnPath("claude");
+}
+
 export async function createClaudeCodeProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
-	const provider = createClaudeCode(readOptions(config));
+	// Dynamic import is intentional: ai-sdk-provider-claude-code is an
+	// optional peer dependency so default installs skip its ~250MB
+	// @anthropic-ai/claude-agent-sdk platform binary. It also runs
+	// createClaudeCode() at module scope, so loading lazily contains that
+	// side effect to actual Claude Code usage.
+	let createClaudeCode: typeof import("ai-sdk-provider-claude-code").createClaudeCode;
+	try {
+		({ createClaudeCode } = await import("ai-sdk-provider-claude-code"));
+	} catch (error) {
+		throw new Error(
+			"The Claude Code provider requires the optional 'ai-sdk-provider-claude-code' package. " +
+				"Install it alongside @cline/llms to use this provider.",
+			{ cause: error },
+		);
+	}
+	const options = readOptions(config);
+	const defaultSettings =
+		(options.defaultSettings as Record<string, unknown> | undefined) ?? {};
+	if (defaultSettings.pathToClaudeCodeExecutable === undefined) {
+		const executable = resolveClaudeExecutable();
+		if (executable !== undefined) {
+			options.defaultSettings = {
+				...defaultSettings,
+				pathToClaudeCodeExecutable: executable,
+			};
+		}
+	}
+	const provider = createClaudeCode(options);
 	return {
 		model: (modelId) => provider(modelId),
 	};
@@ -28,6 +121,20 @@ export async function createClaudeCodeProviderModule(
 export async function createOpenAICodexProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
+	// Dynamic import is intentional: ai-sdk-provider-codex-cli is an optional
+	// peer dependency so default installs skip its ~105MB @openai/codex
+	// optional dependency. The provider itself degrades gracefully when the
+	// bundled binary is absent (npx -y @openai/codex, then `codex` on PATH).
+	let createCodexExec: typeof import("ai-sdk-provider-codex-cli").createCodexExec;
+	try {
+		({ createCodexExec } = await import("ai-sdk-provider-codex-cli"));
+	} catch (error) {
+		throw new Error(
+			"The OpenAI Codex provider requires the optional 'ai-sdk-provider-codex-cli' package. " +
+				"Install it alongside @cline/llms to use this provider.",
+			{ cause: error },
+		);
+	}
 	const provider = createCodexExec(readOptions(config));
 	return {
 		model: (modelId) => provider(modelId),
@@ -111,9 +218,9 @@ function readStringOption(
 		: undefined;
 }
 
-function normalizeSapTokenServiceUrl(tokenUrl: string): string {
+function normalizeSapTokenBaseUrl(tokenUrl: string): string {
 	const trimmed = tokenUrl.replace(/\/+$/, "");
-	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
+	return trimmed.replace(/\/oauth\/token$/i, "");
 }
 
 function hasExplicitSapConnectionConfig(
@@ -129,10 +236,10 @@ function hasExplicitSapConnectionConfig(
 	);
 }
 
-function buildSapDestination(
+function buildSapServiceKey(
 	config: GatewayResolvedProviderConfig,
 	options: Record<string, unknown>,
-): SapDestination | undefined {
+): string | undefined {
 	const clientId = readStringOption(options, "clientId");
 	const clientSecret =
 		readStringOption(options, "clientSecret") ?? config.apiKey?.trim();
@@ -154,14 +261,14 @@ function buildSapDestination(
 			)}.`,
 		);
 	}
-	return {
-		authentication: "OAuth2ClientCredentials" as const,
-		clientId,
-		clientSecret,
-		name: config.providerId,
-		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
-		url: baseUrl.replace(/\/+$/, ""),
-	} satisfies SapDestination;
+	return JSON.stringify({
+		clientid: clientId,
+		clientsecret: clientSecret,
+		serviceurls: {
+			AI_API_URL: baseUrl.replace(/\/+$/, ""),
+		},
+		url: normalizeSapTokenBaseUrl(tokenUrl),
+	});
 }
 
 function resolveSapApi(options: Record<string, unknown>) {
@@ -175,18 +282,73 @@ function resolveSapApi(options: Record<string, unknown>) {
 	return "orchestration";
 }
 
-async function importSapAiProvider(): Promise<SapAiProviderModule> {
-	const specifier: string = SAP_AI_PROVIDER_PACKAGE;
-	return import(specifier) as Promise<SapAiProviderModule>;
+async function withSapServiceKey<T>(
+	serviceKey: string | undefined,
+	fn: () => T,
+): Promise<Awaited<T>> {
+	if (!serviceKey) {
+		return await fn();
+	}
+
+	const previousQueue = sapServiceKeyQueue.catch(() => {});
+	let releaseQueue!: () => void;
+	sapServiceKeyQueue = new Promise<void>((resolve) => {
+		releaseQueue = resolve;
+	});
+
+	await previousQueue;
+	const previous = process.env.AICORE_SERVICE_KEY;
+	process.env.AICORE_SERVICE_KEY = serviceKey;
+	try {
+		return await fn();
+	} catch (error) {
+		throw error;
+	} finally {
+		restoreSapServiceKey(previous);
+		releaseQueue();
+	}
+}
+
+function shouldWrapSapServiceKeyMethod(property: PropertyKey): boolean {
+	return SAP_SERVICE_KEY_METHODS.has(property);
+}
+
+function restoreSapServiceKey(previous: string | undefined): void {
+	if (previous === undefined) {
+		delete process.env.AICORE_SERVICE_KEY;
+		return;
+	}
+	process.env.AICORE_SERVICE_KEY = previous;
+}
+
+function wrapSapModelWithServiceKey(
+	model: unknown,
+	serviceKey: string | undefined,
+): unknown {
+	if (!serviceKey || !model || typeof model !== "object") {
+		return model;
+	}
+	return new Proxy(model as SapModel, {
+		get(target, property, receiver) {
+			const value = Reflect.get(target, property, receiver);
+			if (
+				typeof value !== "function" ||
+				!shouldWrapSapServiceKeyMethod(property)
+			) {
+				return value;
+			}
+			return (...args: unknown[]) =>
+				withSapServiceKey(serviceKey, () => value.apply(target, args));
+		},
+	});
 }
 
 export async function createSapAiCoreProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
 	const options = readOptions(config);
-	const destination = buildSapDestination(config, options);
+	const serviceKey = buildSapServiceKey(config, options);
 
-	const { createSAPAIProvider } = await importSapAiProvider();
 	const deploymentId = readStringOption(options, "deploymentId");
 	const provider = createSAPAIProvider({
 		name: config.providerId,
@@ -194,14 +356,22 @@ export async function createSapAiCoreProviderModule(
 			? { deploymentId }
 			: { resourceGroup: readStringOption(options, "resourceGroup") }),
 		api: resolveSapApi(options),
-		...(destination ? { destination } : {}),
 		...(typeof options.defaultSettings === "object" &&
 		options.defaultSettings !== null &&
 		!Array.isArray(options.defaultSettings)
 			? { defaultSettings: options.defaultSettings }
 			: {}),
+		requestConfig: {
+			headers: { "ai-client-type": "Cline" },
+			// Standard cline axios settings mirroring `getAxiosSettings()`
+			adapter: "fetch",
+			...(config.fetch ? { fetch: config.fetch } : {}),
+			maxBodyLength: Number.POSITIVE_INFINITY,
+			maxContentLength: Number.POSITIVE_INFINITY,
+		},
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		model: (modelId) =>
+			wrapSapModelWithServiceKey(provider(modelId), serviceKey),
 	};
 }

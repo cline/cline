@@ -6,14 +6,14 @@ import { ensureTaskDirectoryExists } from "../../storage/disk"
 /**
  * Generate the standard file path for a task's focusChain markdown file
  */
-export function getFocusChainFilePath(taskDir: string, taskId: string): string {
+function getFocusChainFilePath(taskDir: string, taskId: string): string {
 	return path.join(taskDir, `focus_chain_taskid_${taskId}.md`)
 }
 
 /**
  * Create the standard markdown content structure for a focusChain file
  */
-export function createFocusChainMarkdownContent(taskId: string, focusChainList: string): string {
+function createFocusChainMarkdownContent(taskId: string, focusChainList: string): string {
 	return `# Focus Chain List for Task ${taskId}
 
 <!-- Edit this markdown file to update your focus chain list -->
@@ -28,7 +28,7 @@ ${focusChainList}
  * Extract focusChain items from text content (markdown or message text)
  * Returns array of lines that match focusChain item format
  */
-export function extractFocusChainItemsFromText(text: string): string[] {
+function extractFocusChainItemsFromText(text: string): string[] {
 	const lines = text.split("\n")
 	return lines.filter((line) => {
 		const trimmed = line.trim()

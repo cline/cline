@@ -9,6 +9,7 @@ import { resolveHubDashboardDiscoveryPath } from "../dashboard-discovery";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
 
@@ -66,14 +67,27 @@ async function main(): Promise<void> {
 	const owner = resolveDefaultHubOwnerContext();
 	const dashboardDiscoveryPath = resolveHubDashboardDiscoveryPath(owner);
 
-	const server = await startHubWebSocketServer({
-		host: endpoint.host,
-		port: endpoint.port,
-		pathname: endpoint.pathname,
-		owner,
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		cronOptions: { workspaceRoot: options.cwd },
-	});
+	const daemonTelemetry = createHubDaemonTelemetry();
+
+	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
+	try {
+		server = await startHubWebSocketServer({
+			host: endpoint.host,
+			port: endpoint.port,
+			pathname: endpoint.pathname,
+			owner,
+			telemetry: daemonTelemetry.telemetry,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+				telemetry: daemonTelemetry.telemetry,
+			}),
+			cronOptions: { workspaceRoot: options.cwd },
+		});
+	} catch (error) {
+		// Flush before the top-level catch exits so failed daemon starts are
+		// still visible in telemetry instead of dying silently.
+		await daemonTelemetry.dispose().catch(() => undefined);
+		throw error;
+	}
 
 	await restartManagedHubDashboardProcess({
 		discoveryPath: dashboardDiscoveryPath,
@@ -89,6 +103,7 @@ async function main(): Promise<void> {
 			() => undefined,
 		);
 		await server.close();
+		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
 
@@ -114,7 +129,12 @@ async function main(): Promise<void> {
 				);
 			})
 			.finally(() => {
-				process.exit(1);
+				void daemonTelemetry
+					.dispose()
+					.catch(() => undefined)
+					.finally(() => {
+						process.exit(1);
+					});
 			});
 	};
 

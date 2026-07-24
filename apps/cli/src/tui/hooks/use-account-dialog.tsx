@@ -7,7 +7,10 @@ import {
 	type AccountDialogAction,
 	AccountDialogContent,
 } from "../components/dialogs/account-dialog";
-import { OAuthLoginContent } from "../components/dialogs/provider-picker";
+import {
+	OAuthLoginContent,
+	type OAuthLoginResult,
+} from "../components/dialogs/provider-picker";
 import type { OpenModelSelectorOptions } from "./use-model-selector";
 
 export function useAccountDialog(opts: {
@@ -60,14 +63,14 @@ export function useAccountDialog(opts: {
 			return;
 		}
 		if (action === "login") {
-			const saved = await dialog.choice<boolean>({
+			const saved = await dialog.choice<OAuthLoginResult>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
-				content: (ctx: ChoiceContext<boolean>) => (
+				content: (ctx: ChoiceContext<OAuthLoginResult>) => (
 					<OAuthLoginContent {...ctx} providerId="cline" providerName="Cline" />
 				),
 			});
-			if (saved) {
+			if (saved === true) {
 				await onAccountChange?.();
 				await openAccountDialog();
 				return;

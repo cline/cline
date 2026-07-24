@@ -144,12 +144,13 @@ export function createMcpOAuthProviderContext(
 		},
 		tokens: () => state.tokens as OAuthTokens | undefined,
 		saveTokens: async (tokens) => {
+			const lastAuthenticatedAt = Date.now();
 			await patch((current) => ({
 				...current,
 				tokens: tokens as Record<string, unknown>,
 				redirectUrl: options.redirectUrl,
 				lastError: undefined,
-				lastAuthenticatedAt: Date.now(),
+				lastAuthenticatedAt,
 			}));
 		},
 		redirectToAuthorization: async (authorizationUrl) => {
