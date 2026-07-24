@@ -56,6 +56,17 @@ describe("createOpenAIProviderModule", () => {
 		expect(streamConfig).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it("omits temperature when the model does not support it", async () => {
+		const provider = await createOpenAIProviderModule(config(), context(false));
+
+		const streamConfig = provider.buildStreamConfig?.(
+			request({ temperature: 0.7 }),
+			context(false),
+		);
+
+		expect(streamConfig).not.toHaveProperty("temperature");
+	});
+
 	it("drops explicit caps for the ChatGPT OAuth backend", async () => {
 		const provider = await createOpenAIProviderModule(
 			config({ baseUrl: "https://chatgpt.com/backend-api/codex" }),
@@ -101,7 +112,7 @@ function config(
 	};
 }
 
-function context() {
+function context(supportsTemperature?: boolean) {
 	return {
 		provider: {
 			id: "openai-native",
@@ -113,6 +124,9 @@ function context() {
 			providerId: "openai-native",
 			id: "gpt-5-mini",
 			name: "gpt-5-mini",
+			...(supportsTemperature === undefined
+				? {}
+				: { metadata: { supportsTemperature } }),
 		},
 		config: config(),
 	};

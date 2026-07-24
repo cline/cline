@@ -461,6 +461,9 @@ function modelInfoToGateway(
 	if (info.releaseDate) {
 		metadata.releaseDate = info.releaseDate;
 	}
+	if (info.capabilities) {
+		metadata.supportsTemperature = info.capabilities.includes("temperature");
+	}
 	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
 		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
 	}
