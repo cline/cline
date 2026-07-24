@@ -1,3 +1,4 @@
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { refreshOpenAiModels } from "../refreshOpenAiModels"
 
@@ -49,7 +50,7 @@ describe("refreshOpenAiModels", () => {
 			headers: { "x-custom": "yes" },
 		})
 
-		const response = await refreshOpenAiModels(makeController(), { providerId: "openai", baseUrl: "", apiKey: "" })
+		const response = await refreshOpenAiModels(makeController(), OpenAiModelsRequest.create({ providerId: "openai" }))
 
 		expect(response.values).toEqual(["model-alpha", "model-beta"])
 		expect(mocks.axiosGet).toHaveBeenCalledWith(
@@ -66,7 +67,7 @@ describe("refreshOpenAiModels", () => {
 	it("strips trailing slashes from the base URL before appending /models", async () => {
 		mocks.readProviderConfig.mockReturnValue({ baseUrl: "http://localhost:1234/v1/" })
 
-		await refreshOpenAiModels(makeController(), { providerId: "openai", baseUrl: "", apiKey: "" })
+		await refreshOpenAiModels(makeController(), OpenAiModelsRequest.create({ providerId: "openai" }))
 
 		expect(mocks.axiosGet).toHaveBeenCalledWith("http://localhost:1234/v1/models", expect.anything())
 	})
@@ -74,7 +75,7 @@ describe("refreshOpenAiModels", () => {
 	it("returns an empty list when no base URL is configured", async () => {
 		mocks.readProviderConfig.mockReturnValue({})
 
-		const response = await refreshOpenAiModels(makeController(), { providerId: "openai", baseUrl: "", apiKey: "" })
+		const response = await refreshOpenAiModels(makeController(), OpenAiModelsRequest.create({ providerId: "openai" }))
 
 		expect(response.values).toEqual([])
 		expect(mocks.axiosGet).not.toHaveBeenCalled()
@@ -84,7 +85,7 @@ describe("refreshOpenAiModels", () => {
 		mocks.readProviderConfig.mockReturnValue({ baseUrl: "http://localhost:1234/v1" })
 		mocks.axiosGet.mockRejectedValue(new Error("boom"))
 
-		const response = await refreshOpenAiModels(makeController(), { providerId: "openai", baseUrl: "", apiKey: "" })
+		const response = await refreshOpenAiModels(makeController(), OpenAiModelsRequest.create({ providerId: "openai" }))
 
 		expect(response.values).toEqual([])
 	})
