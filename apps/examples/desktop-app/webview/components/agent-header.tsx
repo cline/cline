@@ -48,6 +48,7 @@ export function AgentHeader({
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
+	const [titleEditorWidth, setTitleEditorWidth] = useState<number>();
 	const additions = diff?.additions ?? 0;
 	const deletions = diff?.deletions ?? 0;
 	const hasChanges = additions + deletions > 0;
@@ -98,15 +99,16 @@ export function AgentHeader({
 				/>
 				{isEditingTitle ? (
 					<form
-						className="m-0 min-w-0 flex-1"
+						className="m-0 min-w-0 max-w-full shrink-0"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void submitTitle();
 						}}
+						style={{ width: titleEditorWidth }}
 					>
 						<Input
 							autoFocus
-							className="h-7 w-64 max-w-full text-sm"
+							className="h-7 w-full text-sm"
 							disabled={renamingTitle}
 							onBlur={() => {
 								void submitTitle();
@@ -130,10 +132,13 @@ export function AgentHeader({
 								"rounded px-1 py-0.5 transition-colors hover:bg-accent",
 						)}
 						disabled={!canEditTitle || renamingTitle}
-						onClick={() => {
+						onClick={(event) => {
 							if (!canEditTitle || renamingTitle) {
 								return;
 							}
+							setTitleEditorWidth(
+								event.currentTarget.getBoundingClientRect().width,
+							);
 							setTitleInput(threadTitle);
 							setIsEditingTitle(true);
 						}}

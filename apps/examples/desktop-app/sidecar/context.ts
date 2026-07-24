@@ -16,6 +16,12 @@ import {
 	type ToolApprovalResult,
 } from "@cline/core";
 import type { AgentEvent } from "@cline/shared";
+import {
+	discardAllTrackedAttachments,
+	flushConsumedAttachments,
+	markQueuedAttachmentsSubmitted,
+	reconcileQueuedAttachments,
+} from "./attachments";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -113,7 +119,29 @@ export function broadcastChunk(
 // ---------------------------------------------------------------------------
 
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
-	return session.promptsInQueue;
+	return session.promptsInQueue.map(
+		({ id, prompt, steer, attachmentCount, userImages }) => ({
+			id,
+			prompt,
+			steer,
+			attachmentCount,
+			userImages,
+		}),
+	);
+}
+
+export function serializeQueuedPromptStart(input: {
+	promptId: string;
+	prompt: string;
+	attachmentCount?: number;
+	userImages?: string[];
+}): string {
+	return JSON.stringify({
+		promptId: input.promptId,
+		prompt: input.prompt,
+		attachmentCount: input.attachmentCount ?? 0,
+		userImages: input.userImages,
+	});
 }
 
 function sendPromptsInQueueSnapshot(
@@ -305,9 +333,16 @@ function handleCoreSessionEvent(
 					prompt: item.prompt ?? "",
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
+					userImages: item.userImages,
 				}))
-				.filter((item) => item.id && item.prompt);
+				.filter(
+					(item) => item.id && (item.prompt || (item.attachmentCount ?? 0) > 0),
+				);
 			if (session) {
+				reconcileQueuedAttachments(
+					session,
+					mapped.map((item) => item.id),
+				);
 				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
 				if (
@@ -319,9 +354,11 @@ function handleCoreSessionEvent(
 						ctx,
 						sessionId,
 						"chat_queued_prompt_start",
-						JSON.stringify({
+						serializeQueuedPromptStart({
+							promptId: previous[0].id,
 							prompt: previous[0].prompt,
 							attachmentCount: previous[0].attachmentCount ?? 0,
+							userImages: previous[0].userImages,
 						}),
 					);
 				}
@@ -330,14 +367,18 @@ function handleCoreSessionEvent(
 			break;
 		}
 		case "pending_prompt_submitted": {
-			const { sessionId, prompt, attachmentCount } = event.payload;
+			const { sessionId, id, prompt, attachmentCount, userImages } =
+				event.payload;
+			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
 			emitChunk(
 				ctx,
 				sessionId,
 				"chat_queued_prompt_start",
-				JSON.stringify({
+				serializeQueuedPromptStart({
+					promptId: id,
 					prompt,
 					attachmentCount: attachmentCount ?? 0,
+					userImages,
 				}),
 			);
 			break;
@@ -350,6 +391,7 @@ function handleCoreSessionEvent(
 				session.endedAt = nowMs();
 				session.status = reason || "ended";
 			}
+			discardAllTrackedAttachments(sessionId, session);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -369,6 +411,10 @@ function handleCoreSessionEvent(
 			if (session) {
 				session.status = status;
 				session.busy = status === "running";
+				if (status !== "running") {
+					// The turn that consumed submitted attachments has finished.
+					flushConsumedAttachments(sessionId, session);
+				}
 			}
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
 			break;
@@ -414,6 +460,11 @@ export async function disposeSidecarContext(
 
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
+
+	for (const [sessionId, session] of ctx.liveSessions) {
+		discardAllTrackedAttachments(sessionId, session);
+	}
+	ctx.liveSessions.clear();
 
 	for (const client of ctx.wsClients) {
 		try {
