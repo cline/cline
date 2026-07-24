@@ -4,7 +4,7 @@ import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
+import BannerCarousel, { type BannerData } from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
@@ -15,13 +15,12 @@ import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import CreateWorktreeModal from "@/components/worktrees/CreateWorktreeModal"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useClinePassPromo } from "@/hooks/useClinePassPromo"
 import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
+import { buildClinePassSubscriptionUrl } from "@/utils/clinePassSubscription"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
-// Shares the legacy extension's banner id so a dismissal there carries over here.
 const CLINE_PASS_PROMO_BANNER_ID = "cline-pass-home-promo-v2"
 
 /**
@@ -73,7 +72,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		welcomeBanners,
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const { isClinePassEnabled, isUsingClinePass, openSubscribePage, switchToClinePassProvider } = useClinePassPromo()
 	const [dismissedLocalBanners, setDismissedLocalBanners] = useState<Set<string>>(() => new Set())
 
 	// Open modal once we have welcome banners
@@ -167,7 +165,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.SetModel: {
-					const modelId = action.arg || "anthropic/claude-sonnet-4.5"
+					const modelId = action.arg || "anthropic/claude-sonnet-5"
 					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
@@ -217,7 +215,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 * Dismissal handler - updates version tracking
 	 */
 	const handleBannerDismiss = useCallback((bannerId: string) => {
-		// Hide immediately, without waiting for the persisted state round-trip.
 		setDismissedLocalBanners((previous) => new Set(previous).add(bannerId))
 
 		// !! Do not continue use these version numbers or add new banners that don't have unique IDs. !!
@@ -235,19 +232,16 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		}
 	}, [])
 
-	/**
-	 * Promotional banner for ClinePass. Shown until dismissed, and only while the
-	 * feature flag exposes the provider and the user isn't already on ClinePass.
-	 */
 	const clinePassPromoBanner = useMemo((): BannerData | undefined => {
 		if (
-			!isClinePassEnabled ||
-			isUsingClinePass ||
 			isBannerDismissed(CLINE_PASS_PROMO_BANNER_ID) ||
 			dismissedLocalBanners.has(CLINE_PASS_PROMO_BANNER_ID)
 		) {
 			return undefined
 		}
+
+		const dismissPromoBanner = () => handleBannerDismiss(CLINE_PASS_PROMO_BANNER_ID)
+		const subscriptionUrl = buildClinePassSubscriptionUrl(clineUser?.appBaseUrl)
 
 		return {
 			id: CLINE_PASS_PROMO_BANNER_ID,
@@ -256,32 +250,45 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			description: (
 				<div className="flex flex-col gap-2">
 					<p className="m-0">
-						A $9.99/month subscription for the latest open-weights models, at much lower cost than paying for direct
-						API access.
+						A $9.99/month subscription for the latest open-weights models, at much lower cost than
+						paying for direct API access.
 					</p>
 					<div>
-						<Button onClick={openSubscribePage} size="sm">
+						<Button
+							onClick={() => {
+								UiServiceClient.openUrl({ value: subscriptionUrl }).catch(console.error)
+							}}
+							size="sm">
 							Get ClinePass
 						</Button>
 					</div>
 					<button
-						className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
-						onClick={() => void switchToClinePassProvider()}
+						className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-xs text-[var(--vscode-textLink-foreground)] underline hover:cursor-pointer hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
+						onClick={async () => {
+							try {
+								await handleFieldsChange({
+									planModeApiProvider: "cline-pass",
+									actModeApiProvider: "cline-pass",
+								})
+								navigateToSettings("api-config")
+							} catch (error) {
+								console.error("Failed to switch to ClinePass:", error)
+							}
+						}}
 						type="button">
 						Switch to ClinePass provider to access subscription.
 					</button>
 				</div>
 			),
-			onDismiss: () => handleBannerDismiss(CLINE_PASS_PROMO_BANNER_ID),
+			onDismiss: dismissPromoBanner,
 		}
 	}, [
-		isClinePassEnabled,
-		isUsingClinePass,
-		isBannerDismissed,
+		clineUser?.appBaseUrl,
 		dismissedLocalBanners,
-		openSubscribePage,
-		switchToClinePassProvider,
 		handleBannerDismiss,
+		handleFieldsChange,
+		isBannerDismissed,
+		navigateToSettings,
 	])
 
 	/**
@@ -305,9 +312,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			}),
 		)
 
-		// ClinePass promo leads, then extension state banners, then hardcoded banners
-		return [...(clinePassPromoBanner ? [clinePassPromoBanner] : []), ...extensionStateBanners, ...hardcodedBanners]
-	}, [bannerConfig, banners, clineUser, handleBannerAction, handleBannerDismiss, clinePassPromoBanner])
+		// Combine both sources: extension state banners first, then hardcoded banners
+		const carouselBanners = [...extensionStateBanners, ...hardcodedBanners]
+		return clinePassPromoBanner ? [clinePassPromoBanner, ...carouselBanners] : carouselBanners
+	}, [bannerConfig, banners, clinePassPromoBanner, handleBannerAction, handleBannerDismiss])
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
@@ -319,10 +327,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				welcomeBanners={welcomeBanners}
 			/>
 			<div className="overflow-y-auto flex flex-col pb-2.5">
-				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!showWhatsNewModal && (
 					<>
 						<BannerCarousel banners={activeBanners} />
+						<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 						{/* Quick launch worktree button */}
 						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
@@ -372,6 +380,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						)}
 					</>
 				)}
+				{showWhatsNewModal && <HomeHeader shouldShowQuickWins={shouldShowQuickWins} />}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
 

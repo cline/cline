@@ -30,3 +30,8 @@ export function openClinePassSubscriptionIfPending(appBaseUrl: string | undefine
 export function buildClinePassSubscriptionPageUrl(appBaseUrl: string | undefined): string {
 	return new URL(CLINE_PASS_USAGE_PATH, appBaseUrl || DEFAULT_APP_BASE_URL).toString()
 }
+
+// Signup/subscribe page for users who don't have a ClinePass subscription yet.
+export function buildClinePassSubscribeUrl(appBaseUrl: string | undefined): string {
+	return new URL(CLINE_PASS_SUBSCRIBE_PATH, appBaseUrl || DEFAULT_APP_BASE_URL).toString()
+}
