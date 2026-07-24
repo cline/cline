@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
@@ -176,6 +177,7 @@ export function formatRelativeTime(value?: string): string {
 
 export function basenamePath(input?: string): string {
 	if (!input) return "workspace";
+	if (isChatWorkspacePath(input)) return "Chat";
 	const trimmed = input.replace(/[\\/]+$/, "");
 	if (!trimmed) return "workspace";
 	const parts = trimmed.split(/[\\/]/);

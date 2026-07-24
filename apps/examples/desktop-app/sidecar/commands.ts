@@ -18,16 +18,12 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
-	createLocalHubScheduleRuntimeHandlers,
 	createUserInstructionConfigService,
 	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
-	ensureHubServer,
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
-	HubScheduleCommandService,
-	HubScheduleService,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -43,7 +39,6 @@ import {
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
-	sendHubCommand,
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
@@ -65,7 +60,11 @@ import {
 	startConnectorChannel,
 	stopConnectorChannel,
 } from "./connectors";
-import { broadcastEvent, resolveSidecarAskQuestion } from "./context";
+import {
+	broadcastEvent,
+	ensureSharedHubClient,
+	resolveSidecarAskQuestion,
+} from "./context";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -553,33 +552,16 @@ function asTrimmedStringArray(value: unknown): string[] | undefined {
 }
 
 async function handleRoutineScheduleCommand(
+	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
-	let useLocalScheduleService = false;
-	try {
-		if (!useLocalScheduleService) {
-			await ensureHubServer({
-				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-			});
-		}
-	} catch {
-		useLocalScheduleService = true;
-	}
+	const hubClient = await ensureSharedHubClient(ctx);
 	const clientCommand = async (
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = useLocalScheduleService
-			? await localRoutineScheduleCommand(hubCommand, payload)
-			: await sendHubCommand(
-					{},
-					{
-						clientId: "code-sidecar-routines",
-						command: hubCommand as never,
-						payload,
-					},
-				);
+		const reply = await hubClient.command(hubCommand as never, payload);
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -587,186 +569,155 @@ async function handleRoutineScheduleCommand(
 		}
 		return (reply.payload ?? {}) as Record<string, unknown>;
 	};
-	try {
-		if (command === "list_routine_schedules") {
-			const [schedules, activeExecutions, upcomingRuns, lastExecutions] =
-				await Promise.all([
-					clientCommand("schedule.list", {
-						limit: toPositiveInt(args?.limit) ?? 200,
-					}),
-					clientCommand("schedule.active"),
-					clientCommand("schedule.upcoming", { limit: 30 }),
-					clientCommand("schedule.list_executions", { limit: 50 }),
-				]);
-			const scheduleRecords = (schedules.schedules ?? []) as JsonRecord[];
-			const executionRecords = (lastExecutions.executions ??
-				[]) as JsonRecord[];
-			// The bulk query returns the newest executions across ALL schedules,
-			// so a few chatty schedules can evict everyone else's latest run.
-			// Backfill the latest execution for schedules that have run
-			// (lastRunAt set) but fell out of that window.
-			const covered = new Set<string>();
-			for (const execution of executionRecords) {
-				if (typeof execution.scheduleId === "string") {
-					covered.add(execution.scheduleId);
-				}
+	if (command === "list_routine_schedules") {
+		const [schedules, activeExecutions, upcomingRuns, lastExecutions] =
+			await Promise.all([
+				clientCommand("schedule.list", {
+					limit: toPositiveInt(args?.limit) ?? 200,
+				}),
+				clientCommand("schedule.active"),
+				clientCommand("schedule.upcoming", { limit: 30 }),
+				clientCommand("schedule.list_executions", { limit: 50 }),
+			]);
+		const scheduleRecords = (schedules.schedules ?? []) as JsonRecord[];
+		const executionRecords = (lastExecutions.executions ?? []) as JsonRecord[];
+		// The bulk query returns the newest executions across ALL schedules,
+		// so a few chatty schedules can evict everyone else's latest run.
+		// Backfill the latest execution for schedules that have run
+		// (lastRunAt set) but fell out of that window.
+		const covered = new Set<string>();
+		for (const execution of executionRecords) {
+			if (typeof execution.scheduleId === "string") {
+				covered.add(execution.scheduleId);
 			}
-			const missing = scheduleRecords.filter(
-				(schedule) =>
-					typeof schedule.scheduleId === "string" &&
-					schedule.lastRunAt != null &&
-					!covered.has(schedule.scheduleId),
-			);
-			const concurrency = 8;
-			for (let index = 0; index < missing.length; index += concurrency) {
-				const chunk = missing.slice(index, index + concurrency);
-				const replies = await Promise.all(
-					chunk.map((schedule) =>
-						clientCommand("schedule.list_executions", {
-							scheduleId: schedule.scheduleId,
-							limit: 1,
-						}).catch(() => undefined),
-					),
-				);
-				for (const reply of replies) {
-					const executions = (reply?.executions ?? []) as JsonRecord[];
-					if (executions[0]) {
-						executionRecords.push(executions[0]);
-					}
-				}
-			}
-			return {
-				schedules: scheduleRecords,
-				activeExecutions: activeExecutions.executions ?? [],
-				upcomingRuns: upcomingRuns.runs ?? [],
-				lastExecutions: executionRecords,
-			};
 		}
-		if (command === "create_routine_schedule") {
-			const name = asTrimmedString(args?.name);
-			const timing = routineScheduleTiming(args);
-			const prompt = asTrimmedString(args?.prompt);
-			const workspaceRoot = asTrimmedString(args?.workspace_root);
-			if (!name || !timing || !prompt || !workspaceRoot) {
-				throw new Error(
-					"createSchedule requires name, timing, prompt, and workspace_root",
-				);
-			}
-			const created = await clientCommand("schedule.create", {
-				name,
-				...timing,
-				prompt,
-				modelSelection: {
-					providerId: asTrimmedString(args?.provider) ?? "cline",
-					modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
-				},
-				mode: readHubScheduleMode(args, "yolo"),
-				workspaceRoot,
-				cwd: asTrimmedString(args?.cwd),
-				systemPrompt: asTrimmedString(args?.system_prompt),
-				maxIterations: toPositiveInt(args?.max_iterations),
-				timeoutSeconds: toPositiveInt(args?.timeout_seconds),
-				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
-				enabled: args?.enabled !== false,
-				tags: asTrimmedStringArray(args?.tags),
-			});
-			return { schedule: created.schedule ?? null };
-		}
-		const scheduleId = asTrimmedString(args?.schedule_id);
-		if (!scheduleId) throw new Error(`${command} requires schedule_id`);
-		if (command === "update_routine_schedule") {
-			const mode = readHubScheduleMode(args);
-			const name = asTrimmedString(args?.name);
-			const timing = routineScheduleTiming(args);
-			const prompt = asTrimmedString(args?.prompt);
-			const workspaceRoot = asTrimmedString(args?.workspace_root);
-			if (!name || !timing || !prompt || !workspaceRoot) {
-				throw new Error(
-					"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
-				);
-			}
-			const reply = await clientCommand("schedule.update", {
-				scheduleId,
-				name,
-				...timing,
-				prompt,
-				modelSelection: {
-					providerId: asTrimmedString(args?.provider) ?? "cline",
-					modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
-				},
-				...(mode === undefined ? {} : { mode }),
-				workspaceRoot,
-				cwd: asTrimmedString(args?.cwd) ?? null,
-				systemPrompt:
-					args?.system_prompt === null
-						? null
-						: asTrimmedString(args?.system_prompt),
-				maxIterations:
-					args?.max_iterations === null
-						? null
-						: toPositiveInt(args?.max_iterations),
-				timeoutSeconds:
-					args?.timeout_seconds === null
-						? null
-						: toPositiveInt(args?.timeout_seconds),
-				maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
-				enabled: args?.enabled !== false,
-				tags: asTrimmedStringArray(args?.tags) ?? [],
-			});
-			return { schedule: reply.schedule ?? null };
-		}
-		if (command === "pause_routine_schedule") {
-			const reply = await clientCommand("schedule.disable", { scheduleId });
-			return { schedule: reply.schedule ?? null };
-		}
-		if (command === "resume_routine_schedule") {
-			const reply = await clientCommand("schedule.enable", { scheduleId });
-			return { schedule: reply.schedule ?? null };
-		}
-		if (command === "trigger_routine_schedule") {
-			// wait: false queues the run and returns immediately; the default
-			// path blocks until the whole agent run finishes, which outlives the
-			// webview's request timeout.
-			const reply = await clientCommand("schedule.trigger", {
-				scheduleId,
-				wait: false,
-			});
-			return { execution: reply.execution ?? null };
-		}
-		if (command === "delete_routine_schedule") {
-			const reply = await clientCommand("schedule.delete", { scheduleId });
-			return { deleted: reply.deleted === true };
-		}
-		throw new Error(`unsupported routine schedule command: ${command}`);
-	} finally {
-	}
-}
-
-let localRoutineScheduleService: HubScheduleService | undefined;
-let localRoutineScheduleCommands: HubScheduleCommandService | undefined;
-
-function getLocalRoutineScheduleCommands(): HubScheduleCommandService {
-	if (!localRoutineScheduleService || !localRoutineScheduleCommands) {
-		localRoutineScheduleService = new HubScheduleService({
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		});
-		localRoutineScheduleCommands = new HubScheduleCommandService(
-			localRoutineScheduleService,
+		const missing = scheduleRecords.filter(
+			(schedule) =>
+				typeof schedule.scheduleId === "string" &&
+				schedule.lastRunAt != null &&
+				!covered.has(schedule.scheduleId),
 		);
+		const concurrency = 8;
+		for (let index = 0; index < missing.length; index += concurrency) {
+			const chunk = missing.slice(index, index + concurrency);
+			const replies = await Promise.all(
+				chunk.map((schedule) =>
+					clientCommand("schedule.list_executions", {
+						scheduleId: schedule.scheduleId,
+						limit: 1,
+					}).catch(() => undefined),
+				),
+			);
+			for (const reply of replies) {
+				const executions = (reply?.executions ?? []) as JsonRecord[];
+				if (executions[0]) {
+					executionRecords.push(executions[0]);
+				}
+			}
+		}
+		return {
+			schedules: scheduleRecords,
+			activeExecutions: activeExecutions.executions ?? [],
+			upcomingRuns: upcomingRuns.runs ?? [],
+			lastExecutions: executionRecords,
+		};
 	}
-	return localRoutineScheduleCommands;
-}
-
-async function localRoutineScheduleCommand(
-	command: string,
-	payload?: Record<string, unknown>,
-) {
-	return await getLocalRoutineScheduleCommands().handleCommand({
-		version: "v1",
-		clientId: "code-sidecar-routines-local",
-		command: command as never,
-		payload,
-	});
+	if (command === "create_routine_schedule") {
+		const name = asTrimmedString(args?.name);
+		const timing = routineScheduleTiming(args);
+		const prompt = asTrimmedString(args?.prompt);
+		const workspaceRoot = asTrimmedString(args?.workspace_root);
+		if (!name || !timing || !prompt || !workspaceRoot) {
+			throw new Error(
+				"createSchedule requires name, timing, prompt, and workspace_root",
+			);
+		}
+		const created = await clientCommand("schedule.create", {
+			name,
+			...timing,
+			prompt,
+			modelSelection: {
+				providerId: asTrimmedString(args?.provider) ?? "cline",
+				modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
+			},
+			mode: readHubScheduleMode(args, "yolo"),
+			workspaceRoot,
+			cwd: asTrimmedString(args?.cwd),
+			systemPrompt: asTrimmedString(args?.system_prompt),
+			maxIterations: toPositiveInt(args?.max_iterations),
+			timeoutSeconds: toPositiveInt(args?.timeout_seconds),
+			maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+			enabled: args?.enabled !== false,
+			tags: asTrimmedStringArray(args?.tags),
+		});
+		return { schedule: created.schedule ?? null };
+	}
+	const scheduleId = asTrimmedString(args?.schedule_id);
+	if (!scheduleId) throw new Error(`${command} requires schedule_id`);
+	if (command === "update_routine_schedule") {
+		const mode = readHubScheduleMode(args);
+		const name = asTrimmedString(args?.name);
+		const timing = routineScheduleTiming(args);
+		const prompt = asTrimmedString(args?.prompt);
+		const workspaceRoot = asTrimmedString(args?.workspace_root);
+		if (!name || !timing || !prompt || !workspaceRoot) {
+			throw new Error(
+				"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
+			);
+		}
+		const reply = await clientCommand("schedule.update", {
+			scheduleId,
+			name,
+			...timing,
+			prompt,
+			modelSelection: {
+				providerId: asTrimmedString(args?.provider) ?? "cline",
+				modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
+			},
+			...(mode === undefined ? {} : { mode }),
+			workspaceRoot,
+			cwd: asTrimmedString(args?.cwd) ?? null,
+			systemPrompt:
+				args?.system_prompt === null
+					? null
+					: asTrimmedString(args?.system_prompt),
+			maxIterations:
+				args?.max_iterations === null
+					? null
+					: toPositiveInt(args?.max_iterations),
+			timeoutSeconds:
+				args?.timeout_seconds === null
+					? null
+					: toPositiveInt(args?.timeout_seconds),
+			maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+			enabled: args?.enabled !== false,
+			tags: asTrimmedStringArray(args?.tags) ?? [],
+		});
+		return { schedule: reply.schedule ?? null };
+	}
+	if (command === "pause_routine_schedule") {
+		const reply = await clientCommand("schedule.disable", { scheduleId });
+		return { schedule: reply.schedule ?? null };
+	}
+	if (command === "resume_routine_schedule") {
+		const reply = await clientCommand("schedule.enable", { scheduleId });
+		return { schedule: reply.schedule ?? null };
+	}
+	if (command === "trigger_routine_schedule") {
+		// wait: false queues the run and returns immediately; the default
+		// path blocks until the whole agent run finishes, which outlives the
+		// webview's request timeout.
+		const reply = await clientCommand("schedule.trigger", {
+			scheduleId,
+			wait: false,
+		});
+		return { execution: reply.execution ?? null };
+	}
+	if (command === "delete_routine_schedule") {
+		const reply = await clientCommand("schedule.delete", { scheduleId });
+		return { deleted: reply.deleted === true };
+	}
+	throw new Error(`unsupported routine schedule command: ${command}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -1189,12 +1140,21 @@ export async function handleCommand(
 
 	// ── Process context ───────────────────────────────────────────────
 	if (command === "get_process_context") {
+		const hubUrl =
+			ctx.hubClient?.getUrl() ??
+			ctx.sessionManager?.runtimeAddress?.trim() ??
+			null;
 		return {
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			homeDir: homedir(),
 			platform: process.platform,
 			appVersion: packageJson.version,
+			hub: {
+				status: ctx.hubClient?.isConnected() ? "connected" : "disconnected",
+				url: hubUrl,
+				error: ctx.hubClient?.getConnectionError()?.message ?? null,
+			},
 		};
 	}
 	if (command === "get_chat_ws_endpoint") {
@@ -1685,7 +1645,7 @@ export async function handleCommand(
 		command === "trigger_routine_schedule" ||
 		command === "delete_routine_schedule"
 	) {
-		return await handleRoutineScheduleCommand(command, args);
+		return await handleRoutineScheduleCommand(ctx, command, args);
 	}
 
 	// ── User instruction configs ──────────────────────────────────────

@@ -5,6 +5,8 @@ import {
 	ArrowDownUp,
 	Bot,
 	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
 	CircleUserRound,
 	Clock3,
 	Code,
@@ -13,7 +15,6 @@ import {
 	FolderTree,
 	GitFork,
 	Loader2,
-	MessageSquare,
 	PanelLeftOpen,
 	Pencil,
 	Pin,
@@ -66,11 +67,6 @@ import {
 	HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
@@ -100,6 +96,31 @@ type AppView = "chat" | "sessions" | "settings";
 const filterOptions = ["All", "Running", "Schedules", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
+type DesktopProcessContext = {
+	appVersion?: unknown;
+	hub?: {
+		error?: unknown;
+		status?: unknown;
+		url?: unknown;
+	};
+};
+type HubStatus = {
+	connected: boolean;
+	error: string | null;
+	url: string | null;
+};
+
+function hubPort(url: string | null): string | null {
+	if (!url) {
+		return null;
+	}
+	try {
+		return new URL(url).port || null;
+	} catch {
+		return null;
+	}
+}
+
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
@@ -175,8 +196,11 @@ function SettingsSectionNavigation({
 }
 
 export function AgentSidebar({
-	isHomeActive,
+	canNavigateBack = false,
+	canNavigateForward = false,
 	onHome,
+	onNavigateBack,
+	onNavigateForward,
 	onNewThread,
 	onSettingsSectionChange,
 	setView,
@@ -185,8 +209,11 @@ export function AgentSidebar({
 	activeSessionId,
 	sessionHistory,
 }: {
-	isHomeActive: boolean;
+	canNavigateBack?: boolean;
+	canNavigateForward?: boolean;
 	onHome: () => void;
+	onNavigateBack?: () => void;
+	onNavigateForward?: () => void;
 	onNewThread?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
@@ -239,10 +266,11 @@ export function AgentSidebar({
 		Record<string, number>
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
+	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
 
-	const loadAppVersion = useCallback(async () => {
+	const loadProcessContext = useCallback(async () => {
 		try {
-			const context = await desktopClient.invoke<{ appVersion?: unknown }>(
+			const context = await desktopClient.invoke<DesktopProcessContext>(
 				"get_process_context",
 			);
 			const version =
@@ -250,14 +278,33 @@ export function AgentSidebar({
 					? context.appVersion.trim()
 					: "";
 			setAppVersion(version || null);
-		} catch {
-			// Leave the version hidden; an older sidecar build has no appVersion.
+			const hubUrl =
+				typeof context?.hub?.url === "string"
+					? context.hub.url.trim() || null
+					: null;
+			setHubStatus({
+				connected: context?.hub?.status === "connected",
+				error:
+					typeof context?.hub?.error === "string"
+						? context.hub.error.trim() || null
+						: null,
+				url: hubUrl,
+			});
+		} catch (error) {
+			setHubStatus({
+				connected: false,
+				error:
+					error instanceof Error
+						? error.message
+						: "Unable to read Cline Hub status.",
+				url: null,
+			});
 		}
 	}, []);
 
 	useEffect(() => {
-		void loadAppVersion();
-	}, [loadAppVersion]);
+		void loadProcessContext();
+	}, [loadProcessContext]);
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -293,18 +340,16 @@ export function AgentSidebar({
 
 	const openThread = useCallback(
 		(threadId: string) => {
-			setView("chat");
 			openHistoryThread(threadId);
 			closeMobileSidebar();
 		},
-		[closeMobileSidebar, openHistoryThread, setView],
+		[closeMobileSidebar, openHistoryThread],
 	);
 
 	const openNewThread = useCallback(() => {
-		setView("chat");
 		onNewThread?.();
 		closeMobileSidebar();
-	}, [closeMobileSidebar, onNewThread, setView]);
+	}, [closeMobileSidebar, onNewThread]);
 	const openHome = useCallback(() => {
 		onHome();
 		closeMobileSidebar();
@@ -320,11 +365,16 @@ export function AgentSidebar({
 	const openSettingsSection = useCallback(
 		(section: SettingsSection) => {
 			onSettingsSectionChange(section);
-			setView("settings");
 			closeMobileSidebar();
 		},
-		[closeMobileSidebar, onSettingsSectionChange, setView],
+		[closeMobileSidebar, onSettingsSectionChange],
 	);
+	const navigateBack = useCallback(() => {
+		onNavigateBack?.();
+	}, [onNavigateBack]);
+	const navigateForward = useCallback(() => {
+		onNavigateForward?.();
+	}, [onNavigateForward]);
 
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
@@ -495,54 +545,107 @@ export function AgentSidebar({
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
 				<div
 					className={cn(
-						"flex h-16 shrink-0 items-center px-4",
-						isCollapsed && "justify-center px-0",
+						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-[4.75rem]",
+						isCollapsed && "px-0",
+					)}
+					data-tauri-drag-region
+				>
+					{!isCollapsed ? (
+						<>
+							<Button
+								aria-label="Previous page"
+								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								disabled={!canNavigateBack}
+								onClick={navigateBack}
+								size="icon"
+								title="Previous page"
+								type="button"
+								variant="ghost"
+							>
+								<ChevronLeft className="size-4" />
+							</Button>
+							<Button
+								aria-label="Next page"
+								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								disabled={!canNavigateForward}
+								onClick={navigateForward}
+								size="icon"
+								title="Next page"
+								type="button"
+								variant="ghost"
+							>
+								<ChevronRight className="size-4" />
+							</Button>
+						</>
+					) : null}
+				</div>
+
+				<div
+					className={cn(
+						"flex h-10 shrink-0 items-center justify-between px-3",
+						isCollapsed && "px-1.5",
 					)}
 				>
-					<Popover
+					<HoverCard
+						closeDelay={100}
+						openDelay={0}
 						onOpenChange={(open) => {
-							if (open && !appVersion) {
-								void loadAppVersion();
+							if (open) {
+								void loadProcessContext();
 							}
 						}}
 					>
-						<PopoverTrigger asChild>
+						<HoverCardTrigger asChild>
 							<button
 								aria-label="Cline home"
-								className="flex items-center gap-2 rounded-md p-1 text-sidebar-foreground transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-								type="button"
+								className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 								onClick={openHome}
 								title="Home"
+								type="button"
 							>
-								<ClineLogo className="h-6 w-6" />
+								<ClineLogo className="size-6" />
 							</button>
-						</PopoverTrigger>
-						<PopoverContent align="start" className="w-52 p-3" side="bottom">
+						</HoverCardTrigger>
+						<HoverCardContent align="start" className="w-64 p-3" side="bottom">
 							<p className="text-sm font-medium">Cline Code</p>
 							<p className="mt-0.5 text-xs text-muted-foreground">
 								{appVersion ? `Version ${appVersion}` : "Version unavailable"}
 							</p>
-						</PopoverContent>
-					</Popover>
-				</div>
-
-				<div className={cn("shrink-0 px-3", isCollapsed && "px-1.5")}>
-					<Button
-						className={cn(
-							"min-w-0 justify-start",
-							view === "chat" &&
-								isHomeActive &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							isCollapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						aria-label="New Session"
-						onClick={openHome}
-						title="New Session"
-						variant="sidebarItem"
-					>
-						<Plus className="size-4" />
-						{!isCollapsed ? "New Session" : null}
-					</Button>
+							<div className="mt-3 border-border border-t pt-3">
+								<div className="flex items-center gap-2 text-xs">
+									<span
+										aria-hidden="true"
+										className={cn(
+											"h-2 w-2 shrink-0 rounded-full",
+											hubStatus?.connected
+												? "bg-emerald-500"
+												: "bg-muted-foreground",
+										)}
+									/>
+									<span className="font-medium">
+										Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
+									</span>
+								</div>
+								{hubStatus && !hubStatus.connected && (
+									<p className="mt-1 text-[11px] text-destructive">
+										{hubStatus.error ?? "Cline Hub is not connected."}
+									</p>
+								)}
+							</div>
+						</HoverCardContent>
+					</HoverCard>
+					{!isCollapsed ? (
+						<Button
+							aria-label="New Session"
+							className="size-8 shrink-0 justify-center px-0"
+							onClick={openNewThread}
+							title="New Session"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Plus className="size-4" />
+						</Button>
+					) : null}
 				</div>
 
 				{isCollapsed ? (
@@ -553,18 +656,7 @@ export function AgentSidebar({
 								collapsed
 								onSelect={openSettingsSection}
 							/>
-						) : (
-							<Button
-								aria-label="New session"
-								className="mx-auto size-9 justify-center px-0"
-								onClick={openNewThread}
-								title="New session"
-								type="button"
-								variant="sidebarItem"
-							>
-								<MessageSquare className="size-4" />
-							</Button>
-						)}
+						) : null}
 						<Button
 							aria-label="Expand sidebar"
 							className="mx-auto size-9 justify-center px-0"

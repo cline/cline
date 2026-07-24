@@ -7,8 +7,8 @@
  * validates provider switching capabilities, and ensures NoOpTelemetryProvider functionality
  */
 
-import { after, before, describe, it } from "mocha"
 import * as assert from "assert"
+import { after, before, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { ClineEndpoint } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"

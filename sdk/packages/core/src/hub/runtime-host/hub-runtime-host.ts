@@ -668,8 +668,12 @@ function buildManifest(
 ): SessionManifest {
 	const workspaceRoot =
 		session?.workspaceRoot?.trim() ||
-		input.config.workspaceRoot ||
-		input.config.cwd;
+		input.config.workspaceRoot?.trim() ||
+		input.config.cwd?.trim();
+	if (!workspaceRoot) {
+		throw new Error("Hub runtime did not return a resolved workspace path.");
+	}
+	const cwd = session?.cwd?.trim() || input.config.cwd?.trim() || workspaceRoot;
 	return SessionManifestSchema.parse({
 		version: 1,
 		session_id: sessionId,
@@ -680,7 +684,7 @@ function buildManifest(
 		interactive: input.interactive === true,
 		provider: input.config.providerId,
 		model: input.config.modelId,
-		cwd: session?.cwd?.trim() || input.config.cwd,
+		cwd,
 		workspace_root: workspaceRoot,
 		team_name: input.config.teamName,
 		enable_tools: input.config.enableTools,
@@ -901,6 +905,15 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.cleanupPlannedSession(plannedSessionId);
 			throw new Error("Hub runtime did not return a session id.");
 		}
+		let manifest: SessionManifest;
+		try {
+			manifest = snapshot
+				? buildManifestFromSnapshot(snapshot, input)
+				: buildManifest(sessionId, input, session);
+		} catch (error) {
+			this.cleanupPlannedSession(plannedSessionId);
+			throw error;
+		}
 		if (sessionId !== plannedSessionId) {
 			this.cleanupPlannedSession(plannedSessionId);
 			this.registerPlannedSession(
@@ -912,9 +925,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 		return {
 			sessionId,
-			manifest: snapshot
-				? buildManifestFromSnapshot(snapshot, input)
-				: buildManifest(sessionId, input, session),
+			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
@@ -1074,31 +1085,45 @@ export class HubRuntimeHost implements RuntimeHost {
 			| RestoreSessionResult["checkpoint"]
 			| undefined;
 		if (!checkpoint) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
 			throw new Error("Hub checkpoint restore returned no checkpoint");
 		}
-		return {
-			sessionId: newSessionId,
-			startResult: newSessionId
-				? {
-						sessionId: newSessionId,
-						manifest: snapshot
-							? buildManifestFromSnapshot(
-									snapshot,
-									startConfig ?? ({} as StartSessionInput),
-								)
-							: buildManifest(
-									newSessionId,
-									startConfig ?? ({} as StartSessionInput),
-									session,
-								),
-						manifestPath: "",
-						messagesPath: "",
-						result: undefined,
-					}
-				: undefined,
-			messages,
-			checkpoint,
-		};
+		try {
+			return {
+				sessionId: newSessionId,
+				startResult: newSessionId
+					? {
+							sessionId: newSessionId,
+							manifest: snapshot
+								? buildManifestFromSnapshot(
+										snapshot,
+										startConfig ?? ({} as StartSessionInput),
+									)
+								: buildManifest(
+										newSessionId,
+										startConfig ?? ({} as StartSessionInput),
+										session,
+									),
+							manifestPath: "",
+							messagesPath: "",
+							result: undefined,
+						}
+					: undefined,
+				messages,
+				checkpoint,
+			};
+		} catch (error) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
+			throw error;
+		}
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {

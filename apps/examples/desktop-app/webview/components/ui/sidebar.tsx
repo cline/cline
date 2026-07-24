@@ -28,7 +28,9 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+// The collapsed desktop sidebar still owns the macOS title-bar controls when
+// the native title bar overlays the webview.
+const SIDEBAR_WIDTH_ICON = "4.5rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width";
 const SIDEBAR_MIN_WIDTH = 224;
