@@ -51,6 +51,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -608,6 +609,7 @@ class TelegramConnector extends ConnectorBase<
 		inputOptions: ConnectTelegramOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
 		if (
 			!inputOptions.botUsername &&
@@ -638,6 +640,7 @@ class TelegramConnector extends ConnectorBase<
 		const backgroundArgs = inputOptions.botUsername
 			? rawArgs
 			: [...rawArgs, "--bot-username", resolvedBotUsername];
+		context.setPersistenceArgs(backgroundArgs);
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
 		const staleState = this.removeStaleState(

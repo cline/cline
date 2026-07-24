@@ -8,10 +8,18 @@ export type ConnectStopResult = {
 	stoppedSessions: number;
 };
 
+export type ConnectRunContext = {
+	setPersistenceArgs: (args: string[]) => void;
+};
+
 export interface ConnectCommandDefinition {
 	name: string;
 	description: string;
-	run(args: string[], io: ConnectIo): Promise<number>;
+	run(
+		args: string[],
+		io: ConnectIo,
+		context: ConnectRunContext,
+	): Promise<number>;
 	showHelp(io: ConnectIo): void;
 	stopAll?(io: ConnectIo): Promise<ConnectStopResult>;
 }

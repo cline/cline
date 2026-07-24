@@ -2,9 +2,18 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConnectTelegramOptions } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONNECT_ALREADY_RUNNING_EXIT_CODE } from "../common";
 import { __test__, telegramConnector } from "./telegram";
+
+const mocks = vi.hoisted(() => ({
+	spawnDetachedConnector: vi.fn(),
+}));
+
+vi.mock("../common", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../common")>()),
+	spawnDetachedConnector: mocks.spawnDetachedConnector,
+}));
 
 const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
 	(
@@ -15,6 +24,11 @@ const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
 
 const originalClineDataDir = process.env.CLINE_DATA_DIR;
 const tempDataDirs: string[] = [];
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	mocks.spawnDetachedConnector.mockReturnValue(42);
+});
 
 function useTempClineDataDir(): string {
 	const dataDir = mkdtempSync(join(tmpdir(), "cline-telegram-test-"));
@@ -176,10 +190,14 @@ describe("telegramConnector", () => {
 		const errors: string[] = [];
 
 		await expect(
-			telegramConnector.run(["--bot-token", "123:test", "--cwd", "/tmp/work"], {
-				writeln: (text = "") => output.push(text),
-				writeErr: (text) => errors.push(text),
-			}),
+			telegramConnector.run(
+				["--bot-token", "123:test", "--cwd", "/tmp/work"],
+				{
+					writeln: (text = "") => output.push(text),
+					writeErr: (text) => errors.push(text),
+				},
+				{ setPersistenceArgs: vi.fn() },
+			),
 		).resolves.toBe(CONNECT_ALREADY_RUNNING_EXIT_CODE);
 
 		expect(fetchImpl).not.toHaveBeenCalled();
@@ -187,6 +205,43 @@ describe("telegramConnector", () => {
 		expect(output).toEqual([
 			`[telegram] connector already running pid=${process.pid} rpc=127.0.0.1:54321`,
 		]);
+	});
+
+	it("reports the resolved bot username in persistence args", async () => {
+		useTempClineDataDir();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						ok: true,
+						result: { username: "resolved_bot" },
+					}),
+				);
+			}),
+		);
+		const setPersistenceArgs = vi.fn();
+
+		await expect(
+			telegramConnector.run(
+				["--bot-token", "123:test", "--cwd", "/tmp/work"],
+				{
+					writeln: () => {},
+					writeErr: () => {},
+				},
+				{ setPersistenceArgs },
+			),
+		).resolves.toBe(0);
+
+		expect(setPersistenceArgs).toHaveBeenCalledWith([
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+			"--bot-username",
+			"resolved_bot",
+		]);
+		expect(mocks.spawnDetachedConnector).toHaveBeenCalled();
 	});
 });
 

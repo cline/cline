@@ -14,6 +14,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "./types";
 
@@ -42,6 +43,7 @@ export abstract class ConnectorBase<Options, State>
 		options: Options,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number>;
 
 	showHelp(io: ConnectIo): void {
@@ -51,7 +53,11 @@ export abstract class ConnectorBase<Options, State>
 		}
 	}
 
-	async run(rawArgs: string[], io: ConnectIo): Promise<number> {
+	async run(
+		rawArgs: string[],
+		io: ConnectIo,
+		context: ConnectRunContext,
+	): Promise<number> {
 		let options: Options;
 		try {
 			options = this.parseArgs(rawArgs);
@@ -64,7 +70,7 @@ export abstract class ConnectorBase<Options, State>
 			io.writeErr(message);
 			return 1;
 		}
-		return this.runWithOptions(options, rawArgs, io);
+		return this.runWithOptions(options, rawArgs, io, context);
 	}
 
 	protected parseArgs(rawArgs: string[]): Options {

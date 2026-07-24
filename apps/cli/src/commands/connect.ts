@@ -7,7 +7,11 @@ import {
 	CONNECT_ALREADY_RUNNING_EXIT_CODE,
 } from "../connectors/common";
 import { getConnector, listConnectors } from "../connectors/registry";
-import type { ConnectIo, ConnectStopResult } from "../connectors/types";
+import type {
+	ConnectIo,
+	ConnectRunContext,
+	ConnectStopResult,
+} from "../connectors/types";
 
 const HELP_FLAGS = new Set(["-h", "--help"]);
 const INTERACTIVE_FLAGS = new Set(["-i", "--interactive"]);
@@ -31,9 +35,6 @@ export async function stopAllConnectors(
 		stoppedProcesses += result.stoppedProcesses;
 		stoppedSessions += result.stoppedSessions;
 	}
-	if (executed > 0) {
-		disableConnectorAutostart();
-	}
 	return { stoppedProcesses, stoppedSessions, executed };
 }
 
@@ -44,6 +45,7 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 		io.writeln("[connect] no adapters support stop yet");
 		return 0;
 	}
+	disableConnectorAutostart();
 	io.writeln(
 		`[connect] stopped processes=${stoppedProcesses} sessions=${stoppedSessions}`,
 	);
@@ -81,7 +83,13 @@ export async function runConnectAdapter(
 		io.writeErr(`unknown connect adapter "${adapterName}"`);
 		return 1;
 	}
-	const exitCode = await connector.run(passthroughArgs, io);
+	let persistenceArgs = passthroughArgs;
+	const context: ConnectRunContext = {
+		setPersistenceArgs: (args) => {
+			persistenceArgs = [...args];
+		},
+	};
+	const exitCode = await connector.run(passthroughArgs, io, context);
 	if (exitCode === CONNECT_ALREADY_RUNNING_EXIT_CODE) {
 		return 0;
 	}
@@ -99,7 +107,7 @@ export async function runConnectAdapter(
 	) {
 		disableConnectorAutostart(connector.name);
 	} else if (exitCode === 0 && !isHelpInvocation && !isDetachedChild) {
-		persistConnectorConnection(connector.name, passthroughArgs);
+		persistConnectorConnection(connector.name, persistenceArgs);
 	}
 	return exitCode;
 }
