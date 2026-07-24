@@ -1,0 +1,45 @@
+{
+	"routerProfile": "cline-router",
+	"provider": "cline",
+	"globalBudgetUsd": 40,
+	"maxRunsPerModel": 3,
+	"timeoutSeconds": 1500,
+	"clineVersion": "3.0.46",
+	"models": [
+		{
+			"id": "moonshotai/kimi-k3",
+			"perTaskBudgetUsd": 5,
+			"perModelBudgetUsd": 15,
+			"pricing": {
+				"inputPerMTok": 3,
+				"cachedInputPerMTok": 0.3,
+				"outputPerMTok": 15
+			}
+		},
+		{
+			"id": "z-ai/glm-5.2",
+			"perTaskBudgetUsd": 4,
+			"perModelBudgetUsd": 10,
+			"pricing": {
+				"inputPerMTok": 1.4,
+				"cachedInputPerMTok": 0.26,
+				"outputPerMTok": 4.4
+			}
+		},
+		{
+			"id": "openai/gpt-5.4",
+			"perTaskBudgetUsd": 5,
+			"perModelBudgetUsd": 15,
+			"pricing": {
+				"inputPerMTok": 2.5,
+				"cachedInputPerMTok": 0.25,
+				"outputPerMTok": 15
+			}
+		}
+	],
+	"tasks": [
+		"01k6rkmyfgbwpvf7h81gh4pdgd-intercept-axios-error-handling",
+		"01k8251zmv88p0hztas8htr6hw-orpc-client-migration",
+		"01k6zz0nyj31znwsevx4sn6zb2-telegram-plugin-refactor"
+	]
+}
