@@ -15,6 +15,10 @@ permissions:
     contents: read # Needed to check out code
     pull-requests: read # Needed for changed-file detection on pull requests
 
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.event_name, github.ref) }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
     detect-changes:
         runs-on: ubuntu-latest
@@ -79,7 +83,7 @@ jobs:
 
     quality-checks:
         needs: detect-changes
-        if: needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true'
+        if: (github.event_name != 'pull_request' || !github.event.pull_request.draft) && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true')
         runs-on: ubuntu-latest
         name: Quality Checks
         defaults:

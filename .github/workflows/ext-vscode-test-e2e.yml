@@ -69,11 +69,15 @@ jobs:
         steps:
             - id: set-matrix
               run: |
-                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+                  if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                    echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+                  else
+                    echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"}]' >> $GITHUB_OUTPUT
+                  fi
 
     e2e:
         needs: [detect-changes, matrix_prep]
-        if: needs.detect-changes.outputs.e2e == 'true'
+        if: needs.detect-changes.outputs.e2e == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
         strategy:
             fail-fast: false
             matrix:
