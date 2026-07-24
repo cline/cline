@@ -235,9 +235,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// handleFocusChange is already provided by chatState
 
-	// Use message handlers hook
-	const messageHandlers = useMessageHandlers(messages, chatState)
-
 	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
 	const selectFilesAndImages = useCallback(async () => {
@@ -360,6 +357,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Use scroll behavior hook
 	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const chatStateWithScroll = {
+		...chatState,
+		isAtBottom: scrollBehavior.isAtBottom,
+		disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
+	}
+	const messageHandlers = useMessageHandlers(messages, chatStateWithScroll)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
@@ -394,7 +397,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 				{task && (
 					<MessagesArea
-						chatState={chatState}
+						chatState={chatStateWithScroll}
 						groupedMessages={groupedMessages}
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
@@ -406,7 +409,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				<ActionButtons
-					chatState={chatState}
+					chatState={chatStateWithScroll}
 					messageHandlers={messageHandlers}
 					messages={messages}
 					mode={mode}
@@ -414,7 +417,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				/>
 				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
-					chatState={chatState}
+					chatState={chatStateWithScroll}
 					messageHandlers={messageHandlers}
 					placeholderText={placeholderText}
 					scrollBehavior={scrollBehavior}

@@ -120,6 +120,38 @@ describe("useMessageHandlers — send routing", () => {
 		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
+	it("preserves the reading position when sending from above the bottom", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const disableAutoScrollRef = { current: true }
+		const chatState = makeChatState(completedConversation, {
+			isAtBottom: false,
+			disableAutoScrollRef,
+		})
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
+
+		await act(async () => {
+			await result.current.handleSendMessage("A follow-up", [], [])
+		})
+
+		expect(disableAutoScrollRef.current).toBe(true)
+	})
+
+	it("keeps live chat pinned when sending at the bottom", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const disableAutoScrollRef = { current: true }
+		const chatState = makeChatState(completedConversation, {
+			isAtBottom: true,
+			disableAutoScrollRef,
+		})
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
+
+		await act(async () => {
+			await result.current.handleSendMessage("A follow-up", [], [])
+		})
+
+		expect(disableAutoScrollRef.current).toBe(false)
+	})
+
 	it("routes the /smol alias to the condense RPC as well", async () => {
 		mockTurnState = { phase: "completed", seq: 7 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
