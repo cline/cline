@@ -1,5 +1,5 @@
-import { createTool } from "@cline/shared";
 import type { AgentTool, AgentToolContext } from "@cline/shared";
+import { createTool } from "@cline/shared";
 import { ComputerUseClient, type ComputerUseClientOptions } from "./client";
 import type { ComputerUseAction, ComputerUseCoordinate } from "./protocol";
 
@@ -100,7 +100,8 @@ const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
 			items: { type: "number" },
 			minItems: 4,
 			maxItems: 4,
-			description: "(x0, y0, x1, y1) region to zoom into, required for the zoom action.",
+			description:
+				"(x0, y0, x1, y1) region to zoom into, required for the zoom action.",
 		},
 	},
 	required: ["action"],
@@ -142,8 +143,12 @@ export async function createComputerUseTool(
 	const client = options.client ?? new ComputerUseClient(options);
 
 	const { displayWidthPx, displayHeightPx } =
-		options.displayWidthPx !== undefined && options.displayHeightPx !== undefined
-			? { displayWidthPx: options.displayWidthPx, displayHeightPx: options.displayHeightPx }
+		options.displayWidthPx !== undefined &&
+		options.displayHeightPx !== undefined
+			? {
+					displayWidthPx: options.displayWidthPx,
+					displayHeightPx: options.displayHeightPx,
+				}
 			: await client.getDisplayInfo().then((info) => ({
 					displayWidthPx: options.displayWidthPx ?? info.widthPx,
 					displayHeightPx: options.displayHeightPx ?? info.heightPx,
@@ -161,13 +166,20 @@ export async function createComputerUseTool(
 		// in-process tools; give this more room than the SDK's 30s default.
 		timeoutMs: 30_000,
 		retryable: false,
-		execute: async (input: unknown, _context: AgentToolContext) => {
+		execute: async (input: unknown, context: AgentToolContext) => {
 			const parsedInput = input as ComputerToolInput;
-			const response = await client.send(toComputerUseRequest(parsedInput));
+			// Forward the runtime's abort signal so a cancelled helper run
+			// stops waiting on the backend. An already-delivered input event
+			// cannot be recalled; the caller re-screenshots before trusting
+			// screen state after a cancellation.
+			const response = await client.send(toComputerUseRequest(parsedInput), {
+				signal: context.signal,
+			});
 
 			if (!response.ok) {
 				throw new Error(
-					response.error ?? `Computer-use action "${parsedInput.action}" failed`,
+					response.error ??
+						`Computer-use action "${parsedInput.action}" failed`,
 				);
 			}
 

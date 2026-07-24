@@ -1,6 +1,11 @@
-import { type AddressInfo, createServer, type Server, type Socket } from "node:net";
+import {
+	type AddressInfo,
+	createServer,
+	type Server,
+	type Socket,
+} from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { ComputerUseClient } from "./client";
+import { ComputerUseClient, type ComputerUseClientEvent } from "./client";
 import type { ComputerUseResponse } from "./protocol";
 
 /**
@@ -90,7 +95,10 @@ describe("ComputerUseClient", () => {
 		server = started.server;
 
 		const client = new ComputerUseClient({ port: started.port });
-		const response = await client.send({ action: "left_click", coordinate: [1, 2] });
+		const response = await client.send({
+			action: "left_click",
+			coordinate: [1, 2],
+		});
 
 		expect(response.ok).toBe(false);
 		expect(response.error).toBe("backend exploded");
@@ -141,6 +149,136 @@ describe("ComputerUseClient", () => {
 		await expect(client.send({ action: "screenshot" })).rejects.toThrow();
 	});
 
+	it("notifies the observer with a matched requested/completed pair", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+			text: "done",
+		}));
+		server = started.server;
+
+		const events: ComputerUseClientEvent[] = [];
+		const client = new ComputerUseClient({
+			port: started.port,
+			observer: (event) => events.push(event),
+		});
+		await client.send({ action: "screenshot" }, { actionId: "act_test" });
+
+		expect(events.map((event) => event.type)).toEqual([
+			"action_requested",
+			"action_completed",
+		]);
+		expect(events.every((event) => event.actionId === "act_test")).toBe(true);
+		client.close();
+	});
+
+	it("cancels a pending request via AbortSignal with one terminal event", async () => {
+		const started = await startFakeBackend(() => {
+			throw new Error("never called: server intentionally does not respond");
+		});
+		server = started.server;
+		server.removeAllListeners("connection");
+		server.on("connection", (socket) => {
+			socket.on("data", () => {
+				/* intentionally never respond */
+			});
+		});
+
+		const events: ComputerUseClientEvent[] = [];
+		const client = new ComputerUseClient({
+			port: started.port,
+			// Longer than the test's abort so the timeout must NOT also fire.
+			requestTimeoutMs: 5_000,
+			observer: (event) => events.push(event),
+		});
+		const controller = new AbortController();
+		const sendPromise = client.send(
+			{ action: "left_click", coordinate: [1, 2] },
+			{ signal: controller.signal },
+		);
+		controller.abort(new Error("driver interrupted"));
+
+		await expect(sendPromise).rejects.toThrow("driver interrupted");
+		expect(events.map((event) => event.type)).toEqual([
+			"action_requested",
+			"action_cancelled",
+		]);
+		client.close();
+	});
+
+	it("rejects immediately when the signal is already aborted", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+		}));
+		server = started.server;
+
+		const client = new ComputerUseClient({ port: started.port });
+		const controller = new AbortController();
+		controller.abort("stale run");
+		await expect(
+			client.send({ action: "screenshot" }, { signal: controller.signal }),
+		).rejects.toThrow("stale run");
+		client.close();
+	});
+
+	it("swallows observer errors without breaking the action path", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+			text: "ok",
+		}));
+		server = started.server;
+
+		const client = new ComputerUseClient({
+			port: started.port,
+			observer: () => {
+				throw new Error("observer boom");
+			},
+		});
+		const response = await client.send({ action: "screenshot" });
+		expect(response.ok).toBe(true);
+		client.close();
+	});
+
+	it("emits exactly one terminal event when a timeout races the response", async () => {
+		let respondLate: (() => void) | undefined;
+		const started = await startFakeBackend(() => {
+			throw new Error("never called: connection handler replaced below");
+		});
+		server = started.server;
+		server.removeAllListeners("connection");
+		server.on("connection", (socket) => {
+			socket.setEncoding("utf8");
+			socket.on("data", (chunk: string) => {
+				const request = JSON.parse(chunk.trim()) as { id: number };
+				respondLate = () => {
+					socket.write(`${JSON.stringify({ id: request.id, ok: true })}\n`);
+				};
+			});
+		});
+
+		const events: ComputerUseClientEvent[] = [];
+		const client = new ComputerUseClient({
+			port: started.port,
+			requestTimeoutMs: 100,
+			observer: (event) => events.push(event),
+		});
+		await expect(client.send({ action: "screenshot" })).rejects.toThrow(
+			/timed out/,
+		);
+		// Deliver the response after the timeout already settled the request.
+		respondLate?.();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		const terminal = events.filter(
+			(event) => event.type !== "action_requested",
+		);
+		expect(terminal).toHaveLength(1);
+		expect(terminal[0]?.type).toBe("action_failed");
+		client.close();
+	});
+
 	it("times out a request the backend never answers", async () => {
 		const started = await startFakeBackend(() => {
 			throw new Error("never called: server intentionally does not respond");
@@ -158,9 +296,9 @@ describe("ComputerUseClient", () => {
 			port: started.port,
 			requestTimeoutMs: 200,
 		});
-		await expect(client.send({ action: "wait", durationSeconds: 1 })).rejects.toThrow(
-			/timed out/,
-		);
+		await expect(
+			client.send({ action: "wait", durationSeconds: 1 }),
+		).rejects.toThrow(/timed out/);
 		client.close();
 	});
 });
