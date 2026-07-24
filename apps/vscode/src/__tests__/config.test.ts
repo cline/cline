@@ -18,12 +18,15 @@ mock.module("node:os", osMock)
 import os from "os"
 import { ClineConfigurationError, ClineEndpoint, ClineEnv, Environment } from "../config"
 
+const originalLocalApiBaseUrl = process.env.CLINE_LOCAL_API_BASE_URL
+
 describe("ClineEndpoint configuration", () => {
 	let sandbox: sinon.SinonSandbox
 	let tempDir: string
 	let originalHomedir: typeof os.homedir
 
 	beforeEach(async () => {
+		delete process.env.CLINE_LOCAL_API_BASE_URL
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `config-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
@@ -43,6 +46,11 @@ describe("ClineEndpoint configuration", () => {
 	})
 
 	afterEach(async () => {
+		if (originalLocalApiBaseUrl === undefined) {
+			delete process.env.CLINE_LOCAL_API_BASE_URL
+		} else {
+			process.env.CLINE_LOCAL_API_BASE_URL = originalLocalApiBaseUrl
+		}
 		sandbox.restore()
 		// Reset singleton state
 		;(ClineEndpoint as any)._instance = null
@@ -115,6 +123,57 @@ describe("ClineEndpoint configuration", () => {
 
 			const config = ClineEndpoint.config
 			config.appBaseUrl.should.equal("https://proxy.enterprise.com/cline/app")
+		})
+	})
+
+	describe("local Core API override", () => {
+		it("uses the isolated auto-router port in the local environment", async () => {
+			process.env.CLINE_LOCAL_API_BASE_URL = "http://localhost:17777"
+			await ClineEndpoint.initialize(tempDir)
+			ClineEnv.setEnvironment("local")
+
+			ClineEndpoint.config.apiBaseUrl.should.equal("http://localhost:17777")
+		})
+
+		it("accepts loopback addresses on the standard local port", async () => {
+			process.env.CLINE_LOCAL_API_BASE_URL = "http://127.0.0.1:7777/"
+			await ClineEndpoint.initialize(tempDir)
+			ClineEnv.setEnvironment("local")
+
+			ClineEndpoint.config.apiBaseUrl.should.equal("http://127.0.0.1:7777")
+		})
+
+		it("ignores unsafe or unsupported URLs", async () => {
+			const invalidValues = [
+				"https://localhost:17777",
+				"http://example.com:17777",
+				"http://user:password@localhost:17777",
+				"http://localhost:17777/api",
+				"http://localhost:17778",
+				"not-a-url",
+			]
+
+			for (const value of invalidValues) {
+				;(ClineEndpoint as any)._instance = null
+				;(ClineEndpoint as any)._initialized = false
+				process.env.CLINE_LOCAL_API_BASE_URL = value
+
+				await ClineEndpoint.initialize(tempDir)
+				ClineEnv.setEnvironment("local")
+
+				ClineEndpoint.config.apiBaseUrl.should.equal("http://localhost:7777")
+			}
+		})
+
+		it("does not affect staging or production endpoints", async () => {
+			process.env.CLINE_LOCAL_API_BASE_URL = "http://localhost:17777"
+			await ClineEndpoint.initialize(tempDir)
+
+			ClineEnv.setEnvironment("staging")
+			ClineEndpoint.config.apiBaseUrl.should.equal("https://core-api.staging.int.cline.bot")
+
+			ClineEnv.setEnvironment("production")
+			ClineEndpoint.config.apiBaseUrl.should.equal("https://api.cline.bot")
 		})
 	})
 

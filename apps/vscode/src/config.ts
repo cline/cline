@@ -15,6 +15,41 @@ interface EndpointsFileSchema {
 	mcpBaseUrl: string
 }
 
+const DEFAULT_LOCAL_API_BASE_URL = "http://localhost:7777"
+const ALLOWED_LOCAL_API_PORTS = new Set(["7777", "17777"])
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"])
+
+/**
+ * Resolve an optional development-only Core API override.
+ *
+ * This deliberately accepts only the two local Core ports used by the normal
+ * development stack and the isolated auto-router launcher. Invalid values are
+ * ignored so they cannot redirect extension credentials or traffic away from
+ * loopback.
+ */
+function resolveLocalApiBaseUrl(rawValue: string | undefined): string {
+	if (!rawValue) {
+		return DEFAULT_LOCAL_API_BASE_URL
+	}
+
+	try {
+		const url = new URL(rawValue)
+		const isAllowed =
+			url.protocol === "http:" &&
+			LOOPBACK_HOSTNAMES.has(url.hostname) &&
+			ALLOWED_LOCAL_API_PORTS.has(url.port) &&
+			url.username === "" &&
+			url.password === "" &&
+			(url.pathname === "" || url.pathname === "/") &&
+			url.search === "" &&
+			url.hash === ""
+
+		return isAllowed ? url.origin : DEFAULT_LOCAL_API_BASE_URL
+	} catch {
+		return DEFAULT_LOCAL_API_BASE_URL
+	}
+}
+
 /**
  * Error thrown when the Cline configuration file exists but is invalid.
  * This error prevents Cline from starting to avoid misconfiguration in enterprise environments.
@@ -317,7 +352,7 @@ class ClineEndpoint {
 				return {
 					environment: Environment.local,
 					appBaseUrl: "http://localhost:3000",
-					apiBaseUrl: "http://localhost:7777",
+					apiBaseUrl: resolveLocalApiBaseUrl(process.env.CLINE_LOCAL_API_BASE_URL),
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
 				}
 			default:

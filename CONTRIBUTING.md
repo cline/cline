@@ -96,18 +96,20 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     requires a backend that resolves the virtual `cline/auto` and
     `cline-pass/auto` IDs before normal model lookup.
 
-    With the local Core Platform API running on port 7777, launch the extension
+    With the isolated Core Platform API running on port 17777, launch the extension
     host from `apps/vscode`:
 
     ```bash
     CLINE_ENVIRONMENT=local \
+      CLINE_LOCAL_API_BASE_URL=http://localhost:17777 \
       CLINE_AUTO_MODEL_PICKER_ENABLED=true \
       CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true \
       bash scripts/run-extension-host.sh
     ```
 
     Select the **Cline** provider in the launched Extension Development Host.
-    The local environment automatically targets `http://localhost:7777`.
+    The loopback-only override targets the isolated Core launcher on port
+    `17777`; omit it to use the standard local Core port `7777`.
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
