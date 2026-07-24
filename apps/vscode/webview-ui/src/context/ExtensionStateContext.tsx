@@ -268,6 +268,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
 		clineMessages: [],
+		pluginSlashCommands: [],
 		queuedPrompts: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,

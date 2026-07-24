@@ -20,7 +20,7 @@ import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import { type ClineApiReqInfo, type ClineMessage, COMMAND_CANCEL_TOKEN, type ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
@@ -73,6 +73,7 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
+import type { PromptResolutionOptions } from "./sdk-prompt-resolution"
 import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
@@ -449,7 +450,7 @@ export class Controller {
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			rebuilds: this.sessionRebuilds,
 			onAutoContinueStarting: () => {
 				this.turnStateTracker.set("streaming")
@@ -512,7 +513,7 @@ export class Controller {
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthErrorWithTelemetry(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
@@ -561,7 +562,7 @@ export class Controller {
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
@@ -634,9 +635,7 @@ export class Controller {
 		this.scheduleProviderConfigStatePost()
 
 		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
-			this.sessions
-				?.updateActiveSessionModel(event.selection.modelId)
-				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
+			this.providerChanges?.handleModelSelectionChanged()
 		}
 	}
 
@@ -814,10 +813,93 @@ export class Controller {
 	 * body. Mirrors the CLI's `buildUserInputMessage`. Returns the input unchanged
 	 * if it is not a known command or expansion fails.
 	 */
-	private async resolveSlashCommands(text: string): Promise<string> {
+	private async resolveSlashCommands(text: string, options: PromptResolutionOptions = {}): Promise<string> {
 		if (this.isDisposed) {
 			return text
 		}
+		const pluginMatch = text.match(/^\s*\/([^\s]+)(?:\s+([\s\S]*))?$/)
+		const activeSession = this.sessions.getActiveSession()
+		if (pluginMatch?.[1] && activeSession) {
+			if (options.pluginCommands === "reject") {
+				const commandName = pluginMatch[1].replace(/^\//, "").toLowerCase()
+				const commands = await activeSession.sdkHost.listSessionCommands(activeSession.sessionId).catch(() => [])
+				if (commands.some((command) => command.name.toLowerCase() === commandName)) {
+					this.messages.appendAndEmit(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "text",
+								text: "Plugin commands can run after the current turn finishes.",
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId: activeSession.sessionId, status: "running" } },
+					)
+					await this.postStateToWebview()
+					return COMMAND_CANCEL_TOKEN
+				}
+			}
+			if (options.pluginCommands === "execute")
+				try {
+					const result = await activeSession.sdkHost.executeSessionCommand(
+						activeSession.sessionId,
+						pluginMatch[1],
+						pluginMatch[2]?.trim() ?? "",
+					)
+					if (result.handled) {
+						if (result.reply) {
+							this.messages.appendAndEmit(
+								[{ ts: Date.now(), type: "say", say: "text", text: result.reply, partial: false }],
+								{ type: "status", payload: { sessionId: activeSession.sessionId, status: "running" } },
+							)
+						}
+						if (!result.submitPrompt && options.hasAttachments) {
+							// Command handlers accept only text and this command ends the
+							// turn, so attachments on this submission never reach the
+							// plugin or the model. Say so rather than dropping them silently.
+							this.messages.appendAndEmit(
+								[
+									{
+										ts: Date.now(),
+										type: "say",
+										say: "text",
+										text: "Attached images and files were not passed to the plugin command. Send them in a separate message.",
+										partial: false,
+									},
+								],
+								{ type: "status", payload: { sessionId: activeSession.sessionId, status: "running" } },
+							)
+						}
+						if (!result.submitPrompt) {
+							this.sessions.setRunning(false)
+							this.turnStateTracker.set("completed")
+							await this.postStateToWebview()
+						}
+						return result.submitPrompt ?? COMMAND_CANCEL_TOKEN
+					}
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error)
+					Logger.warn("[SdkController] Plugin command failed:", error)
+					this.messages.appendAndEmit(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Plugin command failed: ${message}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId: activeSession.sessionId, status: "error" } },
+					)
+					this.sessions.setRunning(false)
+					this.turnStateTracker.set("error")
+					await this.postStateToWebview()
+					return COMMAND_CANCEL_TOKEN
+				}
+		}
+
 		try {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
@@ -857,8 +939,9 @@ export class Controller {
 	 * and does not understand the webview's `@/path` format or special
 	 * mentions, so the LLM would otherwise never see the referenced content.
 	 */
-	private async resolveContextMentions(text: string): Promise<string> {
-		const withCommands = await this.resolveSlashCommands(text)
+	private async resolveContextMentions(text: string, options?: PromptResolutionOptions): Promise<string> {
+		const withCommands = await this.resolveSlashCommands(text, options)
+		if (withCommands === COMMAND_CANCEL_TOKEN) return withCommands
 
 		// Quick check: skip mention parsing if there are no @ mentions
 		if (!mentionRegexGlobal.test(withCommands)) {
@@ -1345,7 +1428,13 @@ export class Controller {
 				return
 			}
 
-			const resolvedPrompt = await this.resolveContextMentions(editedText)
+			// An edited message is a fresh user submission, so plugin commands
+			// execute here the same as in initTask/askResponse. The send below
+			// already skips COMMAND_CANCEL_TOKEN results.
+			const resolvedPrompt = await this.resolveContextMentions(editedText, {
+				pluginCommands: "execute",
+				hasAttachments: !!(input.images?.length || input.files?.length),
+			})
 			const startInput = {
 				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
 				initialMessages,
@@ -1407,7 +1496,9 @@ export class Controller {
 			])
 			await this.postStateToWebview()
 
-			this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+			if (resolvedPrompt !== COMMAND_CANCEL_TOKEN) {
+				this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+			}
 		} finally {
 			await tempHost?.dispose("editMessageAndRegenerate")
 		}
@@ -1948,6 +2039,19 @@ export class Controller {
 					Logger.error("[SdkController] Failed to list pending prompts for webview state:", error)
 				}
 			}
+			let pluginSlashCommands: ExtensionState["pluginSlashCommands"] = []
+			if (activeSession) {
+				try {
+					pluginSlashCommands = (await activeSession.sdkHost.listSessionCommands(activeSession.sessionId)).map(
+						(command) => ({
+							...command,
+							section: "plugin" as const,
+						}),
+					)
+				} catch (error) {
+					Logger.warn("[SdkController] Failed to list active session plugin commands:", error)
+				}
+			}
 
 			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
 			// from the SAME counter that stamps messages. This lets the webview ignore stale
@@ -1962,6 +2066,7 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
+				pluginSlashCommands,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

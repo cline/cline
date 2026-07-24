@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import { type ClineMessage, COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkModeCoordinator, type SdkModeCoordinatorOptions } from "./sdk-mode-coordinator"
@@ -185,6 +185,34 @@ describe("SdkModeCoordinator", () => {
 			],
 			expect.anything(),
 		)
+	})
+
+	it("executes plugin commands in the typed continuation and skips the send when handled", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+		options.resolveContextMentions.mockResolvedValueOnce(COMMAND_CANCEL_TOKEN)
+
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "/goal ship it",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(true)
+
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("/goal ship it", {
+			pluginCommands: "execute",
+			hasAttachments: false,
+		})
+		// The command was handled by the plugin, so nothing is echoed or sent.
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
 
 	it("consumes attachment-only chatContent and sends it with the canned prompt", async () => {

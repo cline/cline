@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
+	buildSubprocessSandboxEnv,
 	CLINE_JS_RUNTIME_PATH_ENV,
 	resolveSubprocessRuntimeExecutable,
 } from "./subprocess-sandbox";
 
 describe("SubprocessSandbox runtime resolution", () => {
+	it("applies child environment overrides and removes undefined keys", () => {
+		expect(
+			buildSubprocessSandboxEnv(
+				{ KEEP: "yes", REMOVE: "secret", CLINE_BUILD_ENV: "test" },
+				{ REMOVE: undefined, ADDED: "value" },
+			),
+		).toMatchObject({ KEEP: "yes", ADDED: "value", CLINE_BUILD_ENV: "development" });
+		expect(
+			buildSubprocessSandboxEnv(
+				{ KEEP: "yes", REMOVE: "secret", CLINE_BUILD_ENV: "test" },
+				{ REMOVE: undefined },
+			).REMOVE,
+		).toBeUndefined();
+	});
 	it("uses process execPath when it is a JavaScript runtime", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({

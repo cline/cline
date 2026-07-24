@@ -105,6 +105,10 @@ export interface LocalRuntimeStartOptions {
 	userInstructionService?: import("../../extensions/config").UserInstructionConfigService;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	onTeamRestored?: () => void;
+	pluginRuntime?: {
+		executable?: string;
+		env?: Record<string, string | undefined>;
+	};
 }
 
 export interface StartSessionInput {
@@ -224,6 +228,38 @@ export interface SessionAccumulatedUsage {
 export interface SessionUsageSummary {
 	usage?: SessionAccumulatedUsage;
 	aggregateUsage?: SessionAccumulatedUsage;
+}
+
+/** A command contributed by an extension attached to one active session. */
+export interface SessionCommand {
+	/** Normalized command name without a leading slash. */
+	name: string;
+	description?: string;
+}
+
+export interface ExecuteSessionCommandInput {
+	sessionId: string;
+	/** Command name with or without a leading slash. Matching is case-insensitive. */
+	name: string;
+	/** Text following the command name. */
+	input: string;
+}
+
+export type ExecuteSessionCommandResult =
+	| { handled: false }
+	| { handled: true; reply?: string; submitPrompt?: string };
+
+/**
+ * Session commands belong to the same initialized extension registry as tools,
+ * hooks, and rules. Hosts must not rediscover plugins to implement this API.
+ */
+export interface SessionCommandsServiceApi {
+	list(sessionId: string): Promise<SessionCommand[]>;
+	execute(input: ExecuteSessionCommandInput): Promise<ExecuteSessionCommandResult>;
+}
+
+export interface SessionCommandsRuntimeService {
+	readonly sessionCommands: SessionCommandsServiceApi;
 }
 
 export interface PendingPromptMutationResult {

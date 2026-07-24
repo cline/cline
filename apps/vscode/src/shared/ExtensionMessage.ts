@@ -13,6 +13,7 @@ import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
 import { OnboardingModelGroup } from "./proto/cline/state"
+import type { SlashCommand } from "./slashCommands"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -46,6 +47,8 @@ export interface ExtensionState {
 	preferredLanguage?: string
 	mode: Mode
 	clineMessages: ClineMessage[]
+	/** Commands contributed by plugins attached to the active SDK session. */
+	pluginSlashCommands?: SlashCommand[]
 	checkpointRestoreInput?: {
 		text: string
 		images?: string[]

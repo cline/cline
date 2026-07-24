@@ -267,6 +267,13 @@ export interface SessionRuntimeOrchestratorDeps {
 /** Connection overrides applied via `updateConnection`. */
 export type ConnectionOverrides = ConnectionUpdate;
 
+function normalizeExtensionCommandName(name: string): string {
+	const trimmed = name.trim();
+	return (trimmed.startsWith("/") ? trimmed.slice(1) : trimmed)
+		.trim()
+		.toLowerCase();
+}
+
 // =============================================================================
 // SessionRuntime orchestrator
 // =============================================================================
@@ -311,6 +318,7 @@ export class SessionRuntime {
 		Message[]
 	>;
 	private extensionsInitialized = false;
+	private extensionsInitialization?: Promise<void>;
 	private readonly listeners = new Set<SessionEventListener>();
 	private readonly createAgentRuntimeImpl: (
 		config: Parameters<typeof createAgentRuntime>[0],
@@ -480,6 +488,64 @@ export class SessionRuntime {
 	 */
 	getExtensionRegistry(): AgentExtensionRegistry<AgentTool, Message[]> {
 		return this.contributionRegistry.getRegistrySnapshot();
+	}
+
+	/**
+	 * Return commands from this session's authoritative extension registry.
+	 * Calling this before the first model run initializes extensions once; later
+	 * calls reuse the same registry and plugin process as tools and hooks.
+	 */
+	async listExtensionCommands(): Promise<
+		Array<{ name: string; description?: string }>
+	> {
+		await this.ensureExtensionsInitialized();
+		const commands = new Map<string, { name: string; description?: string }>();
+		for (const command of this.contributionRegistry.getRegistrySnapshot()
+			.commands) {
+			if (typeof command.handler !== "function") continue;
+			const name = normalizeExtensionCommandName(command.name);
+			if (!name) continue;
+			commands.set(name, {
+				name,
+				...(command.description ? { description: command.description } : {}),
+			});
+		}
+		return [...commands.values()];
+	}
+
+	async executeExtensionCommand(
+		name: string,
+		input: string,
+	): Promise<
+		| { handled: false }
+		| { handled: true; reply?: string; submitPrompt?: string }
+	> {
+		await this.ensureExtensionsInitialized();
+		const normalizedName = normalizeExtensionCommandName(name);
+		if (!normalizedName) return { handled: false };
+		const command = [
+			...this.contributionRegistry.getRegistrySnapshot().commands,
+		]
+			.reverse()
+			.find(
+				(entry) =>
+					normalizeExtensionCommandName(entry.name) === normalizedName &&
+					typeof entry.handler === "function",
+			);
+		if (!command?.handler) return { handled: false };
+
+		const result = await command.handler(input);
+		if (typeof result === "string") {
+			const reply = result.trim();
+			return reply ? { handled: true, reply } : { handled: true };
+		}
+		const reply = result?.reply?.trim();
+		const submitPrompt = result?.submitPrompt?.trim();
+		return {
+			handled: true,
+			...(reply ? { reply } : {}),
+			...(submitPrompt ? { submitPrompt } : {}),
+		};
 	}
 
 	/** Append additional tools to every subsequent turn's runtime config. */
@@ -939,26 +1005,36 @@ export class SessionRuntime {
 	 * Idempotent: subsequent calls are no-ops once the registry has
 	 * been activated.
 	 */
-	private async ensureExtensionsInitialized(): Promise<void> {
+	private ensureExtensionsInitialized(): Promise<void> {
 		if (this.extensionsInitialized) {
-			return;
+			return Promise.resolve();
 		}
-		try {
-			await this.contributionRegistry.initialize({
-				tolerateSetupErrors: this.config.hookErrorMode !== "throw",
-			});
-		} catch (error) {
-			if (this.config.hookErrorMode === "throw") {
-				throw error;
+		this.extensionsInitialization ??= (async () => {
+			try {
+				await this.contributionRegistry.initialize({
+					tolerateSetupErrors: this.config.hookErrorMode !== "throw",
+				});
+			} catch (error) {
+				if (this.config.hookErrorMode === "throw") {
+					throw error;
+				}
+				this.emitLegacyEvent({
+					type: "error",
+					error: error instanceof Error ? error : new Error(String(error)),
+					recoverable: true,
+					iteration: 0,
+				});
 			}
-			this.emitLegacyEvent({
-				type: "error",
-				error: error instanceof Error ? error : new Error(String(error)),
-				recoverable: true,
-				iteration: 0,
-			});
-		}
-		this.extensionsInitialized = true;
+			this.extensionsInitialized = true;
+		})().catch((error) => {
+			// Only the hookErrorMode === "throw" path reaches here. Drop the
+			// cached rejection so a later call retries instead of failing the
+			// whole session lifetime on one transient setup error. Concurrent
+			// callers still share the in-flight attempt via the cached promise.
+			this.extensionsInitialization = undefined;
+			throw error;
+		});
+		return this.extensionsInitialization;
 	}
 
 	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {

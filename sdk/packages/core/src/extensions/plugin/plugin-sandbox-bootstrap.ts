@@ -22,6 +22,13 @@ import {
 	type PluginTargeting,
 } from "./plugin-targeting";
 
+if (
+	process.env.CLINE_PLUGIN_RUNTIME_EXPECT_NODE === "1" &&
+	"bun" in process.versions
+) {
+	throw new Error("Plugin runtime artifact test must execute under Node");
+}
+
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
 // ---------------------------------------------------------------------------

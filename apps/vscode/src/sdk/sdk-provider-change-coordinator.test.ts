@@ -80,6 +80,16 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
 	})
 
+	it("rebuilds the session when the active model selection changes", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleModelSelectionChanged()
+
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+	})
+
 	it("updates the task id when the replacement session id changes", async () => {
 		const activeSession = makeActiveSession()
 		const task = { taskId: "old-session" }

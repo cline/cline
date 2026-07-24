@@ -236,6 +236,8 @@ export interface ResolveAndLoadAgentPluginsOptions
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
+	runtimeExecutable?: string;
+	env?: Record<string, string | undefined>;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 	/**
 	 * Structured workspace and git metadata. Forwarded to sandboxed plugins
@@ -293,6 +295,8 @@ export async function resolveAndLoadAgentPlugins(
 		importTimeoutMs: options.importTimeoutMs,
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
+		runtimeExecutable: options.runtimeExecutable,
+		env: options.env,
 		onEvent: options.onEvent,
 		providerId: options.providerId,
 		modelId: options.modelId,

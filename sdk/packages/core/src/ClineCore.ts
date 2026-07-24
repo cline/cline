@@ -8,6 +8,7 @@ import {
 } from "./cline-core/automation";
 import {
 	createClineCorePendingPromptsApi,
+	createClineCoreSessionCommandsApi,
 	createClineCoreSettingsApi,
 	type RuntimeHostServiceExtensions,
 } from "./cline-core/runtime-services";
@@ -41,6 +42,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
+	SessionCommandsServiceApi,
 	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
@@ -99,6 +101,7 @@ export class ClineCore {
 	readonly settings: ClineCoreSettingsApi;
 	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
+	readonly sessionCommands: SessionCommandsServiceApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly capabilities: RuntimeCapabilities | undefined;
@@ -137,6 +140,7 @@ export class ClineCore {
 		this.featureFlags = featureFlags;
 		this.settings = createClineCoreSettingsApi(host);
 		this.pendingPrompts = createClineCorePendingPromptsApi(host);
+		this.sessionCommands = createClineCoreSessionCommandsApi(host);
 		this.automation = new ClineCoreAutomationController(() => {
 			if (!this.automationService) {
 				throw new Error(

@@ -3,6 +3,8 @@ import type {
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
+	SessionCommandsRuntimeService,
+	SessionCommandsServiceApi,
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
 } from "../runtime/host/runtime-host";
@@ -28,6 +30,7 @@ export type RuntimeHostServiceExtensions = RuntimeHost &
 	Partial<
 		PendingPromptsRuntimeService &
 			SessionUsageRuntimeService &
+			SessionCommandsRuntimeService &
 			SessionConnectionRuntimeService &
 			SessionModelRuntimeService
 	>;
@@ -72,6 +75,26 @@ export function createClineCorePendingPromptsApi(
 		},
 		delete(input) {
 			return getService().delete(input);
+		},
+	};
+}
+
+export function createClineCoreSessionCommandsApi(
+	host: RuntimeHost,
+): SessionCommandsServiceApi {
+	function getService(): SessionCommandsServiceApi {
+		const service = (host as RuntimeHostServiceExtensions).sessionCommands;
+		if (!service) {
+			throw new Error("Session command service is not available.");
+		}
+		return service;
+	}
+	return {
+		list(sessionId) {
+			return getService().list(sessionId);
+		},
+		execute(input) {
+			return getService().execute(input);
 		},
 	};
 }

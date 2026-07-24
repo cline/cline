@@ -152,6 +152,50 @@ describe("ClineCore", () => {
 		}
 	});
 
+	it("delegates session command listing and execution to the runtime host", async () => {
+		const sessionCommands = {
+			list: vi.fn(async () => [{ name: "goal", description: "Set a goal" }]),
+			execute: vi.fn(async () => ({ handled: true as const, reply: "done" })),
+		};
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(),
+			runTurn: vi.fn(),
+			restoreSession: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			updateSessionCompactionState: vi.fn(),
+			readSessionCompactionState: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			sessionCommands,
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		expect(await core.sessionCommands.list("session-1")).toEqual([
+			{ name: "goal", description: "Set a goal" },
+		]);
+		expect(
+			await core.sessionCommands.execute({
+				sessionId: "session-1",
+				name: "goal",
+				input: "ship",
+			}),
+		).toEqual({ handled: true, reply: "done" });
+		expect(sessionCommands.execute).toHaveBeenCalledWith({
+			sessionId: "session-1",
+			name: "goal",
+			input: "ship",
+		});
+	});
+
 	it("applies start-session bootstraps before delegating to the host", async () => {
 		const listeners: Array<
 			(event: { type: string; payload: { sessionId: string } }) => void

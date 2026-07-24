@@ -1,7 +1,7 @@
 import { getProviderAuthStorageId } from "@cline/core"
 import { createSessionId } from "@cline/shared"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import { type ClineMessage, COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
@@ -10,6 +10,7 @@ import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import type { PromptResolutionOptions } from "./sdk-prompt-resolution"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
@@ -51,7 +52,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	getWorkspaceRoot: () => Promise<string>
 	createTempSessionHost: () => Promise<SdkSessionHost>
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
-	resolveContextMentions: (text: string) => Promise<string>
+	resolveContextMentions: (text: string, options?: PromptResolutionOptions) => Promise<string>
 	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
@@ -143,8 +144,13 @@ export class SdkTaskStartCoordinator {
 
 			if (prompt?.trim() || images?.length || files?.length) {
 				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(prompt || "")
-				this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
+				const resolvedTask = await this.options.resolveContextMentions(prompt || "", {
+					pluginCommands: "execute",
+					hasAttachments: !!(images?.length || files?.length),
+				})
+				if (resolvedTask !== COMMAND_CANCEL_TOKEN) {
+					this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
+				}
 			}
 
 			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)

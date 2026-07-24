@@ -1,11 +1,12 @@
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
-import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import { type ClineMessage, COMMAND_CANCEL_TOKEN, type TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import type { PromptResolutionOptions } from "./sdk-prompt-resolution"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
@@ -29,7 +30,7 @@ export interface SdkFollowupCoordinatorOptions {
 	getWorkspaceRoot: () => Promise<string>
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
-	resolveContextMentions: (text: string) => Promise<string>
+	resolveContextMentions: (text: string, options?: PromptResolutionOptions) => Promise<string>
 	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
@@ -95,16 +96,18 @@ export class SdkFollowupCoordinator {
 			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 		}
 
-		this.options.sessions.setRunning(true)
 		if (!shouldQueue) {
+			this.options.sessions.setRunning(true)
 			this.emitUserFeedback(sessionId, prompt, images, files)
-		}
-
-		if (!shouldQueue) {
 			this.options.resetMessageTranslator()
 		}
-
-		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+		const resolvedPrompt = prompt
+			? await this.options.resolveContextMentions(prompt, {
+					pluginCommands: shouldQueue ? "reject" : "execute",
+					hasAttachments: !!(images?.length || files?.length),
+				})
+			: ""
+		if (resolvedPrompt === COMMAND_CANCEL_TOKEN) return
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
 	}
 
@@ -200,8 +203,13 @@ export class SdkFollowupCoordinator {
 				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
 				: "[TASK RESUMPTION] Please continue where you left off.")
 
-		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
-		this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
+		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt, {
+			pluginCommands: "execute",
+			hasAttachments: !!(images?.length || files?.length),
+		})
+		if (resolvedPrompt !== COMMAND_CANCEL_TOKEN) {
+			this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
+		}
 	}
 
 	private emitUserFeedback(sessionId: string, prompt?: string, images?: string[], files?: string[]): void {

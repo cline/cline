@@ -125,6 +125,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionCommandsServiceApi,
 	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
@@ -224,6 +225,7 @@ export interface LocalRuntimeHostOptions {
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly sessionCommands: SessionCommandsServiceApi;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
@@ -285,6 +287,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 				this.pendingPromptsController.list(input.sessionId),
 			update: async (input) => this.pendingPromptsController.update(input),
 			delete: async (input) => this.pendingPromptsController.delete(input),
+		};
+		this.sessionCommands = {
+			list: async (sessionId) =>
+				this.getSessionOrThrow(sessionId).agent.listExtensionCommands(),
+			execute: async (input) =>
+				this.getSessionOrThrow(input.sessionId).agent.executeExtensionCommand(
+					input.name,
+					input.input,
+				),
 		};
 		this.eventBridge = new AgentEventBridge({
 			getSession: (sid) => this.sessions.get(sid),

@@ -1,3 +1,4 @@
+import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkFollowupCoordinator, type SdkFollowupCoordinatorOptions } from "./sdk-followup-coordinator"
@@ -60,7 +61,10 @@ describe("SdkFollowupCoordinator", () => {
 			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
 		)
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
-		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file", {
+			pluginCommands: "execute",
+			hasAttachments: true,
+		})
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",
@@ -69,6 +73,16 @@ describe("SdkFollowupCoordinator", () => {
 			["a.ts"],
 			undefined,
 		)
+	})
+
+	it("does not send a handled reply-only command to the model", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		options.resolveContextMentions.mockResolvedValueOnce(COMMAND_CANCEL_TOKEN)
+
+		await coordinator.askResponse("/reply-only")
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
 	it("queues a follow-up when the active session is already running", async () => {
@@ -87,6 +101,20 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			"queue",
 		)
+	})
+
+	it("does not queue a plugin command while the active turn is running", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		options.resolveContextMentions.mockResolvedValueOnce(COMMAND_CANCEL_TOKEN)
+
+		await coordinator.askResponse("/goal now")
+
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("/goal now", {
+			pluginCommands: "reject",
+			hasAttachments: false,
+		})
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
 	it("queues a follow-up when the turn phase is still streaming even if the session running flag is stale", async () => {
@@ -291,7 +319,10 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "task-1", modelId: "model" }),
 		)
-		expect(options.resolveContextMentions).toHaveBeenCalledWith("continue")
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("continue", {
+			pluginCommands: "execute",
+			hasAttachments: false,
+		})
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.objectContaining({ send: expect.any(Function) }),
 			"resumed-session",
