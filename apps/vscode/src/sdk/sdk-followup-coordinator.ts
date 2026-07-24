@@ -54,7 +54,7 @@ export class SdkFollowupCoordinator {
 		files?: string[],
 		askResponse?: ClineAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
-	): Promise<void> {
+	): Promise<"canceled" | void> {
 		if (this.options.interactions.resolvePendingMistakeLimit(prompt, askResponse)) {
 			return
 		}
@@ -104,7 +104,11 @@ export class SdkFollowupCoordinator {
 		const resolvedPrompt = prompt
 			? await this.options.resolveContextMentions(prompt, { pluginCommands: shouldQueue ? "reject" : "execute" })
 			: ""
-		if (resolvedPrompt === COMMAND_CANCEL_TOKEN) return
+		if (resolvedPrompt === COMMAND_CANCEL_TOKEN) {
+			// Rejected while an active turn was in progress (e.g. plugin command):
+			// signal the controller to restore the pre-submit turn phase.
+			return shouldQueue ? "canceled" : undefined
+		}
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
 	}
 

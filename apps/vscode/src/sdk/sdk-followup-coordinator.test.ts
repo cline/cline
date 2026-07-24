@@ -105,7 +105,7 @@ describe("SdkFollowupCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({ activeSession })
 		options.resolveContextMentions.mockResolvedValueOnce(COMMAND_CANCEL_TOKEN)
 
-		await coordinator.askResponse("/goal now")
+		await expect(coordinator.askResponse("/goal now")).resolves.toBe("canceled")
 
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("/goal now", { pluginCommands: "reject" })
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()

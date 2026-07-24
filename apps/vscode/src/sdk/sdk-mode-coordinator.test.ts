@@ -167,6 +167,9 @@ describe("SdkModeCoordinator", () => {
 			}),
 		).resolves.toBe(true)
 
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("use this screenshot", {
+			pluginCommands: "execute",
+		})
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.anything(),
 			"new-session",

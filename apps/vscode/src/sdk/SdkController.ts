@@ -450,7 +450,7 @@ export class Controller {
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			rebuilds: this.sessionRebuilds,
 			onAutoContinueStarting: () => {
 				this.turnStateTracker.set("streaming")
@@ -562,7 +562,7 @@ export class Controller {
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
@@ -1338,7 +1338,18 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
+		const followupResult = await this.followups.askResponse(
+			prompt,
+			images,
+			files,
+			this.task?.taskState?.askResponse,
+			turnStateBefore.phase,
+		)
+		if (followupResult === "canceled") {
+			// Plugin reject (or other non-send cancel) while a turn was already active:
+			// restore the prior phase so the footer does not stay stuck on Thinking/Cancel.
+			this.turnStateTracker.set(turnStateBefore.phase, turnStateBefore.anchorTs)
+		}
 	}
 
 	async editMessageAndRegenerate(input: {
@@ -1411,7 +1422,6 @@ export class Controller {
 				return
 			}
 
-			const resolvedPrompt = await this.resolveContextMentions(editedText)
 			const startInput = {
 				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
 				initialMessages,
@@ -1473,6 +1483,9 @@ export class Controller {
 			])
 			await this.postStateToWebview()
 
+			// Resolve after the replacement session is active so plugin commands execute
+			// against the new host, matching initTask/askResponse.
+			const resolvedPrompt = await this.resolveContextMentions(editedText, { pluginCommands: "execute" })
 			if (resolvedPrompt !== COMMAND_CANCEL_TOKEN) {
 				this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
 			}

@@ -1019,7 +1019,12 @@ export class SessionRuntime {
 				});
 			}
 			this.extensionsInitialized = true;
-		})();
+		})().catch((error) => {
+			// Allow a later call to retry after a hard init failure. Concurrent
+			// callers still share this attempt via the cached promise.
+			this.extensionsInitialization = undefined;
+			throw error;
+		});
 		return this.extensionsInitialization;
 	}
 
