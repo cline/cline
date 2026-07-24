@@ -267,6 +267,16 @@ export interface CoreSessionConfig
 	pluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
+	/**
+	 * Explicit completion policy for the session. When set, this takes
+	 * precedence over the runtime builder's inference (which requires
+	 * completion only when the built-in `submit_and_exit` tool is enabled).
+	 * Hosts that supply their own terminal tools via `extraTools` (e.g. the
+	 * computer user's `finish_computer_task`) set
+	 * `{ requireCompletionTool: true }` here so the run cannot end in
+	 * free-form text.
+	 */
+	completionPolicy?: AgentConfig["completionPolicy"];
 	compaction?: CoreCompactionConfig;
 	checkpoint?: CoreCheckpointConfig;
 	onTeamEvent?: (event: TeamEvent) => void;

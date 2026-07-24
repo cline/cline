@@ -636,7 +636,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			telemetry: configWithProvider.telemetry,
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
-			completionPolicy: runtime.completionPolicy,
+			// An explicit session-level policy wins over the builder's
+			// submit_and_exit inference so extraTools-based terminal tools
+			// can be made mandatory (see CoreSessionConfig.completionPolicy).
+			completionPolicy:
+				configWithProvider.completionPolicy ?? runtime.completionPolicy,
 			consumePendingUserMessage: () => {
 				const entry = this.pendingPromptsController.consumeSteer(sessionId);
 				return entry
