@@ -115,14 +115,30 @@ export {
 	type ModeSwitchNotice,
 } from "@cline/shared";
 
+/**
+ * Builds the extraTools list for an interactive mode. The single derivation
+ * used both at startup and on every mode switch, so mode-independent tools
+ * (e.g. the computer-user tools) cannot be silently dropped by a switch.
+ */
+export function buildInteractiveExtraTools(input: {
+	mode: InteractiveUiMode;
+	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
+	persistentExtraTools?: NonNullable<Config["extraTools"]>;
+}): NonNullable<Config["extraTools"]> {
+	return [
+		...(input.mode === "plan" ? [input.switchToActModeTool] : []),
+		...(input.persistentExtraTools ?? []),
+	];
+}
+
 export async function applyInteractiveModeConfig(input: {
 	config: Config;
 	mode: InteractiveUiMode;
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
+	persistentExtraTools?: NonNullable<Config["extraTools"]>;
 }): Promise<void> {
 	input.config.mode = input.mode;
-	input.config.extraTools =
-		input.mode === "plan" ? [input.switchToActModeTool] : [];
+	input.config.extraTools = buildInteractiveExtraTools(input);
 	input.config.systemPrompt = await resolveSystemPrompt({
 		cwd: input.config.cwd,
 		providerId: input.config.providerId,
