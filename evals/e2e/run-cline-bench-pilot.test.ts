@@ -27,7 +27,9 @@ import {
 	type PilotConfig,
 	prepareTaskPath,
 	readConfig,
+	readRecoveredFailedRun,
 	readTrialSessionIdentity,
+	reuseCompletedRun,
 	verifierHarborArguments,
 } from "./run-cline-bench-pilot"
 
@@ -292,7 +294,7 @@ describe("Cline benchmark lock and budget ledger", () => {
 })
 
 describe("Cline benchmark recovery, privacy, and routing evidence", () => {
-	test("recovers timestamp-max usage and rejects multiple attempts", () => {
+	test("recovers the latest cumulative run_result usage and rejects ambiguous or incomplete telemetry", () => {
 		const usage = (ts: string, totalCost: number) =>
 			JSON.stringify({
 				ts,
@@ -304,9 +306,152 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 					totalOutputTokens: 2,
 				},
 			})
-		const latest = recoverLatestUsage([`${usage("2026-01-01T00:00:02Z", 2)}\n${usage("2026-01-01T00:00:01Z", 1)}\n`])
-		expect(latest.totalCost).toBe(2)
+		const runResult = JSON.stringify({
+			ts: "2026-01-01T00:00:03Z",
+			type: "run_result",
+			finishReason: "error",
+			usage: {
+				inputTokens: 20,
+				cacheReadTokens: 8,
+				outputTokens: 3,
+				totalCost: 2.5,
+			},
+			aggregateUsage: {
+				inputTokens: 30,
+				cacheReadTokens: 12,
+				outputTokens: 4,
+				totalCost: 3,
+			},
+		})
+		const latest = recoverLatestUsage([
+			`${usage("2026-01-01T00:00:02Z", 2)}\n${usage("2026-01-01T00:00:01Z", 1)}\n${runResult}\n`,
+		])
+		expect(latest).toEqual({
+			timestamp: "2026-01-01T00:00:03.000Z",
+			totalCost: 3,
+			totalInputTokens: 30,
+			totalCacheReadTokens: 12,
+			totalOutputTokens: 4,
+		})
 		expect(() => recoverLatestUsage(["{}", "{}"])).toThrow("exactly one attempt")
+		expect(() =>
+			recoverLatestUsage([
+				`${usage("2026-01-01T00:00:02Z", 2)}\n${usage("2026-01-01T00:00:02Z", 3)}\n`,
+			]),
+		).toThrow(/non-monotonic|ambiguous/)
+		expect(() =>
+			recoverLatestUsage([
+				JSON.stringify({
+					ts: "2026-01-01T00:00:02Z",
+					type: "run_result",
+					aggregateUsage: { inputTokens: 10, cacheReadTokens: 5, totalCost: 1 },
+				}),
+			]),
+		).toThrow("malformed usage record")
+	})
+
+	test("records an ApiRateLimitError as failed, settles its reservation, and reuses it without respending", () => {
+		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-failed-resume-"))
+		temporaryDirectories.push(jobsRoot)
+		const task = "task-a"
+		const model = {
+			id: "cline/auto",
+			perTaskBudgetUsd: 2,
+			perModelBudgetUsd: 2,
+			allowedCandidates: ["z-ai/glm-5.2"],
+		}
+		const failedConfig: PilotConfig = {
+			...config(),
+			models: [model],
+			tasks: [task],
+		}
+		const jobDir = join(jobsRoot, "01-cline-auto-task-a")
+		const trialName = "task-a__cline__attempt-1"
+		const agentDir = join(jobDir, trialName, "agent")
+		mkdirSync(agentDir, { recursive: true })
+		writeFileSync(
+			join(jobDir, "result.json"),
+			JSON.stringify({
+				started_at: "2026-01-01T00:00:00Z",
+				finished_at: "2026-01-01T00:00:04Z",
+				trial_results: [],
+				stats: {
+					n_input_tokens: 30,
+					n_cache_tokens: 12,
+					n_output_tokens: 4,
+					cost_usd: 0.25,
+				},
+			}),
+		)
+		writeFileSync(
+			join(jobDir, trialName, "result.json"),
+			JSON.stringify({
+				task_name: task,
+				started_at: "2026-01-01T00:00:00Z",
+				finished_at: "2026-01-01T00:00:04Z",
+				agent_info: {
+					version: failedConfig.clineVersion,
+					model_info: { name: "auto", provider: "cline:cline" },
+				},
+				exception_info: {
+					exception_type: "ApiRateLimitError",
+					exception_message: "Command failed with private prompt and shell command",
+				},
+				verifier_result: { rewards: { reward: 1 } },
+			}),
+		)
+		writeFileSync(
+			join(agentDir, "cline.txt"),
+			[
+				JSON.stringify({
+					ts: "2026-01-01T00:00:02Z",
+					event: {
+						type: "usage",
+						totalCost: 0.2,
+						totalInputTokens: 20,
+						totalCacheReadTokens: 8,
+						totalOutputTokens: 3,
+					},
+				}),
+				JSON.stringify({
+					ts: "2026-01-01T00:00:03Z",
+					type: "run_result",
+					finishReason: "error",
+					aggregateUsage: {
+						inputTokens: 30,
+						cacheReadTokens: 12,
+						outputTokens: 4,
+						totalCost: 0.25,
+					},
+				}),
+			].join("\n"),
+		)
+
+		const failed = readRecoveredFailedRun(jobDir, failedConfig, model, task)
+		expect(failed.outcome).toBe("failed")
+		expect(failed.passed).toBe(false)
+		expect(failed.reward).toBeNull()
+		expect(failed.failureClassification).toBe("ApiRateLimitError")
+		expect(failed.costUsd).toBe(0.25)
+		expect(failed.inputTokens).toBe(30)
+		expect(failed.cacheTokens).toBe(12)
+		expect(failed.outputTokens).toBe(4)
+		expect(JSON.stringify(failed)).not.toContain("private prompt")
+		expect(JSON.stringify(failed)).not.toContain("shell command")
+
+		let ledger = reserveBudget(createBudgetLedger(10), {
+			runKey: "1:1:cline/auto:task-a",
+			model: model.id,
+			wave: 1,
+			exposureUsd: model.perTaskBudgetUsd,
+		})
+		ledger = settleBudget(ledger, "1:1:cline/auto:task-a", failed.costUsd)
+		expect(ledgerExposure(ledger)).toBe(0.25)
+
+		const resumed = reuseCompletedRun(failedConfig, model, task, jobsRoot, 1)
+		expect(resumed).toEqual(failed)
+		ledger = settleBudget(ledger, "1:1:cline/auto:task-a", resumed?.costUsd || 0)
+		expect(ledgerExposure(ledger)).toBe(0.25)
 	})
 
 	test("redacts all exact secrets and hashes private identifiers", () => {

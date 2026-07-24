@@ -229,37 +229,121 @@ export type UsageSnapshot = {
 	totalOutputTokens: number | null
 }
 
+function requireUsageNumber(value: unknown, field: string, allowMissing: boolean): number | null {
+	if (allowMissing && (value === null || value === undefined)) return null
+	if (
+		typeof value !== "number" ||
+		!Number.isFinite(value) ||
+		!Number.isInteger(value) ||
+		value < 0
+	) {
+		throw new Error(`interrupted cost telemetry has invalid ${field}`)
+	}
+	return value
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null
+}
+
+function usageSnapshot(value: unknown): UsageSnapshot | null {
+	const parsed = recordValue(value)
+	if (!parsed) return null
+	const event = recordValue(parsed.event)
+	let usage: Record<string, unknown>
+	let allowMissingTokens = false
+	if (event?.type === "usage") {
+		allowMissingTokens = true
+		usage = {
+			totalCost: event.totalCost,
+			totalInputTokens: event.totalInputTokens,
+			totalCacheReadTokens: event.totalCacheReadTokens,
+			totalOutputTokens: event.totalOutputTokens,
+		}
+	} else if (parsed.type === "run_result") {
+		const cumulative = recordValue(parsed.aggregateUsage ?? parsed.usage)
+		if (!cumulative) {
+			throw new Error("interrupted run_result has no cumulative usage")
+		}
+		usage = {
+			totalCost: cumulative.totalCost,
+			totalInputTokens: cumulative.inputTokens,
+			totalCacheReadTokens: cumulative.cacheReadTokens,
+			totalOutputTokens: cumulative.outputTokens,
+		}
+	} else {
+		return null
+	}
+
+	const timestampMs = typeof parsed.ts === "string" ? Date.parse(parsed.ts) : Number.NaN
+	if (!Number.isFinite(timestampMs)) throw new Error("interrupted cost telemetry has invalid timestamp")
+	const totalCost = usage.totalCost
+	if (typeof totalCost !== "number" || !Number.isFinite(totalCost) || totalCost <= 0) {
+		throw new Error("interrupted cost telemetry has invalid totalCost")
+	}
+	return {
+		timestamp: new Date(timestampMs).toISOString(),
+		totalCost,
+		totalInputTokens: requireUsageNumber(usage.totalInputTokens, "totalInputTokens", allowMissingTokens),
+		totalCacheReadTokens: requireUsageNumber(usage.totalCacheReadTokens, "totalCacheReadTokens", allowMissingTokens),
+		totalOutputTokens: requireUsageNumber(usage.totalOutputTokens, "totalOutputTokens", allowMissingTokens),
+	}
+}
+
+function sameUsage(left: UsageSnapshot, right: UsageSnapshot): boolean {
+	return (
+		left.totalCost === right.totalCost &&
+		left.totalInputTokens === right.totalInputTokens &&
+		left.totalCacheReadTokens === right.totalCacheReadTokens &&
+		left.totalOutputTokens === right.totalOutputTokens
+	)
+}
+
 export function recoverLatestUsage(logDocuments: readonly string[]): UsageSnapshot {
 	if (logDocuments.length !== 1) {
 		throw new Error(`interrupted usage recovery requires exactly one attempt; found ${logDocuments.length}`)
 	}
 	const snapshots: UsageSnapshot[] = []
 	for (const line of logDocuments[0].split("\n")) {
-		if (!line.startsWith("{") || !line.includes('"type":"usage"')) continue
+		if (!line.startsWith("{")) continue
 		try {
 			const parsed = JSON.parse(line)
-			if (parsed.event?.type !== "usage") continue
-			const timestampMs = Date.parse(parsed.ts)
-			const totalCost = parsed.event.totalCost
-			if (!Number.isFinite(timestampMs) || !Number.isFinite(totalCost) || totalCost <= 0) continue
-			snapshots.push({
-				timestamp: new Date(timestampMs).toISOString(),
-				totalCost,
-				totalInputTokens: parsed.event.totalInputTokens ?? null,
-				totalCacheReadTokens: parsed.event.totalCacheReadTokens ?? null,
-				totalOutputTokens: parsed.event.totalOutputTokens ?? null,
-			})
+			const snapshot = usageSnapshot(parsed)
+			if (snapshot) snapshots.push(snapshot)
 		} catch {
-			// A force-stopped process can leave one partial final JSON line.
+			if (line.includes('"type":"usage"') || line.includes('"type":"run_result"')) {
+				throw new Error("interrupted cost telemetry contains a malformed usage record")
+			}
 		}
 	}
 	if (snapshots.length === 0) throw new Error("interrupted run has no usable cost telemetry")
 	snapshots.sort((left, right) => Date.parse(left.timestamp) - Date.parse(right.timestamp))
+	for (let index = 1; index < snapshots.length; index += 1) {
+		const previous = snapshots[index - 1]
+		const current = snapshots[index]
+		if (
+			current.totalCost < previous.totalCost ||
+			(current.totalInputTokens ?? 0) < (previous.totalInputTokens ?? 0) ||
+			(current.totalCacheReadTokens ?? 0) < (previous.totalCacheReadTokens ?? 0) ||
+			(current.totalOutputTokens ?? 0) < (previous.totalOutputTokens ?? 0)
+		) {
+			throw new Error("interrupted cost telemetry is non-monotonic")
+		}
+	}
 	const latest = snapshots.at(-1)
 	if (!latest) throw new Error("interrupted run has no latest usage snapshot")
 	const sameTimestamp = snapshots.filter((entry) => entry.timestamp === latest.timestamp)
-	if (sameTimestamp.some((entry) => entry.totalCost !== latest.totalCost)) {
+	if (sameTimestamp.some((entry) => !sameUsage(entry, latest))) {
 		throw new Error("interrupted usage recovery is ambiguous at the latest timestamp")
+	}
+	if (
+		latest.totalInputTokens === null ||
+		latest.totalCacheReadTokens === null ||
+		latest.totalOutputTokens === null
+	) {
+		throw new Error("interrupted latest cumulative usage is incomplete")
 	}
 	return latest
 }

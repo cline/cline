@@ -50,7 +50,7 @@ import {
 	sha256,
 } from "./cline-bench-safety"
 
-type ModelConfig = {
+export type ModelConfig = {
 	id: string
 	perTaskBudgetUsd: number
 	perModelBudgetUsd: number
@@ -92,7 +92,7 @@ export type ExecutionProvenance = {
 	}>
 }
 
-type RunResult = {
+export type RunResult = {
 	model: string
 	requestedModel: string
 	task: string
@@ -102,6 +102,7 @@ type RunResult = {
 	routeTraces: RouteTrace[]
 	routeEvidence: "not-applicable" | "verified" | "missing"
 	outcome: "passed" | "failed" | "timed_out"
+	failureClassification: string | null
 	passed: boolean
 	reward: number | null
 	costUsd: number
@@ -740,7 +741,7 @@ function readJobResult(
 	const exceptionType = trial.exception_info?.exception_type
 	const timedOut = exceptionType === "AgentTimeoutError"
 	if (trial.exception_info && !timedOut) {
-		fail(`Harbor trial failed with ${trial.exception_info.exception_type}: ${trial.exception_info.exception_message}`)
+		return readRecoveredFailedRun(jobDir, config, model, expectedTask)
 	}
 	if (trial.task_name !== expectedTask) {
 		fail(`task mismatch: expected ${expectedTask}, result recorded ${JSON.stringify(trial.task_name)}`)
@@ -802,6 +803,7 @@ function readJobResult(
 		routeTraces: [],
 		routeEvidence: virtualModel ? "missing" : "not-applicable",
 		outcome: timedOut ? "timed_out" : reward === 1 ? "passed" : "failed",
+		failureClassification: timedOut ? "AgentTimeoutError" : null,
 		passed: reward === 1,
 		reward,
 		costUsd,
@@ -815,14 +817,41 @@ function readJobResult(
 	}
 }
 
-function readInterruptedRun(
-	jobDir: string,
-	routerProfile: PilotConfig["routerProfile"],
-	model: ModelConfig,
-	task: string,
-): RunResult {
-	const rootResult = JSON.parse(readFileSync(join(jobDir, "result.json"), "utf8")) as any
-	const startedAt = Date.parse(rootResult.started_at)
+function conciseFailureClassification(value: unknown): string {
+	if (typeof value !== "string" || !/^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/.test(value)) {
+		fail("Harbor failure has no safe concise exception classification")
+	}
+	return value
+}
+
+type RecoveryTrial = {
+	task_name?: unknown
+	started_at?: unknown
+	finished_at?: unknown
+	agent_info?: {
+		version?: unknown
+		model_info?: {
+			name?: unknown
+			provider?: unknown
+		}
+	}
+	exception_info?: {
+		exception_type?: unknown
+	}
+}
+
+type RecoveryRootResult = {
+	started_at?: unknown
+	trial_results?: RecoveryTrial[]
+}
+
+function readRecoveryArtifacts(jobDir: string) {
+	const resultPath = join(jobDir, "result.json")
+	if (!existsSync(resultPath)) fail(`Harbor did not write ${resultPath}`)
+	const rootResult = JSON.parse(readFileSync(resultPath, "utf8")) as RecoveryRootResult
+	const nestedTrial = findTrialResult(jobDir)
+	const trial = rootResult.trial_results?.[0] || (nestedTrial?.document as RecoveryTrial | undefined)
+	if (!trial) fail(`Harbor result has no nested trial: ${resultPath}`)
 	const logDocuments: string[] = []
 	let trialName: string | null = null
 	for (const entry of readdirSync(jobDir, { withFileTypes: true })) {
@@ -832,6 +861,53 @@ function readInterruptedRun(
 		logDocuments.push(readFileSync(clineLog, "utf8"))
 		trialName = entry.name
 	}
+	return { rootResult, trial, logDocuments, trialName }
+}
+
+function validateRecoveredTrial(
+	trial: RecoveryTrial,
+	config: PilotConfig,
+	model: ModelConfig,
+	expectedTask: string,
+): void {
+	if (trial.task_name !== expectedTask) {
+		fail(`task mismatch: expected ${expectedTask}, result recorded ${JSON.stringify(trial.task_name)}`)
+	}
+	if (trial.agent_info?.version !== config.clineVersion) {
+		fail(
+			`Cline version mismatch: expected ${config.clineVersion}, result recorded ${JSON.stringify(trial.agent_info?.version)}`,
+		)
+	}
+	const servedModel = trial.agent_info?.model_info?.name
+	const servedProvider = trial.agent_info?.model_info?.provider
+	const [expectedVendor, ...expectedNameParts] = model.id.split("/")
+	const expectedName = expectedNameParts.join("/")
+	const acceptedCombinedNames = new Set([model.id, `${config.provider}:${model.id}`])
+	const exactSplitMatch = servedProvider === `${config.provider}:${expectedVendor}` && servedModel === expectedName
+	const combinedMatch = servedProvider === config.provider && acceptedCombinedNames.has(servedModel)
+	const virtualModel = model.id === "cline/auto" || model.id === "cline-pass/auto"
+	const requestedVirtualMatch =
+		virtualModel &&
+		((servedProvider === `${config.provider}:cline` && servedModel === "auto") ||
+			(servedProvider === config.provider && acceptedCombinedNames.has(servedModel)))
+	if (!exactSplitMatch && !combinedMatch && !requestedVirtualMatch) {
+		fail(
+			`served-model mismatch: expected ${model.id}, result recorded provider=${JSON.stringify(servedProvider)} model=${JSON.stringify(servedModel)}`,
+		)
+	}
+}
+
+function recoveredUnsuccessfulRun(
+	jobDir: string,
+	config: PilotConfig,
+	model: ModelConfig,
+	task: string,
+	outcome: "failed" | "timed_out",
+	failureClassification: string,
+): RunResult {
+	const { rootResult, trial, logDocuments, trialName } = readRecoveryArtifacts(jobDir)
+	validateRecoveredTrial(trial, config, model, task)
+	const startedAt = typeof rootResult.started_at === "string" ? Date.parse(rootResult.started_at) : Number.NaN
 	const latestUsage = recoverLatestUsage(logDocuments)
 	const costUsd = latestUsage.totalCost
 	const inputTokens = latestUsage.totalInputTokens
@@ -848,11 +924,12 @@ function readInterruptedRun(
 		sessionIdSha256: sessionIdentity?.sessionIdSha256 ?? null,
 		routeTraces: [],
 		routeEvidence: virtualModel ? "missing" : "not-applicable",
-		outcome: "timed_out",
+		outcome,
+		failureClassification,
 		passed: false,
 		reward: null,
 		costUsd,
-		costBasis: routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
+		costBasis: config.routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
 		durationSeconds: Number.isFinite(startedAt) ? (Date.parse(latestUsage.timestamp) - startedAt) / 1000 : 0,
 		inputTokens,
 		cacheTokens,
@@ -860,6 +937,40 @@ function readInterruptedRun(
 		...tokenEconomics(model, inputTokens, cacheTokens, outputTokens),
 		jobDir,
 	}
+}
+
+function readInterruptedRun(
+	jobDir: string,
+	config: PilotConfig,
+	model: ModelConfig,
+	task: string,
+): RunResult {
+	return recoveredUnsuccessfulRun(
+		jobDir,
+		config,
+		model,
+		task,
+		"timed_out",
+		"AgentTimeoutError",
+	)
+}
+
+export function readRecoveredFailedRun(
+	jobDir: string,
+	config: PilotConfig,
+	model: ModelConfig,
+	task: string,
+): RunResult {
+	const { trial } = readRecoveryArtifacts(jobDir)
+	const classification = conciseFailureClassification(trial.exception_info?.exception_type)
+	return recoveredUnsuccessfulRun(
+		jobDir,
+		config,
+		model,
+		task,
+		"failed",
+		classification,
+	)
 }
 
 export function matchRouteTraces(
@@ -1094,7 +1205,7 @@ async function runOne(
 		const removed = cleanupJobContainers(jobDir)
 		if (existsSync(join(jobDir, "result.json"))) {
 			try {
-				return readInterruptedRun(jobDir, config.routerProfile, model, task)
+				return readInterruptedRun(jobDir, config, model, task)
 			} catch (usageError) {
 				fail(
 					`Harbor timed out for ${model.id} × ${task}; cleaned ${removed.length} container(s), but usage recovery failed: ${usageError instanceof Error ? usageError.message : String(usageError)}`,
@@ -1105,15 +1216,23 @@ async function runOne(
 	}
 	if (result.status !== 0) {
 		const removed = cleanupJobContainers(jobDir)
-		const tail = sanitizedOutput.trim().split("\n").slice(-20).join("\n")
+		if (existsSync(join(jobDir, "result.json"))) {
+			try {
+				return readRecoveredFailedRun(jobDir, config, model, task)
+			} catch (usageError) {
+				fail(
+					`Harbor exited ${result.status} for ${model.id} × ${task}; cleaned ${removed.length} container(s), but failure accounting could not be recovered: ${usageError instanceof Error ? usageError.message : String(usageError)}`,
+				)
+			}
+		}
 		fail(
-			`Harbor exited ${result.status} (signal=${result.signal}) for ${model.id} × ${task}; cleaned ${removed.length} container(s)\n${tail}`,
+			`Harbor exited ${result.status} (signal=${result.signal}) for ${model.id} × ${task}; cleaned ${removed.length} container(s) without recoverable result telemetry`,
 		)
 	}
 	return readJobResult(jobDir, config, model, task, durationSeconds)
 }
 
-function reuseCompletedRun(
+export function reuseCompletedRun(
 	config: PilotConfig,
 	model: ModelConfig,
 	task: string,
@@ -1125,7 +1244,7 @@ function reuseCompletedRun(
 	if (!existsSync(join(jobDir, "result.json"))) return null
 	const rootResult = JSON.parse(readFileSync(join(jobDir, "result.json"), "utf8")) as any
 	if (!rootResult.finished_at && rootResult.stats?.n_running_trials > 0) {
-		const interrupted = readInterruptedRun(jobDir, config.routerProfile, model, task)
+		const interrupted = readInterruptedRun(jobDir, config, model, task)
 		console.log(`\n[${runNumber}] recording interrupted ${model.id} × ${task} as timed out`)
 		console.log(`  cost=$${interrupted.costUsd.toFixed(4)}`)
 		return interrupted
