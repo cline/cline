@@ -16,6 +16,7 @@ import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
+import { shouldNormalizeClineAutoModel, withClineAutoModels } from "./clineAutoModels"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
@@ -52,6 +53,8 @@ interface ClineModelPickerProps {
 	currentMode: Mode
 	showProviderRouting?: boolean
 	initialTab?: "recommended" | "free"
+	isAutoModelPickerEnabled?: boolean
+	isClinePassAutoModelEnabled?: boolean
 }
 
 interface FeaturedModelCardEntry {
@@ -92,23 +95,43 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
-const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
+const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
+	isPopup,
+	currentMode,
+	showProviderRouting,
+	initialTab,
+	isAutoModelPickerEnabled = false,
+	isClinePassAutoModelEnabled = false,
+}) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
 	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const effectiveClineModels = catalogClineModels
+	const effectiveClineModels = useMemo(
+		() =>
+			withClineAutoModels(catalogClineModels, {
+				enabled: isAutoModelPickerEnabled,
+				isClinePassAutoModelEnabled,
+			}),
+		[catalogClineModels, isAutoModelPickerEnabled, isClinePassAutoModelEnabled],
+	)
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
-	const currentClineModelId =
-		committedSelection?.modelId ||
-		modeFields.clineModelId ||
-		clineDefaultModelId ||
-		Object.keys(effectiveClineModels ?? {})[0] ||
+	const persistedClineModelId = committedSelection?.modelId || modeFields.clineModelId
+	const shouldNormalizePersistedModel = shouldNormalizeClineAutoModel(persistedClineModelId, {
+		enabled: isAutoModelPickerEnabled,
+		isClinePassAutoModelEnabled,
+	})
+	const concreteFallbackModelId =
+		(clineDefaultModelId && effectiveClineModels[clineDefaultModelId] ? clineDefaultModelId : undefined) ||
+		Object.keys(effectiveClineModels)[0] ||
 		""
+	const currentClineModelId =
+		(shouldNormalizePersistedModel ? concreteFallbackModelId : persistedClineModelId) || concreteFallbackModelId
 	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
 	const searchTermEditedByUserRef = useRef(false)
+	const normalizedSelectionKeyRef = useRef<string | null>(null)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
@@ -206,38 +229,55 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	const handleModelChange = (newModelId: string) => {
-		searchTermEditedByUserRef.current = false
-		setSearchTerm(newModelId)
+	const handleModelChange = useCallback(
+		(newModelId: string) => {
+			searchTermEditedByUserRef.current = false
+			setSearchTerm(newModelId)
 
-		const modelInfo = effectiveClineModels?.[newModelId] ?? {
-			...openAiModelInfoSafeDefaults,
-			name: newModelId,
+			const modelInfo = effectiveClineModels?.[newModelId] ?? {
+				...openAiModelInfoSafeDefaults,
+				name: newModelId,
+			}
+
+			void commitSelection(currentMode, {
+				providerId: "cline",
+				modelId: newModelId,
+			}).catch((err) => console.error("Failed to commit Cline model selection:", err))
+
+			void handleModeFieldsChange(
+				{
+					clineModelId: {
+						plan: "planModeClineModelId",
+						act: "actModeClineModelId",
+					},
+					clineModelInfo: {
+						plan: "planModeClineModelInfo",
+						act: "actModeClineModelInfo",
+					},
+				},
+				{
+					clineModelId: newModelId,
+					clineModelInfo: modelInfo,
+				},
+				currentMode,
+			)
+		},
+		[commitSelection, currentMode, effectiveClineModels, handleModeFieldsChange],
+	)
+
+	useEffect(() => {
+		if (!shouldNormalizePersistedModel || !persistedClineModelId || !concreteFallbackModelId) {
+			normalizedSelectionKeyRef.current = null
+			return
 		}
 
-		void commitSelection(currentMode, {
-			providerId: "cline",
-			modelId: newModelId,
-		}).catch((err) => console.error("Failed to commit Cline model selection:", err))
-
-		void handleModeFieldsChange(
-			{
-				clineModelId: {
-					plan: "planModeClineModelId",
-					act: "actModeClineModelId",
-				},
-				clineModelInfo: {
-					plan: "planModeClineModelInfo",
-					act: "actModeClineModelInfo",
-				},
-			},
-			{
-				clineModelId: newModelId,
-				clineModelInfo: modelInfo,
-			},
-			currentMode,
-		)
-	}
+		const normalizationKey = `${currentMode}:${persistedClineModelId}:${concreteFallbackModelId}`
+		if (normalizedSelectionKeyRef.current === normalizationKey) {
+			return
+		}
+		normalizedSelectionKeyRef.current = normalizationKey
+		handleModelChange(concreteFallbackModelId)
+	}, [concreteFallbackModelId, currentMode, handleModelChange, persistedClineModelId, shouldNormalizePersistedModel])
 
 	const baseSelection = useDynamicProviderSelection("cline", apiConfiguration, currentMode)
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {

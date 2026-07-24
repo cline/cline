@@ -8,7 +8,7 @@ import styled from "styled-components"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
+import { CLINE_AUTO_MODEL_PICKER_FEATURE_FLAG, CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderListings } from "@/hooks/useProviderListings"
@@ -97,6 +97,12 @@ const ApiOptions = ({
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
+	const allowsLocalAutoPickerOverrides = process.env.CLINE_ENVIRONMENT === "local"
+	const isAutoModelPickerEnabled =
+		useHasFeatureFlag(CLINE_AUTO_MODEL_PICKER_FEATURE_FLAG) ||
+		(allowsLocalAutoPickerOverrides && process.env.CLINE_AUTO_MODEL_PICKER_ENABLED === "true")
+	const isClinePassAutoModelEnabled =
+		isClinePassEnabled || (allowsLocalAutoPickerOverrides && process.env.CLINE_PASS_AUTO_MODEL_PICKER_ENABLED === "true")
 
 	const selectedProviderRaw =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -394,6 +400,8 @@ const ApiOptions = ({
 				<ClineProvider
 					currentMode={currentMode}
 					initialModelTab={initialModelTab}
+					isAutoModelPickerEnabled={isAutoModelPickerEnabled}
+					isClinePassAutoModelEnabled={isClinePassAutoModelEnabled}
 					isPopup={isPopup}
 					showModelOptions={showModelOptions}
 				/>

@@ -108,6 +108,114 @@ describe("ClineModelPicker", () => {
 		})
 	})
 
+	it("commits a feature-gated virtual model through the existing Cline selection path", async () => {
+		render(<ClineModelPicker currentMode="act" isAutoModelPickerEnabled={true} isClinePassAutoModelEnabled={true} />)
+
+		fireEvent.focus(screen.getByRole("combobox"))
+		const clinePassAutoOption = screen
+			.getAllByRole("option")
+			.find((option) => option.textContent?.includes("cline-pass/auto"))
+		if (!clinePassAutoOption) {
+			throw new Error("expected cline-pass/auto option")
+		}
+		fireEvent.click(clinePassAutoOption)
+
+		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledTimes(1))
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "cline",
+			modelId: "cline-pass/auto",
+		})
+		await waitFor(() => expect(mocks.updateApiConfigurationProto).toHaveBeenCalledTimes(1))
+		expect(mocks.updateApiConfigurationProto).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiConfiguration: expect.objectContaining({
+					actModeClineModelId: "cline-pass/auto",
+					actModeClineModelInfo: expect.objectContaining({
+						supportsPromptCache: true,
+					}),
+				}),
+			}),
+		)
+	})
+
+	it("normalizes a persisted cline/auto selection when the master flag is disabled", async () => {
+		vi.mocked(useExtensionState).mockReturnValue({
+			apiConfiguration: {
+				actModeClineModelId: "cline/auto",
+				actModeClineModelInfo: {
+					name: "Cline Auto",
+					supportsPromptCache: true,
+				},
+			},
+			favoritedModelIds: [],
+			planActSeparateModelsSetting: true,
+		} as ReturnType<typeof useExtensionState>)
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: {
+				providerId: "cline",
+				actSelection: {
+					providerId: "cline",
+					modelId: "cline/auto",
+					modelInfo: toProtobufModelInfo({
+						name: "Cline Auto",
+						supportsPromptCache: true,
+					}),
+				},
+			},
+			write: mocks.writeProviderConfig,
+			commitSelection: mocks.commitSelection,
+		})
+
+		render(<ClineModelPicker currentMode="act" isAutoModelPickerEnabled={false} />)
+
+		expect(screen.getByRole("combobox")).toHaveValue("cline-default")
+		await waitFor(() =>
+			expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+				providerId: "cline",
+				modelId: "cline-default",
+			}),
+		)
+		await waitFor(() =>
+			expect(mocks.updateApiConfigurationProto).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiConfiguration: expect.objectContaining({
+						actModeClineModelId: "cline-default",
+					}),
+				}),
+			),
+		)
+	})
+
+	it("normalizes a persisted cline-pass/auto selection when only the Pass flag is disabled", async () => {
+		vi.mocked(useExtensionState).mockReturnValue({
+			apiConfiguration: {
+				actModeClineModelId: "cline-pass/auto",
+				actModeClineModelInfo: {
+					name: "Cline Pass Auto",
+					supportsPromptCache: true,
+				},
+			},
+			favoritedModelIds: [],
+			planActSeparateModelsSetting: true,
+		} as ReturnType<typeof useExtensionState>)
+
+		render(<ClineModelPicker currentMode="act" isAutoModelPickerEnabled={true} isClinePassAutoModelEnabled={false} />)
+
+		expect(screen.getByRole("combobox")).toHaveValue("cline-default")
+		await waitFor(() =>
+			expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+				providerId: "cline",
+				modelId: "cline-default",
+			}),
+		)
+		expect(mocks.commitSelection).not.toHaveBeenCalledWith(
+			"act",
+			expect.objectContaining({
+				providerId: "cline-pass",
+			}),
+		)
+	})
+
 	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {
 		vi.mocked(useExtensionState).mockReturnValue({
 			apiConfiguration: {},

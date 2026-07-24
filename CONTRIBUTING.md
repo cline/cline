@@ -81,6 +81,21 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     - **Terminal Workflow**: Use `bun run dev` (generates protos + runs watch mode) or `bun run watch` (if protos already generated)
     - Before submitting PR, run `bun run format:fix` to format your code
 
+    To test the experimental auto-router entries locally, add both build-time
+    overrides to `apps/vscode/.env`, then restart the webview build and select
+    the **Cline** provider:
+
+    ```dotenv
+    CLINE_ENVIRONMENT=local
+    CLINE_AUTO_MODEL_PICKER_ENABLED=true
+    CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true
+    ```
+
+    The second override exposes `cline-pass/auto` inside the Cline picker
+    without exposing the standalone Cline Pass provider. Sending requests still
+    requires a backend that resolves the virtual `cline/auto` and
+    `cline-pass/auto` IDs before normal model lookup.
+
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
 
