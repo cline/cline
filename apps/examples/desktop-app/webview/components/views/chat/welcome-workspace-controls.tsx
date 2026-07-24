@@ -1,6 +1,14 @@
 "use client";
 
-import { Check, Folder, GitBranch, Plus, Search } from "lucide-react";
+import { isChatWorkspacePath } from "@cline/shared/browser";
+import {
+	Check,
+	FilePlus2,
+	Folder,
+	GitBranch,
+	Plus,
+	Search,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +75,7 @@ function WorkspacePicker({
 	onRefreshWorkspaces,
 	onSwitchWorkspace,
 	onPickWorkspaceDirectory,
+	onSelectChat,
 }: {
 	open: boolean;
 	onToggle: () => void;
@@ -76,10 +85,14 @@ function WorkspacePicker({
 	onRefreshWorkspaces: () => Promise<void>;
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory: (initialPath?: string) => Promise<string | null>;
+	onSelectChat: () => Promise<boolean>;
 }) {
 	const [search, setSearch] = useState("");
 	const [switching, setSwitching] = useState(false);
 	const [picking, setPicking] = useState(false);
+	const [selectingChat, setSelectingChat] = useState(false);
+	const isChatWorkspace =
+		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 
 	const normalizedWorkspaceRoot = useMemo(
 		() => normalizeWorkspacePath(workspaceRoot),
@@ -102,10 +115,10 @@ function WorkspacePicker({
 			if (trimmed)
 				byNormalizedPath.set(normalizeWorkspacePath(trimmed), trimmed);
 		};
-		register(workspaceRoot);
+		if (!isChatWorkspace) register(workspaceRoot);
 		for (const path of workspaces) register(path);
 		return [...byNormalizedPath.values()];
-	}, [workspaceRoot, workspaces]);
+	}, [isChatWorkspace, workspaceRoot, workspaces]);
 
 	const filteredWorkspaces = availableWorkspaces.filter((path) =>
 		path.toLowerCase().includes(search.toLowerCase()),
@@ -125,15 +138,31 @@ function WorkspacePicker({
 	};
 
 	const handleAddWorkspace = async () => {
-		if (picking || switching) return;
+		if (picking || selectingChat || switching) return;
 		setPicking(true);
 		try {
-			const picked = await onPickWorkspaceDirectory(workspaceRoot || undefined);
+			const picked = await onPickWorkspaceDirectory(
+				isChatWorkspace ? undefined : workspaceRoot || undefined,
+			);
 			if (picked?.trim()) await handleSelect(picked.trim());
 		} finally {
 			setPicking(false);
 		}
 	};
+
+	const handleSelectChat = async () => {
+		if (picking || selectingChat || switching) return;
+		setSelectingChat(true);
+		try {
+			if (await onSelectChat()) onClose();
+		} finally {
+			setSelectingChat(false);
+		}
+	};
+
+	const workspaceLabel = isChatWorkspace
+		? "Chat"
+		: workspaceName(workspaceRoot);
 
 	return (
 		<div className="relative shrink-0">
@@ -142,13 +171,11 @@ function WorkspacePicker({
 				aria-haspopup="menu"
 				className={TRIGGER_CLASS}
 				onClick={onToggle}
-				title={workspaceRoot}
+				title={workspaceLabel}
 				type="button"
 			>
 				<Folder className="size-4 shrink-0 text-muted-foreground" />
-				<span className="max-w-44 truncate">
-					{workspaceName(workspaceRoot)}
-				</span>
+				<span className="max-w-44 truncate">{workspaceLabel}</span>
 			</button>
 
 			{open && (
@@ -195,13 +222,23 @@ function WorkspacePicker({
 						</div>
 						<Button
 							className="mt-0.5 w-full justify-start text-xs text-muted-foreground"
-							disabled={switching || picking}
+							disabled={switching || picking || selectingChat}
 							onClick={() => void handleAddWorkspace()}
 							size="sm"
 							variant="ghost"
 						>
 							<Plus className="size-3" />
 							{picking ? "Opening folder picker..." : "Add project..."}
+						</Button>
+						<Button
+							className="w-full justify-start text-xs text-muted-foreground"
+							disabled={switching || picking || selectingChat}
+							onClick={() => void handleSelectChat()}
+							size="sm"
+							variant="ghost"
+						>
+							<FilePlus2 className="size-3" />
+							{selectingChat ? "Switching to chat..." : "Just chat"}
 						</Button>
 					</div>
 				</div>
@@ -338,6 +375,7 @@ export function WelcomeWorkspaceControls({
 	onRefreshWorkspaces,
 	onSwitchWorkspace,
 	onPickWorkspaceDirectory,
+	onSelectChat,
 	currentBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -347,11 +385,14 @@ export function WelcomeWorkspaceControls({
 	onRefreshWorkspaces: () => Promise<void>;
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory: (initialPath?: string) => Promise<string | null>;
+	onSelectChat: () => Promise<boolean>;
 	currentBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
 	const [openMenu, setOpenMenu] = useState<"workspace" | "branch" | null>(null);
+	const isChatWorkspace =
+		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	// Close whichever menu is open when clicking outside the control row.
@@ -375,6 +416,7 @@ export function WelcomeWorkspaceControls({
 				onClose={() => setOpenMenu(null)}
 				onPickWorkspaceDirectory={onPickWorkspaceDirectory}
 				onRefreshWorkspaces={onRefreshWorkspaces}
+				onSelectChat={onSelectChat}
 				onSwitchWorkspace={onSwitchWorkspace}
 				onToggle={() =>
 					setOpenMenu((current) =>
@@ -385,16 +427,18 @@ export function WelcomeWorkspaceControls({
 				workspaceRoot={workspaceRoot}
 				workspaces={workspaces}
 			/>
-			<BranchPicker
-				currentBranch={currentBranch}
-				onClose={() => setOpenMenu(null)}
-				onListGitBranches={onListGitBranches}
-				onSwitchGitBranch={onSwitchGitBranch}
-				onToggle={() =>
-					setOpenMenu((current) => (current === "branch" ? null : "branch"))
-				}
-				open={openMenu === "branch"}
-			/>
+			{!isChatWorkspace ? (
+				<BranchPicker
+					currentBranch={currentBranch}
+					onClose={() => setOpenMenu(null)}
+					onListGitBranches={onListGitBranches}
+					onSwitchGitBranch={onSwitchGitBranch}
+					onToggle={() =>
+						setOpenMenu((current) => (current === "branch" ? null : "branch"))
+					}
+					open={openMenu === "branch"}
+				/>
+			) : null}
 		</div>
 	);
 }
