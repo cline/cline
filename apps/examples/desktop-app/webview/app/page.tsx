@@ -32,6 +32,7 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
+import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
 import {
 	type SettingsSection,
@@ -44,6 +45,7 @@ import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
 	createDesktopAppState,
@@ -54,11 +56,16 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
+	hasCompletedOnboarding,
+	markOnboardingCompleted,
+	ONBOARDING_RESET_EVENT,
+} from "@/lib/onboarding";
+import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
 	mergeWorkspacePaths,
@@ -91,6 +98,9 @@ export default function Home() {
 		initialThreadId,
 		(threadId) => createDesktopAppState(threadId, "General"),
 	);
+	// Starts false on both server and first client render (hydration-safe);
+	// the effect below reads the persisted state right after mount.
+	const [showOnboarding, setShowOnboarding] = useState(false);
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
 
@@ -113,8 +123,23 @@ export default function Home() {
 	useAppUpdate();
 
 	useEffect(() => {
+		setShowOnboarding(!hasCompletedOnboarding());
+		const handleReset = () => setShowOnboarding(true);
+		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
+		return () =>
+			window.removeEventListener(ONBOARDING_RESET_EVENT, handleReset);
+	}, []);
+
+	useEffect(() => {
 		syncHubTheme();
+		syncHubAccent();
 		return watchSystemHubTheme();
+	}, []);
+
+	useEffect(() => {
+		// The dock reverts to the bundled icon every launch; re-apply the
+		// user's choice once the shell is up.
+		void syncAppIcon();
 	}, []);
 
 	useEffect(() => {
@@ -124,6 +149,14 @@ export default function Home() {
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
 	}, []);
+
+	const completeOnboarding = useCallback(() => {
+		markOnboardingCompleted();
+		setShowOnboarding(false);
+		// A fresh thread remounts the chat pane so it picks up credentials and
+		// the provider/model selection configured during onboarding.
+		handleNewThread();
+	}, [handleNewThread]);
 
 	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
 		dispatchApp({ type: "open-session", session });
@@ -292,6 +325,11 @@ export default function Home() {
 					</SidebarInset>
 				</div>
 			</SidebarProvider>
+			{showOnboarding ? (
+				<div className="fixed inset-0 z-50">
+					<OnboardingView onComplete={completeOnboarding} />
+				</div>
+			) : null}
 		</AccountProvider>
 	);
 }

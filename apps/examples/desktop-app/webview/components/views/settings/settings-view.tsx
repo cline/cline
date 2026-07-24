@@ -1,8 +1,14 @@
 import { RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/hooks/use-toast";
+import {
+	APP_ICONS,
+	type AppIconId,
+	appIconAssetPath,
+	readStoredAppIcon,
+	setStoredAppIcon,
+} from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import type {
@@ -12,11 +18,15 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import {
+	type HubAccent,
 	type HubTheme,
+	readStoredHubAccent,
 	readStoredHubTheme,
 	readSystemHubTheme,
+	setStoredHubAccent,
 	setStoredHubTheme,
 } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
@@ -454,11 +464,35 @@ export function SettingsView({
 	);
 }
 
+/**
+ * Swatches shown in the accent picker. The swatch color is the accent's
+ * light-mode primary (see the [data-cline-accent] blocks in globals.css);
+ * violet reads the live brand token so it always matches the default theme.
+ */
+const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
+	{ id: "violet", label: "Violet", swatch: "var(--brand-violet)" },
+	{ id: "graphite", label: "Graphite", swatch: "oklch(0.27 0.012 248)" },
+	{ id: "cyan", label: "Cyan", swatch: "oklch(0.6 0.12 222)" },
+	{ id: "pink", label: "Pink", swatch: "oklch(0.75 0.1 354)" },
+	{ id: "espresso", label: "Espresso", swatch: "oklch(0.36 0.035 35)" },
+	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
+];
+
 function GeneralSettingsContent() {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
+	const [accent, setAccent] = useState<HubAccent>(() => {
+		if (typeof window === "undefined") return "violet";
+		return readStoredHubAccent();
+	});
+	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
+		if (typeof window === "undefined") return "classic";
+		return readStoredAppIcon();
+	});
+	const [appIconError, setAppIconError] = useState<string | null>(null);
+	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -541,12 +575,35 @@ function GeneralSettingsContent() {
 		setTheme(setStoredHubTheme(nextTheme));
 	};
 
+	const updateAccent = (nextAccent: HubAccent) => {
+		setAccent(setStoredHubAccent(nextAccent));
+	};
+
+	const updateAppIcon = async (nextIcon: AppIconId) => {
+		const requestId = ++appIconRequestRef.current;
+		const previousIcon = appIcon;
+		setAppIcon(nextIcon);
+		setAppIconError(null);
+		try {
+			await setStoredAppIcon(nextIcon);
+		} catch (error) {
+			// A newer selection supersedes this request; rolling back now
+			// would clobber it.
+			if (appIconRequestRef.current !== requestId) {
+				return;
+			}
+			setAppIcon(previousIcon);
+			setAppIconError(error instanceof Error ? error.message : String(error));
+			// Storage was written before the native call failed; roll it back
+			// so the persisted choice matches what the dock actually shows.
+			await setStoredAppIcon(previousIcon).catch(() => {});
+		}
+	};
+
+	// resetOnboarding dispatches ONBOARDING_RESET_EVENT, which the app shell
+	// listens for to re-enter the first-run flow immediately.
 	const replayOnboarding = () => {
 		resetOnboarding();
-		toast({
-			title: "New user experience reset",
-			description: "Cline will show the first-run experience again.",
-		});
 	};
 
 	return (
@@ -570,6 +627,84 @@ function GeneralSettingsContent() {
 						checked={theme === "dark"}
 						onCheckedChange={updateTheme}
 					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Accent color
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Tint buttons, links, and highlights across the app.
+						</p>
+					</div>
+					<div className="flex shrink-0 items-center gap-2.5">
+						{ACCENT_OPTIONS.map((option) => (
+							<button
+								aria-label={option.label}
+								aria-pressed={accent === option.id}
+								className={cn(
+									"size-7 rounded-full border border-foreground/10 transition-transform hover:scale-110",
+									accent === option.id &&
+										"ring-2 ring-ring ring-offset-2 ring-offset-background",
+								)}
+								key={option.id}
+								onClick={() => updateAccent(option.id)}
+								style={{ backgroundColor: option.swatch }}
+								title={option.label}
+								type="button"
+							/>
+						))}
+					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							App icon
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Pick the icon Cline shows in the Dock.
+						</p>
+						{appIconError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to change app icon: {appIconError}
+							</p>
+						) : null}
+					</div>
+					<div className="flex shrink-0 items-start gap-4">
+						{APP_ICONS.map((icon) => (
+							<button
+								aria-label={icon.label}
+								aria-pressed={appIcon === icon.id}
+								className="group flex flex-col items-center gap-1.5"
+								key={icon.id}
+								onClick={() => void updateAppIcon(icon.id)}
+								type="button"
+							>
+								<img
+									alt=""
+									className={cn(
+										"size-14 rounded-2xl transition-transform group-hover:scale-105",
+										appIcon === icon.id &&
+											"ring-2 ring-ring ring-offset-2 ring-offset-background",
+									)}
+									draggable={false}
+									height={112}
+									src={appIconAssetPath(icon.id)}
+									width={112}
+								/>
+								<span
+									className={cn(
+										"text-xs",
+										appIcon === icon.id
+											? "font-medium text-foreground"
+											: "text-muted-foreground",
+									)}
+								>
+									{icon.label}
+								</span>
+							</button>
+						))}
+					</div>
 				</div>
 				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div>
