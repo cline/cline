@@ -5,7 +5,6 @@
 // still provides its custom McpHub-backed runtime builder.
 
 import path from "node:path"
-import { fileURLToPath } from "node:url"
 import {
 	type ApplyPatchExecutor,
 	ClineCore,
@@ -207,7 +206,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 					const pluginRuntimeOptions = buildVscodePluginRuntimeOptions({
 						standalone: process.env.IS_STANDALONE === "true",
 						workspaceTrusted: process.env.IS_STANDALONE === "true" || vscode.workspace.isTrusted,
-						pluginRuntimeDir: path.join(path.dirname(fileURLToPath(import.meta.url)), "plugin-runtime"),
+						// The build copies the runtime next to the bundle (dist/plugin-runtime,
+						// dist-standalone/plugin-runtime), so resolve it from the bundle's own
+						// directory. The bundle is CommonJS, so __dirname is always defined.
+						pluginRuntimeDir: path.join(__dirname, "plugin-runtime"),
 					})
 					return {
 						...inputWithRemoteConfig,

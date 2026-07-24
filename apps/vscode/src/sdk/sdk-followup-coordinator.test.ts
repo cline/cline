@@ -61,7 +61,10 @@ describe("SdkFollowupCoordinator", () => {
 			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
 		)
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
-		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file", { pluginCommands: "execute" })
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file", {
+			pluginCommands: "execute",
+			hasAttachments: true,
+		})
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",
@@ -107,7 +110,10 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("/goal now")
 
-		expect(options.resolveContextMentions).toHaveBeenCalledWith("/goal now", { pluginCommands: "reject" })
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("/goal now", {
+			pluginCommands: "reject",
+			hasAttachments: false,
+		})
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
@@ -313,7 +319,10 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "task-1", modelId: "model" }),
 		)
-		expect(options.resolveContextMentions).toHaveBeenCalledWith("continue", { pluginCommands: "execute" })
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("continue", {
+			pluginCommands: "execute",
+			hasAttachments: false,
+		})
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.objectContaining({ send: expect.any(Function) }),
 			"resumed-session",

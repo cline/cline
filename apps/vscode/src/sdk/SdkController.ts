@@ -450,7 +450,7 @@ export class Controller {
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			rebuilds: this.sessionRebuilds,
 			onAutoContinueStarting: () => {
 				this.turnStateTracker.set("streaming")
@@ -562,7 +562,7 @@ export class Controller {
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
-			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			resolveContextMentions: (text, options) => this.resolveContextMentions(text, options),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
@@ -851,6 +851,23 @@ export class Controller {
 						if (result.reply) {
 							this.messages.appendAndEmit(
 								[{ ts: Date.now(), type: "say", say: "text", text: result.reply, partial: false }],
+								{ type: "status", payload: { sessionId: activeSession.sessionId, status: "running" } },
+							)
+						}
+						if (!result.submitPrompt && options.hasAttachments) {
+							// Command handlers accept only text and this command ends the
+							// turn, so attachments on this submission never reach the
+							// plugin or the model. Say so rather than dropping them silently.
+							this.messages.appendAndEmit(
+								[
+									{
+										ts: Date.now(),
+										type: "say",
+										say: "text",
+										text: "Attached images and files were not passed to the plugin command. Send them in a separate message.",
+										partial: false,
+									},
+								],
 								{ type: "status", payload: { sessionId: activeSession.sessionId, status: "running" } },
 							)
 						}
@@ -1411,7 +1428,13 @@ export class Controller {
 				return
 			}
 
-			const resolvedPrompt = await this.resolveContextMentions(editedText)
+			// An edited message is a fresh user submission, so plugin commands
+			// execute here the same as in initTask/askResponse. The send below
+			// already skips COMMAND_CANCEL_TOKEN results.
+			const resolvedPrompt = await this.resolveContextMentions(editedText, {
+				pluginCommands: "execute",
+				hasAttachments: !!(input.images?.length || input.files?.length),
+			})
 			const startInput = {
 				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
 				initialMessages,

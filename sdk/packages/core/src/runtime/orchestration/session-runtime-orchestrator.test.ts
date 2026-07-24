@@ -300,6 +300,37 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(setup).toHaveBeenCalledOnce();
 	});
 
+	it("retries extension initialization after a hard setup failure", async () => {
+		const setup = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("setup boom"))
+			.mockImplementation(
+				(api: { registerCommand: (command: unknown) => void }) => {
+					api.registerCommand({
+						name: "goal",
+						handler: () => ({ reply: "ok" }),
+					});
+				},
+			);
+		const extension: AgentExtension = {
+			name: "flaky-setup",
+			manifest: { capabilities: ["commands"] },
+			setup,
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension], hookErrorMode: "throw" }),
+			withFakeRuntime().deps,
+		);
+
+		await expect(session.listExtensionCommands()).rejects.toThrow("setup boom");
+		expect(setup).toHaveBeenCalledOnce();
+
+		await expect(session.listExtensionCommands()).resolves.toEqual([
+			{ name: "goal" },
+		]);
+		expect(setup).toHaveBeenCalledTimes(2);
+	});
+
 	it("distinguishes reply-only, prompt-only, empty, and unknown command results", async () => {
 		const extension: AgentExtension = {
 			name: "command-results",

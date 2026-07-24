@@ -144,7 +144,10 @@ export class SdkTaskStartCoordinator {
 
 			if (prompt?.trim() || images?.length || files?.length) {
 				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(prompt || "", { pluginCommands: "execute" })
+				const resolvedTask = await this.options.resolveContextMentions(prompt || "", {
+					pluginCommands: "execute",
+					hasAttachments: !!(images?.length || files?.length),
+				})
 				if (resolvedTask !== COMMAND_CANCEL_TOKEN) {
 					this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
 				}

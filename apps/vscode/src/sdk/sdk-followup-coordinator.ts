@@ -102,7 +102,10 @@ export class SdkFollowupCoordinator {
 			this.options.resetMessageTranslator()
 		}
 		const resolvedPrompt = prompt
-			? await this.options.resolveContextMentions(prompt, { pluginCommands: shouldQueue ? "reject" : "execute" })
+			? await this.options.resolveContextMentions(prompt, {
+					pluginCommands: shouldQueue ? "reject" : "execute",
+					hasAttachments: !!(images?.length || files?.length),
+				})
 			: ""
 		if (resolvedPrompt === COMMAND_CANCEL_TOKEN) return
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
@@ -200,7 +203,10 @@ export class SdkFollowupCoordinator {
 				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
 				: "[TASK RESUMPTION] Please continue where you left off.")
 
-		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt, { pluginCommands: "execute" })
+		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt, {
+			pluginCommands: "execute",
+			hasAttachments: !!(images?.length || files?.length),
+		})
 		if (resolvedPrompt !== COMMAND_CANCEL_TOKEN) {
 			this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
 		}

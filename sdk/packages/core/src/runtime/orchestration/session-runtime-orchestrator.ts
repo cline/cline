@@ -269,7 +269,9 @@ export type ConnectionOverrides = ConnectionUpdate;
 
 function normalizeExtensionCommandName(name: string): string {
 	const trimmed = name.trim();
-	return (trimmed.startsWith("/") ? trimmed.slice(1) : trimmed).trim().toLowerCase();
+	return (trimmed.startsWith("/") ? trimmed.slice(1) : trimmed)
+		.trim()
+		.toLowerCase();
 }
 
 // =============================================================================
@@ -493,10 +495,13 @@ export class SessionRuntime {
 	 * Calling this before the first model run initializes extensions once; later
 	 * calls reuse the same registry and plugin process as tools and hooks.
 	 */
-	async listExtensionCommands(): Promise<Array<{ name: string; description?: string }>> {
+	async listExtensionCommands(): Promise<
+		Array<{ name: string; description?: string }>
+	> {
 		await this.ensureExtensionsInitialized();
 		const commands = new Map<string, { name: string; description?: string }>();
-		for (const command of this.contributionRegistry.getRegistrySnapshot().commands) {
+		for (const command of this.contributionRegistry.getRegistrySnapshot()
+			.commands) {
 			if (typeof command.handler !== "function") continue;
 			const name = normalizeExtensionCommandName(command.name);
 			if (!name) continue;
@@ -518,7 +523,9 @@ export class SessionRuntime {
 		await this.ensureExtensionsInitialized();
 		const normalizedName = normalizeExtensionCommandName(name);
 		if (!normalizedName) return { handled: false };
-		const command = [...this.contributionRegistry.getRegistrySnapshot().commands]
+		const command = [
+			...this.contributionRegistry.getRegistrySnapshot().commands,
+		]
 			.reverse()
 			.find(
 				(entry) =>
@@ -1019,7 +1026,14 @@ export class SessionRuntime {
 				});
 			}
 			this.extensionsInitialized = true;
-		})();
+		})().catch((error) => {
+			// Only the hookErrorMode === "throw" path reaches here. Drop the
+			// cached rejection so a later call retries instead of failing the
+			// whole session lifetime on one transient setup error. Concurrent
+			// callers still share the in-flight attempt via the cached promise.
+			this.extensionsInitialization = undefined;
+			throw error;
+		});
 		return this.extensionsInitialization;
 	}
 

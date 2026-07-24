@@ -7,6 +7,7 @@ import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import type { PromptResolutionOptions } from "./sdk-prompt-resolution"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
@@ -39,7 +40,7 @@ export interface SdkModeCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Authoritative phase of the current turn, from the controller's TurnStateTracker. */
 	getTurnPhase: () => TurnPhase
-	resolveContextMentions: (text: string) => Promise<string>
+	resolveContextMentions: (text: string, options?: PromptResolutionOptions) => Promise<string>
 	/**
 	 * Called right before an auto-continue send kicks off a new turn. Mirrors
 	 * initTask/askResponse: moves the turn phase to "streaming" (footer shows
@@ -317,7 +318,14 @@ export class SdkModeCoordinator {
 				this.options.onAutoContinueStarting()
 				// Resolve mentions before echoing so a resolution failure cannot
 				// leave an echoed-but-never-sent user message in the transcript.
-				const prompt = userPrompt ? await this.options.resolveContextMentions(userPrompt) : ACT_MODE_CONTINUATION_PROMPT
+				// The typed continuation prompt is a fresh user submission, so plugin
+				// commands execute here the same as in initTask/askResponse.
+				const prompt = userPrompt
+					? await this.options.resolveContextMentions(userPrompt, {
+							pluginCommands: "execute",
+							hasAttachments: !!(userImages?.length || userFiles?.length),
+						})
+					: ACT_MODE_CONTINUATION_PROMPT
 				if (prompt !== COMMAND_CANCEL_TOKEN && (userPrompt || userImages?.length || userFiles?.length)) {
 					const userMessage: ClineMessage = {
 						ts: Date.now(),
@@ -336,10 +344,15 @@ export class SdkModeCoordinator {
 				// Without a typed message the canned prompt drives the continuation; it
 				// is intentionally not echoed as user_feedback, so no synthetic bubble
 				// shows in chat. Attachments still ride along with the canned prompt.
+				// A COMMAND_CANCEL_TOKEN means a plugin command handled the typed
+				// continuation without a model turn; resolveContextMentions already
+				// emitted the reply and reset the running state and phase.
 				if (prompt !== COMMAND_CANCEL_TOKEN) {
 					this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
-					continuationSent = true
 				}
+				// Either way the typed content was consumed, so the webview clears
+				// the composer.
+				continuationSent = true
 			}
 			await this.options.postStateToWebview()
 
