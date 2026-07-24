@@ -21,10 +21,17 @@ Options:
            without building, opening VS Code, or contacting an API.
 
 Environment:
+  CLINE_ENVIRONMENT=local
+  CLINE_LOCAL_API_BASE_URL=http://localhost:17777
+  CLINE_AUTO_MODEL_PICKER_ENABLED=true
+  CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true
   CLINE_EXTENSION_HOST_MODE=auto|tmux|plain
   CLINE_EXTENSION_HOST_SESSION=<tmux-session-name>
   CLINE_EXTENSION_HOST_USER_DATA_DIR=<persistent-isolated-profile>
   CLINE_EXTENSION_HOST_EXTENSIONS_DIR=<persistent-isolated-extensions-dir>
+
+The four local demo values expose cline/auto and cline-pass/auto only inside
+the Cline provider. --check and opening the picker do not make a model request.
 EOF
 }
 
@@ -107,7 +114,22 @@ echo "Extension Host launcher check:"
 echo "  workspace: $WORKSPACE"
 echo "  process mode: $MODE"
 echo "  CLINE_ENVIRONMENT: $CLINE_ENVIRONMENT"
-echo "  CLINE_LOCAL_API_BASE_URL: ${CLINE_LOCAL_API_BASE_URL:-<default>}"
+case "${CLINE_LOCAL_API_BASE_URL:-}" in
+  "")
+    local_api_display="<default>"
+    ;;
+  http://localhost:7777|http://localhost:7777/|http://localhost:17777|http://localhost:17777/|\
+    http://127.0.0.1:7777|http://127.0.0.1:7777/|http://127.0.0.1:17777|http://127.0.0.1:17777/|\
+    http://\[::1\]:7777|http://\[::1\]:7777/|http://\[::1\]:17777|http://\[::1\]:17777/)
+    local_api_display="$CLINE_LOCAL_API_BASE_URL"
+    ;;
+  *)
+    # Do not echo arbitrary URL contents: this check is often pasted into demo
+    # logs, and a malformed override may contain credentials or query secrets.
+    local_api_display="<invalid; extension falls back to http://localhost:7777>"
+    ;;
+esac
+echo "  CLINE_LOCAL_API_BASE_URL: $local_api_display"
 echo "  CLINE_AUTO_MODEL_PICKER_ENABLED: ${CLINE_AUTO_MODEL_PICKER_ENABLED:-false}"
 echo "  CLINE_PASS_AUTO_MODEL_PICKER_ENABLED: ${CLINE_PASS_AUTO_MODEL_PICKER_ENABLED:-false}"
 
