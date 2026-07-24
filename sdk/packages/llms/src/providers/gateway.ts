@@ -8,6 +8,7 @@ import type {
 	GatewayModelHandleOptions,
 	GatewayModelSelection,
 	GatewayProviderRegistration,
+	GatewayReasoningEffort,
 	GatewayStreamRequest,
 	ITelemetryService,
 } from "@cline/shared";
@@ -62,7 +63,7 @@ class GatewayModelAdapter implements AgentModel {
 		const requestedReasoning = request.options?.reasoning as
 			| {
 					enabled?: boolean;
-					effort?: "low" | "medium" | "high";
+					effort?: GatewayReasoningEffort;
 					budgetTokens?: number;
 			  }
 			| undefined;
@@ -70,15 +71,13 @@ class GatewayModelAdapter implements AgentModel {
 		const reasoningEffort = request.options?.reasoningEffort;
 		const thinkingBudgetTokens = request.options?.thinkingBudgetTokens;
 		const legacyEffort =
-			reasoningEffort === "low" ||
-			reasoningEffort === "medium" ||
-			reasoningEffort === "high"
-				? reasoningEffort
+			typeof reasoningEffort === "string"
+				? (reasoningEffort as GatewayReasoningEffort)
 				: undefined;
 		const legacyReasoning:
 			| {
 					enabled?: boolean;
-					effort?: "low" | "medium" | "high";
+					effort?: GatewayReasoningEffort;
 					budgetTokens?: number;
 			  }
 			| undefined =

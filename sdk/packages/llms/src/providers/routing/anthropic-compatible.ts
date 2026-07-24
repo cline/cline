@@ -4,6 +4,7 @@ import type {
 	GatewayProviderContext,
 	GatewayProviderManifest,
 	GatewayProviderMetadata,
+	GatewayReasoningEffort,
 	GatewayStreamRequest,
 } from "@cline/shared";
 import {
@@ -17,9 +18,12 @@ import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
 const ANTHROPIC_REASONING_EFFORT_BUDGET_RATIOS: Record<string, number> = {
+	minimal: 0.1,
 	low: 0.2,
 	medium: 0.5,
 	high: 0.8,
+	xhigh: 0.95,
+	max: 1,
 };
 
 export type AnthropicReasoningRequestPolicy =
@@ -356,12 +360,12 @@ function resolveClaudeVersion(modelId: string | undefined) {
 	const majorToken = versionFirstMatch?.[1] ?? tokens[0];
 	const minorToken =
 		versionFirstMatch?.[2] ?? (tokens[1]?.length <= 2 ? tokens[1] : undefined);
-	if (!majorToken || !minorToken) {
+	if (!majorToken) {
 		return undefined;
 	}
 
 	const major = Number.parseInt(majorToken, 10);
-	const minor = Number.parseInt(minorToken, 10);
+	const minor = minorToken ? Number.parseInt(minorToken, 10) : 0;
 	if (!Number.isFinite(major) || !Number.isFinite(minor)) {
 		return undefined;
 	}
@@ -384,6 +388,43 @@ function supportsAnthropicAdaptiveThinkingPolicy(options: {
 	}
 
 	return (line === "opus" || line === "sonnet") && version.minor >= 6;
+}
+
+function supportsAnthropicXHighEffort(options: {
+	modelId?: string;
+	family?: string;
+}): boolean {
+	const line = resolveClaudeLine(options.modelId, options.family);
+	const version = resolveClaudeVersion(options.modelId);
+	if (!line || !version) {
+		return false;
+	}
+
+	if (line === "opus") {
+		return version.major > 4 || (version.major === 4 && version.minor >= 7);
+	}
+	return line === "sonnet" && version.major >= 5;
+}
+
+export function toAnthropicAdaptiveEffort(
+	effort: GatewayReasoningEffort,
+	options: {
+		modelId?: string;
+		family?: string;
+	},
+): "low" | "medium" | "high" | "xhigh" | "max" {
+	switch (effort) {
+		case "minimal":
+		case "low":
+			return "low";
+		case "medium":
+		case "high":
+			return effort;
+		case "xhigh":
+			return supportsAnthropicXHighEffort(options) ? "xhigh" : "max";
+		case "max":
+			return "max";
+	}
 }
 
 export function resolveAnthropicReasoningRequestPolicy(
@@ -436,7 +477,12 @@ export function buildAnthropicProviderOptions(
 
 	return {
 		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort
-			? { effort: request.reasoning.effort }
+			? {
+					effort: toAnthropicAdaptiveEffort(request.reasoning.effort, {
+						modelId: request.modelId,
+						family: resolveModelFamily(context),
+					}),
+				}
 			: {}),
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
@@ -520,7 +566,10 @@ export function buildAnthropicCompatibleReasoningOptions(
 		reasoning.enabled = true;
 	}
 	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
-		reasoning.effort = request.reasoning.effort;
+		reasoning.effort = toAnthropicAdaptiveEffort(request.reasoning.effort, {
+			modelId: request.modelId,
+			family: resolveModelFamily(context),
+		});
 	}
 	if (typeof request.reasoning?.budgetTokens === "number") {
 		reasoning.max_tokens = request.reasoning.budgetTokens;
@@ -587,6 +636,14 @@ export function buildGatewayReasoningOptions(
 		// reasoning. Remove once routed providers normalize disabled reasoning
 		// consistently, or replace with a systematic model policy.
 		!modelRejectsDisabledReasoning(request.modelId);
+	const effort = request.reasoning?.effort
+		? policy.kind === "anthropic-adaptive"
+			? toAnthropicAdaptiveEffort(request.reasoning.effort, {
+					modelId: request.modelId,
+					family,
+				})
+			: request.reasoning.effort
+		: undefined;
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
@@ -595,9 +652,7 @@ export function buildGatewayReasoningOptions(
 				: request.reasoning?.effort
 					? { enabled: true }
 					: {}),
-		...(request.reasoning?.effort && policy.kind !== "anthropic-manual"
-			? { effort: request.reasoning.effort }
-			: {}),
+		...(effort && policy.kind !== "anthropic-manual" ? { effort } : {}),
 	};
 
 	if (typeof budgetTokens === "number" && budgetTokens >= 0) {

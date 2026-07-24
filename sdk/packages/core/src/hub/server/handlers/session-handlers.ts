@@ -46,10 +46,12 @@ function readConnectionReasoningEffort(
 	value: unknown,
 ): SessionConnectionUpdate["reasoningEffort"] | undefined {
 	if (
+		value === "minimal" ||
 		value === "low" ||
 		value === "medium" ||
 		value === "high" ||
 		value === "xhigh" ||
+		value === "max" ||
 		value === null
 	) {
 		return value;

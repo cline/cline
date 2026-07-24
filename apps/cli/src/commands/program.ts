@@ -33,7 +33,7 @@ export function addRootOptions(cmd: Command): Command {
 			.option("-c, --cwd <path>", "Working directory")
 			.option(
 				"--thinking <level>",
-				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted leaves provider default.",
+				"Set reasoning effort: none|minimal|low|medium|high|xhigh|max. Bare --thinking uses medium; omitted leaves provider default.",
 			)
 			.option("--compaction <mode>", CLI_COMPACTION_MODE_OPTION_DESCRIPTION)
 			.option(
@@ -177,10 +177,12 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		const effort = String(opts.thinking).trim().toLowerCase();
 		if (
 			effort === "none" ||
+			effort === "minimal" ||
 			effort === "low" ||
 			effort === "medium" ||
 			effort === "high" ||
-			effort === "xhigh"
+			effort === "xhigh" ||
+			effort === "max"
 		) {
 			result.thinkingExplicitlySet = true;
 			if (effort === "none") {

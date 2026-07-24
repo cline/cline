@@ -40,6 +40,13 @@ export type GatewayReasoningFormat =
 	| "anthropic-thinking"
 	| "glm-thinking"
 	| "minimax-thinking";
+export type GatewayReasoningEffort =
+	| "minimal"
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh"
+	| "max";
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {
@@ -177,7 +184,7 @@ export interface GatewayStreamRequest {
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "low" | "medium" | "high";
+		effort?: GatewayReasoningEffort;
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;
@@ -210,7 +217,7 @@ export interface GatewayModelHandleOptions {
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "low" | "medium" | "high";
+		effort?: GatewayReasoningEffort;
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;

@@ -4,10 +4,12 @@ import type { CliReasoningEffort } from "./types";
 type ActiveCliReasoningEffort = Exclude<CliReasoningEffort, "none">;
 
 const ACTIVE_REASONING_EFFORTS = new Set<ActiveCliReasoningEffort>([
+	"minimal",
 	"low",
 	"medium",
 	"high",
 	"xhigh",
+	"max",
 ]);
 
 export interface ResolveCliReasoningInput {

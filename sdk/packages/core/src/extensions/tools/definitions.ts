@@ -396,7 +396,8 @@ export function createSearchTool(
 
 const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 	"Use for listing files, checking git status, running builds, executing tests, etc. " +
-	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. ";
+	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. " +
+	"When starting background work, capture its PID or process group and use that exact identifier to stop it later. Avoid broad command-line matching such as `pkill -f` because task text can also appear in the agent or harness parent command line. ";
 
 /**
  * Build the run_commands tool description for the shell that will actually

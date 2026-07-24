@@ -170,6 +170,16 @@ describe("parseArgs", () => {
 		expect(parsed.reasoningEffort).toBe("high");
 	});
 
+	it.each([
+		"minimal",
+		"xhigh",
+		"max",
+	] as const)("preserves the %s reasoning level", (effort) => {
+		const parsed = parseArgs(["--thinking", effort]);
+		expect(parsed.thinking).toBe(true);
+		expect(parsed.reasoningEffort).toBe(effort);
+	});
+
 	it("parses --thinking none as disabled", () => {
 		const parsed = parseArgs(["--thinking", "none"]);
 		expect(parsed.thinking).toBe(false);

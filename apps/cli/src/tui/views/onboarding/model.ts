@@ -15,7 +15,14 @@ export type OnboardingStep =
 	| "thinking_level"
 	| "done";
 
-export type ThinkingLevel = "none" | "low" | "medium" | "high" | "xhigh";
+export type ThinkingLevel =
+	| "none"
+	| "minimal"
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh"
+	| "max";
 export type ReasoningEffort = Exclude<ThinkingLevel, "none">;
 
 export const THINKING_LEVELS: {
@@ -24,10 +31,12 @@ export const THINKING_LEVELS: {
 	desc: string;
 }[] = [
 	{ value: "none", label: "Off", desc: "No extended thinking" },
-	{ value: "low", label: "Low", desc: "Minimal reasoning" },
+	{ value: "minimal", label: "Minimal", desc: "Minimal reasoning" },
+	{ value: "low", label: "Low", desc: "Light reasoning" },
 	{ value: "medium", label: "Medium", desc: "Balanced reasoning" },
 	{ value: "high", label: "High", desc: "Deep reasoning" },
-	{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
+	{ value: "xhigh", label: "Extra High", desc: "Very deep reasoning" },
+	{ value: "max", label: "Maximum", desc: "Maximum reasoning" },
 ];
 
 export const DEFAULT_THINKING_LEVEL_INDEX = THINKING_LEVELS.findIndex(

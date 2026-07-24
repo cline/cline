@@ -12,6 +12,7 @@ import {
 	resolveAnthropicReasoningRequestPolicy,
 	resolveReasoningRoute,
 	shouldApplyPromptCache,
+	toAnthropicAdaptiveEffort,
 } from "./anthropic-compatible";
 import type {
 	AiSdkProviderOptionsTarget,
@@ -74,6 +75,8 @@ function buildCompatibleThinkingOptions(options: {
 
 function buildCompatibleEffortOptions(options: {
 	reasoning: GatewayStreamRequest["reasoning"];
+	modelId: string;
+	family?: string;
 	usesAnthropicReasoningRoute: boolean;
 	suppressEffortOptions: boolean;
 	suppressions: ProviderOptionSuppression;
@@ -81,10 +84,10 @@ function buildCompatibleEffortOptions(options: {
 		typeof resolveAnthropicReasoningRequestPolicy
 	>["kind"];
 }): Record<string, unknown> {
-	const effort = options.reasoning?.effort;
+	const rawEffort = options.reasoning?.effort;
 	if (
 		options.suppressions.genericEffort ||
-		!effort ||
+		!rawEffort ||
 		options.reasoning?.enabled === false ||
 		options.suppressEffortOptions
 	) {
@@ -96,6 +99,12 @@ function buildCompatibleEffortOptions(options: {
 	if (!allowEffort) {
 		return {};
 	}
+	const effort = options.usesAnthropicReasoningRoute
+		? toAnthropicAdaptiveEffort(rawEffort, {
+				modelId: options.modelId,
+				family: options.family,
+			})
+		: rawEffort;
 	return {
 		effort,
 		reasoningEffort: effort,
@@ -139,6 +148,8 @@ export function buildCompatibleProviderOptions(options: {
 		...buildCompatibleThinkingOptions({ request, context, suppressions }),
 		...buildCompatibleEffortOptions({
 			reasoning: request.reasoning,
+			modelId: request.modelId,
+			family,
 			usesAnthropicReasoningRoute,
 			suppressEffortOptions: suppressCompatibleReasoningOptions,
 			suppressions,

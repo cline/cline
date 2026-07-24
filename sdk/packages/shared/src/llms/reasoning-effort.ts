@@ -1,4 +1,5 @@
 export const REASONING_EFFORT_RATIOS = {
+	max: 1,
 	xhigh: 0.95,
 	high: 0.8,
 	medium: 0.5,
