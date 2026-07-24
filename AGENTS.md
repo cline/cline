@@ -12,6 +12,11 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 - Known cloud-env test artifact: `@cline/core` test `src/services/workspace/workspace-manifest.test.ts > readGitWorkspaceState > prefers origin and returns the current branch` fails because cloud VMs configure git `insteadOf` rules that rewrite GitHub remotes to `https://x-access-token:...@github.com/...`. This is an environment artifact, not a code bug.
 - Some `@cline/cli` e2e assertions (`bun -F @cline/cli test:e2e`) may fail on exact tool-listing string formats; treat as pre-existing test drift, not an environment problem.
 
+### Keep e2e tests in sync with UI demos
+- Whenever a cloud agent task produces a demo of UI changes (e.g. a screenshot or screen recording of new/changed behavior in the VS Code extension webview, the desktop app, or the CLI TUI), you MUST also update the corresponding e2e tests in the same PR so they cover the demonstrated behavior.
+- E2E suites: VS Code extension Playwright tests in `apps/vscode/src/test/e2e` (run with `bun run test:e2e` from `apps/vscode`); CLI e2e tests in `apps/cli` (run with `bun -F @cline/cli test:e2e`).
+- Add new e2e coverage for new UI behavior, and update existing assertions (selectors, expected text, flows) that the UI change invalidates. Run the affected e2e suite and ensure it passes before finishing the task.
+
 ### GUI display
 - A virtual X display is live at **`DISPLAY=:1`** (the same desktop used for screenshots). GUI apps (VS Code, the Tauri desktop window) launched with `DISPLAY=:1` render there and can be screenshotted — no need to start your own `xvfb`. Prefer starting long-running GUI/dev processes in a `tmux` session (see the tmux guidance) so they survive.
 
