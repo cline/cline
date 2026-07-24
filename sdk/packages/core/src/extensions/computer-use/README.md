@@ -142,6 +142,7 @@ also `async` for the same reason:
 | `CLINE_COMPUTER_USE_HOST` | no | `127.0.0.1` | Backend host |
 | `CLINE_COMPUTER_USE_DISPLAY_WIDTH` | no | queried from backend | Override display width, px |
 | `CLINE_COMPUTER_USE_DISPLAY_HEIGHT` | no | queried from backend | Override display height, px |
+| `CLINE_COMPUTER_USER_MODEL` | no | Anthropic entry's saved model, else `claude-sonnet-4-6` | Helper (computer user) model. Independent of the driver's model; always on the direct `anthropic` provider (CLI host) |
 
 ## The asynchronous computer user
 

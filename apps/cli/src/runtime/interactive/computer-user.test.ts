@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Config } from "../../utils/types";
-import { createInteractiveComputerUser } from "./computer-user";
+import {
+	createInteractiveComputerUser,
+	resolveHelperModelId,
+} from "./computer-user";
 
 // Display overrides keep createComputerUseToolFromEnv from querying a live
 // backend; the socket is only dialed when an action actually runs.
@@ -66,5 +69,35 @@ describe("createInteractiveComputerUser", () => {
 			result?.driverTools.some((tool) => tool.name === "computer"),
 		).toBe(false);
 		await result?.dispose();
+	});
+});
+
+describe("resolveHelperModelId", () => {
+	it("prefers CLINE_COMPUTER_USER_MODEL over saved provider model", () => {
+		expect(
+			resolveHelperModelId({ model: "claude-sonnet-4-6" }, {
+				CLINE_COMPUTER_USER_MODEL: "claude-opus-4-7",
+			} as NodeJS.ProcessEnv),
+		).toBe("claude-opus-4-7");
+	});
+
+	it("falls back to the Anthropic provider entry's saved model", () => {
+		expect(
+			resolveHelperModelId(
+				{ model: "claude-haiku-4-5" },
+				{} as NodeJS.ProcessEnv,
+			),
+		).toBe("claude-haiku-4-5");
+	});
+
+	it("defaults when neither env nor settings specify a model", () => {
+		expect(resolveHelperModelId(undefined, {} as NodeJS.ProcessEnv)).toBe(
+			"claude-sonnet-4-6",
+		);
+		expect(
+			resolveHelperModelId({ model: "  " }, {
+				CLINE_COMPUTER_USER_MODEL: " ",
+			} as NodeJS.ProcessEnv),
+		).toBe("claude-sonnet-4-6");
 	});
 });
