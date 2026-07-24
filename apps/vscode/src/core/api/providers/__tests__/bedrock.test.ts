@@ -215,6 +215,11 @@ describe("AwsBedrockHandler", () => {
 			bedrockModels["anthropic.claude-opus-4-8:1m"].supportsGlobalEndpoint.should.equal(true)
 		})
 
+		it("should mark Bedrock Opus 5 variants as global-endpoint capable", () => {
+			bedrockModels["anthropic.claude-opus-5"].supportsGlobalEndpoint.should.equal(true)
+			bedrockModels["anthropic.claude-opus-5:1m"].supportsGlobalEndpoint.should.equal(true)
+		})
+
 		it("should mark Bedrock Fable 5 variants as global-endpoint capable", () => {
 			bedrockModels["anthropic.claude-fable-5"].supportsGlobalEndpoint.should.equal(true)
 			bedrockModels["anthropic.claude-fable-5:1m"].supportsGlobalEndpoint.should.equal(true)
@@ -237,6 +242,13 @@ describe("AwsBedrockHandler", () => {
 			vertexModels["claude-opus-4-8:1m"].supportsGlobalEndpoint.should.equal(true)
 			vertexGlobalModels.should.have.property("claude-opus-4-8")
 			vertexGlobalModels.should.have.property("claude-opus-4-8:1m")
+		})
+
+		it("should include Vertex Opus 5 variants in the derived global model list", () => {
+			vertexModels["claude-opus-5"].supportsGlobalEndpoint.should.equal(true)
+			vertexModels["claude-opus-5:1m"].supportsGlobalEndpoint.should.equal(true)
+			vertexGlobalModels.should.have.property("claude-opus-5")
+			vertexGlobalModels.should.have.property("claude-opus-5:1m")
 		})
 
 		it("should include Vertex Fable 5 variants in the derived global model list", () => {

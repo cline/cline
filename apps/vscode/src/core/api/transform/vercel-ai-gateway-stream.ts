@@ -3,13 +3,14 @@ import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
 	openRouterClaudeFable51mModelId,
+	openRouterClaudeOpus51mModelId,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeOpus471mModelId,
 	openRouterClaudeOpus481mModelId,
 	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet51mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
-	openRouterClaudeSonnet51mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -43,6 +44,7 @@ export async function createVercelAIGatewayStream(
 		model.id === openRouterClaudeOpus461mModelId ||
 		model.id === openRouterClaudeOpus471mModelId ||
 		model.id === openRouterClaudeOpus481mModelId ||
+		model.id === openRouterClaudeOpus51mModelId ||
 		model.id === openRouterClaudeFable51mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id the API expects

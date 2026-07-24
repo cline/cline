@@ -42,6 +42,8 @@ const SUPPORTED_THINKING_MODELS = [
 	"claude-opus-4-6",
 	"claude-opus-4-7",
 	"claude-opus-4-8",
+	"claude-opus-5",
+	"claude-opus-5:1m",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",

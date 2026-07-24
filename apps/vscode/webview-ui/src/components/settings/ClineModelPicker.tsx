@@ -654,6 +654,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 					selectedModelId={selectedModelId}
 				/>
 
+				{/* Context window switcher for Claude Opus 5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Opus 4.8 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}

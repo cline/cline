@@ -1,5 +1,5 @@
 import * as disk from "@core/storage/disk"
-import { openRouterClaudeFable51mModelId } from "@shared/api"
+import { openRouterClaudeFable51mModelId, openRouterClaudeOpus51mModelId } from "@shared/api"
 import axios from "axios"
 import { expect } from "chai"
 import fs from "fs/promises"
@@ -134,6 +134,65 @@ describe("refreshClineModels", () => {
 		expect(fable.cacheReadsPrice).to.equal(1)
 		expect(fable1m.contextWindow).to.equal(1_000_000)
 		expect(fable1m.tiers).to.not.equal(undefined)
+	})
+
+	it("adds Claude Opus 5 context variants to the Cline model list", async () => {
+		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").callsFake((flag) => {
+			return flag === FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT
+		})
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		})
+		sandbox.stub(StateManager, "get").returns({
+			getModelsCache: () => null,
+			setModelsCache: () => {},
+		} as unknown as StateManager)
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp")
+		sandbox.stub(fs, "writeFile").resolves()
+		sandbox.stub(axios, "get").resolves({
+			data: {
+				data: [
+					{
+						id: "anthropic/claude-opus-5",
+						name: "Claude Opus 5",
+						description: "Fetched description",
+						context_length: 1_000_000,
+						top_provider: {
+							max_completion_tokens: 128_000,
+							context_length: 1_000_000,
+							is_moderated: false,
+						},
+						architecture: {
+							modality: ["text", "image"],
+						},
+						pricing: {
+							prompt: "0.000005",
+							completion: "0.000025",
+							input_cache_read: "0.0000005",
+							input_cache_write: "0.00000625",
+						},
+						supported_parameters: ["include_reasoning", "reasoning"],
+					},
+				],
+			},
+		})
+
+		const models = await refreshClineModels({} as Controller)
+		const opus5 = models["anthropic/claude-opus-5"]
+		const opus51m = models[openRouterClaudeOpus51mModelId]
+
+		expect(opus5.contextWindow).to.equal(200_000)
+		expect(opus5.maxTokens).to.equal(128_000)
+		expect(opus5.supportsPromptCache).to.equal(true)
+		expect(opus5.inputPrice).to.equal(5)
+		expect(opus5.outputPrice).to.equal(25)
+		expect(opus5.cacheWritesPrice).to.equal(6.25)
+		expect(opus5.cacheReadsPrice).to.equal(0.5)
+		expect(opus51m.contextWindow).to.equal(1_000_000)
+		expect(opus51m.tiers).to.not.equal(undefined)
 	})
 
 	it("prefers Vercel-style Z.ai IDs when the Cline model list includes OpenRouter aliases", async () => {

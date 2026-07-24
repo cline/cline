@@ -129,6 +129,7 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		cacheReadsPrice: 0.6,
 	},
 ]
+// Claude 4.6+ opus models include the full 1M context window at standard pricing (no long-context premium)
 export const CLAUDE_OPUS_1M_TIERS = [
 	{
 		contextWindow: 200000,
@@ -139,10 +140,10 @@ export const CLAUDE_OPUS_1M_TIERS = [
 	},
 	{
 		contextWindow: Number.MAX_SAFE_INTEGER,
-		inputPrice: 10,
-		outputPrice: 37.5,
-		cacheWritesPrice: 12.5,
-		cacheReadsPrice: 1.0,
+		inputPrice: 5.0,
+		outputPrice: 25,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
 	},
 ]
 export const CLAUDE_FABLE_1M_TIERS = [
@@ -335,6 +336,29 @@ export const anthropicModels = {
 		description:
 			"Anthropic fast mode preview for Claude Opus 4.6 with the 1M context beta enabled. Same model and capabilities with higher output token speed at premium pricing across the full 1M context window. Requires both fast mode and 1M context access on your Anthropic account.",
 	},
+	"claude-opus-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"claude-opus-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
 	"claude-opus-4-8": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -507,13 +531,13 @@ export const claudeCodeModels = {
 		supportsPromptCache: false,
 	},
 	opus: {
-		...anthropicModels["claude-opus-4-8"],
+		...anthropicModels["claude-opus-5"],
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
 	"opus[1m]": {
-		...anthropicModels["claude-opus-4-8:1m"],
+		...anthropicModels["claude-opus-5:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -564,6 +588,17 @@ export const claudeCodeModels = {
 	},
 	"claude-opus-4-6[1m]": {
 		...anthropicModels["claude-opus-4-6:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-5": {
+		...anthropicModels["claude-opus-5"],
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-5[1m]": {
+		...anthropicModels["claude-opus-5:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -757,6 +792,31 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.5,
 	},
 	"anthropic.claude-opus-4-6-v1:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"anthropic.claude-opus-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"anthropic.claude-opus-5:1m": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -1057,6 +1117,7 @@ export const openRouterClaudeSonnet51mModelId = `anthropic/claude-sonnet-5${CLAU
 export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus471mModelId = `anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus481mModelId = `anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeOpus51mModelId = `anthropic/claude-opus-5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeFable51mModelId = `anthropic/claude-fable-5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 128_000,
@@ -1414,6 +1475,32 @@ export const vertexModels = {
 		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-6:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-opus-5": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-opus-5:1m": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
