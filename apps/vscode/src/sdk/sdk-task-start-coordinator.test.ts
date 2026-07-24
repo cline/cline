@@ -1,3 +1,4 @@
+import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -61,7 +62,7 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.messages.appendAndEmit.mock.invocationCallOrder[0]).toBeLessThan(
 			options.sessions.startNewSession.mock.invocationCallOrder[0],
 		)
-		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file", { pluginCommands: "execute" })
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.objectContaining({ send: expect.any(Function) }),
 			sessionId,
@@ -69,6 +70,16 @@ describe("SdkTaskStartCoordinator", () => {
 			["image.png"],
 			["a.ts"],
 		)
+	})
+
+	it("does not send a handled reply-only command to the model", async () => {
+		const { coordinator, options } = makeCoordinator()
+		options.resolveContextMentions.mockResolvedValueOnce(COMMAND_CANCEL_TOKEN)
+
+		await coordinator.initTask("/reply-only")
+
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
 	it("emits a Cline auth error instead of starting when the cline provider has no token", async () => {

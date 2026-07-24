@@ -56,6 +56,16 @@ export class SdkProviderChangeCoordinator {
 		this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
 	}
 
+	handleModelSelectionChanged(): void {
+		if (!this.options.sessions.getActiveSession()) {
+			return
+		}
+		// Provider, model, and model-targeted plugins are one session snapshot.
+		// Apply a selection change at the next idle rebuild boundary rather than
+		// mutating the model while retaining the previous plugin generation.
+		this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+	}
+
 	async restartActiveSessionForProviderChange(): Promise<void> {
 		await this.performRestartActiveSessionForProviderChange()
 	}

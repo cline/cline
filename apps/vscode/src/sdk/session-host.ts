@@ -2,6 +2,7 @@ import type {
 	ClineCoreListHistoryOptions,
 	ClineCoreStartInput,
 	CoreSessionEvent,
+	ExecuteSessionCommandResult,
 	HookEventPayload,
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
@@ -11,6 +12,7 @@ import type {
 	RestoreResult,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionCommand,
 	SessionCompactionState,
 	SessionHistoryRecord,
 	SessionPendingPrompt,
@@ -50,6 +52,8 @@ export interface SdkSessionHost {
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>
+	listSessionCommands(sessionId: string): Promise<SessionCommand[]>
+	executeSessionCommand(sessionId: string, name: string, input: string): Promise<ExecuteSessionCommandResult>
 }
 
 export type SdkInitialMessages = NonNullable<StartSessionInput["initialMessages"]>

@@ -16,6 +16,7 @@ interface SlashCommandMenuProps {
 	remoteWorkflowToggles?: Record<string, boolean>
 	remoteWorkflows?: any[]
 	mcpServers?: McpServer[]
+	pluginSlashCommands?: SlashCommand[]
 }
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
@@ -29,6 +30,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	remoteWorkflowToggles,
 	remoteWorkflows,
 	mcpServers = [],
+	pluginSlashCommands = [],
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -40,10 +42,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		remoteWorkflowToggles,
 		remoteWorkflows,
 		mcpServers,
+		pluginSlashCommands,
 	)
 	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
 	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")
 	const mcpCommands = filteredCommands.filter((cmd) => cmd.section === "mcp")
+	const pluginCommands = filteredCommands.filter((cmd) => cmd.section === "plugin")
 
 	// Screen reader announcements
 	const getCommandLabel = useCallback((command: SlashCommand) => {
@@ -141,6 +145,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
 						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
 						{renderCommandSection(mcpCommands, "MCP Prompts", defaultCommands.length + workflowCommands.length, true)}
+						{renderCommandSection(
+							pluginCommands,
+							"Plugin Commands",
+							defaultCommands.length + workflowCommands.length + mcpCommands.length,
+							true,
+						)}
 					</>
 				) : (
 					<div aria-selected="false" className="py-2 px-3 cursor-default flex flex-col" role="option">

@@ -182,6 +182,32 @@ const e2eBuildConfig = {
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
+const pluginRuntimeSource = path.resolve(__dirname, "../../sdk/packages/core/dist/plugin-runtime")
+
+function copyPluginRuntime() {
+	if (e2eBuild) return
+	const aliasesPath = path.join(pluginRuntimeSource, "aliases.json")
+	if (!fs.existsSync(aliasesPath)) {
+		throw new Error(`Plugin runtime not found at ${pluginRuntimeSource}. Run bun run build:sdk before building VS Code.`)
+	}
+	const destination = path.join(__dirname, destDir, "plugin-runtime")
+	fs.rmSync(destination, { recursive: true, force: true })
+	fs.cpSync(pluginRuntimeSource, destination, { recursive: true })
+}
+
+const copyPluginRuntimePlugin = {
+	name: "copy-plugin-runtime",
+	setup(build) {
+		build.onEnd((result) => {
+			if (result.errors.length === 0) copyPluginRuntime()
+		})
+	},
+}
+
+for (const config of [extensionConfig, standaloneConfig]) {
+	config.plugins = [...config.plugins, copyPluginRuntimePlugin]
+}
+
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
 	const extensionCtx = await esbuild.context(config)

@@ -1,7 +1,7 @@
 import { getProviderAuthStorageId } from "@cline/core"
 import { createModeSwitchNoticeTracker, type ModeSwitchNotice, type ModeSwitchNoticeTracker } from "@cline/shared"
 import type { ChatContent } from "@shared/ChatContent"
-import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import { type ClineMessage, COMMAND_CANCEL_TOKEN, type TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
@@ -318,7 +318,7 @@ export class SdkModeCoordinator {
 				// Resolve mentions before echoing so a resolution failure cannot
 				// leave an echoed-but-never-sent user message in the transcript.
 				const prompt = userPrompt ? await this.options.resolveContextMentions(userPrompt) : ACT_MODE_CONTINUATION_PROMPT
-				if (userPrompt || userImages?.length || userFiles?.length) {
+				if (prompt !== COMMAND_CANCEL_TOKEN && (userPrompt || userImages?.length || userFiles?.length)) {
 					const userMessage: ClineMessage = {
 						ts: Date.now(),
 						type: "say",
@@ -336,8 +336,10 @@ export class SdkModeCoordinator {
 				// Without a typed message the canned prompt drives the continuation; it
 				// is intentionally not echoed as user_feedback, so no synthetic bubble
 				// shows in chat. Attachments still ride along with the canned prompt.
-				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
-				continuationSent = true
+				if (prompt !== COMMAND_CANCEL_TOKEN) {
+					this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
+					continuationSent = true
+				}
 			}
 			await this.options.postStateToWebview()
 

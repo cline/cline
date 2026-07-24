@@ -30,7 +30,7 @@ vi.mock("./vscode-runtime-builder", () => ({
 	createVscodeExtraTools: mockCreateVscodeExtraTools,
 }))
 
-import { VscodeSessionHost } from "./vscode-session-host"
+import { buildVscodePluginRuntimeOptions, VscodeSessionHost } from "./vscode-session-host"
 
 describe("VscodeSessionHost telemetry wiring", () => {
 	beforeEach(() => {
@@ -49,6 +49,44 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		})
 
 		expect(mockClineCoreCreate).toHaveBeenCalledWith(expect.objectContaining({ telemetry }))
+	})
+
+	it("disables plugins in untrusted VS Code workspaces", () => {
+		const result = buildVscodePluginRuntimeOptions({
+			standalone: false,
+			workspaceTrusted: false,
+			pluginRuntimeDir: "/extension/dist/plugin-runtime",
+		})
+
+		expect(result.configExtensions).toEqual(["rules", "skills", "workflows"])
+		expect(result.pluginRuntime).toEqual({
+			executable: process.execPath,
+			env: expect.objectContaining({
+				CLINE_PLUGIN_RUNTIME_DIR: "/extension/dist/plugin-runtime",
+				ELECTRON_RUN_AS_NODE: "1",
+				VSCODE_IPC_HOOK: undefined,
+			}),
+		})
+	})
+
+	it("enables plugins in trusted VS Code and standalone hosts", () => {
+		const vscodeResult = buildVscodePluginRuntimeOptions({
+			standalone: false,
+			workspaceTrusted: true,
+			pluginRuntimeDir: "/extension/dist/plugin-runtime",
+		})
+		const standaloneResult = buildVscodePluginRuntimeOptions({
+			standalone: true,
+			workspaceTrusted: false,
+			pluginRuntimeDir: "/standalone/plugin-runtime",
+		})
+
+		expect(vscodeResult.configExtensions).toContain("plugins")
+		expect(standaloneResult.configExtensions).toContain("plugins")
+		expect(standaloneResult.pluginRuntime?.env).toEqual({
+			CLINE_PLUGIN_RUNTIME_DIR: "/standalone/plugin-runtime",
+		})
+		expect(standaloneResult.pluginRuntime?.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
 	})
 
 	it("injects shared telemetry into CoreSessionConfig when remote config did not provide one", async () => {

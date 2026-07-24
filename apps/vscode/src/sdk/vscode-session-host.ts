@@ -4,6 +4,8 @@
 // lifecycle bootstrapping, and host selection while the VSCode extension
 // still provides its custom McpHub-backed runtime builder.
 
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import {
 	type ApplyPatchExecutor,
 	ClineCore,
@@ -30,7 +32,14 @@ import {
 	type StartSessionResult,
 	type ToolExecutors,
 } from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import {
+	type AgentToolContext,
+	RUNTIME_CONFIG_EXTENSION_KINDS,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolPolicy,
+} from "@cline/shared"
+import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -80,6 +89,57 @@ export interface VscodeSessionHostOptions {
 	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
+const VSCODE_CHILD_ENV_KEYS = [
+	"VSCODE_CLI",
+	"VSCODE_CODE_CACHE_PATH",
+	"VSCODE_CRASH_REPORTER_PROCESS_TYPE",
+	"VSCODE_CWD",
+	"VSCODE_ESM_ENTRYPOINT",
+	"VSCODE_HANDLES_UNCAUGHT_ERRORS",
+	"VSCODE_IPC_HOOK",
+	"VSCODE_L10N_BUNDLE_LOCATION",
+	"VSCODE_NLS_CONFIG",
+	"VSCODE_PID",
+] as const
+
+export function buildVscodePluginRuntimeOptions(options: {
+	standalone: boolean
+	workspaceTrusted: boolean
+	pluginRuntimeDir: string
+}): {
+	configExtensions: Array<(typeof RUNTIME_CONFIG_EXTENSION_KINDS)[number]>
+	pluginRuntime?: {
+		executable: string
+		env: Record<string, string | undefined>
+	}
+} {
+	const configExtensions = RUNTIME_CONFIG_EXTENSION_KINDS.filter(
+		(kind) => kind !== "plugins" || options.standalone === true || options.workspaceTrusted,
+	)
+	if (options.standalone) {
+		return {
+			configExtensions: [...configExtensions],
+			pluginRuntime: {
+				executable: process.execPath,
+				env: { CLINE_PLUGIN_RUNTIME_DIR: options.pluginRuntimeDir },
+			},
+		}
+	}
+
+	const env = Object.fromEntries(VSCODE_CHILD_ENV_KEYS.map((key) => [key, undefined]))
+	return {
+		configExtensions: [...configExtensions],
+		pluginRuntime: {
+			executable: process.execPath,
+			env: {
+				...env,
+				CLINE_PLUGIN_RUNTIME_DIR: options.pluginRuntimeDir,
+				ELECTRON_RUN_AS_NODE: "1",
+			},
+		},
+	}
+}
+
 export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
@@ -90,6 +150,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
+	}
+	listSessionCommands(sessionId: string) {
+		return this.inner.sessionCommands.list(sessionId)
+	}
+	executeSessionCommand(sessionId: string, name: string, input: string) {
+		return this.inner.sessionCommands.execute({ sessionId, name, input })
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
@@ -138,6 +204,11 @@ export class VscodeSessionHost implements SdkSessionHost {
 						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 						foregroundCommands: options.foregroundCommands,
 					})
+					const pluginRuntimeOptions = buildVscodePluginRuntimeOptions({
+						standalone: process.env.IS_STANDALONE === "true",
+						workspaceTrusted: process.env.IS_STANDALONE === "true" || vscode.workspace.isTrusted,
+						pluginRuntimeDir: path.join(path.dirname(fileURLToPath(import.meta.url)), "plugin-runtime"),
+					})
 					return {
 						...inputWithRemoteConfig,
 						source: inputWithRemoteConfig.source ?? "vscode",
@@ -145,6 +216,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 							...inputWithRemoteConfig.config,
 							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
 							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+						},
+						localRuntime: {
+							...inputWithRemoteConfig.localRuntime,
+							...pluginRuntimeOptions,
 						},
 					}
 				},

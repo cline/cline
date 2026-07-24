@@ -174,6 +174,21 @@ describe("slash-commands", () => {
 		})
 	})
 
+	describe("plugin commands", () => {
+		const pluginCommands = [{ name: "goal", description: "Set a goal", section: "plugin" as const }]
+
+		it("uses the same ordered list for matching and validation", () => {
+			const commands = getMatchingSlashCommands("", {}, {}, undefined, undefined, [], pluginCommands)
+			expect(commands.at(-1)).toEqual(pluginCommands[0])
+			expect(validateSlashCommand("goal", {}, {}, undefined, undefined, [], pluginCommands)).toBe("full")
+			expect(validateSlashCommand("go", {}, {}, undefined, undefined, [], pluginCommands)).toBe("partial")
+		})
+
+		it("filters plugin commands case-insensitively", () => {
+			expect(getMatchingSlashCommands("GO", {}, {}, undefined, undefined, [], pluginCommands)).toEqual(pluginCommands)
+		})
+	})
+
 	describe("validateSlashCommand with MCP servers", () => {
 		const mcpServers = [
 			createMockMcpServer({
