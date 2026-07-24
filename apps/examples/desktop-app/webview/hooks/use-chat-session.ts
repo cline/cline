@@ -1122,15 +1122,17 @@ export function useChatSession() {
 				attachedFileCount > 0
 					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 					: trimmed;
-			const shouldQueue =
+			// A message sent mid-run steers the turn already in flight instead of
+			// waiting for a fresh turn, so it reaches the agent at its next step.
+			const shouldSteer =
 				Boolean(activeSessionId) &&
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
-			const optimisticQueuedPromptId = shouldQueue
+			const optimisticQueuedPromptId = shouldSteer
 				? makeId("queued_prompt")
 				: null;
-			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
+			const optimisticUserMessageId = shouldSteer ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
 			if (optimisticUserMessageId) {
@@ -1152,7 +1154,7 @@ export function useChatSession() {
 					{
 						id: optimisticQueuedPromptId,
 						prompt: userLabel,
-						steer: false,
+						steer: true,
 					},
 				]);
 			}
@@ -1251,7 +1253,7 @@ export function useChatSession() {
 						);
 					}
 				}
-				if (!shouldQueue) {
+				if (!shouldSteer) {
 					activeSessionIdRef.current = activeSessionId;
 					setStatus("starting");
 				}
@@ -1260,7 +1262,7 @@ export function useChatSession() {
 					action: "send",
 					sessionId: activeSessionId,
 					prompt: trimmed,
-					delivery: shouldQueue ? "queue" : undefined,
+					delivery: shouldSteer ? "steer" : undefined,
 					config: parsed,
 					attachments: hasAttachments ? serializedAttachments : undefined,
 				});
@@ -1471,7 +1473,7 @@ export function useChatSession() {
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
 				clearAbortFallbackTimeout();
-				if (!shouldQueue) {
+				if (!shouldSteer) {
 					activeAssistantMessageIdRef.current = null;
 					setActiveAssistantMessageId(null);
 					clearLiveToolRefs();
@@ -1855,24 +1857,6 @@ export function useChatSession() {
 		return { newSessionId, forkedFromSessionId, messages: nextMessages };
 	}, [config, postSession, status]);
 
-	const steerPromptInQueue = useCallback(
-		async (promptId: string) => {
-			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
-				return;
-			}
-			const payload = await postSession({
-				action: "steer_prompt",
-				sessionId: activeSessionId,
-				promptId,
-			});
-			setPromptsInQueue(
-				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
-			);
-		},
-		[postSession],
-	);
-
 	const updatePromptInQueue = useCallback(
 		async (promptId: string, prompt: string) => {
 			const activeSessionId = activeSessionIdRef.current;
@@ -1949,7 +1933,6 @@ export function useChatSession() {
 		start,
 		hydrateSession,
 		sendPrompt,
-		steerPromptInQueue,
 		updatePromptInQueue,
 		removePromptInQueue,
 		approveToolApproval,

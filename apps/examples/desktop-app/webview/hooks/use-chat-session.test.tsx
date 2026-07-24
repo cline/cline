@@ -465,7 +465,7 @@ describe("useChatSession", () => {
 		]);
 	});
 
-	it("shares one cold start and queues a second prompt behind it", async () => {
+	it("shares one cold start and steers a second prompt into it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {
 			resolveStart = resolve;
@@ -495,7 +495,7 @@ describe("useChatSession", () => {
 						plannedSessionId = request.config?.sessionId ?? "";
 						return await startResponse;
 					}
-					if (request?.action === "send" && request.delivery === "queue") {
+					if (request?.action === "send" && request.delivery === "steer") {
 						return { ok: true, queued: true, promptsInQueue: [] };
 					}
 					if (request?.action === "send") {
@@ -540,7 +540,7 @@ describe("useChatSession", () => {
 		]);
 		expect(sends.map((request) => request.delivery)).toEqual([
 			undefined,
-			"queue",
+			"steer",
 		]);
 	});
 
@@ -581,7 +581,7 @@ describe("useChatSession", () => {
 					}
 					if (request?.action === "send") {
 						sends.push(request);
-						return request.delivery === "queue"
+						return request.delivery === "steer"
 							? { ok: true, queued: true, promptsInQueue: [] }
 							: {
 									ok: true,
@@ -613,7 +613,7 @@ describe("useChatSession", () => {
 		expect(sends.map(({ prompt, delivery }) => ({ prompt, delivery }))).toEqual(
 			[
 				{ prompt: "First prompt", delivery: undefined },
-				{ prompt: "Second prompt", delivery: "queue" },
+				{ prompt: "Second prompt", delivery: "steer" },
 			],
 		);
 	});

@@ -25,7 +25,6 @@ export type ChatSessionCommandRequest = {
 		| "reset"
 		| "restore_checkpoint"
 		| "pending_prompts"
-		| "steer_prompt"
 		| "update_pending_prompt"
 		| "remove_pending_prompt";
 	sessionId?: string;

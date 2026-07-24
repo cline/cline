@@ -728,7 +728,9 @@ async function handleSend(
 	}
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
-		delivery = "queue";
+		// Mid-run messages are handed to the turn already in flight rather than
+		// held back for a whole new turn.
+		delivery = "steer";
 	}
 	const nextConfig = request.config
 		? mergeSessionConfig(session?.config ?? {}, request.config)
@@ -786,14 +788,14 @@ async function handleSend(
 			sessionId,
 			request.attachments?.userFiles,
 		);
-		if (delivery === "queue") {
+		if (delivery === "queue" || delivery === "steer") {
 			if (session) {
 				session.prompt = prompt;
 			}
 			await manager.send({
 				sessionId,
 				prompt,
-				delivery: "queue",
+				delivery,
 				userImages: request.attachments?.userImages,
 				userFiles,
 			});
@@ -1145,27 +1147,6 @@ async function handlePendingPrompts(
 	};
 }
 
-async function handleSteerPrompt(
-	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
-): Promise<unknown> {
-	const sessionId = request.sessionId?.trim();
-	const promptId = request.promptId?.trim();
-	if (!sessionId || !promptId)
-		throw new Error("sessionId and promptId are required");
-	const manager = getSessionManager(ctx);
-	const result = await manager.pendingPrompts.update({
-		sessionId,
-		promptId,
-		delivery: "steer",
-	});
-	return {
-		sessionId,
-		updated: result.updated === true,
-		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
-	};
-}
-
 async function handleUpdatePendingPrompt(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1236,7 +1217,6 @@ const ACTION_HANDLERS: Record<
 	reset: handleReset,
 	restore_checkpoint: handleRestoreCheckpoint,
 	pending_prompts: handlePendingPrompts,
-	steer_prompt: handleSteerPrompt,
 	update_pending_prompt: handleUpdatePendingPrompt,
 	remove_pending_prompt: handleRemovePendingPrompt,
 };

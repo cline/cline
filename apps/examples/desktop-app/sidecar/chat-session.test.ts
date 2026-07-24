@@ -275,6 +275,29 @@ describe("first-send connection updates", () => {
 		});
 	});
 
+	it("steers a mid-run message into the turn already in flight", async () => {
+		const { ctx, send, sessionId } = createContext();
+		const session = ctx.liveSessions.get(sessionId);
+		if (!session) throw new Error("missing session");
+		session.busy = true;
+
+		const response = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "also check the tests",
+		})) as { queued?: boolean; promptsInQueue?: unknown[] };
+
+		expect(send).toHaveBeenCalledWith({
+			sessionId,
+			prompt: "also check the tests",
+			delivery: "steer",
+			userImages: undefined,
+			userFiles: undefined,
+		});
+		expect(response.queued).toBe(true);
+		expect(response.promptsInQueue).toEqual([]);
+	});
+
 	it.each([
 		undefined,
 		"queue",
