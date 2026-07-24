@@ -50,6 +50,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import {
 	type MarketplaceLocalInstalledItem,
+	type MarketplaceLocalInstalledItemRenderContext,
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
@@ -510,7 +511,10 @@ export function McpServersContent() {
 		</div>
 	);
 
-	const renderServerCard = (server: McpServer) => (
+	const renderServerCard = (
+		server: McpServer,
+		context?: MarketplaceLocalInstalledItemRenderContext,
+	) => (
 		<div
 			key={server.name}
 			className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
@@ -528,6 +532,11 @@ export function McpServersContent() {
 				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
 					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
 				</span>
+				{context?.matchedEntry ? (
+					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+						Marketplace
+					</span>
+				) : null}
 				<div className="flex-1" />
 				{renderServerActions(server)}
 			</div>
@@ -539,14 +548,7 @@ export function McpServersContent() {
 		(server): MarketplaceLocalInstalledItem => ({
 			key: server.name,
 			matchValues: [server.name],
-			render: () => renderServerCard(server),
-			renderMatchedBadges: () => (
-				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
-				</span>
-			),
-			renderMatchedControls: () => renderServerActions(server),
-			renderMatchedDetails: () => renderServerDetails(server),
+			render: (context) => renderServerCard(server, context),
 		}),
 	);
 

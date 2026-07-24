@@ -102,14 +102,14 @@ const primitiveCommands = {
 	skill: "cline skill add",
 } satisfies Record<MarketplacePrimitiveType, string>;
 
+export type MarketplaceLocalInstalledItemRenderContext = {
+	matchedEntry?: MarketplaceEntry;
+};
+
 export type MarketplaceLocalInstalledItem = {
 	key: string;
 	matchValues: string[];
-	render: () => ReactNode;
-	renderMatchedBadges?: () => ReactNode;
-	renderMatchedControls?: () => ReactNode;
-	renderMatchedDetails?: () => ReactNode;
-	renderMatchedMeta?: () => ReactNode;
+	render: (context?: MarketplaceLocalInstalledItemRenderContext) => ReactNode;
 };
 
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
@@ -274,7 +274,6 @@ function MarketplaceEntryCard({
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
-	matchedLocalItems = [],
 	showFeatured = true,
 	showTags = true,
 	sourceLabel,
@@ -288,7 +287,6 @@ function MarketplaceEntryCard({
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
-	matchedLocalItems?: MarketplaceLocalInstalledItem[];
 	showFeatured?: boolean;
 	showTags?: boolean;
 	sourceLabel?: string;
@@ -352,111 +350,52 @@ function MarketplaceEntryCard({
 	);
 	const content = (
 		<>
-			{!installed ? (
-				<div
-					className="absolute top-4 right-4"
-					data-marketplace-entry-interactive
-				>
-					{actionButton}
-				</div>
-			) : null}
+			<div
+				className="absolute top-4 right-4"
+				data-marketplace-entry-interactive
+			>
+				{actionButton}
+			</div>
 			<div className="min-w-0">
-				<div className="flex min-w-0 items-start justify-between gap-2">
-					<div
-						className={cn(
-							"flex min-w-0 flex-1 items-center gap-2",
-							!installed && "pr-24",
-						)}
-					>
-						<EntryIcon className="h-4 w-4 shrink-0 text-primary" />
-						<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
-							{entry.name}
-						</h2>
-						{showFeatured && entry.featured ? (
-							<Badge className="border border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300">
-								<Star className="fill-current" />
-								Featured
-							</Badge>
-						) : null}
-					</div>
-					<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-						{sourceLabel ? (
-							<Badge
-								variant="outline"
-								className="shrink-0 text-muted-foreground"
-							>
-								{sourceLabel}
-							</Badge>
-						) : null}
-						{matchedLocalItems.map((item) =>
-							item.renderMatchedBadges ? (
-								<span className="contents" key={`${item.key}:badges`}>
-									{item.renderMatchedBadges()}
-								</span>
-							) : null,
-						)}
-						{matchedLocalItems.map((item) =>
-							item.renderMatchedControls ? (
-								<span
-									className="contents"
-									data-marketplace-entry-interactive
-									key={`${item.key}:controls`}
-								>
-									{item.renderMatchedControls()}
-								</span>
-							) : null,
-						)}
-					</div>
-				</div>
-				{matchedLocalItems.some((item) => item.renderMatchedMeta) ? (
-					<div className="mt-1 grid gap-1">
-						{matchedLocalItems.map((item) =>
-							item.renderMatchedMeta ? (
-								<div key={`${item.key}:meta`}>{item.renderMatchedMeta()}</div>
-							) : null,
-						)}
-					</div>
-				) : null}
-			</div>
-
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between">
-				<div className="grid min-w-0 flex-1 gap-2">
-					{showTags && entry.tags.length > 0 ? (
-						<div className="flex flex-wrap gap-1.5">
-							{entry.tags.slice(0, 5).map((tag) => (
-								<Badge
-									key={tag}
-									variant="outline"
-									className="max-w-full text-muted-foreground"
-								>
-									<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
-								</Badge>
-							))}
-						</div>
+				<div className="flex min-w-0 items-center gap-2 pr-28">
+					<EntryIcon className="h-4 w-4 shrink-0 text-primary" />
+					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
+						{entry.name}
+					</h2>
+					{showFeatured && entry.featured ? (
+						<Badge className="border border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300">
+							<Star className="fill-current" />
+							Featured
+						</Badge>
 					) : null}
-
-					<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-						{entry.description}
-					</p>
-					{statusMessage}
+					{sourceLabel ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							{sourceLabel}
+						</Badge>
+					) : null}
 				</div>
-
-				{installed ? (
-					<div className="flex shrink-0 flex-col items-start gap-1 sm:items-end sm:justify-end">
-						{actionButton}
-					</div>
-				) : null}
 			</div>
 
-			{matchedLocalItems.some((item) => item.renderMatchedDetails) ? (
-				<div className="grid gap-2" data-marketplace-entry-details>
-					{matchedLocalItems.map((item) =>
-						item.renderMatchedDetails ? (
-							<div key={item.key}>{item.renderMatchedDetails()}</div>
-						) : null,
-					)}
-				</div>
-			) : null}
+			<div className="grid min-w-0 gap-2">
+				{showTags && entry.tags.length > 0 ? (
+					<div className="flex flex-wrap gap-1.5">
+						{entry.tags.slice(0, 5).map((tag) => (
+							<Badge
+								key={tag}
+								variant="outline"
+								className="max-w-full text-muted-foreground"
+							>
+								<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
+							</Badge>
+						))}
+					</div>
+				) : null}
+
+				<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+					{entry.description}
+				</p>
+				{statusMessage}
+			</div>
 
 			{expanded && hasExpandableDetails ? (
 				<EntryDetails actionState={actionState} entry={entry} />
@@ -533,6 +472,11 @@ function TagButton({
 	);
 }
 
+type MarketplaceLocalInstalledListItem = {
+	item: MarketplaceLocalInstalledItem;
+	matchedEntry?: MarketplaceEntry;
+};
+
 function MarketplaceSection({
 	actionStates,
 	emptyMessage,
@@ -541,8 +485,7 @@ function MarketplaceSection({
 	headerContent,
 	installedEntryKeys,
 	installedStatusReady,
-	localOnlyInstalledItems = [],
-	matchedLocalItemsByEntryKey,
+	localInstalledItems = [],
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
@@ -559,8 +502,7 @@ function MarketplaceSection({
 	headerContent?: ReactNode;
 	installedEntryKeys: Set<string>;
 	installedStatusReady: boolean;
-	localOnlyInstalledItems?: MarketplaceLocalInstalledItem[];
-	matchedLocalItemsByEntryKey?: Map<string, MarketplaceLocalInstalledItem[]>;
+	localInstalledItems?: MarketplaceLocalInstalledListItem[];
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
@@ -570,7 +512,7 @@ function MarketplaceSection({
 	tagLabels: Map<string, string>;
 	title: string;
 }) {
-	const totalCount = entries.length + localOnlyInstalledItems.length;
+	const totalCount = entries.length + localInstalledItems.length;
 	return (
 		<section className="grid min-w-0 gap-3">
 			<div className="flex items-center justify-between gap-3">
@@ -580,7 +522,9 @@ function MarketplaceSection({
 			{headerContent}
 			{totalCount > 0 ? (
 				<div className="grid min-w-0 gap-3">
-					{localOnlyInstalledItems.map((item) => item.render())}
+					{localInstalledItems.map(({ item, matchedEntry }) =>
+						item.render({ matchedEntry }),
+					)}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
 						return (
@@ -594,7 +538,6 @@ function MarketplaceSection({
 								onInstall={onInstall}
 								onToggleExpanded={onToggleExpanded}
 								onUninstall={onUninstall}
-								matchedLocalItems={matchedLocalItemsByEntryKey?.get(key) ?? []}
 								showFeatured={showFeaturedBadges}
 								showTags={showEntryTags}
 								sourceLabel={sourceLabel}
@@ -641,28 +584,10 @@ export function MarketplaceView({
 		let cancelled = false;
 		void (async () => {
 			try {
-				if (!cancelled) {
-					setInstalledStatusState("loading");
-				}
 				const nextCatalog = await fetchMarketplaceCatalog();
 				if (!cancelled) {
 					setCatalog(nextCatalog);
 					setErrorMessage(null);
-				}
-				try {
-					const response =
-						await desktopClient.invoke<MarketplaceInstallStatusResult>(
-							"list_marketplace_installed_entries",
-							{ entries: nextCatalog.entries },
-						);
-					if (!cancelled) {
-						setInstalledEntryKeys(new Set(response.installedKeys));
-						setInstalledStatusState("ready");
-					}
-				} catch {
-					if (!cancelled) {
-						setInstalledStatusState("ready");
-					}
 				}
 			} catch (error) {
 				if (!cancelled) {
@@ -677,6 +602,46 @@ export function MarketplaceView({
 			cancelled = true;
 		};
 	}, []);
+
+	// Recheck installed status whenever the locally installed items change (e.g.
+	// after a server is deleted through its own card controls) so marketplace
+	// entries do not keep a stale installed state.
+	const installedItemsSignature = useMemo(
+		() =>
+			JSON.stringify(
+				(installedItems ?? []).map((item) => [item.key, ...item.matchValues]),
+			),
+		[installedItems],
+	);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: installedItemsSignature intentionally retriggers the installed-status check when local items change
+	useEffect(() => {
+		if (!catalog) {
+			return;
+		}
+		let cancelled = false;
+		void (async () => {
+			try {
+				const response =
+					await desktopClient.invoke<MarketplaceInstallStatusResult>(
+						"list_marketplace_installed_entries",
+						{ entries: catalog.entries },
+					);
+				if (!cancelled) {
+					setInstalledEntryKeys(new Set(response.installedKeys));
+				}
+			} catch {
+				// Keep the current installed status when the recheck fails.
+			} finally {
+				if (!cancelled) {
+					setInstalledStatusState("ready");
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [catalog, installedItemsSignature]);
 
 	const pageDetails = primitivePageDetails[primitive];
 	const PageIcon = pageDetails.icon;
@@ -703,12 +668,43 @@ export function MarketplaceView({
 		});
 	}, [primitiveEntries, query, tagLabels]);
 
+	const matchedEntryByLocalItemKey = useMemo(() => {
+		const matched = new Map<string, MarketplaceEntry>();
+		const installedMarketplaceEntries = primitiveEntries.filter((entry) =>
+			installedEntryKeys.has(entryKey(entry)),
+		);
+		for (const item of installedItems ?? []) {
+			const entry = installedMarketplaceEntries.find((candidate) =>
+				entryMatchesLocalItem(candidate, item),
+			);
+			if (entry) {
+				matched.set(item.key, entry);
+			}
+		}
+		return matched;
+	}, [installedEntryKeys, installedItems, primitiveEntries]);
+
+	const matchedEntryKeys = useMemo(
+		() =>
+			new Set(
+				[...matchedEntryByLocalItemKey.values()].map((entry) =>
+					entryKey(entry),
+				),
+			),
+		[matchedEntryByLocalItemKey],
+	);
+
+	// Installed marketplace entries that have a matching local item are rendered
+	// through that item's own card, so only unmatched entries fall back to the
+	// marketplace entry card here.
 	const installedEntries = useMemo(
 		() =>
-			queryFilteredEntries.filter((entry) =>
-				installedEntryKeys.has(entryKey(entry)),
+			queryFilteredEntries.filter(
+				(entry) =>
+					installedEntryKeys.has(entryKey(entry)) &&
+					!matchedEntryKeys.has(entryKey(entry)),
 			),
-		[queryFilteredEntries, installedEntryKeys],
+		[queryFilteredEntries, installedEntryKeys, matchedEntryKeys],
 	);
 
 	const marketplaceEntriesBeforeTag = useMemo(
@@ -743,53 +739,31 @@ export function MarketplaceView({
 		[marketplaceEntriesBeforeTag, selectedTag],
 	);
 
-	const matchedLocalItemsByEntryKey = useMemo(() => {
-		const matched = new Map<string, MarketplaceLocalInstalledItem[]>();
-		for (const item of installedItems ?? []) {
-			for (const entry of installedEntries) {
-				const key = entryKey(entry);
-				if (!entryMatchesLocalItem(entry, item)) {
-					continue;
-				}
-				const items = matched.get(key) ?? [];
-				items.push(item);
-				matched.set(key, items);
-			}
-		}
-		return matched;
-	}, [installedEntries, installedItems]);
-
-	const matchedLocalItemKeys = useMemo(() => {
-		const matched = new Set<string>();
-		const installedMarketplaceEntries = primitiveEntries.filter((entry) =>
-			installedEntryKeys.has(entryKey(entry)),
-		);
-		for (const item of installedItems ?? []) {
-			if (
-				installedMarketplaceEntries.some((entry) =>
-					entryMatchesLocalItem(entry, item),
-				)
-			) {
-				matched.add(item.key);
-			}
-		}
-		return matched;
-	}, [installedEntryKeys, installedItems, primitiveEntries]);
-
-	const localOnlyInstalledItems = useMemo(() => {
+	const localInstalledItems = useMemo(() => {
 		const normalizedQuery = query.trim().toLowerCase();
-		return (installedItems ?? []).filter((item) => {
-			if (matchedLocalItemKeys.has(item.key)) {
-				return false;
-			}
-			return (
-				normalizedQuery.length === 0 ||
-				item.matchValues
-					.map(normalizeMatchValue)
-					.some((value) => value.includes(normalizedQuery))
-			);
-		});
-	}, [installedItems, matchedLocalItemKeys, query]);
+		return (installedItems ?? [])
+			.map(
+				(item): MarketplaceLocalInstalledListItem => ({
+					item,
+					matchedEntry: matchedEntryByLocalItemKey.get(item.key),
+				}),
+			)
+			.filter(({ item, matchedEntry }) => {
+				if (normalizedQuery.length === 0) {
+					return true;
+				}
+				if (
+					item.matchValues
+						.map(normalizeMatchValue)
+						.some((value) => value.includes(normalizedQuery))
+				) {
+					return true;
+				}
+				return matchedEntry
+					? entrySearchText(matchedEntry, tagLabels).includes(normalizedQuery)
+					: false;
+			});
+	}, [installedItems, matchedEntryByLocalItemKey, query, tagLabels]);
 
 	const installedStatusReady = installedStatusState === "ready";
 
@@ -985,8 +959,7 @@ export function MarketplaceView({
 						expandedEntryKey={expandedEntryKey}
 						installedEntryKeys={installedEntryKeys}
 						installedStatusReady={installedStatusReady}
-						localOnlyInstalledItems={localOnlyInstalledItems}
-						matchedLocalItemsByEntryKey={matchedLocalItemsByEntryKey}
+						localInstalledItems={localInstalledItems}
 						onInstall={installEntry}
 						onToggleExpanded={toggleExpanded}
 						onUninstall={uninstallEntry}
