@@ -79,9 +79,15 @@ bash $QA/qa-env.sh proxy reset     # before each case
 bash $QA/qa-env.sh proxy tail      # last request in full: path, headers, body
 ```
 
-Confirmed-good baseline for a healthy request: `path` is `/v1/chat/completions`; `headers.authorization` is
-`Bearer qa-test-key`; `body.model` is the model you selected; `body.tools` lists `read_files`, `search_codebase`,
-`fetch_web_content`, `editor`, `ask_question`, `attempt_completion`, `run_commands`.
+Confirmed-good baseline for a healthy request: `path` is `/v1/chat/completions`; `body.model` is the model you
+selected; `body.tools` lists `read_files`, `search_codebase`, `fetch_web_content`, `editor`, `ask_question`,
+`attempt_completion`, `run_commands`.
+
+Credential-bearing headers are deliberately redacted in the log, because you are told to quote it into reports and
+recordings. `authorization` appears as `<redacted len=N sha256=XXXXXXXX>`. That is enough for both checks you need:
+a credential was sent (the header is present), and it changed when you changed it (the length and fingerprint
+change). Never work around the redaction, and if you ever see a raw key in a log or on screen, stop and report it as
+a finding.
 
 ## The procedure every case follows
 

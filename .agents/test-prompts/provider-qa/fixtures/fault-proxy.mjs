@@ -25,6 +25,7 @@
  *   curl -s -XPOST localhost:8788/__reset           # clear the request log
  */
 
+import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 
@@ -74,6 +75,42 @@ const MODELS = {
 };
 
 let requestSeq = 0;
+
+/**
+ * Headers that carry a credential. The request log gets quoted into QA reports
+ * and screen recordings, so these are never written verbatim — a real key pasted
+ * into a provider form must not end up in an artifact. The fingerprint preserves
+ * the checks that matter: that a credential was sent at all, and that it changed
+ * when the tester changed it.
+ */
+const CREDENTIAL_HEADERS = new Set([
+	"authorization",
+	"proxy-authorization",
+	"x-api-key",
+	"api-key",
+	"x-goog-api-key",
+	"cookie",
+	"set-cookie",
+]);
+
+function redactCredentials(headers) {
+	const out = {};
+	for (const [name, value] of Object.entries(headers)) {
+		if (
+			CREDENTIAL_HEADERS.has(name.toLowerCase()) &&
+			typeof value === "string"
+		) {
+			const digest = createHash("sha256")
+				.update(value)
+				.digest("hex")
+				.slice(0, 12);
+			out[name] = `<redacted len=${value.length} sha256=${digest}>`;
+		} else {
+			out[name] = value;
+		}
+	}
+	return out;
+}
 
 function log(entry) {
 	appendFileSync(LOG_PATH, `${JSON.stringify(entry)}\n`);
@@ -543,7 +580,7 @@ const server = createServer(async (req, res) => {
 		method: req.method,
 		path: url.pathname,
 		query: Object.fromEntries(url.searchParams),
-		headers: req.headers,
+		headers: redactCredentials(req.headers),
 		body,
 	};
 	if (!url.pathname.startsWith("/__")) {

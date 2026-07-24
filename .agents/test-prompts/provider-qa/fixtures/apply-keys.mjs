@@ -19,6 +19,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /** Env var each provider's credential is conventionally read from, for --print-env. */
@@ -61,11 +62,13 @@ function parseArgs(argv) {
 		only: null,
 		list: false,
 		printEnv: false,
+		stdout: false,
 	};
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
 		if (arg === "--list") args.list = true;
 		else if (arg === "--print-env") args.printEnv = true;
+		else if (arg === "--stdout") args.stdout = true;
 		else if (arg === "--keys") args.keys = argv[++i];
 		else if (arg === "--dir") args.dir = argv[++i];
 		else if (arg === "--select") args.select = argv[++i];
@@ -122,12 +125,29 @@ function main() {
 	}
 
 	if (args.printEnv) {
+		const lines = [];
 		for (const [id, entry] of configured) {
 			const envName = ENV_BY_PROVIDER[id];
 			if (envName && entry.apiKey) {
-				console.log(`export ${envName}='${entry.apiKey}'`);
+				lines.push(`export ${envName}='${entry.apiKey}'`);
 			}
 		}
+		// Written to a file rather than stdout by default: this output is often
+		// produced inside an agent transcript or a screen recording, and raw keys
+		// must not end up in either. --stdout is the explicit opt-out.
+		if (args.stdout) {
+			console.log(lines.join("\n"));
+			return;
+		}
+		const envPath = join(tmpdir(), "cline-qa-providers.env");
+		writeFileSync(envPath, `${lines.join("\n")}\n`, { mode: 0o600 });
+		console.log(
+			`Wrote ${lines.length} export line(s) to ${envPath} (mode 0600)`,
+		);
+		console.log(`Use with: source ${envPath}`);
+		console.log(
+			"Keys were not printed. Pass --stdout if you really need them on stdout.",
+		);
 		return;
 	}
 

@@ -101,7 +101,7 @@ Turns the keys JSON into a ready-to-use `providers.json`, so runs that only need
 ```bash
 node fixtures/apply-keys.mjs --keys /tmp/qa-keys.json --list
 node fixtures/apply-keys.mjs --keys /tmp/qa-keys.json --dir /tmp/cline-qa/data --select anthropic
-node fixtures/apply-keys.mjs --keys /tmp/qa-keys.json --print-env
+node fixtures/apply-keys.mjs --keys /tmp/qa-keys.json --print-env   # writes a 0600 file, does not print keys
 ```
 
 Verified end to end in both hosts: the CLI resolves provider, base URL, key and model from it with no interactive
@@ -142,6 +142,25 @@ Four findings came out of building and dry-running it. Each is written into the 
 - **Error rows offer no retry and no differentiation.** 401, 429 and context-overflow all rendered as the same
   plain red text with no Retry affordance, including cases with dedicated components. Prompt E, cases
   E3-retry-affordance and E3-classification.
+
+## Handling credentials
+
+These prompts hand real API keys to an agent that produces public artifacts — reports, screenshots, screen
+recordings — so the fixtures are built to keep keys out of them.
+
+- **The keys file is yours, not the repo's.** `keys.template.json` ships with empty strings. Fill in a copy at
+  `/tmp/qa-keys.json` and never commit it.
+- **The fault proxy redacts credential headers.** `authorization`, `x-api-key` and friends are logged as
+  `<redacted len=N sha256=XXXXXXXX>`. Prompts quote that log freely as evidence, which is only safe because of the
+  redaction. The fingerprint still supports the two checks that matter: a credential was sent, and it changed when
+  the tester changed it.
+- **`--print-env` writes a `0600` file instead of printing.** Raw keys on stdout end up in agent transcripts.
+  `--stdout` is the explicit opt-out.
+- **Point the proxy at nothing real.** It is a mock; the key configured against it should stay a dummy like
+  `qa-test-key`.
+
+If an agent ever reports seeing a raw key in a log, on screen, or in an error message, that is a finding in its own
+right.
 
 ## Conventions every prompt follows
 
