@@ -258,6 +258,17 @@ function usageSnapshot(value: unknown): UsageSnapshot | null {
 	let allowZeroNoSpendFailure = false
 	if (event?.type === "usage") {
 		allowMissingTokens = true
+		if (
+			event.totalCost === 0 &&
+			(event.totalInputTokens === 0 || event.totalInputTokens == null) &&
+			(event.totalCacheReadTokens === 0 || event.totalCacheReadTokens == null) &&
+			(event.totalOutputTokens === 0 || event.totalOutputTokens == null)
+		) {
+			// Cline emits an all-zero usage event immediately before some
+			// no-spend failures. It is not a cumulative billing checkpoint;
+			// the terminal error run_result below is.
+			return null
+		}
 		usage = {
 			totalCost: event.totalCost,
 			totalInputTokens: event.totalInputTokens,

@@ -378,6 +378,33 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 			totalCacheReadTokens: 0,
 			totalOutputTokens: 0,
 		})
+		expect(
+			recoverLatestUsage([
+				[
+					JSON.stringify({
+						ts: "2026-01-01T00:00:03Z",
+						type: "agent_event",
+						event: {
+							type: "usage",
+							totalCost: 0,
+							totalInputTokens: 0,
+							totalOutputTokens: 0,
+						},
+					}),
+					JSON.stringify({
+						ts: "2026-01-01T00:00:04Z",
+						type: "run_result",
+						finishReason: "error",
+						aggregateUsage: {
+							inputTokens: 0,
+							cacheReadTokens: 0,
+							outputTokens: 0,
+							totalCost: 0,
+						},
+					}),
+				].join("\n"),
+			]),
+		).toMatchObject({ totalCost: 0 })
 		expect(() =>
 			recoverLatestUsage([
 				JSON.stringify({
