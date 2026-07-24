@@ -2,9 +2,12 @@
 
 ## Overview
 
-The sidecar is a single Bun process that handles the desktop backend runtime directly.
+The sidecar is a Bun process that adapts the desktop UI and native operations to
+the shared Cline Hub.
 
-It imports `@cline/core` directly and serves the Next.js frontend over HTTP + WebSocket.
+It imports `@cline/core`, discovers or starts the canonical shared Hub, registers
+as a Hub client, and serves the Next.js frontend over HTTP + WebSocket. The
+sidecar does not own a private agent runtime Hub.
 
 ## Directory Structure
 
@@ -14,7 +17,7 @@ sidecar/
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
 ├── commands.ts           # Command router
-├── chat-session.ts       # In-process chat session management
+├── chat-session.ts       # Shared-Hub chat session adapter
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
 ├── types.ts              # Shared types
@@ -31,15 +34,23 @@ Event:    { "type": "event", "event": { "name": string, "payload": unknown } }
 
 ## Key Design Decisions
 
-### 1. Chat Sessions — In-Process via LocalRuntimeHost
+### 1. Chat Sessions — Shared Hub Client
 
-Instead of spawning a separate runtime bridge process, we use `LocalRuntimeHost` directly:
+`ClineCore` uses Hub mode without an explicit endpoint. Core therefore reuses
+the same compatible Hub discovered by the CLI or starts the canonical detached
+Hub when the desktop is the first client:
 
 ```typescript
-import { LocalRuntimeHost } from "@cline/core";
-
 const sessionManager = await ClineCore.create({
+  clientName: "cline-code",
   backendMode: "hub",
+  hub: {
+    strategy: "require-hub",
+    workspaceRoot,
+    cwd: workspaceRoot,
+    clientType: "code-sidecar",
+    displayName: "Code App sidecar",
+  },
   capabilities: {
     requestToolApproval: async (request) => {
       // Push approval request to frontend via WebSocket event
@@ -66,9 +77,15 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-### 2. Tool Approval — In-Memory Promise Resolution
+The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
+the desktop start the same detached Hub when no CLI process has started it yet.
+Startup discovery and locking ensure concurrent clients converge on one Hub.
 
-No more file-system watchers. Tool approvals use in-memory promise maps:
+### 2. Tool Approval — Client-Owned Promise Resolution
+
+The shared Hub routes approval requests back to the client that created the
+session. Desktop approvals use in-memory promise maps while the webview is
+online:
 
 ```typescript
 const pendingApprovals = new Map<string, {
@@ -96,12 +113,11 @@ const store = new SqliteSessionStore();
 
 ### 5. Routine Schedules — Direct Hub Commands
 
-Routine operations now ensure the local hub server in-process and issue hub schedule commands directly. They are still called in-process, not via child script:
+Routine operations use the same connected Hub client as chat session
+observation. They never start a second in-process Hub:
 
 ```typescript
-import { ensureHubServer, sendHubCommand } from "@cline/core";
-await ensureHubServer({ runtimeHandlers: createLocalHubScheduleRuntimeHandlers() });
-await sendHubCommand({}, { command: "schedule.list", payload: { limit: 200 } });
+await ctx.hubClient.command("schedule.list", { limit: 200 });
 ```
 
 ### 6. Native Commands
@@ -122,7 +138,7 @@ Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | `LocalRuntimeHost` in-process |
+| `chat_session_command` | shared Hub through `ClineCore` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
 | `save_provider_settings` | `saveLocalProviderSettings` |
@@ -144,7 +160,7 @@ Supported commands:
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
-| `list_routine_schedules` | local hub schedule commands |
+| `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
 | `open_mcp_settings_file` | OS `open` command |

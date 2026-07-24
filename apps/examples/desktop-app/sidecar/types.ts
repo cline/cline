@@ -2,7 +2,6 @@ import type {
 	AgentToolContext,
 	BasicLogger,
 	ClineCore,
-	HubServer,
 	ITelemetryService,
 	NodeHubClient,
 	ToolApprovalResult,
@@ -112,7 +111,6 @@ export type SidecarContext = {
 	pendingQuestions: Map<string, PendingAskQuestion>;
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
-	hubServer: HubServer | null;
 	workspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

@@ -100,7 +100,9 @@ Do not remove `src-tauri/entitlements.plist` or the `bundle.macOS.entitlements` 
 Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
-2. The desktop backend starts the Bun sidecar and exposes one websocket transport (`/transport`) for commands, queries, and pushed events.
+2. The desktop backend starts the Bun sidecar, which discovers or starts the
+   canonical shared Cline Hub and exposes one websocket transport (`/transport`)
+   for desktop commands, queries, and pushed events.
 3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
 4. Tool approval updates are pushed from the backend instead of polled from the UI.
 5. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
@@ -121,8 +123,8 @@ Desktop transport envelope:
 ## Key Files
 
 - [`src-tauri/src/main.rs`](./src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
-- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar backend
-- [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - in-process chat session runtime
+- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar and Hub-daemon entry dispatch
+- [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - shared-Hub chat session adapter
 - [`webview/lib/desktop-client.ts`](./webview/lib/desktop-client.ts) - typed desktop websocket client
 - [`webview/hooks/use-chat-session.ts`](./webview/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
 - [`webview/lib/chat-schema.ts`](./webview/lib/chat-schema.ts) - chat message schema used by the UI
@@ -157,5 +159,7 @@ Logging can be configured with the same environment variables as the CLI:
 - Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
-- If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`). The next `cline rpc ensure` call should attach to the current build's sidecar automatically.
+- If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`).
+  The next desktop or CLI Hub connection will reuse a compatible running Hub or
+  replace an incompatible one through the shared discovery path.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
