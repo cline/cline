@@ -3086,6 +3086,147 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 	})
 })
 
+describe("apply_patch multi-file split (cline#9904)", () => {
+	const startEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: { input: patch },
+			} as AgentEvent,
+		},
+	})
+
+	const endEvent = (callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_end",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+			} as AgentEvent,
+		},
+	})
+
+	const TWO_FILE = [
+		"*** Begin Patch",
+		"*** Update File: src/a.ts",
+		"@@",
+		"-const a = 1",
+		"+const a = 2",
+		"*** Add File: src/b.ts",
+		"+export const b = 3",
+		"*** End Patch",
+	].join("\n")
+
+	const DELETE_UPDATE = [
+		"*** Begin Patch",
+		"*** Delete File: src/gone.ts",
+		"*** Update File: src/keep.ts",
+		"@@",
+		"-old",
+		"+new",
+		"*** End Patch",
+	].join("\n")
+
+	const SINGLE_FILE = ["*** Begin Patch", "*** Update File: src/file.ts", "@@", "-old", "+new", "*** End Patch"].join("\n")
+
+	it("content_start streams a single whole-patch preview row for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+
+		// Streaming preview is intentionally one row (the whole patch); the per-file
+		// split happens only at content_end so the finalized ids match (cline#9904).
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].partial).toBe(true)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(TWO_FILE)
+	})
+
+	it("content_end finalizes one per-file message for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].partial).toBe(false)
+		const a = JSON.parse(result.messages[0].text!)
+		const b = JSON.parse(result.messages[1].text!)
+		expect(a.tool).toBe("editedExistingFile")
+		expect(a.path).toBe("src/a.ts")
+		expect(b.tool).toBe("newFileCreated")
+		expect(b.path).toBe("src/b.ts")
+		expect(a.content).not.toContain("src/b.ts")
+		expect(b.content).not.toContain("src/a.ts")
+	})
+
+	it("reconciles start→end by ts: N rows, none left partial (cline#9904 orphan guard)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		// Merge both batches by ts the way MessageStateHandler.addMessages does:
+		// a later message with an existing ts replaces the earlier one.
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		// Exactly one row per file, and no orphaned streaming (partial) row survives.
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	it("each per-file sub-patch keeps the Begin/End Patch wrapper", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+		for (const message of result.messages) {
+			const tool = JSON.parse(message.text!)
+			expect(tool.content.startsWith("*** Begin Patch")).toBe(true)
+			expect(tool.content.trimEnd().endsWith("*** End Patch")).toBe(true)
+		}
+	})
+
+	it("maps delete and update actions to fileDeleted and editedExistingFile", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(DELETE_UPDATE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const del = JSON.parse(result.messages[0].text!)
+		const upd = JSON.parse(result.messages[1].text!)
+		expect(del.tool).toBe("fileDeleted")
+		expect(del.path).toBe("src/gone.ts")
+		expect(upd.tool).toBe("editedExistingFile")
+		expect(upd.path).toBe("src/keep.ts")
+		expect(upd.content).not.toContain("src/gone.ts")
+	})
+
+	it("leaves a single-file patch as one message at content_end (S6-48 unchanged)", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(SINGLE_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(1)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(SINGLE_FILE)
+		expect(tool.diff).toBe(SINGLE_FILE)
+	})
+})
+
 // ---------------------------------------------------------------------------
 // MCP tool handling — say="use_mcp_server" + say="mcp_server_response"
 // ---------------------------------------------------------------------------
