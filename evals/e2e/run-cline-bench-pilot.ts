@@ -1022,12 +1022,12 @@ function readLiveCostStopMarker(jobDir: string, model: ModelConfig, task: string
 		typeof usage.totalCost !== "number" ||
 		!Number.isFinite(usage.totalCost) ||
 		usage.totalCost < expectedStopUsd ||
-		!Number.isInteger(usage.totalInputTokens) ||
-		(usage.totalInputTokens ?? -1) < 0 ||
-		!Number.isInteger(usage.totalCacheReadTokens) ||
-		(usage.totalCacheReadTokens ?? -1) < 0 ||
-		!Number.isInteger(usage.totalOutputTokens) ||
-		(usage.totalOutputTokens ?? -1) < 0
+		(usage.totalInputTokens !== null &&
+			(!Number.isInteger(usage.totalInputTokens) || usage.totalInputTokens < 0)) ||
+		(usage.totalCacheReadTokens !== null &&
+			(!Number.isInteger(usage.totalCacheReadTokens) || usage.totalCacheReadTokens < 0)) ||
+		(usage.totalOutputTokens !== null &&
+			(!Number.isInteger(usage.totalOutputTokens) || usage.totalOutputTokens < 0))
 	) {
 		fail(`live cost stop marker is invalid or belongs to different work: ${path}`)
 	}
@@ -1216,6 +1216,71 @@ export function liveCostStopUsd(perTaskBudgetUsd: number): number {
 	return Math.max(perTaskBudgetUsd * 0.25, perTaskBudgetUsd - headroomUsd)
 }
 
+function liveUsageCount(value: unknown): number | null {
+	if (value === null || value === undefined) return null
+	if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+		throw new Error("live cost telemetry has an invalid cumulative token count")
+	}
+	return value
+}
+
+function liveUsageSnapshot(value: unknown): UsageSnapshot | null {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+	const parsed = value as Record<string, unknown>
+	const event =
+		parsed.event !== null && typeof parsed.event === "object" && !Array.isArray(parsed.event)
+			? (parsed.event as Record<string, unknown>)
+			: null
+	let totalCost: unknown
+	let totalInputTokens: unknown
+	let totalCacheReadTokens: unknown
+	let totalOutputTokens: unknown
+	if (event?.type === "usage") {
+		totalCost = event.totalCost
+		totalInputTokens = event.totalInputTokens
+		totalCacheReadTokens = event.totalCacheReadTokens
+		totalOutputTokens = event.totalOutputTokens
+	} else if (parsed.type === "run_result") {
+		const aggregate =
+			parsed.aggregateUsage !== null &&
+			typeof parsed.aggregateUsage === "object" &&
+			!Array.isArray(parsed.aggregateUsage)
+				? (parsed.aggregateUsage as Record<string, unknown>)
+				: parsed.usage !== null && typeof parsed.usage === "object" && !Array.isArray(parsed.usage)
+					? (parsed.usage as Record<string, unknown>)
+					: null
+		if (!aggregate) throw new Error("live run_result has no cumulative usage")
+		totalCost = aggregate.totalCost
+		totalInputTokens = aggregate.inputTokens
+		totalCacheReadTokens = aggregate.cacheReadTokens
+		totalOutputTokens = aggregate.outputTokens
+	} else {
+		return null
+	}
+	const timestampMs = typeof parsed.ts === "string" ? Date.parse(parsed.ts) : Number.NaN
+	if (!Number.isFinite(timestampMs)) throw new Error("live cost telemetry has an invalid timestamp")
+	if (typeof totalCost !== "number" || !Number.isFinite(totalCost) || totalCost < 0) {
+		throw new Error("live cost telemetry has an invalid totalCost")
+	}
+	if (totalCost === 0) return null
+	return {
+		timestamp: new Date(timestampMs).toISOString(),
+		totalCost,
+		totalInputTokens: liveUsageCount(totalInputTokens),
+		totalCacheReadTokens: liveUsageCount(totalCacheReadTokens),
+		totalOutputTokens: liveUsageCount(totalOutputTokens),
+	}
+}
+
+function sameLiveUsage(left: UsageSnapshot, right: UsageSnapshot): boolean {
+	return (
+		left.totalCost === right.totalCost &&
+		left.totalInputTokens === right.totalInputTokens &&
+		left.totalCacheReadTokens === right.totalCacheReadTokens &&
+		left.totalOutputTokens === right.totalOutputTokens
+	)
+}
+
 export function readLiveUsage(jobDir: string): UsageSnapshot | null {
 	if (!existsSync(jobDir)) return null
 	const logPaths = readdirSync(jobDir, { withFileTypes: true })
@@ -1229,12 +1294,44 @@ export function readLiveUsage(jobDir: string): UsageSnapshot | null {
 	const document = readFileSync(logPaths[0], "utf8")
 	const finalNewline = document.lastIndexOf("\n")
 	if (finalNewline < 0) return null
-	try {
-		return recoverLatestUsage([document.slice(0, finalNewline + 1)])
-	} catch (error) {
-		if (error instanceof Error && error.message === "interrupted run has no usable cost telemetry") return null
-		throw error
+	let latest: UsageSnapshot | null = null
+	for (const line of document.slice(0, finalNewline + 1).split("\n")) {
+		if (!line.startsWith("{")) continue
+		let snapshot: UsageSnapshot | null
+		try {
+			snapshot = liveUsageSnapshot(JSON.parse(line))
+		} catch (error) {
+			if (
+				/^\{"ts":"[^"]+","type":"run_result"/.test(line) ||
+				/^\{"ts":"[^"]+","type":"agent_event","event":\{"type":"usage"/.test(line)
+			) {
+				throw error
+			}
+			continue
+		}
+		if (!snapshot) continue
+		if (latest) {
+			if (
+				snapshot.totalCost < latest.totalCost ||
+				(snapshot.totalInputTokens !== null &&
+					latest.totalInputTokens !== null &&
+					snapshot.totalInputTokens < latest.totalInputTokens) ||
+				(snapshot.totalCacheReadTokens !== null &&
+					latest.totalCacheReadTokens !== null &&
+					snapshot.totalCacheReadTokens < latest.totalCacheReadTokens) ||
+				(snapshot.totalOutputTokens !== null &&
+					latest.totalOutputTokens !== null &&
+					snapshot.totalOutputTokens < latest.totalOutputTokens)
+			) {
+				throw new Error("live cost telemetry is non-monotonic")
+			}
+			if (snapshot.timestamp === latest.timestamp && !sameLiveUsage(snapshot, latest)) {
+				throw new Error("live cost telemetry is ambiguous at the latest timestamp")
+			}
+		}
+		latest = snapshot
 	}
+	return latest
 }
 
 async function runHarborProcess(

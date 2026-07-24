@@ -635,7 +635,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 		const firstAgentDir = join(jobsRoot, "task__attempt-1", "agent")
 		mkdirSync(firstAgentDir, { recursive: true })
 		const firstLog = join(firstAgentDir, "cline.txt")
-		const usage = (timestamp: string, totalCost: number) =>
+		const usage = (timestamp: string, totalCost: number, includeCache = true) =>
 			JSON.stringify({
 				ts: timestamp,
 				type: "agent_event",
@@ -643,7 +643,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 					type: "usage",
 					totalCost,
 					totalInputTokens: Math.round(totalCost * 100),
-					totalCacheReadTokens: Math.round(totalCost * 50),
+					...(includeCache ? { totalCacheReadTokens: Math.round(totalCost * 50) } : {}),
 					totalOutputTokens: Math.round(totalCost * 10),
 				},
 			})
@@ -653,9 +653,24 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 
 		writeFileSync(
 			firstLog,
-			`${usage("2026-01-01T00:00:01Z", 0.5)}\n${usage("2026-01-01T00:00:02Z", 0.75)}\n`,
+			`${usage("2026-01-01T00:00:01Z", 0.5)}\n${usage("2026-01-01T00:00:02Z", 0.75, false)}\n`,
 		)
 		expect(readLiveUsage(jobsRoot)?.totalCost).toBe(0.75)
+		expect(readLiveUsage(jobsRoot)?.totalCacheReadTokens).toBeNull()
+
+		writeFileSync(
+			firstLog,
+			`${usage("2026-01-01T00:00:02Z", 0.75)}\n${usage("2026-01-01T00:00:03Z", 0.5)}\n`,
+		)
+		expect(() => readLiveUsage(jobsRoot)).toThrow("non-monotonic")
+
+		writeFileSync(
+			firstLog,
+			`${usage("2026-01-01T00:00:02Z", 0.75)}\n{"ts":"2026-01-01T00:00:03Z","type":"agent_event","event":{"type":"usage"\n`,
+		)
+		expect(() => readLiveUsage(jobsRoot)).toThrow()
+
+		writeFileSync(firstLog, `${usage("2026-01-01T00:00:02Z", 0.75)}\n`)
 
 		const secondAgentDir = join(jobsRoot, "task__attempt-2", "agent")
 		mkdirSync(secondAgentDir, { recursive: true })
