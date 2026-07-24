@@ -191,6 +191,71 @@ describe("MetricsCalculator", () => {
 		})
 	})
 
+	describe("applyEarlyExitPassAtK", () => {
+		it("sets pass@k without padding unrun trials for reliability metrics", () => {
+			// Early-exit after first pass when 3 trials were requested
+			const observed = [true]
+			const metrics = calc.applyEarlyExitPassAtK(calc.calculateTaskMetrics(observed), 1, 3, true)
+
+			expect(metrics.passAt1).toBe(1.0)
+			expect(metrics.passAt3).toBe(1.0)
+			// Must not claim all-k reliability or invent flakiness from unrun trials
+			expect(metrics.passCaret3).toBe(0)
+			expect(metrics.flakinessScore).toBe(0)
+		})
+
+		it("does not invent pass^3 via true-padding (anti-regression)", () => {
+			const observed = [true]
+			const padded = [true, true, true]
+			const honest = calc.applyEarlyExitPassAtK(calc.calculateTaskMetrics(observed), 1, 3, true)
+			const falsified = calc.calculateTaskMetrics(padded)
+
+			expect(honest.passAt3).toBe(1.0)
+			expect(honest.passCaret3).toBe(0)
+			expect(falsified.passCaret3).toBe(1.0)
+			expect(honest.passCaret3).not.toBe(falsified.passCaret3)
+		})
+
+		it("is a no-op when all requested trials ran", () => {
+			const trials = [true, false, true]
+			const base = calc.calculateTaskMetrics(trials)
+			const metrics = calc.applyEarlyExitPassAtK({ ...base }, 3, 3, true)
+
+			expect(metrics).toEqual(base)
+		})
+
+		it("is a no-op when the last trial failed (no early-exit pass)", () => {
+			const trials = [false]
+			const base = calc.calculateTaskMetrics(trials)
+			const metrics = calc.applyEarlyExitPassAtK({ ...base }, 1, 3, false)
+
+			expect(metrics.passAt1).toBe(0)
+			expect(metrics.passAt3).toBe(0)
+			expect(metrics.passCaret3).toBe(0)
+		})
+
+		it("does not set passAt3 when first success is after trial 3", () => {
+			// Fail fail fail pass, then early-exit with trialsRequested > 4
+			const observed = [false, false, false, true]
+			const base = calc.calculateTaskMetrics(observed)
+			const metrics = calc.applyEarlyExitPassAtK(base, 4, 5, true)
+
+			expect(metrics.passAt1).toBe(base.passAt1)
+			expect(metrics.passAt3).toBe(base.passAt3)
+			expect(metrics.passAt3).not.toBe(1.0)
+			expect(metrics.passCaret3).toBe(base.passCaret3)
+		})
+
+		it("sets passAt3 when first success is on trial 2 of 5", () => {
+			const observed = [false, true]
+			const metrics = calc.applyEarlyExitPassAtK(calc.calculateTaskMetrics(observed), 2, 5, true)
+
+			expect(metrics.passAt1).toBe(1.0)
+			expect(metrics.passAt3).toBe(1.0)
+			expect(metrics.passCaret3).toBe(0)
+		})
+	})
+
 	describe("getTaskStatus", () => {
 		it("returns 'pass' when all trials pass", () => {
 			expect(calc.getTaskStatus([true, true, true])).toBe("pass")

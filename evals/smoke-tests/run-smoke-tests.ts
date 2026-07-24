@@ -550,6 +550,9 @@ async function main() {
 			trialWorkdirs.push(trialWorkdir)
 			const result = await runTrial(scenario, modelId, trialWorkdir)
 			trialResults.push(result)
+			if (result.passed && trials > 1) {
+				break
+			}
 		}
 
 		trialResults.forEach((result, t) => {
@@ -564,8 +567,16 @@ async function main() {
 			fs.writeFileSync(path.join(logDir, `trial-${trialNum}.log`), logContent)
 		})
 
+		// Use only trials that actually ran for reliability metrics (pass^k,
+		// flakiness). Padding unrun trials with `true` after early-exit would
+		// inflate passCaret3 to 1.0 and force flakinessScore to 0.
 		const trialBools = trialResults.map((t) => t.passed)
-		const metrics = metricsCalc.calculateTaskMetrics(trialBools)
+		const metrics = metricsCalc.applyEarlyExitPassAtK(
+			metricsCalc.calculateTaskMetrics(trialBools),
+			trialResults.length,
+			trials,
+			Boolean(trialResults[trialResults.length - 1]?.passed),
+		)
 		const status = metricsCalc.getTaskStatus(trialBools)
 
 		return {
