@@ -64,11 +64,14 @@ and is graded by the task's deterministic verifier.
 - Harbor receives a verifier-only `PATH` containing `/root/.local/bin`. This
   fixes inconsistent `uv` lookup across the selected verifiers without changing
   the agent environment, task instructions, tests, or `cline-bench` submodule.
-- Harbor exposes cost telemetry after a task completes, not while it is
-  running. Reservations prevent starting work whose declared exposure would
-  cross a checkpoint, but they cannot stop an active request at an exact dollar
-  amount. A provider-side/prepaid account limit is the **only true dollar hard
-  stop**. The wall timeout is the active-run bound.
+- Cline writes cumulative usage after each model turn. The runner polls that
+  private JSONL every 250 ms and stops an active run at the reservation minus
+  `max($0.55, 25%)` headroom (`$1.65` for a `$2.20` reservation). It persists a
+  private recovery marker before terminating Harbor and its task container, so
+  a stopped run is settled and never respent even if Harbor cannot finish its
+  result file. One in-flight model call can still land after the last usage
+  event, so a provider-side/prepaid account limit remains the only true dollar
+  hard stop.
 - Optional `--local-core-url http://localhost:7777` is deliberately narrow. It
   applies only to the virtual `cline/auto` and `cline-pass/auto` arms,
   normalizes to `host.docker.internal:7777`, forwards only

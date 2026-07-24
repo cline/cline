@@ -8,11 +8,13 @@
  * - exactly one task runs at a time, once
  * - only an allowlist of host environment variables reaches Harbor
  * - task/model/global budget checks stop subsequent work
+ * - cumulative Cline usage stops an active run with billing headroom
  * - jobs and reports live outside the repository with private permissions
  *
- * Harbor/Cline currently reports cost only after an agent run finishes. The
- * per-task budget is therefore a stop-after-run guard, while the wall timeout
- * is the proactive bound during a run.
+ * Cline writes cumulative usage after each model turn. The runner watches that
+ * private log and terminates Harbor before the per-task reservation is
+ * exhausted. One in-flight turn can still complete before termination, so the
+ * guard retains explicit billing headroom.
  */
 
 import { spawn, spawnSync } from "node:child_process"
@@ -48,6 +50,7 @@ import {
 	reserveBudget,
 	settleBudget,
 	sha256,
+	type UsageSnapshot,
 } from "./cline-bench-safety"
 
 export type ModelConfig = {
@@ -980,6 +983,117 @@ function readInterruptedRun(
 	)
 }
 
+type LiveCostStopMarker = {
+	schemaVersion: 1
+	model: string
+	taskHash: string
+	startedAt: string
+	stoppedAt: string
+	stopUsd: number
+	reservationUsd: number
+	usage: UsageSnapshot
+}
+
+function liveCostStopMarkerPath(jobDir: string): string {
+	return join(jobDir, "live-cost-stop.json")
+}
+
+function readLiveCostStopMarker(jobDir: string, model: ModelConfig, task: string): LiveCostStopMarker {
+	const path = liveCostStopMarkerPath(jobDir)
+	if (!existsSync(path)) fail(`live cost stop marker is missing: ${path}`)
+	const marker = JSON.parse(readFileSync(path, "utf8")) as Partial<LiveCostStopMarker>
+	const expectedTaskHash = hashPrivateIdentifier("cline-bench-task", task)
+	const expectedStopUsd = liveCostStopUsd(model.perTaskBudgetUsd)
+	const usage = marker.usage
+	if (
+		marker.schemaVersion !== 1 ||
+		marker.model !== model.id ||
+		marker.taskHash !== expectedTaskHash ||
+		marker.reservationUsd !== model.perTaskBudgetUsd ||
+		typeof marker.stopUsd !== "number" ||
+		Math.abs(marker.stopUsd - expectedStopUsd) > 1e-9 ||
+		typeof marker.startedAt !== "string" ||
+		!Number.isFinite(Date.parse(marker.startedAt)) ||
+		typeof marker.stoppedAt !== "string" ||
+		!Number.isFinite(Date.parse(marker.stoppedAt)) ||
+		!usage ||
+		typeof usage.timestamp !== "string" ||
+		!Number.isFinite(Date.parse(usage.timestamp)) ||
+		typeof usage.totalCost !== "number" ||
+		!Number.isFinite(usage.totalCost) ||
+		usage.totalCost < expectedStopUsd ||
+		!Number.isInteger(usage.totalInputTokens) ||
+		(usage.totalInputTokens ?? -1) < 0 ||
+		!Number.isInteger(usage.totalCacheReadTokens) ||
+		(usage.totalCacheReadTokens ?? -1) < 0 ||
+		!Number.isInteger(usage.totalOutputTokens) ||
+		(usage.totalOutputTokens ?? -1) < 0
+	) {
+		fail(`live cost stop marker is invalid or belongs to different work: ${path}`)
+	}
+	return marker as LiveCostStopMarker
+}
+
+function markerRunResult(
+	jobDir: string,
+	config: PilotConfig,
+	model: ModelConfig,
+	task: string,
+	marker: LiveCostStopMarker,
+): RunResult {
+	const usage = marker.usage
+	const virtualModel = model.id === "cline/auto" || model.id === "cline-pass/auto"
+	const durationSeconds = Math.max(0, (Date.parse(marker.stoppedAt) - Date.parse(marker.startedAt)) / 1000)
+	return {
+		model: model.id,
+		requestedModel: model.id,
+		task,
+		taskHash: marker.taskHash,
+		sessionHash: null,
+		sessionIdSha256: null,
+		routeTraces: [],
+		routeEvidence: virtualModel ? "missing" : "not-applicable",
+		outcome: "failed",
+		failureClassification: "LiveCostGuardExceeded",
+		passed: false,
+		reward: null,
+		costUsd: usage.totalCost,
+		costBasis: config.routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
+		durationSeconds,
+		inputTokens: usage.totalInputTokens,
+		cacheTokens: usage.totalCacheReadTokens,
+		outputTokens: usage.totalOutputTokens,
+		...tokenEconomics(model, usage.totalInputTokens, usage.totalCacheReadTokens, usage.totalOutputTokens),
+		jobDir,
+	}
+}
+
+export function readLiveCostStoppedRun(
+	jobDir: string,
+	config: PilotConfig,
+	model: ModelConfig,
+	task: string,
+): RunResult {
+	const marker = readLiveCostStopMarker(jobDir, model, task)
+	if (existsSync(join(jobDir, "result.json"))) {
+		try {
+			const recovered = recoveredUnsuccessfulRun(
+				jobDir,
+				config,
+				model,
+				task,
+				"failed",
+				"LiveCostGuardExceeded",
+			)
+			if (recovered.costUsd >= marker.usage.totalCost) return recovered
+		} catch {
+			// The marker is persisted before termination specifically so a
+			// missing or incomplete Harbor result cannot authorize a respent.
+		}
+	}
+	return markerRunResult(jobDir, config, model, task, marker)
+}
+
 export function readRecoveredFailedRun(
 	jobDir: string,
 	config: PilotConfig,
@@ -1070,6 +1184,9 @@ type HarborProcessResult = {
 	stdout: string
 	stderr: string
 	timedOut: boolean
+	liveCostStopped: boolean
+	liveCostAtStopUsd: number | null
+	liveCostGuardError: string | null
 	signal: NodeJS.Signals | null
 }
 
@@ -1091,7 +1208,47 @@ export function modelTransportHarborArguments(modelId: string, localCoreUrl?: st
 	return usesLocalRouter ? localCoreHarborArguments(localCoreUrl) : []
 }
 
-async function runHarborProcess(args: string[], config: PilotConfig): Promise<HarborProcessResult> {
+export function liveCostStopUsd(perTaskBudgetUsd: number): number {
+	if (!Number.isFinite(perTaskBudgetUsd) || perTaskBudgetUsd <= 0) {
+		throw new Error("per-task budget must be positive")
+	}
+	const headroomUsd = Math.max(0.55, perTaskBudgetUsd * 0.25)
+	return Math.max(perTaskBudgetUsd * 0.25, perTaskBudgetUsd - headroomUsd)
+}
+
+export function readLiveUsage(jobDir: string): UsageSnapshot | null {
+	if (!existsSync(jobDir)) return null
+	const logPaths = readdirSync(jobDir, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => join(jobDir, entry.name, "agent", "cline.txt"))
+		.filter((path) => existsSync(path))
+	if (logPaths.length === 0) return null
+	if (logPaths.length !== 1) {
+		throw new Error(`live cost guard requires exactly one attempt; found ${logPaths.length}`)
+	}
+	const document = readFileSync(logPaths[0], "utf8")
+	const finalNewline = document.lastIndexOf("\n")
+	if (finalNewline < 0) return null
+	try {
+		return recoverLatestUsage([document.slice(0, finalNewline + 1)])
+	} catch (error) {
+		if (error instanceof Error && error.message === "interrupted run has no usable cost telemetry") return null
+		throw error
+	}
+}
+
+async function runHarborProcess(
+	args: string[],
+	config: PilotConfig,
+	liveCostGuard: {
+		jobDir: string
+		model: string
+		taskHash: string
+		startedAt: string
+		stopUsd: number
+		reservationUsd: number
+	},
+): Promise<HarborProcessResult> {
 	const child = spawn("harbor", args, {
 		cwd: clineBenchDir,
 		env: safeEnvironment(config.provider),
@@ -1126,13 +1283,19 @@ async function runHarborProcess(args: string[], config: PilotConfig): Promise<Ha
 		}
 	}
 	let timedOut = false
+	let liveCostStopped = false
+	let liveCostAtStopUsd: number | null = null
+	let liveCostGuardError: string | null = null
 	let interruptedSignal: NodeJS.Signals | null = null
 	let forceKillTimeout: NodeJS.Timeout | undefined
-	const onSignal = (signal: NodeJS.Signals) => {
-		interruptedSignal = signal
+	const terminateWithFallback = () => {
 		terminateGroup("SIGTERM")
 		forceKillTimeout ||= setTimeout(() => terminateGroup("SIGKILL"), 5_000)
 		forceKillTimeout.unref()
+	}
+	const onSignal = (signal: NodeJS.Signals) => {
+		interruptedSignal = signal
+		terminateWithFallback()
 	}
 	const signalHandlers = (["SIGINT", "SIGTERM", "SIGHUP"] as const).map((signal) => {
 		const handler = () => onSignal(signal)
@@ -1142,13 +1305,39 @@ async function runHarborProcess(args: string[], config: PilotConfig): Promise<Ha
 	const timeout = setTimeout(
 		() => {
 			timedOut = true
-			terminateGroup("SIGTERM")
-			forceKillTimeout = setTimeout(() => terminateGroup("SIGKILL"), 5_000)
-			forceKillTimeout.unref()
+			terminateWithFallback()
 		},
 		(config.timeoutSeconds + 15 * 60) * 1000,
 	)
 	timeout.unref()
+	const costGuardInterval = setInterval(() => {
+		if (liveCostStopped || liveCostGuardError) return
+		try {
+			const latest = readLiveUsage(liveCostGuard.jobDir)
+			if (latest && latest.totalCost >= liveCostGuard.stopUsd) {
+				liveCostStopped = true
+				liveCostAtStopUsd = latest.totalCost
+				mkdirSync(liveCostGuard.jobDir, { recursive: true, mode: 0o700 })
+				writePrivateJson(join(liveCostGuard.jobDir, "live-cost-stop.json"), {
+					schemaVersion: 1,
+					model: liveCostGuard.model,
+					taskHash: liveCostGuard.taskHash,
+					startedAt: liveCostGuard.startedAt,
+					stoppedAt: new Date().toISOString(),
+					stopUsd: liveCostGuard.stopUsd,
+					reservationUsd: liveCostGuard.reservationUsd,
+					usage: latest,
+				})
+				cleanupJobContainers(liveCostGuard.jobDir)
+				terminateWithFallback()
+			}
+		} catch (error) {
+			liveCostGuardError = error instanceof Error ? error.message : String(error)
+			cleanupJobContainers(liveCostGuard.jobDir)
+			terminateWithFallback()
+		}
+	}, 250)
+	costGuardInterval.unref()
 	let outcome: { status: number | null; signal: NodeJS.Signals | null } | undefined
 	try {
 		outcome = await new Promise<{
@@ -1160,6 +1349,7 @@ async function runHarborProcess(args: string[], config: PilotConfig): Promise<Ha
 		})
 	} finally {
 		clearTimeout(timeout)
+		clearInterval(costGuardInterval)
 		if (forceKillTimeout) clearTimeout(forceKillTimeout)
 		for (const entry of signalHandlers) process.removeListener(entry.signal, entry.handler)
 	}
@@ -1171,6 +1361,9 @@ async function runHarborProcess(args: string[], config: PilotConfig): Promise<Ha
 		status: outcome.status,
 		signal: outcome.signal,
 		timedOut,
+		liveCostStopped,
+		liveCostAtStopUsd,
+		liveCostGuardError,
 		stdout: Buffer.concat(stdoutChunks).toString("utf8"),
 		stderr: Buffer.concat(stderrChunks).toString("utf8"),
 	}
@@ -1221,8 +1414,18 @@ async function runOne(
 	args.push(...modelTransportHarborArguments(model.id, localCoreUrl))
 
 	console.log(`\n[${runNumber}] ${model.id} × ${task}`)
+	const startedAt = new Date().toISOString()
 	const started = Date.now()
-	const result = await runHarborProcess(args, config)
+	const stopUsd = liveCostStopUsd(model.perTaskBudgetUsd)
+	console.log(`  live cost guard: $${stopUsd.toFixed(2)} (reservation $${model.perTaskBudgetUsd.toFixed(2)})`)
+	const result = await runHarborProcess(args, config, {
+		jobDir,
+		model: model.id,
+		taskHash: hashPrivateIdentifier("cline-bench-task", task),
+		startedAt,
+		stopUsd,
+		reservationUsd: model.perTaskBudgetUsd,
+	})
 	const durationSeconds = (Date.now() - started) / 1000
 	const secret = process.env.CLINE_API_KEY || ""
 	const sanitizedOutput = redactSecrets(`${result.stdout || ""}\n${result.stderr || ""}`, [secret])
@@ -1231,6 +1434,22 @@ async function runOne(
 		mode: 0o600,
 	})
 
+	if (result.liveCostGuardError) {
+		const removed = cleanupJobContainers(jobDir)
+		fail(
+			`live cost guard failed closed for ${model.id} × ${task}; cleaned ${removed.length} container(s): ${result.liveCostGuardError}`,
+		)
+	}
+	if (result.liveCostStopped) {
+		const removed = cleanupJobContainers(jobDir)
+		try {
+			return readLiveCostStoppedRun(jobDir, config, model, task)
+		} catch (usageError) {
+			fail(
+				`live cost guard stopped ${model.id} × ${task} at $${(result.liveCostAtStopUsd || 0).toFixed(4)}; cleaned ${removed.length} container(s), but usage recovery failed: ${usageError instanceof Error ? usageError.message : String(usageError)}`,
+			)
+		}
+	}
 	if (result.timedOut) {
 		const removed = cleanupJobContainers(jobDir)
 		if (existsSync(join(jobDir, "result.json"))) {
@@ -1271,6 +1490,12 @@ export function reuseCompletedRun(
 ): RunResult | null {
 	const jobName = `${String(runNumber).padStart(2, "0")}-${slug(model.id)}-${slug(task)}`
 	const jobDir = join(jobsRoot, jobName)
+	if (existsSync(liveCostStopMarkerPath(jobDir))) {
+		const stopped = readLiveCostStoppedRun(jobDir, config, model, task)
+		console.log(`\n[${runNumber}] reusing live-cost-stopped ${model.id} × ${task}`)
+		console.log(`  cost=$${stopped.costUsd.toFixed(4)} classification=${stopped.failureClassification}`)
+		return stopped
+	}
 	if (!existsSync(join(jobDir, "result.json"))) return null
 	const rootResult = JSON.parse(readFileSync(join(jobDir, "result.json"), "utf8")) as any
 	if (!rootResult.finished_at && rootResult.stats?.n_running_trials > 0) {
@@ -1393,7 +1618,10 @@ async function main() {
 		} else {
 			const hasUnboundResult = buildRunMatrix(config).some((run, index) => {
 				const jobName = `${String(index + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
-				return existsSync(join(jobsRoot, jobName, "result.json"))
+				return (
+					existsSync(join(jobsRoot, jobName, "result.json")) ||
+					existsSync(join(jobsRoot, jobName, "live-cost-stop.json"))
+				)
 			})
 			if (hasUnboundResult) {
 				fail("jobs-root contains result artifacts without a content-addressed pilot report; use a new jobs-root")
@@ -1439,7 +1667,10 @@ async function main() {
 			if (matrixIndex < 0) fail(`budget ledger reservation is not in the execution matrix: ${entry.runKey}`)
 			const run = matrix[matrixIndex]
 			const jobName = `${String(matrixIndex + 1).padStart(2, "0")}-${slug(run.model.id)}-${slug(run.task)}`
-			if (!existsSync(join(jobsRoot, jobName, "result.json"))) {
+			if (
+				!existsSync(join(jobsRoot, jobName, "result.json")) &&
+				!existsSync(join(jobsRoot, jobName, "live-cost-stop.json"))
+			) {
 				fail(`unsettled prior attempt has no recoverable usage; refusing to spend again: ${entry.runKey}`)
 			}
 		}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { hostname, tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -23,6 +23,7 @@ import {
 	type ExecutionProvenance,
 	fingerprintExecution,
 	hashDirectoryTree,
+	liveCostStopUsd,
 	localCoreHarborArguments,
 	matchRouteTraces,
 	modelTransportHarborArguments,
@@ -30,6 +31,8 @@ import {
 	type PilotReport,
 	prepareTaskPath,
 	readConfig,
+	readLiveCostStoppedRun,
+	readLiveUsage,
 	readRecoveredFailedRun,
 	readTrialSessionIdentity,
 	reuseCompletedRun,
@@ -572,6 +575,94 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 		expect(ledgerExposure(ledger)).toBe(0.25)
 	})
 
+	test("recovers a private live-cost marker without a Harbor result and never respends it", () => {
+		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-live-cost-"))
+		temporaryDirectories.push(jobsRoot)
+		const task = "task-a"
+		const model = {
+			id: "moonshotai/kimi-k3",
+			perTaskBudgetUsd: 2.2,
+			perModelBudgetUsd: 2.2,
+			pricing: {
+				inputPerMTok: 3,
+				cachedInputPerMTok: 0.3,
+				outputPerMTok: 15,
+			},
+		}
+		const guardedConfig: PilotConfig = {
+			...config(),
+			models: [model],
+			tasks: [task],
+		}
+		const jobDir = join(jobsRoot, "01-moonshotai-kimi-k3-task-a")
+		mkdirSync(jobDir, { recursive: true })
+		const markerPath = join(jobDir, "live-cost-stop.json")
+		writeFileSync(
+			markerPath,
+			`${JSON.stringify({
+				schemaVersion: 1,
+				model: model.id,
+				taskHash: hashPrivateIdentifier("cline-bench-task", task),
+				startedAt: "2026-01-01T00:00:00Z",
+				stoppedAt: "2026-01-01T00:01:00Z",
+				stopUsd: liveCostStopUsd(model.perTaskBudgetUsd),
+				reservationUsd: model.perTaskBudgetUsd,
+				usage: {
+					timestamp: "2026-01-01T00:00:59Z",
+					totalCost: 1.7,
+					totalInputTokens: 100,
+					totalCacheReadTokens: 80,
+					totalOutputTokens: 10,
+				},
+			})}\n`,
+			{ mode: 0o600 },
+		)
+
+		const stopped = readLiveCostStoppedRun(jobDir, guardedConfig, model, task)
+		expect(stopped.outcome).toBe("failed")
+		expect(stopped.failureClassification).toBe("LiveCostGuardExceeded")
+		expect(stopped.costUsd).toBe(1.7)
+		expect(stopped.cacheTokens).toBe(80)
+		expect(statSync(markerPath).mode & 0o777).toBe(0o600)
+
+		const resumed = reuseCompletedRun(guardedConfig, model, task, jobsRoot, 1)
+		expect(resumed).toEqual(stopped)
+	})
+
+	test("reads only complete live usage records and fails closed on ambiguous attempts", () => {
+		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-live-usage-"))
+		temporaryDirectories.push(jobsRoot)
+		const firstAgentDir = join(jobsRoot, "task__attempt-1", "agent")
+		mkdirSync(firstAgentDir, { recursive: true })
+		const firstLog = join(firstAgentDir, "cline.txt")
+		const usage = (timestamp: string, totalCost: number) =>
+			JSON.stringify({
+				ts: timestamp,
+				type: "agent_event",
+				event: {
+					type: "usage",
+					totalCost,
+					totalInputTokens: Math.round(totalCost * 100),
+					totalCacheReadTokens: Math.round(totalCost * 50),
+					totalOutputTokens: Math.round(totalCost * 10),
+				},
+			})
+
+		writeFileSync(firstLog, `${usage("2026-01-01T00:00:01Z", 0.5)}\n{"ts":`)
+		expect(readLiveUsage(jobsRoot)?.totalCost).toBe(0.5)
+
+		writeFileSync(
+			firstLog,
+			`${usage("2026-01-01T00:00:01Z", 0.5)}\n${usage("2026-01-01T00:00:02Z", 0.75)}\n`,
+		)
+		expect(readLiveUsage(jobsRoot)?.totalCost).toBe(0.75)
+
+		const secondAgentDir = join(jobsRoot, "task__attempt-2", "agent")
+		mkdirSync(secondAgentDir, { recursive: true })
+		writeFileSync(join(secondAgentDir, "cline.txt"), `${usage("2026-01-01T00:00:03Z", 0.8)}\n`)
+		expect(() => readLiveUsage(jobsRoot)).toThrow("exactly one attempt")
+	})
+
 	test("redacts all exact secrets and hashes private identifiers", () => {
 		expect(redactSecrets("alpha secret beta token", ["secret", "token"])).toBe("alpha [REDACTED] beta [REDACTED]")
 		expect(hashPrivateIdentifier("task", "raw-id")).toMatch(/^[0-9a-f]{64}$/)
@@ -579,6 +670,9 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 	})
 
 	test("strictly normalizes only the local Core endpoint", () => {
+		expect(liveCostStopUsd(2.2)).toBeCloseTo(1.65)
+		expect(liveCostStopUsd(1.8)).toBeCloseTo(1.25)
+		expect(() => liveCostStopUsd(0)).toThrow("positive")
 		expect(normalizeLocalCoreUrl("http://localhost:7777")).toBe("http://host.docker.internal:7777")
 		expect(normalizeLocalCoreUrl("http://127.0.0.1:17777")).toBe("http://host.docker.internal:17777")
 		expect(localCoreHarborArguments("http://localhost:7777")).toEqual([
