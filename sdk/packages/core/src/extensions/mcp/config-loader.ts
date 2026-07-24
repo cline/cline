@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
 	existsSync,
 	mkdirSync,
@@ -9,10 +10,10 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { BasicLogger } from "@cline/shared";
+import { clampMcpTimeoutSeconds } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import type {
@@ -24,6 +25,16 @@ import type {
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
+
+// The `timeout` field is in seconds (see @cline/shared). Any finite number is
+// accepted here and clamped to [MIN, MAX] at resolution time, so a
+// milliseconds/seconds mix-up cannot become hours and a bad value cannot
+// reject the whole settings file.
+const timeoutFieldSchema = z.number().finite().optional();
+
+function toTimeoutSeconds(timeout: number | undefined): number | undefined {
+	return timeout === undefined ? undefined : clampMcpTimeoutSeconds(timeout);
+}
 const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
@@ -62,12 +73,21 @@ const mcpTransportSchema = z.discriminatedUnion("type", [
 	streamableHttpTransportSchema,
 ]);
 
-const nestedRegistrationBodySchema = z.object({
-	transport: mcpTransportSchema,
-	disabled: z.boolean().optional(),
-	metadata: metadataSchema.optional(),
-	oauth: oauthStateSchema.optional(),
-});
+const nestedRegistrationBodySchema = z
+	.object({
+		transport: mcpTransportSchema,
+		disabled: z.boolean().optional(),
+		timeout: timeoutFieldSchema,
+		metadata: metadataSchema.optional(),
+		oauth: oauthStateSchema.optional(),
+	})
+	.transform((value) => ({
+		transport: value.transport,
+		disabled: value.disabled,
+		timeoutSeconds: toTimeoutSeconds(value.timeout),
+		metadata: value.metadata,
+		oauth: value.oauth,
+	}));
 
 const legacyTransportTypeSchema = z
 	.enum(["stdio", "sse", "http", "streamableHttp"])
@@ -77,6 +97,7 @@ const legacyRegistrationBaseSchema = z.object({
 	type: z.enum(["stdio", "sse", "streamableHttp"]).optional(),
 	transportType: legacyTransportTypeSchema,
 	disabled: z.boolean().optional(),
+	timeout: timeoutFieldSchema,
 	metadata: metadataSchema.optional(),
 	oauth: oauthStateSchema.optional(),
 });
@@ -120,6 +141,7 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 			env: value.env,
 		},
 		disabled: value.disabled,
+		timeoutSeconds: toTimeoutSeconds(value.timeout),
 		metadata: value.metadata,
 		oauth: value.oauth,
 	}));
@@ -152,6 +174,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 					headers: value.headers,
 				},
 				disabled: value.disabled,
+				timeoutSeconds: toTimeoutSeconds(value.timeout),
 				metadata: value.metadata,
 				oauth: value.oauth,
 			};
@@ -163,6 +186,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 				headers: value.headers,
 			},
 			disabled: value.disabled,
+			timeoutSeconds: toTimeoutSeconds(value.timeout),
 			metadata: value.metadata,
 			oauth: value.oauth,
 		};
@@ -684,6 +708,7 @@ export function resolveMcpServerRegistrations(
 		name,
 		transport: value.transport,
 		disabled: value.disabled,
+		timeoutSeconds: value.timeoutSeconds,
 		metadata: value.metadata,
 		oauth: value.oauth,
 	}));

@@ -27,6 +27,7 @@ import {
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "@cline/core";
+import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { getToolCatalog } from "../runtime/tools";
 import {
@@ -175,7 +176,9 @@ function getMcpAuthLabel(registration: McpServerRegistration): string {
 }
 
 function getMcpDescription(registration: McpServerRegistration): string {
-	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}`;
+	const timeoutSeconds =
+		registration.timeoutSeconds ?? DEFAULT_MCP_TIMEOUT_SECONDS;
+	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}, timeout ${timeoutSeconds}s`;
 }
 
 function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {

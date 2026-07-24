@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import sinon from "sinon"
 import { McpHub } from "../McpHub"
 
@@ -165,6 +166,78 @@ describe("McpHub.callTool", () => {
 			requestOptions.should.have.property("timeout")
 			requestOptions.timeout.should.be.a.Number()
 			requestOptions.timeout.should.be.above(0)
+		})
+	})
+
+	// ── Per-server timeout resolution ─────────────────────────────────
+
+	describe("timeout resolution", () => {
+		it("should pass the configured per-server timeout (seconds) as ms", async () => {
+			const { hub, client } = createMcpHub({
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }),
+			})
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-t01")
+
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(120_000)
+		})
+
+		it("should clamp a milliseconds/seconds mix-up to the maximum", async () => {
+			const { hub, client } = createMcpHub({
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 60000 }),
+			})
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-t02")
+
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(3_600_000)
+		})
+
+		it("should fall back to the default when the config is malformed", async () => {
+			const { hub, client } = createMcpHub({ config: "not-json" })
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-t03")
+
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(60_000)
+		})
+
+		it("should apply the per-server timeout to metadata requests (tools/list)", async () => {
+			const { hub, client } = createMcpHub({
+				client: createMockClient({ tools: [] }),
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }),
+			})
+
+			await (hub as any).fetchToolsList("test-server")
+
+			client.request.calledOnce.should.be.true()
+			const requestArgs = client.request.firstCall.args[0]
+			requestArgs.method.should.equal("tools/list")
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(120_000)
+		})
+
+		it("should augment request-timeout errors with how to raise the bound", async () => {
+			const failingClient = {
+				request: sinon.stub().rejects(new McpError(ErrorCode.RequestTimeout, "Request timed out")),
+			}
+			const { hub } = createMcpHub({
+				client: failingClient,
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }),
+			})
+
+			let thrown: any
+			try {
+				await hub.callTool("test-server", "slow_tool", undefined, "ulid-t04")
+			} catch (error) {
+				thrown = error
+			}
+
+			thrown.should.be.instanceOf(McpError)
+			thrown.code.should.equal(ErrorCode.RequestTimeout)
+			thrown.message.should.match(/timed out after 120s/)
+			thrown.message.should.match(/"timeout" field \(in seconds\)/)
 		})
 	})
 

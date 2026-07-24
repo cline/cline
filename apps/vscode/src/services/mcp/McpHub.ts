@@ -17,7 +17,7 @@ import {
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import {
-	DEFAULT_MCP_TIMEOUT_SECONDS,
+	MAX_MCP_TIMEOUT_SECONDS,
 	type McpPrompt,
 	type McpPromptResponse,
 	type McpResource,
@@ -29,7 +29,6 @@ import {
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { secondsToMs } from "@utils/time"
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
@@ -42,11 +41,11 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
-import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
-import { updateMcpSettingsFile } from "./settingsLock"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { updateMcpSettingsFile } from "./settingsLock"
+import { augmentMcpTimeoutError, resolveMcpServerTimeoutMs } from "./timeout"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -776,7 +775,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 
 			// Get autoApprove settings
@@ -808,7 +807,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -830,7 +829,7 @@ export class McpHub {
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: resolveMcpServerTimeoutMs(connection.server.config),
 				},
 			)
 
@@ -851,7 +850,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 
 			return (response?.prompts || []).map((prompt) => ({
@@ -1360,6 +1359,9 @@ export class McpHub {
 				},
 			},
 			ReadResourceResultSchema,
+			{
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			},
 		)
 	}
 
@@ -1389,7 +1391,7 @@ export class McpHub {
 			},
 			GetPromptResultSchema,
 			{
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			},
 		)
 
@@ -1419,15 +1421,9 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
-		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
-
-		try {
-			const config = JSON.parse(connection.server.config)
-			const parsedConfig = ServerConfigSchema.parse(config)
-			timeout = secondsToMs(parsedConfig.timeout)
-		} catch (error) {
-			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
-		}
+		// The config is re-resolved on each call, so a changed timeout takes
+		// effect on the next request.
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config) // sdk expects ms
 
 		this.telemetryService.captureMcpToolCall(
 			ulid,
@@ -1475,7 +1471,7 @@ export class McpHub {
 				error instanceof Error ? error.message : String(error),
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
-			throw error
+			throw augmentMcpTimeoutError(error, serverName, timeout)
 		}
 	}
 
@@ -1668,6 +1664,11 @@ export class McpHub {
 			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
 			if (!setConfigResult.success) {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
+			}
+			if (timeout > MAX_MCP_TIMEOUT_SECONDS) {
+				throw new Error(
+					`Invalid timeout value: ${timeout}. The "timeout" field is in seconds; the maximum is ${MAX_MCP_TIMEOUT_SECONDS}.`,
+				)
 			}
 
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())

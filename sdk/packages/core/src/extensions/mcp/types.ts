@@ -75,6 +75,14 @@ export interface McpServerRegistration {
 	name: string;
 	transport: McpServerTransportConfig;
 	disabled?: boolean;
+	/**
+	 * Per-server request timeout in seconds, from the `timeout` field in
+	 * cline_mcp_settings.json. Undefined means the shared default
+	 * (DEFAULT_MCP_TIMEOUT_SECONDS). Applies to every JSON-RPC request,
+	 * including initialize; registrations are resolved when the runtime is
+	 * built, so changes take effect on the next session.
+	 */
+	timeoutSeconds?: number;
 	metadata?: Record<string, unknown>;
 	oauth?: McpServerOAuthState;
 }

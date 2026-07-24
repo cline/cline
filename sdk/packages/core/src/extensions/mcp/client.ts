@@ -1,5 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { resolveMcpTimeoutSeconds } from "@cline/shared";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -38,8 +39,13 @@ type JsonRpcMessage = {
 type StdioProtocolMode = "newline" | "framed";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
-const MCP_REQUEST_TIMEOUT_MS = 5_000;
-const MCP_CONNECT_TIMEOUT_MS = 1_500;
+// Probe budget per initialize attempt when no timeout is configured. Modern
+// MCP servers accept both protocol encodings and answer immediately; this
+// only bounds how long we wait for a legacy server that is silent on the
+// encoding it does not speak. A configured `timeout` raises it, which is
+// what lets slow-starting servers (e.g. uvx downloading on first run) get
+// through initialize.
+const MCP_CONNECT_PROBE_TIMEOUT_MS = 1_500;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -140,9 +146,20 @@ class StdioMcpClient implements McpServerClient {
 	private stderrBuffer = "";
 	private connected = false;
 	private protocolMode: StdioProtocolMode = "newline";
+	private readonly requestTimeoutMs: number;
+	private readonly connectAttemptTimeoutMs: number;
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
+		this.requestTimeoutMs =
+			resolveMcpTimeoutSeconds(registration.timeoutSeconds) * 1000;
+		// Keep the fast probe default unless the user opted into patience:
+		// an unconfigured server must not stall startup longer than it did
+		// before per-server timeouts existed.
+		this.connectAttemptTimeoutMs =
+			registration.timeoutSeconds === undefined
+				? MCP_CONNECT_PROBE_TIMEOUT_MS
+				: this.requestTimeoutMs;
 	}
 
 	async connect(): Promise<void> {
@@ -172,7 +189,7 @@ class StdioMcpClient implements McpServerClient {
 							version: "0.0.0",
 						},
 					},
-					MCP_CONNECT_TIMEOUT_MS,
+					this.connectAttemptTimeoutMs,
 				);
 				this.notify("notifications/initialized");
 				this.connected = true;
@@ -360,7 +377,7 @@ class StdioMcpClient implements McpServerClient {
 	private async request(
 		method: string,
 		params?: Record<string, unknown>,
-		timeoutMs = MCP_REQUEST_TIMEOUT_MS,
+		timeoutMs = this.requestTimeoutMs,
 	): Promise<unknown> {
 		const child = this.process;
 		if (!child?.stdin.writable) {
@@ -380,9 +397,12 @@ class StdioMcpClient implements McpServerClient {
 		const resultPromise = new Promise<unknown>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				this.pending.delete(id);
+				// One decimal place so sub-second probe budgets print accurately.
+				const seconds = Math.round(timeoutMs / 100) / 10;
 				reject(
 					new Error(
-						`MCP request timed out for "${this.registration.name}" (${method}).`,
+						`MCP request timed out for "${this.registration.name}" (${method}) after ${seconds}s. ` +
+							`Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.`,
 					),
 				);
 			}, timeoutMs);
@@ -443,11 +463,15 @@ export interface DefaultMcpServerClientFactoryOptions {
 class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
 	private authContext?: McpOAuthProviderContext;
+	private readonly requestTimeoutMs: number;
 
 	constructor(
 		private readonly registration: McpServerRegistration,
 		private readonly options: DefaultMcpServerClientFactoryOptions,
-	) {}
+	) {
+		this.requestTimeoutMs =
+			resolveMcpTimeoutSeconds(registration.timeoutSeconds) * 1000;
+	}
 
 	async connect(): Promise<void> {
 		if (this.client) {
@@ -476,7 +500,7 @@ class SdkUrlMcpClient implements McpServerClient {
 				oauthProvider: authContext.provider,
 				fetch: this.options.fetch,
 			});
-			await client.connect(transport);
+			await client.connect(transport, { timeout: this.requestTimeoutMs });
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
@@ -500,7 +524,9 @@ class SdkUrlMcpClient implements McpServerClient {
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
 		const client = await this.ensureConnectedClient();
 		try {
-			const result = await client.listTools();
+			const result = await client.listTools(undefined, {
+				timeout: this.requestTimeoutMs,
+			});
 			return result.tools.map((tool) => ({
 				name: tool.name,
 				description: tool.description,
@@ -522,10 +548,14 @@ class SdkUrlMcpClient implements McpServerClient {
 	}): Promise<McpToolCallResult> {
 		const client = await this.ensureConnectedClient();
 		try {
-			return await client.callTool({
-				name: request.name,
-				arguments: request.arguments ?? {},
-			});
+			return await client.callTool(
+				{
+					name: request.name,
+					arguments: request.arguments ?? {},
+				},
+				undefined,
+				{ timeout: this.requestTimeoutMs },
+			);
 		} catch (error) {
 			return await this.handleOperationError(error);
 		}

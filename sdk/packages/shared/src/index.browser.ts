@@ -212,6 +212,7 @@ export {
 	type BasicLogMetadata,
 	noopBasicLogger,
 } from "./logging/logger";
+export * from "./mcp";
 export {
 	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,

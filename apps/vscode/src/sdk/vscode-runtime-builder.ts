@@ -2,6 +2,7 @@ import { createMcpTools } from "@cline/core"
 import type { AgentTool, AgentToolContext } from "@cline/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { resolveMcpServerTimeoutMs } from "@/services/mcp/timeout"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
@@ -66,6 +67,9 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 				return await createMcpTools({
 					serverName: server.name,
 					provider,
+					// Keep the tool wrapper timeout in agreement with the MCP
+					// request timeout: both derive from the server's config.
+					timeoutMs: resolveMcpServerTimeoutMs(server.config),
 				})
 			} catch (error) {
 				Logger.warn(
