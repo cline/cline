@@ -116,6 +116,16 @@ describe("SqliteConnectorStore", () => {
 		});
 	});
 
+	it("round-trips empty connect args for env-only starts", () => {
+		useTempDataDir();
+		withStore((store) => {
+			store.recordConnected("telegram", []);
+
+			expect(store.get("telegram")?.connectArgs).toEqual([]);
+			expect(store.get("telegram")?.enabled).toBe(true);
+		});
+	});
+
 	it("disables all connectors and deletes individual entries", () => {
 		useTempDataDir();
 		withStore((store) => {

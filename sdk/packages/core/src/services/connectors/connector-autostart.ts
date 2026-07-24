@@ -63,7 +63,7 @@ export async function reconnectPersistedConnectors(
 	let candidates: { channel: string; args: string[] }[];
 	try {
 		candidates = withConnectorStore((store) => store.list())
-			.filter((entry) => entry.enabled && entry.connectArgs?.length)
+			.filter((entry) => entry.enabled && entry.connectArgs !== undefined)
 			.map((entry) => ({
 				channel: entry.channel,
 				args: stripInteractiveFlags(entry.connectArgs ?? []),

@@ -77,6 +77,18 @@ describe("connector autostart", () => {
 		expect(attempts).toEqual([{ channel: "telegram", ok: true }]);
 	});
 
+	it("reconnects env-only connectors that persisted empty connect args", async () => {
+		useTempDataDir();
+		persistConnectorConnection("telegram", []);
+
+		const start = vi.fn().mockResolvedValue(true);
+		const attempts = await reconnectPersistedConnectors({ start });
+
+		expect(start).toHaveBeenCalledTimes(1);
+		expect(start).toHaveBeenCalledWith("telegram", []);
+		expect(attempts).toEqual([{ channel: "telegram", ok: true }]);
+	});
+
 	it("lets the host skip connectors that are already active", async () => {
 		useTempDataDir();
 		persistConnectorConnection("telegram", ["-k", "123:token"]);

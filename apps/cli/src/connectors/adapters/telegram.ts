@@ -20,7 +20,7 @@ import {
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
-import { isProcessRunning } from "../common";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
 	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
@@ -621,7 +621,7 @@ class TelegramConnector extends ConnectorBase<
 				io.writeln(
 					`[telegram] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress}`,
 				);
-				return 0;
+				return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 			}
 		}
 		let resolvedBotUsername: string;

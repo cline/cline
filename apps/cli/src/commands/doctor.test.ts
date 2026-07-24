@@ -22,6 +22,7 @@ const {
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
 	mockEnsureFileExists,
+	mockListActiveConnectors,
 	mockStopAllConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
@@ -50,6 +51,7 @@ const {
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
 	mockEnsureFileExists: vi.fn(),
+	mockListActiveConnectors: vi.fn(() => []),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
 		stoppedSessions: 0,
@@ -70,6 +72,7 @@ vi.mock("@cline/core", () => ({
 	readHubDiscovery: mockReadHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
+	listActiveConnectors: mockListActiveConnectors,
 }));
 
 vi.mock("../connectors/common", () => ({

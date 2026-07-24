@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CLINE_CONNECTOR_DETACHED_CHILD_ENV } from "../connectors/common";
+import {
+	CLINE_CONNECTOR_DETACHED_CHILD_ENV,
+	CONNECT_ALREADY_RUNNING_EXIT_CODE,
+} from "../connectors/common";
 import type { ConnectIo } from "../connectors/types";
-import { runConnectAdapter } from "./connect";
+import { runConnectAdapter, stopAllConnectors } from "./connect";
 
 const mocks = vi.hoisted(() => ({
 	disableConnectorAutostart: vi.fn(),
 	getConnector: vi.fn(),
+	listConnectors: vi.fn((): Array<{ name: string; description: string }> => []),
 	persistConnectorConnection: vi.fn(),
 	run: vi.fn(),
 }));
@@ -17,7 +21,7 @@ vi.mock("@cline/core", () => ({
 
 vi.mock("../connectors/registry", () => ({
 	getConnector: mocks.getConnector,
-	listConnectors: vi.fn(() => []),
+	listConnectors: mocks.listConnectors,
 }));
 
 describe("runConnectAdapter", () => {
@@ -29,6 +33,7 @@ describe("runConnectAdapter", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.listConnectors.mockReturnValue([]);
 		mocks.run.mockResolvedValue(0);
 		mocks.getConnector.mockResolvedValue({
 			name: "telegram",
@@ -55,6 +60,27 @@ describe("runConnectAdapter", () => {
 			"-k",
 			"token",
 		]);
+		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
+	});
+
+	it("persists a successful env-only connector start", async () => {
+		await expect(runConnectAdapter("telegram", [], io)).resolves.toBe(0);
+
+		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith(
+			"telegram",
+			[],
+		);
+		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
+	});
+
+	it("does not rewrite persistence when a connector is already running", async () => {
+		mocks.run.mockResolvedValue(CONNECT_ALREADY_RUNNING_EXIT_CODE);
+
+		await expect(
+			runConnectAdapter("telegram", ["-k", "token"], io),
+		).resolves.toBe(0);
+
+		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
 		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
 	});
 
@@ -110,5 +136,31 @@ describe("runConnectAdapter", () => {
 
 		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
 		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
+	});
+
+	it("disables autostart when stop implementations execute", async () => {
+		const stopAll = vi.fn().mockResolvedValue({
+			stoppedProcesses: 1,
+			stoppedSessions: 2,
+		});
+		mocks.listConnectors.mockReturnValue([
+			{ name: "telegram", description: "Telegram" },
+		]);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			showHelp: vi.fn(),
+			stopAll,
+		});
+
+		await expect(stopAllConnectors(io)).resolves.toEqual({
+			stoppedProcesses: 1,
+			stoppedSessions: 2,
+			executed: 1,
+		});
+
+		expect(stopAll).toHaveBeenCalledWith(io);
+		expect(mocks.disableConnectorAutostart).toHaveBeenCalledWith();
 	});
 });

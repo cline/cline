@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { resolveClineDataDir } from "@cline/core";
 import { Command, CommanderError } from "commander";
 import {
+	CONNECT_ALREADY_RUNNING_EXIT_CODE,
 	isProcessRunning,
 	readJsonFile,
 	removeFile,
@@ -152,7 +153,7 @@ export abstract class ConnectorBase<Options, State>
 		const runningState = input.readState(input.statePath);
 		if (runningState && input.isRunning(runningState)) {
 			input.io.writeln(input.formatAlreadyRunningMessage(runningState));
-			return 0;
+			return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 		}
 		const pid = spawnDetachedConnector(
 			["connect", this.name],

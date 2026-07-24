@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConnectTelegramOptions } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE } from "../common";
 import { __test__, telegramConnector } from "./telegram";
 
 const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
@@ -179,7 +180,7 @@ describe("telegramConnector", () => {
 				writeln: (text = "") => output.push(text),
 				writeErr: (text) => errors.push(text),
 			}),
-		).resolves.toBe(0);
+		).resolves.toBe(CONNECT_ALREADY_RUNNING_EXIT_CODE);
 
 		expect(fetchImpl).not.toHaveBeenCalled();
 		expect(errors).toEqual([]);

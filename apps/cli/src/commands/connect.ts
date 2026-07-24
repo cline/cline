@@ -2,7 +2,10 @@ import {
 	disableConnectorAutostart,
 	persistConnectorConnection,
 } from "@cline/core";
-import { CLINE_CONNECTOR_DETACHED_CHILD_ENV } from "../connectors/common";
+import {
+	CLINE_CONNECTOR_DETACHED_CHILD_ENV,
+	CONNECT_ALREADY_RUNNING_EXIT_CODE,
+} from "../connectors/common";
 import { getConnector, listConnectors } from "../connectors/registry";
 import type { ConnectIo, ConnectStopResult } from "../connectors/types";
 
@@ -28,6 +31,9 @@ export async function stopAllConnectors(
 		stoppedProcesses += result.stoppedProcesses;
 		stoppedSessions += result.stoppedSessions;
 	}
+	if (executed > 0) {
+		disableConnectorAutostart();
+	}
 	return { stoppedProcesses, stoppedSessions, executed };
 }
 
@@ -38,7 +44,6 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 		io.writeln("[connect] no adapters support stop yet");
 		return 0;
 	}
-	disableConnectorAutostart();
 	io.writeln(
 		`[connect] stopped processes=${stoppedProcesses} sessions=${stoppedSessions}`,
 	);
@@ -77,9 +82,10 @@ export async function runConnectAdapter(
 		return 1;
 	}
 	const exitCode = await connector.run(passthroughArgs, io);
-	const isHelpInvocation =
-		passthroughArgs.length === 0 ||
-		passthroughArgs.some((arg) => HELP_FLAGS.has(arg));
+	if (exitCode === CONNECT_ALREADY_RUNNING_EXIT_CODE) {
+		return 0;
+	}
+	const isHelpInvocation = passthroughArgs.some((arg) => HELP_FLAGS.has(arg));
 	const isInteractiveInvocation = passthroughArgs.some((arg) =>
 		INTERACTIVE_FLAGS.has(arg),
 	);

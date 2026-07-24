@@ -105,8 +105,7 @@ function parseStringArray(raw: unknown): string[] | undefined {
 		if (!Array.isArray(parsed)) {
 			return undefined;
 		}
-		const args = parsed.filter((value) => typeof value === "string");
-		return args.length > 0 ? args : undefined;
+		return parsed.filter((value) => typeof value === "string");
 	} catch {
 		return undefined;
 	}

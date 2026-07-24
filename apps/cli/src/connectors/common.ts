@@ -21,6 +21,13 @@ import { resolveCliLaunchSpec } from "../utils/internal-launch";
 export const CLINE_CONNECTOR_DETACHED_CHILD_ENV =
 	"CLINE_CONNECTOR_DETACHED_CHILD";
 
+/**
+ * Internal success from a detached connect when an instance is already running.
+ * `runConnectAdapter` maps this to exit 0 without changing persisted autostart
+ * state.
+ */
+export const CONNECT_ALREADY_RUNNING_EXIT_CODE = 75;
+
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
 }

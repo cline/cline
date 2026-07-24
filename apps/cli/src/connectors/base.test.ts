@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConnectorBase } from "./base";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE } from "./common";
 import type { ConnectIo } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +12,10 @@ vi.mock("./common", async (importOriginal) => ({
 	spawnDetachedConnector: mocks.spawnDetachedConnector,
 }));
 
-class TestConnector extends ConnectorBase<Record<string, never>, never> {
+class TestConnector extends ConnectorBase<
+	Record<string, never>,
+	{ pid: number }
+> {
 	constructor() {
 		super("test", "Test connector");
 	}
@@ -24,15 +28,21 @@ class TestConnector extends ConnectorBase<Record<string, never>, never> {
 		return 0;
 	}
 
-	runBackground(io: ConnectIo): Promise<number | undefined> {
+	runBackground(
+		io: ConnectIo,
+		options?: {
+			readState?: () => { pid: number } | undefined;
+			isRunning?: (state: { pid: number }) => boolean;
+		},
+	): Promise<number | undefined> {
 		return this.maybeRunInBackground({
 			rawArgs: ["--token", "secret"],
 			io,
 			interactive: false,
 			childEnvVar: "CLINE_TEST_CONNECT_CHILD",
 			statePath: "/tmp/test-connector.json",
-			readState: () => undefined,
-			isRunning: () => false,
+			readState: options?.readState ?? (() => undefined),
+			isRunning: options?.isRunning ?? (() => false),
 			formatAlreadyRunningMessage: () => "already running",
 			formatBackgroundStartMessage: (pid) => `started ${pid}`,
 			foregroundHint: "foreground hint",
@@ -63,5 +73,17 @@ describe("ConnectorBase background launch", () => {
 
 		await expect(new TestConnector().runBackground(io)).resolves.toBe(0);
 		expect(io.writeln).toHaveBeenCalledWith("started 42");
+	});
+
+	it("returns a distinct result when a connector is already running", async () => {
+		await expect(
+			new TestConnector().runBackground(io, {
+				readState: () => ({ pid: 99 }),
+				isRunning: () => true,
+			}),
+		).resolves.toBe(CONNECT_ALREADY_RUNNING_EXIT_CODE);
+
+		expect(io.writeln).toHaveBeenCalledWith("already running");
+		expect(mocks.spawnDetachedConnector).not.toHaveBeenCalled();
 	});
 });
