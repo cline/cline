@@ -134,6 +134,59 @@ export function shouldIncludeConnectorField(
 	return true;
 }
 
+/**
+ * Build the non-interactive CLI arguments for a validated connector
+ * configuration. The channel name itself is intentionally omitted so the
+ * arguments can be persisted and reused by any host.
+ */
+export function buildConnectorConnectArgs(
+	platform: ConnectorPlatformDef,
+	values: Record<string, string>,
+	security?: { enabled: boolean; values: Record<string, string> },
+): string[] {
+	const fieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		const rawValue = values[field.flag];
+		fieldValues[field.flag] =
+			typeof rawValue === "string"
+				? rawValue.trim()
+				: (field.initialValue ?? "");
+	}
+
+	const args: string[] = [];
+	for (const field of platform.fields) {
+		if (!shouldIncludeConnectorField(field, fieldValues)) {
+			continue;
+		}
+		const value = fieldValues[field.flag] ?? "";
+		if (!value) {
+			if (field.required) {
+				throw new Error(`${field.label} is required`);
+			}
+			continue;
+		}
+		args.push(field.flag, value);
+	}
+
+	if (security?.enabled === true && platform.security) {
+		const hookValues: Record<string, string> = {};
+		for (const field of platform.security.fields) {
+			const value = security.values[field.key]?.trim();
+			if (!value) {
+				throw new Error(field.requiredMessage);
+			}
+			const validationError = field.validate?.(value);
+			if (validationError) {
+				throw new Error(validationError);
+			}
+			hookValues[field.key] = value;
+		}
+		args.push(...platform.security.buildArgs(hookValues));
+	}
+
+	return args;
+}
+
 export function connectorChannelsFromPlatforms(
 	platforms: ConnectorPlatformDef[] = CONNECTOR_PLATFORMS,
 ): ConnectorChannel[] {

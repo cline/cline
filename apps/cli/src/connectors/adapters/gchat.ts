@@ -424,26 +424,25 @@ class GoogleChatConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<GoogleChatThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_GCHAT_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[gchat] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[gchat] starting background connector pid=${pid} user=${options.userName}`,
-				foregroundHint:
-					"[gchat] use `cline connect gchat -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Google Chat connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_GCHAT_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[gchat] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[gchat] starting background connector pid=${pid} user=${options.userName}`,
+			foregroundHint:
+				"[gchat] use `cline connect gchat -i ...` to run in the foreground",
+			launchFailureMessage:
+				"failed to launch Google Chat connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({

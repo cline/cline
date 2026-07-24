@@ -684,27 +684,26 @@ class SlackConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<SlackThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_SLACK_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					state.connectionMode === "socket"
-						? `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} mode=socket`
-						: `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[slack] starting background connector pid=${pid} user=${options.userName} mode=${options.connectionMode}`,
-				foregroundHint:
-					"[slack] use `cline connect slack -i ...` to run in the foreground",
-				launchFailureMessage: "failed to launch Slack connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_SLACK_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				state.connectionMode === "socket"
+					? `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} mode=socket`
+					: `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[slack] starting background connector pid=${pid} user=${options.userName} mode=${options.connectionMode}`,
+			foregroundHint:
+				"[slack] use `cline connect slack -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Slack connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({

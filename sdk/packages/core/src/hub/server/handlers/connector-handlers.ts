@@ -10,6 +10,7 @@ import type {
 	HubReplyEnvelope,
 } from "@cline/shared";
 import {
+	buildConnectorConnectArgs,
 	CONNECTOR_PLATFORMS,
 	connectorChannelsFromPlatforms,
 	listConnectorCatalog,
@@ -207,6 +208,7 @@ function listActiveConnectors(): ActiveConnectorRecord[] {
 
 function listConfiguredConnectors(): ConfiguredConnectorRecord[] {
 	return withConnectorStore((store) => store.list())
+		.filter((entry) => entry.configured)
 		.map((entry) => ({
 			id: entry.channel,
 			type: entry.type,
@@ -288,15 +290,22 @@ function configureConnector(payload: unknown): ConnectorChannelsResponse {
 			}
 		}
 	}
+	const security = securityEnabled
+		? { enabled: true, values: securityValues }
+		: { enabled: false, values: {} };
+	const connectArgs = buildConnectorConnectArgs(
+		platform,
+		fieldValues,
+		security,
+	);
 
 	withConnectorStore((store) =>
 		store.upsertConfig({
 			channel,
 			type: channel,
 			values: fieldValues,
-			security: securityEnabled
-				? { enabled: true, values: securityValues }
-				: { enabled: false, values: {} },
+			security,
+			connectArgs,
 		}),
 	);
 	return connectorChannelsPayload();

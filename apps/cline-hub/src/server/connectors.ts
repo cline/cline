@@ -2,14 +2,13 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import process from "node:process";
-import { reconnectPersistedConnectors } from "@cline/core";
-import { withResolvedClineBuildEnv } from "@cline/shared";
-import { listConnectorCatalog } from "../../../cli/src/connectors/catalog";
-import { listActiveConnectors } from "../../../cli/src/connectors/status";
 import {
-	PLATFORMS,
-	shouldIncludeField,
-} from "../../../cli/src/wizards/connect/platforms";
+	buildConnectorConnectArgs,
+	CONNECTOR_PLATFORMS,
+	listConnectorCatalog,
+	withResolvedClineBuildEnv,
+} from "@cline/shared";
+import { listActiveConnectors } from "../../../cli/src/connectors/status";
 import type {
 	WebviewConnectorChannel,
 	WebviewConnectorChannelsResponse,
@@ -83,8 +82,8 @@ export function connectorChannelsPayload(): WebviewConnectorChannelsResponse {
 	const supported = new Set(
 		listConnectorCatalog().map((connector) => connector.name),
 	);
-	const available: WebviewConnectorChannel[] = PLATFORMS.filter((platform) =>
-		supported.has(platform.id),
+	const available: WebviewConnectorChannel[] = CONNECTOR_PLATFORMS.filter(
+		(platform) => supported.has(platform.id),
 	).map((platform) => ({
 		id: platform.id,
 		name: platform.name,
@@ -160,7 +159,7 @@ async function waitForConnectorState(
 function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 	const channel = asString(args?.channel);
 	if (!channel) throw new Error("channel is required");
-	const platform = PLATFORMS.find((entry) => entry.id === channel);
+	const platform = CONNECTOR_PLATFORMS.find((entry) => entry.id === channel);
 	if (!platform) throw new Error(`unknown connector channel: ${channel}`);
 	const supported = new Set(
 		listConnectorCatalog().map((connector) => connector.name),
@@ -178,32 +177,21 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 			fieldValues[field.flag] = field.initialValue;
 		}
 	}
-	const cliArgs = [channel];
-	for (const field of platform.fields) {
-		if (!shouldIncludeField(field, fieldValues)) {
-			continue;
+	const securityInput = asRecord(args?.security);
+	const rawSecurityValues = asRecord(securityInput?.values) ?? {};
+	const securityValues: Record<string, string> = {};
+	for (const [key, value] of Object.entries(rawSecurityValues)) {
+		if (typeof value === "string") {
+			securityValues[key] = value.trim();
 		}
-		const value = fieldValues[field.flag];
-		if (!value) {
-			if (field.required) throw new Error(`${field.label} is required`);
-			continue;
-		}
-		cliArgs.push(field.flag, value);
 	}
-	const security = asRecord(args?.security);
-	if (security?.enabled === true && platform.security) {
-		const securityValues = asRecord(security.values) ?? {};
-		const hookValues: Record<string, string> = {};
-		for (const field of platform.security.fields) {
-			const value = asString(securityValues[field.key]);
-			if (!value) throw new Error(field.requiredMessage);
-			const validationError = field.validate?.(value);
-			if (validationError) throw new Error(validationError);
-			hookValues[field.key] = value;
-		}
-		cliArgs.push(...platform.security.buildArgs(hookValues));
-	}
-	return cliArgs;
+	return [
+		channel,
+		...buildConnectorConnectArgs(platform, fieldValues, {
+			enabled: securityInput?.enabled === true,
+			values: securityValues,
+		}),
+	];
 }
 
 export async function startConnectorChannel(
@@ -226,36 +214,9 @@ export async function startConnectorChannel(
 	return connectorChannelsPayload();
 }
 
-/**
- * Reconnect connectors that were connected before the hub was restarted.
- * Uses the CLI subprocess to start each channel because this process's
- * entrypoint is the dashboard server, not the CLI.
- */
-export async function reconnectConfiguredConnectors(
-	log: (message: string) => void = console.error,
-): Promise<void> {
-	await reconnectPersistedConnectors({
-		start: async (channel, args) => {
-			const result = await runCliConnectCommand([channel, ...args]);
-			if (result.code !== 0) {
-				log(
-					normalizeConnectorError(
-						result.stderr || result.stdout,
-						`connector ${channel} reconnect failed`,
-					),
-				);
-				return false;
-			}
-			return true;
-		},
-		isActive: (channel) =>
-			listActiveConnectors().some((record) => record.type === channel),
-		log,
-	});
-}
-
 export const __test__ = {
 	buildCliConnectCommand,
+	buildConnectorStartArgs,
 	normalizeConnectorError,
 };
 

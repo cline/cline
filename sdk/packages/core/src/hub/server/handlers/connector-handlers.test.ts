@@ -89,6 +89,47 @@ describe("connector hub handlers", () => {
 			enabled: true,
 			values: { userId: "123456789" },
 		});
+		expect(persisted?.configured).toBe(true);
+		expect(persisted?.connectArgs).toBeUndefined();
+		expect(persisted?.enabled).toBe(false);
+	});
+
+	it("does not surface CLI-only connections as dashboard configurations", () => {
+		useTempDataDir();
+		withConnectorStore((store) =>
+			store.recordConnected("telegram", ["-k", "123456:fake-token"]),
+		);
+
+		expect(__test__.connectorChannelsPayload().configured).toEqual([]);
+		expect(readPersistedConnector("telegram")?.configured).toBe(false);
+	});
+
+	it("refreshes reconnect args when a configured credential changes", () => {
+		useTempDataDir();
+		withConnectorStore((store) => {
+			store.recordConnected("telegram", [
+				"-k",
+				"123456:old-token",
+				"--allowed-user-id",
+				"1",
+			]);
+			store.setEnabled("telegram", false);
+		});
+
+		__test__.configureConnector({
+			channel: "telegram",
+			values: { "-k": "123456:rotated-token" },
+			security: { enabled: true, values: { userId: "987654321" } },
+		});
+
+		const persisted = readPersistedConnector("telegram");
+		expect(persisted?.connectArgs).toEqual([
+			"-k",
+			"123456:rotated-token",
+			"--allowed-user-id",
+			"987654321",
+		]);
+		expect(persisted?.enabled).toBe(false);
 	});
 
 	it("validates security fields before persisting connector settings", () => {

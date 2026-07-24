@@ -30,6 +30,7 @@ export type {
 	ConnectorSecurityFieldDef,
 } from "./connectors/platforms";
 export {
+	buildConnectorConnectArgs,
 	CONNECTOR_CATALOG,
 	CONNECTOR_PLATFORMS,
 	connectorChannelsFromPlatforms,

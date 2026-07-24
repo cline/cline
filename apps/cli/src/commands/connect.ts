@@ -2,6 +2,7 @@ import {
 	disableConnectorAutostart,
 	persistConnectorConnection,
 } from "@cline/core";
+import { CLINE_CONNECTOR_DETACHED_CHILD_ENV } from "../connectors/common";
 import { getConnector, listConnectors } from "../connectors/registry";
 import type { ConnectIo, ConnectStopResult } from "../connectors/types";
 
@@ -82,9 +83,16 @@ export async function runConnectAdapter(
 	const isInteractiveInvocation = passthroughArgs.some((arg) =>
 		INTERACTIVE_FLAGS.has(arg),
 	);
-	if (exitCode === 0 && !isHelpInvocation && isInteractiveInvocation) {
+	const isDetachedChild =
+		process.env[CLINE_CONNECTOR_DETACHED_CHILD_ENV] === "1";
+	if (
+		exitCode === 0 &&
+		!isHelpInvocation &&
+		!isDetachedChild &&
+		isInteractiveInvocation
+	) {
 		disableConnectorAutostart(connector.name);
-	} else if (exitCode === 0 && !isHelpInvocation) {
+	} else if (exitCode === 0 && !isHelpInvocation && !isDetachedChild) {
 		persistConnectorConnection(connector.name, passthroughArgs);
 	}
 	return exitCode;

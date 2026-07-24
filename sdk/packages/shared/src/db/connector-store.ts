@@ -28,6 +28,7 @@ export interface ConnectorSecurityConfig {
 export interface ConnectorConfigRecord {
 	channel: string;
 	type: string;
+	configured: boolean;
 	values: Record<string, string>;
 	security?: ConnectorSecurityConfig;
 	connectArgs?: string[];
@@ -40,6 +41,7 @@ export interface ConnectorConfigRecord {
 const CONNECTOR_SCHEMA = `CREATE TABLE IF NOT EXISTS connectors (
 	channel TEXT PRIMARY KEY,
 	type TEXT NOT NULL,
+	configured INTEGER NOT NULL DEFAULT 0,
 	values_json TEXT NOT NULL DEFAULT '{}',
 	security_enabled INTEGER NOT NULL DEFAULT 0,
 	security_values_json TEXT NOT NULL DEFAULT '{}',
@@ -54,6 +56,19 @@ export function ensureConnectorSchema(db: SqliteDb): void {
 	db.exec("PRAGMA journal_mode = WAL;");
 	db.exec("PRAGMA busy_timeout = 5000;");
 	db.exec(CONNECTOR_SCHEMA);
+	const columns = db.prepare("PRAGMA table_info(connectors)").all();
+	if (!columns.some((column) => column.name === "configured")) {
+		db.exec(
+			"ALTER TABLE connectors ADD COLUMN configured INTEGER NOT NULL DEFAULT 0;",
+		);
+		db.exec(
+			`UPDATE connectors
+			 SET configured = 1
+			 WHERE values_json <> '{}'
+			    OR security_enabled = 1
+			    OR security_values_json <> '{}';`,
+		);
+	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -154,22 +169,31 @@ export class SqliteConnectorStore {
 		type?: string;
 		values: Record<string, string>;
 		security?: ConnectorSecurityConfig;
+		connectArgs?: string[];
 		configuredAt?: string;
 		updatedAt?: string;
 	}): void {
 		const now = nowIso();
-		const existing = this.get(entry.channel);
+		const connectArgsJson = entry.connectArgs
+			? JSON.stringify(entry.connectArgs)
+			: null;
 		this.getRawDb()
 			.prepare(
 				`INSERT INTO connectors (
-					channel, type, values_json, security_enabled, security_values_json,
+					channel, type, configured, values_json, security_enabled, security_values_json,
 					connect_args_json, enabled, configured_at, updated_at, last_connected_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				) VALUES (?, ?, 1, ?, ?, ?, NULL, 0, ?, ?, NULL)
 				ON CONFLICT(channel) DO UPDATE SET
 					type = excluded.type,
+					configured = 1,
 					values_json = excluded.values_json,
 					security_enabled = excluded.security_enabled,
 					security_values_json = excluded.security_values_json,
+					connect_args_json = CASE
+						WHEN connectors.connect_args_json IS NOT NULL AND ? IS NOT NULL
+							THEN ?
+						ELSE connectors.connect_args_json
+					END,
 					updated_at = excluded.updated_at`,
 			)
 			.run(
@@ -178,11 +202,10 @@ export class SqliteConnectorStore {
 				JSON.stringify(entry.values),
 				toBoolInt(entry.security?.enabled === true),
 				JSON.stringify(entry.security?.values ?? {}),
-				existing?.connectArgs ? JSON.stringify(existing.connectArgs) : null,
-				toBoolInt(existing?.enabled ?? true),
-				entry.configuredAt ?? existing?.configuredAt ?? now,
+				entry.configuredAt ?? now,
 				entry.updatedAt ?? now,
-				existing?.lastConnectedAt ?? null,
+				connectArgsJson,
+				connectArgsJson,
 			);
 	}
 
@@ -195,9 +218,9 @@ export class SqliteConnectorStore {
 		this.getRawDb()
 			.prepare(
 				`INSERT INTO connectors (
-					channel, type, connect_args_json, enabled,
+					channel, type, configured, connect_args_json, enabled,
 					configured_at, updated_at, last_connected_at
-				) VALUES (?, ?, ?, 1, ?, ?, ?)
+				) VALUES (?, ?, 0, ?, 1, ?, ?, ?)
 				ON CONFLICT(channel) DO UPDATE SET
 					connect_args_json = excluded.connect_args_json,
 					enabled = 1,
@@ -296,6 +319,7 @@ function rowToRecord(row: Record<string, unknown>): ConnectorConfigRecord {
 	return {
 		channel: asString(row.channel),
 		type: asString(row.type),
+		configured: row.configured === 1,
 		values: parseStringRecord(row.values_json),
 		security: hasSecurity
 			? { enabled: securityEnabled, values: securityValues }

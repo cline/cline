@@ -196,9 +196,10 @@ different process.
 ### Connector Persistence and Recovery
 
 1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.
-2. `@cline/core` owns connector autostart persistence and reconnect orchestration; application hosts supply their connector start and active-state implementations.
-3. Detached connector starts are persisted only after success. A clean interactive connector exit disables autostart so a foreground stop is not reversed on the next daemon restart.
-4. The detached hub entrypoint exposes `hubDaemonReady`, which resolves only after the WebSocket server is listening. CLI-hosted reconnect attempts wait for that signal rather than racing module initialization.
+2. Dashboard configuration and CLI connection state are recorded separately. Configuration edits refresh stored reconnect arguments only for connectors that have previously started successfully.
+3. `@cline/core` owns connector autostart persistence and reconnect orchestration. The detached hub daemon is the sole startup reconnect owner, preventing dashboard startup from racing it and launching duplicate processes.
+4. Detached connector starts are persisted only after a child process is created. Internal detached children preserve that state when they exit, while a clean user-interactive exit disables autostart.
+5. The detached hub entrypoint exposes `hubDaemonReady`, which resolves only after the WebSocket server is listening. Reconnect attempts wait for that signal rather than racing module initialization.
 
 ### Remote-Config Managed Runtime
 

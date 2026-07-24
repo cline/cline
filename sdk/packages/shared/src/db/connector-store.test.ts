@@ -64,11 +64,12 @@ describe("SqliteConnectorStore", () => {
 				values: { userId: "42" },
 			});
 			expect(record?.connectArgs).toBeUndefined();
-			expect(record?.enabled).toBe(true);
+			expect(record?.configured).toBe(true);
+			expect(record?.enabled).toBe(false);
 		});
 	});
 
-	it("preserves connection state when config is re-saved", () => {
+	it("refreshes stored launch args while preserving autostart state", () => {
 		useTempDataDir();
 		withStore((store) => {
 			store.recordConnected("telegram", ["-k", "123:token"]);
@@ -77,9 +78,16 @@ describe("SqliteConnectorStore", () => {
 				channel: "telegram",
 				values: { "-k": "456:rotated" },
 			});
+			expect(store.get("telegram")?.connectArgs).toEqual(["-k", "123:token"]);
+			store.upsertConfig({
+				channel: "telegram",
+				values: { "-k": "456:rotated" },
+				connectArgs: ["-k", "456:rotated"],
+			});
 			const record = store.get("telegram");
 			expect(record?.values).toEqual({ "-k": "456:rotated" });
-			expect(record?.connectArgs).toEqual(["-k", "123:token"]);
+			expect(record?.connectArgs).toEqual(["-k", "456:rotated"]);
+			expect(record?.configured).toBe(true);
 			expect(record?.enabled).toBe(false);
 		});
 	});
@@ -93,8 +101,10 @@ describe("SqliteConnectorStore", () => {
 				"--app-token",
 				"xapp",
 			]);
-			expect(store.get("slack")?.enabled).toBe(true);
-			expect(store.get("slack")?.lastConnectedAt).toBeTruthy();
+			const connectionOnlyRecord = store.get("slack");
+			expect(connectionOnlyRecord?.configured).toBe(false);
+			expect(connectionOnlyRecord?.enabled).toBe(true);
+			expect(connectionOnlyRecord?.lastConnectedAt).toBeTruthy();
 
 			store.setEnabled("slack", false);
 			expect(store.get("slack")?.enabled).toBe(false);

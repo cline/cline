@@ -463,26 +463,24 @@ class WhatsAppConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<WhatsAppThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_WHATSAPP_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[whatsapp] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
-				foregroundHint:
-					"[whatsapp] use `cline connect whatsapp -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch WhatsApp connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_WHATSAPP_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[whatsapp] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
+			foregroundHint:
+				"[whatsapp] use `cline connect whatsapp -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch WhatsApp connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({

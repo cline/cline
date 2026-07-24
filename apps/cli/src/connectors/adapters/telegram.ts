@@ -648,26 +648,24 @@ class TelegramConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<TelegramThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs: backgroundArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
-				foregroundHint:
-					"[telegram] use `cline connect telegram -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Telegram connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs: backgroundArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
+			foregroundHint:
+				"[telegram] use `cline connect telegram -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Telegram connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({

@@ -1,14 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { __test__, reconnectConfiguredConnectors } from "./connectors";
-
-const mocks = vi.hoisted(() => ({
-	reconnectPersistedConnectors: vi.fn(async () => []),
-}));
-
-vi.mock("@cline/core", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@cline/core")>()),
-	reconnectPersistedConnectors: mocks.reconnectPersistedConnectors,
-}));
+import { describe, expect, it } from "vitest";
+import { __test__ } from "./connectors";
 
 describe("connector launch command", () => {
 	it("uses Bun conditions when launching the source CLI from Bun", () => {
@@ -104,18 +95,22 @@ describe("connector launch command", () => {
 		);
 	});
 
-	it("delegates persisted reconnects through the core package boundary", async () => {
-		const log = vi.fn();
-
-		await reconnectConfiguredConnectors(log);
-
-		expect(mocks.reconnectPersistedConnectors).toHaveBeenCalledOnce();
-		expect(mocks.reconnectPersistedConnectors).toHaveBeenCalledWith(
-			expect.objectContaining({
-				start: expect.any(Function),
-				isActive: expect.any(Function),
-				log,
+	it("builds connector start arguments through the shared platform definition", () => {
+		expect(
+			__test__.buildConnectorStartArgs({
+				channel: "telegram",
+				values: { "-k": " 123456:token " },
+				security: {
+					enabled: true,
+					values: { userId: " 987654321 " },
+				},
 			}),
-		);
+		).toEqual([
+			"telegram",
+			"-k",
+			"123456:token",
+			"--allowed-user-id",
+			"987654321",
+		]);
 	});
 });

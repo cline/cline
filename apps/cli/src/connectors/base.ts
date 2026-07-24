@@ -145,14 +145,14 @@ export abstract class ConnectorBase<Options, State>
 		formatBackgroundStartMessage: (pid: number) => string;
 		foregroundHint: string;
 		launchFailureMessage: string;
-	}): Promise<boolean> {
+	}): Promise<number | undefined> {
 		if (input.interactive || process.env[input.childEnvVar] === "1") {
-			return false;
+			return undefined;
 		}
 		const runningState = input.readState(input.statePath);
 		if (runningState && input.isRunning(runningState)) {
 			input.io.writeln(input.formatAlreadyRunningMessage(runningState));
-			return true;
+			return 0;
 		}
 		const pid = spawnDetachedConnector(
 			["connect", this.name],
@@ -161,11 +161,11 @@ export abstract class ConnectorBase<Options, State>
 		);
 		if (!pid) {
 			input.io.writeErr(input.launchFailureMessage);
-			return true;
+			return 1;
 		}
 		input.io.writeln(input.formatBackgroundStartMessage(pid));
 		input.io.writeln(input.foregroundHint);
-		return true;
+		return 0;
 	}
 
 	protected async stopAllFromStatePaths(
