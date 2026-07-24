@@ -1,5 +1,9 @@
 # Cline Code Desktop Changelog
 
+## 0.0.5
+
+- Fixed the app failing to start ("failed to load providers" / "desktop backend exited before publishing its endpoint") when the default Cline Hub port was already taken — for example by a hub whose discovery record was lost. The hub daemon now adopts a compatible running hub or starts on a free port and re-publishes discovery, so the app self-heals instead of blocking onboarding and chat.
+
 ## 0.0.4
 
 - Start chatting without opening a project folder — the app now supports workspace-free chat sessions.
