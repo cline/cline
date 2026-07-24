@@ -150,7 +150,19 @@ export async function resumeInteractiveSession(
 	>,
 	sessionId: string,
 ) {
-	const messages = await sessionRuntime.resumeSession(sessionId);
+	const previousAgentResume = process.env.CLINE_HOOK_AGENT_RESUME;
+	process.env.CLINE_HOOK_AGENT_RESUME = "1";
+	let messages: Awaited<ReturnType<typeof sessionRuntime.resumeSession>>;
+	try {
+		messages = await sessionRuntime.resumeSession(sessionId);
+	} catch (error) {
+		if (previousAgentResume === undefined) {
+			delete process.env.CLINE_HOOK_AGENT_RESUME;
+		} else {
+			process.env.CLINE_HOOK_AGENT_RESUME = previousAgentResume;
+		}
+		throw error;
+	}
 	const usage = await sessionRuntime.getAccumulatedUsage({
 		inputTokens: 0,
 		outputTokens: 0,
