@@ -330,9 +330,17 @@ export function prewarmDetachedHubServer(
 					}
 				}
 			}
-			const spawnEndpoint = shouldUseFallbackPort
-				? { ...resolvedEndpoint, port: 0 }
-				: resolvedEndpoint;
+			// Forward only the overrides the caller actually pinned; passing the
+			// resolved defaults would make the daemon treat its endpoint as
+			// explicit and refuse to fall back to a free port when the default
+			// port is held by an un-adoptable process.
+			const spawnEndpoint: HubEndpointOverrides = shouldUseFallbackPort
+				? { host: endpoint.host, port: 0, pathname: endpoint.pathname }
+				: {
+						host: endpoint.host,
+						port: endpoint.port,
+						pathname: endpoint.pathname,
+					};
 			await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
 		})
 		.catch(() => {
@@ -414,32 +422,53 @@ export async function ensureDetachedHubServer(
 			expectedUrl,
 		);
 		if (isCompatibleHubRecord(expected)) {
-			const upgradeHint = retiredUnusableDiscovery
-				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
-				: "";
-			throw new Error(
-				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
+			// Without the discovery record there is no auth token, so the
+			// running hub cannot be adopted. When the endpoint is pinned that
+			// is fatal; on the default endpoint we spawn a fresh daemon
+			// instead — it falls back to an OS-assigned port and publishes a
+			// fresh discovery record that the startup wait below adopts.
+			if (hasExplicitEndpoint) {
+				const upgradeHint = retiredUnusableDiscovery
+					? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
+					: "";
+				throw new Error(
+					`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
+				);
+			}
+		} else {
+			const retiredExpected = await retireIncompatibleHub(
+				expectedForRetirement,
+				owner.discoveryPath,
 			);
-		}
-		const retiredExpected = await retireIncompatibleHub(
-			expectedForRetirement,
-			owner.discoveryPath,
-		);
-		if (
-			!retiredExpected &&
-			endpointOverrides.allowPortFallback !== true &&
-			endpoint.port !== 0
-		) {
-			throw new Error(
-				`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
-			);
+			if (
+				!retiredExpected &&
+				hasExplicitEndpoint &&
+				endpointOverrides.allowPortFallback !== true &&
+				endpoint.port !== 0
+			) {
+				throw new Error(
+					`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+				);
+			}
 		}
 	}
 	const shouldUseFallbackPort =
 		endpointOverrides.allowPortFallback === true && endpoint.port !== 0;
-	const spawnEndpoint = shouldUseFallbackPort
-		? { ...endpoint, port: 0 }
-		: endpoint;
+	// Forward only the overrides the caller actually pinned; passing the
+	// resolved defaults would make the daemon treat its endpoint as explicit
+	// and refuse to fall back to a free port when the default port is held by
+	// an un-adoptable process.
+	const spawnEndpoint: HubEndpointOverrides = shouldUseFallbackPort
+		? {
+				host: endpointOverrides.host,
+				port: 0,
+				pathname: endpointOverrides.pathname,
+			}
+		: {
+				host: endpointOverrides.host,
+				port: endpointOverrides.port,
+				pathname: endpointOverrides.pathname,
+			};
 	await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
@@ -475,6 +504,7 @@ export async function ensureDetachedHubServer(
 			);
 			if (
 				!retiredExpected &&
+				hasExplicitEndpoint &&
 				endpointOverrides.allowPortFallback !== true &&
 				endpoint.port !== 0
 			) {

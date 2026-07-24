@@ -152,8 +152,9 @@ describe("ensureDetachedHubServer", () => {
 			authToken: "new-token",
 		});
 		expect(spawn).toHaveBeenCalledOnce();
-		expect(spawnArgs).toContain("--port");
-		expect(spawnArgs).toContain("25463");
+		// Default startup pins nothing: the daemon resolves the default
+		// endpoint itself and keeps port-fallback available for self-healing.
+		expect(spawnArgs).not.toContain("--port");
 		expect(spawnArgs).not.toContain("0");
 		expect(spawnOptions?.env?.[CLINE_RUN_AS_HUB_DAEMON_ENV]).toBe("1");
 	});
@@ -379,7 +380,7 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("throws a targeted error when an incompatible hub cannot be retired", async () => {
+	it("throws a targeted error when an incompatible hub on an explicit endpoint cannot be retired", async () => {
 		vi.useFakeTimers();
 		try {
 			readHubDiscovery.mockResolvedValue(undefined);
@@ -391,7 +392,7 @@ describe("ensureDetachedHubServer", () => {
 
 			const { ensureDetachedHubServer } = await import(".");
 			const pending = expect(
-				ensureDetachedHubServer("/workspace"),
+				ensureDetachedHubServer("/workspace", { port: 25463 }),
 			).rejects.toThrow(
 				"An incompatible Cline Hub is already running at ws://127.0.0.1:25463/hub and could not be retired automatically.",
 			);
@@ -399,6 +400,43 @@ describe("ensureDetachedHubServer", () => {
 
 			await pending;
 			expect(spawn).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("spawns anyway and adopts the fallback hub when an unretirable incompatible hub holds the default endpoint", async () => {
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValue({
+				url: "ws://127.0.0.1:54321/hub",
+				authToken: "fallback-token",
+			});
+			probeHubServer.mockImplementation(async (url: string) =>
+				url.includes("54321")
+					? {
+							url: "ws://127.0.0.1:54321/hub",
+							protocolVersion: "v1",
+							buildId: "current-build",
+						}
+					: {
+							url: "ws://127.0.0.1:25463/hub",
+							protocolVersion: "v2",
+							buildId: "future-build",
+						},
+			);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+			const result = await pending;
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:54321/hub",
+				authToken: "fallback-token",
+			});
+			expect(spawn).toHaveBeenCalledOnce();
 		} finally {
 			vi.useRealTimers();
 		}
@@ -452,7 +490,7 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("throws when a compatible expected hub has no discovery record", async () => {
+	it("throws when a compatible hub on an explicit endpoint has no discovery record", async () => {
 		readHubDiscovery.mockResolvedValue(undefined);
 		probeHubServer.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
@@ -461,10 +499,43 @@ describe("ensureDetachedHubServer", () => {
 		});
 
 		const { ensureDetachedHubServer } = await import(".");
-		await expect(ensureDetachedHubServer("/workspace")).rejects.toThrow(
+		await expect(
+			ensureDetachedHubServer("/workspace", { port: 25463 }),
+		).rejects.toThrow(
 			"A compatible Cline Hub is already running at ws://127.0.0.1:25463/hub, but its discovery record is missing or unreadable.",
 		);
 		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("spawns anyway and adopts the fallback hub when a compatible default-endpoint hub has no discovery record", async () => {
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValue({
+			url: "ws://127.0.0.1:54321/hub",
+			authToken: "fallback-token",
+		});
+		probeHubServer.mockImplementation(async (url: string) =>
+			url.includes("54321")
+				? {
+						url: "ws://127.0.0.1:54321/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					}
+				: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
+		);
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		const result = await ensureDetachedHubServer("/workspace");
+
+		expect(result).toEqual({
+			url: "ws://127.0.0.1:54321/hub",
+			authToken: "fallback-token",
+		});
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).toHaveBeenCalledOnce();
 	});
 
 	it("uses matching discovery pid and token when retiring an incompatible expected-url hub", async () => {

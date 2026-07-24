@@ -6,7 +6,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
-import { startHubWebSocketServer } from "../server";
+import { ensureHubWebSocketServer } from "../server";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -56,6 +56,12 @@ async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
 
+	const hasExplicitEndpoint =
+		options.host !== undefined ||
+		options.port !== undefined ||
+		options.pathname !== undefined ||
+		!!process.env.CLINE_HUB_PORT?.trim();
+
 	const endpoint = resolveHubEndpointOptions({
 		host: options.host,
 		port: options.port,
@@ -64,9 +70,16 @@ async function main(): Promise<void> {
 
 	const daemonTelemetry = createHubDaemonTelemetry();
 
-	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
+	let ensured: Awaited<ReturnType<typeof ensureHubWebSocketServer>>;
 	try {
-		server = await startHubWebSocketServer({
+		// ensureHubWebSocketServer serializes on the discovery startup lock,
+		// adopts a healthy hub that already owns discovery instead of dying on
+		// EADDRINUSE, and (unless the caller pinned an endpoint) falls back to
+		// an OS-assigned port when the default port is held by something that
+		// cannot be adopted — e.g. a hub whose discovery record was lost.
+		// Clients follow the discovery record, not the fixed port, so a
+		// fallback hub keeps them working instead of bricking every startup.
+		ensured = await ensureHubWebSocketServer({
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
@@ -79,12 +92,25 @@ async function main(): Promise<void> {
 				telemetry: daemonTelemetry.telemetry,
 			}),
 			cronOptions: { workspaceRoot: options.cwd },
+			allowPortFallback: !hasExplicitEndpoint,
 		});
 	} catch (error) {
 		// Flush before the top-level catch exits so failed daemon starts are
 		// still visible in telemetry instead of dying silently.
 		await daemonTelemetry.dispose().catch(() => undefined);
 		throw error;
+	}
+
+	const server = ensured.server;
+	if (!server) {
+		// A compatible hub already owns discovery (e.g. a concurrently spawned
+		// daemon won the startup race); nothing left for this process to serve.
+		process.stderr.write(
+			`[hub-daemon] compatible hub already running at ${ensured.url}; exiting\n`,
+		);
+		await daemonTelemetry.dispose().catch(() => undefined);
+		process.exit(0);
+		return;
 	}
 
 	const shutdown = async (): Promise<void> => {

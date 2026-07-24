@@ -9,7 +9,7 @@ const {
 	mockResolveHubEndpointOptions,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
-	mockStartHubWebSocketServer,
+	mockEnsureHubWebSocketServer,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
 		startSession: vi.fn(),
@@ -33,8 +33,11 @@ const {
 		ownerId: "shared",
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
-	mockStartHubWebSocketServer: vi.fn(async () => ({
-		close: vi.fn(async () => undefined),
+	mockEnsureHubWebSocketServer: vi.fn(async () => ({
+		server: { close: vi.fn(async () => undefined) },
+		url: "ws://127.0.0.1:25463/hub",
+		authToken: "token",
+		action: "started" as const,
 	})),
 }));
 
@@ -75,7 +78,7 @@ vi.mock("../discovery/workspace", () => ({
 }));
 
 vi.mock("../server", () => ({
-	startHubWebSocketServer: mockStartHubWebSocketServer,
+	ensureHubWebSocketServer: mockEnsureHubWebSocketServer,
 }));
 
 vi.mock("./telemetry", () => ({
@@ -84,6 +87,7 @@ vi.mock("./telemetry", () => ({
 
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
+const originalHubPortEnv = process.env.CLINE_HUB_PORT;
 
 describe("hub daemon entry", () => {
 	const tempDirs: string[] = [];
@@ -91,6 +95,11 @@ describe("hub daemon entry", () => {
 	afterEach(() => {
 		process.argv = [...originalArgv];
 		process.chdir(originalCwd);
+		if (originalHubPortEnv === undefined) {
+			delete process.env.CLINE_HUB_PORT;
+		} else {
+			process.env.CLINE_HUB_PORT = originalHubPortEnv;
+		}
 		vi.restoreAllMocks();
 		vi.resetModules();
 		mockCreateLocalHubScheduleRuntimeHandlers.mockClear();
@@ -98,7 +107,7 @@ describe("hub daemon entry", () => {
 		mockResolveHubEndpointOptions.mockClear();
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
-		mockStartHubWebSocketServer.mockClear();
+		mockEnsureHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
 		for (const dir of tempDirs.splice(0)) {
@@ -106,7 +115,7 @@ describe("hub daemon entry", () => {
 		}
 	});
 
-	it("starts the daemon with cron options for the daemon workspace root", async () => {
+	it("starts the daemon with a pinned endpoint and no port fallback", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = [
@@ -125,10 +134,10 @@ describe("hub daemon entry", () => {
 
 		await import("./entry");
 		await vi.waitFor(() => {
-			expect(mockStartHubWebSocketServer).toHaveBeenCalled();
+			expect(mockEnsureHubWebSocketServer).toHaveBeenCalled();
 		});
 
-		expect(mockStartHubWebSocketServer).toHaveBeenCalledWith(
+		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				host: "127.0.0.1",
 				port: 30000,
@@ -136,12 +145,55 @@ describe("hub daemon entry", () => {
 				owner: expect.objectContaining({ ownerId: "production" }),
 				telemetry: mockDaemonTelemetryService,
 				cronOptions: { workspaceRoot: cwd },
+				allowPortFallback: false,
 			}),
 		);
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledOnce();
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
 			telemetry: mockDaemonTelemetryService,
 		});
+	});
+
+	it("allows port fallback when the endpoint is not pinned", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		delete process.env.CLINE_HUB_PORT;
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(mockEnsureHubWebSocketServer).toHaveBeenCalled();
+		});
+
+		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				port: 25463,
+				allowPortFallback: true,
+			}),
+		);
+	});
+
+	it("exits cleanly when a compatible hub already owns discovery", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		mockEnsureHubWebSocketServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+			action: "reuse" as const,
+		} as never);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
 	});
 
 	it("disposes telemetry and exits when server startup fails", async () => {
@@ -153,7 +205,7 @@ describe("hub daemon entry", () => {
 		const exitSpy = vi
 			.spyOn(process, "exit")
 			.mockImplementation(() => undefined as never);
-		mockStartHubWebSocketServer.mockRejectedValueOnce(
+		mockEnsureHubWebSocketServer.mockRejectedValueOnce(
 			new Error("port already in use"),
 		);
 
