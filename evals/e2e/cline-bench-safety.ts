@@ -29,10 +29,11 @@ export function normalizeLocalCoreUrl(raw: string): string {
 	} catch {
 		throw new Error("--local-core-url must be a valid URL")
 	}
+	const allowedPorts = new Set(["7777", "17777"])
 	if (
 		parsed.protocol !== "http:" ||
 		!["localhost", "127.0.0.1", "host.docker.internal"].includes(parsed.hostname) ||
-		parsed.port !== "7777" ||
+		!allowedPorts.has(parsed.port) ||
 		(parsed.pathname !== "/" && parsed.pathname !== "") ||
 		parsed.username ||
 		parsed.password ||
@@ -40,10 +41,10 @@ export function normalizeLocalCoreUrl(raw: string): string {
 		parsed.hash
 	) {
 		throw new Error(
-			"--local-core-url only accepts http://localhost:7777, http://127.0.0.1:7777, or http://host.docker.internal:7777",
+			"--local-core-url only accepts localhost, 127.0.0.1, or host.docker.internal on port 7777 or 17777",
 		)
 	}
-	return "http://host.docker.internal:7777"
+	return `http://host.docker.internal:${parsed.port}`
 }
 
 type LockOwner = {

@@ -462,6 +462,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 
 	test("strictly normalizes only the local Core endpoint", () => {
 		expect(normalizeLocalCoreUrl("http://localhost:7777")).toBe("http://host.docker.internal:7777")
+		expect(normalizeLocalCoreUrl("http://127.0.0.1:17777")).toBe("http://host.docker.internal:17777")
 		expect(localCoreHarborArguments("http://localhost:7777")).toEqual([
 			"--ae",
 			"CLINE_API_BASE_URL=http://host.docker.internal:7777",
@@ -472,6 +473,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 		])
 		expect(() => normalizeLocalCoreUrl("https://localhost:7777")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://localhost:7778")).toThrow("only accepts")
+		expect(() => normalizeLocalCoreUrl("http://localhost:17778")).toThrow("only accepts")
 		expect(() => normalizeLocalCoreUrl("http://example.com:7777")).toThrow("only accepts")
 	})
 
