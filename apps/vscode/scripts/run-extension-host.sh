@@ -156,13 +156,89 @@ mkdir -p "$user_data_dir" "$extensions_dir"
 watcher_pids=()
 cleaned_up=false
 
-stop_isolated_extension_host() {
+escape_ere() {
+  sed 's/[][\\.^$*+?(){}|]/\\&/g' <<<"$1"
+}
+
+user_data_process_pattern="$(escape_ere "$user_data_dir")"
+
+process_tree_has_renderer() {
+  local child command_line depth pid
+  pid="$1"
+  depth="${2:-0}"
+  if [ "$depth" -gt 12 ]; then
+    return 1
+  fi
+
+  command_line="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  if [[ "$command_line" == *"--type=renderer"* ]]; then
+    return 0
+  fi
+
+  while IFS= read -r child; do
+    if [ -n "$child" ] && process_tree_has_renderer "$child" "$((depth + 1))"; then
+      return 0
+    fi
+  done < <(pgrep -P "$pid" 2>/dev/null || true)
+  return 1
+}
+
+isolated_renderer_is_running() {
   local pid
   while IFS= read -r pid; do
+    if [ -z "$pid" ] || [ "$pid" = "$$" ]; then
+      continue
+    fi
+    # The macOS Electron main process has the isolated --user-data-dir, while
+    # its renderer can omit that argument. Walk descendants instead of only
+    # matching the renderer's own command line.
+    if process_tree_has_renderer "$pid"; then
+      return 0
+    fi
+  done < <(pgrep -f -- "$user_data_process_pattern" 2>/dev/null || true)
+  return 1
+}
+
+wait_for_isolated_renderer_start() {
+  local attempt
+  for attempt in {1..100}; do
+    if isolated_renderer_is_running; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+stop_isolated_extension_host() {
+  local all_stopped attempt pid
+  local isolated_pids=()
+  while IFS= read -r pid; do
     if [ -n "$pid" ] && [ "$pid" != "$$" ]; then
+      isolated_pids+=("$pid")
       kill "$pid" 2>/dev/null || true
     fi
-  done < <(pgrep -f -- "--user-data-dir[= ]$user_data_dir" 2>/dev/null || true)
+  done < <(pgrep -f -- "$user_data_process_pattern" 2>/dev/null || true)
+
+  for attempt in {1..50}; do
+    all_stopped=true
+    for pid in "${isolated_pids[@]:-}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        all_stopped=false
+        break
+      fi
+    done
+    if [ "$all_stopped" = true ]; then
+      return
+    fi
+    sleep 0.1
+  done
+
+  # These PIDs were resolved from the launcher's unique temporary profile.
+  # Force-stop only that isolated instance if Electron ignores termination.
+  for pid in "${isolated_pids[@]:-}"; do
+    kill -KILL "$pid" 2>/dev/null || true
+  done
 }
 
 cleanup() {
@@ -195,7 +271,9 @@ cleanup() {
   rmdir "$runtime_root" 2>/dev/null || true
   echo "Stopped"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 code_args=(
   code
@@ -236,7 +314,57 @@ if [ "$MODE" = "plain" ]; then
 
   echo "Launching isolated Extension Development Host..."
   echo "Close the Extension Development Host window or press Ctrl+C here to stop."
-  "${code_args[@]}"
+  code_started_at=$SECONDS
+  code_status=0
+  "${code_args[@]}" || code_status=$?
+  code_elapsed_seconds=$((SECONDS - code_started_at))
+
+  if [ "$code_status" -ne 0 ]; then
+    echo "VS Code exited with status $code_status." >&2
+    exit "$code_status"
+  fi
+
+  # On some macOS launches the VS Code CLI returns 0 before its isolated
+  # renderer is ready, even with --wait. Without this handoff the EXIT trap
+  # immediately tears down the profile and the user never sees a window.
+  monitor_renderer=false
+  if [ "$code_elapsed_seconds" -lt 5 ]; then
+    if wait_for_isolated_renderer_start; then
+      monitor_renderer=true
+    else
+      echo "VS Code CLI returned before startup; retrying once."
+      stop_isolated_extension_host
+      code_started_at=$SECONDS
+      code_status=0
+      "${code_args[@]}" || code_status=$?
+      code_elapsed_seconds=$((SECONDS - code_started_at))
+
+      if [ "$code_status" -ne 0 ]; then
+        echo "VS Code retry exited with status $code_status." >&2
+        exit "$code_status"
+      fi
+
+      if [ "$code_elapsed_seconds" -lt 5 ]; then
+        if ! wait_for_isolated_renderer_start; then
+          echo "VS Code returned before an isolated Extension Development Host started." >&2
+          exit 1
+        fi
+        monitor_renderer=true
+      fi
+    fi
+  fi
+
+  if [ "$monitor_renderer" = true ]; then
+    if ! isolated_renderer_is_running; then
+      echo "VS Code returned before an isolated Extension Development Host started." >&2
+      exit 1
+    fi
+
+    echo "VS Code CLI returned early; monitoring the isolated Extension Development Host."
+    while isolated_renderer_is_running; do
+      sleep 1
+    done
+  fi
 else
   if tmux has-session -t "$SESSION" 2>/dev/null; then
     echo "tmux session '$SESSION' already exists." >&2
