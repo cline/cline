@@ -7,6 +7,10 @@ describe("toLegacyApiProvider", () => {
 		expect(toLegacyApiProvider("nousresearch")).toBe("nousResearch")
 	})
 
+	it("folds the SDK openai-compatible spelling to the legacy openai id", () => {
+		expect(toLegacyApiProvider("openai-compatible")).toBe("openai")
+	})
+
 	it("passes through other ids unchanged", () => {
 		expect(toLegacyApiProvider("deepseek")).toBe("deepseek")
 		expect(toLegacyApiProvider("anthropic")).toBe("anthropic")

@@ -12,6 +12,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode } from "@shared/storage/types"
@@ -237,8 +238,17 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
 
 	// Model-specific settings
-	planModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
-	actModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
+	// The transform folds SDK provider-id spellings (e.g. `openai-compatible`)
+	// back to the legacy `ApiProvider` spelling (`openai`) when state written
+	// by older builds or other hosts is loaded from disk.
+	planModeApiProvider: {
+		default: DEFAULT_API_PROVIDER as ApiProvider,
+		transform: (v: any) => (typeof v === "string" ? toLegacyApiProvider(v) : v),
+	},
+	actModeApiProvider: {
+		default: DEFAULT_API_PROVIDER as ApiProvider,
+		transform: (v: any) => (typeof v === "string" ? toLegacyApiProvider(v) : v),
+	},
 
 	// Deprecated model settings
 	hicapModelId: { default: undefined as string | undefined },
