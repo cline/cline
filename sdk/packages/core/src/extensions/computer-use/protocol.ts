@@ -72,9 +72,13 @@ export interface ComputerUseRequest {
 	action: ComputerUseAction | typeof GET_DISPLAY_INFO_ACTION;
 	coordinate?: ComputerUseCoordinate;
 	startCoordinate?: ComputerUseCoordinate;
+	/**
+	 * Text to type (for "type") or key combination to press (for
+	 * "key"/"hold_key", e.g. "ctrl+alt+delete"). The backend's serde types
+	 * (qwanban `qbt/src/computer_use.rs`) read key combos from `text`; there
+	 * is no separate `keys` field on the wire.
+	 */
 	text?: string;
-	/** Key name(s) for "key"/"hold_key", e.g. "ctrl+alt+delete". */
-	keys?: string;
 	/** Duration in seconds, used by "hold_key" and "wait". */
 	durationSeconds?: number;
 	scrollDirection?: "up" | "down" | "left" | "right";
