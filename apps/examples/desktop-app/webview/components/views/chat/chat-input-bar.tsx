@@ -15,7 +15,14 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	Select,
 	SelectContent,
@@ -218,7 +225,7 @@ type ChatInputBarProps = {
 		promptId: string,
 		prompt: string,
 	) => Promise<void> | void;
-	onUndoPromptInQueue: (item: PromptInQueue) => Promise<void> | void;
+	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -251,7 +258,7 @@ export function ChatInputBar({
 	onRemoveAttachment,
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
-	onUndoPromptInQueue,
+	onRemovePromptInQueue,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -323,6 +330,7 @@ export function ChatInputBar({
 		string | null
 	>(null);
 	const [queueExpanded, setQueueExpanded] = useState(false);
+	const queuedPromptsId = useId();
 
 	const tokensSummary = useMemo(() => {
 		const total = summary.tokensIn + summary.tokensOut;
@@ -412,7 +420,7 @@ export function ChatInputBar({
 	);
 
 	const triggerQueuedPromptAction = useCallback(
-		async (item: PromptInQueue, action: "steer" | "undo") => {
+		async (item: PromptInQueue, action: "steer" | "remove") => {
 			if (queueActionPendingId) {
 				return;
 			}
@@ -421,13 +429,13 @@ export function ChatInputBar({
 				if (action === "steer") {
 					await onSteerPromptInQueue(item.id);
 				} else {
-					await onUndoPromptInQueue(item);
+					await onRemovePromptInQueue(item.id);
 				}
 			} finally {
 				setQueueActionPendingId(null);
 			}
 		},
-		[onSteerPromptInQueue, onUndoPromptInQueue, queueActionPendingId],
+		[onRemovePromptInQueue, onSteerPromptInQueue, queueActionPendingId],
 	);
 
 	useEffect(() => {
@@ -649,7 +657,7 @@ export function ChatInputBar({
 				{promptsInQueue.length > 0 && (
 					<div className="mb-2">
 						<button
-							aria-controls="queued-prompts"
+							aria-controls={queuedPromptsId}
 							aria-expanded={queueExpanded}
 							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							onClick={() => setQueueExpanded((expanded) => !expanded)}
@@ -665,135 +673,140 @@ export function ChatInputBar({
 								{promptsInQueue.length === 1 ? "" : "s"} queued
 							</span>
 						</button>
-						{queueExpanded && (
-							<div
-								className="flex flex-col gap-0.5 pb-1 pt-1"
-								id="queued-prompts"
-							>
-								{promptsInQueue.map((item) => {
-									const isEditing = editingQueuedPromptId === item.id;
-									const isPending = queueActionPendingId === item.id;
-									const hasAttachments = (item.attachmentCount ?? 0) > 0;
-									return (
-										<div
-											className="group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent/35"
-											key={item.id}
-										>
+						<div
+							className={cn(
+								"flex flex-col gap-0.5 pb-1 pt-1",
+								!queueExpanded && "hidden",
+							)}
+							hidden={!queueExpanded}
+							id={queuedPromptsId}
+						>
+							{promptsInQueue.map((item) => {
+								const isEditing = editingQueuedPromptId === item.id;
+								const isPending = queueActionPendingId === item.id;
+								const hasAttachments = (item.attachmentCount ?? 0) > 0;
+								return (
+									<div
+										className={cn(
+											"group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent/35",
+											item.steer && "bg-primary/5",
+										)}
+										key={item.id}
+									>
+										{item.steer ? (
+											<ArrowUp className="size-4 shrink-0 text-primary" />
+										) : (
 											<Clock3 className="size-4 shrink-0 text-muted-foreground" />
-											<div className="min-w-0 flex-1">
-												{isEditing ? (
-													<textarea
-														aria-label="Edit queued prompt"
-														className="min-h-8 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
-														disabled={isPending}
-														onChange={(event) =>
-															setEditingQueuedPromptValue(event.target.value)
+										)}
+										<div className="min-w-0 flex-1">
+											{isEditing ? (
+												<textarea
+													aria-label="Edit queued prompt"
+													className="min-h-8 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+													disabled={isPending}
+													onChange={(event) =>
+														setEditingQueuedPromptValue(event.target.value)
+													}
+													onKeyDown={(event) => {
+														if (event.key === "Escape") {
+															event.preventDefault();
+															cancelQueuedPromptEdit();
 														}
-														onKeyDown={(event) => {
-															if (event.key === "Escape") {
-																event.preventDefault();
-																cancelQueuedPromptEdit();
-															}
-															if (event.key === "Enter" && !event.shiftKey) {
-																event.preventDefault();
-																void submitQueuedPromptEdit(item);
-															}
-														}}
-														rows={1}
-														value={editingQueuedPromptValue}
-													/>
-												) : (
-													<div className="flex min-w-0 items-center gap-2">
-														<span className="truncate text-xs text-foreground">
-															{item.prompt}
+														if (event.key === "Enter" && !event.shiftKey) {
+															event.preventDefault();
+															void submitQueuedPromptEdit(item);
+														}
+													}}
+													rows={1}
+													value={editingQueuedPromptValue}
+												/>
+											) : (
+												<div className="flex min-w-0 items-center gap-2">
+													<span className="truncate text-xs text-foreground">
+														{item.prompt}
+													</span>
+													{hasAttachments ? (
+														<span className="shrink-0 text-[10px] text-muted-foreground">
+															{item.attachmentCount} attachment
+															{item.attachmentCount === 1 ? "" : "s"}
 														</span>
-														{hasAttachments ? (
-															<span className="shrink-0 text-[10px] text-muted-foreground">
-																{item.attachmentCount} attachment
-																{item.attachmentCount === 1 ? "" : "s"}
-															</span>
-														) : null}
-													</div>
-												)}
-											</div>
-											<div className="flex shrink-0 items-center gap-0.5">
-												{isEditing ? (
-													<>
+													) : null}
+													{item.steer ? (
+														<span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+															Next turn
+														</span>
+													) : null}
+												</div>
+											)}
+										</div>
+										<div className="flex shrink-0 items-center gap-0.5">
+											{isEditing ? (
+												<>
+													<button
+														aria-label="Save queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+														disabled={
+															isPending ||
+															editingQueuedPromptValue.trim().length === 0
+														}
+														onClick={() => void submitQueuedPromptEdit(item)}
+														type="button"
+													>
+														<Check className="size-4" />
+													</button>
+													<button
+														aria-label="Cancel editing queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+														disabled={isPending}
+														onClick={cancelQueuedPromptEdit}
+														type="button"
+													>
+														<X className="size-4" />
+													</button>
+												</>
+											) : (
+												<>
+													{!item.steer ? (
 														<button
-															aria-label="Save queued prompt"
-															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-															disabled={
-																isPending ||
-																editingQueuedPromptValue.trim().length === 0
-															}
-															onClick={() => void submitQueuedPromptEdit(item)}
-															type="button"
-														>
-															<Check className="size-4" />
-														</button>
-														<button
-															aria-label="Cancel editing queued prompt"
+															aria-label="Steer queued prompt"
 															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 															disabled={isPending}
-															onClick={cancelQueuedPromptEdit}
-															type="button"
-														>
-															<X className="size-4" />
-														</button>
-													</>
-												) : (
-													<>
-														<button
-															aria-label={
-																item.steer
-																	? "Queued prompt will steer next turn"
-																	: "Steer queued prompt"
-															}
-															className={cn(
-																"rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-																item.steer && "text-foreground",
-															)}
-															disabled={isPending || item.steer}
 															onClick={() =>
 																void triggerQueuedPromptAction(item, "steer")
 															}
-															title={
-																item.steer
-																	? "This prompt will run first on the next turn"
-																	: "Steer next"
-															}
+															title="Steer next"
 															type="button"
 														>
 															<ArrowUp className="size-4" />
 														</button>
-														<button
-															aria-label="Edit queued prompt"
-															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-															disabled={isPending}
-															onClick={() => startQueuedPromptEdit(item)}
-															type="button"
-														>
-															<Pencil className="size-4" />
-														</button>
-														<button
-															aria-label="Remove queued prompt"
-															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-															disabled={isPending}
-															onClick={() =>
-																void triggerQueuedPromptAction(item, "undo")
-															}
-															type="button"
-														>
-															<Trash2 className="size-4" />
-														</button>
-													</>
-												)}
-											</div>
+													) : null}
+													<button
+														aria-label="Edit queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+														disabled={isPending}
+														onClick={() => startQueuedPromptEdit(item)}
+														type="button"
+													>
+														<Pencil className="size-4" />
+													</button>
+													<button
+														aria-label="Remove queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+														disabled={isPending}
+														onClick={() =>
+															void triggerQueuedPromptAction(item, "remove")
+														}
+														type="button"
+													>
+														<Trash2 className="size-4" />
+													</button>
+												</>
+											)}
 										</div>
-									);
-								})}
-							</div>
-						)}
+									</div>
+								);
+							})}
+						</div>
 					</div>
 				)}
 				<div className="relative">

@@ -84,7 +84,7 @@ describe("ChatInputBar", () => {
 							onSend={vi.fn()}
 							onSteerPromptInQueue={vi.fn()}
 							onSwitchGitBranch={vi.fn(async () => true)}
-							onUndoPromptInQueue={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
 							promptInput=""
 							promptsInQueue={[]}
 							provider="cline"
@@ -164,7 +164,7 @@ describe("ChatInputBar", () => {
 						onSend={vi.fn()}
 						onSteerPromptInQueue={vi.fn()}
 						onSwitchGitBranch={vi.fn(async () => true)}
-						onUndoPromptInQueue={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
 						promptInput=""
 						promptsInQueue={[]}
 						provider="cline"
@@ -209,8 +209,9 @@ describe("ChatInputBar", () => {
 		});
 	});
 
-	it("shows queued prompts in a compact expandable list", async () => {
+	it("shows queued prompts in an accessible list with clear priority actions", async () => {
 		const onSteerPromptInQueue = vi.fn();
+		const onRemovePromptInQueue = vi.fn();
 		await act(async () => {
 			root.render(
 				<WorkspaceProvider
@@ -245,13 +246,18 @@ describe("ChatInputBar", () => {
 						onSend={vi.fn()}
 						onSteerPromptInQueue={onSteerPromptInQueue}
 						onSwitchGitBranch={vi.fn(async () => true)}
-						onUndoPromptInQueue={vi.fn()}
+						onRemovePromptInQueue={onRemovePromptInQueue}
 						promptInput=""
 						promptsInQueue={[
 							{
 								id: "queued-prompt-1",
 								prompt: "What else can we update the title to?",
 								steer: false,
+							},
+							{
+								id: "queued-prompt-2",
+								prompt: "Use the shorter title",
+								steer: true,
 							},
 						]}
 						provider="cline"
@@ -264,19 +270,28 @@ describe("ChatInputBar", () => {
 			);
 		});
 
-		const queueToggle = container.querySelector<HTMLButtonElement>(
-			'[aria-controls="queued-prompts"]',
-		);
-		expect(queueToggle?.textContent).toContain("1 prompt queued");
+		const queueToggle = [
+			...container.querySelectorAll<HTMLButtonElement>(
+				"button[aria-controls][aria-expanded]",
+			),
+		].find((button) => button.textContent?.includes("prompts queued"));
+		expect(queueToggle?.textContent).toContain("2 prompts queued");
 		expect(queueToggle?.getAttribute("aria-expanded")).toBe("false");
-		expect(container.querySelector("#queued-prompts")).toBeNull();
+		const queuedPromptsId = queueToggle?.getAttribute("aria-controls");
+		expect(queuedPromptsId).toBeTruthy();
+		const queuedPrompts = document.getElementById(queuedPromptsId ?? "");
+		expect(container.contains(queuedPrompts)).toBe(true);
+		expect(queuedPrompts?.hidden).toBe(true);
 
 		await act(async () => queueToggle?.click());
 
 		expect(queueToggle?.getAttribute("aria-expanded")).toBe("true");
-		expect(container.querySelector("#queued-prompts")?.textContent).toContain(
+		expect(queuedPrompts?.hidden).toBe(false);
+		expect(queuedPrompts?.textContent).toContain(
 			"What else can we update the title to?",
 		);
+		expect(queuedPrompts?.textContent).toContain("Use the shorter title");
+		expect(queuedPrompts?.textContent).toContain("Next turn");
 		expect(
 			container.querySelector('[aria-label="Edit queued prompt"]'),
 		).not.toBeNull();
@@ -292,5 +307,14 @@ describe("ChatInputBar", () => {
 		});
 
 		expect(onSteerPromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Remove queued prompt"]')
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(onRemovePromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
 	});
 });
