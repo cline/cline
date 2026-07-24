@@ -15,6 +15,7 @@ import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../runtime/session-events";
+import type { HistoryExportFormat } from "../session/history-export";
 import type { RepoStatus } from "../utils/repo-status";
 import type { CliCompactionMode, Config } from "../utils/types";
 import type { ClineAccountSnapshot } from "./cline-account";
@@ -194,6 +195,11 @@ export interface TuiProps {
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
 	onResumeSession: (sessionId: string) => Promise<ResumedSessionResult>;
+	onExportHistorySession: (
+		sessionId: string,
+		format: HistoryExportFormat,
+	) => Promise<string>;
+	onDeleteHistorySession: (sessionId: string) => Promise<boolean>;
 	onCompact: () => Promise<InteractiveCompactionResult>;
 	onFork: () => Promise<
 		| {

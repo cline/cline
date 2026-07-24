@@ -647,6 +647,8 @@ function App(props: TuiProps) {
 		setAppView,
 		onClearConversation: clearConversation,
 		onResumeSession: props.onResumeSession,
+		onExportHistorySession: props.onExportHistorySession,
+		onDeleteHistorySession: props.onDeleteHistorySession,
 		onCompact: props.onCompact,
 		onFork: props.onFork,
 		onUndo: openCheckpointRestore,

@@ -1,12 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { generateConversationHTML } from "../session/export";
-import {
-	deleteSession,
-	listSessions,
-	readSessionMessagesArtifact,
-	updateSession,
-} from "../session/session";
+import { exportHistorySession } from "../session/history-export";
+import { deleteSession, listSessions, updateSession } from "../session/session";
 import { formatHistoryListLine } from "../utils/history-format";
 import { writeln } from "../utils/output";
 import type { CliOutputMode } from "../utils/types";
@@ -21,22 +14,6 @@ type HistoryIo = {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 };
-
-async function exportHistorySession(
-	sessionId: string,
-	outputPath?: string,
-): Promise<string> {
-	const data = await readSessionMessagesArtifact(sessionId);
-	if (!data) {
-		throw new Error(`Session ${sessionId} not found or has no messages.json`);
-	}
-
-	const targetPath = resolve(outputPath?.trim() || `${sessionId}.html`);
-	const html = generateConversationHTML(data, sessionId);
-	await mkdir(dirname(targetPath), { recursive: true });
-	await writeFile(targetPath, html, "utf8");
-	return targetPath;
-}
 
 async function runHistoryDelete(
 	sessionId: string | undefined,
@@ -136,7 +113,11 @@ async function runHistoryExport(
 	}
 
 	try {
-		const targetPath = await exportHistorySession(sessionId, outputPath);
+		const targetPath = await exportHistorySession({
+			sessionId,
+			format: "html",
+			outputPath,
+		});
 
 		if (outputMode === "json") {
 			process.stdout.write(
@@ -192,9 +173,4 @@ export async function runHistoryList(input: {
 	return 0;
 }
 
-export {
-	exportHistorySession,
-	runHistoryDelete,
-	runHistoryExport,
-	runHistoryUpdate,
-};
+export { runHistoryDelete, runHistoryExport, runHistoryUpdate };

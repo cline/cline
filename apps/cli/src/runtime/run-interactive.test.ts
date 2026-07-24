@@ -2,8 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import type { Config } from "../utils/types";
 import {
 	applyInteractiveModelChange,
+	assertHistorySessionIsDeletable,
 	resolveReasoningForModelChange,
 } from "./run-interactive";
+
+describe("assertHistorySessionIsDeletable", () => {
+	it("rejects deleting the active interactive session", () => {
+		expect(() => assertHistorySessionIsDeletable("sess_1", "sess_1")).toThrow(
+			"Cannot delete the active session",
+		);
+	});
+
+	it("allows deleting another or pre-startup session", () => {
+		expect(() =>
+			assertHistorySessionIsDeletable("sess_1", "sess_2"),
+		).not.toThrow();
+		expect(() => assertHistorySessionIsDeletable("sess_1", "")).not.toThrow();
+	});
+});
 
 describe("resolveReasoningForModelChange", () => {
 	it("persists disabled reasoning only when thinking is explicitly false", () => {
