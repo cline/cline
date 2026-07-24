@@ -86,7 +86,7 @@ Required fields:
   </Step>
 </Steps>
 
-You can also create skills manually by creating the directory structure in your file system. Place skill directories in `.cline/skills/` (workspace) or `~/.cline/skills/` (global) and Cline will detect them automatically.
+You can also create skills manually by creating the directory structure in your file system. Place skill directories in `.cline/skills/` (workspace) or `~/.agents/skills/` (global) and Cline will detect them automatically.
 
 Put the important information first in your SKILL.md. Cline reads the file sequentially, so front-load the common cases. Use clear section headers like "## Error Handling" or "## Configuration" so Cline can scan for relevant sections.
 
@@ -156,8 +156,8 @@ Project skills:
 - `.claude/skills/`
 
 Global skills:
-- `~/.cline/skills/` (macOS/Linux)
-- `C:\Users\USERNAME\.cline\skills\` (Windows)
+- `~/.agents/skills/` (macOS/Linux)
+- `C:\Users\USERNAME\.agents\skills\` (Windows)
 
 When a global skill and project skill have the same name, the global skill takes precedence. This lets you keep general-purpose skills globally while using project-specific skills in `.cline/skills/` so the whole team can use them.
 
