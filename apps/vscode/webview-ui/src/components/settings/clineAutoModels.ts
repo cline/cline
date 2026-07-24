@@ -5,7 +5,10 @@ export const CLINE_PASS_AUTO_MODEL_ID = "cline-pass/auto"
 
 const CLINE_AUTO_MODEL_INFO: ModelInfo = {
 	name: "Cline Auto",
-	supportsImages: true,
+	// Keep the virtual capability surface to the intersection of every route.
+	// The current balanced GLM candidate does not accept images, and Core does
+	// not yet constrain image requests to a vision-capable candidate.
+	supportsImages: false,
 	supportsPromptCache: true,
 	description:
 		"Automatically routes each turn to an eligible Cline model while accounting for prompt-cache reuse and switching cost.",
@@ -13,7 +16,8 @@ const CLINE_AUTO_MODEL_INFO: ModelInfo = {
 
 const CLINE_PASS_AUTO_MODEL_INFO: ModelInfo = {
 	name: "Cline Pass Auto",
-	supportsImages: true,
+	// The Pass balanced/heavy candidates are text-only today.
+	supportsImages: false,
 	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,

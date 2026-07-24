@@ -33,6 +33,7 @@ describe("withClineAutoModels", () => {
 
 		expect(models[CLINE_AUTO_MODEL_ID]).toMatchObject({
 			name: "Cline Auto",
+			supportsImages: false,
 			supportsPromptCache: true,
 		})
 		expect(models[CLINE_PASS_AUTO_MODEL_ID]).toBeUndefined()
@@ -43,6 +44,7 @@ describe("withClineAutoModels", () => {
 
 		expect(models[CLINE_AUTO_MODEL_ID]?.supportsPromptCache).toBe(true)
 		expect(models[CLINE_PASS_AUTO_MODEL_ID]?.supportsPromptCache).toBe(true)
+		expect(models[CLINE_PASS_AUTO_MODEL_ID]?.supportsImages).toBe(false)
 	})
 
 	it("preserves live endpoint metadata when a gated virtual model is present", () => {
