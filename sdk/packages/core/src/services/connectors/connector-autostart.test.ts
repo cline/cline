@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SqliteConnectorStore } from "@cline/shared/db";
@@ -7,7 +7,7 @@ import {
 	disableConnectorAutostart,
 	persistConnectorConnection,
 	reconnectPersistedConnectors,
-} from "./autostart";
+} from "./connector-autostart";
 
 describe("connector autostart", () => {
 	const previousDataDir = process.env.CLINE_DATA_DIR;
@@ -24,11 +24,10 @@ describe("connector autostart", () => {
 		}
 	});
 
-	function useTempDataDir(): string {
+	function useTempDataDir(): void {
 		const root = mkdtempSync(join(tmpdir(), "connector-autostart-"));
 		tempRoots.push(root);
 		process.env.CLINE_DATA_DIR = root;
-		return root;
 	}
 
 	function withStore<T>(fn: (store: SqliteConnectorStore) => T): T {
@@ -40,7 +39,7 @@ describe("connector autostart", () => {
 		}
 	}
 
-	it("persists connect args without the interactive flag", () => {
+	it("persists connect args without interactive flags", () => {
 		useTempDataDir();
 		persistConnectorConnection("telegram", [
 			"-k",
@@ -48,7 +47,9 @@ describe("connector autostart", () => {
 			"-i",
 			"--allow-user",
 			"42",
+			"--interactive",
 		]);
+
 		const record = withStore((store) => store.get("telegram"));
 		expect(record?.connectArgs).toEqual([
 			"-k",
@@ -59,7 +60,7 @@ describe("connector autostart", () => {
 		expect(record?.enabled).toBe(true);
 	});
 
-	it("reconnects enabled connectors that have stored connect args", async () => {
+	it("reconnects only enabled connectors with stored connect args", async () => {
 		useTempDataDir();
 		persistConnectorConnection("telegram", ["-k", "123:token"]);
 		persistConnectorConnection("slack", ["--bot-token", "xoxb"]);
@@ -76,25 +77,15 @@ describe("connector autostart", () => {
 		expect(attempts).toEqual([{ channel: "telegram", ok: true }]);
 	});
 
-	it("skips connectors that are already running", async () => {
-		const root = useTempDataDir();
+	it("lets the host skip connectors that are already active", async () => {
+		useTempDataDir();
 		persistConnectorConnection("telegram", ["-k", "123:token"]);
 
-		const stateDir = join(root, "connectors", "telegram");
-		mkdirSync(stateDir, { recursive: true });
-		writeFileSync(
-			join(stateDir, "bot.json"),
-			JSON.stringify({
-				pid: process.pid,
-				hubUrl: "ws://127.0.0.1:7777",
-				botUsername: "test_bot",
-				startedAt: "2026-07-07T00:00:00.000Z",
-			}),
-			"utf8",
-		);
-
 		const start = vi.fn().mockResolvedValue(true);
-		const attempts = await reconnectPersistedConnectors({ start });
+		const attempts = await reconnectPersistedConnectors({
+			start,
+			isActive: (channel) => channel === "telegram",
+		});
 
 		expect(start).not.toHaveBeenCalled();
 		expect(attempts).toEqual([]);

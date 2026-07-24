@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { __test__ } from "./connectors";
+import { describe, expect, it, vi } from "vitest";
+import { __test__, reconnectConfiguredConnectors } from "./connectors";
+
+const mocks = vi.hoisted(() => ({
+	reconnectPersistedConnectors: vi.fn(async () => []),
+}));
+
+vi.mock("@cline/core", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/core")>()),
+	reconnectPersistedConnectors: mocks.reconnectPersistedConnectors,
+}));
 
 describe("connector launch command", () => {
 	it("uses Bun conditions when launching the source CLI from Bun", () => {
@@ -92,6 +101,21 @@ describe("connector launch command", () => {
 			),
 		).toBe(
 			"Telegram rejected this bot token. Copy the token from @BotFather and try again.",
+		);
+	});
+
+	it("delegates persisted reconnects through the core package boundary", async () => {
+		const log = vi.fn();
+
+		await reconnectConfiguredConnectors(log);
+
+		expect(mocks.reconnectPersistedConnectors).toHaveBeenCalledOnce();
+		expect(mocks.reconnectPersistedConnectors).toHaveBeenCalledWith(
+			expect.objectContaining({
+				start: expect.any(Function),
+				isActive: expect.any(Function),
+				log,
+			}),
 		);
 	});
 });

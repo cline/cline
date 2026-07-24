@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import process from "node:process";
+import { reconnectPersistedConnectors } from "@cline/core";
 import { withResolvedClineBuildEnv } from "@cline/shared";
 import { listConnectorCatalog } from "../../../cli/src/connectors/catalog";
 import { listActiveConnectors } from "../../../cli/src/connectors/status";
@@ -233,9 +234,6 @@ export async function startConnectorChannel(
 export async function reconnectConfiguredConnectors(
 	log: (message: string) => void = console.error,
 ): Promise<void> {
-	const { reconnectPersistedConnectors } = await import(
-		"../../../cli/src/connectors/autostart"
-	);
 	await reconnectPersistedConnectors({
 		start: async (channel, args) => {
 			const result = await runCliConnectCommand([channel, ...args]);
@@ -250,6 +248,8 @@ export async function reconnectConfiguredConnectors(
 			}
 			return true;
 		},
+		isActive: (channel) =>
+			listActiveConnectors().some((record) => record.type === channel),
 		log,
 	});
 }

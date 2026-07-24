@@ -488,6 +488,13 @@ export {
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
 export {
+	disableConnectorAutostart,
+	persistConnectorConnection,
+	type ReconnectAttempt,
+	type ReconnectPersistedConnectorsOptions,
+	reconnectPersistedConnectors,
+} from "./services/connectors/connector-autostart";
+export {
 	FeatureFlagsService,
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,

@@ -1,11 +1,12 @@
 import {
 	disableConnectorAutostart,
 	persistConnectorConnection,
-} from "../connectors/autostart";
+} from "@cline/core";
 import { getConnector, listConnectors } from "../connectors/registry";
 import type { ConnectIo, ConnectStopResult } from "../connectors/types";
 
 const HELP_FLAGS = new Set(["-h", "--help"]);
+const INTERACTIVE_FLAGS = new Set(["-i", "--interactive"]);
 
 export async function stopAllConnectors(
 	io: ConnectIo,
@@ -78,7 +79,12 @@ export async function runConnectAdapter(
 	const isHelpInvocation =
 		passthroughArgs.length === 0 ||
 		passthroughArgs.some((arg) => HELP_FLAGS.has(arg));
-	if (exitCode === 0 && !isHelpInvocation) {
+	const isInteractiveInvocation = passthroughArgs.some((arg) =>
+		INTERACTIVE_FLAGS.has(arg),
+	);
+	if (exitCode === 0 && !isHelpInvocation && isInteractiveInvocation) {
+		disableConnectorAutostart(connector.name);
+	} else if (exitCode === 0 && !isHelpInvocation) {
 		persistConnectorConnection(connector.name, passthroughArgs);
 	}
 	return exitCode;
