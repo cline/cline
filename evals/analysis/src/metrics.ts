@@ -183,4 +183,37 @@ export class MetricsCalculator {
 		}
 		return "flaky"
 	}
+
+	/**
+	 * After early-exit on a passing trial, set pass@k to 1 without inventing
+	 * unobserved successes for pass^k or flakiness.
+	 *
+	 * pass@k means "found a solution within k trials". If we stop after the
+	 * first pass, that probability is 1 for any requested k. pass^k and
+	 * flakinessScore must still reflect only trials that actually ran.
+	 */
+	applyEarlyExitPassAtK(
+		metrics: {
+			passAt1: number
+			passAt3: number
+			passCaret3: number
+			flakinessScore: number
+		},
+		trialsRan: number,
+		trialsRequested: number,
+		lastTrialPassed: boolean,
+	): {
+		passAt1: number
+		passAt3: number
+		passCaret3: number
+		flakinessScore: number
+	} {
+		if (trialsRan < trialsRequested && lastTrialPassed) {
+			metrics.passAt1 = 1
+			if (trialsRequested >= 3) {
+				metrics.passAt3 = 1
+			}
+		}
+		return metrics
+	}
 }
