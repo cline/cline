@@ -22,6 +22,13 @@ import { Logger } from "@/shared/services/Logger"
  */
 const AUTO_APPROVE_PREVIEW_LINGER_MS = 1_500
 
+/**
+ * Upper bound on opening a diff preview. `vscode.diff` can stall on a busy or wedged
+ * workbench; the preview is purely cosmetic, so a stall must never block the approval
+ * ask or eat into the edit tool's own execution timeout — the edit proceeds without it.
+ */
+const PREVIEW_OPEN_TIMEOUT_MS = 5_000
+
 export interface SdkDiffEditCoordinatorOptions {
 	/** Workspace root used to resolve relative tool paths. */
 	getCwd: () => Promise<string>
@@ -35,6 +42,8 @@ export interface SdkDiffEditCoordinatorOptions {
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
 	/** Test seam: overrides the auto-approve preview linger. */
 	autoApprovePreviewLingerMs?: number
+	/** Test seam: overrides how long a preview open may take before the edit proceeds without it. */
+	previewOpenTimeoutMs?: number
 }
 
 interface DiffEditSession {
@@ -63,11 +72,13 @@ export class SdkDiffEditCoordinator {
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
 	private readonly autoApprovePreviewLingerMs: number
+	private readonly previewOpenTimeoutMs: number
 
 	constructor(private readonly options: SdkDiffEditCoordinatorOptions) {
 		this.fallbackEditorExecutor = options.fallbackEditorExecutor ?? createEditorExecutor()
 		this.fallbackApplyPatchExecutor = options.fallbackApplyPatchExecutor ?? createApplyPatchExecutor()
 		this.autoApprovePreviewLingerMs = options.autoApprovePreviewLingerMs ?? AUTO_APPROVE_PREVIEW_LINGER_MS
+		this.previewOpenTimeoutMs = options.previewOpenTimeoutMs ?? PREVIEW_OPEN_TIMEOUT_MS
 	}
 
 	/**
@@ -261,18 +272,25 @@ export class SdkDiffEditCoordinator {
 			content.editType === "create"
 				? `${fileName}: New File (Preview)`
 				: `${fileName}: Original ↔ Cline's Changes (Preview)`
+		const openPromise = preview.open({
+			title,
+			absolutePath: content.absolutePath,
+			displayPath: content.displayPath,
+			leftContent: content.leftContent,
+			rightContent: content.rightContent,
+		})
 		try {
-			await preview.open({
-				title,
-				absolutePath: content.absolutePath,
-				displayPath: content.displayPath,
-				leftContent: content.leftContent,
-				rightContent: content.rightContent,
-			})
+			await raceOpenTimeout(openPromise, this.previewOpenTimeoutMs)
 		} catch (error) {
-			// open() can fail after partially opening (the session isn't registered yet,
-			// so discardPreview couldn't reach it) — close directly to avoid an orphaned tab.
-			await preview.close().catch(() => {})
+			if (error instanceof PreviewOpenTimeoutError) {
+				// The open is still pending; close once it settles so a tab that
+				// appears late doesn't linger as an orphan.
+				void openPromise.catch(() => {}).then(() => preview.close().catch(() => {}))
+			} else {
+				// open() can fail after partially opening (the session isn't registered yet,
+				// so discardPreview couldn't reach it) — close directly to avoid an orphaned tab.
+				await preview.close().catch(() => {})
+			}
 			throw error
 		}
 		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
@@ -337,6 +355,30 @@ function resolveEditPath(cwd: string, inputPath: string): string {
 		throw new Error(`Path must stay within cwd: ${inputPath}`)
 	}
 	return resolved
+}
+
+class PreviewOpenTimeoutError extends Error {
+	constructor(ms: number) {
+		super(`Diff preview did not open within ${ms}ms; proceeding without it`)
+		this.name = "PreviewOpenTimeoutError"
+	}
+}
+
+/** Rejects with PreviewOpenTimeoutError if `promise` doesn't settle within `ms`. */
+function raceOpenTimeout(promise: Promise<void>, ms: number): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(() => reject(new PreviewOpenTimeoutError(ms)), ms)
+		promise.then(
+			() => {
+				clearTimeout(timer)
+				resolve()
+			},
+			(error) => {
+				clearTimeout(timer)
+				reject(error)
+			},
+		)
+	})
 }
 
 /** Waits `ms`, resolving early (never rejecting) if the signal aborts. */
