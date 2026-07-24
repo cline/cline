@@ -180,6 +180,11 @@ function ConnectStep({
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 
+	const [showClineKeyForm, setShowClineKeyForm] = useState(false);
+	const [clineApiKey, setClineApiKey] = useState("");
+	const [clineKeySaving, setClineKeySaving] = useState(false);
+	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
+
 	const [showApiKeyForm, setShowApiKeyForm] = useState(false);
 	const [providers, setProviders] = useState<Provider[]>([]);
 	const [providersLoading, setProvidersLoading] = useState(true);
@@ -236,6 +241,29 @@ function ConnectStep({
 			setSigningIn(false);
 		}
 	}, [onConnected, refreshAccount]);
+
+	const connectWithClineApiKey = useCallback(async () => {
+		const key = clineApiKey.trim();
+		if (!key) {
+			return;
+		}
+		setClineKeySaving(true);
+		setClineKeyError(null);
+		try {
+			await desktopClient.invoke("save_provider_settings", {
+				provider: "cline",
+				enabled: true,
+				api_key: key,
+			});
+			rememberProviderSelection({ id: "cline" });
+			await refreshAccount();
+			onConnected({ kind: "cline" });
+		} catch (error) {
+			setClineKeyError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setClineKeySaving(false);
+		}
+	}, [clineApiKey, onConnected, refreshAccount]);
 
 	const selectedProvider =
 		providers.find((provider) => provider.id === selectedProviderId) ?? null;
@@ -347,6 +375,66 @@ function ConnectStep({
 						<p className="mt-2 text-xs text-destructive" role="alert">
 							Sign in failed: {signInError}
 						</p>
+					) : null}
+					{!user ? (
+						<div className="mt-3">
+							<button
+								aria-expanded={showClineKeyForm}
+								className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+								onClick={() => setShowClineKeyForm((current) => !current)}
+								type="button"
+							>
+								{showClineKeyForm
+									? "Hide Cline API key"
+									: "Use a Cline API key instead"}
+							</button>
+							{showClineKeyForm ? (
+								<div className="mt-3 flex flex-col gap-2">
+									<div className="flex flex-wrap items-center gap-2">
+										<Input
+											aria-label="Cline API key"
+											autoComplete="off"
+											className="min-w-52 flex-1 bg-background"
+											onChange={(event) => {
+												setClineApiKey(event.target.value);
+												setClineKeyError(null);
+											}}
+											onKeyDown={(event) => {
+												if (
+													event.key === "Enter" &&
+													clineApiKey.trim() &&
+													!clineKeySaving
+												) {
+													void connectWithClineApiKey();
+												}
+											}}
+											placeholder="Cline API key"
+											type="password"
+											value={clineApiKey}
+										/>
+										<Button
+											className="rounded-full"
+											disabled={!clineApiKey.trim() || clineKeySaving}
+											onClick={() => void connectWithClineApiKey()}
+											type="button"
+										>
+											{clineKeySaving ? (
+												<Loader2 className="size-4 animate-spin" />
+											) : null}
+											{clineKeySaving ? "Connecting..." : "Connect"}
+										</Button>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Find your key in the Cline dashboard under Account.
+									</p>
+									{clineKeyError ? (
+										<p className="text-xs text-destructive" role="alert">
+											Failed to save API key: {clineKeyError}
+										</p>
+									) : null}
+								</div>
+							) : null}
+						</div>
 					) : null}
 				</div>
 

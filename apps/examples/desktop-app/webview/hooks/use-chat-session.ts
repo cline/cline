@@ -815,6 +815,26 @@ export function useChatSession() {
 
 			if (payload.stream === "chat_done") {
 				clearLiveToolRefs();
+				// Prompts that the runtime consumed from the queue (for example the
+				// first prompt of a fresh session, which is queued while the
+				// interactive loop is still starting) never resolve through the
+				// send() RPC, so this stream event is the only turn-completion
+				// signal. Without it the composer stays on "Agent is working..."
+				// forever.
+				let doneReason = "";
+				try {
+					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					doneReason = parsed.reason?.trim() ?? "";
+				} catch {
+					// Missing reason still means the turn ended.
+				}
+				setStatus(
+					doneReason === "aborted"
+						? "cancelled"
+						: doneReason === "error"
+							? "failed"
+							: "completed",
+				);
 				return;
 			}
 

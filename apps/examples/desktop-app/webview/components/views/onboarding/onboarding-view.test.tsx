@@ -203,6 +203,62 @@ describe("OnboardingView", () => {
 		).toBe("cline");
 	});
 
+	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
+		const onComplete = await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		await act(async () => {
+			buttonByText("Use a Cline API key instead").click();
+		});
+		const keyInput = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Cline API key"]',
+		);
+		expect(keyInput).not.toBeNull();
+
+		invoke.mockClear();
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "save_provider_settings") {
+				return { providerId: "cline", enabled: true };
+			}
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(keyInput, "cline_key_123");
+			keyInput?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await act(async () => {
+			buttonByText("Connect").click();
+		});
+
+		expect(invoke).toHaveBeenCalledWith("save_provider_settings", {
+			provider: "cline",
+			enabled: true,
+			api_key: "cline_key_123",
+		});
+		expect(container.textContent).toContain("You're all set");
+		expect(container.textContent).toContain("Your Cline account is connected");
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			).lastProvider,
+		).toBe("cline");
+
+		await act(async () => {
+			buttonByText("Start building").click();
+		});
+		expect(onComplete).toHaveBeenCalledTimes(1);
+	});
+
 	it("saves an API key provider and remembers the selection", async () => {
 		const onComplete = await render();
 		await act(async () => {
