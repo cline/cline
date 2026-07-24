@@ -1,5 +1,10 @@
+import {
+	type AddressInfo,
+	createServer,
+	type Server,
+	type Socket,
+} from "node:net";
 import type { AgentToolContext } from "@cline/shared";
-import { type AddressInfo, createServer, type Server, type Socket } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { ComputerUseClient } from "./client";
 import type { ComputerUseResponse } from "./protocol";
@@ -157,7 +162,10 @@ describe("createComputerUseTool", () => {
 		expect(result).toBe("clicked at (10, 20)");
 	});
 
-	it("maps key/hold_key text into the keys field, not the text field", async () => {
+	// The backend contract (qwanban qbt/src/computer_use.rs) reads key combos
+	// from `text` for Key/HoldKey; a separate `keys` field does not exist on
+	// the wire.
+	it("sends key combinations in the text field for key/hold_key", async () => {
 		const started = await startFakeBackend((request) => ({
 			id: request.id as number,
 			ok: true,
@@ -178,7 +186,7 @@ describe("createComputerUseTool", () => {
 			ctx,
 		);
 
-		expect(result).toBe("keys=ctrl+alt+delete text=none");
+		expect(result).toBe("keys=none text=ctrl+alt+delete");
 	});
 
 	it("throws with the backend error message on failure", async () => {
