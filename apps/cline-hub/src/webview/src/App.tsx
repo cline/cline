@@ -497,10 +497,10 @@ function HomeView({
 	const [hubUrlInput, setHubUrlInput] = useState(() => hubState.hubUrl ?? "");
 
 	useEffect(() => {
-		if (!hubUrlInput.trim() && hubState.hubUrl) {
+		if (hubState.hubUrl) {
 			setHubUrlInput(hubState.hubUrl);
 		}
-	}, [hubState.hubUrl, hubUrlInput]);
+	}, [hubState.hubUrl]);
 
 	const copyText = useCallback((value?: string) => {
 		if (!value || typeof navigator === "undefined") return;

@@ -6,7 +6,7 @@ export interface ClineHubServerOptions {
 	port: number;
 	publicUrl: string;
 	dashboardWebUrl: string;
-	roomSecret?: string;
+	roomSecret: string;
 	workspaceRoot: string;
 }
 
@@ -83,7 +83,7 @@ function normalizeDashboardWebUrl(
 	return parsed.toString().replace(/\/$/, "");
 }
 
-function normalizeRoomSecret(value: string | undefined): string | undefined {
+function normalizeRoomSecret(value: string | undefined): string {
 	const secret = value?.trim();
 	return secret ? secret : randomBytes(32).toString("hex");
 }

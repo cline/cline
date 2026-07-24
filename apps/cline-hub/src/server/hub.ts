@@ -3,9 +3,13 @@ import {
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubUIClient,
+	readHubDashboardDiscovery,
 	rememberRecoverableLocalHubUrl,
+	resolveDefaultHubOwnerContext,
+	resolveHubDashboardDiscoveryPath,
 	stopLocalHubServerGracefully,
 	toHubHealthUrl,
+	writeHubDashboardDiscovery,
 } from "@cline/core";
 import type { HubUINotifyPayload } from "@cline/shared";
 import { handleSessionEvent } from "./agent-events";
@@ -24,6 +28,35 @@ import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import type { SessionContext } from "./types";
 import { asString, basename, isActiveSession, isVisibleClient } from "./utils";
+
+const DASHBOARD_DISCOVERY_PATH_ENV = "CLINE_HUB_DASHBOARD_DISCOVERY_PATH";
+
+function resolveDashboardDiscoveryPath(): string {
+	return (
+		process.env[DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
+		resolveHubDashboardDiscoveryPath(resolveDefaultHubOwnerContext())
+	);
+}
+
+/**
+ * Keep discovery `hubUrl` aligned after preserve-restart / connect_hub so later
+ * `cline dashboard` open does not treat a healthy bridge as stale.
+ */
+async function refreshDashboardDiscoveryHubUrl(hubUrl: string): Promise<void> {
+	const discoveryPath = resolveDashboardDiscoveryPath();
+	const discovered = await readHubDashboardDiscovery(discoveryPath);
+	if (!discovered || discovered.pid !== process.pid) {
+		return;
+	}
+	if (discovered.hubUrl === hubUrl) {
+		return;
+	}
+	await writeHubDashboardDiscovery(discoveryPath, {
+		...discovered,
+		hubUrl,
+		updatedAt: new Date().toISOString(),
+	});
+}
 
 export async function syncHubHealth(ctx: HubContext): Promise<void> {
 	if (!ctx.hubUrl) {
@@ -277,6 +310,7 @@ export async function attachHub(
 
 	await syncHubClientsAndSessions(ctx);
 	await syncHubHealth(ctx);
+	await refreshDashboardDiscoveryHubUrl(hub.url).catch(() => undefined);
 }
 
 export async function detachHub(ctx: HubContext): Promise<void> {

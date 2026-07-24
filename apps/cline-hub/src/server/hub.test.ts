@@ -4,8 +4,15 @@ const mocks = vi.hoisted(() => ({
 	createCline: vi.fn(),
 	createUiClient: vi.fn(),
 	ensureDetachedHubServer: vi.fn(),
+	readHubDashboardDiscovery: vi.fn(),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
+	resolveDefaultHubOwnerContext: vi.fn(() => ({
+		ownerId: "hub-shared",
+		discoveryPath: "/tmp/hub.json",
+	})),
+	resolveHubDashboardDiscoveryPath: vi.fn(() => "/tmp/dashboard.json"),
 	stopLocalHubServerGracefully: vi.fn(),
+	writeHubDashboardDiscovery: vi.fn(async () => undefined),
 	rejectAllPendingApprovals: vi.fn(),
 	broadcastHubState: vi.fn(),
 }));
@@ -17,8 +24,12 @@ vi.mock("@cline/core", () => ({
 		return mocks.createUiClient(options);
 	}),
 	ensureDetachedHubServer: mocks.ensureDetachedHubServer,
+	readHubDashboardDiscovery: mocks.readHubDashboardDiscovery,
 	rememberRecoverableLocalHubUrl: mocks.rememberRecoverableLocalHubUrl,
+	resolveDefaultHubOwnerContext: mocks.resolveDefaultHubOwnerContext,
+	resolveHubDashboardDiscoveryPath: mocks.resolveHubDashboardDiscoveryPath,
 	stopLocalHubServerGracefully: mocks.stopLocalHubServerGracefully,
+	writeHubDashboardDiscovery: mocks.writeHubDashboardDiscovery,
 	toHubHealthUrl: (url: string) => url,
 }));
 
@@ -69,6 +80,12 @@ describe("hub attachment lifecycle", () => {
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "new-token",
 		});
+		mocks.readHubDashboardDiscovery.mockReset();
+		mocks.readHubDashboardDiscovery.mockResolvedValue(undefined);
+		mocks.resolveDefaultHubOwnerContext.mockClear();
+		mocks.resolveHubDashboardDiscoveryPath.mockClear();
+		mocks.writeHubDashboardDiscovery.mockReset();
+		mocks.writeHubDashboardDiscovery.mockResolvedValue(undefined);
 		mocks.rememberRecoverableLocalHubUrl.mockClear();
 		mocks.stopLocalHubServerGracefully.mockReset();
 		mocks.stopLocalHubServerGracefully.mockResolvedValue(true);
@@ -123,6 +140,15 @@ describe("hub attachment lifecycle", () => {
 		const nextUiClient = createUiClient();
 		mocks.createCline.mockResolvedValue(nextCline);
 		mocks.createUiClient.mockReturnValue(nextUiClient);
+		mocks.readHubDashboardDiscovery.mockResolvedValue({
+			pid: process.pid,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			hubUrl: "ws://127.0.0.1:25462/hub",
+			startedAt: "2026-06-22T20:00:00.000Z",
+			updatedAt: "2026-06-22T20:00:00.000Z",
+		});
 		const { HubContext } = await import("./state");
 		const ctx = new HubContext();
 		ctx.cline = oldCline as never;
@@ -142,6 +168,13 @@ describe("hub attachment lifecycle", () => {
 		expect(oldCline.dispose).toHaveBeenCalledOnce();
 		expect(ctx.uiClient).toBe(nextUiClient);
 		expect(ctx.cline).toBe(nextCline);
+		expect(mocks.writeHubDashboardDiscovery).toHaveBeenCalledWith(
+			"/tmp/dashboard.json",
+			expect.objectContaining({
+				pid: process.pid,
+				hubUrl: "ws://127.0.0.1:25463/hub",
+			}),
+		);
 	});
 
 	it("does not claim a restart when the current hub cannot stop", async () => {

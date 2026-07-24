@@ -192,16 +192,22 @@ function resolveLaunchCommand(
 				...(useDevelopmentConditions ? ["--conditions=development"] : []),
 				daemonEntryPath,
 			];
+	const env: NodeJS.ProcessEnv = {
+		...withResolvedClineBuildEnv(process.env),
+		CLINE_NO_INTERACTIVE: "1",
+		[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
+	};
+	if (preserveDashboard) {
+		env[CLINE_HUB_PRESERVE_DASHBOARD_ENV] = "1";
+	} else {
+		// Inherited preserve markers must not leak into ordinary hub starts.
+		delete env[CLINE_HUB_PRESERVE_DASHBOARD_ENV];
+	}
 	return {
 		launcher: execPath,
 		args: [...entryArgs, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
 		cwd: workspaceRoot,
-		env: {
-			...withResolvedClineBuildEnv(process.env),
-			CLINE_NO_INTERACTIVE: "1",
-			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
-			...(preserveDashboard ? { [CLINE_HUB_PRESERVE_DASHBOARD_ENV]: "1" } : {}),
-		},
+		env,
 	};
 }
 

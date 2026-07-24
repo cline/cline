@@ -225,6 +225,30 @@ describe("ensureDetachedHubServer", () => {
 		expect(spawnOptions?.env?.[CLINE_HUB_PRESERVE_DASHBOARD_ENV]).toBe("1");
 	});
 
+	it("clears an inherited preserve-dashboard marker for ordinary hub starts", async () => {
+		const previous = process.env.CLINE_HUB_PRESERVE_DASHBOARD;
+		process.env.CLINE_HUB_PRESERVE_DASHBOARD = "1";
+		try {
+			const { CLINE_HUB_PRESERVE_DASHBOARD_ENV, spawnDetachedHubServer } =
+				await import(".");
+
+			spawnDetachedHubServer("/workspace");
+
+			const spawnOptions = (
+				spawn as unknown as { mock: { calls: unknown[][] } }
+			).mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+			expect(
+				spawnOptions?.env?.[CLINE_HUB_PRESERVE_DASHBOARD_ENV],
+			).toBeUndefined();
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CLINE_HUB_PRESERVE_DASHBOARD;
+			} else {
+				process.env.CLINE_HUB_PRESERVE_DASHBOARD = previous;
+			}
+		}
+	});
+
 	it("does not prewarm another detached daemon from inside the hub daemon process", async () => {
 		process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = "1";
 

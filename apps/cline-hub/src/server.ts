@@ -1,5 +1,5 @@
 import { CORE_BUILD_VERSION } from "@cline/core";
-import { buildDashboardLaunchUrl, isNonLocalBindHost } from "./options";
+import { buildDashboardLaunchUrl } from "./options";
 import {
 	handleToolApprovalResponse,
 	rejectOrphanedApprovals,
@@ -294,15 +294,7 @@ export function printClineHubDashboardServerInfo(
 	console.log(`Cline Hub dashboard listening: ${server.listenUrl}`);
 	console.log(`Cline Hub public URL: ${server.publicUrl}`);
 	console.log(`hub endpoint: ${server.hubUrl}`);
-	if (server.inviteRequired) {
-		console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
-	} else if (isNonLocalBindHost(server.bindHost)) {
-		console.warn("WARNING: non-local bind without ROOM_SECRET is not allowed.");
-	} else {
-		console.log(
-			"ROOM_SECRET is not set; this local-only instance accepts browser connections without an invite token.",
-		);
-	}
+	console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
 }
 
 if (import.meta.main) {
