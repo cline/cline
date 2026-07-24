@@ -226,12 +226,20 @@ function spawnDetachedDashboardServer(cwd: string): void {
 
 async function waitForDashboardDiscovery(
 	discoveryPath: string,
-	timeoutMs = DASHBOARD_STARTUP_TIMEOUT_MS,
+	options: {
+		timeoutMs?: number;
+		acceptRecord?: (record: HubDashboardDiscoveryRecord) => boolean;
+	} = {},
 ): Promise<HubDashboardDiscoveryRecord> {
+	const timeoutMs = options.timeoutMs ?? DASHBOARD_STARTUP_TIMEOUT_MS;
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		const discovered = await readHubDashboardDiscovery(discoveryPath);
-		if (discovered && (await isDashboardHealthy(discovered))) {
+		if (
+			discovered &&
+			(options.acceptRecord?.(discovered) ?? true) &&
+			(await isDashboardHealthy(discovered))
+		) {
 			return discovered;
 		}
 		await new Promise((resolve) =>
@@ -261,29 +269,74 @@ function isSameHubProcess(
 	);
 }
 
+function isSameDashboardProcess(
+	before: HubDashboardDiscoveryRecord | undefined,
+	after: HubDashboardDiscoveryRecord,
+): boolean {
+	return Boolean(
+		before && before.pid === after.pid && before.startedAt === after.startedAt,
+	);
+}
+
+function isExpectedDashboard(
+	record: HubDashboardDiscoveryRecord,
+	options: {
+		hubChanged: boolean;
+		hubUrl?: string;
+		previousDashboard?: HubDashboardDiscoveryRecord;
+	},
+): boolean {
+	if (
+		options.hubChanged &&
+		isSameDashboardProcess(options.previousDashboard, record)
+	) {
+		return false;
+	}
+	if (options.hubUrl && record.hubUrl !== options.hubUrl) {
+		return false;
+	}
+	return true;
+}
+
 async function ensureDefaultDashboard(
 	options: RunDashboardCommandOptions,
 ): Promise<HubDashboardDiscoveryRecord> {
 	return await withDashboardEnvironment(options, async () => {
 		const cwd = options.cwd ? resolve(options.cwd) : process.cwd();
 		const owner = resolveDefaultHubOwnerContext();
+		const discoveryPath = resolveDashboardDiscoveryPath();
 		const hubBefore = await readHubDiscovery(owner.discoveryPath);
+		const dashboardBefore = await readHubDashboardDiscovery(discoveryPath);
 		await ensureDetachedHubServer(cwd);
 		const hubAfter = await readHubDiscovery(owner.discoveryPath);
-		const discoveryPath = resolveDashboardDiscoveryPath();
+		const hubChanged = !isSameHubProcess(hubBefore, hubAfter);
+		const acceptRecord = (record: HubDashboardDiscoveryRecord) =>
+			isExpectedDashboard(record, {
+				hubChanged,
+				hubUrl: hubAfter?.url,
+				previousDashboard: dashboardBefore,
+			});
 		const discovered = await readHubDashboardDiscovery(discoveryPath);
-		if (discovered && (await isDashboardHealthy(discovered))) {
+		if (
+			discovered &&
+			acceptRecord(discovered) &&
+			(await isDashboardHealthy(discovered))
+		) {
 			return discovered;
 		}
-		if (
-			hasHubManagedDashboardLaunchSpec() &&
-			!isSameHubProcess(hubBefore, hubAfter)
-		) {
-			return await waitForDashboardDiscovery(discoveryPath);
+		if (hasHubManagedDashboardLaunchSpec() && hubChanged) {
+			try {
+				return await waitForDashboardDiscovery(discoveryPath, {
+					acceptRecord,
+				});
+			} catch {
+				// A healthy hub may outlive a failed dashboard child. Fall back to
+				// the CLI-managed child after the hub startup window has elapsed.
+			}
 		}
 		await stopDefaultDashboard();
 		spawnDetachedDashboardServer(cwd);
-		return await waitForDashboardDiscovery(discoveryPath);
+		return await waitForDashboardDiscovery(discoveryPath, { acceptRecord });
 	});
 }
 
@@ -343,23 +396,24 @@ export function waitForProcessShutdown(
 async function runDashboardServeCommand(
 	options: RunDashboardCommandOptions,
 ): Promise<number> {
-	const server = await withDashboardEnvironment(options, () =>
-		(options.startServer ?? startDefaultDashboardServer)(),
-	);
-	await writeDashboardDiscovery(server);
-	const dashboardUrl = server.inviteUrl || server.publicUrl || server.listenUrl;
-	options.io.writeln(
-		`${c.green}Cline dashboard listening at${c.reset} ${dashboardUrl}`,
-	);
-	if (server.hubUrl) {
-		options.io.writeln(`${c.dim}Hub endpoint: ${server.hubUrl}${c.reset}`);
-	}
-	try {
-		await (options.waitForShutdown ?? waitForProcessShutdown)(server);
-	} finally {
-		await clearDashboardDiscovery();
-	}
-	return 0;
+	return await withDashboardEnvironment(options, async () => {
+		const server = await (options.startServer ?? startDefaultDashboardServer)();
+		await writeDashboardDiscovery(server);
+		const dashboardUrl =
+			server.inviteUrl || server.publicUrl || server.listenUrl;
+		options.io.writeln(
+			`${c.green}Cline dashboard listening at${c.reset} ${dashboardUrl}`,
+		);
+		if (server.hubUrl) {
+			options.io.writeln(`${c.dim}Hub endpoint: ${server.hubUrl}${c.reset}`);
+		}
+		try {
+			await (options.waitForShutdown ?? waitForProcessShutdown)(server);
+		} finally {
+			await clearDashboardDiscovery();
+		}
+		return 0;
+	});
 }
 
 async function openDashboardUrl(

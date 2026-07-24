@@ -26,6 +26,11 @@ type BrowserConnectionTarget = {
 	roomSecret?: string;
 };
 
+type PersistedBrowserConnectionTarget = Pick<
+	BrowserConnectionTarget,
+	"bridgeUrl"
+>;
+
 function dispatchHostMessage(message: WebviewOutboundMessage): void {
 	window.dispatchEvent(new MessageEvent("message", { data: message }));
 }
@@ -34,10 +39,14 @@ function readFragmentParams(): URLSearchParams {
 	return new URLSearchParams(window.location.hash.replace(/^#/, ""));
 }
 
-function readPersistedBrowserConnection(): BrowserConnectionTarget {
+function readPersistedBrowserConnection(): PersistedBrowserConnectionTarget {
 	try {
 		const raw = window.localStorage.getItem(browserConnectionKey);
-		return raw ? (JSON.parse(raw) as BrowserConnectionTarget) : {};
+		if (!raw) return {};
+		const parsed = JSON.parse(raw) as Record<string, unknown>;
+		const bridgeUrl =
+			typeof parsed.bridgeUrl === "string" ? parsed.bridgeUrl.trim() : "";
+		return bridgeUrl ? { bridgeUrl } : {};
 	} catch {
 		return {};
 	}
@@ -54,23 +63,27 @@ export function readBrowserConnectionTarget(): BrowserConnectionTarget {
 			fragment.get("bridge")?.trim() ||
 			search.get("bridgeUrl")?.trim() ||
 			persisted.bridgeUrl,
+		// Per-process secrets rotate whenever the dashboard restarts, so a
+		// persisted value can only be stale (and should not live in storage).
 		roomSecret:
 			fragment.get("roomSecret")?.trim() ||
 			search.get("roomSecret")?.trim() ||
-			persisted.roomSecret,
+			undefined,
 	};
 }
 
 export function writeBrowserConnectionTarget(
-	target: BrowserConnectionTarget,
+	target: PersistedBrowserConnectionTarget,
 ): void {
 	if (typeof window === "undefined") return;
-	const next = {
-		...readPersistedBrowserConnection(),
-		...target,
-	};
+	const bridgeUrl =
+		target.bridgeUrl?.trim() ||
+		readPersistedBrowserConnection().bridgeUrl?.trim();
 	try {
-		window.localStorage.setItem(browserConnectionKey, JSON.stringify(next));
+		window.localStorage.setItem(
+			browserConnectionKey,
+			JSON.stringify(bridgeUrl ? { bridgeUrl } : {}),
+		);
 	} catch {
 		// Browser persistence is best-effort.
 	}
@@ -79,11 +92,8 @@ export function writeBrowserConnectionTarget(
 function resolveBrowserSocketUrl(): string {
 	const target = readBrowserConnectionTarget();
 	const bridgeUrl = target.bridgeUrl?.trim();
-	if (bridgeUrl || target.roomSecret?.trim()) {
-		writeBrowserConnectionTarget({
-			bridgeUrl,
-			roomSecret: target.roomSecret?.trim(),
-		});
+	if (bridgeUrl) {
+		writeBrowserConnectionTarget({ bridgeUrl });
 	}
 	const base = bridgeUrl ? new URL(bridgeUrl) : new URL(window.location.href);
 	const protocol =
