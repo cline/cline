@@ -234,11 +234,11 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	useEffect(() => {
 		const prevPhase = prevTurnPhaseRef.current
 		prevTurnPhaseRef.current = turnState?.phase
-		if (turnState?.phase === "streaming" && prevPhase !== "streaming") {
+		if (turnState?.phase === "streaming" && prevPhase !== "streaming" && scrollBehavior.isAtBottom) {
 			disableAutoScrollRef.current = false
 			scrollToBottomSmooth()
 		}
-	}, [turnState?.phase, scrollToBottomSmooth, disableAutoScrollRef])
+	}, [turnState?.phase, scrollBehavior.isAtBottom, scrollToBottomSmooth, disableAutoScrollRef])
 
 	const itemContent = useMemo(
 		() =>
