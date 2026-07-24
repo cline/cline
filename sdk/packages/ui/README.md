@@ -113,6 +113,7 @@ bun add react@^19 react-dom@^19
 ```
 
 Applications already on React 18.3 can retain that compatible version.
+TypeScript consumers should use `@types/react` 18.3 or 19.
 
 In the application's global CSS, import the component styles after at least the
 theme tokens:

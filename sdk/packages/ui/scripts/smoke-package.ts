@@ -22,7 +22,10 @@ if (!Conversation || !Message) {
 for (const specifier of [
 	"@cline/ui/components/agent-chat.css",
 	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/base.css",
+	"@cline/ui/theme/index.css",
 	"@cline/ui/theme/scoped-tokens.css",
+	"@cline/ui/theme/theme.css",
 	"@cline/ui/theme/tokens.css",
 ]) {
 	const resolved = fileURLToPath(import.meta.resolve(specifier));
@@ -34,6 +37,14 @@ for (const specifier of [
 const packageRoot = dirname(
 	fileURLToPath(import.meta.resolve("@cline/ui/package.json")),
 );
+const license = join(packageRoot, "LICENSE");
+if (
+	!existsSync(license) ||
+	!readFileSync(license, "utf8").includes("Apache License")
+) {
+	throw new Error("packed package is missing the Apache license text");
+}
+const declarations = [];
 const maps = [];
 const pending = [join(packageRoot, "dist")];
 while (pending.length > 0) {
@@ -41,8 +52,12 @@ while (pending.length > 0) {
 	for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		const target = join(directory, entry.name);
 		if (entry.isDirectory()) pending.push(target);
+		else if (entry.name.endsWith(".d.ts")) declarations.push(target);
 		else if (entry.name.endsWith(".map")) maps.push(target);
 	}
+}
+if (declarations.length === 0) {
+	throw new Error("packed package contains no TypeScript declarations");
 }
 if (maps.length === 0) {
 	throw new Error("packed package contains no source maps");
@@ -124,11 +139,39 @@ try {
 			"--no-audit",
 			"--no-fund",
 			archive,
+			"@types/react@18.3.31",
 			"react@18.3.1",
+			"typescript@5.9.3",
 		],
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	writeFileSync(
+		join(npmConsumer, "index.ts"),
+		'import { Conversation, Message } from "@cline/ui/components/agent-chat";\nvoid Conversation;\nvoid Message;\n',
+	);
+	writeFileSync(
+		join(npmConsumer, "tsconfig.json"),
+		`${JSON.stringify(
+			{
+				compilerOptions: {
+					module: "NodeNext",
+					moduleResolution: "NodeNext",
+					noEmit: true,
+					skipLibCheck: false,
+					strict: true,
+					target: "ES2022",
+				},
+				include: ["index.ts"],
+			},
+			null,
+			2,
+		)}\n`,
+	);
+	await run(
+		["node", "node_modules/typescript/bin/tsc", "--project", "tsconfig.json"],
+		npmConsumer,
+	);
 	console.log(
 		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18`,
 	);
