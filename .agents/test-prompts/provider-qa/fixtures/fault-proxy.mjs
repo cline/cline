@@ -192,7 +192,7 @@ async function streamText(res, model, text, usageKind, { delayMs = 0 } = {}) {
 	res.end();
 }
 
-async function handleChatCompletions(req, res, body) {
+async function handleChatCompletions(res, body) {
 	const model = body?.model ?? "fault/ok";
 
 	switch (model) {
@@ -478,7 +478,7 @@ async function handleChatCompletions(req, res, body) {
 	}
 }
 
-function handleResponses(req, res, body) {
+function handleResponses(res, body) {
 	const model = body?.model ?? "fault/ok";
 	if (
 		model.startsWith("fault/4") ||
@@ -486,7 +486,7 @@ function handleResponses(req, res, body) {
 		model === "fault/context-overflow"
 	) {
 		// Error bodies are protocol-independent, so reuse the chat-completions ones.
-		return handleChatCompletions(req, res, body);
+		return handleChatCompletions(res, body);
 	}
 	openStream(res);
 	const responseId = `resp_fault_${requestSeq}`;
@@ -582,10 +582,10 @@ const server = createServer(async (req, res) => {
 	}
 
 	if (req.method === "POST" && url.pathname.endsWith("/chat/completions")) {
-		return handleChatCompletions(req, res, body);
+		return handleChatCompletions(res, body);
 	}
 	if (req.method === "POST" && url.pathname.endsWith("/responses")) {
-		return handleResponses(req, res, body);
+		return handleResponses(res, body);
 	}
 
 	return sendJson(res, 404, {

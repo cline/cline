@@ -17,7 +17,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const repoRoot = resolve(
+	dirname(fileURLToPath(import.meta.url)),
+	"../../../..",
+);
 const { ProviderSettingsManager } = await import(
 	join(repoRoot, "sdk/packages/core/dist/index.js")
 );
