@@ -431,6 +431,41 @@ type ClineRecommendedCatalog = {
 	clinePass?: unknown
 }
 
+type VersionCommandResult = {
+	status: number | null
+	stdout?: string | Buffer | null
+	stderr?: string | Buffer | null
+	error?: Error
+}
+
+type VersionCommand = (
+	command: string,
+	args: string[],
+	options: { encoding: "utf8"; timeout: number },
+) => VersionCommandResult
+
+export function assertLocalClineVersion(
+	config: PilotConfig,
+	runVersionCommand: VersionCommand = spawnSync,
+): void {
+	const result = runVersionCommand("cline", ["--version"], {
+		encoding: "utf8",
+		timeout: 10_000,
+	})
+	if (result.error || result.status !== 0) {
+		fail("local Cline version preflight failed before jobs-root creation and budget reservation")
+	}
+	const installedVersion = String(result.stdout ?? "").trim()
+	if (!installedVersion || installedVersion.includes("\n") || installedVersion.includes("\r")) {
+		fail("local Cline version preflight returned an invalid version before jobs-root creation and budget reservation")
+	}
+	if (installedVersion !== config.clineVersion) {
+		fail(
+			`local Cline version mismatch before jobs-root creation and budget reservation: expected ${config.clineVersion}, installed ${installedVersion}`,
+		)
+	}
+}
+
 function catalogModelIds(value: unknown, field: string): string[] {
 	if (!Array.isArray(value)) fail(`live Cline catalog has no valid ${field} model list`)
 	return value.map((entry, index) => {
@@ -1797,6 +1832,8 @@ async function main() {
 		return
 	}
 	if (args.execute) {
+		assertLocalClineVersion(config)
+		console.log(`Local Cline ${config.clineVersion} preflight passed before jobs-root creation and budget reservation.`)
 		await assertDirectModelsInLiveCatalog(config)
 		console.log("Live Cline catalog preflight passed before budget reservation.")
 	}

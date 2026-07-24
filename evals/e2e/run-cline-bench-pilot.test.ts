@@ -18,6 +18,7 @@ import {
 } from "./cline-bench-safety"
 import {
 	assertDirectModelsInLiveCatalog,
+	assertLocalClineVersion,
 	assertReusableFingerprint,
 	assertTraceIngestionCompatibility,
 	buildRunMatrix,
@@ -251,6 +252,7 @@ describe("Cline benchmark configuration and matrix", () => {
 	test("keeps the checked-in 8-task checkpoint within its staged reservations", () => {
 		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
 		const matrix = buildRunMatrix(checkpoint)
+		expect(checkpoint.clineVersion).toBe("3.0.46-nightly.1784896623")
 		expect(matrix).toHaveLength(24)
 		expect(new Set(checkpoint.tasks).size).toBe(8)
 		expect(matrix.filter((run) => run.model.id === "cline/auto")).toHaveLength(8)
@@ -286,6 +288,28 @@ describe("Cline benchmark configuration and matrix", () => {
 			"absent from the live Cline cline-router catalog: z-ai/glm-5.2",
 		)
 		expect(checkpoint.models.find((model) => model.id === "cline/auto")?.allowedCandidates).toContain("z-ai/glm-5.2")
+	})
+
+	test("fails closed when the local CLI build differs from the configured Harbor build", () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		expect(() =>
+			assertLocalClineVersion(checkpoint, () => ({
+				status: 0,
+				stdout: "3.0.46\n",
+			})),
+		).toThrow(
+			"local Cline version mismatch before jobs-root creation and budget reservation: expected 3.0.46-nightly.1784896623, installed 3.0.46",
+		)
+	})
+
+	test("accepts only the exact configured local CLI build", () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		expect(() =>
+			assertLocalClineVersion(checkpoint, () => ({
+				status: 0,
+				stdout: "3.0.46-nightly.1784896623\n",
+			})),
+		).not.toThrow()
 	})
 })
 

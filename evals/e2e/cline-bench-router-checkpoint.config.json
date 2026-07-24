@@ -8,7 +8,7 @@
 	},
 	"maxRunsPerModel": 8,
 	"timeoutSeconds": 1500,
-	"clineVersion": "3.0.46",
+	"clineVersion": "3.0.46-nightly.1784896623",
 	"models": [
 		{
 			"id": "cline/auto",
