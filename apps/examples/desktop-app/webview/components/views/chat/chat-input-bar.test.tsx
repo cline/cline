@@ -208,4 +208,89 @@ describe("ChatInputBar", () => {
 			reasoningEffort: "high",
 		});
 	});
+
+	it("shows queued prompts in a compact expandable list", async () => {
+		const onSteerPromptInQueue = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={onSteerPromptInQueue}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onUndoPromptInQueue={vi.fn()}
+						promptInput=""
+						promptsInQueue={[
+							{
+								id: "queued-prompt-1",
+								prompt: "What else can we update the title to?",
+								steer: false,
+							},
+						]}
+						provider="cline"
+						reasoningEffort="low"
+						status="running"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		const queueToggle = container.querySelector<HTMLButtonElement>(
+			'[aria-controls="queued-prompts"]',
+		);
+		expect(queueToggle?.textContent).toContain("1 prompt queued");
+		expect(queueToggle?.getAttribute("aria-expanded")).toBe("false");
+		expect(container.querySelector("#queued-prompts")).toBeNull();
+
+		await act(async () => queueToggle?.click());
+
+		expect(queueToggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelector("#queued-prompts")?.textContent).toContain(
+			"What else can we update the title to?",
+		);
+		expect(
+			container.querySelector('[aria-label="Edit queued prompt"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Remove queued prompt"]'),
+		).not.toBeNull();
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Steer queued prompt"]')
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(onSteerPromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+	});
 });
