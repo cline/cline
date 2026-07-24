@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.0.11]
+
+### Added
+
+- Add Claude Opus 5 across the Anthropic, Claude Code, Bedrock, Vertex, Cline, and OpenRouter providers, including 1M context window variants.
+- Add Moonshot Kimi K3 support.
+- Include the host plugin version in telemetry events.
+
+### Fixed
+
+- Correct pricing for the Claude Opus 1M context variants, which overstated costs for requests above 200k tokens.
+- Enable native tool calling for Kimi K3 models, fixing empty responses.
+
 ## [4.0.10]
 
 ### Added
