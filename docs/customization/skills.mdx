@@ -113,9 +113,6 @@ Required fields:
 - `name` should match the directory name. If omitted from frontmatter, the directory name is used as a fallback. A mismatch is logged as a warning but does not prevent the skill from loading.
 - `description` explains what the skill does and how to apply it. It is parsed at startup and loaded into context alongside the instructions when the skill is invoked (the always-visible metadata is the skill's `name`). Keep it concise.
 
-Optional frontmatter field:
-- `disabled: true` — Marks the skill as disabled. This is the flag the runtime reads to decide whether to offer the skill to the model. Toggling a skill in the UI writes this flag to the frontmatter automatically. You can also set it manually.
-
 ## Creating a Skill
 
 <Steps>
