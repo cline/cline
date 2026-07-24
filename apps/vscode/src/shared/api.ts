@@ -129,6 +129,7 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		cacheReadsPrice: 0.6,
 	},
 ]
+// Claude 4.6+ opus models include the full 1M context window at standard pricing (no long-context premium)
 export const CLAUDE_OPUS_1M_TIERS = [
 	{
 		contextWindow: 200000,
@@ -139,10 +140,10 @@ export const CLAUDE_OPUS_1M_TIERS = [
 	},
 	{
 		contextWindow: Number.MAX_SAFE_INTEGER,
-		inputPrice: 10,
-		outputPrice: 37.5,
-		cacheWritesPrice: 12.5,
-		cacheReadsPrice: 1.0,
+		inputPrice: 5.0,
+		outputPrice: 25,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
 	},
 ]
 export const CLAUDE_FABLE_1M_TIERS = [
