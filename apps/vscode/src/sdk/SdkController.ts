@@ -822,8 +822,17 @@ export class Controller {
 		if (pluginMatch?.[1] && activeSession) {
 			if (options.pluginCommands === "reject") {
 				const commandName = pluginMatch[1].replace(/^\//, "").toLowerCase()
-				const commands = await activeSession.sdkHost.listSessionCommands(activeSession.sessionId).catch(() => [])
-				if (commands.some((command) => command.name.toLowerCase() === commandName)) {
+				let shouldReject = false
+				try {
+					const commands = await activeSession.sdkHost.listSessionCommands(activeSession.sessionId)
+					shouldReject = commands.some((command) => command.name.toLowerCase() === commandName)
+				} catch (error) {
+					// Fail closed: a list failure must not let a plugin slash command
+					// fall through and be queued/sent as normal text mid-turn.
+					Logger.warn("[SdkController] Failed to list plugin commands for reject:", error)
+					shouldReject = true
+				}
+				if (shouldReject) {
 					this.messages.appendAndEmit(
 						[
 							{
@@ -1428,13 +1437,6 @@ export class Controller {
 				return
 			}
 
-			// An edited message is a fresh user submission, so plugin commands
-			// execute here the same as in initTask/askResponse. The send below
-			// already skips COMMAND_CANCEL_TOKEN results.
-			const resolvedPrompt = await this.resolveContextMentions(editedText, {
-				pluginCommands: "execute",
-				hasAttachments: !!(input.images?.length || input.files?.length),
-			})
 			const startInput = {
 				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
 				initialMessages,
@@ -1496,6 +1498,14 @@ export class Controller {
 			])
 			await this.postStateToWebview()
 
+			// Resolve after startNewSession so plugin commands target the new
+			// session (same ordering as initTask/askResponse resume). A cancelled
+			// plugin command then resets running/phase on that session instead of
+			// leaving a fresh session stuck in streaming with no model turn.
+			const resolvedPrompt = await this.resolveContextMentions(editedText, {
+				pluginCommands: "execute",
+				hasAttachments: !!(input.images?.length || input.files?.length),
+			})
 			if (resolvedPrompt !== COMMAND_CANCEL_TOKEN) {
 				this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
 			}
