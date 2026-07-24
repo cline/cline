@@ -4,6 +4,7 @@
  * Factory functions for creating the default tools.
  */
 
+import * as path from "node:path";
 import {
 	type AgentTool,
 	type AgentToolContext,
@@ -14,7 +15,6 @@ import {
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
-import * as path from "node:path";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import { CommandExitError } from "./executors/bash";
