@@ -270,4 +270,37 @@ describe("applyInteractiveModeConfig", () => {
 		expect(config.extraTools).toEqual([]);
 		expect(config.systemPrompt).toBe("system prompt for act");
 	});
+
+	it("keeps persistent extra tools across plan/act switches", async () => {
+		const config = makeConfig();
+		const computerUserTool = {
+			...switchToActModeTool,
+			name: "computer_user_start",
+		};
+		const persistentExtraTools = [computerUserTool];
+
+		await applyInteractiveModeConfig({
+			config,
+			mode: "plan",
+			switchToActModeTool,
+			persistentExtraTools,
+		});
+		expect(config.extraTools).toEqual([switchToActModeTool, computerUserTool]);
+
+		await applyInteractiveModeConfig({
+			config,
+			mode: "act",
+			switchToActModeTool,
+			persistentExtraTools,
+		});
+		expect(config.extraTools).toEqual([computerUserTool]);
+
+		await applyInteractiveModeConfig({
+			config,
+			mode: "plan",
+			switchToActModeTool,
+			persistentExtraTools,
+		});
+		expect(config.extraTools).toEqual([switchToActModeTool, computerUserTool]);
+	});
 });

@@ -925,7 +925,10 @@ export {
 } from "./extensions/tools";
 export {
 	ComputerUseClient,
+	type ComputerUseClientEvent,
+	type ComputerUseClientObserver,
 	type ComputerUseClientOptions,
+	type ComputerUseSendOptions,
 	type ComputerUseAction,
 	type ComputerUseCoordinate,
 	type ComputerUseDisplayInfo,
@@ -938,6 +941,33 @@ export {
 	isComputerUseResponse,
 	type ComputerUseToolOptions,
 } from "./extensions/computer-use";
+export {
+	ARTIFACT_EVENT_VERSION,
+	type ArtifactBlobRef,
+	type ArtifactEventCorrelation,
+	type ArtifactEventSink,
+	type ArtifactEventSource,
+	type ArtifactEventSourceKind,
+	type ArtifactEventType,
+	type ArtifactSinkStatus,
+	ComputerTaskArtifactRecorder,
+	type ComputerTaskArtifactEvent,
+} from "./extensions/computer-observability";
+export {
+	COMPUTER_USER_PROMPT_VERSION,
+	COMPUTER_USER_SYSTEM_PROMPT,
+	ComputerUserCoordinator,
+	type ComputerUserCoordinatorOptions,
+	type ComputerUserSessionHost,
+	type ComputerUserState,
+	type ComputerUserStatus,
+	createComputerUserCollaborationTools,
+	createComputerUserDriverTools,
+	type DriverNotifier,
+	type DriverQuestion,
+	type HelperNote,
+	type HelperRun,
+} from "./extensions/computer-user";
 export {
 	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
