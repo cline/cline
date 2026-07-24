@@ -1,19 +1,35 @@
-# Provider QA C — Is every provider setting actually functional?
+# Provider QA C — Config options on the wire
+
+You are a QA agent. You drive a real VS Code window on `DISPLAY=:1` and report what you observe.
 
 A settings field is only functional if it does three things: accepts input, survives a round trip through storage,
-and changes the request that goes to the provider. The common bug is a field that does the first two and not the
-third — it looks configured, and it is being ignored.
+and changes the request sent to the provider. The bug this run exists to find is a field that does the first two
+and not the third — it looks configured and it is being ignored, which is invisible to users.
 
-So the method here is not "type in the box and check the box still has the text in it". It is "type in the box,
-then read the request the provider received". Almost all of this run needs no real credentials, because a local
-endpoint that logs everything it receives is a better oracle than a real provider.
+So your method is never "type in the box and check the box still has the text". It is "type in the box, then read
+the request the provider received". Almost none of this needs a real credential, because a local endpoint that logs
+everything is a better oracle than a real provider.
 
-Report using the template at the bottom. Record video.
+## Hard rules
 
-## Your credentials
+Violating any of these invalidates the run.
 
-Save this as `/tmp/qa-keys.json`. Most of this run works with none of them filled in; real keys only matter for the
-handful of steps that say so.
+1. **Launch and stop VS Code only through `qa-env.sh`.** Never type a `code` command. Two instances sharing a
+   profile attach to each other and you will test a window you did not configure.
+2. **Never `kill -9` VS Code.** Use `qa-env.sh stop`, and `qa-env.sh recover` if it will not die.
+3. **Never edit source code, and never "fix" anything.**
+4. **Never read a value that matters off the screen.** Confirm settings with `qa-env.sh state` and requests with
+   the proxy log. An agent on a previous run misread a model id on screen as `1autlok`.
+5. **Report only what you observed.** Mark anything you did not do as `blocked` or `skipped`.
+6. **No bug report without a reproduction.**
+
+Stop and report if `qa-env.sh start` fails twice after a `recover`, or if `qa-env.sh doctor` blames the
+environment.
+
+## Credentials
+
+Save exactly this as `/tmp/qa-keys.json`. Most cases need nothing filled in; the `openai-compatible` entry is
+pre-pointed at the local mock and must be left as it is.
 
 ```json
 {
@@ -29,7 +45,7 @@ handful of steps that say so.
   "requesty":          { "apiKey": "", "model": "" },
   "together":          { "apiKey": "", "model": "" },
   "vercel-ai-gateway": { "apiKey": "", "model": "" },
-  "openai-compatible": { "apiKey": "", "baseUrl": "", "model": "" },
+  "openai-compatible": { "apiKey": "qa-test-key", "baseUrl": "http://127.0.0.1:8788/v1", "model": "fault/ok" },
   "litellm":           { "apiKey": "", "baseUrl": "", "model": "" },
   "ollama":            { "baseUrl": "http://127.0.0.1:11434", "model": "" },
   "bedrock":           { "awsAccessKey": "", "awsSecretKey": "", "awsRegion": "us-west-2", "model": "anthropic.claude-sonnet-4-20250514-v1:0" },
@@ -37,119 +53,120 @@ handful of steps that say so.
 }
 ```
 
+## Preflight
+
 ```bash
+export QA=/workspace/.agents/test-prompts/provider-qa/fixtures
 cd /workspace
-node .agents/test-prompts/provider-qa/fixtures/apply-keys.mjs --keys /tmp/qa-keys.json --list
+
+bash $QA/qa-env.sh doctor                                  # must not report ENVIRONMENT FAILURE
+bash $QA/qa-env.sh proxy start                             # wire observer on :8788
+bash $QA/qa-env.sh start config --keys /tmp/qa-keys.json --select openai-compatible
+bash $QA/qa-env.sh status                                  # exactly ONE instance
 ```
 
-## Environment
+Reaching the UI: Cline icon in the Activity Bar → gear icon in the Cline navbar → **Done** to close. Dismiss any
+VS Code welcome/Copilot/theme modal first.
 
-```bash
-export QA=/tmp/cline-qa/config-options
-rm -rf "$QA" && mkdir -p "$QA/workspace"
-printf 'export const name = "john"\n' > "$QA/workspace/qa.txt"
-cd /workspace/apps/vscode && bun run build:webview && bun esbuild.mjs   # only if dist/extension.js is stale
-
-# The wire observer. Every inbound request is echoed to stdout and appended to the log.
-tmux -f /exec-daemon/tmux.portal.conf new-session -d -s fault-proxy -- \
-  node /workspace/.agents/test-prompts/provider-qa/fixtures/fault-proxy.mjs
-
-tmux -f /exec-daemon/tmux.portal.conf new-session -d -s vscode-qa -- \
-  env DISPLAY=:1 CLINE_DATA_DIR="$QA/data" \
-  code --no-sandbox --disable-workspace-trust --user-data-dir="$QA/vscode-userdata" \
-       --extensionDevelopmentPath=/workspace/apps/vscode "$QA/workspace"
-```
-
-Operational rules, learned the hard way:
-
-- **One VS Code instance at a time.** A second `code` with the same `--user-data-dir` attaches to the first, so you
-  can end up testing a window you did not configure. Check `ps -eo pid,args | grep [e]xtensionDevelopmentPath`.
-- **Never `kill -9` VS Code.** It poisons the profile and later launches die with *"The window terminated
-  unexpectedly (reason: 'crashed', code: '133')"*. Use `kill -TERM`.
-- **On crash 133**, kill the process, `rm -rf "$QA/vscode-userdata"`, relaunch. If a plain `code` with no
-  `--extensionDevelopmentPath` also crashes, the display is degraded — an environment failure, not a Cline bug.
-- `--disable-workspace-trust` matters; without it Restricted Mode blocks command execution.
-
-Open the Cline panel from the Activity Bar. On an empty data directory you get onboarding — **Bring my own API
-key** → **Continue**. Afterwards the form is behind the gear icon in the Cline navbar; **Done** closes it. Choose
-**OpenAI Compatible**, base URL `http://127.0.0.1:8788/v1`, any non-empty key, model `fault/ok`.
-
-One trap before you start: the Model ID field is an autocomplete, and typing an id that is a strict prefix of
-another commits the longer one — typing `fault/ok` leaves you on `fault/ok-no-cache`. Always read back the
-committed value.
+Known UI trap: the **Model ID** field is an autocomplete that commits longer prefix matches — typing `fault/ok`
+can leave you on `fault/ok-no-cache`. Confirm every model change with `qa-env.sh state config`.
 
 ## Reading the wire
 
 ```bash
-tail -1 /tmp/fault-proxy.jsonl | python3 -m json.tool
+bash $QA/qa-env.sh proxy reset     # before each case
+# ... perform the UI action, then send a chat message ...
+bash $QA/qa-env.sh proxy tail      # last request in full: path, headers, body
 ```
 
-That gives you the full URL path, every header, and the exact JSON body. A confirmed-good baseline looks like:
-`path` is `/v1/chat/completions`, `headers.authorization` is `Bearer <your key>`, `body.model` is the model you
-selected, and `body.tools` lists `read_files`, `search_codebase`, `fetch_web_content`, `editor`, `ask_question`,
-`attempt_completion`, `run_commands`.
+Confirmed-good baseline for a healthy request: `path` is `/v1/chat/completions`; `headers.authorization` is
+`Bearer qa-test-key`; `body.model` is the model you selected; `body.tools` lists `read_files`, `search_codebase`,
+`fetch_web_content`, `editor`, `ask_question`, `attempt_completion`, `run_commands`.
 
-## The check every field gets
+## The procedure every case follows
 
-Set a distinctive value → send a message → find that value in the logged request → close and reopen Settings and
-confirm it reads back. A field that reads back but never appears on the wire is the finding this run exists for,
-because it is completely invisible to users.
+1. `bash $QA/qa-env.sh proxy reset`
+2. Set the field in the UI to a distinctive value.
+3. Confirm it persisted: `bash $QA/qa-env.sh state config`.
+4. Send `Reply with exactly PONG.` in the chat.
+5. `bash $QA/qa-env.sh proxy tail` — find your value in the request.
+6. Close and reopen Settings; confirm the field still reads back.
 
-## Fields to cover
+Record three booleans per field: **accepted**, **persisted**, **on the wire**. A field that is persisted but never
+on the wire is the highest-value finding in this run — flag it explicitly.
 
-**OpenAI Compatible** is the richest form and the one you can fully verify.
+---
 
-- *Base URL.* Point at `http://127.0.0.1:8788/v1` and confirm the proxy logs the request. Then break it to
-  `http://127.0.0.1:8788/wrong` and confirm a readable 404 rather than a hang.
-- *Custom headers.* Add `X-Tenant: qa` and `X-Trace: 12345`; both must appear in the logged headers. Then delete
-  one and confirm it stops being sent — removal is where header editors usually leak.
-- *Model ID.* `body.model` must match exactly what the field committed.
-- *Request timeout.* Set 3 seconds, switch the model to `fault/hang`, send. Expect a timeout error at roughly 3s,
-  not an indefinite spinner.
-- *Azure API version*, where exposed — should appear in the request URL's query string.
-- Any max-tokens, temperature or context-window override the form exposes must appear in `body`.
+## Case group C1 — OpenAI Compatible
 
-**Reasoning controls.** Set thinking budget or reasoning effort on a provider that supports it and confirm the
-value lands in the body. Then switch provider away and back and confirm it did not silently reset.
+The richest form and the only one you can fully verify. Case ids as given.
 
-**Local providers.** Point Ollama's base URL at `http://127.0.0.1:8788` and confirm the proxy sees the model-list
-poll. Then point it somewhere dead and confirm the form says so instead of spinning.
+| id | Field | What to set | Expected on the wire |
+|----|-------|-------------|----------------------|
+| `C1-baseurl` | Base URL | `http://127.0.0.1:8788/v1` | request appears in the proxy log at all |
+| `C1-baseurl-bad` | Base URL | `http://127.0.0.1:8788/wrong` | readable 404 in the UI, not a hang |
+| `C1-headers` | Custom headers | `X-Tenant: qa` and `X-Trace: 12345` | both present in `headers` |
+| `C1-headers-remove` | Custom headers | delete one of the two | the deleted one stops being sent |
+| `C1-model` | Model ID | `fault/big-usage` | `body.model` matches exactly |
+| `C1-timeout` | Request timeout | 3 seconds, model `fault/hang` | UI errors at roughly 3s, no indefinite spinner |
+| `C1-azure` | Azure API version, if exposed | any value | appears in the request URL query string |
+| `C1-params` | Any max-tokens / temperature / context override the form exposes | any value | appears in `body` |
 
-**Regional and mode switches.** The `china` / `international` toggles on Qwen, Moonshot, Z AI and MiniMax change
-the API base — flip each and confirm the resolved base URL changes in the form and in `providers.json`. Same for
-the SAP AI Core orchestration toggle and the OCA internal/external mode.
+---
 
-**AWS Bedrock.** Region, the three authentication modes, cross-region inference, global inference, prompt cache,
-custom endpoint. Persistence and form behaviour are testable without AWS access; mark the on-the-wire half
-untested if you have no credentials.
+## Case group C2 — Other providers
 
-**Plan/Act separation.** Enable *Use different models for Plan and Act modes*, set a different provider and model
-per tab, and confirm each mode's request goes where its tab said. Then disable the checkbox and confirm the two
-configurations converge in a defined way rather than one silently overwriting the other.
+| id | What to test |
+|----|--------------|
+| `C2-reasoning` | Set thinking budget or reasoning effort on a provider that supports it; confirm it lands in `body`. Then switch provider away and back and confirm it did not silently reset. |
+| `C2-local` | Point Ollama's base URL at `http://127.0.0.1:8788` and confirm the proxy sees the model-list poll (`proxy models` shows a `GET /v1/models`). Then point it somewhere dead and confirm the form says so rather than spinning. |
+| `C2-regional` | The `china` / `international` toggles on Qwen, Moonshot, Z AI and MiniMax change the API base. Flip each; confirm the resolved base URL changes in the form **and** in `qa-env.sh state`. |
+| `C2-sap-oca` | SAP AI Core orchestration-mode toggle and OCA internal/external mode: same check. |
+| `C2-bedrock` | Region, the three authentication modes, cross-region inference, global inference, prompt cache, custom endpoint. Persistence and form behaviour are testable without AWS access — mark the on-the-wire half `skipped` if you have no credentials. |
+| `C2-planact` | Enable *Use different models for Plan and Act modes*, set a different provider and model per tab, and confirm each mode's request goes where its tab said (`proxy models` after a message in each mode). Then disable the checkbox and record how the two configurations converge. |
+| `C2-generic` | Pick three providers rendered by `GenericProviderSettings` — `deepseek`, `groq`, `together` — and confirm every field the generated form renders is actually wired. These are generated, so an unwired field is easy to miss. |
 
-**Generic catalog-driven providers.** Pick three that render through `GenericProviderSettings` — `deepseek`,
-`groq`, `together` are good choices — and confirm every field the generated form renders is actually wired. These
-are generated rather than hand-written, so an unwired field is easy to miss.
+---
 
-## Cross-cutting traps
+## Case group C3 — Cross-cutting traps
 
-- Switch provider A → B → A. Every field set on A must come back. Losing state on that round trip is the single
-  most common report in this area.
-- Set a field, then reload the window without closing Settings.
-- Leave a field mid-edit (focused, never blurred) and navigate away. It should either commit or clearly discard —
-  not commit on some paths only.
-- Paste a key with trailing whitespace or a newline. It should be trimmed, not produce an undiagnosable auth
-  failure.
-- Enter invalid input (a base URL with no scheme, a negative timeout) and expect validation, not a failed request
-  twenty seconds later.
+| id | Trap |
+|----|------|
+| `C3-roundtrip` | Switch provider A → B → A. Every field set on A must come back. This is the most commonly reported failure in this area. |
+| `C3-reload` | Set a field, then reload the window without closing Settings. |
+| `C3-uncommitted` | Leave a field focused and mid-edit, then navigate away. It must either commit or clearly discard — not commit on some paths only. |
+| `C3-whitespace` | Paste a key with a trailing newline. It should be trimmed, not produce an undiagnosable auth failure. |
+| `C3-invalid` | Enter a base URL with no scheme, and a negative timeout. Expect validation, not a failed request twenty seconds later. |
+
+---
 
 ## Artifacts
 
-- One video: setting a custom header and a base URL, sending a message, and the proxy log showing both on the
-  wire. This is the headline artifact.
-- One screenshot of a fully populated provider form next to the matching `providers.json`.
+- One video: setting a custom header and a base URL, sending a message, then the terminal showing
+  `qa-env.sh proxy tail` with both on the wire. This is the headline artifact — the whole run is about that
+  connection between UI and wire, so the video must show both.
+- One screenshot of a fully populated provider form beside its `qa-env.sh state` output.
 
 ## Report
 
-A table: field, provider, persisted?, on the wire?. Call out separately every field that persists but never reaches
-the provider.
+Return exactly this JSON, then a short prose summary.
+
+```json
+{
+  "run": "C",
+  "environment": { "doctorClean": true, "notes": "" },
+  "cases": [
+    { "id": "C1-headers", "status": "pass|fail|blocked|skipped",
+      "accepted": true, "persisted": true, "onTheWire": true,
+      "valueSet": "", "evidence": "", "artifact": "" }
+  ],
+  "persistedButNotSent": [],
+  "findings": [
+    { "id": "F1", "severity": "high|medium|low", "summary": "",
+      "repro": [], "expected": "", "actual": "", "evidence": "", "suspectedFile": "" }
+  ]
+}
+```
+
+`persistedButNotSent` is the headline result of this run: every field that survived a settings round trip but never
+appeared in the request. `evidence` must be a proxy-log snippet, never a recollection.
