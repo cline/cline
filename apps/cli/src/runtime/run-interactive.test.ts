@@ -4,6 +4,7 @@ import {
 	applyInteractiveModelChange,
 	assertHistorySessionIsDeletable,
 	resolveReasoningForModelChange,
+	resumeInteractiveSession,
 } from "./run-interactive";
 
 describe("assertHistorySessionIsDeletable", () => {
@@ -122,5 +123,42 @@ describe("applyInteractiveModelChange", () => {
 		expect(restartWithCurrentMessages.mock.invocationCallOrder[0]).toBeLessThan(
 			updateCurrentSessionConnection.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+});
+
+describe("resumeInteractiveSession", () => {
+	it("starts the selected session directly without ensuring an empty session first", async () => {
+		const messages = [
+			{ id: "message-1", role: "user" as const, content: "hello" },
+		];
+		const ensureReady = vi.fn(async () => {});
+		const resumeSession = vi.fn(async () => messages);
+		const getAccumulatedUsage = vi.fn(async () => ({
+			inputTokens: 12,
+			outputTokens: 3,
+			totalCost: 0.42,
+		}));
+		const sessionRuntime = {
+			ensureReady,
+			resumeSession,
+			getAccumulatedUsage,
+		};
+
+		const result = await resumeInteractiveSession(
+			sessionRuntime,
+			"session-selected",
+		);
+
+		expect(ensureReady).not.toHaveBeenCalled();
+		expect(resumeSession).toHaveBeenCalledOnce();
+		expect(resumeSession).toHaveBeenCalledWith("session-selected");
+		expect(getAccumulatedUsage).toHaveBeenCalledWith({
+			inputTokens: 0,
+			outputTokens: 0,
+		});
+		expect(result).toMatchObject({
+			messages,
+			totalCost: 0.42,
+		});
 	});
 });

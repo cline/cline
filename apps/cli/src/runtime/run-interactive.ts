@@ -143,6 +143,25 @@ export async function applyInteractiveModelChange(input: {
 	});
 }
 
+export async function resumeInteractiveSession(
+	sessionRuntime: Pick<
+		ReturnType<typeof createInteractiveSessionRuntime>,
+		"resumeSession" | "getAccumulatedUsage"
+	>,
+	sessionId: string,
+) {
+	const messages = await sessionRuntime.resumeSession(sessionId);
+	const usage = await sessionRuntime.getAccumulatedUsage({
+		inputTokens: 0,
+		outputTokens: 0,
+	});
+	return {
+		messages,
+		totalCost: usage.totalCost,
+		currentContextSize: getCurrentContextSize(messages),
+	};
+}
+
 export async function runInteractive(
 	config: Config,
 	userInstructionService?: UserInstructionConfigService,
@@ -777,19 +796,11 @@ export async function runInteractive(
 			});
 			await sessionRuntime.restartWithCurrentMessages();
 		},
-		onResumeSession: async (sessionId: string) => {
-			await sessionRuntime.ensureReady();
-			const messages = await sessionRuntime.resumeSession(sessionId);
-			const usage = await sessionRuntime.getAccumulatedUsage({
-				inputTokens: 0,
-				outputTokens: 0,
-			});
-			return {
-				messages,
-				totalCost: usage.totalCost,
-				currentContextSize: getCurrentContextSize(messages),
-			};
-		},
+		// resumeSession initializes the manager and starts the selected session
+		// directly. Ensuring a session first would mint an empty history entry
+		// when the TUI was launched through `cline history`.
+		onResumeSession: async (sessionId: string) =>
+			await resumeInteractiveSession(sessionRuntime, sessionId),
 		onExportHistorySession: async (sessionId, format) =>
 			await exportHistorySession({
 				sessionId,
