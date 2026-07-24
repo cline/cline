@@ -12,13 +12,14 @@ import {
 	CLAUDE_OPUS_1M_TIERS,
 	CLAUDE_SONNET_1M_TIERS,
 	openRouterClaudeFable51mModelId,
+	openRouterClaudeOpus51mModelId,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeOpus471mModelId,
 	openRouterClaudeOpus481mModelId,
 	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet51mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
-	openRouterClaudeSonnet51mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -184,6 +185,15 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
 						break
+					case "anthropic/claude-opus-5":
+					case "anthropic/claude-5-opus":
+						modelInfo.contextWindow = 200_000 // restrict to 200k, 1m variant created below
+						modelInfo.supportsPromptCache = true
+						modelInfo.inputPrice = 5.0
+						modelInfo.outputPrice = 25.0
+						modelInfo.cacheWritesPrice = 6.25
+						modelInfo.cacheReadsPrice = 0.5
+						break
 					case "anthropic/claude-opus-4.6":
 					case "anthropic/claude-opus-4.7":
 					case "anthropic/claude-opus-4.8":
@@ -348,6 +358,12 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					if (rawModel.id === "anthropic/claude-opus-4.8") {
 						models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo
 					}
+				}
+				if (rawModel.id === "anthropic/claude-opus-5" || rawModel.id === "anthropic/claude-5-opus") {
+					const claudeOpus51mModelInfo = cloneDeep(modelInfo)
+					claudeOpus51mModelInfo.contextWindow = 1_000_000
+					claudeOpus51mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
+					models[openRouterClaudeOpus51mModelId] = claudeOpus51mModelInfo
 				}
 				if (rawModel.id === "anthropic/claude-fable-5") {
 					const claudeFable1mModelInfo = cloneDeep(modelInfo)

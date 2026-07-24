@@ -18,6 +18,8 @@ export function isClaudeAdaptiveThinkingModel(modelId?: string): boolean {
 		id.includes("claude-fable-5") ||
 		id.includes("claude-sonnet-5") ||
 		id.includes("claude-5-sonnet") ||
+		id.includes("claude-opus-5") ||
+		id.includes("claude-5-opus") ||
 		adaptiveVersions.some((version) => id.includes(`claude-opus-${version}`) || id.includes(`claude-${version}-opus`))
 	)
 }
