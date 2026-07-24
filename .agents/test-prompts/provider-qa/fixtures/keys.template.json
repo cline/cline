@@ -1,0 +1,37 @@
+{
+	"_readme": [
+		"Copy this file, fill in the credentials you have, delete nothing else.",
+		"Anything left as an empty string is skipped, so a partially filled file is still valid.",
+		"This is the same block embedded in all five QA prompts — fill it in once and paste it into each runner.",
+		"Provider ids are SDK ids: 'openai-compatible' is any OpenAI-shaped endpoint, 'openai-native' is",
+		"api.openai.com. The settings UI labels them 'OpenAI Compatible' and 'OpenAI'.",
+		"Apply with: node fixtures/apply-keys.mjs --keys keys.json --dir $QA/data --select anthropic"
+	],
+
+	"anthropic": { "apiKey": "", "model": "claude-sonnet-4-5-20250929" },
+	"openai-native": { "apiKey": "", "model": "gpt-5.1" },
+	"openrouter": { "apiKey": "", "model": "anthropic/claude-sonnet-4.5" },
+	"gemini": { "apiKey": "", "model": "gemini-2.5-pro" },
+	"cline": { "apiKey": "", "model": "anthropic/claude-sonnet-4.5" },
+	"deepseek": { "apiKey": "", "model": "deepseek-chat" },
+	"groq": { "apiKey": "", "model": "llama-3.3-70b-versatile" },
+	"xai": { "apiKey": "", "model": "grok-4" },
+	"mistral": { "apiKey": "", "model": "mistral-large-latest" },
+	"requesty": { "apiKey": "", "model": "" },
+	"together": { "apiKey": "", "model": "" },
+	"vercel-ai-gateway": { "apiKey": "", "model": "" },
+	"openai-compatible": { "apiKey": "", "baseUrl": "", "model": "" },
+	"litellm": { "apiKey": "", "baseUrl": "", "model": "" },
+	"ollama": { "baseUrl": "http://127.0.0.1:11434", "model": "" },
+	"bedrock": {
+		"awsAccessKey": "",
+		"awsSecretKey": "",
+		"awsRegion": "us-west-2",
+		"model": "anthropic.claude-sonnet-4-20250514-v1:0"
+	},
+	"vertex": {
+		"vertexProjectId": "",
+		"vertexRegion": "us-east5",
+		"model": "claude-sonnet-4@20250514"
+	}
+}
