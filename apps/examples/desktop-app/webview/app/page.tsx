@@ -374,7 +374,6 @@ function ChatThreadPane({
 		setConfig,
 		setWorkspacePath,
 		sendPrompt,
-		steerPromptInQueue,
 		updatePromptInQueue,
 		removePromptInQueue,
 		approveToolApproval,
@@ -790,7 +789,7 @@ function ChatThreadPane({
 				removed?.attachmentCount ?? item.attachmentCount ?? 0;
 			if (attachmentCount > 0) {
 				toast({
-					title: "Queued attachments removed",
+					title: "Attachments removed",
 					description: "Reattach files before sending the restored message.",
 				});
 			}
@@ -1143,9 +1142,6 @@ function ChatThreadPane({
 			}
 			onPromptInputChange={setPromptInput}
 			onReasoningChange={handleReasoningChange}
-			onSteerPromptInQueue={(promptId) => {
-				void steerPromptInQueue(promptId);
-			}}
 			onEditPromptInQueue={(promptId, prompt) => {
 				void updatePromptInQueue(promptId, prompt);
 			}}

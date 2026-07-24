@@ -211,7 +211,6 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
 		prompt: string,
@@ -247,7 +246,6 @@ export function ChatInputBar({
 	attachments,
 	onAttachFiles,
 	onRemoveAttachment,
-	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onUndoPromptInQueue,
 	summary,
@@ -320,6 +318,7 @@ export function ChatInputBar({
 	const [queueActionPendingId, setQueueActionPendingId] = useState<
 		string | null
 	>(null);
+	const queuedPromptEditRef = useRef<HTMLTextAreaElement | null>(null);
 
 	const tokensSummary = useMemo(() => {
 		const total = summary.tokensIn + summary.tokensOut;
@@ -408,23 +407,26 @@ export function ChatInputBar({
 		],
 	);
 
-	const triggerQueuedPromptAction = useCallback(
-		async (item: PromptInQueue, action: "steer" | "undo") => {
+	// Pulling the newest pending message back into an empty composer is the
+	// fastest way to reword something the agent has not read yet.
+	const canRecallLastQueuedPrompt =
+		promptsInQueue.length > 0 &&
+		promptInput.length === 0 &&
+		editingQueuedPromptId === null;
+
+	const undoQueuedPrompt = useCallback(
+		async (item: PromptInQueue) => {
 			if (queueActionPendingId) {
 				return;
 			}
 			setQueueActionPendingId(item.id);
 			try {
-				if (action === "steer") {
-					await onSteerPromptInQueue(item.id);
-				} else {
-					await onUndoPromptInQueue(item);
-				}
+				await onUndoPromptInQueue(item);
 			} finally {
 				setQueueActionPendingId(null);
 			}
 		},
-		[onSteerPromptInQueue, onUndoPromptInQueue, queueActionPendingId],
+		[onUndoPromptInQueue, queueActionPendingId],
 	);
 
 	useEffect(() => {
@@ -439,6 +441,15 @@ export function ChatInputBar({
 			cancelQueuedPromptEdit();
 		}
 	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
+
+	useEffect(() => {
+		if (!editingQueuedPromptId) {
+			return;
+		}
+		const editor = queuedPromptEditRef.current;
+		editor?.focus();
+		editor?.setSelectionRange(editor.value.length, editor.value.length);
+	}, [editingQueuedPromptId]);
 
 	useEffect(() => {
 		const nextMention = getActiveMention(promptInput, cursorIndex);
@@ -638,50 +649,43 @@ export function ChatInputBar({
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
 				{promptsInQueue.length > 0 && (
-					<div className="mb-3 rounded-lg border border-border bg-background/70 p-2">
-						<div className="mb-2 flex items-center justify-between gap-2">
-							<div className="text-[11px] font-medium text-foreground">
-								Queued for upcoming turns
+					<div className="mb-2.5">
+						<div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+							<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+								<span className="relative flex size-1.5" aria-hidden="true">
+									<span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
+									<span className="relative inline-flex size-1.5 rounded-full bg-primary" />
+								</span>
+								<span>
+									{promptsInQueue.length === 1
+										? "Sending to the agent"
+										: `Sending ${promptsInQueue.length} messages to the agent`}
+								</span>
 							</div>
-							<div className="text-[10px] text-muted-foreground">
-								Steer runs first on the next turn
-							</div>
+							{canRecallLastQueuedPrompt ? (
+								<div className="text-[10px] text-muted-foreground/70">
+									{"\u2191 to edit"}
+								</div>
+							) : null}
 						</div>
-						<div className="flex flex-col gap-1.5">
-							{promptsInQueue.map((item, index) => {
+						<div className="flex flex-col gap-1">
+							{promptsInQueue.map((item) => {
 								const isEditing = editingQueuedPromptId === item.id;
 								const isPending = queueActionPendingId === item.id;
-								const hasAttachments = (item.attachmentCount ?? 0) > 0;
+								const attachmentCount = item.attachmentCount ?? 0;
 								return (
 									<div
 										className={cn(
-											"flex items-start justify-between gap-3 rounded-md border px-2.5 py-2",
-											item.steer
-												? "border-amber-300/60 bg-amber-500/8"
-												: "border-border/70 bg-muted/30",
+											"flex items-start gap-2 rounded-md bg-muted/40 py-1.5 pl-2.5 pr-1.5 transition-opacity",
+											isPending && "opacity-60",
 										)}
 										key={item.id}
 									>
-										<div className="min-w-0 flex-1">
-											<div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-												<span>
-													{item.steer ? "Steer" : `Queue ${index + 1}`}
-												</span>
-												{item.steer ? (
-													<span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
-														Next turn
-													</span>
-												) : null}
-												{hasAttachments ? (
-													<span>
-														{item.attachmentCount} attachment
-														{item.attachmentCount === 1 ? "" : "s"}
-													</span>
-												) : null}
-											</div>
+										<div className="min-w-0 flex-1 py-0.5">
 											{isEditing ? (
 												<textarea
-													className="min-h-16 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+													aria-label="Edit message"
+													className="min-h-14 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
 													disabled={isPending}
 													onChange={(event) =>
 														setEditingQueuedPromptValue(event.target.value)
@@ -696,78 +700,55 @@ export function ChatInputBar({
 															void submitQueuedPromptEdit(item);
 														}
 													}}
-													rows={3}
+													ref={queuedPromptEditRef}
+													rows={2}
 													value={editingQueuedPromptValue}
 												/>
 											) : (
-												<div className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-foreground">
+												<div className="line-clamp-2 whitespace-pre-wrap break-words text-xs leading-4 text-foreground">
 													{item.prompt}
 												</div>
 											)}
+											{attachmentCount > 0 && !isEditing ? (
+												<div className="mt-0.5 text-[10px] text-muted-foreground">
+													{attachmentCount} attachment
+													{attachmentCount === 1 ? "" : "s"}
+												</div>
+											) : null}
 										</div>
-										<div className="flex shrink-0 items-center gap-1">
+										<div className="flex shrink-0 items-center gap-0.5">
 											{isEditing ? (
 												<>
-													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+													<QueuedPromptAction
 														disabled={
 															isPending ||
 															editingQueuedPromptValue.trim().length === 0
 														}
+														icon={Check}
+														label="Save message"
 														onClick={() => void submitQueuedPromptEdit(item)}
-														type="button"
-													>
-														<Check className="h-3 w-3" />
-														Save
-													</button>
-													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+													/>
+													<QueuedPromptAction
 														disabled={isPending}
+														icon={X}
+														label="Cancel editing"
 														onClick={cancelQueuedPromptEdit}
-														type="button"
-													>
-														<X className="h-3 w-3" />
-														Cancel
-													</button>
+													/>
 												</>
 											) : (
 												<>
-													{!item.steer ? (
-														<button
-															className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-															disabled={isPending}
-															onClick={() =>
-																void triggerQueuedPromptAction(item, "steer")
-															}
-															type="button"
-														>
-															Steer
-														</button>
-													) : (
-														<div className="px-1 text-[10px] text-amber-700">
-															Steering
-														</div>
-													)}
-													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+													<QueuedPromptAction
 														disabled={isPending}
+														icon={Pencil}
+														label="Edit message"
 														onClick={() => startQueuedPromptEdit(item)}
-														type="button"
-													>
-														<Pencil className="h-3 w-3" />
-														Edit
-													</button>
-													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+													/>
+													<QueuedPromptAction
 														disabled={isPending}
-														onClick={() =>
-															void triggerQueuedPromptAction(item, "undo")
-														}
-														type="button"
-													>
-														<Undo2 className="h-3 w-3" />
-														Undo
-													</button>
+														icon={Undo2}
+														label="Unsend message"
+														onClick={() => void undoQueuedPrompt(item)}
+													/>
 												</>
 											)}
 										</div>
@@ -962,6 +943,21 @@ export function ChatInputBar({
 									setMentionOpen(false);
 									return;
 								}
+								if (
+									e.key === "ArrowUp" &&
+									!e.shiftKey &&
+									!e.metaKey &&
+									!e.ctrlKey &&
+									!e.altKey &&
+									canRecallLastQueuedPrompt
+								) {
+									const last = promptsInQueue.at(-1);
+									if (last) {
+										e.preventDefault();
+										void undoQueuedPrompt(last);
+									}
+									return;
+								}
 								if (e.key === "Enter" && !e.shiftKey) {
 									e.preventDefault();
 									if (canSend) {
@@ -978,7 +974,7 @@ export function ChatInputBar({
 								variant === "welcome"
 									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
 									: isBusy
-										? "Agent is working... submit to queue another message"
+										? "Send a follow-up — the agent reads it at its next step"
 										: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
@@ -1167,6 +1163,31 @@ export function ChatInputBar({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+function QueuedPromptAction({
+	icon: Icon,
+	label,
+	onClick,
+	disabled,
+}: {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+	onClick: () => void;
+	disabled?: boolean;
+}) {
+	return (
+		<button
+			aria-label={label}
+			className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+			disabled={disabled}
+			onClick={onClick}
+			title={label}
+			type="button"
+		>
+			<Icon className="h-3.5 w-3.5" />
+		</button>
 	);
 }
 
