@@ -23,7 +23,16 @@ environment and is graded by the task's deterministic verifier.
 - The default pilot is bounded to 3 tasks/model, $15/model or less, and $40
   globally.
 - `routerProfile` is validated. A `cline-pass-router` experiment rejects every
-  model that does not use a public `cline-pass/*` ID.
+  model that does not use a public `cline-pass/*` ID, and each profile requires
+  its matching Cline CLI provider.
+- Config, model, and pricing objects reject unknown fields, so accidentally
+  adding a credential cannot copy it into the retained report.
+- Reused job roots carry a provider/model/task/CLI fingerprint, and every reused
+  result revalidates task, CLI version, served provider, and served model.
+- The private jobs-root boundary is canonicalized through symlinks. If Harbor's
+  outer process times out or exits abnormally, the runner removes only Docker
+  containers whose trial IDs belong to that job and recovers usage when
+  possible.
 - The Pass profile uses Cline's distinct `cline-pass` CLI provider and derives
   Harbor's scoped `API_KEY` alias only from the required `CLINE_API_KEY`
   environment value; neither value is written to disk or command arguments.

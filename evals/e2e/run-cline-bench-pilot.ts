@@ -16,11 +16,13 @@
  */
 
 import { spawnSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import {
 	chmodSync,
 	cpSync,
 	existsSync,
 	mkdirSync,
+	realpathSync,
 	readdirSync,
 	readFileSync,
 	writeFileSync,
@@ -75,6 +77,7 @@ type PilotReport = {
 	finishedAt?: string
 	mode: "dry-run" | "execute"
 	config: PilotConfig
+	executionFingerprint: string
 	jobsRoot: string
 	results: RunResult[]
 	stoppedReason?: string
@@ -133,12 +136,71 @@ Options:
 	return { execute, configPath: resolve(configPath), jobsRoot, stopAfter, onlyRun }
 }
 
+function assertOnlyKeys(value: unknown, allowed: readonly string[], label: string): asserts value is Record<string, any> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) fail(`${label} must be an object`)
+	const allowlist = new Set(allowed)
+	for (const key of Object.keys(value)) {
+		if (!allowlist.has(key)) fail(`unknown ${label} field: ${key}`)
+	}
+}
+
 function readConfig(configPath: string): PilotConfig {
-	const config = JSON.parse(readFileSync(configPath, "utf8")) as PilotConfig
+	const raw: unknown = JSON.parse(readFileSync(configPath, "utf8"))
+	assertOnlyKeys(
+		raw,
+		[
+			"routerProfile",
+			"provider",
+			"globalBudgetUsd",
+			"maxRunsPerModel",
+			"timeoutSeconds",
+			"clineVersion",
+			"models",
+			"tasks",
+		],
+		"config",
+	)
+	if (!Array.isArray(raw.models) || raw.models.length === 0) fail("at least one model is required")
+	if (!Array.isArray(raw.tasks) || raw.tasks.length === 0) fail("at least one task is required")
+	const models = raw.models.map((value, index): ModelConfig => {
+		assertOnlyKeys(value, ["id", "perTaskBudgetUsd", "perModelBudgetUsd", "pricing"], `models[${index}]`)
+		let pricing: ModelConfig["pricing"]
+		if (value.pricing !== undefined) {
+			assertOnlyKeys(
+				value.pricing,
+				["inputPerMTok", "cachedInputPerMTok", "outputPerMTok"],
+				`models[${index}].pricing`,
+			)
+			pricing = {
+				inputPerMTok: value.pricing.inputPerMTok,
+				cachedInputPerMTok: value.pricing.cachedInputPerMTok,
+				outputPerMTok: value.pricing.outputPerMTok,
+			}
+		}
+		return {
+			id: value.id,
+			perTaskBudgetUsd: value.perTaskBudgetUsd,
+			perModelBudgetUsd: value.perModelBudgetUsd,
+			...(pricing ? { pricing } : {}),
+		}
+	})
+	const config: PilotConfig = {
+		routerProfile: raw.routerProfile,
+		provider: raw.provider,
+		globalBudgetUsd: raw.globalBudgetUsd,
+		maxRunsPerModel: raw.maxRunsPerModel,
+		timeoutSeconds: raw.timeoutSeconds,
+		clineVersion: raw.clineVersion,
+		models,
+		tasks: [...raw.tasks],
+	}
 	if (config.routerProfile !== "cline-router" && config.routerProfile !== "cline-pass-router") {
 		fail("routerProfile must be cline-router or cline-pass-router")
 	}
-	if (!config.provider?.trim()) fail("provider must be configured")
+	const expectedProvider = config.routerProfile === "cline-pass-router" ? "cline-pass" : "cline"
+	if (config.provider !== expectedProvider) {
+		fail(`${config.routerProfile} requires provider=${expectedProvider}`)
+	}
 	if (!Number.isFinite(config.globalBudgetUsd) || config.globalBudgetUsd <= 0 || config.globalBudgetUsd >= 100) {
 		fail("globalBudgetUsd must be greater than 0 and less than 100")
 	}
@@ -148,16 +210,19 @@ function readConfig(configPath: string): PilotConfig {
 	if (!Number.isFinite(config.timeoutSeconds) || config.timeoutSeconds < 60 || config.timeoutSeconds > 1800) {
 		fail("timeoutSeconds must be between 60 and 1800")
 	}
-	if (!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(config.clineVersion)) fail("clineVersion must be pinned")
-	if (!Array.isArray(config.models) || config.models.length === 0) fail("at least one model is required")
-	if (!Array.isArray(config.tasks) || config.tasks.length === 0) fail("at least one task is required")
+	if (
+		typeof config.clineVersion !== "string" ||
+		!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(config.clineVersion)
+	) {
+		fail("clineVersion must be pinned")
+	}
 	if (config.tasks.length > config.maxRunsPerModel) {
 		fail(`configured ${config.tasks.length} tasks, exceeding maxRunsPerModel=${config.maxRunsPerModel}`)
 	}
 
 	const seenModels = new Set<string>()
 	for (const model of config.models) {
-		if (!model.id?.trim() || model.id.includes(":")) {
+		if (typeof model.id !== "string" || !model.id.trim() || model.id.includes(":")) {
 			fail(`invalid Cline model id: ${JSON.stringify(model.id)}`)
 		}
 		if (seenModels.has(model.id)) fail(`duplicate model: ${model.id}`)
@@ -182,6 +247,12 @@ function readConfig(configPath: string): PilotConfig {
 		if (model.perModelBudgetUsd > config.globalBudgetUsd) {
 			fail(`per-model budget for ${model.id} exceeds the global budget`)
 		}
+		if (model.perTaskBudgetUsd > model.perModelBudgetUsd) {
+			fail(`per-task budget for ${model.id} exceeds its model budget`)
+		}
+		if (model.perTaskBudgetUsd > config.globalBudgetUsd) {
+			fail(`per-task budget for ${model.id} exceeds the global budget`)
+		}
 		if (model.pricing) {
 			for (const [field, value] of Object.entries(model.pricing)) {
 				if (!Number.isFinite(value) || value < 0) {
@@ -195,6 +266,7 @@ function readConfig(configPath: string): PilotConfig {
 	}
 
 	for (const task of config.tasks) {
+		if (typeof task !== "string") fail(`invalid task id: ${JSON.stringify(task)}`)
 		if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]+$/.test(task)) fail(`invalid task id: ${JSON.stringify(task)}`)
 		const taskDir = join(clineBenchDir, "tasks", task)
 		if (!existsSync(join(taskDir, "task.toml")) || !existsSync(join(taskDir, "instruction.md"))) {
@@ -227,12 +299,26 @@ function createPrivateJobsRoot(requested?: string): string {
 	const base = requested
 		? resolve(requested)
 		: join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "cline-auto-sdlc-bench", runId)
-	if (base === repoRoot || base.startsWith(`${repoRoot}/`)) {
+	mkdirSync(base, { recursive: true, mode: 0o700 })
+	const canonicalBase = realpathSync(base)
+	const canonicalRepoRoot = realpathSync(repoRoot)
+	if (canonicalBase === canonicalRepoRoot || canonicalBase.startsWith(`${canonicalRepoRoot}/`)) {
 		fail("jobs-root must be outside the repository")
 	}
-	mkdirSync(base, { recursive: true, mode: 0o700 })
-	chmodSync(base, 0o700)
-	return base
+	chmodSync(canonicalBase, 0o700)
+	return canonicalBase
+}
+
+function executionFingerprint(config: PilotConfig): string {
+	const executionConfig = {
+		routerProfile: config.routerProfile,
+		provider: config.provider,
+		timeoutSeconds: config.timeoutSeconds,
+		clineVersion: config.clineVersion,
+		models: config.models.map((model) => model.id),
+		tasks: config.tasks,
+	}
+	return createHash("sha256").update(JSON.stringify(executionConfig)).digest("hex")
 }
 
 function safeEnvironment(provider: string): NodeJS.ProcessEnv {
@@ -264,6 +350,40 @@ function safeEnvironment(provider: string): NodeJS.ProcessEnv {
 		env.API_KEY = process.env.CLINE_API_KEY
 	}
 	return env
+}
+
+function infrastructureEnvironment(): NodeJS.ProcessEnv {
+	const env = safeEnvironment("cline")
+	delete env.CLINE_API_KEY
+	delete env.API_KEY
+	return env
+}
+
+function cleanupJobContainers(jobDir: string): string[] {
+	if (!existsSync(jobDir)) return []
+	const trialNames = readdirSync(jobDir, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && entry.name.includes("__"))
+		.map((entry) => entry.name.toLowerCase())
+	if (trialNames.length === 0) return []
+	const listed = spawnSync("docker", ["ps", "-a", "--format", "{{.ID}}\t{{.Names}}"], {
+		env: infrastructureEnvironment(),
+		encoding: "utf8",
+		timeout: 15_000,
+	})
+	if (listed.status !== 0) return []
+	const removed: string[] = []
+	for (const line of listed.stdout.split("\n")) {
+		const [id, name] = line.trim().split("\t")
+		if (!/^[0-9a-f]{12,64}$/.test(id || "") || !name) continue
+		if (!trialNames.some((trialName) => name.toLowerCase().includes(trialName))) continue
+		const cleanup = spawnSync("docker", ["rm", "-f", id], {
+			env: infrastructureEnvironment(),
+			stdio: "ignore",
+			timeout: 30_000,
+		})
+		if (cleanup.status === 0) removed.push(id)
+	}
+	return removed
 }
 
 function buildRunMatrix(config: PilotConfig) {
@@ -335,9 +455,9 @@ function tokenEconomics(
 
 function readJobResult(
 	jobDir: string,
-	provider: string,
-	routerProfile: PilotConfig["routerProfile"],
+	config: PilotConfig,
 	model: ModelConfig,
+	expectedTask: string,
 	durationSeconds: number,
 ): RunResult {
 	const resultPath = join(jobDir, "result.json")
@@ -352,15 +472,25 @@ function readJobResult(
 			`Harbor trial failed with ${trial.exception_info.exception_type}: ${trial.exception_info.exception_message}`,
 		)
 	}
+	if (trial.task_name !== expectedTask) {
+		fail(`task mismatch: expected ${expectedTask}, result recorded ${JSON.stringify(trial.task_name)}`)
+	}
+	if (trial.agent_info?.version !== config.clineVersion) {
+		fail(
+			`Cline version mismatch: expected ${config.clineVersion}, result recorded ${JSON.stringify(trial.agent_info?.version)}`,
+		)
+	}
 
 	const servedModel = trial.agent_info?.model_info?.name
 	const servedProvider = trial.agent_info?.model_info?.provider
 	const expectedModel = model.id
 	const [expectedVendor, ...expectedNameParts] = expectedModel.split("/")
 	const expectedName = expectedNameParts.join("/")
-	const exactSplitMatch = servedProvider === `${provider}:${expectedVendor}` && servedModel === expectedName
-	const acceptedCombinedNames = new Set([expectedModel, `${provider}:${expectedModel}`])
-	if (!exactSplitMatch && !acceptedCombinedNames.has(servedModel)) {
+	const exactSplitMatch =
+		servedProvider === `${config.provider}:${expectedVendor}` && servedModel === expectedName
+	const acceptedCombinedNames = new Set([expectedModel, `${config.provider}:${expectedModel}`])
+	const combinedMatch = servedProvider === config.provider && acceptedCombinedNames.has(servedModel)
+	if (!exactSplitMatch && !combinedMatch) {
 		fail(
 			`served-model mismatch: expected ${expectedModel}, result recorded provider=${JSON.stringify(servedProvider)} model=${JSON.stringify(servedModel)}`,
 		)
@@ -395,7 +525,7 @@ function readJobResult(
 		reward,
 		costUsd,
 		costBasis:
-			routerProfile === "cline-pass-router"
+			config.routerProfile === "cline-pass-router"
 				? "cline-pass-reference-quota"
 				: "reported-inference",
 		durationSeconds: measuredDurationSeconds,
@@ -557,12 +687,30 @@ function runOne(
 	mkdirSync(jobDir, { recursive: true, mode: 0o700 })
 	writeFileSync(join(jobDir, "harbor-console.log"), sanitizedOutput, { mode: 0o600 })
 
-	if (result.error) fail(`Harbor failed for ${model.id} × ${task}: ${result.error.message}`)
-	if (result.status !== 0) {
-		const tail = sanitizedOutput.trim().split("\n").slice(-20).join("\n")
-		fail(`Harbor exited ${result.status} for ${model.id} × ${task}\n${tail}`)
+	if (result.error) {
+		const removed = cleanupJobContainers(jobDir)
+		const errorCode = (result.error as NodeJS.ErrnoException).code
+		if (errorCode === "ETIMEDOUT" && existsSync(join(jobDir, "result.json"))) {
+			try {
+				return readInterruptedRun(jobDir, config.routerProfile, model, task)
+			} catch (usageError) {
+				fail(
+					`Harbor timed out for ${model.id} × ${task}; cleaned ${removed.length} container(s), but usage recovery failed: ${usageError instanceof Error ? usageError.message : String(usageError)}`,
+				)
+			}
+		}
+		fail(
+			`Harbor failed for ${model.id} × ${task}: ${result.error.message}; cleaned ${removed.length} container(s)`,
+		)
 	}
-	return readJobResult(jobDir, config.provider, config.routerProfile, model, durationSeconds)
+	if (result.status !== 0) {
+		const removed = cleanupJobContainers(jobDir)
+		const tail = sanitizedOutput.trim().split("\n").slice(-20).join("\n")
+		fail(
+			`Harbor exited ${result.status} for ${model.id} × ${task}; cleaned ${removed.length} container(s)\n${tail}`,
+		)
+	}
+	return readJobResult(jobDir, config, model, task, durationSeconds)
 }
 
 function reuseCompletedRun(
@@ -582,7 +730,7 @@ function reuseCompletedRun(
 		console.log(`  cost=$${interrupted.costUsd.toFixed(4)}`)
 		return interrupted
 	}
-	const result = readJobResult(jobDir, config.provider, config.routerProfile, model, 0)
+	const result = readJobResult(jobDir, config, model, task, 0)
 	console.log(`\n[${runNumber}] reusing completed ${model.id} × ${task}`)
 	console.log(`  outcome=${result.outcome} reward=${result.reward ?? "missing"} cost=$${result.costUsd.toFixed(4)}`)
 	return result
@@ -620,10 +768,22 @@ function main() {
 	}
 
 	const jobsRoot = createPrivateJobsRoot(args.jobsRoot)
+	const fingerprint = executionFingerprint(config)
+	const existingReportPath = join(jobsRoot, "pilot-report.json")
+	if (existsSync(existingReportPath)) {
+		const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as Partial<PilotReport>
+		const existingFingerprint =
+			existing.executionFingerprint ||
+			(existing.config ? executionFingerprint(existing.config) : undefined)
+		if (existingFingerprint !== fingerprint) {
+			fail("jobs-root belongs to a different provider/model/task/CLI execution matrix")
+		}
+	}
 	const report: PilotReport = {
 		startedAt: new Date().toISOString(),
 		mode: "execute",
 		config,
+		executionFingerprint: fingerprint,
 		jobsRoot,
 		results: [],
 	}
@@ -649,8 +809,14 @@ function main() {
 			if (currentModelSpend >= run.model.perModelBudgetUsd) {
 				fail(`${run.model.id} reached its $${run.model.perModelBudgetUsd.toFixed(2)} model budget`)
 			}
+			if (currentModelSpend + run.model.perTaskBudgetUsd > run.model.perModelBudgetUsd) {
+				fail(`${run.model.id} lacks room for its declared per-task exposure`)
+			}
 			if (globalSpend >= config.globalBudgetUsd) {
 				fail(`pilot reached its $${config.globalBudgetUsd.toFixed(2)} global budget`)
+			}
+			if (globalSpend + run.model.perTaskBudgetUsd > config.globalBudgetUsd) {
+				fail("pilot lacks room for the next task's declared exposure")
 			}
 
 			const result = runOne(config, run.model, run.task, jobsRoot, index + 1)
