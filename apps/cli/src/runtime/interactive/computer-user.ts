@@ -28,6 +28,33 @@ import type { Config } from "../../utils/types";
 
 const HELPER_PROVIDER_ID = "anthropic";
 const HELPER_DEFAULT_MODEL_ID = "claude-sonnet-4-6";
+const HELPER_MODEL_ENV_VAR = "CLINE_COMPUTER_USER_MODEL";
+
+/**
+ * Resolves the helper's Anthropic model id. The helper's model is chosen
+ * independently of the driver's: CLINE_COMPUTER_USER_MODEL wins, then the
+ * Anthropic provider entry's saved `model`, then the default. The provider
+ * is always the direct `anthropic` provider — the computer-use beta header
+ * is only sent on that wire target, so Anthropic models reached through
+ * other providers (cline, openrouter, bedrock) would lack the extended
+ * action set.
+ */
+export function resolveHelperModelId(
+	helperSettings: { model?: unknown } | undefined,
+	env: NodeJS.ProcessEnv,
+): string {
+	const fromEnv = env[HELPER_MODEL_ENV_VAR]?.trim();
+	if (fromEnv) {
+		return fromEnv;
+	}
+	if (
+		typeof helperSettings?.model === "string" &&
+		helperSettings.model.trim()
+	) {
+		return helperSettings.model.trim();
+	}
+	return HELPER_DEFAULT_MODEL_ID;
+}
 
 export interface InteractiveComputerUser {
 	driverTools: AgentTool[];
@@ -61,10 +88,10 @@ export async function createInteractiveComputerUser(input: {
 		// the Anthropic provider's own configuration.
 		return undefined;
 	}
-	const helperModelId =
-		typeof helperSettings?.model === "string" && helperSettings.model
-			? helperSettings.model
-			: HELPER_DEFAULT_MODEL_ID;
+	const helperModelId = resolveHelperModelId(
+		helperSettings,
+		input.env ?? process.env,
+	);
 
 	// The helper config and the coordinator reference each other (the
 	// collaboration tools call back into the coordinator). Break the cycle
