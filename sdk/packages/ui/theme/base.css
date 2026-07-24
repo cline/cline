@@ -1,0 +1,125 @@
+:root {
+	color-scheme: light;
+}
+
+.dark {
+	color-scheme: dark;
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+
+	html {
+		@apply font-sans;
+	}
+
+	body {
+		@apply m-0 bg-background text-base font-normal text-foreground;
+	}
+}
+
+@layer components {
+	:is(.markdown, .cline-markdown) {
+		@apply min-w-0 max-w-full text-sm leading-relaxed;
+		overflow-wrap: anywhere;
+	}
+
+	:is(.markdown, .cline-markdown)
+		:is([data-streamdown="code-block"], [data-streamdown="table-wrapper"]) {
+		@apply max-w-full;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="code-block"] {
+		@apply my-4 rounded-lg;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="inline-code"] {
+		font-size: 0.9em;
+	}
+
+	:is(.markdown, .cline-markdown)
+		[data-streamdown="code-block"]
+		:is(pre, code) {
+		white-space: pre;
+		overflow-wrap: normal;
+		word-break: normal;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="table-wrapper"] {
+		@apply my-4 overflow-x-auto rounded-lg border border-border;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="table"] {
+		@apply min-w-full;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="image"] {
+		background-color: white;
+		padding: 0.25rem;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="blocked-image"] {
+		@apply my-2 inline-flex rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground;
+	}
+}
+
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover);
+}
+
+::selection {
+	background: var(--selection-background);
+}
+
+:where(
+		button:not(:disabled),
+		a[href],
+		area[href],
+		label[for],
+		select:not(:disabled),
+		summary,
+		input[type="button"]:not(:disabled),
+		input[type="checkbox"]:not(:disabled),
+		input[type="color"]:not(:disabled),
+		input[type="file"]:not(:disabled),
+		input[type="radio"]:not(:disabled),
+		input[type="range"]:not(:disabled),
+		input[type="reset"]:not(:disabled),
+		input[type="submit"]:not(:disabled),
+		input[role="combobox"][readonly]:not(:disabled),
+		[role="button"]:not([aria-disabled="true"]),
+		[role="checkbox"]:not([aria-disabled="true"]),
+		[role="menuitem"]:not([aria-disabled="true"]),
+		[role="menuitemcheckbox"]:not([aria-disabled="true"]),
+		[role="menuitemradio"]:not([aria-disabled="true"]),
+		[role="link"]:not([aria-disabled="true"]),
+		[role="option"]:not([aria-disabled="true"]),
+		[role="radio"]:not([aria-disabled="true"]),
+		[role="slider"]:not([aria-disabled="true"]),
+		[role="switch"]:not([aria-disabled="true"]),
+		[role="tab"]:not([aria-disabled="true"]),
+		[role="treeitem"]:not([aria-disabled="true"]),
+		[data-interactive]:not([aria-disabled="true"]):not([data-disabled])
+	) {
+	cursor: pointer;
+}
+
+[data-cursor="default"] {
+	cursor: default;
+}

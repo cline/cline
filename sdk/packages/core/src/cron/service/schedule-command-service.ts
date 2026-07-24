@@ -4,7 +4,7 @@ import type {
 	HubScheduleCreateInput,
 	HubScheduleUpdateInput,
 } from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+import { createSessionId, readHubScheduleMode } from "@cline/shared";
 import type { HubScheduleService } from "./schedule-service";
 
 function okReply(
@@ -158,6 +158,7 @@ export class HubScheduleCommandService {
 	private toCreateInput(
 		payload: Record<string, unknown>,
 	): HubScheduleCreateInput {
+		const mode = readHubScheduleMode(payload, "yolo");
 		const modelSelection =
 			payload.modelSelection &&
 			typeof payload.modelSelection === "object" &&
@@ -172,12 +173,14 @@ export class HubScheduleCommandService {
 		return {
 			...(payload as unknown as HubScheduleCreateInput),
 			modelSelection,
+			mode,
 		};
 	}
 
 	private toUpdateInput(
 		payload: Record<string, unknown>,
 	): HubScheduleUpdateInput {
+		const mode = readHubScheduleMode(payload);
 		const modelSelection =
 			payload.modelSelection &&
 			typeof payload.modelSelection === "object" &&
@@ -193,6 +196,7 @@ export class HubScheduleCommandService {
 		return {
 			...(payload as unknown as HubScheduleUpdateInput),
 			modelSelection,
+			...(mode === undefined ? {} : { mode }),
 		};
 	}
 }

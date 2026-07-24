@@ -43,14 +43,14 @@ describe("buildSdkProviderConfig", () => {
 		const providerConfig = buildSdkProviderConfig(
 			{
 				actModeApiProvider: "cline-pass",
-				actModeClinePassModelId: "cline-pass/glm-5.1",
+				actModeClinePassModelId: "cline-pass/glm-5.2",
 			},
 			"act",
 		)
 
 		expect(providerConfig).toMatchObject({
 			providerId: "cline-pass",
-			modelId: "cline-pass/glm-5.1",
+			modelId: "cline-pass/glm-5.2",
 			apiKey: "workos:shared-cline-token",
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("cline")

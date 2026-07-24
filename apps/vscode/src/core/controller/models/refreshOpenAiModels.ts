@@ -15,9 +15,9 @@ import { Controller } from ".."
  */
 export async function refreshOpenAiModels(controller: Controller, request: OpenAiModelsRequest): Promise<StringArray> {
 	try {
-		const providerConfig = controller.getProviderConfigStore().read(parseProviderId("openai"))
-		const baseUrl = request.baseUrl || providerConfig.baseUrl
-		const apiKey = request.apiKey || providerConfig.apiKey
+		const providerConfig = controller.getProviderConfigStore().read(parseProviderId(request.providerId || "openai"))
+		const baseUrl = providerConfig.baseUrl
+		const apiKey = providerConfig.apiKey
 
 		if (!baseUrl) {
 			return StringArray.create({ values: [] })

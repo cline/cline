@@ -24,10 +24,14 @@ export type DelegatedAgentConnectionConfig = Pick<
 	| "apiKey"
 	| "baseUrl"
 	| "headers"
+	| "onAuthError"
 	| "providerConfig"
 	| "knownModels"
 	| "thinking"
+	| "reasoningEffort"
+	| "thinkingBudgetTokens"
 	| "maxTokensPerTurn"
+	| "temperature"
 >;
 
 export interface DelegatedAgentRuntimeConfig
@@ -85,10 +89,14 @@ export function createDelegatedAgentConfigProvider(
 			apiKey: runtimeConfig.apiKey,
 			baseUrl: runtimeConfig.baseUrl,
 			headers: runtimeConfig.headers,
+			onAuthError: runtimeConfig.onAuthError,
 			providerConfig: runtimeConfig.providerConfig,
 			knownModels: runtimeConfig.knownModels,
 			thinking: runtimeConfig.thinking,
+			reasoningEffort: runtimeConfig.reasoningEffort,
+			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
 			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
+			temperature: runtimeConfig.temperature,
 		}),
 		updateConnectionDefaults: (overrides) => {
 			runtimeConfig = {

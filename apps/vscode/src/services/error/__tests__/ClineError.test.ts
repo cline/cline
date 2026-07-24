@@ -44,5 +44,24 @@ describe("ClineError", () => {
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.OrgClinePassRestriction)
 		})
+
+		it("should classify ClinePass period limit messages separately", () => {
+			const err = new ClineError(
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
+			)
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit)
+		})
+
+		it("should classify nested ClinePass period limit messages separately", () => {
+			const err = new ClineError({
+				message: "403 Error 403",
+				error: {
+					message: "You have reached your monthly ClinePass limit. The limit resets in 12h, please try again later.",
+				},
+			})
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit)
+		})
 	})
 })

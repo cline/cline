@@ -1,11 +1,6 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
-import {
-	azureOpenAiDefaultApiVersion,
-	type ModelInfo,
-	type OpenAiCompatibleModelInfo,
-	openAiModelInfoSafeDefaults,
-} from "@shared/api"
-import { OpenAiModelsRequest } from "@shared/proto/cline/models"
+import { azureOpenAiDefaultApiVersion, type OpenAiCompatibleModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
+import { ApiFormat, OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -13,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
-import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { fromProtobufProviderModelOverrides, type ProviderModelOverrides, useProviderConfig } from "@/hooks/useProviderConfig"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -21,7 +16,6 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { parsePrice } from "../utils/pricingUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
@@ -53,6 +47,7 @@ export const OpenAICompatibleProvider = ({
 	const [availableOpenAiModels, setAvailableOpenAiModels] = useState<string[]>([])
 	const [isRefreshingOpenAiModels, setIsRefreshingOpenAiModels] = useState(false)
 	const [openAiModelsError, setOpenAiModelsError] = useState<string | undefined>(undefined)
+	const [modelFieldErrors, setModelFieldErrors] = useState<Partial<Record<NumericModelOverrideKey, string>>>({})
 	// Only the built-in "openai" provider stores its API key in the legacy
 	// ApiConfiguration field; custom providers keep it in their per-provider
 	// config (available only as a masked length), so there is no plaintext key
@@ -92,34 +87,100 @@ export const OpenAICompatibleProvider = ({
 	// The Model Configuration section reads/writes the resolved model info.
 	// OpenAiCompatibleModelInfo only adds optional fields over ModelInfo, so a
 	// resolved ModelInfo satisfies it structurally.
-	const openAiModelInfo: OpenAiCompatibleModelInfo = selectedModelInfo
+	const openAiModelInfo: OpenAiCompatibleModelInfo = selectedModelInfo ?? openAiModelInfoSafeDefaults
+	const selectedModelOverrides = fromProtobufProviderModelOverrides(committedSelection?.overrides) ?? {}
+	const selectedModelOverridesRef = useRef<{ modelId: string | undefined; overrides: ProviderModelOverrides }>({
+		modelId: selectedModelId,
+		overrides: selectedModelOverrides,
+	})
+
+	// Counts commits whose commit+read-back round-trip has not finished yet.
+	const pendingCommitsRef = useRef(0)
+
+	useEffect(() => {
+		// Do not reseed the pending-override accumulator from server state
+		// while commits are in flight: an earlier commit's read-back can land
+		// after a later local edit, and reseeding from that stale snapshot
+		// would silently drop the already-committed newer field.
+		if (pendingCommitsRef.current > 0) {
+			return
+		}
+		selectedModelOverridesRef.current = { modelId: selectedModelId, overrides: selectedModelOverrides }
+	}, [committedSelection?.overrides, selectedModelId])
 
 	const commitOpenAiSelection = useCallback(
-		(modelId: string, modelInfo = openAiModelInfo ?? openAiModelInfoSafeDefaults) => {
+		(modelId: string, overrides?: ProviderModelOverrides) => {
 			if (!modelId.trim()) {
 				return
 			}
 
+			pendingCommitsRef.current += 1
 			void commitSelection(currentMode, {
 				providerId,
 				modelId,
-				modelInfo: {
-					...modelInfo,
-					supportsPromptCache: modelInfo.supportsPromptCache ?? openAiModelInfoSafeDefaults.supportsPromptCache,
-				},
-			}).catch((error) => handleProviderConfigWriteError("model selection", error))
+				...(overrides !== undefined ? { overrides } : {}),
+			})
+				.catch((error) => handleProviderConfigWriteError("model selection", error))
+				.finally(() => {
+					pendingCommitsRef.current -= 1
+				})
 		},
-		[commitSelection, currentMode, handleProviderConfigWriteError, openAiModelInfo],
+		[commitSelection, currentMode, handleProviderConfigWriteError, providerId],
 	)
 
-	const handleOpenAiModelInfoChange = useCallback(
-		(modelInfo: typeof openAiModelInfoSafeDefaults) => {
-			if (isOpenAiProvider) {
-				handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
+	const updateModelOverride = useCallback(
+		<K extends keyof ProviderModelOverrides>(key: K, value: ProviderModelOverrides[K] | undefined) => {
+			const modelId = selectedModelId?.trim()
+			if (!modelId) {
+				return
 			}
-			commitOpenAiSelection(selectedModelId || "", modelInfo)
+
+			const currentOverrides =
+				selectedModelOverridesRef.current.modelId === modelId ? selectedModelOverridesRef.current.overrides : {}
+			const nextOverrides = { ...currentOverrides }
+			if (value === undefined) {
+				delete nextOverrides[key]
+			} else {
+				Object.assign(nextOverrides, { [key]: value })
+			}
+			selectedModelOverridesRef.current = { modelId, overrides: nextOverrides }
+			commitOpenAiSelection(modelId, nextOverrides)
 		},
-		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider, selectedModelId],
+		[commitOpenAiSelection, selectedModelId],
+	)
+
+	const updateNumericModelOverride = useCallback(
+		(key: NumericModelOverrideKey, label: string, value: string) => {
+			const parsed = parseOptionalFiniteNumber(value)
+			if (!parsed.valid) {
+				setModelFieldErrors((current) => ({ ...current, [key]: `${label} must be a valid number.` }))
+				return
+			}
+			setModelFieldErrors((current) => {
+				const next = { ...current }
+				delete next[key]
+				return next
+			})
+			// Debounced fields fire with their initial value on mount and on
+			// model/mode switches; committing that echo would persist resolved
+			// catalog values as user overrides. Only commit actual edits.
+			// Compare against the pending override when one is in flight so a
+			// quick revert during a commit round-trip is not mistaken for an
+			// echo of the (stale) displayed value.
+			const pendingOverrides =
+				selectedModelOverridesRef.current.modelId === selectedModelId?.trim()
+					? selectedModelOverridesRef.current.overrides
+					: undefined
+			const effectiveValue =
+				pendingOverrides && Object.hasOwn(pendingOverrides, key)
+					? displayedModelNumber(pendingOverrides[key] as number | undefined)
+					: displayedModelNumber(openAiModelInfo?.[key])
+			if (parsed.value === effectiveValue) {
+				return
+			}
+			updateModelOverride(key, parsed.value)
+		},
+		[updateModelOverride, openAiModelInfo, selectedModelId],
 	)
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
@@ -130,47 +191,55 @@ export const OpenAICompatibleProvider = ({
 			if (debounceTimerRef.current) {
 				clearTimeout(debounceTimerRef.current)
 			}
+			openAiModelsRequestRef.current += 1
 		}
 	}, [])
 
-	const refreshOpenAiModels = useCallback(async (baseUrl?: string, apiKey?: string) => {
-		const trimmedBaseUrl = baseUrl?.trim()
-		const requestId = openAiModelsRequestRef.current + 1
-		openAiModelsRequestRef.current = requestId
+	const refreshOpenAiModels = useCallback(
+		async (baseUrl?: string, apiKey?: string) => {
+			const trimmedBaseUrl = baseUrl?.trim()
+			const requestId = openAiModelsRequestRef.current + 1
+			openAiModelsRequestRef.current = requestId
 
-		if (!trimmedBaseUrl) {
-			setAvailableOpenAiModels([])
-			setOpenAiModelsError(undefined)
-			setIsRefreshingOpenAiModels(false)
-			return
-		}
-
-		setIsRefreshingOpenAiModels(true)
-		setOpenAiModelsError(undefined)
-
-		try {
-			const response = await ModelsServiceClient.refreshOpenAiModels(
-				OpenAiModelsRequest.create({
-					baseUrl: trimmedBaseUrl,
-					apiKey,
-				}),
-			)
-
-			if (openAiModelsRequestRef.current === requestId) {
-				setAvailableOpenAiModels(response.values)
-			}
-		} catch (error) {
-			console.error("Failed to refresh OpenAI models:", error)
-			if (openAiModelsRequestRef.current === requestId) {
+			if (!trimmedBaseUrl) {
 				setAvailableOpenAiModels([])
-				setOpenAiModelsError(error instanceof Error ? error.message : String(error))
-			}
-		} finally {
-			if (openAiModelsRequestRef.current === requestId) {
+				setOpenAiModelsError(undefined)
 				setIsRefreshingOpenAiModels(false)
+				return
 			}
-		}
-	}, [])
+
+			setIsRefreshingOpenAiModels(true)
+			setOpenAiModelsError(undefined)
+
+			try {
+				// providerId lets the host back the request with this provider's
+				// stored API key and headers — the webview only sees a masked key
+				// for custom providers, so it can't send the credential itself.
+				const response = await ModelsServiceClient.refreshOpenAiModels(
+					OpenAiModelsRequest.create({
+						providerId,
+						baseUrl: trimmedBaseUrl,
+						apiKey,
+					}),
+				)
+
+				if (openAiModelsRequestRef.current === requestId) {
+					setAvailableOpenAiModels(response.values)
+				}
+			} catch (error) {
+				console.error("Failed to refresh OpenAI models:", error)
+				if (openAiModelsRequestRef.current === requestId) {
+					setAvailableOpenAiModels([])
+					setOpenAiModelsError(error instanceof Error ? error.message : String(error))
+				}
+			} finally {
+				if (openAiModelsRequestRef.current === requestId) {
+					setIsRefreshingOpenAiModels(false)
+				}
+			}
+		},
+		[providerId],
+	)
 
 	const debouncedRefreshOpenAiModels = useCallback(
 		(baseUrl?: string, apiKey?: string) => {
@@ -189,22 +258,14 @@ export const OpenAICompatibleProvider = ({
 		void refreshOpenAiModels(config?.baseUrl, latestOpenAiApiKeyRef.current)
 	}, [config?.baseUrl, refreshOpenAiModels])
 
-	const toOpenAiModelInfo = useCallback(
-		(modelId: string): ModelInfo => ({
-			...openAiModelInfoSafeDefaults,
-			name: modelId,
-		}),
-		[],
-	)
-
 	const handleOpenAiModelSelection = useCallback(
-		(modelId: string, modelInfo = toOpenAiModelInfo(modelId)) => {
+		(modelId: string) => {
 			if (isOpenAiProvider) {
 				handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, modelId, currentMode)
 			}
-			commitOpenAiSelection(modelId, modelInfo)
+			commitOpenAiSelection(modelId)
 		},
-		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider, toOpenAiModelInfo],
+		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider],
 	)
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
@@ -254,7 +315,10 @@ export const OpenAICompatibleProvider = ({
 
 			<ApiKeyField initialValue={savedApiKeyMask} onChange={handleApiKeyChange} providerName="OpenAI Compatible" />
 
-			{isRefreshingOpenAiModels && <div role="status">Loading models…</div>}
+			<label htmlFor="openai-compatible-model-picker">
+				<span style={{ fontWeight: 500 }}>Model ID</span>
+				{isRefreshingOpenAiModels && <span> Loading models…</span>}
+			</label>
 			{openAiModelsError && <div role="alert">{openAiModelsError}</div>}
 			{availableOpenAiModels.length > 0 ? (
 				<div
@@ -264,9 +328,6 @@ export const OpenAICompatibleProvider = ({
 						gap: 8,
 						marginBottom: 10,
 					}}>
-					<label htmlFor="openai-compatible-model-picker">
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</label>
 					<select
 						aria-label="Model ID"
 						id="openai-compatible-model-picker"
@@ -309,9 +370,8 @@ export const OpenAICompatibleProvider = ({
 					initialValue={selectedModelId || ""}
 					onChange={(value) => handleOpenAiModelSelection(value)}
 					placeholder={"Enter Model ID..."}
-					style={{ width: "100%", marginBottom: 10 }}>
-					<span style={{ fontWeight: 500 }}>Model ID</span>
-				</DebouncedTextField>
+					style={{ width: "100%", marginBottom: 10 }}
+				/>
 			)}
 
 			{/* OpenAI Compatible Custom Headers */}
@@ -468,105 +528,67 @@ export const OpenAICompatibleProvider = ({
 				<>
 					<VSCodeCheckbox
 						checked={!!openAiModelInfo?.supportsImages}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-							modelInfo.supportsImages = isChecked
-							handleOpenAiModelInfoChange(modelInfo)
-						}}>
+						onChange={(e: any) => updateModelOverride("supportsVision", e.target.checked === true)}>
 						Supports Images
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.isR1FormatRequired}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							let modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-							modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
-
-							handleOpenAiModelInfoChange(modelInfo)
-						}}>
+						checked={selectedModelOverrides.isR1FormatRequired ?? openAiModelInfo.apiFormat === ApiFormat.R1_CHAT}
+						onChange={(e: any) => updateModelOverride("isR1FormatRequired", e.target.checked === true)}>
 						Enable R1 messages format
 					</VSCodeCheckbox>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
-						<DebouncedTextField
-							initialValue={
-								openAiModelInfo?.contextWindow
-									? openAiModelInfo.contextWindow.toString()
-									: (openAiModelInfoSafeDefaults.contextWindow?.toString() ?? "")
-							}
-							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-								modelInfo.contextWindow = Number(value)
-								handleOpenAiModelInfoChange(modelInfo)
-							}}
-							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Context Window Size</span>
-						</DebouncedTextField>
+						<div style={{ flex: 1 }}>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.contextWindow)}
+								onChange={(value) => updateNumericModelOverride("contextWindow", "Context Window Size", value)}>
+								<span style={{ fontWeight: 500 }}>Context Window Size</span>
+							</DebouncedTextField>
+							{modelFieldErrors.contextWindow && <div role="alert">{modelFieldErrors.contextWindow}</div>}
+						</div>
 
-						<DebouncedTextField
-							initialValue={
-								openAiModelInfo?.maxTokens
-									? openAiModelInfo.maxTokens.toString()
-									: (openAiModelInfoSafeDefaults.maxTokens?.toString() ?? "")
-							}
-							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-								modelInfo.maxTokens = Number(value)
-								handleOpenAiModelInfoChange(modelInfo)
-							}}
-							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
-						</DebouncedTextField>
+						<div style={{ flex: 1 }}>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.maxTokens)}
+								onChange={(value) => updateNumericModelOverride("maxTokens", "Max Output Tokens", value)}
+								placeholder="not set">
+								<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
+							</DebouncedTextField>
+							{modelFieldErrors.maxTokens && <div role="alert">{modelFieldErrors.maxTokens}</div>}
+						</div>
 					</div>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
-						<DebouncedTextField
-							initialValue={
-								openAiModelInfo?.inputPrice
-									? openAiModelInfo.inputPrice.toString()
-									: (openAiModelInfoSafeDefaults.inputPrice?.toString() ?? "")
-							}
-							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-								modelInfo.inputPrice = parsePrice(value, openAiModelInfoSafeDefaults.inputPrice ?? 0)
-								handleOpenAiModelInfoChange(modelInfo)
-							}}
-							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
-						</DebouncedTextField>
+						<div style={{ flex: 1 }}>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.inputPrice)}
+								onChange={(value) => updateNumericModelOverride("inputPrice", "Input Price", value)}>
+								<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
+							</DebouncedTextField>
+							{modelFieldErrors.inputPrice && <div role="alert">{modelFieldErrors.inputPrice}</div>}
+						</div>
 
-						<DebouncedTextField
-							initialValue={
-								openAiModelInfo?.outputPrice
-									? openAiModelInfo.outputPrice.toString()
-									: (openAiModelInfoSafeDefaults.outputPrice?.toString() ?? "")
-							}
-							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-								modelInfo.outputPrice = parsePrice(value, openAiModelInfoSafeDefaults.outputPrice ?? 0)
-								handleOpenAiModelInfoChange(modelInfo)
-							}}
-							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
-						</DebouncedTextField>
+						<div style={{ flex: 1 }}>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.outputPrice)}
+								onChange={(value) => updateNumericModelOverride("outputPrice", "Output Price", value)}>
+								<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
+							</DebouncedTextField>
+							{modelFieldErrors.outputPrice && <div role="alert">{modelFieldErrors.outputPrice}</div>}
+						</div>
 					</div>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
-						<DebouncedTextField
-							initialValue={
-								openAiModelInfo?.temperature
-									? openAiModelInfo.temperature.toString()
-									: (openAiModelInfoSafeDefaults.temperature?.toString() ?? "")
-							}
-							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSafeDefaults }
-								modelInfo.temperature = parsePrice(value, openAiModelInfoSafeDefaults.temperature ?? 0)
-								handleOpenAiModelInfoChange(modelInfo)
-							}}>
-							<span style={{ fontWeight: 500 }}>Temperature</span>
-						</DebouncedTextField>
+						<div>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.temperature)}
+								onChange={(value) => updateNumericModelOverride("temperature", "Temperature", value)}
+								placeholder="not set">
+								<span style={{ fontWeight: 500 }}>Temperature</span>
+							</DebouncedTextField>
+							{modelFieldErrors.temperature && <div role="alert">{modelFieldErrors.temperature}</div>}
+						</div>
 					</div>
 				</>
 			)}
@@ -602,4 +624,26 @@ export const OpenAICompatibleProvider = ({
 			)}
 		</div>
 	)
+}
+
+type NumericModelOverrideKey = "contextWindow" | "maxTokens" | "inputPrice" | "outputPrice" | "temperature"
+
+type ParsedOptionalNumber = { valid: true; value: number | undefined } | { valid: false }
+
+// -1 is the legacy UI sentinel for "not set"; it renders (and compares) as unset.
+function displayedModelNumber(value: number | undefined): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value !== -1 ? value : undefined
+}
+
+function formatOptionalModelNumber(value: number | undefined): string {
+	return displayedModelNumber(value)?.toString() ?? ""
+}
+
+function parseOptionalFiniteNumber(value: string): ParsedOptionalNumber {
+	const trimmed = value.trim()
+	if (!trimmed) {
+		return { valid: true, value: undefined }
+	}
+	const parsed = Number(trimmed)
+	return Number.isFinite(parsed) ? { valid: true, value: parsed } : { valid: false }
 }

@@ -1,7 +1,6 @@
 // @jsxImportSource @opentui/react
 
 import {
-	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
 	fetchClineRecommendedModels,
 } from "@cline/core";
@@ -9,20 +8,23 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import { palette } from "../../palette";
+import {
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	type ClineModelPickerEntry,
+	freeTierDescriptionFor,
+	stripFreeMarker,
+} from "./cline-model-entries";
 
-export interface ClineModelPickerItem {
-	kind: "model";
-	model: ClineRecommendedModel;
-	tier: "recommended" | "free";
-}
-
-export interface ClineModelPickerBrowse {
-	kind: "browse";
-}
-
-export type ClineModelPickerEntry =
-	| ClineModelPickerItem
-	| ClineModelPickerBrowse;
+export {
+	buildFeaturedModelEntries,
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	type ClineModelPickerBrowse,
+	type ClineModelPickerEntry,
+	type ClineModelPickerItem,
+	type ClineModelPickerTier,
+	freeTierDescriptionFor,
+	stripFreeMarker,
+} from "./cline-model-entries";
 
 function tagColor(tag: string): string {
 	if (tag === "FREE") return palette.success;
@@ -39,12 +41,13 @@ function resolveDisplayName(
 		for (const key of candidates) {
 			if (!key) continue;
 			const hit = knownModels[key] as { name?: string } | undefined;
-			if (hit?.name) return hit.name;
+			if (hit?.name) return stripFreeMarker(hit.name);
 		}
 	}
-	return modelId.includes("/")
+	const fallback = modelId.includes("/")
 		? (modelId.split("/").pop() ?? modelId)
 		: modelId;
+	return stripFreeMarker(fallback);
 }
 
 export function useClineRecommendedModels() {
@@ -68,20 +71,6 @@ export function useClineRecommendedModels() {
 	return { data, loading };
 }
 
-export function buildClineModelEntries(
-	data: ClineRecommendedModelsData,
-): ClineModelPickerEntry[] {
-	const entries: ClineModelPickerEntry[] = [];
-	for (const m of data.recommended) {
-		entries.push({ kind: "model", model: m, tier: "recommended" });
-	}
-	for (const m of data.free) {
-		entries.push({ kind: "model", model: m, tier: "free" });
-	}
-	entries.push({ kind: "browse" });
-	return entries;
-}
-
 export function ClineModelPicker(props: {
 	entries: ClineModelPickerEntry[];
 	selected: number;
@@ -103,6 +92,7 @@ export function ClineModelPicker(props: {
 	let lastTier: string | null = null;
 	let isFirstHeader = true;
 	const rows: ReactNode[] = [];
+	const freeTierDescription = freeTierDescriptionFor(entries);
 
 	for (let i = 0; i < entries.length; i++) {
 		const entry = entries[i];
@@ -112,14 +102,20 @@ export function ClineModelPicker(props: {
 		if (entry.kind === "model") {
 			if (entry.tier !== lastTier) {
 				lastTier = entry.tier;
-				const label = entry.tier === "recommended" ? "Recommended" : "Free";
+				const label = CLINE_MODEL_PICKER_TIER_LABELS[entry.tier];
 				rows.push(
 					<box
 						key={`tier-${entry.tier}`}
 						paddingX={1}
 						marginTop={isFirstHeader ? 0 : 1}
+						flexDirection="column"
 					>
 						<text fg="gray">{label}</text>
+						{entry.tier === "free" && freeTierDescription && (
+							<text fg="gray">
+								<em>{freeTierDescription}</em>
+							</text>
+						)}
 					</box>,
 				);
 				isFirstHeader = false;

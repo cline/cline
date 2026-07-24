@@ -1,0 +1,80 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"lib": [
+			"ES2024",
+			"DOM"
+		],
+		"noEmit": true,
+		"rootDir": "../..",
+		"types": [
+			"node",
+			"vscode"
+		],
+		"paths": {
+			"@/*": [
+				"./src/*"
+			],
+			"@api/*": [
+				"./src/core/api/*"
+			],
+			"@core/*": [
+				"./src/core/*"
+			],
+			"@generated/*": [
+				"./src/generated/*"
+			],
+			"@hosts/*": [
+				"./src/hosts/*"
+			],
+			"@integrations/*": [
+				"./src/integrations/*"
+			],
+			"@packages/*": [
+				"./src/packages/*"
+			],
+			"@services/*": [
+				"./src/services/*"
+			],
+			"@shared/*": [
+				"./src/shared/*"
+			],
+			"@utils/*": [
+				"./src/utils/*"
+			],
+			"@cline/agents": [
+				"../../sdk/packages/agents/src/index.ts"
+			],
+			"@cline/agents/*": [
+				"../../sdk/packages/agents/src/*",
+				"../../sdk/packages/agents/src/*/index.ts"
+			],
+			"@cline/core": [
+				"../../sdk/packages/core/src/index.ts"
+			],
+			"@cline/core/*": [
+				"../../sdk/packages/core/src/*",
+				"../../sdk/packages/core/src/*/index.ts"
+			],
+			"@cline/llms": [
+				"../../sdk/packages/llms/src/index.ts"
+			],
+			"@cline/llms/*": [
+				"../../sdk/packages/llms/src/*",
+				"../../sdk/packages/llms/src/*/index.ts"
+			],
+			"@cline/shared": [
+				"../../sdk/packages/shared/src/index.ts"
+			],
+			"@cline/shared/*": [
+				"../../sdk/packages/shared/src/*",
+				"../../sdk/packages/shared/src/*/index.ts"
+			]
+		}
+	},
+	"files": [
+		"src/extension.ts"
+	],
+	"include": [],
+	"exclude": []
+}

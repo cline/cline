@@ -1,0 +1,40 @@
+{
+    "version": 1,
+    "session_id": "1784094124598_rruoq",
+    "source": "cli",
+    "pid": 85916,
+    "started_at": "2026-07-15T05:42:04.609Z",
+    "ended_at": "2026-07-15T05:42:04.865Z",
+    "exit_code": 0,
+    "status": "completed",
+    "interactive": true,
+    "provider": "cline",
+    "model": "mistralai/mixtral-8x22b-instruct",
+    "cwd": "/Users/example/dev/cline",
+    "workspace_root": "/Users/example/dev/cline",
+    "team_name": "team-eE3xY",
+    "enable_tools": true,
+    "enable_spawn": true,
+    "enable_teams": true,
+    "metadata": {
+        "source": "cli",
+        "provider": "cline",
+        "model": "mistralai/mixtral-8x22b-instruct",
+        "enableTools": true,
+        "enableSpawn": true,
+        "enableTeams": true,
+        "interactive": true,
+        "mode": "act",
+        "checkpointEnabled": true,
+        "hubCapabilityOwnerClientId": "core-aimh1e01-mrlnkfkx",
+        "messagesPath": "/Users/example/.cline/data/sessions/1784094053271_p8pzo/1784094053271_p8pzo.messages.json",
+        "pid": 85916,
+        "fork": {
+            "forkedFromSessionId": "1784094053271_p8pzo",
+            "forkedAt": "2026-07-15T05:42:01.804Z",
+            "source": "cli"
+        },
+        "title": "can you update @apps/examples/desktop-app/webview/components/agent-sidebar.tsx so that the filter icon comes afte (fork)"
+    },
+    "messages_path": "/Users/example/.cline/data/sessions/1784094124598_rruoq/1784094124598_rruoq.messages.json"
+}

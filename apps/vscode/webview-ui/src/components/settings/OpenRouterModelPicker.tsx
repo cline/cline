@@ -77,7 +77,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			currentMode,
 		)
 
-		void commitSelection(currentMode, { providerId: "openrouter", modelId: newModelId, modelInfo }).catch((err) =>
+		void commitSelection(currentMode, { providerId: "openrouter", modelId: newModelId }).catch((err) =>
 			console.error("Failed to commit OpenRouter model selection:", err),
 		)
 	}

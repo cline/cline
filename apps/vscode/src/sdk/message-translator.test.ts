@@ -198,6 +198,32 @@ describe("translateSessionEvent — pending prompts", () => {
 			}),
 		])
 	})
+
+	it("strips runtime-generated mode notices from the queued prompt echo", () => {
+		// The webview shows what the user typed; the <mode_notice> element the
+		// mode coordinator stamps onto outbound prompts is model-facing context
+		// and must never render as user text.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>\nplease just finish",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "please just finish",
+			}),
+		])
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -783,6 +809,101 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(second.path).toBe("/src/package.json")
 	})
 
+	it("content_end for read_files carries the requested line range into the readFile payload", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: { files: [{ path: "/src/big-file.ts", start_line: 100, end_line: 200 }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("readFile")
+		expect(endTool.path).toBe("/src/big-file.ts")
+		expect(endTool.readLineStart).toBe(100)
+		expect(endTool.readLineEnd).toBe(200)
+	})
+
+	it("content_end for read_files treats a start_line-only read as open-ended and defaults a missing start_line to 1", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: {
+							files: [
+								{ path: "/src/paged.ts", start_line: 500, end_line: null },
+								{ path: "/src/head.ts", end_line: 50 },
+								{ path: "/src/whole.ts" },
+							],
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(3)
+		const [paged, head, whole] = endResult.messages.map((m) => JSON.parse(m.text!))
+		expect(paged.readLineStart).toBe(500)
+		expect(paged.readLineEnd).toBeUndefined()
+		expect(head.readLineStart).toBe(1)
+		expect(head.readLineEnd).toBe(50)
+		expect(whole.readLineStart).toBeUndefined()
+		expect(whole.readLineEnd).toBeUndefined()
+	})
+
 	it("content_end without prior content_start still works (graceful fallback)", () => {
 		const state = new MessageTranslatorState()
 
@@ -1149,6 +1270,25 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(parsed.providerId).toBe("cline")
 	})
 
+	it("preserves ClinePass period limit errors for specialized webview rendering", () => {
+		const state = new MessageTranslatorState(undefined, () => "cline-pass")
+		const message = "You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].text).toBe(message)
+	})
+
 	it("rewrites Anthropic bare 'model: <id>' 404 into an actionable message", () => {
 		const state = new MessageTranslatorState(undefined, () => "anthropic")
 		const event: CoreSessionEvent = {
@@ -1502,6 +1642,125 @@ describe("translateSessionEvent — agent_event notice", () => {
 		expect(result.messages[0].say).toBe("info")
 		expect(result.messages[0].text).toBe("Retrying API request...")
 		expect(result.messages[0].partial).toBe(false)
+	})
+
+	function noticeEvent(message: string, metadata?: Record<string, unknown>): CoreSessionEvent {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message,
+					metadata,
+				} as AgentEvent,
+			},
+		}
+	}
+
+	it("translates compaction status notices into a divider row updated in place", () => {
+		const state = new MessageTranslatorState()
+
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+		expect(started).toHaveLength(1)
+		expect(started[0].say).toBe("compaction")
+		expect(JSON.parse(started[0].text ?? "{}")).toMatchObject({ status: "started", mode: "auto" })
+
+		const completed = translateSessionEvent(
+			noticeEvent("auto-compacted", {
+				kind: "auto_compaction",
+				phase: "completed",
+				tokensBefore: 120_000,
+				tokensAfter: 40_000,
+				messagesBefore: 80,
+				messagesAfter: 12,
+			}),
+			state,
+		).messages
+		expect(completed).toHaveLength(1)
+		expect(completed[0].say).toBe("compaction")
+		// Same ts: the webview replaces the "started" spinner row in place.
+		expect(completed[0].ts).toBe(started[0].ts)
+		expect(JSON.parse(completed[0].text ?? "{}")).toMatchObject({
+			status: "completed",
+			mode: "auto",
+			tokensBefore: 120_000,
+			tokensAfter: 40_000,
+			messagesBefore: 80,
+			messagesAfter: 12,
+		})
+	})
+
+	it("suppresses known-internal status notices instead of rendering raw slugs", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			noticeEvent("compaction-budget-adjusted", { kind: "compaction_budget_emergency", actionCount: 1 }),
+			state,
+		)
+		expect(result.messages).toHaveLength(0)
+	})
+
+	it("renders an unrecognized status notice as an info row rather than dropping it", () => {
+		// Only the known-internal set is suppressed; a status notice added to the
+		// SDK later should surface (even as a raw slug) instead of vanishing.
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(noticeEvent("some-future-status", { kind: "something_new" }), state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("info")
+		expect(result.messages[0].text).toBe("some-future-status")
+	})
+
+	it("finalizes a dangling compaction divider as failed when the turn errors", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const errored = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "error", error: new Error("boom"), recoverable: false } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = errored.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "failed" })
+	})
+
+	it("finalizes a dangling compaction divider as cancelled when the turn ends", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const done = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "done", reason: "aborted" } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = done.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "cancelled" })
 	})
 })
 

@@ -51,7 +51,7 @@ function mcpSettingsPath(dataDir?: string): string {
 }
 
 /** Path to a task directory */
-function taskDirPath(taskId: string, dataDir?: string): string {
+export function taskDirPath(taskId: string, dataDir?: string): string {
 	return path.join(resolveDataDir(dataDir), "tasks", taskId)
 }
 

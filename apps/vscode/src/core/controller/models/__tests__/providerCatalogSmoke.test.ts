@@ -75,7 +75,6 @@ describe("provider model catalog backend smoke", () => {
 				providerId: "deepseek",
 				mode: "act",
 				modelId,
-				modelInfo,
 			}),
 		)
 

@@ -3,6 +3,9 @@ import type { SessionHookEvent } from "@/lib/session-diff";
 export type ProcessContext = {
 	workspaceRoot: string;
 	cwd: string;
+	homeDir?: string;
+	platform?: string;
+	appVersion?: string;
 };
 
 export type AgentChunkEvent = {
@@ -101,7 +104,11 @@ export type ChatWsChunkEvent = {
 	event: AgentChunkEvent;
 };
 
-export type ChatTransportState = "connecting" | "reconnecting" | "connected";
+export type ChatTransportState =
+	| "connecting"
+	| "reconnecting"
+	| "connected"
+	| "unavailable";
 
 export type CoreLogChunk = {
 	level?: string;

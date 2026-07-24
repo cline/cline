@@ -257,7 +257,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `--hooks-dir <path>` | Additional hooks directory hint for runtime hook injection |
 | `--acp` | ACP (Agent Client Protocol) mode |
 | `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level; thinking is off when the flag is omitted. |
-| `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `basic`; use `agentic` for LLM compaction or `off` to disable. |
+| `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `agentic`; use `basic` for local truncation or `off` to disable. |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
 | `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline` (enables sandbox mode automatically) |
@@ -346,8 +346,23 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 - `CLINE_LOG_LEVEL` - Runtime log level (`trace|debug|info|warn|error|fatal|silent`, default `info`)
 - `CLINE_LOG_PATH` - Runtime log file path (default `<CLINE_DATA_DIR>/logs/cline.log`)
 - `CLINE_LOG_NAME` - Logger name embedded in runtime log records
+- `CLINE_DEBUG` - Set to `1`/`true` to print wrapper diagnostics (e.g. the CA bundle summary)
 
 `--key` takes precedence over environment variables.
+
+## Certificate trust
+
+The CLI automatically trusts your operating system's certificate store, so it
+works behind corporate TLS-inspecting proxies and with self-signed/internal
+endpoints without any setup. On launch the `cline` wrapper harvests the OS trust
+anchors and writes them to `~/.cline/cli-node-extra-ca-certs.pem`, then points
+the runtime's `NODE_EXTRA_CA_CERTS` at that bundle. The file is regenerated when
+it changes and is safe to delete (it is rebuilt on the next run).
+
+If you set `NODE_EXTRA_CA_CERTS` yourself, your certificates are **merged** into
+that bundle alongside the system store rather than replacing it. Run with
+`CLINE_DEBUG=1` to see how many OS and user CAs were loaded and where the bundle
+was written.
 
 ## Contributing
 

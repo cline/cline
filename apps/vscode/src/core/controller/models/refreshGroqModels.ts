@@ -139,8 +139,8 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
 						inputPrice: staticModelInfo?.inputPrice || 0,
 						outputPrice: staticModelInfo?.outputPrice || 0,
-						cacheWritesPrice: (staticModelInfo as any)?.cacheWritesPrice || 0,
-						cacheReadsPrice: (staticModelInfo as any).cacheReadsPrice || 0,
+						cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
+						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
 					}
 

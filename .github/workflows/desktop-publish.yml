@@ -1,0 +1,310 @@
+name: desktop-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_tag:
+        description: "Existing release tag to publish, for example desktop-v0.1.0"
+        required: true
+        type: string
+      confirm_publish:
+        description: 'Type "publish" to confirm the desktop release.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  validate:
+    name: Validate release tag
+    if: |
+      github.repository == 'cline/cline' &&
+      github.event.inputs.confirm_publish == 'publish' &&
+      !endsWith(github.actor, '[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Validate release tag
+        id: version
+        env:
+          TAG: ${{ github.event.inputs.git_tag }}
+        run: |
+          if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "git_tag must look like desktop-vX.Y.Z, got: ${TAG}"
+            exit 1
+          fi
+
+          VERSION="${TAG#desktop-v}"
+          PACKAGE_VERSION=$(node -p "require('./apps/examples/desktop-app/package.json').version")
+          TAURI_VERSION=$(node -p "require('./apps/examples/desktop-app/src-tauri/tauri.conf.json').version")
+
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "apps/examples/desktop-app/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            exit 1
+          fi
+
+          if [ "$TAURI_VERSION" != "$VERSION" ]; then
+            echo "apps/examples/desktop-app/src-tauri/tauri.conf.json version ${TAURI_VERSION} does not match ${TAG}"
+            exit 1
+          fi
+
+          TAG_COMMIT=$(git rev-parse "${TAG}^{commit}")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo "${TAG} does not point at the checked out commit"
+            exit 1
+          fi
+
+          git fetch origin +main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$HEAD_COMMIT" origin/main; then
+            echo "${TAG} is not reachable from origin/main"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build macOS (${{ matrix.arch }})
+    needs: validate
+    runs-on: macos-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: aarch64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/examples/desktop-app/src-tauri
+          key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Write App Store Connect API key
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          if [ -z "$APPLE_API_KEY_CONTENT" ]; then
+            echo "APPLE_API_KEY_CONTENT secret is not configured"
+            exit 1
+          fi
+          printf "%s" "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Build, sign, and notarize desktop bundle
+        working-directory: apps/examples/desktop-app
+        run: bunx tauri build --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
+        env:
+          # Developer ID signing (Tauri imports the cert into a temp keychain)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # Notarization via App Store Connect API key. Tauri reads the Key ID
+          # from APPLE_API_KEY; APPLE_API_KEY_ID alone silently skips notarization.
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Updater artifact signing (minisign keypair, independent of Apple)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Collect artifacts
+        working-directory: apps/examples/desktop-app
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle"
+          OUT="dist/publish"
+          mkdir -p "$OUT"
+
+          DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -print -quit)
+          if [ -z "$DMG" ]; then
+            echo "no DMG produced under $BUNDLE_DIR/dmg"
+            exit 1
+          fi
+          cp "$DMG" "$OUT/Cline-Code_${VERSION}_${ARCH}.dmg"
+
+          TARBALL=$(find "$BUNDLE_DIR/macos" -name '*.app.tar.gz' -print -quit)
+          if [ -z "$TARBALL" ] || [ ! -f "${TARBALL}.sig" ]; then
+            echo "updater artifact or signature missing under $BUNDLE_DIR/macos"
+            exit 1
+          fi
+          cp "$TARBALL" "$OUT/Cline-Code_${VERSION}_${ARCH}.app.tar.gz"
+          cp "${TARBALL}.sig" "$OUT/Cline-Code_${VERSION}_${ARCH}.app.tar.gz.sig"
+
+          ls -lh "$OUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.arch }}
+          path: apps/examples/desktop-app/dist/publish/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/desktop
+          merge-multiple: true
+
+      - name: Get Changelog Entry
+        id: changelog
+        run: |
+          # Grab content between the first "## " header and the next one
+          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' apps/examples/desktop-app/CHANGELOG.md)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          printf "%s\n" "$CONTENT" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Generate updater manifest
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          bun apps/examples/desktop-app/scripts/generate-update-manifest.ts \
+            --version "$VERSION" \
+            --tag "$TAG" \
+            --dir dist/desktop \
+            --out dist/desktop/latest.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+          cat dist/desktop/latest.json
+
+      - name: Get Previous Desktop Tag
+        id: prev_tag
+        env:
+          CURRENT_TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          name: "Desktop v${{ needs.validate.outputs.version }}"
+          # The repo-wide "latest" release stays owned by CLI releases; the
+          # desktop auto-update feed is the rolling desktop-latest release.
+          make_latest: "false"
+          files: dist/desktop/*
+          body: |
+            ${{ steps.changelog.outputs.content }}
+
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update auto-update feed (desktop-latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view desktop-latest >/dev/null 2>&1; then
+            gh release create desktop-latest \
+              --title "Cline Code desktop (auto-update feed)" \
+              --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
+              --latest=false \
+              --target "$(git rev-parse HEAD)"
+          fi
+          gh release upload desktop-latest dist/desktop/latest.json --clobber
+
+      - name: Summary
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          echo "Published Cline Code desktop v${VERSION}"
+          echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-latest/latest.json"
+
+      - name: Post release to Slack
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          payload: |
+            channel: "C0APVKGGZFC"
+            text: "Cline Code desktop v${{ needs.validate.outputs.version }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "Cline Code desktop v${{ needs.validate.outputs.version }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ${{ toJSON(steps.changelog.outputs.content) }}
+              - type: "context"
+                elements:
+                  - type: "mrkdwn"
+                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — installed apps auto-update on next launch${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"

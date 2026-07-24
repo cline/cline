@@ -46,7 +46,9 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 				return null
 			}
 			const lineHint =
-				tool.readLineStart != null && tool.readLineEnd != null ? ` (lines ${tool.readLineStart}-${tool.readLineEnd})` : ""
+				tool.readLineStart != null
+					? ` (lines ${tool.readLineStart}${tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"})`
+					: ""
 			return `Reading ${cleanedPath}${lineHint}...`
 		}
 		case "listFilesTopLevel":
@@ -302,7 +304,9 @@ function getToolDisplayInfo(tool: ClineSayTool) {
 	switch (tool.tool) {
 		case "readFile": {
 			const lineNote =
-				tool.readLineStart != null && tool.readLineEnd != null ? `lines ${tool.readLineStart}-${tool.readLineEnd}` : null
+				tool.readLineStart != null
+					? `lines ${tool.readLineStart}${tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"}`
+					: null
 			return {
 				icon,
 				path: filePath,

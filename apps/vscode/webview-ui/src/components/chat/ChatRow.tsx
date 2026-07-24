@@ -46,6 +46,7 @@ import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
+import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
@@ -507,10 +508,11 @@ export const ChatRowContent = memo(
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
-										{tool.readLineStart != null && tool.readLineEnd != null ? (
+										{tool.readLineStart != null ? (
 											<span className="opacity-80">
 												{" "}
-												({tool.readLineStart}-{tool.readLineEnd})
+												({tool.readLineStart}
+												{tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"})
 											</span>
 										) : null}
 									</span>
@@ -1053,6 +1055,8 @@ export const ChatRowContent = memo(
 						)
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
+					case "compaction":
+						return <CompactionRow message={message} />
 					default:
 						return (
 							<div>

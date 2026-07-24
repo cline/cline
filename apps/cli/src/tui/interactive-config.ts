@@ -27,6 +27,7 @@ import {
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "@cline/core";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { getToolCatalog } from "../runtime/tools";
 import {
 	type InteractiveSlashCommand,
@@ -195,7 +196,7 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				const raw = readFileSync(filePath, "utf8");
+				const raw = readFileSyncStrippingUtf8Bom(filePath);
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);

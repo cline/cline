@@ -49,6 +49,7 @@ describe("SdkProviderChangeCoordinator", () => {
 			mode: "act",
 		})
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
+			expectedSession: activeSession,
 			startInput: { prompt: "start" },
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "providerChange",
@@ -69,66 +70,14 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "plan" })
 	})
 
-	it("defers the restart while the active session is running", async () => {
+	it("schedules the restart while the active session is running", () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-
-		activeSession.isRunning = false
-		await coordinator.checkDeferredRestart()
-
-		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
-	})
-
-	it("can clear a deferred restart before the session becomes idle", async () => {
-		const activeSession = makeActiveSession({ isRunning: true })
-		const { coordinator, options } = makeCoordinator({ activeSession })
-
-		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
-		coordinator.clearPendingRestart()
-
-		activeSession.isRunning = false
-		await coordinator.checkDeferredRestart()
-
-		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-	})
-
-	it("lets pending mode changes replace deferred provider restarts", async () => {
-		const activeSession = makeActiveSession({ isRunning: true })
-		const { coordinator, options } = makeCoordinator({ activeSession })
-		const mode = {
-			hasPendingModeChange: vi.fn(() => true),
-			applyPendingModeChange: vi.fn().mockResolvedValue(undefined),
-		}
-
-		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
-		activeSession.isRunning = false
-
-		await coordinator.handleTurnComplete(mode)
-		await coordinator.checkDeferredRestart()
-
-		expect(mode.applyPendingModeChange).toHaveBeenCalledOnce()
-		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-	})
-
-	it("checks deferred provider restarts on turn complete when no mode change is pending", async () => {
-		const activeSession = makeActiveSession({ isRunning: true })
-		const { coordinator, options } = makeCoordinator({ activeSession })
-		const mode = {
-			hasPendingModeChange: vi.fn(() => false),
-			applyPendingModeChange: vi.fn().mockResolvedValue(undefined),
-		}
-
-		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
-		activeSession.isRunning = false
-
-		await coordinator.handleTurnComplete(mode)
-
-		expect(mode.applyPendingModeChange).not.toHaveBeenCalled()
-		expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
 	})
 
 	it("updates the task id when the replacement session id changes", async () => {
@@ -218,6 +167,14 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		rebuilds: {
+			cancel: vi.fn(),
+			request: vi.fn((_reason: string, rebuild: () => Promise<void>) => {
+				if (!activeSession?.isRunning) {
+					void rebuild()
+				}
+			}),
+		},
 	} as unknown as SdkProviderChangeCoordinatorOptions & {
 		stateManager: StateManager & { getGlobalSettingsKey: ReturnType<typeof vi.fn> }
 		sessions: SdkProviderChangeCoordinatorOptions["sessions"] & {

@@ -54,7 +54,8 @@ export class Logger {
 				fullMessage += ` ${args.map((arg) => JSON.stringify(arg)).join(" ")}`
 			}
 			const errorSuffix = error?.message ? ` ${error.message}` : ""
-			Logger.output(`${level} ${fullMessage}${errorSuffix}`.trimEnd())
+			const ts = new Date().toISOString()
+			Logger.output(`${ts} ${level} ${fullMessage}${errorSuffix}`.trimEnd())
 		} catch {
 			// do nothing if Logger fails
 		}

@@ -39,6 +39,7 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
+	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
 	type Message,
@@ -52,6 +53,10 @@ import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
+import {
+	captureAuthRunRetry,
+	captureMistakeLimitReached,
+} from "../../services/telemetry/core-events";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
 	getMessageBuilderOptionsFromEnv,
@@ -64,6 +69,10 @@ import {
 	messagesToAgentMessages,
 } from "../config/agent-message-codec";
 import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
+import {
+	type ConnectionUpdate,
+	normalizeConnectionUpdate,
+} from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
@@ -256,17 +265,7 @@ export interface SessionRuntimeOrchestratorDeps {
 }
 
 /** Connection overrides applied via `updateConnection`. */
-export interface ConnectionOverrides {
-	providerId?: string;
-	modelId?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
-	providerConfig?: unknown;
-	reasoningEffort?: AgentConfig["reasoningEffort"];
-	thinking?: boolean;
-	thinkingBudgetTokens?: number;
-}
+export type ConnectionOverrides = ConnectionUpdate;
 
 // =============================================================================
 // SessionRuntime orchestrator
@@ -282,10 +281,10 @@ export class SessionRuntime {
 	private readonly agentId: string;
 	private readonly parentAgentId?: string;
 	private readonly logger?: BasicLogger;
-	// Reserved for §3.4.4 telemetry parity (not yet consumed — §3.4.4
-	// listed as explicitly deferred until telemetry wiring is added).
-	// Typed as `readonly` to preserve the field slot for future use
-	// without re-touching the constructor.
+	// §3.4.4 telemetry parity. Currently consumed by the MistakeTracker's
+	// `onLimitTelemetry` hook (task.mistake_limit_reached); most other
+	// runtime telemetry is emitted host-side from the agent event stream
+	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
 	private readonly mistakeTracker: MistakeTracker;
@@ -407,6 +406,22 @@ export class SessionRuntime {
 		this.mistakeTracker = new MistakeTracker({
 			maxConsecutiveMistakes: maxMistakes,
 			onLimitReached: config.onConsecutiveMistakeLimitReached,
+			onLimitTelemetry: (context) => {
+				// Read connection fields from `this.config` at fire time so a
+				// mid-session `updateConnection` is reflected in the event.
+				captureMistakeLimitReached(this.telemetry, {
+					ulid: this.config.sessionId ?? this.conversation.getConversationId(),
+					model: this.config.modelId,
+					provider: this.config.providerId,
+					reason: context.reason,
+					consecutiveMistakes: context.consecutiveMistakes,
+					maxConsecutiveMistakes: context.maxConsecutiveMistakes,
+					agentId: this.agentId,
+					conversationId: this.conversation.getConversationId(),
+					parentAgentId: this.parentAgentId,
+					isSubagent: Boolean(this.parentAgentId),
+				});
+			},
 			emit: (event) => this.emitLegacyEvent(event),
 			log: (level, message, metadata) =>
 				leveledLog(this.logger, level, message, metadata),
@@ -485,20 +500,28 @@ export class SessionRuntime {
 
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
+		const updates = normalizeConnectionUpdate(overrides);
 		const next: AgentConfig = { ...this.config };
-		if (overrides.providerId !== undefined)
-			next.providerId = overrides.providerId;
-		if (overrides.modelId !== undefined) next.modelId = overrides.modelId;
-		if (overrides.apiKey !== undefined) next.apiKey = overrides.apiKey;
-		if (overrides.baseUrl !== undefined) next.baseUrl = overrides.baseUrl;
-		if (overrides.headers !== undefined) next.headers = overrides.headers;
-		if (overrides.providerConfig !== undefined)
-			next.providerConfig = overrides.providerConfig;
-		if (overrides.reasoningEffort !== undefined)
-			next.reasoningEffort = overrides.reasoningEffort;
-		if (overrides.thinking !== undefined) next.thinking = overrides.thinking;
-		if (overrides.thinkingBudgetTokens !== undefined)
-			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens;
+		if (updates.providerId !== undefined) next.providerId = updates.providerId;
+		if (updates.modelId !== undefined) next.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) next.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			next.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			next.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			next.thinkingBudgetTokens = updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			next.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				next.reasoningEffort = undefined;
+				next.thinkingBudgetTokens = undefined;
+			}
+		}
 		this.config = next;
 	}
 
@@ -672,13 +695,44 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunInternal(input).finally(() => {
+		activePromise = this.executeRunWithAuthRetry(input).finally(() => {
 			if (this.activeRunPromise === activePromise) {
 				this.activeRunPromise = null;
 			}
 		});
 		this.activeRunPromise = activePromise;
 		return activePromise;
+	}
+
+	/**
+	 * Retry a run once when it failed with an auth-like error and the host
+	 * refreshed credentials via `config.onAuthError`. The failed attempt's
+	 * trail is already persisted to the conversation store, so the retry
+	 * continues from where the stream died instead of replaying the run.
+	 */
+	private async executeRunWithAuthRetry(input: {
+		userMessage?: string;
+		userImages?: string[];
+		userFiles?: string[];
+		isContinue: boolean;
+	}): Promise<AgentResult> {
+		const result = await this.executeRunInternal(input);
+		if (
+			result.finishReason !== "error" ||
+			!this.config.onAuthError ||
+			!isLikelyAuthError(result.text)
+		) {
+			return result;
+		}
+		const refreshed = await this.config.onAuthError().catch(() => false);
+		if (!refreshed) {
+			return result;
+		}
+		const retryResult = await this.executeRunInternal({ isContinue: true });
+		captureAuthRunRetry(this.telemetry, this.config.providerId, {
+			recovered: retryResult.finishReason !== "error",
+		});
+		return retryResult;
 	}
 
 	private async executeRunInternal(input: {

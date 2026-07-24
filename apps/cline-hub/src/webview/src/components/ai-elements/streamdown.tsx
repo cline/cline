@@ -20,10 +20,13 @@ import { cn } from "@/lib/utils";
 
 type MarkdownCodeProps = ComponentProps<"code"> & {
 	"data-block"?: boolean | string;
+	// react-markdown/streamdown pass the hast `Element` here, whose
+	// `properties` is a broad `Record`. Keep this assignable from that type
+	// (rather than a narrow `{ metastring?: string }`) so the component stays
+	// compatible with `Components` regardless of how strict the resolved
+	// hast/streamdown types are; the metastring value is validated at read time.
 	node?: {
-		properties?: {
-			metastring?: string;
-		};
+		properties?: Record<string, unknown>;
 	};
 };
 
@@ -67,7 +70,8 @@ const MarkdownCode = ({
 		);
 	}
 
-	const meta = node?.properties?.metastring;
+	const metaValue = node?.properties?.metastring;
+	const meta = typeof metaValue === "string" ? metaValue : undefined;
 	const startLineMatch = meta?.match(START_LINE_PATTERN);
 	const startLine = startLineMatch ? Number.parseInt(startLineMatch[1], 10) : 1;
 	const showLineNumbers = meta ? !NO_LINE_NUMBERS_PATTERN.test(meta) : true;

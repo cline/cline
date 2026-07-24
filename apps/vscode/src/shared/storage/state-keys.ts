@@ -75,7 +75,10 @@ const GLOBAL_STATE_FIELDS = {
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
 	vscodeTerminalExecutionMode: {
-		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
+		// Default to background execution to match the CLI's behavior. Users who
+		// previously chose a mode keep their saved value (we can't distinguish an
+		// explicit choice from a coincidentally-saved old default, so we honor it).
+		default: "backgroundExec" as "vscodeTerminal" | "backgroundExec",
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },

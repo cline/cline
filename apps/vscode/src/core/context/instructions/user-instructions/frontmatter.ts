@@ -1,3 +1,4 @@
+import { stripUtf8Bom } from "@cline/shared"
 import * as yaml from "js-yaml"
 
 export type FrontmatterParseResult = {
@@ -35,11 +36,16 @@ export type FrontmatterParseResult = {
  * - If no frontmatter exists, returns data={} and body=original markdown.
  */
 export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding),
+	// which Node's `utf-8` decoding does not strip on its own. Without this the frontmatter
+	// regex below never matches a file that starts with "\uFEFF---" (see cline/cline#12151).
+	const normalizedMarkdown = stripUtf8Bom(markdown)
+
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
-	const match = markdown.match(frontmatterRegex)
+	const match = normalizedMarkdown.match(frontmatterRegex)
 
 	if (!match) {
-		return { data: {}, body: markdown, hadFrontmatter: false }
+		return { data: {}, body: normalizedMarkdown, hadFrontmatter: false }
 	}
 
 	const [, yamlContent, body] = match
@@ -48,6 +54,6 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 		return { data, body, hadFrontmatter: true }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
-		return { data: {}, body: markdown, hadFrontmatter: true, parseError: message }
+		return { data: {}, body: normalizedMarkdown, hadFrontmatter: true, parseError: message }
 	}
 }

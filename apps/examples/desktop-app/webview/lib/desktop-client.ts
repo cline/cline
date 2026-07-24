@@ -18,8 +18,9 @@ async function tryTauriInvoke<T>(
 	try {
 		const { invoke } = await import("@tauri-apps/api/core");
 		return await invoke<T>(command, args);
-	} catch {
-		throw new Error(`Tauri invoke unavailable for command: ${command}`);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Tauri invoke failed for ${command}: ${message}`);
 	}
 }
 
@@ -34,10 +35,11 @@ let resolvedEndpointCache: string | null = null;
  *    or an integration test harness.
  * 2. Tauri `get_desktop_backend_endpoint` command — used when running inside
  *    the full Tauri app shell.
- * 3. Fallback to `ws://127.0.0.1:3126/transport` — the sidecar's default port
- *    when running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
+ * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` (inlined at build time), then fallback
+ *    to `ws://127.0.0.1:3126/transport` — the sidecar's default port when
+ *    running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
  */
-async function resolveBackendEndpoint(): Promise<string> {
+export async function resolveDesktopBackendWsEndpoint(): Promise<string> {
 	if (resolvedEndpointCache) return resolvedEndpointCache;
 
 	// 1. Explicit injection from sidecar or test harness.
@@ -51,7 +53,7 @@ async function resolveBackendEndpoint(): Promise<string> {
 	}
 
 	// 2. Tauri command (full desktop app).
-	try {
+	if (isTauriAvailable()) {
 		const endpoint = await tryTauriInvoke<string>(
 			"get_desktop_backend_endpoint",
 		);
@@ -60,13 +62,26 @@ async function resolveBackendEndpoint(): Promise<string> {
 			resolvedEndpointCache = trimmed;
 			return resolvedEndpointCache;
 		}
-	} catch {
-		// Tauri not available — fall through to default.
+		throw new Error("Tauri returned an empty desktop backend endpoint");
 	}
 
-	// 3. Default sidecar port for local dev mode.
-	resolvedEndpointCache = "ws://127.0.0.1:3126/transport";
+	// 3. Env override, then default sidecar port for local dev mode without
+	// the Tauri bridge.
+	const envEndpoint = process.env.NEXT_PUBLIC_SIDECAR_WS_ENDPOINT?.trim();
+	resolvedEndpointCache = envEndpoint || "ws://127.0.0.1:3126/transport";
 	return resolvedEndpointCache;
+}
+
+export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
+	const wsEndpoint = await resolveDesktopBackendWsEndpoint();
+	const endpoint = new URL(wsEndpoint);
+	endpoint.protocol = endpoint.protocol === "wss:" ? "https:" : "http:";
+	if (endpoint.pathname.endsWith("/transport")) {
+		endpoint.pathname = endpoint.pathname.slice(0, -"/transport".length);
+	}
+	endpoint.search = "";
+	endpoint.hash = "";
+	return endpoint.toString().replace(/\/$/, "");
 }
 
 type PendingRequest = {
@@ -84,13 +99,16 @@ const RECONNECT_MAX_DELAY_MS = 4_000;
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
 // In sidecar/web mode these commands are handled by the sidecar over WebSocket.
-function isTauriAvailable(): boolean {
+export function isTauriAvailable(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
+	"get_update_status",
+	"restart_to_apply_update",
+	"set_app_icon",
 ]);
 
 class DesktopClient {
@@ -102,6 +120,7 @@ class DesktopClient {
 	private handlers = new Map<string, Set<EventHandler>>();
 	private transportStateHandlers = new Set<TransportStateHandler>();
 	private transportState: DesktopTransportState = "connecting";
+	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
 
@@ -116,7 +135,7 @@ class DesktopClient {
 		if (this.endpoint?.trim()) {
 			return this.endpoint;
 		}
-		const endpoint = await resolveBackendEndpoint();
+		const endpoint = await resolveDesktopBackendWsEndpoint();
 		this.endpoint = endpoint;
 		return this.endpoint;
 	}
@@ -203,6 +222,7 @@ class DesktopClient {
 				this.socket = socket;
 				socket.onopen = () => {
 					this.hasConnectedOnce = true;
+					this.transportError = null;
 					this.setTransportState("connected");
 					resolve();
 				};
@@ -217,7 +237,9 @@ class DesktopClient {
 						this.socket = null;
 					}
 					if (this.transportState !== "connected") {
-						reject(new Error("Desktop backend transport unavailable"));
+						reject(
+							new Error(`Desktop backend transport unavailable at ${endpoint}`),
+						);
 						return;
 					}
 					this.setTransportState("reconnecting");
@@ -225,9 +247,18 @@ class DesktopClient {
 					this.scheduleReconnect();
 				};
 			});
-		})().finally(() => {
-			this.connectPromise = null;
-		});
+		})()
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				this.transportError = message;
+				if (!this.hasConnectedOnce) {
+					this.setTransportState("unavailable");
+				}
+				throw error;
+			})
+			.finally(() => {
+				this.connectPromise = null;
+			});
 
 		return this.connectPromise;
 	}
@@ -307,6 +338,25 @@ class DesktopClient {
 	getTransportState(): DesktopTransportState {
 		return this.transportState;
 	}
+
+	getTransportError(): string | null {
+		return this.transportError;
+	}
 }
 
 export const desktopClient = new DesktopClient();
+
+/**
+ * Open a URL in the user's default browser. Inside the Tauri shell,
+ * `target="_blank"` anchors are silently dropped (no window opener is
+ * configured), so external links must be routed through the sidecar, which
+ * runs on the host and can spawn the platform opener. In plain web mode the
+ * browser handles it directly.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+	if (isTauriAvailable()) {
+		await desktopClient.invoke("open_external_url", { url });
+		return;
+	}
+	window.open(url, "_blank", "noopener,noreferrer");
+}

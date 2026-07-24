@@ -5,8 +5,8 @@ import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 
 // File edits are performed by the SDK's `editor` tool executor, which writes
 // the file directly (Node fs) after the tool call is approved. It does not
-// stream the edit through DiffViewProvider, so no diff editor tab (e.g.
-// "test.ts: Original ↔ Cline's Changes") opens. This test asserts the default
+// stream the edit into the real document, so the preview is read-only and the
+// SDK executor applies the edit directly. This test asserts the default
 // auto-approval flow: ask row appears without manual approval buttons, the file
 // is modified on disk, and the turn-ending completion text appears.
 e2e.describe("File Edit Auto-Approval", () => {
