@@ -48,30 +48,44 @@ function parseDashboardArgs(env: NodeJS.ProcessEnv): string[] | undefined {
 	}
 }
 
+async function clearDiscoveryIfStillOwned(
+	discoveryPath: string,
+	pid: number,
+): Promise<void> {
+	const current = await readHubDashboardDiscovery(discoveryPath);
+	// A replacement hub may have already rewritten discovery for a new PID.
+	if (current && current.pid !== pid) {
+		return;
+	}
+	await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+}
+
 export async function stopManagedHubDashboardProcess(
 	discoveryPath: string,
 ): Promise<boolean> {
 	const discovered = await readHubDashboardDiscovery(discoveryPath);
 	if (!discovered?.pid) {
-		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+		const current = await readHubDashboardDiscovery(discoveryPath);
+		if (!current?.pid) {
+			await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+		}
 		return false;
 	}
+	const pid = discovered.pid;
 	try {
-		process.kill(discovered.pid, "SIGTERM");
+		process.kill(pid, "SIGTERM");
 	} catch (error) {
-		if (isHubDashboardPidAlive(discovered.pid)) {
+		if (isHubDashboardPidAlive(pid)) {
 			throw error;
 		}
-		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+		await clearDiscoveryIfStillOwned(discoveryPath, pid);
 		return false;
 	}
-	const stopped = await waitForPidToExit(discovered.pid);
+	const stopped = await waitForPidToExit(pid);
 	if (!stopped) {
-		throw new Error(
-			`Timed out waiting for dashboard process ${discovered.pid} to stop.`,
-		);
+		throw new Error(`Timed out waiting for dashboard process ${pid} to stop.`);
 	}
-	await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+	await clearDiscoveryIfStillOwned(discoveryPath, pid);
 	return true;
 }
 

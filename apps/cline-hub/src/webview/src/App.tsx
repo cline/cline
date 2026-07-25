@@ -212,7 +212,8 @@ function chatPath(sessionId?: string): string {
 		params.delete(CHAT_SESSION_QUERY_PARAM);
 	}
 	const query = params.toString();
-	return query ? `${VIEW_PATHS.chat}?${query}` : VIEW_PATHS.chat;
+	const path = query ? `${VIEW_PATHS.chat}?${query}` : VIEW_PATHS.chat;
+	return `${path}${persistentRouteHash()}`;
 }
 
 function readCurrentSettingsSection(): SettingsSection {
@@ -227,10 +228,17 @@ function persistentRouteSearchParams(): URLSearchParams {
 	return params;
 }
 
+/** Bridge credentials live in the fragment; keep them across SPA navigations. */
+function persistentRouteHash(): string {
+	if (typeof window === "undefined") return "";
+	return window.location.hash;
+}
+
 function routePath(pathname: string): string {
 	const params = persistentRouteSearchParams();
 	const query = params.toString();
-	return query ? `${pathname}?${query}` : pathname;
+	const path = query ? `${pathname}?${query}` : pathname;
+	return `${path}${persistentRouteHash()}`;
 }
 
 function replaceLegacyCustomizationRoute(): void {
@@ -249,7 +257,7 @@ function replaceLegacyCustomizationRoute(): void {
 
 function currentPathWithSearch(): string {
 	if (typeof window === "undefined") return "/";
-	return `${window.location.pathname}${window.location.search}`;
+	return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 function ViewLoading() {

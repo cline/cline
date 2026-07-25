@@ -427,13 +427,14 @@ export async function startHubWebSocketServer(
 			res.statusCode = 202;
 			res.setHeader("content-type", "application/json");
 			res.end(JSON.stringify({ ok: true }));
+			// Signal only — do not close here. The daemon entry stops the
+			// managed dashboard first, then calls close(). Closing early makes
+			// /health fail so callers treat the hub as retired while the old
+			// process can still race a replacement over dashboard discovery.
 			resolveShutdownRequested?.({
 				preserveDashboard: req.headers["x-cline-preserve-dashboard"] === "1",
 			});
 			resolveShutdownRequested = undefined;
-			queueMicrotask(() => {
-				void closeServer();
-			});
 			return;
 		}
 		res.statusCode = 404;

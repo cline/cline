@@ -239,16 +239,11 @@ describe("hub server startup", () => {
 		});
 		expect(response.status).toBe(202);
 		await shutdownRequested;
+		// /shutdown only signals; callers (daemon entry) close after teardown.
+		await server.close();
+		servers.delete(server);
 
-		for (let index = 0; index < 50; index += 1) {
-			if ((await readHubDiscovery(owner.discoveryPath)) === undefined) {
-				servers.delete(server);
-				return;
-			}
-			await new Promise((resolve) => setTimeout(resolve, 20));
-		}
-
-		throw new Error("Timed out waiting for hub shutdown");
+		expect(await readHubDiscovery(owner.discoveryPath)).toBeUndefined();
 	});
 
 	it("rejects shutdown request with 401 when no auth token is provided", async () => {
