@@ -28,6 +28,8 @@ When every box above is checked, Phase 0 implementation may start with:
 3. `@cline/drive` package scaffold + policies  
 4. Home/graph schema stubs + compile fixture from `examples/driveagent-pair-partner/`
 
+**In progress (schemas + kernel).** Items (1) and (3) landed on branch `cursor/drive-phase0-schemas-kernel-a8d3` under Recommended ARD/DEC defaults. Remaining: facet catalog, home/graph stubs, hub room ops. Do **not** deepen Chat-local Join-call React state — replace with hub snapshots in Phase 1.
+
 ## Anti-patterns
 
 - Starting Profile write UI before compile fixture tests.

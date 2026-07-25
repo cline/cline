@@ -51,6 +51,7 @@ export type {
 } from "./cron";
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
+export * from "./drive";
 export type {
 	ClientContext,
 	ClientName,

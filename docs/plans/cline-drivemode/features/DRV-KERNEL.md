@@ -31,22 +31,22 @@ Drive behavior (sub-modes, narration policy, interrupt policy) must live somewhe
 
 ## Agent tasks
 
-- [ ] Scaffold the package with sibling-package conventions (ESM, named exports, dist-based exports map).
+- [x] Scaffold the package with sibling-package conventions (ESM, named exports, dist-based exports map).
   - Owner package: `@cline/drive`
   - Files likely: `sdk/packages/drive/package.json`, `tsconfig.json`, `src/index.ts`
   - Verify: `bun run build:sdk` from `sdk/` succeeds with the new package included
   - Done when: `bun -F @cline/drive test` runs (even with one placeholder test) and `bun run types` passes.
-- [ ] Implement the Drive state machine.
+- [x] Implement the Drive state machine.
   - Owner package: `@cline/drive`
   - Files likely: `src/driveMode.ts`, `src/driveMode.test.ts`
   - Verify: `bun -F @cline/drive test`
   - Done when: transition table is exhaustive and invalid transitions throw typed errors.
-- [ ] Implement the narration policy with density settings.
+- [x] Implement the narration policy with density settings.
   - Owner package: `@cline/drive`
   - Files likely: `src/narrationPolicy.ts`, `src/narrationPolicy.test.ts`
   - Verify: `bun -F @cline/drive test`
   - Done when: decision-point density emits for plan steps, mode changes, and failures, and stays silent for routine tool calls.
-- [ ] Port and adapt the interrupt classifier from claude-drive's `interruptPolicy.ts` as a pure function.
+- [x] Port and adapt the interrupt classifier from claude-drive's `interruptPolicy.ts` as a pure function.
   - Owner package: `@cline/drive`
   - Files likely: `src/interruptPolicy.ts`, `src/interruptPolicy.test.ts`
   - Verify: `bun -F @cline/drive test`
