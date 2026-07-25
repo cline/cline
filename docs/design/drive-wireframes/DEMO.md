@@ -7,7 +7,7 @@ Click-through surfaces for the Drive / Drivecode stack. Everything here is **sca
 | Surface | Kind | How to open |
 |---|---|---|
 | Drive tab HTML | Throwaway prototype (locked IA) | Open [`drive-tab-discord-slack.html`](drive-tab-discord-slack.html) in a browser |
-| Overview canvas | In-repo replacement for the old Windows-only Cursor canvas | Open [`overview-canvas.html`](overview-canvas.html) |
+| Overview canvas | Cursor `.canvas.tsx` + HTML twin | Open [drivecode-overview.canvas.tsx](/home/ubuntu/.cursor/projects/workspace/canvases/drivecode-overview.canvas.tsx) beside chat, or [`overview-canvas.html`](overview-canvas.html) |
 | Hub Chat Drive chrome | Local UI fixture (`demo: true`) | Run hub webview; click **Join call** (Stage opens with fixture cards) |
 | CLI Drive teaser | Local TUI flags | `bun run cli -i` then `Ctrl+Shift+D` / status-bar Drive control |
 
@@ -27,10 +27,11 @@ Scaffold vs locked: interactions are client-seeded JS. Domain shape and IA decis
 
 ## Overview canvas
 
-Five pages that replace `cline-drivecode-overview.canvas.tsx` (Architecture, Workflows, Platform/Config, Drive-tab, SDK).
+Five-plus pages that replace `cline-drivecode-overview.canvas.tsx` (Architecture, Workflows, Platform/Config, Drive-tab, SDK, Parallel waves).
 
-- In-repo twin: [`overview-canvas.html`](overview-canvas.html)
-- Live Tldraw session canvas id: `mn6fgbfw` (Cursor Tldraw MCP)
+- Cursor canvas (open beside chat): [drivecode-overview.canvas.tsx](/home/ubuntu/.cursor/projects/workspace/canvases/drivecode-overview.canvas.tsx)
+- In-repo HTML twin: [`overview-canvas.html`](overview-canvas.html)
+
 
 ## Hub Chat fixture
 

@@ -122,6 +122,7 @@
     <button data-page="platform" type="button">Platform / Config</button>
     <button data-page="drive-tab" type="button">Drive tab</button>
     <button data-page="sdk" type="button">SDK</button>
+    <button data-page="waves" type="button">Parallel waves</button>
   </div>
 
   <section class="page on" id="architecture">
@@ -215,7 +216,8 @@
         <ul>
           <li>Host port + capability descriptor</li>
           <li>Narration / interrupt policies</li>
-          <li>Conformance kit with fake host</li>
+          <li>Room fold, stage projection, facets</li>
+          <li>Parallel work waves (<code>DriveWaveRunner</code>)</li>
         </ul>
       </div>
       <div class="card">
@@ -225,9 +227,28 @@
     </div>
   </section>
 
+  <section class="page" id="waves">
+    <div class="eyebrow">Page 6</div>
+    <h2>Parallel waves</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Work items</h3>
+        <p><code>DriveWorkItem</code> with <code>dependsOn</code>. Ready work runs in parallel up to the adaptive concurrency window.</p>
+      </div>
+      <div class="card">
+        <h3>Review gates</h3>
+        <p>Pre / post / emergency: continue, pause, abort, inject, redirect. Lives in <code>@cline/drive</code> waves module.</p>
+      </div>
+      <div class="card">
+        <h3>Spec</h3>
+        <p><a href="../../plans/cline-drivemode/features/DRV-PARALLEL-WAVES.md">DRV-PARALLEL-WAVES.md</a></p>
+      </div>
+    </div>
+  </section>
+
   <p class="foot">
     Brand tokens from <a href="CLINE-BRAND-TOKENS.md">CLINE-BRAND-TOKENS.md</a>.
-    Prefer this file over any Windows absolute path to a Cursor <code>.canvas.tsx</code>.
+    Prefer the Cursor canvas <code>drivecode-overview.canvas.tsx</code> (Agents Window) or this HTML twin over any Windows absolute path.
   </p>
 </div>
 <script>
