@@ -8,3 +8,5 @@ Cold-start docs for the draft Drivecode planning PRs.
 | [glossary.md](./glossary.md) | Plain-language glossary for Drive terms |
 
 **Preferred merge target.** Prefer **PR #2** (`docs/drivecode-handoff`). It contains everything in PR #1 plus the repo-level handoff and an updated decision trail.
+
+**Visual ELI5.** Companion tldraw canvas id `xllrdnzd` (architecture + room/home/recruit map) was produced with this review.
