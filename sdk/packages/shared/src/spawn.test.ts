@@ -56,6 +56,25 @@ describe("resolveNpxInvocation", () => {
 		expect(invocation?.args).toContain("mongodb-mcp-server@<3");
 	});
 
+	it("pairs npx-cli.js with node.exe from the same install, not an earlier PATH hit", () => {
+		const oldNode = "C:\\Node14\\node.exe";
+		const newNode = "C:\\Node22\\node.exe";
+		const npxCliPath = "C:\\Node22\\node_modules\\npm\\bin\\npx-cli.js";
+		const existingFiles = new Set([oldNode, newNode, npxCliPath]);
+
+		expect(
+			resolveNpxInvocation(["-y", "pkg"], {
+				platform: "win32",
+				env: { Path: "C:\\Node14;C:\\Node22" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => existingFiles.has(path),
+			}),
+		).toEqual({
+			command: newNode,
+			args: [npxCliPath, "-y", "pkg"],
+		});
+	});
+
 	it("uses a native npx.exe shim on Windows when one is available", () => {
 		const npxPath = "C:\\Tools\\npx.exe";
 		expect(
@@ -281,6 +300,28 @@ describe("resolveShellFreeInvocation", () => {
 		).toEqual({
 			command: nodePath,
 			args: [scriptPath, "run", "arg<1"],
+		});
+	});
+
+	it("prefers node.exe beside an npm .cmd shim over an earlier PATH node", () => {
+		const oldNode = "C:\\Node14\\node.exe";
+		const dir = "C:\\Program Files\\nodejs";
+		const localNode = `${dir}\\node.exe`;
+		const shimPath = `${dir}\\some-tool.cmd`;
+		const scriptPath = `${dir}\\node_modules\\some-tool\\cli.js`;
+		const existing = new Set([oldNode, localNode, shimPath, scriptPath]);
+
+		expect(
+			resolveShellFreeInvocation("some-tool", ["run"], {
+				platform: "win32",
+				env: { Path: `C:\\Node14;${dir}` },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+				readTextFile: () => TOOL_CMD,
+			}),
+		).toEqual({
+			command: localNode,
+			args: [scriptPath, "run"],
 		});
 	});
 

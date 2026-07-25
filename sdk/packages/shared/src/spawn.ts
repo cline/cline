@@ -88,6 +88,20 @@ function resolveWindowsNodePath(
 }
 
 /**
+ * Prefer `directory\node.exe` when pairing Node with a script or shim from that
+ * directory (matching npm's `%~dp0\node.exe` semantics). Fall back to a PATH /
+ * execPath resolution only when no local node.exe exists.
+ */
+function resolveNodeBeside(
+	directory: string,
+	fallback: string | undefined,
+	fileExists: (path: string) => boolean,
+): string | undefined {
+	const localNode = win32.join(directory, "node.exe");
+	return fileExists(localNode) ? localNode : fallback;
+}
+
+/**
  * Resolve a shell-free `npx` invocation.
  *
  * Prefers a native `npx.exe` shim when available, otherwise runs npm's
@@ -115,16 +129,22 @@ export function resolveNpxInvocation(
 
 	const npmExecPath = env.npm_execpath?.trim();
 	if (
-		nodePath &&
 		npmExecPath &&
 		win32.basename(npmExecPath).toLowerCase() === "npm-cli.js"
 	) {
-		const npxCliPath = win32.join(win32.dirname(npmExecPath), "npx-cli.js");
+		const npmBinDir = win32.dirname(npmExecPath);
+		const npxCliPath = win32.join(npmBinDir, "npx-cli.js");
 		if (fileExists(npxCliPath)) {
-			return {
-				command: nodePath,
-				args: [npxCliPath, ...npxArgs],
-			};
+			// npm-cli.js lives at <prefix>\node_modules\npm\bin\; pair with
+			// <prefix>\node.exe when present rather than an unrelated PATH hit.
+			const npmPrefix = win32.resolve(npmBinDir, "..", "..", "..");
+			const command = resolveNodeBeside(npmPrefix, nodePath, fileExists);
+			if (command) {
+				return {
+					command,
+					args: [npxCliPath, ...npxArgs],
+				};
+			}
 		}
 	}
 
@@ -135,7 +155,6 @@ export function resolveNpxInvocation(
 		if (fileExists(executable)) {
 			return { command: executable, args: [...npxArgs] };
 		}
-		if (!nodePath) continue;
 		const npxCliPath = win32.join(
 			directory,
 			"node_modules",
@@ -144,10 +163,13 @@ export function resolveNpxInvocation(
 			"npx-cli.js",
 		);
 		if (fileExists(npxCliPath)) {
-			return {
-				command: nodePath,
-				args: [npxCliPath, ...npxArgs],
-			};
+			const command = resolveNodeBeside(directory, nodePath, fileExists);
+			if (command) {
+				return {
+					command,
+					args: [npxCliPath, ...npxArgs],
+				};
+			}
 		}
 	}
 
@@ -252,12 +274,11 @@ const NODE_SCRIPT_EXTENSIONS = [".js", ".cjs", ".mjs"];
  */
 function resolveCmdShimInvocation(
 	shimPath: string,
-	nodePath: string | undefined,
+	fallbackNodePath: string | undefined,
 	extraArgs: readonly string[],
 	fileExists: (path: string) => boolean,
 	readTextFile: (path: string) => string,
 ): ShellFreeInvocation | undefined {
-	if (!nodePath) return undefined;
 	let contents: string;
 	try {
 		contents = readTextFile(shimPath);
@@ -265,6 +286,10 @@ function resolveCmdShimInvocation(
 		return undefined;
 	}
 	const shimDir = win32.dirname(shimPath);
+	// Match npm shim semantics: prefer `%~dp0\node.exe` beside the shim, then
+	// fall back to PATH / execPath resolution.
+	const nodePath = resolveNodeBeside(shimDir, fallbackNodePath, fileExists);
+	if (!nodePath) return undefined;
 	// Match the script argument in `... "%~dp0\<script>" %*` or the
 	// `"%dp0%\<script>"` variable-indirection form both npm layouts emit, and
 	// keep the first existing target node can run.

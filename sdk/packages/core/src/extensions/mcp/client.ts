@@ -261,19 +261,23 @@ class StdioMcpClient implements McpServerClient {
 		// which spawn() cannot execute directly — that preserves launch behavior
 		// for servers that have no directly-spawnable executable.
 		const requestedArgs = transport.args ?? [];
+		// Resolve with the same env the child will receive so PATH / tool lookups
+		// match launch (transport.env can override host PATH).
+		const childEnv = {
+			...process.env,
+			...(transport.env ?? {}),
+		};
 		const invocation = resolveShellFreeInvocation(
 			transport.command,
 			requestedArgs,
+			{ env: childEnv },
 		);
 		const useShellFallback = process.platform === "win32" && !invocation;
 		const command = invocation?.command ?? transport.command;
 		const args = invocation?.args ?? requestedArgs;
 		const child = spawn(command, args, {
 			cwd: transport.cwd,
-			env: {
-				...process.env,
-				...(transport.env ?? {}),
-			},
+			env: childEnv,
 			stdio: ["pipe", "pipe", "pipe"],
 			...(process.platform === "win32"
 				? { windowsHide: true, shell: useShellFallback }
