@@ -297,6 +297,98 @@ git_init_workspace() {
   git -C "$ws" -c user.email=qa@x -c user.name=qa commit -qm base 2>/dev/null || true
 }
 
+# Pre-seeds the UI-owned state the extension reads at startup: onboarding flags,
+# the Plan/Act mode, and the provider selection.
+#
+# This exists because those values cannot be set reliably by clicking. The
+# extension resolves the session's mode from the globalState `mode` key, but the
+# webview's Plan/Act toggle does not write it, so a run can show Act in the UI
+# while the session is built with the read-only plan tool set — which looks
+# exactly like a broken `editor` tool. Seeding the file removes that whole class
+# of false negative.
+seed_ui_state() {
+  local data="$1" keys="$2" provider="$3" model_override="${4:-}"
+  node -e '
+    const fs = require("fs");
+    const path = require("path");
+    const [dataDir, keysPath, provider, modelOverride] = process.argv.slice(1);
+    const keys = JSON.parse(fs.readFileSync(keysPath, "utf8"));
+    const entry = { ...(keys[provider] ?? {}) };
+    if (modelOverride) entry.model = modelOverride;
+
+    // Legacy secret field per provider, mirroring PROVIDER_API_KEY_MAP in
+    // apps/vscode/src/sdk/cline-session-factory.ts.
+    const secretField = {
+      anthropic: "apiKey",
+      openrouter: "openRouterApiKey",
+      "openai-compatible": "openAiApiKey",
+      "openai-native": "openAiNativeApiKey",
+      gemini: "geminiApiKey",
+      vertex: "geminiApiKey",
+      deepseek: "deepSeekApiKey",
+      cline: "clineApiKey",
+      requesty: "requestyApiKey",
+      together: "togetherApiKey",
+      mistral: "mistralApiKey",
+      litellm: "liteLlmApiKey",
+      xai: "xaiApiKey",
+      groq: "groqApiKey",
+      "vercel-ai-gateway": "vercelAiGatewayApiKey",
+      ollama: "ollamaApiKey",
+    }[provider];
+
+    const globalState = {
+      // skip onboarding, telemetry banner and the release announcement so the
+      // chat view is reachable without clicking through modals
+      welcomeViewCompleted: true,
+      telemetrySetting: "enabled",
+      lastShownAnnouncementId: "4.0",
+      __vscodeMigrationVersion: 2,
+      // act mode, so the editor tool is advertised
+      mode: "act",
+      planModeApiProvider: provider,
+      actModeApiProvider: provider,
+    };
+    if (entry.model) {
+      globalState.planModeApiModelId = entry.model;
+      globalState.actModeApiModelId = entry.model;
+    }
+    if (provider === "openai-compatible" || provider === "litellm") {
+      if (entry.baseUrl) globalState.openAiBaseUrl = entry.baseUrl;
+      if (entry.model) {
+        globalState.planModeOpenAiModelId = entry.model;
+        globalState.actModeOpenAiModelId = entry.model;
+      }
+    }
+
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, "globalState.json"), `${JSON.stringify(globalState, null, 2)}\n`);
+
+    const secrets = {};
+    if (secretField && entry.apiKey) secrets[secretField] = entry.apiKey;
+    fs.writeFileSync(path.join(dataDir, "secrets.json"), `${JSON.stringify(secrets, null, 2)}\n`, { mode: 0o600 });
+
+    console.log(`seeded UI state: mode=act provider=${provider} model=${entry.model ?? "(unset)"}`);
+  ' "$data" "$keys" "$provider" "$model_override"
+}
+
+# Switches the UI-owned provider selection without touching the editor, then the
+# instance must be restarted for the extension to pick it up.
+cmd_ui_select() {
+  local name="${1:?usage: qa-env.sh ui-select <name> <provider> [model] [keys-file]}"
+  local provider="${2:?usage: qa-env.sh ui-select <name> <provider> [model] [keys-file]}"
+  local model="${3:-}"
+  local keys="${4:-/tmp/qa-keys.json}"
+  local data
+  data="$(instance_root "$name")/data"
+  seed_ui_state "$data" "$keys" "$provider" "$model"
+  node "$FIXTURES/apply-keys.mjs" --keys "$keys" --dir "$data" --select "$provider" >/dev/null
+  if [ -n "$model" ]; then
+    cmd_select "$name" "$provider" "$model" >/dev/null
+  fi
+  log "ui state now selects $provider${model:+ (model $model)} — restart the instance to apply"
+}
+
 cmd_reset_workspace() {
   local name="${1:?usage: qa-env.sh reset-workspace <name>}"
   local ws
@@ -309,6 +401,22 @@ cmd_reset_workspace() {
 }
 
 # ---------------------------------------------------------------- instances
+
+# The pid of the VS Code main process owning a given profile directory.
+#
+# Matched on the profile path rather than on the program name: every instance in
+# a QA run has its own profile, so this identifies one specific process and
+# never sweeps up an unrelated editor. Child processes carry `--type=` and are
+# skipped.
+main_process_pid() {
+  local userdata="$1"
+  ps -eo pid=,args= 2>/dev/null | awk -v ud="$userdata" '
+    index($0, ud) == 0 { next }
+    index($0, "--type=") != 0 { next }
+    index($0, "extensionDevelopmentPath") == 0 { next }
+    { print $1; exit }
+  '
+}
 
 count_instances() {
   local n=0
@@ -354,6 +462,10 @@ cmd_prepare() {
     fi
   fi
 
+  if [ -n "$keys" ] && [ -n "$select" ]; then
+    seed_ui_state "$data" "$keys" "$select" || return 1
+  fi
+
   if [ "$use_proxy" -eq 1 ]; then
     QA_PROXY_WORKSPACE="$ws" cmd_proxy start || warn "proxy did not start"
   fi
@@ -392,6 +504,13 @@ cmd_start() {
   userdata="$root/userdata"; extdir="$root/extensions"
   mkdir -p "$userdata" "$extdir"
 
+  # Drop IPC sockets and lock files left behind by a previous run. If one
+  # survives, the process we launch forwards the folder to the dead instance's
+  # socket and exits, and `start` would report success for a window that is not
+  # the one being tracked.
+  find "$userdata" -maxdepth 2 -name '*.sock' -delete 2>/dev/null
+  rm -f "$userdata"/*.lock "$userdata"/code.lock 2>/dev/null
+
   # VS Code writes its own state under userdata; the Cline data dir is separate
   # so provider config can be re-seeded without discarding editor state.
   #
@@ -414,23 +533,44 @@ cmd_start() {
     --extensionDevelopmentPath="$EXT_PATH" \
     "$ws" \
     >"$out" 2>&1 &
-  local pid=$!
-  echo "$pid" > "$root/vscode.pid"
   printf '%s\n' "$name" > "$QA_ROOT/current"
 
-  local waited=0
-  while [ "$waited" -lt 40 ]; do
-    if ! kill -0 "$pid" 2>/dev/null; then
-      bad "VS Code exited immediately; see $out"
-      tail -20 "$out" 2>/dev/null
-      rm -f "$root/vscode.pid"
-      return 1
-    fi
-    if xdotool search --onlyvisible --class 'code' >/dev/null 2>&1; then
+  # The `code` launcher hands the folder to a detached main process and returns,
+  # so its own pid is not the editor. Find the main process by the profile path,
+  # which is unique per instance, and track that instead.
+  local pid="" waited=0
+  while [ "$waited" -lt 60 ]; do
+    pid="$(main_process_pid "$userdata")"
+    if [ -n "$pid" ]; then
       break
     fi
     sleep 1
     waited=$((waited + 1))
+  done
+
+  if [ -z "$pid" ]; then
+    bad "no VS Code main process appeared for profile $userdata; see $out"
+    tail -20 "$out" 2>/dev/null
+    return 1
+  fi
+  echo "$pid" > "$root/vscode.pid"
+
+  # Give it a moment to settle, then confirm it is still the live main process.
+  sleep 4
+  if ! kill -0 "$pid" 2>/dev/null; then
+    bad "VS Code main process $pid exited shortly after starting; see $out"
+    tail -20 "$out" 2>/dev/null
+    rm -f "$root/vscode.pid"
+    return 1
+  fi
+
+  local waited_ui=0
+  while [ "$waited_ui" -lt 40 ]; do
+    if xdotool search --onlyvisible --class 'code' >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+    waited_ui=$((waited_ui + 1))
   done
 
   log "started instance '$name' (pid $pid)"
@@ -628,6 +768,7 @@ main() {
     status)          cmd_status "$@" ;;
     state)           cmd_state "$@" ;;
     select)          cmd_select "$@" ;;
+    ui-select)       cmd_ui_select "$@" ;;
     reset-workspace) cmd_reset_workspace "$@" ;;
     run)             cmd_run "$@" ;;
     help|--help|-h)
