@@ -10,6 +10,10 @@ This page documents all OpenTelemetry log events currently instrumented in Cline
 Events are only emitted when OpenTelemetry is enabled. See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for configuration instructions.
 </Info>
 
+<Note>
+Cline emits telemetry from two pipelines: the host extension pipeline (VS Code / JetBrains UI, browser tool, worktrees, hooks) and the shared SDK runtime pipeline (session lifecycle, provider requests, compaction, agents — used by the CLI, the hub daemon, and SDK-backed sessions inside the extensions). Which events you receive depends on which Cline surfaces your users run. Attribute naming also varies by pipeline: extension events mostly use `snake_case` attributes, while SDK runtime events mostly use `camelCase`.
+</Note>
+
 ## Event Categories
 
 Cline emits events across several categories, each prefixed with a namespace:
@@ -43,6 +47,10 @@ Cline emits events across several categories, each prefixed with a namespace:
     Host environment detection
   </Card>
   
+  <Card title="session.* / sdk.* / agent.*" icon="microchip">
+    SDK session lifecycle, runtime diagnostics, agent runtime
+  </Card>
+  
   <Card title="test.*" icon="flask">
     Diagnostic and connection testing
   </Card>
@@ -61,8 +69,11 @@ Events related to user authentication, telemetry preferences, and extension life
 | `user.extension_storage_error` | Error while reading/writing extension storage state | error_type, error_message |
 | `user.auth_started` | Authentication flow started | provider, timestamp |
 | `user.auth_succeeded` | Authentication flow succeeded | provider, user_id |
-| `user.auth_failed` | Authentication flow failed | provider, error_reason |
-| `user.auth_logged_out` | User logged out | reason, provider |
+| `user.auth_failed` | Authentication flow failed | provider, errorMessage, request_id |
+| `user.auth_logged_out` | User logged out | reason, provider, status, errorCode, request_id |
+| `user.auth_refresh_soft_failure` | Token refresh failed transiently (network error, timeout, 5xx) and stored credentials were kept — the session was not invalidated | provider, status, errorCode, errorName, tokenExpired, request_id |
+| `user.auth_run_retry` | A run failed with an auth-like error, credentials were refreshed, and the run was retried once (`recovered: true` means the retry completed) | provider, recovered |
+| `user.provider_configured` | User finished configuring an API-key ("bring your own key") provider; unlike the OAuth `auth_*` events there is no start/fail counterpart | provider |
 | `user.onboarding_progress` | Onboarding step/action progress | step, action, completed |
 
 ### Example: user.auth_succeeded
@@ -78,6 +89,14 @@ Events related to user authentication, telemetry preferences, and extension life
   }
 }
 ```
+
+## Session Events
+
+Emitted by the SDK runtime when a session is created (one `session.started` per session, from every backend — CLI, hub daemon, or SDK-backed extension sessions).
+
+| Event | Description | Key Attributes |
+|-------|-------------|----------------|
+| `session.started` | New SDK session created | sessionId, source, providerId, modelId, enableTools, enableSpawnAgent, enableAgentTeams, clientName, runtimeAddress |
 
 ## Workspace Events
 
@@ -116,10 +135,23 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 |-------|-------------|----------------|
 | `task.created` | New task/conversation started | task_id, mode, model, provider |
 | `task.restarted` | Existing task restarted/reopened | task_id, time_since_last_message |
-| `task.completed` | Task completed | task_id, duration_ms, model, provider, tokens_total |
+| `task.completed` | Task completed. SDK-runtime emissions include a `source` attribute: `submit_and_exit` (explicit completion tool) or `shutdown` (session finished without one). At most one per session. | task_id, duration_ms, model, provider, tokens_total, source |
+| `task.cancelled` | Task run aborted/cancelled | sessionId, agentId, runId, iteration, provider, model, error_type, error_message |
 | `task.feedback` | User feedback on task | task_id, feedback_type (thumbs_up/thumbs_down) |
 | `task.historical_loaded` | Historical task loaded from storage | task_id, age_days |
+| `task.legacy_task_migration` | Legacy VS Code task history migrated into SDK sessions | migration_type, outcome, reason, durationMs, legacyApiHistoryLength, convertedMessageCount |
 | `task.retry_clicked` | User clicked retry on a failed action/request | task_id, action_type |
+
+### Provider Request Lifecycle
+
+Emitted by the SDK runtime around every model provider request. All carry the same correlation attributes (sessionId, ulid, agentId, conversationId, runId, iteration, provider, model) plus a `phase` and `durationMs` measured from the start of the request.
+
+| Event | Description | Key Attributes |
+|-------|-------------|----------------|
+| `task.provider_request_started` | Model provider request dispatched | phase, durationMs + correlation attributes |
+| `task.provider_stream_started` | Provider accepted the request and began streaming | phase, durationMs + correlation attributes |
+| `task.first_chunk_received` | First streamed chunk arrived (time-to-first-token) | phase, durationMs, eventType + correlation attributes |
+| `task.provider_stream_failed` | Provider request or stream failed (non-abort errors) | phase, durationMs, error_type, error_message, error_code, error_status + correlation attributes |
 
 ### Conversation & Tokens
 
@@ -171,6 +203,8 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 | `task.subagent_disabled` | Subagents feature disabled | task_id |
 | `task.subagent_started` | Subagent execution started | subagent_id, prompt_length |
 | `task.subagent_completed` | Subagent execution completed | subagent_id, duration_ms, success |
+| `task.agent_created` | Agent runtime created for a session (SDK runtime) | ulid, agentId, agentKind, provider, modelId |
+| `task.agent_team_created` | Multi-agent team created (SDK runtime) | ulid, teamId, teamName, leadAgentId, restoredFromPersistence |
 | `task.skill_used` | Skill invocation event | skill_name, task_id |
 
 ### Auto-Compact & Context
@@ -179,6 +213,9 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 |-------|-------------|----------------|
 | `task.summarize_task` | Auto-compaction/summarize triggered for context pressure | conversation_length, estimated_tokens |
 | `task.auto_condense_toggled` | Auto-condense setting toggled | enabled |
+| `task.compaction_executed` | SDK context compaction ran and reduced the conversation. `strategy` is `basic` (token-budget truncation), `agentic` (LLM summarization), or `custom`; `mode` is `auto` or `manual`. | strategy, mode, messagesBefore, messagesAfter, messagesRemoved, tokensBefore, tokensAfter, tokensSaved, triggerTokens, maxInputTokens, thresholdRatio, durationMs, provider, modelId |
+| `task.compaction_skipped` | SDK compaction attempt decided not to compact (e.g. `reason: no_result` when nothing was safe to remove) | strategy, mode, reason, tokensBefore, triggerTokens, maxInputTokens, thresholdRatio, durationMs |
+| `task.compaction_budget_emergency` | Compaction budget projection triggered an emergency policy action | strategy, mode, policyIntent, actionCount, warningCount, liveTailHandling |
 
 ### Settings & Features
 
@@ -195,6 +232,7 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 |-------|-------------|----------------|
 | `task.gemini_api_performance` | Gemini-specific API performance telemetry | duration_ms, tokens, cache_hit |
 | `task.provider_api_error` | API provider error event | provider, model, error_code, error_message |
+| `task.mistake_limit_reached` | Consecutive-mistake limit reached, right before the limit decision (host prompt / auto-stop) is resolved | ulid, model, provider, reason, consecutiveMistakes, maxConsecutiveMistakes |
 | `task.diff_edit_failed` | Diff/replace edit failed | file_path_hash, error_type |
 | `task.initialization` | Task initialization timing/metadata event | duration_ms, mode |
 
@@ -232,6 +270,9 @@ Events tracking user interface interactions.
 | `ui.model_selected` | Model selected in UI | model, provider, previous_model |
 | `ui.model_favorite_toggled` | Model favorite toggled | model_id, is_favorited |
 | `ui.button_clicked` | UI button click event | button_id, context |
+| `ui.panel_opened` | Cline panel became visible | source |
+| `ui.new_task_clicked` | User explicitly started a new task flow | source, hasActiveTask |
+| `ui.prompt_submitted` | User submitted chat composer content | source, hasText, hasImages, hasFiles, hasActiveTask, textLength |
 | `ui.rules_menu_opened` | Rules/skills menu/modal opened | menu_type |
 
 ### Example: ui.model_selected
@@ -334,6 +375,16 @@ Events related to host environment detection.
 }
 ```
 
+## SDK Diagnostic Events
+
+Runtime diagnostics emitted by the SDK pipeline.
+
+| Event | Description | Key Attributes |
+|-------|-------------|----------------|
+| `sdk.error` | Handled SDK error captured for diagnostics. `component` identifies the emitting package or app (`shared`, `llms`, `agents`, `core`, `cli`, `vscode`, `desktop`). Error messages are sanitized (secrets and home paths redacted) and truncated. | component, operation, severity, handled, error_type, error_message, error_code, error_status |
+| `sdk.tool_timeout` | The `run_commands` tool hit its execution timeout | tool_name, effective_timeout_ms, timeout_source (default_setting/configured_setting), command_count, duration_ms, session_id, agent_id, tool_call_id |
+| `agent.reasoning.unexpected_tokens` | Model returned reasoning tokens even though extended thinking was not requested | agentId, runId, iteration, providerId, modelId, requestedThinking, reasoningTokenCount |
+
 ## Test Events
 
 Diagnostic and connection testing events.
@@ -368,8 +419,22 @@ Most events include these standard attributes:
 | `timestamp` | ISO 8601 | Event occurrence time |
 | `user_id` | string | Anonymized user identifier (when authenticated) |
 | `session_id` | string | Current session identifier |
-| `extension_version` | string | Cline extension version |
+| `extension_version` | string | Cline extension version (on the SDK pipeline: the cline-core bundle version) |
+| `host_plugin_version` | string | Version of the host-side Cline distribution: the JetBrains plugin version on JetBrains, the extension version on VS Code (where it matches `extension_version`). Absent when the host does not report one. |
 | `host_type` | string | vscode, jetbrains, or cli |
+
+### Agent Identity Attributes
+
+SDK-runtime task events (`task.created`, `task.completed`, `task.tokens`, `task.tool_used`, compaction events, and others) can additionally carry agent identity attributes for correlating multi-agent work:
+
+| Attribute | Description |
+|-----------|-------------|
+| `agentId` | Identifier of the emitting agent |
+| `agentKind` | `root`, `subagent`, `team_lead`, or `team_teammate` |
+| `conversationId` | Conversation the agent belongs to |
+| `parentAgentId` / `createdByAgentId` | Spawning relationships for subagents |
+| `isSubagent` | Whether the emitting agent is a subagent |
+| `teamId` / `teamName` / `teamRole` / `teamAgentId` | Multi-agent team membership, when applicable |
 
 ### Privacy & Hashing
 
