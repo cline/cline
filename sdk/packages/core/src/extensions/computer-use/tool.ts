@@ -5,15 +5,6 @@ import type { ComputerUseAction, ComputerUseCoordinate } from "./protocol";
 
 export interface ComputerUseToolOptions extends ComputerUseClientOptions {
 	/**
-	 * Override for the controlled display's width in pixels, reported in the
-	 * tool description. When omitted, this is queried from the backend at
-	 * construction time via `ComputerUseClient.getDisplayInfo()` — the
-	 * backend is the source of truth for the real, native screen size.
-	 */
-	displayWidthPx?: number;
-	/** Override for display height in pixels. See `displayWidthPx`. */
-	displayHeightPx?: number;
-	/**
 	 * Optional pre-built client. Mainly useful for tests and for hosts that
 	 * want explicit control over the connection's lifecycle (e.g. calling
 	 * `client.close()` on shutdown). When omitted, a client is constructed
@@ -126,9 +117,12 @@ function toComputerUseRequest(input: ComputerToolInput) {
  * over a plain JSON-L TCP socket.
  *
  * This is async because the tool's description embeds the display size,
- * which is queried from the backend (the source of truth for the real,
- * native screen dimensions) unless both `displayWidthPx`/`displayHeightPx`
- * are explicitly overridden in `options`.
+ * which is always queried from the backend at construction time: the
+ * backend is the only component that can know the real framebuffer
+ * dimensions, and an independently configured value that disagreed with
+ * them would corrupt every coordinate the model computes. (The dimensions
+ * are still a construction-time snapshot — a display resize after startup
+ * requires rebuilding the tool. See "Display size" in ./README.md.)
  *
  * This is a genuine `@cline/core` `AgentTool` — usable from any host that
  * builds a `CoreSessionConfig` (CLI, VSCode adapter, etc.) via
@@ -141,24 +135,13 @@ export async function createComputerUseTool(
 	options: ComputerUseToolOptions,
 ): Promise<AgentTool> {
 	const client = options.client ?? new ComputerUseClient(options);
-
-	const { displayWidthPx, displayHeightPx } =
-		options.displayWidthPx !== undefined &&
-		options.displayHeightPx !== undefined
-			? {
-					displayWidthPx: options.displayWidthPx,
-					displayHeightPx: options.displayHeightPx,
-				}
-			: await client.getDisplayInfo().then((info) => ({
-					displayWidthPx: options.displayWidthPx ?? info.widthPx,
-					displayHeightPx: options.displayHeightPx ?? info.heightPx,
-				}));
+	const { widthPx, heightPx } = await client.getDisplayInfo();
 
 	return createTool({
 		name: COMPUTER_TOOL_NAME,
 		description:
 			`Control the screen and keyboard/mouse of a remote computer environment. ` +
-			`The display is ${displayWidthPx}x${displayHeightPx} pixels. ` +
+			`The display is ${widthPx}x${heightPx} pixels. ` +
 			`Use "screenshot" to see the current screen before acting, since the environment ` +
 			`may change between turns. Coordinates are [x, y] pixels from the top-left corner.`,
 		inputSchema: COMPUTER_TOOL_INPUT_SCHEMA,

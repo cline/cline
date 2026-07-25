@@ -119,16 +119,21 @@ client-side framing/pending-request implementation.
 ## Display size
 
 The `computer` tool's description embeds the display's pixel dimensions,
-which Anthropic's model uses to reason about coordinates. Since the backend
-is the one actually capturing the screen, it — not Cline — is the source of
-truth for those dimensions.
+which Anthropic's model uses to reason about coordinates. The backend is the
+one actually capturing the screen, so it — never configuration — is the
+source of truth for those dimensions: a configured value that disagreed with
+the real framebuffer would corrupt every coordinate the model computes.
 
-`createComputerUseTool()` is therefore `async`: unless both
-`displayWidthPx`/`displayHeightPx` are passed explicitly, it calls
+`createComputerUseTool()` is therefore `async`: it always calls
 `ComputerUseClient.getDisplayInfo()` (a `"get_display_info"` request) once at
-construction time and uses the backend's reported size. A single override
-(e.g. only `displayWidthPx`) still queries the backend for the other
-dimension.
+construction time and uses the backend's reported size. There is no override.
+
+The dimensions are still a construction-time snapshot: if the display is
+resized after startup, the tool description goes stale until the tool is
+rebuilt. Making the size fully dynamic needs the backend to report dimensions
+per screenshot (they ride along naturally in the response) and the tool
+description to stop embedding them — a wire-protocol change tracked under
+"Not yet done".
 
 ## Opting in from environment variables
 
@@ -140,9 +145,9 @@ also `async` for the same reason:
 | --- | --- | --- | --- |
 | `CLINE_COMPUTER_USE_PORT` | yes (enables the tool) | — | Backend TCP port |
 | `CLINE_COMPUTER_USE_HOST` | no | `127.0.0.1` | Backend host |
-| `CLINE_COMPUTER_USE_DISPLAY_WIDTH` | no | queried from backend | Override display width, px |
-| `CLINE_COMPUTER_USE_DISPLAY_HEIGHT` | no | queried from backend | Override display height, px |
 | `CLINE_COMPUTER_USER_MODEL` | no | Anthropic entry's saved model, else `claude-sonnet-4-6` | Helper (computer user) model. Independent of the driver's model; always on the direct `anthropic` provider (CLI host) |
+
+Display size is deliberately not configurable — see "Display size" above.
 
 ## The asynchronous computer user
 
@@ -179,3 +184,7 @@ observatory lives in `src/extensions/computer-observability/`.
 - The artifact event stream has no Rust ingress yet; `ArtifactEventSink`
   implementations and the `artifact_event`/`artifact_ack` wire protocol land
   with the qwanban side.
+- Display dimensions are a construction-time snapshot; a resize after
+  startup leaves the tool description stale. Fixing this properly means the
+  backend reporting dimensions with each screenshot and the tool description
+  no longer embedding a fixed size.
