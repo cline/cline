@@ -519,6 +519,57 @@ function streamResponses(res, modelId, ctx) {
 /* server                                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Recording pass-through. A model id of `passthrough:<upstream-model>` forwards
+ * the request to QA_UPSTREAM_BASE_URL and streams the reply back untouched,
+ * recording the raw SSE. That is the only way to tell "the provider sent the
+ * same tool call twice" apart from "Cline executed one tool call twice".
+ */
+async function streamPassthrough(res, modelId, rawBody, rawPath) {
+	const upstreamBase = (process.env.QA_UPSTREAM_BASE_URL ?? "").replace(/\/+$/, "");
+	const upstreamKey = process.env.QA_UPSTREAM_API_KEY ?? "";
+	const upstreamModel = modelId.slice("passthrough:".length);
+	if (!upstreamBase) {
+		res.writeHead(500, { "Content-Type": "application/json" });
+		res.end(JSON.stringify({ error: { message: "QA_UPSTREAM_BASE_URL is not set" } }));
+		return;
+	}
+
+	const forwarded = { ...rawBody, model: upstreamModel };
+	const target = `${upstreamBase}${rawPath.startsWith("/v1") ? rawPath.slice(3) : rawPath}`;
+	const upstream = await fetch(target, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${upstreamKey}`,
+		},
+		body: JSON.stringify(forwarded),
+	});
+
+	res.writeHead(upstream.status, {
+		"Content-Type": upstream.headers.get("content-type") ?? "text/event-stream",
+		"Cache-Control": "no-cache",
+	});
+
+	const rawPath2 = `${OPTS.log}.upstream`;
+	appendFileSync(rawPath2, `\n===== ${new Date().toISOString()} ${target} model=${upstreamModel} status=${upstream.status}\n`);
+
+	const reader = upstream.body?.getReader();
+	if (!reader) {
+		res.end();
+		return;
+	}
+	const decoder = new TextDecoder();
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		const text = decoder.decode(value, { stream: true });
+		appendFileSync(rawPath2, text);
+		res.write(text);
+	}
+	res.end();
+}
+
 function readBody(req) {
 	return new Promise((resolve) => {
 		let raw = "";
@@ -621,6 +672,18 @@ const server = createServer(async (req, res) => {
 		toolResultsSeen: ctx.toolTexts,
 		body,
 	});
+
+	if (modelId.startsWith("passthrough:")) {
+		try {
+			await streamPassthrough(res, modelId, body, path);
+		} catch (error) {
+			if (!res.headersSent) {
+				res.writeHead(502, { "Content-Type": "application/json" });
+			}
+			res.end(JSON.stringify({ error: { message: `passthrough failed: ${error.message}` } }));
+		}
+		return;
+	}
 
 	if (isResponses) {
 		streamResponses(res, modelId, ctx);
