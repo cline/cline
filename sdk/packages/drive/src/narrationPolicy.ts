@@ -15,6 +15,7 @@ const DECISION_POINT_TYPES = new Set<DriveEvent["type"]>([
 	"work.plan_step",
 	"work.decision",
 	"work.test_result",
+	"work.command",
 	"control.mode",
 ]);
 

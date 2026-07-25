@@ -4,20 +4,11 @@
 
 import type { DriveEvent, RoomSnapshot, StageCard } from "@cline/shared";
 
-const APPLIED_EVENT_ID_LIMIT = 256;
-
-function rememberEventId(
-	ids: readonly string[],
-	id: string,
-): string[] {
+function rememberEventId(ids: readonly string[], id: string): string[] {
 	if (ids.includes(id)) {
 		return [...ids];
 	}
-	const next = [...ids, id];
-	if (next.length <= APPLIED_EVENT_ID_LIMIT) {
-		return next;
-	}
-	return next.slice(next.length - APPLIED_EVENT_ID_LIMIT);
+	return [...ids, id];
 }
 
 function upsertStageCard(
@@ -127,9 +118,7 @@ export function reduceRoom(
 				...base,
 				participants: exists
 					? base.participants.map((p) =>
-							p.id === event.participant.id
-								? event.participant
-								: p,
+							p.id === event.participant.id ? event.participant : p,
 						)
 					: [...base.participants, event.participant],
 			};
@@ -191,9 +180,7 @@ export function reduceRoom(
 			return {
 				...base,
 				participants: base.participants.map((p) =>
-					p.id === event.participantId
-						? { ...p, status: event.status }
-						: p,
+					p.id === event.participantId ? { ...p, status: event.status } : p,
 				),
 			};
 		case "conversation.message":
