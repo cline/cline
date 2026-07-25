@@ -55,6 +55,9 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 export async function runStopConnector(
 	adapterName: string,
 	io: ConnectIo,
+	options: { autostart: "disable" | "preserve" } = {
+		autostart: "disable",
+	},
 ): Promise<number> {
 	const connector = await getConnector(adapterName);
 	if (!connector) {
@@ -66,11 +69,27 @@ export async function runStopConnector(
 		return 1;
 	}
 	const result: ConnectStopResult = await connector.stopAll(io);
-	disableConnectorAutostart(connector.name);
+	if (options.autostart === "disable") {
+		disableConnectorAutostart(connector.name);
+	}
 	io.writeln(
 		`[connect] ${connector.name} stopped processes=${result.stoppedProcesses} sessions=${result.stoppedSessions}`,
 	);
 	return 0;
+}
+
+export async function runRestartConnector(
+	adapterName: string,
+	passthroughArgs: string[],
+	io: ConnectIo,
+): Promise<number> {
+	const stopExitCode = await runStopConnector(adapterName, io, {
+		autostart: "preserve",
+	});
+	if (stopExitCode !== 0) {
+		return stopExitCode;
+	}
+	return await runConnectAdapter(adapterName, passthroughArgs, io);
 }
 
 export async function runConnectAdapter(

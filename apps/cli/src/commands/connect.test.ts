@@ -6,6 +6,7 @@ import {
 import type { ConnectIo, ConnectRunContext } from "../connectors/types";
 import {
 	runConnectAdapter,
+	runRestartConnector,
 	runStopAllConnectors,
 	stopAllConnectors,
 } from "./connect";
@@ -213,5 +214,28 @@ describe("runConnectAdapter", () => {
 
 		expect(stopAll).toHaveBeenCalledWith(io);
 		expect(mocks.disableConnectorAutostart).toHaveBeenCalledWith();
+	});
+
+	it("preserves autostart when a replacement start fails", async () => {
+		const stopAll = vi.fn().mockResolvedValue({
+			stoppedProcesses: 1,
+			stoppedSessions: 0,
+		});
+		mocks.run.mockResolvedValue(1);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			showHelp: vi.fn(),
+			stopAll,
+		});
+
+		await expect(
+			runRestartConnector("telegram", ["-k", "token"], io),
+		).resolves.toBe(1);
+
+		expect(stopAll).toHaveBeenCalledWith(io);
+		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
+		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
 	});
 });

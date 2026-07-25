@@ -41,14 +41,11 @@ describe("connector autostart", () => {
 
 	it("persists connect args without interactive flags", () => {
 		useTempDataDir();
-		persistConnectorConnection("telegram", [
-			"-k",
-			"123:token",
-			"-i",
-			"--allow-user",
-			"42",
-			"--interactive",
-		]);
+		persistConnectorConnection(
+			"telegram",
+			["-k", "123:token", "-i", "--allow-user", "42", "--interactive"],
+			"/workspace",
+		);
 
 		const record = withStore((store) => store.get("telegram"));
 		expect(record?.connectArgs).toEqual([
@@ -56,14 +53,24 @@ describe("connector autostart", () => {
 			"123:token",
 			"--allow-user",
 			"42",
+			"--cwd",
+			"/workspace",
 		]);
 		expect(record?.enabled).toBe(true);
 	});
 
 	it("reconnects only enabled connectors with stored connect args", async () => {
 		useTempDataDir();
-		persistConnectorConnection("telegram", ["-k", "123:token"]);
-		persistConnectorConnection("slack", ["--bot-token", "xoxb"]);
+		persistConnectorConnection(
+			"telegram",
+			["-k", "123:token"],
+			"/telegram-workspace",
+		);
+		persistConnectorConnection(
+			"slack",
+			["--bot-token", "xoxb"],
+			"/slack-workspace",
+		);
 		disableConnectorAutostart("slack");
 		withStore((store) =>
 			store.upsertConfig({ channel: "linear", values: { "-k": "lin" } }),
@@ -73,19 +80,24 @@ describe("connector autostart", () => {
 		const attempts = await reconnectPersistedConnectors({ start });
 
 		expect(start).toHaveBeenCalledTimes(1);
-		expect(start).toHaveBeenCalledWith("telegram", ["-k", "123:token"]);
+		expect(start).toHaveBeenCalledWith("telegram", [
+			"-k",
+			"123:token",
+			"--cwd",
+			"/telegram-workspace",
+		]);
 		expect(attempts).toEqual([{ channel: "telegram", ok: true }]);
 	});
 
-	it("reconnects env-only connectors that persisted empty connect args", async () => {
+	it("persists the originating workspace for env-only connectors", async () => {
 		useTempDataDir();
-		persistConnectorConnection("telegram", []);
+		persistConnectorConnection("telegram", [], "/workspace");
 
 		const start = vi.fn().mockResolvedValue(true);
 		const attempts = await reconnectPersistedConnectors({ start });
 
 		expect(start).toHaveBeenCalledTimes(1);
-		expect(start).toHaveBeenCalledWith("telegram", []);
+		expect(start).toHaveBeenCalledWith("telegram", ["--cwd", "/workspace"]);
 		expect(attempts).toEqual([{ channel: "telegram", ok: true }]);
 	});
 
@@ -101,6 +113,21 @@ describe("connector autostart", () => {
 
 		expect(start).not.toHaveBeenCalled();
 		expect(attempts).toEqual([]);
+	});
+
+	it("preserves an explicitly configured workspace", () => {
+		useTempDataDir();
+		persistConnectorConnection(
+			"telegram",
+			["-k", "123:token", "--cwd=/explicit"],
+			"/ignored",
+		);
+
+		expect(withStore((store) => store.get("telegram")?.connectArgs)).toEqual([
+			"-k",
+			"123:token",
+			"--cwd=/explicit",
+		]);
 	});
 
 	it("reports failed reconnect attempts", async () => {

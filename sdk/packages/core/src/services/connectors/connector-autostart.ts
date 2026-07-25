@@ -2,8 +2,12 @@ import { withConnectorStore } from "@cline/shared/db";
 
 const INTERACTIVE_FLAGS = new Set(["-i", "--interactive"]);
 
-function stripInteractiveFlags(args: string[]): string[] {
-	return args.filter((arg) => !INTERACTIVE_FLAGS.has(arg));
+function normalizeReconnectArgs(args: string[], cwd: string): string[] {
+	const normalized = args.filter((arg) => !INTERACTIVE_FLAGS.has(arg));
+	const hasExplicitCwd = normalized.some(
+		(arg) => arg === "--cwd" || arg.startsWith("--cwd="),
+	);
+	return hasExplicitCwd ? normalized : [...normalized, "--cwd", cwd];
 }
 
 /**
@@ -13,10 +17,12 @@ function stripInteractiveFlags(args: string[]): string[] {
 export function persistConnectorConnection(
 	channel: string,
 	rawArgs: string[],
+	cwd = process.cwd(),
 ): void {
 	try {
+		const reconnectArgs = normalizeReconnectArgs(rawArgs, cwd);
 		withConnectorStore((store) =>
-			store.recordConnected(channel, stripInteractiveFlags(rawArgs)),
+			store.recordConnected(channel, reconnectArgs),
 		);
 	} catch {
 		// Persistence is best-effort; never fail the connector start over it.
@@ -66,7 +72,7 @@ export async function reconnectPersistedConnectors(
 			.filter((entry) => entry.enabled && entry.connectArgs !== undefined)
 			.map((entry) => ({
 				channel: entry.channel,
-				args: stripInteractiveFlags(entry.connectArgs ?? []),
+				args: entry.connectArgs ?? [],
 			}));
 	} catch (error) {
 		log(

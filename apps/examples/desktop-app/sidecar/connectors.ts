@@ -245,31 +245,26 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 	];
 }
 
+function buildConnectorLaunchArgs(
+	cliArgs: string[],
+	isRestart: boolean,
+): string[] {
+	return isRestart ? ["--restart", ...cliArgs] : cliArgs;
+}
+
 export async function startConnectorChannel(
 	workspaceRoot: string,
 	args?: Record<string, unknown>,
 ): Promise<WebviewConnectorChannelsResponse> {
 	const cliArgs = buildConnectorStartArgs(args);
 	const channel = cliArgs[0] ?? "";
-	if (listActiveConnectors().some((connector) => connector.type === channel)) {
-		const stopResult = await runCliConnectCommand(workspaceRoot, [
-			"--stop",
-			channel,
-		]);
-		if (stopResult.code !== 0) {
-			throw new Error(
-				normalizeConnectorError(
-					stopResult.stderr || stopResult.stdout,
-					"connector stop failed",
-				),
-			);
-		}
-		await waitForConnectorState(
-			() =>
-				!listActiveConnectors().some((connector) => connector.type === channel),
-		);
-	}
-	const result = await runCliConnectCommand(workspaceRoot, cliArgs);
+	const isRestart = listActiveConnectors().some(
+		(connector) => connector.type === channel,
+	);
+	const result = await runCliConnectCommand(
+		workspaceRoot,
+		buildConnectorLaunchArgs(cliArgs, isRestart),
+	);
 	if (result.code !== 0) {
 		throw new Error(
 			normalizeConnectorError(
@@ -283,6 +278,10 @@ export async function startConnectorChannel(
 	);
 	return connectorChannelsPayload();
 }
+
+export const __test__ = {
+	buildConnectorLaunchArgs,
+};
 
 export async function stopConnectorChannel(
 	workspaceRoot: string,
