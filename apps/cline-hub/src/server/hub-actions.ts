@@ -20,17 +20,28 @@ export async function connectHubFromWebview(
 			hubUrl: frame.hubUrl,
 			authToken: frame.authToken,
 		});
-		await initializePeer(ctx, peer, syncClientsAndSessions);
-		ctx.send(peer, {
-			type: "hub_connection_result",
-			ok: true,
-			hubUrl: ctx.hubUrl,
-		});
 	} catch (error) {
 		ctx.send(peer, {
 			type: "hub_connection_result",
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
+		});
+		return;
+	}
+
+	ctx.send(peer, {
+		type: "hub_connection_result",
+		ok: true,
+		hubUrl: ctx.hubUrl,
+	});
+	try {
+		await initializePeer(ctx, peer, syncClientsAndSessions);
+	} catch (error) {
+		ctx.send(peer, {
+			type: "error",
+			text: `Connected to the hub, but failed to refresh dashboard state: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
 		});
 	}
 }

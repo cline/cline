@@ -1,6 +1,7 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr } from "@cline/shared";
 import {
+	CLINE_HUB_PRESERVE_DASHBOARD_ENV,
 	restartManagedHubDashboardProcess,
 	stopManagedHubDashboardProcess,
 } from "../daemon/dashboard-process";
@@ -94,19 +95,36 @@ async function main(): Promise<void> {
 		throw error;
 	}
 
-	await restartManagedHubDashboardProcess({
-		discoveryPath: dashboardDiscoveryPath,
-		cwd: options.cwd,
-	}).catch((error) => {
-		const message =
-			error instanceof Error ? error.stack || error.message : String(error);
-		process.stderr.write(`[hub-daemon] dashboard restart failed: ${message}\n`);
+	const preserveDashboardDuringStartup =
+		process.env[CLINE_HUB_PRESERVE_DASHBOARD_ENV]?.trim() === "1";
+	let dashboardStartupSettled = false;
+	let preserveDashboardOnShutdown = false;
+	let dashboardRestartPromise = Promise.resolve();
+	const rememberPreserveDashboard = (preserve: boolean): void => {
+		if (
+			preserve ||
+			(!dashboardStartupSettled && preserveDashboardDuringStartup)
+		) {
+			preserveDashboardOnShutdown = true;
+		}
+	};
+
+	const shutdownRequestPromise = server.shutdownRequested.then((request) => {
+		rememberPreserveDashboard(request.preserveDashboard);
+		return request;
 	});
 
+	let shutdownStarted = false;
 	const shutdown = async (
 		options: { preserveDashboard?: boolean } = {},
 	): Promise<void> => {
-		if (!options.preserveDashboard) {
+		rememberPreserveDashboard(options.preserveDashboard === true);
+		if (shutdownStarted) {
+			return;
+		}
+		shutdownStarted = true;
+		await dashboardRestartPromise;
+		if (!preserveDashboardOnShutdown) {
 			await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
 				() => undefined,
 			);
@@ -122,11 +140,18 @@ async function main(): Promise<void> {
 			return;
 		}
 		fatalShutdownStarted = true;
+		rememberPreserveDashboard(false);
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void stopManagedHubDashboardProcess(dashboardDiscoveryPath)
-			.catch(() => undefined)
+		void dashboardRestartPromise
+			.then(async () => {
+				if (!preserveDashboardOnShutdown) {
+					await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
+						() => undefined,
+					);
+				}
+			})
 			.then(() => server.close())
 			.catch((closeError) => {
 				const closeMessage =
@@ -166,7 +191,23 @@ async function main(): Promise<void> {
 		shutdownFatal("unhandledRejection", reason);
 	});
 
-	const shutdownRequest = await server.shutdownRequested;
+	dashboardRestartPromise = restartManagedHubDashboardProcess({
+		discoveryPath: dashboardDiscoveryPath,
+		cwd: options.cwd,
+	})
+		.catch((error) => {
+			const message =
+				error instanceof Error ? error.stack || error.message : String(error);
+			process.stderr.write(
+				`[hub-daemon] dashboard restart failed: ${message}\n`,
+			);
+		})
+		.finally(() => {
+			dashboardStartupSettled = true;
+		});
+	await dashboardRestartPromise;
+
+	const shutdownRequest = await shutdownRequestPromise;
 	await shutdown(shutdownRequest);
 }
 

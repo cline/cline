@@ -79,6 +79,7 @@ vi.mock("../daemon/runtime-handlers", () => ({
 }));
 
 vi.mock("../daemon/dashboard-process", () => ({
+	CLINE_HUB_PRESERVE_DASHBOARD_ENV: "CLINE_HUB_PRESERVE_DASHBOARD",
 	restartManagedHubDashboardProcess: mockRestartManagedHubDashboardProcess,
 	stopManagedHubDashboardProcess: mockStopManagedHubDashboardProcess,
 }));
@@ -191,6 +192,38 @@ describe("hub daemon entry", () => {
 		});
 	});
 
+	it("registers shutdown handlers before restarting the managed dashboard", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		let finishDashboardRestart: (() => void) | undefined;
+		mockRestartManagedHubDashboardProcess.mockReturnValueOnce(
+			new Promise<undefined>((resolve) => {
+				finishDashboardRestart = () => resolve(undefined);
+			}),
+		);
+		const processOn = vi.spyOn(process, "on").mockImplementation(() => process);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(mockRestartManagedHubDashboardProcess).toHaveBeenCalledOnce();
+		});
+
+		for (const signal of [
+			"SIGINT",
+			"SIGTERM",
+			"uncaughtException",
+			"unhandledRejection",
+		]) {
+			expect(processOn).toHaveBeenCalledWith(signal, expect.any(Function));
+		}
+		const firstHandlerRegistration = processOn.mock.invocationCallOrder[0];
+		const dashboardRestart =
+			mockRestartManagedHubDashboardProcess.mock.invocationCallOrder[0];
+		expect(firstHandlerRegistration).toBeLessThan(dashboardRestart);
+		finishDashboardRestart?.();
+	});
+
 	it("disposes telemetry and exits when server startup fails", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
@@ -259,5 +292,54 @@ describe("hub daemon entry", () => {
 		expect(mockStopManagedHubDashboardProcess).not.toHaveBeenCalled();
 		expect(close).toHaveBeenCalledOnce();
 		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+	});
+
+	it("preserves the dashboard if fatal shutdown starts during a preserved shutdown", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		const handlers = new Map<string, (...args: unknown[]) => void>();
+		vi.spyOn(process, "on").mockImplementation((event, listener) => {
+			handlers.set(String(event), listener as (...args: unknown[]) => void);
+			return process;
+		});
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		let requestShutdown:
+			| ((request: { preserveDashboard: boolean }) => void)
+			| undefined;
+		const shutdownRequested = new Promise<{ preserveDashboard: boolean }>(
+			(resolve) => {
+				requestShutdown = resolve;
+			},
+		);
+		const normalClosePending = new Promise<void>(() => undefined);
+		const close = vi
+			.fn()
+			.mockReturnValueOnce(normalClosePending)
+			.mockResolvedValueOnce(undefined);
+		mockStartHubWebSocketServer.mockResolvedValueOnce({
+			close,
+			shutdownRequested,
+		} as never);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(handlers.has("unhandledRejection")).toBe(true);
+		});
+		requestShutdown?.({ preserveDashboard: true });
+		await vi.waitFor(() => {
+			expect(close).toHaveBeenCalledOnce();
+		});
+
+		handlers.get("unhandledRejection")?.(new Error("teardown failed"));
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+
+		expect(close).toHaveBeenCalledTimes(2);
+		expect(mockStopManagedHubDashboardProcess).not.toHaveBeenCalled();
 	});
 });

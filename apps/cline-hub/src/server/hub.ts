@@ -6,6 +6,7 @@ import {
 	HubUIClient,
 	probeHubServer,
 	readHubDashboardDiscovery,
+	readHubDiscovery,
 	rememberRecoverableLocalHubUrl,
 	resolveDefaultHubOwnerContext,
 	resolveHubDashboardDiscoveryPath,
@@ -126,9 +127,21 @@ export interface HubAttachmentOverride {
 	preserveDashboard?: boolean;
 }
 
-function resolveHubAttachmentOverride(
+function sameHubEndpoint(left: string, right: string): boolean {
+	const leftUrl = new URL(left);
+	const rightUrl = new URL(right);
+	leftUrl.search = "";
+	leftUrl.hash = "";
+	rightUrl.search = "";
+	rightUrl.hash = "";
+	return leftUrl.toString() === rightUrl.toString();
+}
+
+async function resolveHubAttachmentOverride(
 	override?: HubAttachmentOverride,
-): { hubUrl: string; authToken: string } | undefined {
+): Promise<
+	{ hubUrl: string; authToken: string; managedLocally: boolean } | undefined
+> {
 	const rawHubUrl = override?.hubUrl?.trim();
 	if (!rawHubUrl) {
 		return undefined;
@@ -137,7 +150,15 @@ function resolveHubAttachmentOverride(
 	const queryToken = parsed.searchParams.get("authToken")?.trim();
 	parsed.searchParams.delete("authToken");
 	parsed.hash = "";
-	const authToken = override?.authToken?.trim() || queryToken || undefined;
+	const owner = resolveDefaultHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const managedLocally = Boolean(
+		discovery?.url && sameHubEndpoint(parsed.toString(), discovery.url),
+	);
+	const authToken =
+		override?.authToken?.trim() ||
+		queryToken ||
+		(managedLocally ? discovery?.authToken.trim() : undefined);
 	if (!authToken) {
 		throw new Error(
 			"Hub auth token is required when connecting the dashboard to a custom hub URL.",
@@ -146,6 +167,7 @@ function resolveHubAttachmentOverride(
 	return {
 		hubUrl: parsed.toString(),
 		authToken,
+		managedLocally,
 	};
 }
 
@@ -153,7 +175,7 @@ export async function attachHub(
 	ctx: HubContext,
 	override?: HubAttachmentOverride,
 ): Promise<void> {
-	const resolvedOverride = resolveHubAttachmentOverride(override);
+	const resolvedOverride = await resolveHubAttachmentOverride(override);
 	const hub = resolvedOverride
 		? {
 				url: rememberRecoverableLocalHubUrl(
@@ -203,7 +225,8 @@ export async function attachHub(
 	await detachHub(ctx);
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
-	ctx.hubManagedLocally = resolvedOverride === undefined;
+	ctx.hubManagedLocally =
+		resolvedOverride === undefined || resolvedOverride.managedLocally;
 	ctx.cline = nextCline;
 	ctx.uiClient = nextUiClient;
 

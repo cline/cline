@@ -83,6 +83,47 @@ describe("connectHubFromWebview", () => {
 			error: "connection refused",
 		});
 	});
+
+	it("keeps a successful connection result when peer refresh fails", async () => {
+		mocks.initializePeer.mockRejectedValue(
+			new Error("provider refresh failed"),
+		);
+		const send = vi.fn();
+		const ctx = {
+			hubUrl: "ws://127.0.0.1:25464/hub",
+			send,
+		};
+		const peer = {};
+		const { connectHubFromWebview } = await import("./hub-actions");
+
+		await connectHubFromWebview(
+			ctx as never,
+			peer as never,
+			{
+				type: "connect_hub",
+				hubUrl: "ws://127.0.0.1:25464/hub",
+				authToken: "custom-token",
+			},
+			vi.fn(),
+		);
+
+		expect(send).toHaveBeenCalledWith(peer, {
+			type: "hub_connection_result",
+			ok: true,
+			hubUrl: "ws://127.0.0.1:25464/hub",
+		});
+		expect(send).not.toHaveBeenCalledWith(
+			peer,
+			expect.objectContaining({
+				type: "hub_connection_result",
+				ok: false,
+			}),
+		);
+		expect(send).toHaveBeenCalledWith(peer, {
+			type: "error",
+			text: "Connected to the hub, but failed to refresh dashboard state: provider refresh failed",
+		});
+	});
 });
 
 describe("restartHubFromWebview", () => {
