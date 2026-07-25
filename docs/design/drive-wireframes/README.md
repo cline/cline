@@ -8,6 +8,8 @@ Design exploration for Drive's pair-partner UX inside Cline. Mocks are throwaway
 
 | Artifact | Role |
 |---|---|
+| [DEMO.md](DEMO.md) | Click-through runbook for HTML, hub fixture, CLI teaser, and overview canvas |
+| [overview-canvas.html](overview-canvas.html) | In-repo replacement for the old Windows-only `cline-drivecode-overview.canvas.tsx` |
 | [DRIVE-TAB.md](DRIVE-TAB.md) | Decision record and domain shape |
 | [drive-tab-discord-slack.html](drive-tab-discord-slack.html) | Throwaway prototype (keys 1/2 for Discord-leaning vs Slack-leaning chrome; accent switcher for the two Cline violet treatments) |
 | [CLINE-BRAND-TOKENS.md](CLINE-BRAND-TOKENS.md) | Brand tokens measured off cline.bot — palette, surfaces, type, radius, and what not to copy |

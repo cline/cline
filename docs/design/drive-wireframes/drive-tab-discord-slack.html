@@ -654,9 +654,43 @@
   }
   .huddle-banner .go:hover { opacity: 0.86; }
   .huddle-banner .go:active { transform: translateY(1px); }
+
+  .demo-banner {
+    max-width: 1100px;
+    margin: 10px auto 0;
+    padding: 10px 14px;
+    border: var(--hair) solid color-mix(in srgb, var(--brand-purple) 45%, transparent);
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--brand-purple) 10%, transparent);
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .demo-banner b { color: var(--text); }
+  .demo-banner code {
+    font: 400 11px/1 var(--mono);
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    border-radius: 4px;
+    padding: 1px 4px;
+    color: var(--code);
+  }
+  .demo-banner .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 </style>
 </head>
 <body class="accent-edge">
+
+<div class="demo-banner">
+  <b>UX demo scaffold.</b>
+  Locked IA lives in <code>DRIVE-TAB.md</code>. This page is a throwaway prototype for click-through testing.
+  Hub Chat Join/Stage is a local fixture only. Hub-owned rooms are not wired yet.
+  Keys <code>1</code>/<code>2</code> chrome · <code>3</code>/<code>4</code> accent · <code>Alt+1..5</code> address · <code>S</code> cycle stage cards.
+  <div class="actions">
+    <button class="btn" id="cycle-stage" type="button">Cycle stage cards</button>
+    <a class="btn" href="overview-canvas.html">Overview canvas</a>
+    <a class="btn" href="DEMO.md">Demo runbook</a>
+  </div>
+</div>
 
 <div id="bar">
   <span class="brand">Drive<em>code</em></span>
@@ -874,16 +908,33 @@ const transcripts = {
 };
 
 const agentStage = [
-  { cls: "add", text: "+ if (req.pending) return" },
-  { cls: "add", text: "+ req.pending = true" },
-  { cls: "ctx", text: "\u00a0\u00a0timers.push(retryAt)" },
-  { cls: "cmd", text: "bun -F @cline/core test:unit" },
+  { cls: "add", text: "+ if (req.pending) return", kind: "edit" },
+  { cls: "add", text: "+ req.pending = true", kind: "edit" },
+  { cls: "ctx", text: "\u00a0\u00a0timers.push(retryAt)", kind: "edit" },
+  { cls: "cmd", text: "bun -F @cline/core test:unit", kind: "command" },
+  { cls: "ctx", text: "PASS  retry once per timeout", kind: "test" },
 ];
 
+const stageDeck = [
+  [
+    { cls: "add", text: "+ if (req.pending) return", kind: "edit" },
+    { cls: "cmd", text: "bun -F @cline/core test:unit", kind: "command" },
+  ],
+  [
+    { cls: "cmd", text: "bun -F @cline/core test:unit", kind: "command" },
+    { cls: "ctx", text: "PASS  retry once per timeout", kind: "test" },
+  ],
+  [
+    { cls: "ctx", text: "PASS  retry once per timeout", kind: "test" },
+    { cls: "add", text: "+ explain race in PR body", kind: "edit" },
+  ],
+];
+let stageDeckIndex = 0;
+
 const youStage = [
-  { cls: "ctx", text: "apps/cli/src/tui/views/chat-view.tsx:118" },
-  { cls: "ctx", text: "\u00a0\u00a0const [drive, setDrive] = useDriveRoom()" },
-  { cls: "add", text: "keep the room shape, I only want the strip" },
+  { cls: "ctx", text: "apps/cli/src/tui/views/chat-view.tsx:118", kind: "edit" },
+  { cls: "ctx", text: "\u00a0\u00a0const [drive, setDrive] = useDriveRoom()", kind: "edit" },
+  { cls: "add", text: "keep the room shape, I only want the strip", kind: "edit" },
 ];
 
 let view = "call";
@@ -926,15 +977,18 @@ function renderMembers() {
 }
 
 function renderAddr() {
-  const opts = ["everyone", ...people.filter((p) => p.kind === "agent").map((p) => p.id)];
+  const opts = ["everyone", "pack", ...people.filter((p) => p.kind === "agent").map((p) => p.id)];
   document.getElementById("addr-bar").innerHTML = opts
     .map((id, i) => {
-      const label = id === "everyone" ? "Everyone" : people.find((p) => p.id === id).name;
+      const label =
+        id === "everyone" ? "Everyone" : id === "pack" ? "RosterPack" : people.find((p) => p.id === id).name;
       return `<span class="chip ${address.has(id) ? "on" : ""}" data-addr="${id}">${label}<span class="k">alt+${i + 1}</span></span>`;
     })
     .join("");
   const names = [...address]
-    .map((id) => (id === "everyone" ? "everyone" : people.find((p) => p.id === id)?.name))
+    .map((id) =>
+      id === "everyone" ? "everyone" : id === "pack" ? "RosterPack" : people.find((p) => p.id === id)?.name,
+    )
     .join(", ");
   document.getElementById("addr-pill").textContent = "To: " + (names || "everyone");
 }
@@ -1014,14 +1068,25 @@ function setView(v) {
 }
 
 function toggleAddr(id) {
-  if (id === "everyone") {
-    address = new Set(["everyone"]);
+  if (id === "everyone" || id === "pack") {
+    address = new Set([id]);
   } else {
     address.delete("everyone");
+    address.delete("pack");
     if (address.has(id)) address.delete(id); else address.add(id);
     if (address.size === 0) address.add("everyone");
   }
   renderAddr();
+}
+
+function cycleStage() {
+  if (youSharing) return;
+  stageDeckIndex = (stageDeckIndex + 1) % stageDeck.length;
+  agentStage.length = 0;
+  agentStage.push(...stageDeck[stageDeckIndex]);
+  const kinds = stageDeck[stageDeckIndex].map((e) => e.kind).join(" → ");
+  document.getElementById("now-v").textContent = `last-event-wins · ${kinds}`;
+  renderStage();
 }
 
 function setCall(next) {
@@ -1123,6 +1188,7 @@ document.getElementById("you-share").onclick = () => { youSharing = true; applyS
 document.getElementById("agent-share").onclick = () => { youSharing = false; applyShare(); };
 
 document.getElementById("leave-btn").onclick = () => setCall(false);
+document.getElementById("cycle-stage").onclick = () => cycleStage();
 
 document.getElementById("send").onclick = () => {
   const input = document.getElementById("compose");
@@ -1131,7 +1197,7 @@ document.getElementById("send").onclick = () => {
   const to = [...address].join(",");
   const bucket = view === "call" || view.startsWith("channel") ? "call" : view;
   (transcripts[bucket] ||= []).push({ who: "you", text: `[to:${to}] ${text}` });
-  agentStage.push({ cls: "ctx", text: `\u00a0\u00a0steer(${to}): ${text.slice(0, 34)}` });
+  agentStage.push({ cls: "ctx", text: `\u00a0\u00a0steer(${to}): ${text.slice(0, 34)}`, kind: "edit" });
   if (agentStage.length > 6) agentStage.splice(0, agentStage.length - 6);
   input.value = "";
   renderMsgs();
@@ -1143,14 +1209,15 @@ window.addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("send").click();
     return;
   }
-  if (e.altKey && e.key >= "1" && e.key <= "4") {
-    toggleAddr(["everyone", "adam", "riley", "sam"][Number(e.key) - 1]);
+  if (e.altKey && e.key >= "1" && e.key <= "5") {
+    toggleAddr(["everyone", "pack", "adam", "riley", "sam"][Number(e.key) - 1]);
     return;
   }
   if (e.key === "1") document.querySelector('#layout-seg button[data-v="discord"]').click();
   if (e.key === "2") document.querySelector('#layout-seg button[data-v="slack"]').click();
   if (e.key === "3") document.querySelector('#accent-seg button[data-a="edge"]').click();
   if (e.key === "4") document.querySelector('#accent-seg button[data-a="fill"]').click();
+  if (e.key === "s" || e.key === "S") cycleStage();
 });
 
 renderRoster(); renderMembers(); renderAddr(); renderStage(); renderMsgs();

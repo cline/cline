@@ -94,9 +94,13 @@ This code does not yet implement hub-owned Drive rooms, reconnect convergence, a
 
 - Cursor Drive prior art lives at `C:\Users\harri\Documents\dev\profiles\ai-secretagent\active\cursor-drive`.
 - Claude Drive prior art lives at `C:\Users\harri\Documents\dev\profiles\ai-secretagent\active\claude-drive`.
-- The overview canvas lives outside this repository at `C:\Users\harri\.cursor\projects\c-Users-harri-Documents-dev-profiles-ai-secretagent-active-cursor-drive\canvases\cline-drivecode-overview.canvas.tsx`.
-- The canvas is not in git. The next session must open it from that absolute path.
-- This handoff lives on branch `docs/drivecode-handoff`.
+- The overview canvas used to live outside this repository at `C:\Users\harri\.cursor\projects\c-Users-harri-Documents-dev-profiles-ai-secretagent-active-cursor-drive\canvases\cline-drivecode-overview.canvas.tsx`.
+- Prefer the in-repo twin: [docs/design/drive-wireframes/overview-canvas.html](../design/drive-wireframes/overview-canvas.html). Click-through runbook: [DEMO.md](../design/drive-wireframes/DEMO.md).
+- This handoff lives on the Drivecode stack tip (see open PRs / demo branch).
+
+## Demo
+
+Open [docs/design/drive-wireframes/DEMO.md](../design/drive-wireframes/DEMO.md) for HTML, hub Chat fixture, CLI `Ctrl+Shift+D`, and overview canvas steps. Hub Join/Stage uses a local `DriveDemoFixture` only. Hub-owned rooms are not wired yet.
 
 ## Core tension
 

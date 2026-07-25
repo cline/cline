@@ -64,8 +64,13 @@ import {
 	DriveCallStrip,
 	DriveHeaderControls,
 	DriveNarrationBanner,
+	DriveStageCards,
 	DriveStagePanel,
 } from "./drive/DriveCallChrome";
+import {
+	DRIVE_DEMO_FIXTURE,
+	fixtureStageCards,
+} from "./drive/demoFixture";
 import {
 	DEFAULT_DRIVE_UI,
 	type DriveUiState,
@@ -1263,18 +1268,30 @@ export default function Chat({
 								setDrive((current) => {
 									const nextActive = !current.active;
 									if (nextActive) {
+										const partnerName = current.demo
+											? DRIVE_DEMO_FIXTURE.room.partnerName
+											: current.partnerName;
 										setDriveJoinNote(
-											`On the call. I am ${current.partnerName}. Share what you want to work on and I will drive.`,
+											current.demo
+												? DRIVE_DEMO_FIXTURE.narration
+												: `On the call. I am ${partnerName}. Share what you want to work on and I will drive.`,
 										);
 										setMode(toNativeMode(current.subMode));
-									} else {
-										setDriveJoinNote(null);
+										return {
+											...current,
+											active: true,
+											partnerName,
+											stageLayout: current.demo
+												? true
+												: current.stageLayout,
+										};
 									}
+									setDriveJoinNote(null);
 									return {
 										...current,
-										active: nextActive,
-										stageLayout: nextActive ? current.stageLayout : false,
-										handRaised: nextActive ? current.handRaised : false,
+										active: false,
+										stageLayout: false,
+										handRaised: false,
 									};
 								});
 							}}
@@ -1581,19 +1598,38 @@ export default function Chat({
 				</div>
 				{drive.active && drive.stageLayout ? (
 					<DriveStagePanel
-						nextLabel="steer or approve next step"
-						nowLabel={sending ? "partner working" : "idle"}
-						sharingLabel={latestToolLabel}
+						demo={drive.demo}
+						nextLabel={
+							drive.demo
+								? DRIVE_DEMO_FIXTURE.nextLabel
+								: "steer or approve next step"
+						}
+						nowLabel={
+							drive.demo
+								? DRIVE_DEMO_FIXTURE.nowLabel
+								: sending
+									? "partner working"
+									: "idle"
+						}
+						sharingLabel={
+							drive.demo
+								? `${DRIVE_DEMO_FIXTURE.room.partnerName} · ${DRIVE_DEMO_FIXTURE.room.name}`
+								: latestToolLabel
+						}
 					>
-						<div className="space-y-2 text-xs text-muted-foreground">
-							<p>
-								Live stage over hub session events. Tool cards in the feed are
-								the source of truth; this pane highlights the latest activity.
-							</p>
-							<pre className="overflow-auto rounded-md border bg-background p-2 font-mono text-[11px]">
-								{latestToolLabel}
-							</pre>
-						</div>
+						{drive.demo ? (
+							<DriveStageCards cards={fixtureStageCards()} />
+						) : (
+							<div className="space-y-2 text-xs text-muted-foreground">
+								<p>
+									Live stage over hub session events. Tool cards in the feed are
+									the source of truth; this pane highlights the latest activity.
+								</p>
+								<pre className="overflow-auto rounded-md border bg-background p-2 font-mono text-[11px]">
+									{latestToolLabel}
+								</pre>
+							</div>
+						)}
 					</DriveStagePanel>
 				) : null}
 				</div>

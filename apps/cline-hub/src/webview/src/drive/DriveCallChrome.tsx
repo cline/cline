@@ -1,3 +1,4 @@
+import type { StageCard } from "@cline/shared";
 import { HandIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -147,11 +148,13 @@ export function DriveStagePanel({
 	sharingLabel,
 	nowLabel,
 	nextLabel,
+	demo,
 	children,
 }: {
 	sharingLabel: string;
 	nowLabel: string;
 	nextLabel: string;
+	demo?: boolean;
 	children: ReactNode;
 }) {
 	return (
@@ -159,6 +162,11 @@ export function DriveStagePanel({
 			<div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
 				<span className="text-emerald-600 dark:text-emerald-400">● sharing</span>
 				<span className="truncate">{sharingLabel}</span>
+				{demo ? (
+					<Badge className="ml-auto shrink-0 text-[10px]" variant="outline">
+						Demo fixture
+					</Badge>
+				) : null}
 			</div>
 			<div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
 			<div className="grid grid-cols-2 gap-2 border-t p-3">
@@ -175,6 +183,35 @@ export function DriveStagePanel({
 					<div className="text-xs">{nextLabel}</div>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+export function DriveStageCards({ cards }: { cards: readonly StageCard[] }) {
+	return (
+		<div className="space-y-2">
+			<p className="text-xs text-muted-foreground">
+				Last-event-wins stage cards. Local fixture only. Hub-owned rooms are not
+				wired yet.
+			</p>
+			{cards.map((card) => (
+				<div
+					className="rounded-md border bg-background p-2"
+					key={card.id}
+				>
+					<div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+						<span className="rounded border px-1.5 py-0.5">{card.category}</span>
+						<span className="truncate font-medium normal-case text-foreground">
+							{card.title}
+						</span>
+					</div>
+					{card.summary ? (
+						<pre className="mt-1 overflow-auto font-mono text-[11px] text-muted-foreground">
+							{card.summary}
+						</pre>
+					) : null}
+				</div>
+			))}
 		</div>
 	);
 }

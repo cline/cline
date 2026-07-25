@@ -10,6 +10,11 @@ export type DriveUiState = {
 	partnerName: string;
 	muted: boolean;
 	handRaised: boolean;
+	/**
+	 * Local UX demo fixture for Join / Stage without a hub room writer.
+	 * Scaffold only. Not hub-owned room state.
+	 */
+	demo: boolean;
 };
 
 export const DEFAULT_DRIVE_UI: DriveUiState = {
@@ -19,6 +24,7 @@ export const DEFAULT_DRIVE_UI: DriveUiState = {
 	partnerName: "Adam",
 	muted: false,
 	handRaised: false,
+	demo: true,
 };
 
 /** Map Drive sub-mode onto native Cline plan|act for send config. */
