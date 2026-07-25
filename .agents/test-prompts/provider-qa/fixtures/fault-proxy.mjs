@@ -24,6 +24,7 @@ const FAULT_MODELS = [
 	"fault/ok",
 	"fault/ok-no-cache",
 	"fault/ok-slow",
+	"fault/ok-drip",
 	"fault/429",
 	"fault/401",
 	"fault/500",
@@ -86,14 +87,18 @@ function sseHeaders(res) {
 	})
 }
 
-// Emit a minimal but well-formed OpenAI streaming completion.
-function streamText(res, model, text) {
+// Emit a minimal but well-formed OpenAI streaming completion. When gapMs is set
+// the chunks are spaced out, which keeps a response visibly streaming long
+// enough to interrupt it (used by the mid-task reload case).
+async function streamText(res, model, text, gapMs = 0) {
 	sseHeaders(res)
 	const id = `chatcmpl-qa-${Date.now()}`
 	const base = { id, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model }
 
 	res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] })}\n\n`)
 	for (const piece of text.match(/.{1,8}/gs) ?? []) {
+		if (gapMs) await sleep(gapMs)
+		if (res.writableEnded) return
 		res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { content: piece }, finish_reason: null }] })}\n\n`)
 	}
 	res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\n`)
@@ -180,6 +185,11 @@ async function handleChatCompletions(req, res, body) {
 			break
 		default:
 			break
+	}
+
+	if (model === "fault/ok-drip") {
+		const long = `PONG [served-by:${model}] ${"streaming ".repeat(40)}done`
+		return streamText(res, model, long, Number(process.env.QA_PROXY_DRIP_MS || 700))
 	}
 
 	const text = `PONG [served-by:${model}]`
