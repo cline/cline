@@ -168,7 +168,7 @@ describe("telegramConnector", () => {
 		expect(options.botUsername).toBe("test_bot");
 	});
 
-	it("does not call getMe when the token-only connector is already running", async () => {
+	it("validates a token before reporting its connector as already running", async () => {
 		const dataDir = useTempClineDataDir();
 		const connectorDir = join(dataDir, "connectors", "telegram");
 		mkdirSync(connectorDir, { recursive: true });
@@ -182,9 +182,12 @@ describe("telegramConnector", () => {
 				startedAt: new Date().toISOString(),
 			}),
 		);
-		const fetchImpl = vi.fn(async () => {
-			throw new Error("unexpected getMe call");
-		});
+		const fetchImpl = vi.fn(async () =>
+			Response.json({
+				ok: true,
+				result: { username: "resolved_bot" },
+			}),
+		);
 		vi.stubGlobal("fetch", fetchImpl);
 		const output: string[] = [];
 		const errors: string[] = [];
@@ -196,11 +199,14 @@ describe("telegramConnector", () => {
 					writeln: (text = "") => output.push(text),
 					writeErr: (text) => errors.push(text),
 				},
-				{ setPersistenceArgs: vi.fn() },
+				{
+					setPersistenceArgs: vi.fn(),
+					setPersistenceInstanceId: vi.fn(),
+				},
 			),
 		).resolves.toBe(CONNECT_ALREADY_RUNNING_EXIT_CODE);
 
-		expect(fetchImpl).not.toHaveBeenCalled();
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
 		expect(errors).toEqual([]);
 		expect(output).toEqual([
 			`[telegram] connector already running pid=${process.pid} rpc=127.0.0.1:54321`,
@@ -208,7 +214,7 @@ describe("telegramConnector", () => {
 	});
 
 	it("reports the resolved bot username in persistence args", async () => {
-		useTempClineDataDir();
+		const dataDir = useTempClineDataDir();
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => {
@@ -221,6 +227,19 @@ describe("telegramConnector", () => {
 			}),
 		);
 		const setPersistenceArgs = vi.fn();
+		const setPersistenceInstanceId = vi.fn();
+		mocks.spawnDetachedConnector.mockImplementation(() => {
+			const connectorDir = join(dataDir, "connectors", "telegram");
+			mkdirSync(connectorDir, { recursive: true });
+			writeFileSync(
+				join(connectorDir, "resolved_bot.json"),
+				JSON.stringify({
+					botUsername: "resolved_bot",
+					pid: process.pid,
+				}),
+			);
+			return process.pid;
+		});
 
 		await expect(
 			telegramConnector.run(
@@ -229,7 +248,7 @@ describe("telegramConnector", () => {
 					writeln: () => {},
 					writeErr: () => {},
 				},
-				{ setPersistenceArgs },
+				{ setPersistenceArgs, setPersistenceInstanceId },
 			),
 		).resolves.toBe(0);
 
@@ -241,6 +260,7 @@ describe("telegramConnector", () => {
 			"--bot-username",
 			"resolved_bot",
 		]);
+		expect(setPersistenceInstanceId).toHaveBeenCalledWith("resolved_bot");
 		expect(mocks.spawnDetachedConnector).toHaveBeenCalled();
 	});
 });

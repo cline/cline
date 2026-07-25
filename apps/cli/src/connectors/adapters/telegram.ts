@@ -605,6 +605,32 @@ class TelegramConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopTelegramConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override async validateOptions(
+		options: ConnectTelegramOptions,
+		io: ConnectIo,
+	): Promise<number> {
+		try {
+			await resolveTelegramBotUsername({
+				...options,
+				botUsername: undefined,
+			});
+			return 0;
+		} catch (error) {
+			io.writeErr(error instanceof Error ? error.message : String(error));
+			return 1;
+		}
+	}
+
 	protected override async runWithOptions(
 		inputOptions: ConnectTelegramOptions,
 		rawArgs: string[],
@@ -641,6 +667,7 @@ class TelegramConnector extends ConnectorBase<
 			? rawArgs
 			: [...rawArgs, "--bot-username", resolvedBotUsername];
 		context.setPersistenceArgs(backgroundArgs);
+		context.setPersistenceInstanceId(options.botUsername);
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
 		const staleState = this.removeStaleState(

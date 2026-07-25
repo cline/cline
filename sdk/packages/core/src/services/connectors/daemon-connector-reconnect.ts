@@ -34,12 +34,12 @@ async function runConnectorCli(
 	channel: string,
 	args: string[],
 	options: {
-		restart?: boolean;
+		restartInstanceId?: string;
 		log: (message: string) => void;
 		spawnProcess?: SpawnConnectorCli;
 	},
 ): Promise<boolean> {
-	const { log, restart = false } = options;
+	const { log, restartInstanceId } = options;
 	const spawnProcess = options.spawnProcess ?? (spawn as SpawnConnectorCli);
 	const childEnv = { ...process.env };
 	delete childEnv[CLINE_RUN_AS_HUB_DAEMON_ENV];
@@ -63,7 +63,9 @@ async function runConnectorCli(
 				spec.launcher,
 				[
 					...spec.connectArgsPrefix,
-					...(restart ? ["--restart"] : []),
+					...(restartInstanceId
+						? ["--restart-instance", restartInstanceId]
+						: []),
 					channel,
 					...args,
 				],
@@ -116,36 +118,28 @@ export async function reconnectDaemonConnectors(
 		process.stderr.write(`[hub-daemon] ${message}\n`),
 ): Promise<ReconnectAttempt[]> {
 	const launchSpec = readConnectorCliLaunchSpec();
-	const activeChannelCounts = new Map<string, number>();
+	const activeInstances = new Set<string>();
 	for (const record of listActiveConnectors()) {
-		activeChannelCounts.set(
-			record.type,
-			(activeChannelCounts.get(record.type) ?? 0) + 1,
-		);
+		activeInstances.add(`${record.type}\0${record.instanceId}`);
 	}
 	return await reconnectPersistedConnectors({
-		start: async (channel, args) => {
+		start: async ({ channel, instanceId, args }) => {
 			if (!launchSpec) {
 				log(
-					`[connect] cannot reconnect ${channel}: connector CLI launch information is unavailable`,
+					`[connect] cannot reconnect ${channel} instance ${instanceId}: connector CLI launch information is unavailable`,
 				);
 				return false;
 			}
-			const activeCount = activeChannelCounts.get(channel) ?? 0;
-			if (activeCount > 1) {
+			const restartInstanceId = activeInstances.has(`${channel}\0${instanceId}`)
+				? instanceId
+				: undefined;
+			if (restartInstanceId) {
 				log(
-					`[connect] cannot safely reconnect ${channel}: found ${activeCount} surviving instances but persisted autostart state identifies only the channel`,
-				);
-				return false;
-			}
-			const restart = activeCount === 1;
-			if (restart) {
-				log(
-					`[connect] restarting surviving ${channel} connector for the new hub session`,
+					`[connect] restarting surviving ${channel} connector ${instanceId} for the new hub session`,
 				);
 			}
 			return await runConnectorCli(launchSpec, channel, args, {
-				restart,
+				restartInstanceId,
 				log,
 			});
 		},

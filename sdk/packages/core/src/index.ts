@@ -490,10 +490,13 @@ export {
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
 	disableConnectorAutostart,
+	getPersistedConnectorConnection,
 	persistConnectorConnection,
 	type ReconnectAttempt,
 	type ReconnectPersistedConnectorsOptions,
+	type ReconnectTarget,
 	reconnectPersistedConnectors,
+	removePersistedConnectorConnection,
 } from "./services/connectors/connector-autostart";
 export {
 	FeatureFlagsService,

@@ -1,4 +1,7 @@
-import { withConnectorStore } from "@cline/shared/db";
+import {
+	type ConnectorConnectionRecord,
+	withConnectorStore,
+} from "@cline/shared/db";
 
 const INTERACTIVE_FLAGS = new Set(["-i", "--interactive"]);
 
@@ -16,25 +19,29 @@ function normalizeReconnectArgs(args: string[], cwd: string): string[] {
  */
 export function persistConnectorConnection(
 	channel: string,
+	instanceId: string,
 	rawArgs: string[],
 	cwd = process.cwd(),
 ): void {
 	try {
 		const reconnectArgs = normalizeReconnectArgs(rawArgs, cwd);
 		withConnectorStore((store) =>
-			store.recordConnected(channel, reconnectArgs),
+			store.recordConnected(channel, instanceId, reconnectArgs),
 		);
 	} catch {
 		// Persistence is best-effort; never fail the connector start over it.
 	}
 }
 
-/** Stop auto-reconnecting a channel after the user stopped it explicitly. */
-export function disableConnectorAutostart(channel?: string): void {
+/** Stop auto-reconnecting one instance, one channel, or every connector. */
+export function disableConnectorAutostart(
+	channel?: string,
+	instanceId?: string,
+): void {
 	try {
 		withConnectorStore((store) => {
 			if (channel) {
-				store.setEnabled(channel, false);
+				store.setEnabled(channel, false, instanceId);
 			} else {
 				store.disableAll();
 			}
@@ -44,17 +51,48 @@ export function disableConnectorAutostart(channel?: string): void {
 	}
 }
 
+export function getPersistedConnectorConnection(
+	channel: string,
+	instanceId: string,
+): ConnectorConnectionRecord | undefined {
+	try {
+		return withConnectorStore((store) =>
+			store.getConnection(channel, instanceId),
+		);
+	} catch {
+		return undefined;
+	}
+}
+
+export function removePersistedConnectorConnection(
+	channel: string,
+	instanceId: string,
+): void {
+	try {
+		withConnectorStore((store) => store.deleteConnection(channel, instanceId));
+	} catch {
+		// Replacement cleanup is best-effort.
+	}
+}
+
+export interface ReconnectTarget {
+	channel: string;
+	instanceId: string;
+	args: string[];
+}
+
 export interface ReconnectAttempt {
 	channel: string;
+	instanceId: string;
 	ok: boolean;
 	error?: string;
 }
 
 export interface ReconnectPersistedConnectorsOptions {
-	/** Starts a connector channel with the stored, non-interactive arguments. */
-	start: (channel: string, args: string[]) => Promise<boolean>;
-	/** Reports whether a connector is known to be healthy in the current host. */
-	isHealthy?: (channel: string) => boolean;
+	/** Starts one connector instance with its stored, non-interactive arguments. */
+	start: (target: ReconnectTarget) => Promise<boolean>;
+	/** Reports whether this exact connector instance is healthy in the host. */
+	isHealthy?: (target: ReconnectTarget) => boolean;
 	log?: (message: string) => void;
 }
 
@@ -66,13 +104,14 @@ export async function reconnectPersistedConnectors(
 	options: ReconnectPersistedConnectorsOptions,
 ): Promise<ReconnectAttempt[]> {
 	const log = options.log ?? (() => {});
-	let candidates: { channel: string; args: string[] }[];
+	let candidates: ReconnectTarget[];
 	try {
-		candidates = withConnectorStore((store) => store.list())
-			.filter((entry) => entry.enabled && entry.connectArgs !== undefined)
+		candidates = withConnectorStore((store) => store.listConnections())
+			.filter((entry) => entry.enabled)
 			.map((entry) => ({
 				channel: entry.channel,
-				args: entry.connectArgs ?? [],
+				instanceId: entry.instanceId,
+				args: entry.connectArgs,
 			}));
 	} catch (error) {
 		log(
@@ -84,21 +123,29 @@ export async function reconnectPersistedConnectors(
 	}
 
 	const attempts: ReconnectAttempt[] = [];
-	for (const { channel, args } of candidates) {
-		if (options.isHealthy?.(channel)) {
+	for (const target of candidates) {
+		const { channel, instanceId } = target;
+		if (options.isHealthy?.(target)) {
 			continue;
 		}
-		log(`[connect] reconnecting ${channel} connector`);
+		log(`[connect] reconnecting ${channel} connector ${instanceId}`);
 		try {
-			const ok = await options.start(channel, args);
-			attempts.push({ channel, ok });
+			const ok = await options.start(target);
+			attempts.push({ channel, instanceId, ok });
 			if (!ok) {
-				log(`[connect] failed to reconnect ${channel} connector`);
+				log(`[connect] failed to reconnect ${channel} connector ${instanceId}`);
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			attempts.push({ channel, ok: false, error: message });
-			log(`[connect] failed to reconnect ${channel} connector: ${message}`);
+			attempts.push({
+				channel,
+				instanceId,
+				ok: false,
+				error: message,
+			});
+			log(
+				`[connect] failed to reconnect ${channel} connector ${instanceId}: ${message}`,
+			);
 		}
 	}
 	return attempts;

@@ -6,7 +6,7 @@ import { resolveConnectorDataDir } from "@cline/shared/storage";
 
 type ConnectorFieldKey = keyof Omit<
 	ActiveConnectorRecord,
-	"id" | "type" | "pid" | "hubUrl"
+	"id" | "type" | "instanceId" | "pid" | "hubUrl"
 >;
 
 const connectorFieldExtractors: Record<
@@ -115,15 +115,21 @@ function readActiveConnectorRecord(
 		}
 	}
 
-	const identity =
-		fields.botUsername ??
-		fields.userName ??
-		fields.applicationId ??
-		fields.phoneNumberId ??
-		String(pid);
+	const instanceId =
+		type === "telegram"
+			? fields.botUsername
+			: type === "discord"
+				? fields.applicationId
+				: type === "whatsapp" && typeof parsed.instanceKey === "string"
+					? parsed.instanceKey
+					: fields.userName;
+	if (!instanceId) {
+		return undefined;
+	}
 	return {
-		id: `${type}:${identity}`,
+		id: `${type}:${instanceId}`,
 		type,
+		instanceId,
 		pid,
 		hubUrl,
 		...fields,

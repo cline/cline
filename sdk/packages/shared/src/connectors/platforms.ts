@@ -98,6 +98,7 @@ export type ConnectorChannel = {
 export type ActiveConnectorRecord = {
 	id: string;
 	type: string;
+	instanceId: string;
 	pid: number;
 	hubUrl: string;
 	startedAt?: string;
@@ -341,7 +342,7 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 					validate: validateTelegramUserId,
 				},
 			],
-			argumentFlags: ["--allowed-user-id"],
+			argumentFlags: ["--allowed-user-id", "--hook-command"],
 			buildArgs: ({ userId }) => ["--allowed-user-id", userId ?? ""],
 		},
 	},

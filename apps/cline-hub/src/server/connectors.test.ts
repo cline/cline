@@ -157,4 +157,10 @@ describe("connector launch command", () => {
 			"cannot safely restart telegram: 2 instances are active",
 		);
 	});
+
+	it("rejects when connector readiness times out", async () => {
+		await expect(
+			__test__.waitForConnectorState(() => false, 0),
+		).rejects.toThrow("connector did not reach expected state within 0ms");
+	});
 });

@@ -123,6 +123,7 @@ describe("daemon connector CLI launcher", () => {
 			{
 				id: "telegram:cline_bot",
 				type: "telegram",
+				instanceId: "cline_bot",
 				pid: 123,
 				hubUrl: "ws://127.0.0.1:4317",
 				botUsername: "cline_bot",
@@ -133,13 +134,18 @@ describe("daemon connector CLI launcher", () => {
 			return child;
 		});
 		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
-			const ok = await options.start("telegram", ["-k", "token"]);
-			return [{ channel: "telegram", ok }];
+			const target = {
+				channel: "telegram",
+				instanceId: "cline_bot",
+				args: ["-k", "token"],
+			};
+			const ok = await options.start(target);
+			return [{ channel: "telegram", instanceId: "cline_bot", ok }];
 		});
 		const log = vi.fn();
 
 		await expect(reconnectDaemonConnectors(log)).resolves.toEqual([
-			{ channel: "telegram", ok: true },
+			{ channel: "telegram", instanceId: "cline_bot", ok: true },
 		]);
 
 		expect(mocks.spawnProcess).toHaveBeenCalledWith(
@@ -147,7 +153,8 @@ describe("daemon connector CLI launcher", () => {
 			[
 				"/repo/apps/cli/src/index.ts",
 				"connect",
-				"--restart",
+				"--restart-instance",
+				"cline_bot",
 				"telegram",
 				"-k",
 				"token",
@@ -155,16 +162,17 @@ describe("daemon connector CLI launcher", () => {
 			expect.objectContaining({ cwd: "/workspace" }),
 		);
 		expect(log).toHaveBeenCalledWith(
-			"[connect] restarting surviving telegram connector for the new hub session",
+			"[connect] restarting surviving telegram connector cline_bot for the new hub session",
 		);
 	});
 
-	it("does not use a channel-wide restart when multiple instances survive", async () => {
+	it("restarts multiple surviving instances independently", async () => {
 		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
 		mocks.listActiveConnectors.mockReturnValue([
 			{
 				id: "telegram:first_bot",
 				type: "telegram",
+				instanceId: "first_bot",
 				pid: 123,
 				hubUrl: "ws://127.0.0.1:4317",
 				botUsername: "first_bot",
@@ -172,24 +180,72 @@ describe("daemon connector CLI launcher", () => {
 			{
 				id: "telegram:second_bot",
 				type: "telegram",
+				instanceId: "second_bot",
 				pid: 456,
 				hubUrl: "ws://127.0.0.1:4317",
 				botUsername: "second_bot",
 			},
 		]);
+		mocks.spawnProcess.mockImplementation(() => {
+			const child = new FakeConnectorCliChild();
+			queueMicrotask(() => child.emit("close", 0));
+			return child;
+		});
 		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
-			const ok = await options.start("telegram", ["-k", "token"]);
-			return [{ channel: "telegram", ok }];
+			const targets = [
+				{
+					channel: "telegram",
+					instanceId: "first_bot",
+					args: ["-k", "first-token"],
+				},
+				{
+					channel: "telegram",
+					instanceId: "second_bot",
+					args: ["-k", "second-token"],
+				},
+			];
+			return await Promise.all(
+				targets.map(async (target) => ({
+					channel: target.channel,
+					instanceId: target.instanceId,
+					ok: await options.start(target),
+				})),
+			);
 		});
 		const log = vi.fn();
 
 		await expect(reconnectDaemonConnectors(log)).resolves.toEqual([
-			{ channel: "telegram", ok: false },
+			{ channel: "telegram", instanceId: "first_bot", ok: true },
+			{ channel: "telegram", instanceId: "second_bot", ok: true },
 		]);
 
-		expect(mocks.spawnProcess).not.toHaveBeenCalled();
-		expect(log).toHaveBeenCalledWith(
-			"[connect] cannot safely reconnect telegram: found 2 surviving instances but persisted autostart state identifies only the channel",
+		expect(mocks.spawnProcess).toHaveBeenNthCalledWith(
+			1,
+			"/usr/local/bin/bun",
+			[
+				"/repo/apps/cli/src/index.ts",
+				"connect",
+				"--restart-instance",
+				"first_bot",
+				"telegram",
+				"-k",
+				"first-token",
+			],
+			expect.any(Object),
+		);
+		expect(mocks.spawnProcess).toHaveBeenNthCalledWith(
+			2,
+			"/usr/local/bin/bun",
+			[
+				"/repo/apps/cli/src/index.ts",
+				"connect",
+				"--restart-instance",
+				"second_bot",
+				"telegram",
+				"-k",
+				"second-token",
+			],
+			expect.any(Object),
 		);
 	});
 });

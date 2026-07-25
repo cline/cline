@@ -363,6 +363,10 @@ export async function runCli(): Promise<void> {
 		.argument("[channel]", "Channel to connect Cline CLI to")
 		.option("--stop", "Kill all current channel connections")
 		.option("--restart", "Restart a channel connection")
+		.option(
+			"--restart-instance <id>",
+			"Restart one connector instance (used by daemon recovery)",
+		)
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
@@ -378,7 +382,7 @@ export async function runCli(): Promise<void> {
 				runStopConnector,
 			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
-			if (opts.stop && opts.restart) {
+			if (opts.stop && (opts.restart || opts.restartInstance)) {
 				io.writeErr("connect accepts only one of --stop or --restart");
 				ctx.exitCode = 1;
 			} else if (opts.stop) {
@@ -387,7 +391,7 @@ export async function runCli(): Promise<void> {
 				} else {
 					ctx.exitCode = await runStopAllConnectors(io);
 				}
-			} else if (opts.restart) {
+			} else if (opts.restart || opts.restartInstance) {
 				if (!adapter) {
 					io.writeErr("connect --restart requires a channel");
 					ctx.exitCode = 1;
@@ -396,6 +400,7 @@ export async function runCli(): Promise<void> {
 						adapter,
 						connectCmd.args.slice(1),
 						io,
+						opts.restartInstance,
 					);
 				}
 			} else if (adapter) {

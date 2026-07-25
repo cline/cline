@@ -17,58 +17,53 @@ export interface ConnectorSecurityConfig {
 	values: Record<string, string>;
 }
 
-/**
- * Persisted configuration for a single connector channel. `values` and
- * `security.values` hold the raw field values (including auth tokens/keys);
- * `connectArgs` holds the exact `cline connect <channel>` arguments recorded
- * from the last successful start so the connector can be relaunched after a
- * hub or CLI restart. `enabled` gates that auto-reconnect: it is set when a
- * connector starts and cleared when the user stops it explicitly.
- */
+/** Dashboard-managed configuration for a connector channel. */
 export interface ConnectorConfigRecord {
 	channel: string;
 	type: string;
-	configured: boolean;
 	values: Record<string, string>;
 	security?: ConnectorSecurityConfig;
-	connectArgs?: string[];
-	enabled: boolean;
 	configuredAt: string;
 	updatedAt: string;
-	lastConnectedAt?: string;
 }
 
-const CONNECTOR_SCHEMA = `CREATE TABLE IF NOT EXISTS connectors (
+/** A successfully launched connector instance eligible for auto-reconnect. */
+export interface ConnectorConnectionRecord {
+	channel: string;
+	instanceId: string;
+	connectArgs: string[];
+	lastSuccessfulArgs: string[];
+	enabled: boolean;
+	updatedAt: string;
+	lastConnectedAt: string;
+}
+
+const CONNECTOR_CONFIG_SCHEMA = `CREATE TABLE IF NOT EXISTS connector_configs (
 	channel TEXT PRIMARY KEY,
 	type TEXT NOT NULL,
-	configured INTEGER NOT NULL DEFAULT 0,
 	values_json TEXT NOT NULL DEFAULT '{}',
 	security_enabled INTEGER NOT NULL DEFAULT 0,
 	security_values_json TEXT NOT NULL DEFAULT '{}',
-	connect_args_json TEXT,
-	enabled INTEGER NOT NULL DEFAULT 1,
 	configured_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);`;
+
+const CONNECTOR_CONNECTION_SCHEMA = `CREATE TABLE IF NOT EXISTS connector_connections (
+	channel TEXT NOT NULL,
+	instance_id TEXT NOT NULL,
+	connect_args_json TEXT NOT NULL,
+	last_successful_args_json TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
 	updated_at TEXT NOT NULL,
-	last_connected_at TEXT
+	last_connected_at TEXT NOT NULL,
+	PRIMARY KEY (channel, instance_id)
 );`;
 
 export function ensureConnectorSchema(db: SqliteDb): void {
 	db.exec("PRAGMA journal_mode = WAL;");
 	db.exec("PRAGMA busy_timeout = 5000;");
-	db.exec(CONNECTOR_SCHEMA);
-	const columns = db.prepare("PRAGMA table_info(connectors)").all();
-	if (!columns.some((column) => column.name === "configured")) {
-		db.exec(
-			"ALTER TABLE connectors ADD COLUMN configured INTEGER NOT NULL DEFAULT 0;",
-		);
-		db.exec(
-			`UPDATE connectors
-			 SET configured = 1
-			 WHERE values_json <> '{}'
-			    OR security_enabled = 1
-			    OR security_values_json <> '{}';`,
-		);
-	}
+	db.exec(CONNECTOR_CONFIG_SCHEMA);
+	db.exec(CONNECTOR_CONNECTION_SCHEMA);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -145,30 +140,66 @@ export class SqliteConnectorStore {
 		this.db = undefined;
 	}
 
-	get(channel: string): ConnectorConfigRecord | undefined {
+	getConfig(channel: string): ConnectorConfigRecord | undefined {
 		const row = this.getRawDb()
-			.prepare(`SELECT * FROM connectors WHERE channel = ?`)
+			.prepare(`SELECT * FROM connector_configs WHERE channel = ?`)
 			.get(channel);
-		return row ? rowToRecord(row) : undefined;
+		return row ? rowToConfigRecord(row) : undefined;
 	}
 
-	list(): ConnectorConfigRecord[] {
+	listConfigs(): ConnectorConfigRecord[] {
 		return this.getRawDb()
-			.prepare(`SELECT * FROM connectors ORDER BY channel ASC`)
+			.prepare(`SELECT * FROM connector_configs ORDER BY channel ASC`)
 			.all()
-			.map(rowToRecord);
+			.map(rowToConfigRecord);
+	}
+
+	getConnection(
+		channel: string,
+		instanceId: string,
+	): ConnectorConnectionRecord | undefined {
+		const row = this.getRawDb()
+			.prepare(
+				`SELECT * FROM connector_connections
+				 WHERE channel = ? AND instance_id = ?`,
+			)
+			.get(channel, instanceId);
+		return row ? rowToConnectionRecord(row) : undefined;
+	}
+
+	listConnections(channel?: string): ConnectorConnectionRecord[] {
+		const rows = channel
+			? this.getRawDb()
+					.prepare(
+						`SELECT * FROM connector_connections
+						 WHERE channel = ?
+						 ORDER BY instance_id ASC`,
+					)
+					.all(channel)
+			: this.getRawDb()
+					.prepare(
+						`SELECT * FROM connector_connections
+						 ORDER BY channel ASC, instance_id ASC`,
+					)
+					.all();
+		return rows.map(rowToConnectionRecord);
 	}
 
 	/**
-	 * Create or update the stored configuration for a channel while preserving
-	 * connection state (connect args, enabled flag, last-connected timestamp).
+	 * Create or update dashboard configuration. If exactly one persisted
+	 * instance exists, its desired reconnect arguments may be updated
+	 * atomically. Channel-wide configuration is ambiguous for multiple
+	 * instances and is rejected instead of rewriting every identity.
 	 */
 	upsertConfig(entry: {
 		channel: string;
 		type?: string;
 		values: Record<string, string>;
 		security?: ConnectorSecurityConfig;
-		updateConnectArgs?: (existing: ConnectorConfigRecord) => string[];
+		updateConnectArgs?: (existing: {
+			config?: ConnectorConfigRecord;
+			connection: ConnectorConnectionRecord;
+		}) => string[];
 		configuredAt?: string;
 		updatedAt?: string;
 	}): void {
@@ -176,29 +207,39 @@ export class SqliteConnectorStore {
 		const db = this.getRawDb();
 		db.exec("BEGIN IMMEDIATE;");
 		try {
-			const existingRow = db
-				.prepare(`SELECT * FROM connectors WHERE channel = ?`)
+			const existingConfigRow = db
+				.prepare(`SELECT * FROM connector_configs WHERE channel = ?`)
 				.get(entry.channel);
-			const existing = existingRow ? rowToRecord(existingRow) : undefined;
-			const connectArgs =
-				existing?.connectArgs && entry.updateConnectArgs
-					? entry.updateConnectArgs(existing)
-					: existing?.connectArgs;
+			const existingConfig = existingConfigRow
+				? rowToConfigRecord(existingConfigRow)
+				: undefined;
+			const connectionRows = db
+				.prepare(`SELECT * FROM connector_connections WHERE channel = ?`)
+				.all(entry.channel);
+			const connections = connectionRows.map(rowToConnectionRecord);
+			if (entry.updateConnectArgs && connections.length > 1) {
+				throw new Error(
+					`cannot apply channel-wide ${entry.channel} configuration to ${connections.length} persisted instances`,
+				);
+			}
+			const updatedConnectionArgs =
+				entry.updateConnectArgs && connections[0]
+					? entry.updateConnectArgs({
+							config: existingConfig,
+							connection: connections[0],
+						})
+					: undefined;
 			db.prepare(
-				`INSERT INTO connectors (
-					channel, type, configured, values_json, security_enabled, security_values_json,
-					connect_args_json, enabled, configured_at, updated_at, last_connected_at
-				) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+				`INSERT INTO connector_configs (
+					channel, type, values_json, security_enabled,
+					security_values_json, configured_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(channel) DO UPDATE SET
 					type = excluded.type,
-					configured = 1,
 					values_json = excluded.values_json,
 					security_enabled = excluded.security_enabled,
 					security_values_json = excluded.security_values_json,
-					connect_args_json = excluded.connect_args_json,
-					enabled = excluded.enabled,
 					configured_at = excluded.configured_at,
-					last_connected_at = excluded.last_connected_at,
 					updated_at = excluded.updated_at`,
 			).run(
 				entry.channel,
@@ -206,12 +247,21 @@ export class SqliteConnectorStore {
 				JSON.stringify(entry.values),
 				toBoolInt(entry.security?.enabled === true),
 				JSON.stringify(entry.security?.values ?? {}),
-				connectArgs ? JSON.stringify(connectArgs) : null,
-				toBoolInt(existing?.enabled ?? false),
-				entry.configuredAt ?? existing?.configuredAt ?? now,
+				entry.configuredAt ?? existingConfig?.configuredAt ?? now,
 				entry.updatedAt ?? now,
-				existing?.lastConnectedAt ?? null,
 			);
+			if (updatedConnectionArgs && connections[0]) {
+				db.prepare(
+					`UPDATE connector_connections
+					 SET connect_args_json = ?, updated_at = ?
+					 WHERE channel = ? AND instance_id = ?`,
+				).run(
+					JSON.stringify(updatedConnectionArgs),
+					now,
+					entry.channel,
+					connections[0].instanceId,
+				);
+			}
 			db.exec("COMMIT;");
 		} catch (error) {
 			try {
@@ -227,82 +277,83 @@ export class SqliteConnectorStore {
 	 * Record a successful `cline connect <channel>` start: keep the exact args
 	 * (auth flags included) for auto-reconnect and re-enable the channel.
 	 */
-	recordConnected(channel: string, connectArgs: string[]): void {
+	recordConnected(
+		channel: string,
+		instanceId: string,
+		connectArgs: string[],
+	): void {
 		const now = nowIso();
 		this.getRawDb()
 			.prepare(
-				`INSERT INTO connectors (
-					channel, type, configured, connect_args_json, enabled,
-					configured_at, updated_at, last_connected_at
-				) VALUES (?, ?, 0, ?, 1, ?, ?, ?)
-				ON CONFLICT(channel) DO UPDATE SET
+				`INSERT INTO connector_connections (
+					channel, instance_id, connect_args_json,
+					last_successful_args_json, enabled, updated_at, last_connected_at
+				) VALUES (?, ?, ?, ?, 1, ?, ?)
+				ON CONFLICT(channel, instance_id) DO UPDATE SET
 					connect_args_json = excluded.connect_args_json,
+					last_successful_args_json = excluded.last_successful_args_json,
 					enabled = 1,
 					updated_at = excluded.updated_at,
 					last_connected_at = excluded.last_connected_at`,
 			)
-			.run(channel, channel, JSON.stringify(connectArgs), now, now, now);
+			.run(
+				channel,
+				instanceId,
+				JSON.stringify(connectArgs),
+				JSON.stringify(connectArgs),
+				now,
+				now,
+			);
 	}
 
-	/** Toggle auto-reconnect for a channel without dropping its config. */
-	setEnabled(channel: string, enabled: boolean): void {
+	/** Toggle auto-reconnect for one instance or every instance in a channel. */
+	setEnabled(channel: string, enabled: boolean, instanceId?: string): void {
+		if (instanceId) {
+			this.getRawDb()
+				.prepare(
+					`UPDATE connector_connections
+					 SET enabled = ?, updated_at = ?
+					 WHERE channel = ? AND instance_id = ?`,
+				)
+				.run(toBoolInt(enabled), nowIso(), channel, instanceId);
+			return;
+		}
 		this.getRawDb()
 			.prepare(
-				`UPDATE connectors SET enabled = ?, updated_at = ? WHERE channel = ?`,
+				`UPDATE connector_connections
+				 SET enabled = ?, updated_at = ?
+				 WHERE channel = ?`,
 			)
 			.run(toBoolInt(enabled), nowIso(), channel);
 	}
 
+	deleteConnection(channel: string, instanceId: string): boolean {
+		const changes =
+			this.getRawDb()
+				.prepare(
+					`DELETE FROM connector_connections
+					 WHERE channel = ? AND instance_id = ?`,
+				)
+				.run(channel, instanceId).changes ?? 0;
+		return changes > 0;
+	}
+
 	disableAll(): void {
 		this.getRawDb()
-			.prepare(`UPDATE connectors SET enabled = 0, updated_at = ?`)
+			.prepare(`UPDATE connector_connections SET enabled = 0, updated_at = ?`)
 			.run(nowIso());
 	}
 
 	/**
-	 * Remove only the dashboard-managed configuration for a channel. CLI
-	 * connection state is independent: when reconnect args exist, keep them
-	 * and clear the configuration fields instead of deleting the whole row.
+	 * Remove only dashboard-managed configuration. Persisted CLI instances live
+	 * in a separate table and are intentionally unaffected.
 	 */
 	deleteConfig(channel: string): boolean {
-		const db = this.getRawDb();
-		db.exec("BEGIN IMMEDIATE;");
-		try {
-			const row = db
-				.prepare(
-					`SELECT configured, connect_args_json
-					 FROM connectors
-					 WHERE channel = ?`,
-				)
-				.get(channel);
-			if (!row || row.configured !== 1) {
-				db.exec("COMMIT;");
-				return false;
-			}
-
-			if (typeof row.connect_args_json === "string") {
-				db.prepare(
-					`UPDATE connectors
-					 SET configured = 0,
-					     values_json = '{}',
-					     security_enabled = 0,
-					     security_values_json = '{}',
-					     updated_at = ?
-					 WHERE channel = ?`,
-				).run(nowIso(), channel);
-			} else {
-				db.prepare(`DELETE FROM connectors WHERE channel = ?`).run(channel);
-			}
-			db.exec("COMMIT;");
-			return true;
-		} catch (error) {
-			try {
-				db.exec("ROLLBACK;");
-			} catch {
-				// Preserve the original transaction failure.
-			}
-			throw error;
-		}
+		const changes =
+			this.getRawDb()
+				.prepare(`DELETE FROM connector_configs WHERE channel = ?`)
+				.run(channel).changes ?? 0;
+		return changes > 0;
 	}
 
 	/**
@@ -322,7 +373,7 @@ export class SqliteConnectorStore {
 					? parsed.connectors
 					: {};
 			for (const [channel, value] of Object.entries(connectors)) {
-				if (!isRecord(value) || this.get(channel)) {
+				if (!isRecord(value) || this.getConfig(channel)) {
 					continue;
 				}
 				const values: Record<string, string> = {};
@@ -364,23 +415,36 @@ export class SqliteConnectorStore {
 	}
 }
 
-function rowToRecord(row: Record<string, unknown>): ConnectorConfigRecord {
+function rowToConfigRecord(
+	row: Record<string, unknown>,
+): ConnectorConfigRecord {
 	const securityEnabled = row.security_enabled === 1;
 	const securityValues = parseStringRecord(row.security_values_json);
 	const hasSecurity = securityEnabled || Object.keys(securityValues).length > 0;
 	return {
 		channel: asString(row.channel),
 		type: asString(row.type),
-		configured: row.configured === 1,
 		values: parseStringRecord(row.values_json),
 		security: hasSecurity
 			? { enabled: securityEnabled, values: securityValues }
 			: undefined,
-		connectArgs: parseStringArray(row.connect_args_json),
-		enabled: row.enabled === 1,
 		configuredAt: asString(row.configured_at),
 		updatedAt: asString(row.updated_at),
-		lastConnectedAt: asOptionalString(row.last_connected_at),
+	};
+}
+
+function rowToConnectionRecord(
+	row: Record<string, unknown>,
+): ConnectorConnectionRecord {
+	return {
+		channel: asString(row.channel),
+		instanceId: asString(row.instance_id),
+		connectArgs: parseStringArray(row.connect_args_json) ?? [],
+		lastSuccessfulArgs: parseStringArray(row.last_successful_args_json) ?? [],
+		enabled: row.enabled === 1,
+		updatedAt: asString(row.updated_at),
+		lastConnectedAt:
+			asOptionalString(row.last_connected_at) ?? asString(row.updated_at),
 	};
 }
 

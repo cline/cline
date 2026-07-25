@@ -67,6 +67,31 @@ describe("mergeConnectorConnectArgs", () => {
 		]);
 	});
 
+	it("drops Telegram hook commands when dashboard access control is applied", () => {
+		expect(
+			mergeConnectorConnectArgs(
+				platform("telegram"),
+				[
+					"-k",
+					"old-token",
+					"--hook-command",
+					"custom-hook",
+					"--provider",
+					"cline",
+				],
+				["-k", "new-token", "--allowed-user-id", "42"],
+				{ replaceSecurityArgs: true },
+			),
+		).toEqual([
+			"--provider",
+			"cline",
+			"-k",
+			"new-token",
+			"--allowed-user-id",
+			"42",
+		]);
+	});
+
 	it.each([
 		["long flag", ["--bot-username", "old_bot"]],
 		["short flag", ["-m", "old_bot"]],

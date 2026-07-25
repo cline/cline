@@ -51,6 +51,7 @@ describe("active connectors", () => {
 			{
 				id: "telegram:cline_test_bot",
 				type: "telegram",
+				instanceId: "cline_test_bot",
 				pid: process.pid,
 				hubUrl: "ws://127.0.0.1:25463/hub",
 				botUsername: "cline_test_bot",

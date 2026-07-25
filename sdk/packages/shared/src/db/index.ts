@@ -1,5 +1,6 @@
 export type {
 	ConnectorConfigRecord,
+	ConnectorConnectionRecord,
 	ConnectorSecurityConfig,
 	SqliteConnectorStoreOptions,
 } from "./connector-store";

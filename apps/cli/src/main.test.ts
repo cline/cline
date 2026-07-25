@@ -372,9 +372,34 @@ describe("runCli lightweight command dispatch", () => {
 			"telegram",
 			["-k", "token"],
 			expect.any(Object),
+			undefined,
 		);
 		expect(connectMocks.runConnectAdapter).not.toHaveBeenCalled();
 		expect(connectMocks.runStopConnector).not.toHaveBeenCalled();
+	});
+
+	it("routes a targeted connector restart to one instance", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart-instance",
+			"cline_bot",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			"cline_bot",
+		);
 	});
 
 	it("does not load runtime modules for root update", async () => {

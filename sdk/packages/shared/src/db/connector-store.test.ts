@@ -56,90 +56,103 @@ describe("SqliteConnectorStore", () => {
 				values: { "-k": "123:token" },
 				security: { enabled: true, values: { userId: "42" } },
 			});
-			const record = store.get("telegram");
+			const record = store.getConfig("telegram");
 			expect(record?.type).toBe("telegram");
 			expect(record?.values).toEqual({ "-k": "123:token" });
 			expect(record?.security).toEqual({
 				enabled: true,
 				values: { userId: "42" },
 			});
-			expect(record?.connectArgs).toBeUndefined();
-			expect(record?.configured).toBe(true);
-			expect(record?.enabled).toBe(false);
 		});
 	});
 
 	it("refreshes stored launch args while preserving autostart state", () => {
 		useTempDataDir();
 		withStore((store) => {
-			store.recordConnected("telegram", ["-k", "123:token"]);
+			store.recordConnected("telegram", "cline_bot", ["-k", "123:token"]);
 			store.setEnabled("telegram", false);
 			store.upsertConfig({
 				channel: "telegram",
 				values: { "-k": "456:rotated" },
 			});
-			expect(store.get("telegram")?.connectArgs).toEqual(["-k", "123:token"]);
+			expect(store.getConnection("telegram", "cline_bot")?.connectArgs).toEqual(
+				["-k", "123:token"],
+			);
 			store.upsertConfig({
 				channel: "telegram",
 				values: { "-k": "456:rotated" },
 				updateConnectArgs: () => ["-k", "456:rotated"],
 			});
-			const record = store.get("telegram");
-			expect(record?.values).toEqual({ "-k": "456:rotated" });
-			expect(record?.connectArgs).toEqual(["-k", "456:rotated"]);
-			expect(record?.configured).toBe(true);
-			expect(record?.enabled).toBe(false);
+			expect(store.getConfig("telegram")?.values).toEqual({
+				"-k": "456:rotated",
+			});
+			const connection = store.getConnection("telegram", "cline_bot");
+			expect(connection?.connectArgs).toEqual(["-k", "456:rotated"]);
+			expect(connection?.lastSuccessfulArgs).toEqual(["-k", "123:token"]);
+			expect(connection?.enabled).toBe(false);
 		});
 	});
 
-	it("records connections and re-enables stopped connectors", () => {
+	it("records each instance independently and re-enables only the restarted one", () => {
 		useTempDataDir();
 		withStore((store) => {
-			store.recordConnected("slack", [
+			store.recordConnected("slack", "workspace-a", [
 				"--bot-token",
 				"xoxb",
 				"--app-token",
 				"xapp",
 			]);
-			const connectionOnlyRecord = store.get("slack");
-			expect(connectionOnlyRecord?.configured).toBe(false);
-			expect(connectionOnlyRecord?.enabled).toBe(true);
-			expect(connectionOnlyRecord?.lastConnectedAt).toBeTruthy();
+			store.recordConnected("slack", "workspace-b", [
+				"--bot-token",
+				"xoxb-other",
+			]);
+			expect(store.getConfig("slack")).toBeUndefined();
+			expect(store.listConnections("slack")).toHaveLength(2);
 
 			store.setEnabled("slack", false);
-			expect(store.get("slack")?.enabled).toBe(false);
+			expect(
+				store.listConnections("slack").every((entry) => !entry.enabled),
+			).toBe(true);
 
-			store.recordConnected("slack", ["--bot-token", "xoxb2"]);
-			const record = store.get("slack");
-			expect(record?.enabled).toBe(true);
-			expect(record?.connectArgs).toEqual(["--bot-token", "xoxb2"]);
+			store.recordConnected("slack", "workspace-a", ["--bot-token", "xoxb2"]);
+			expect(store.getConnection("slack", "workspace-a")).toEqual(
+				expect.objectContaining({
+					enabled: true,
+					connectArgs: ["--bot-token", "xoxb2"],
+				}),
+			);
+			expect(store.getConnection("slack", "workspace-b")?.enabled).toBe(false);
 		});
 	});
 
 	it("round-trips empty connect args for env-only starts", () => {
 		useTempDataDir();
 		withStore((store) => {
-			store.recordConnected("telegram", []);
+			store.recordConnected("telegram", "cline_bot", []);
 
-			expect(store.get("telegram")?.connectArgs).toEqual([]);
-			expect(store.get("telegram")?.enabled).toBe(true);
+			expect(store.getConnection("telegram", "cline_bot")?.connectArgs).toEqual(
+				[],
+			);
+			expect(store.getConnection("telegram", "cline_bot")?.enabled).toBe(true);
 		});
 	});
 
 	it("disables autostart for all connectors", () => {
 		useTempDataDir();
 		withStore((store) => {
-			store.recordConnected("slack", ["--bot-token", "xoxb"]);
-			store.recordConnected("telegram", ["-k", "123:token"]);
+			store.recordConnected("slack", "workspace", ["--bot-token", "xoxb"]);
+			store.recordConnected("telegram", "cline_bot", ["-k", "123:token"]);
 			store.disableAll();
-			expect(store.list().every((entry) => !entry.enabled)).toBe(true);
+			expect(store.listConnections().every((entry) => !entry.enabled)).toBe(
+				true,
+			);
 		});
 	});
 
 	it("deletes dashboard config without clearing CLI autostart state", () => {
 		useTempDataDir();
 		withStore((store) => {
-			store.recordConnected("telegram", ["-k", "123:token"]);
+			store.recordConnected("telegram", "cline_bot", ["-k", "123:token"]);
 			store.upsertConfig({
 				channel: "telegram",
 				values: { "-k": "123:token" },
@@ -147,12 +160,11 @@ describe("SqliteConnectorStore", () => {
 			});
 
 			expect(store.deleteConfig("telegram")).toBe(true);
-			expect(store.get("telegram")).toEqual(
+			expect(store.getConfig("telegram")).toBeUndefined();
+			expect(store.getConnection("telegram", "cline_bot")).toEqual(
 				expect.objectContaining({
 					channel: "telegram",
-					configured: false,
-					values: {},
-					security: undefined,
+					instanceId: "cline_bot",
 					connectArgs: ["-k", "123:token"],
 					enabled: true,
 				}),
@@ -170,7 +182,32 @@ describe("SqliteConnectorStore", () => {
 			});
 
 			expect(store.deleteConfig("telegram")).toBe(true);
-			expect(store.get("telegram")).toBeUndefined();
+			expect(store.getConfig("telegram")).toBeUndefined();
+		});
+	});
+
+	it("rejects channel-wide config updates when multiple instances are persisted", () => {
+		useTempDataDir();
+		withStore((store) => {
+			store.recordConnected("telegram", "first_bot", ["-k", "first:token"]);
+			store.recordConnected("telegram", "second_bot", ["-k", "second:token"]);
+
+			expect(() =>
+				store.upsertConfig({
+					channel: "telegram",
+					values: { "-k": "replacement:token" },
+					updateConnectArgs: () => ["-k", "replacement:token"],
+				}),
+			).toThrow(
+				"cannot apply channel-wide telegram configuration to 2 persisted instances",
+			);
+			expect(store.getConfig("telegram")).toBeUndefined();
+			expect(
+				store.listConnections("telegram").map((entry) => entry.connectArgs),
+			).toEqual([
+				["-k", "first:token"],
+				["-k", "second:token"],
+			]);
 		});
 	});
 
@@ -196,7 +233,7 @@ describe("SqliteConnectorStore", () => {
 		);
 
 		withStore((store) => {
-			const record = store.get("telegram");
+			const record = store.getConfig("telegram");
 			expect(record?.values).toEqual({ "-k": "123:legacy-token" });
 			expect(record?.security).toEqual({
 				enabled: true,
@@ -237,7 +274,9 @@ describe("SqliteConnectorStore", () => {
 		);
 
 		withStore((store) => {
-			expect(store.get("telegram")?.values).toEqual({ "-k": "123:current" });
+			expect(store.getConfig("telegram")?.values).toEqual({
+				"-k": "123:current",
+			});
 		});
 	});
 });

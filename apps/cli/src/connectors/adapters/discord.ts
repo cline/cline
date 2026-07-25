@@ -59,6 +59,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -937,9 +938,18 @@ class DiscordConnector extends ConnectorBase<
 		);
 	}
 
-	protected override async runWithOptions(
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopDiscordConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override async validateOptions(
 		options: ConnectDiscordOptions,
-		rawArgs: string[],
 		io: ConnectIo,
 	): Promise<number> {
 		if (!options.applicationId) {
@@ -960,7 +970,16 @@ class DiscordConnector extends ConnectorBase<
 			);
 			return 1;
 		}
+		return 0;
+	}
 
+	protected override async runWithOptions(
+		options: ConnectDiscordOptions,
+		rawArgs: string[],
+		io: ConnectIo,
+		context: ConnectRunContext,
+	): Promise<number> {
+		context.setPersistenceInstanceId(options.applicationId);
 		const statePath = this.resolveConnectorStatePath(options.applicationId);
 		const bindingsPath = this.resolveBindingsPath(options.applicationId);
 		const staleState = this.removeStaleState(

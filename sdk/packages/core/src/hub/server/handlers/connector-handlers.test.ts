@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { HubCommandEnvelope } from "@cline/shared";
 import {
 	type ConnectorConfigRecord,
+	type ConnectorConnectionRecord,
 	withConnectorStore,
 } from "@cline/shared/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -60,13 +61,22 @@ describe("connector hub handlers", () => {
 	function readPersistedConnector(
 		channel: string,
 	): ConnectorConfigRecord | undefined {
-		return withConnectorStore((store) => store.get(channel));
+		return withConnectorStore((store) => store.getConfig(channel));
 	}
 
 	function readPersistedConnectorValues(
 		channel: string,
 	): Record<string, string> {
 		return readPersistedConnector(channel)?.values ?? {};
+	}
+
+	function readPersistedConnection(
+		channel: string,
+		instanceId: string,
+	): ConnectorConnectionRecord | undefined {
+		return withConnectorStore((store) =>
+			store.getConnection(channel, instanceId),
+		);
 	}
 
 	it("configures a connector through hub settings without starting it", () => {
@@ -89,25 +99,27 @@ describe("connector hub handlers", () => {
 			enabled: true,
 			values: { userId: "123456789" },
 		});
-		expect(persisted?.configured).toBe(true);
-		expect(persisted?.connectArgs).toBeUndefined();
-		expect(persisted?.enabled).toBe(false);
+		expect(readPersistedConnection("telegram", "cline_bot")).toBeUndefined();
 	});
 
 	it("does not surface CLI-only connections as dashboard configurations", () => {
 		useTempDataDir();
 		withConnectorStore((store) =>
-			store.recordConnected("telegram", ["-k", "123456:fake-token"]),
+			store.recordConnected("telegram", "cline_bot", [
+				"-k",
+				"123456:fake-token",
+			]),
 		);
 
 		expect(__test__.connectorChannelsPayload().configured).toEqual([]);
-		expect(readPersistedConnector("telegram")?.configured).toBe(false);
+		expect(readPersistedConnector("telegram")).toBeUndefined();
+		expect(readPersistedConnection("telegram", "cline_bot")).toBeDefined();
 	});
 
 	it("refreshes reconnect args when a configured credential changes", () => {
 		useTempDataDir();
 		withConnectorStore((store) => {
-			store.recordConnected("telegram", [
+			store.recordConnected("telegram", "old_bot", [
 				"--provider",
 				"openrouter",
 				"--bot-token",
@@ -117,8 +129,8 @@ describe("connector hub handlers", () => {
 				"--cwd",
 				"/workspace",
 				"--no-tools",
-				"--allowed-user-id",
-				"1",
+				"--hook-command",
+				"custom-hook",
 			]);
 			store.setEnabled("telegram", false);
 		});
@@ -129,7 +141,7 @@ describe("connector hub handlers", () => {
 			security: { enabled: true, values: { userId: "987654321" } },
 		});
 
-		const persisted = readPersistedConnector("telegram");
+		const persisted = readPersistedConnection("telegram", "old_bot");
 		expect(persisted?.connectArgs).toEqual([
 			"--provider",
 			"openrouter",
@@ -191,7 +203,10 @@ describe("connector hub handlers", () => {
 	it("preserves CLI reconnect state when dashboard config is deleted", () => {
 		useTempDataDir();
 		withConnectorStore((store) =>
-			store.recordConnected("telegram", ["-k", "123456:fake-token"]),
+			store.recordConnected("telegram", "cline_bot", [
+				"-k",
+				"123456:fake-token",
+			]),
 		);
 		__test__.configureConnector({
 			channel: "telegram",
@@ -203,10 +218,9 @@ describe("connector hub handlers", () => {
 		});
 
 		expect(response.configured).toEqual([]);
-		expect(readPersistedConnector("telegram")).toEqual(
+		expect(readPersistedConnector("telegram")).toBeUndefined();
+		expect(readPersistedConnection("telegram", "cline_bot")).toEqual(
 			expect.objectContaining({
-				configured: false,
-				values: {},
 				connectArgs: ["-k", "123456:fake-token"],
 				enabled: true,
 			}),

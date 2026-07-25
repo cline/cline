@@ -55,6 +55,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -444,15 +445,27 @@ class WhatsAppConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopWhatsAppConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
 	protected override async runWithOptions(
 		options: ConnectWhatsAppOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
 		const instanceKey = resolveInstanceKey({
 			phoneNumberId: options.phoneNumberId,
 			userName: options.userName,
 		});
+		context.setPersistenceInstanceId(instanceKey);
 		const statePath = this.resolveConnectorStatePath(instanceKey);
 		const bindingsPath = this.resolveBindingsPath(instanceKey);
 		const staleState = this.removeStaleState(

@@ -41,8 +41,7 @@ function normalizeStringRecord(value: unknown): Record<string, string> {
 }
 
 function listConfiguredConnectors(): ConfiguredConnectorRecord[] {
-	return withConnectorStore((store) => store.list())
-		.filter((entry) => entry.configured)
+	return withConnectorStore((store) => store.listConfigs())
 		.map((entry) => ({
 			id: entry.channel,
 			type: entry.type,
@@ -142,11 +141,11 @@ function configureConnector(payload: unknown): ConnectorChannelsResponse {
 			updateConnectArgs: (existing) =>
 				mergeConnectorConnectArgs(
 					platform,
-					existing.connectArgs ?? [],
+					existing.connection.connectArgs,
 					configuredConnectArgs,
 					{
 						replaceSecurityArgs:
-							existing.security?.enabled === true || security.enabled,
+							existing.config?.security?.enabled === true || security.enabled,
 					},
 				),
 		}),

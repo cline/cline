@@ -55,6 +55,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -409,11 +410,66 @@ class GoogleChatConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopGoogleChatConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	private parseCredentials(
+		options: ConnectGoogleChatOptions,
+	):
+		| { client_email: string; private_key: string; project_id?: string }
+		| undefined {
+		if (!options.credentialsJson) {
+			return undefined;
+		}
+		const parsed = JSON.parse(options.credentialsJson) as Record<
+			string,
+			unknown
+		>;
+		if (
+			typeof parsed.client_email !== "string" ||
+			typeof parsed.private_key !== "string"
+		) {
+			throw new Error(
+				"credentials JSON must include string client_email and private_key fields",
+			);
+		}
+		return {
+			client_email: parsed.client_email,
+			private_key: parsed.private_key,
+			project_id:
+				typeof parsed.project_id === "string" ? parsed.project_id : undefined,
+		};
+	}
+
+	protected override async validateOptions(
+		options: ConnectGoogleChatOptions,
+		io: ConnectIo,
+	): Promise<number> {
+		try {
+			this.parseCredentials(options);
+			return 0;
+		} catch (error) {
+			io.writeErr(
+				`invalid GOOGLE_CHAT_CREDENTIALS JSON: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return 1;
+		}
+	}
+
 	protected override async runWithOptions(
 		options: ConnectGoogleChatOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
+		context.setPersistenceInstanceId(options.userName);
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const staleState = this.removeStaleState(
@@ -451,38 +507,7 @@ class GoogleChatConnector extends ConnectorBase<
 		});
 		const logger = createChatSdkLogger(loggerAdapter);
 		const consoleLogger = new ConsoleLogger("info", "gchat-connect");
-		let parsedCredentials:
-			| { client_email: string; private_key: string; project_id?: string }
-			| undefined;
-		if (options.credentialsJson) {
-			try {
-				const parsed = JSON.parse(options.credentialsJson) as Record<
-					string,
-					unknown
-				>;
-				if (
-					typeof parsed.client_email !== "string" ||
-					typeof parsed.private_key !== "string"
-				) {
-					throw new Error(
-						"credentials JSON must include string client_email and private_key fields",
-					);
-				}
-				parsedCredentials = {
-					client_email: parsed.client_email,
-					private_key: parsed.private_key,
-					project_id:
-						typeof parsed.project_id === "string"
-							? parsed.project_id
-							: undefined,
-				};
-			} catch (error) {
-				io.writeErr(
-					`invalid GOOGLE_CHAT_CREDENTIALS JSON: ${error instanceof Error ? error.message : String(error)}`,
-				);
-				return 1;
-			}
-		}
+		const parsedCredentials = this.parseCredentials(options);
 		const endpointUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/gchat`;
 		const gchat = createGoogleChatAdapter(
 			parsedCredentials

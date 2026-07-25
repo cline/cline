@@ -13,15 +13,22 @@ import {
 
 const mocks = vi.hoisted(() => ({
 	disableConnectorAutostart: vi.fn(),
+	getPersistedConnectorConnection: vi.fn(),
 	getConnector: vi.fn(),
+	listActiveConnectors: vi.fn(),
 	listConnectors: vi.fn((): Array<{ name: string; description: string }> => []),
 	persistConnectorConnection: vi.fn(),
+	removePersistedConnectorConnection: vi.fn(),
 	run: vi.fn(),
+	validate: vi.fn(),
 }));
 
 vi.mock("@cline/core", () => ({
 	disableConnectorAutostart: mocks.disableConnectorAutostart,
+	getPersistedConnectorConnection: mocks.getPersistedConnectorConnection,
+	listActiveConnectors: mocks.listActiveConnectors,
 	persistConnectorConnection: mocks.persistConnectorConnection,
+	removePersistedConnectorConnection: mocks.removePersistedConnectorConnection,
 }));
 
 vi.mock("../connectors/registry", () => ({
@@ -39,11 +46,19 @@ describe("runConnectAdapter", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.listConnectors.mockReturnValue([]);
-		mocks.run.mockResolvedValue(0);
+		mocks.listActiveConnectors.mockReturnValue([]);
+		mocks.run.mockImplementation(
+			async (_args: string[], _io: ConnectIo, context: ConnectRunContext) => {
+				context.setPersistenceInstanceId("cline_bot");
+				return 0;
+			},
+		);
+		mocks.validate.mockResolvedValue(0);
 		mocks.getConnector.mockResolvedValue({
 			name: "telegram",
 			description: "Telegram",
 			run: mocks.run,
+			validate: mocks.validate,
 			showHelp: vi.fn(),
 		});
 	});
@@ -61,10 +76,11 @@ describe("runConnectAdapter", () => {
 			runConnectAdapter("telegram", ["-k", "token"], io),
 		).resolves.toBe(0);
 
-		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith("telegram", [
-			"-k",
-			"token",
-		]);
+		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith(
+			"telegram",
+			"cline_bot",
+			["-k", "token"],
+		);
 		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
 	});
 
@@ -73,6 +89,7 @@ describe("runConnectAdapter", () => {
 
 		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith(
 			"telegram",
+			"cline_bot",
 			[],
 		);
 		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
@@ -81,6 +98,7 @@ describe("runConnectAdapter", () => {
 	it("persists connector-resolved launch arguments", async () => {
 		mocks.run.mockImplementation(
 			async (_args: string[], _io: ConnectIo, context: ConnectRunContext) => {
+				context.setPersistenceInstanceId("resolved_bot");
 				context.setPersistenceArgs([
 					"--bot-token",
 					"token",
@@ -95,12 +113,11 @@ describe("runConnectAdapter", () => {
 			runConnectAdapter("telegram", ["--bot-token", "token"], io),
 		).resolves.toBe(0);
 
-		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith("telegram", [
-			"--bot-token",
-			"token",
-			"--bot-username",
+		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith(
+			"telegram",
 			"resolved_bot",
-		]);
+			["--bot-token", "token", "--bot-username", "resolved_bot"],
+		);
 	});
 
 	it("does not rewrite persistence when a connector is already running", async () => {
@@ -123,7 +140,10 @@ describe("runConnectAdapter", () => {
 		).resolves.toBe(0);
 
 		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
-		expect(mocks.disableConnectorAutostart).toHaveBeenCalledWith("telegram");
+		expect(mocks.disableConnectorAutostart).toHaveBeenCalledWith(
+			"telegram",
+			"cline_bot",
+		);
 	});
 
 	it("does not change persistence after a failed foreground run", async () => {
@@ -216,26 +236,136 @@ describe("runConnectAdapter", () => {
 		expect(mocks.disableConnectorAutostart).toHaveBeenCalledWith();
 	});
 
-	it("preserves autostart when a replacement start fails", async () => {
-		const stopAll = vi.fn().mockResolvedValue({
+	it("validates a replacement before stopping the active instance", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
 			stoppedProcesses: 1,
 			stoppedSessions: 0,
 		});
-		mocks.run.mockResolvedValue(1);
+		mocks.validate.mockResolvedValue(1);
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				instanceId: "cline_bot",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
 		mocks.getConnector.mockResolvedValue({
 			name: "telegram",
 			description: "Telegram",
 			run: mocks.run,
+			validate: mocks.validate,
 			showHelp: vi.fn(),
-			stopAll,
+			stopInstance,
 		});
 
 		await expect(
-			runRestartConnector("telegram", ["-k", "token"], io),
+			runRestartConnector("telegram", ["-k", "bad-token"], io),
 		).resolves.toBe(1);
 
-		expect(stopAll).toHaveBeenCalledWith(io);
+		expect(mocks.validate).toHaveBeenCalledWith(["-k", "bad-token"], io);
+		expect(stopInstance).not.toHaveBeenCalled();
+		expect(mocks.run).not.toHaveBeenCalled();
+	});
+
+	it("shows restart help without stopping an active instance", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
+			stoppedProcesses: 1,
+			stoppedSessions: 0,
+		});
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				instanceId: "cline_bot",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance,
+		});
+
+		await expect(runRestartConnector("telegram", ["--help"], io)).resolves.toBe(
+			0,
+		);
+
+		expect(mocks.run).toHaveBeenCalledWith(["--help"], io, expect.any(Object));
+		expect(mocks.validate).not.toHaveBeenCalled();
+		expect(stopInstance).not.toHaveBeenCalled();
+	});
+
+	it("restores the last successful launch when a replacement fails", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
+			stoppedProcesses: 1,
+			stoppedSessions: 0,
+		});
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				instanceId: "cline_bot",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
+		mocks.getPersistedConnectorConnection.mockReturnValue({
+			channel: "telegram",
+			instanceId: "cline_bot",
+			connectArgs: ["-k", "new-token"],
+			lastSuccessfulArgs: ["-k", "old-token"],
+			enabled: true,
+			updatedAt: "2026-07-25T00:00:00.000Z",
+			lastConnectedAt: "2026-07-25T00:00:00.000Z",
+		});
+		mocks.run
+			.mockResolvedValueOnce(1)
+			.mockImplementationOnce(
+				async (_args: string[], _io: ConnectIo, context: ConnectRunContext) => {
+					context.setPersistenceInstanceId("cline_bot");
+					return 0;
+				},
+			);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance,
+		});
+
+		await expect(
+			runRestartConnector("telegram", ["-k", "new-token"], io),
+		).resolves.toBe(1);
+
+		expect(stopInstance).toHaveBeenCalledWith("cline_bot", io);
+		expect(mocks.run).toHaveBeenNthCalledWith(
+			1,
+			["-k", "new-token"],
+			io,
+			expect.any(Object),
+		);
+		expect(mocks.run).toHaveBeenNthCalledWith(
+			2,
+			["-k", "old-token"],
+			io,
+			expect.any(Object),
+		);
 		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
-		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
+		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith(
+			"telegram",
+			"cline_bot",
+			["-k", "old-token"],
+		);
 	});
 });
