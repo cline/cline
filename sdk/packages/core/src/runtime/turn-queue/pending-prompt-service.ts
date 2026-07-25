@@ -392,11 +392,13 @@ function insertUpdatedPrompt(
 	previousIndex: number,
 	previousDelivery: PendingPromptDelivery,
 ): void {
-	if (next.delivery === "steer") {
-		insertSteer(state, next);
-	} else if (previousDelivery === "steer") {
-		state.pendingPrompts.push(next);
-	} else {
+	// Rewording a prompt must not change when it reaches the agent; only a
+	// delivery change moves it.
+	if (next.delivery === previousDelivery) {
 		state.pendingPrompts.splice(previousIndex, 0, next);
+	} else if (next.delivery === "steer") {
+		insertSteer(state, next);
+	} else {
+		state.pendingPrompts.push(next);
 	}
 }

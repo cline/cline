@@ -48,6 +48,28 @@ describe("PendingPromptService", () => {
 		expect(service.consumeSteer(state).entry?.prompt).toBe("steer two");
 	});
 
+	it("keeps an edited prompt in place when its delivery is unchanged", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, { prompt: "steer one", delivery: "steer" });
+		service.enqueue(state, { prompt: "steer two", delivery: "steer" });
+		service.enqueue(state, { prompt: "steer three", delivery: "steer" });
+		const middleId = service.list(state)[1]?.id;
+
+		const edited = service.update(state, {
+			sessionId: "sess-1",
+			promptId: middleId,
+			prompt: "steer two, reworded",
+		});
+
+		expect(edited.prompts.map((prompt) => prompt.prompt)).toEqual([
+			"steer one",
+			"steer two, reworded",
+			"steer three",
+		]);
+	});
+
 	it("promotes a queued prompt behind prompts already steering", () => {
 		const service = new PendingPromptService();
 		const state = createState();
