@@ -80,4 +80,42 @@ describe("connectHubFromWebview", () => {
 			error: "connection refused",
 		});
 	});
+
+	it("reports connect success even when peer initialization fails after attach", async () => {
+		mocks.initializePeer.mockRejectedValue(new Error("sync failed"));
+		const send = vi.fn();
+		const ctx = {
+			hubUrl: "ws://127.0.0.1:25464/hub",
+			send,
+		};
+		const peer = {};
+		const syncClientsAndSessions = vi.fn(async () => undefined);
+		const { connectHubFromWebview } = await import("./hub-actions");
+
+		await expect(
+			connectHubFromWebview(
+				ctx as never,
+				peer as never,
+				{
+					type: "connect_hub",
+					hubUrl: "ws://127.0.0.1:25464/hub",
+				},
+				syncClientsAndSessions,
+			),
+		).rejects.toThrow("sync failed");
+
+		expect(mocks.attachHub).toHaveBeenCalled();
+		expect(send).toHaveBeenCalledWith(peer, {
+			type: "hub_connection_result",
+			ok: true,
+			hubUrl: "ws://127.0.0.1:25464/hub",
+		});
+		expect(send).not.toHaveBeenCalledWith(
+			peer,
+			expect.objectContaining({
+				type: "hub_connection_result",
+				ok: false,
+			}),
+		);
+	});
 });

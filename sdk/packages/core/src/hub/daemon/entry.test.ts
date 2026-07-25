@@ -142,11 +142,23 @@ describe("hub daemon entry", () => {
 			"--pathname",
 			"/hub",
 		];
-		vi.spyOn(process, "on").mockImplementation(() => process);
+		const callOrder: string[] = [];
+		vi.spyOn(process, "on").mockImplementation((event) => {
+			if (event === "SIGTERM" || event === "SIGINT") {
+				callOrder.push(`on:${String(event)}`);
+			}
+			return process;
+		});
+		mockRestartManagedHubDashboardProcess.mockImplementation(async () => {
+			callOrder.push("restartDashboard");
+		});
 
 		await import("./entry");
 		await vi.waitFor(() => {
 			expect(mockStartHubWebSocketServer).toHaveBeenCalled();
+		});
+		await vi.waitFor(() => {
+			expect(mockRestartManagedHubDashboardProcess).toHaveBeenCalled();
 		});
 
 		expect(mockStartHubWebSocketServer).toHaveBeenCalledWith(
@@ -163,6 +175,13 @@ describe("hub daemon entry", () => {
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
 			telemetry: mockDaemonTelemetryService,
 		});
+		expect(callOrder.indexOf("on:SIGTERM")).toBeGreaterThanOrEqual(0);
+		expect(callOrder.indexOf("on:SIGTERM")).toBeLessThan(
+			callOrder.indexOf("restartDashboard"),
+		);
+		expect(callOrder.indexOf("on:SIGINT")).toBeLessThan(
+			callOrder.indexOf("restartDashboard"),
+		);
 	});
 
 	it("disposes telemetry and exits when server startup fails", async () => {

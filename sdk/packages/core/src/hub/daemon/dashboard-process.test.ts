@@ -149,4 +149,34 @@ describe("managed hub dashboard process", () => {
 		await expectedRejection;
 		expect(clearHubDashboardDiscovery).not.toHaveBeenCalled();
 	});
+
+	it("does not clear discovery rewritten by a replacement dashboard", async () => {
+		vi.spyOn(process, "kill").mockImplementation(() => true);
+		isHubDashboardPidAlive.mockReturnValueOnce(true).mockReturnValueOnce(false);
+		readHubDashboardDiscovery
+			.mockResolvedValueOnce({
+				pid: 4242,
+				listenUrl: "http://127.0.0.1:8787/",
+				publicUrl: "http://127.0.0.1:8787",
+				inviteUrl: "http://127.0.0.1:8787",
+				startedAt: "2026-06-22T20:00:00.000Z",
+				updatedAt: "2026-06-22T20:00:00.000Z",
+			})
+			.mockResolvedValueOnce({
+				pid: 5252,
+				listenUrl: "http://127.0.0.1:8787/",
+				publicUrl: "http://127.0.0.1:8787",
+				inviteUrl: "http://127.0.0.1:8787",
+				startedAt: "2026-06-22T20:00:01.000Z",
+				updatedAt: "2026-06-22T20:00:01.000Z",
+			});
+		const { stopManagedHubDashboardProcess } = await import(
+			"./dashboard-process"
+		);
+
+		await expect(
+			stopManagedHubDashboardProcess("/tmp/dashboard.json"),
+		).resolves.toBe(true);
+		expect(clearHubDashboardDiscovery).not.toHaveBeenCalled();
+	});
 });

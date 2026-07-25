@@ -89,15 +89,6 @@ async function main(): Promise<void> {
 		throw error;
 	}
 
-	await restartManagedHubDashboardProcess({
-		discoveryPath: dashboardDiscoveryPath,
-		cwd: options.cwd,
-	}).catch((error) => {
-		const message =
-			error instanceof Error ? error.stack || error.message : String(error);
-		process.stderr.write(`[hub-daemon] dashboard restart failed: ${message}\n`);
-	});
-
 	const shutdown = async (
 		options: { preserveDashboard?: boolean } = {},
 	): Promise<void> => {
@@ -142,6 +133,8 @@ async function main(): Promise<void> {
 			});
 	};
 
+	// Register before dashboard restart so SIGINT/SIGTERM during that await
+	// still take the graceful shutdown path (stop managed dashboard + exit).
 	process.on("SIGINT", () => {
 		void shutdown();
 	});
@@ -159,6 +152,15 @@ async function main(): Promise<void> {
 			return;
 		}
 		shutdownFatal("unhandledRejection", reason);
+	});
+
+	await restartManagedHubDashboardProcess({
+		discoveryPath: dashboardDiscoveryPath,
+		cwd: options.cwd,
+	}).catch((error) => {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(`[hub-daemon] dashboard restart failed: ${message}\n`);
 	});
 
 	const shutdownRequest = await server.shutdownRequested;
