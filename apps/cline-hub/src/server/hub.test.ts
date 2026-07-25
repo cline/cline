@@ -148,6 +148,45 @@ describe("hub attachment lifecycle", () => {
 		expect(ctx.cline).toBe(nextCline);
 	});
 
+	it("reattaches to a custom hub without stopping the discovered local hub", async () => {
+		const oldCline = createClineClient();
+		const oldUiClient = createUiClient();
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient();
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		ctx.hubUrl = "ws://10.0.0.5:25464/hub";
+		ctx.hubAuthToken = "custom-token";
+		ctx.attachedHubIsCustom = true;
+		ctx.cline = oldCline as never;
+		ctx.uiClient = oldUiClient as never;
+		const { restartHub } = await import("./hub");
+
+		await restartHub(ctx);
+
+		expect(mocks.stopLocalHubServerGracefully).not.toHaveBeenCalled();
+		expect(mocks.ensureDetachedHubServer).not.toHaveBeenCalled();
+		expect(mocks.rememberRecoverableLocalHubUrl).toHaveBeenCalledWith(
+			"ws://10.0.0.5:25464/hub",
+			"custom-token",
+		);
+		expect(mocks.createUiClient).toHaveBeenCalledWith(
+			expect.objectContaining({
+				address: "ws://10.0.0.5:25464/hub",
+				authToken: "custom-token",
+			}),
+		);
+		expect(nextUiClient.connect).toHaveBeenCalledOnce();
+		expect(oldUiClient.close).toHaveBeenCalledOnce();
+		expect(oldCline.dispose).toHaveBeenCalledOnce();
+		expect(ctx.hubUrl).toBe("ws://10.0.0.5:25464/hub");
+		expect(ctx.attachedHubIsCustom).toBe(true);
+		expect(ctx.uiClient).toBe(nextUiClient);
+		expect(ctx.cline).toBe(nextCline);
+	});
+
 	it("does not claim a restart when the current hub cannot stop", async () => {
 		mocks.stopLocalHubServerGracefully.mockResolvedValue(false);
 		mocks.probeHubServer.mockResolvedValue({

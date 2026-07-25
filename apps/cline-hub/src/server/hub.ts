@@ -174,6 +174,7 @@ export async function attachHub(
 	await detachHub(ctx);
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
+	ctx.attachedHubIsCustom = Boolean(resolvedOverride);
 	ctx.cline = nextCline;
 	ctx.uiClient = nextUiClient;
 
@@ -325,16 +326,29 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 		body: "Shutting down and respawning hub...",
 		severity: "warn",
 	});
-	const stopped = await stopLocalHubServerGracefully({
-		preserveDashboard: true,
-	}).catch((error) => {
-		console.warn("stopLocalHubServerGracefully failed:", error);
-		return false;
-	});
-	if (!stopped && (await isAttachedHubReachable(ctx))) {
-		throw new Error("Unable to stop the current Cline Hub.");
+	// Custom connect_hub attachments must not stop/respawn the unrelated
+	// discovered local hub; reattach to the same endpoint instead.
+	if (ctx.attachedHubIsCustom) {
+		if (!ctx.hubUrl?.trim() || !ctx.hubAuthToken?.trim()) {
+			throw new Error("Unable to restart the current custom hub connection.");
+		}
+		await attachHub(ctx, {
+			hubUrl: ctx.hubUrl,
+			authToken: ctx.hubAuthToken,
+			preserveDashboard: true,
+		});
+	} else {
+		const stopped = await stopLocalHubServerGracefully({
+			preserveDashboard: true,
+		}).catch((error) => {
+			console.warn("stopLocalHubServerGracefully failed:", error);
+			return false;
+		});
+		if (!stopped && (await isAttachedHubReachable(ctx))) {
+			throw new Error("Unable to stop the current Cline Hub.");
+		}
+		await attachHub(ctx, { preserveDashboard: true });
 	}
-	await attachHub(ctx, { preserveDashboard: true });
 	broadcastHubState(ctx);
 	ctx.broadcast({
 		type: "notification",

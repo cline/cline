@@ -85,7 +85,10 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 	let stopped = false;
 
-	await attachHub(ctx);
+	// Dashboard-initiated attach must preserve this serve process: a freshly
+	// spawned hub inherits the CLI dashboard launch spec and would otherwise
+	// SIGTERM us via restartManagedHubDashboardProcess.
+	await attachHub(ctx, { preserveDashboard: true });
 	const healthInterval = setInterval(() => {
 		void (async () => {
 			await syncHubHealth(ctx);
@@ -185,11 +188,21 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 					} else if (frame.type === "ready") {
 						await initializePeer(ctx, peer, syncClientsAndSessions);
 					} else if (frame.type === "connect_hub") {
-						await attachHub(ctx, {
-							hubUrl: frame.hubUrl,
-							authToken: frame.authToken,
-						});
-						await initializePeer(ctx, peer, syncClientsAndSessions);
+						try {
+							await attachHub(ctx, {
+								hubUrl: frame.hubUrl,
+								authToken: frame.authToken,
+							});
+							await initializePeer(ctx, peer, syncClientsAndSessions);
+						} catch (error) {
+							const text =
+								error instanceof Error ? error.message : String(error);
+							ctx.pushEvent("Hub connect failed", text, "error");
+							// Send the error frame before hub_state so the webview can
+							// attribute the failure to the in-flight connect_hub request.
+							ctx.send(peer, { type: "error", text });
+							broadcastHubState(ctx);
+						}
 					} else if (frame.type === "loadModels") {
 						await loadModels(ctx, peer, frame.providerId);
 					} else if (frame.type === "loadProviderCatalog") {

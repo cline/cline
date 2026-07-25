@@ -26,6 +26,8 @@ export class HubContext {
 
 	hubUrl = "";
 	hubAuthToken = "";
+	/** True when the dashboard attached via connect_hub (custom URL), not managed discovery. */
+	attachedHubIsCustom = false;
 	hubHealthy = false;
 	cline: ClineCore | undefined;
 	uiClient: HubUIClient | undefined;

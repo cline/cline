@@ -28,6 +28,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import {
@@ -475,6 +476,7 @@ function HomeView({
 	onOpenSession,
 	onRestartHub,
 	onViewSessions,
+	connectError,
 	restartPending,
 	recentSessions,
 }: {
@@ -483,6 +485,7 @@ function HomeView({
 	onOpenSession: (sessionId: string) => void;
 	onRestartHub: () => void;
 	onViewSessions: () => void;
+	connectError?: string;
 	restartPending: boolean;
 	recentSessions: WebviewSessionSummary[];
 }) {
@@ -573,23 +576,30 @@ function HomeView({
 				}
 			/>
 			<form
-				className="mb-5 flex max-w-[52rem] items-center gap-2"
+				className="mb-5 flex max-w-[52rem] flex-col gap-2"
 				onSubmit={(event) => {
 					event.preventDefault();
 					submitHubUrl();
 				}}
 			>
-				<Input
-					aria-label="Hub URL"
-					className="h-8"
-					onChange={(event) => setHubUrlInput(event.target.value)}
-					placeholder="ws://127.0.0.1:25463/hub?authToken=..."
-					value={hubUrlInput}
-				/>
-				<Button className="h-8 rounded px-2" size="sm" type="submit">
-					<LinkIcon className="size-3.5" />
-					<span>Connect</span>
-				</Button>
+				<div className="flex items-center gap-2">
+					<Input
+						aria-label="Hub URL"
+						className="h-8"
+						onChange={(event) => setHubUrlInput(event.target.value)}
+						placeholder="ws://127.0.0.1:25463/hub?authToken=..."
+						value={hubUrlInput}
+					/>
+					<Button className="h-8 rounded px-2" size="sm" type="submit">
+						<LinkIcon className="size-3.5" />
+						<span>Connect</span>
+					</Button>
+				</div>
+				{connectError ? (
+					<p className="text-sm text-destructive" role="alert">
+						{connectError}
+					</p>
+				) : null}
 			</form>
 			<AlertDialog
 				open={restartDialogOpen}
@@ -1160,6 +1170,8 @@ function App() {
 	);
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
 	const [restartPending, setRestartPending] = useState(false);
+	const [connectError, setConnectError] = useState<string | undefined>();
+	const connectPendingRef = useRef(false);
 	const [selectedSessionId, setSelectedSessionId] = useState<
 		string | undefined
 	>(() => readCurrentChatSessionId());
@@ -1196,6 +1208,17 @@ function App() {
 				setHubState(message);
 				if (message.connected) {
 					setRestartPending(false);
+					if (connectPendingRef.current) {
+						connectPendingRef.current = false;
+						setConnectError(undefined);
+					}
+				}
+				return;
+			}
+			if (message.type === "error") {
+				if (connectPendingRef.current) {
+					connectPendingRef.current = false;
+					setConnectError(message.text);
 				}
 				return;
 			}
@@ -1214,6 +1237,8 @@ function App() {
 	}, []);
 
 	const connectHub = useCallback((hubUrl: string) => {
+		connectPendingRef.current = true;
+		setConnectError(undefined);
 		postToHost({ type: "connect_hub", hubUrl });
 	}, []);
 
@@ -1373,6 +1398,7 @@ function App() {
 		}
 		return (
 			<HomeView
+				connectError={connectError}
 				hubState={hubState}
 				onConnectHub={connectHub}
 				onOpenSession={openSession}
@@ -1383,6 +1409,7 @@ function App() {
 			/>
 		);
 	}, [
+		connectError,
 		hubState,
 		connectHub,
 		deleteSession,
