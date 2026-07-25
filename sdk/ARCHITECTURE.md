@@ -134,8 +134,9 @@ Cline's `attempt_completion`) is observed. `shutdownSession(...)`
 retains a fallback emission for completed sessions that finished
 without an explicit completion-tool observation, so non-interactive
 runs not using the yolo preset still produce a `task.completed` signal.
-Each session emits at most one `task.completed`. See `DOC.md` for the
-event payload and `source` field.
+Each session emits at most one `task.completed`. See `TaskCompletedSource`
+in `packages/core/src/services/telemetry/core-events.ts` for the event
+payload and `source` field.
 
 ### Hub-Backed Runtime
 
