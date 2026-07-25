@@ -76,12 +76,15 @@ export function DriveCallStrip({
 	onMuteToggle,
 	onHandToggle,
 	onSubModeChange,
+	onTakeStage,
 }: {
 	drive: DriveUiState;
 	disabled?: boolean;
 	onMuteToggle: () => void;
 	onHandToggle: () => void;
 	onSubModeChange: (mode: DriveSubMode) => void;
+	/** Client-only Agent / You take stage (not hub call_set_stage). */
+	onTakeStage?: (who: "agent" | "you") => void;
 }) {
 	if (!drive.active) {
 		return null;
@@ -100,6 +103,7 @@ export function DriveCallStrip({
 			<span className="text-xs text-muted-foreground">
 				{drive.muted ? "muted" : "listening"} · {drive.subMode}
 				{drive.handRaised ? " · hand raised" : ""}
+				{drive.stageSharer === "you" ? " · you sharing" : " · agent sharing"}
 			</span>
 			<div className="ml-auto flex flex-wrap items-center gap-1">
 				{SUB_MODES.map((mode) => (
@@ -115,6 +119,30 @@ export function DriveCallStrip({
 						{mode}
 					</Button>
 				))}
+				{onTakeStage ? (
+					<>
+						<Button
+							disabled={disabled}
+							onClick={() => onTakeStage("agent")}
+							size="sm"
+							type="button"
+							variant={drive.stageSharer === "agent" ? "default" : "ghost"}
+							className="h-7 px-2 text-xs"
+						>
+							Agent takes stage
+						</Button>
+						<Button
+							disabled={disabled}
+							onClick={() => onTakeStage("you")}
+							size="sm"
+							type="button"
+							variant={drive.stageSharer === "you" ? "default" : "ghost"}
+							className="h-7 px-2 text-xs"
+						>
+							You take stage
+						</Button>
+					</>
+				) : null}
 				<Button
 					aria-label={drive.muted ? "Unmute" : "Mute"}
 					disabled={disabled}
@@ -191,8 +219,8 @@ export function DriveStageCards({ cards }: { cards: readonly StageCard[] }) {
 	return (
 		<div className="space-y-2">
 			<p className="text-xs text-muted-foreground">
-				Last-event-wins stage cards. Local fixture only. Hub-owned rooms are not
-				wired yet.
+				Last-event-wins stage cards. Prefer <code>Stage.tsx</code> for live
+				ai-elements rendering.
 			</p>
 			{cards.map((card) => (
 				<div

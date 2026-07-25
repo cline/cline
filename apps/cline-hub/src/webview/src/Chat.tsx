@@ -64,13 +64,13 @@ import {
 	DriveCallStrip,
 	DriveHeaderControls,
 	DriveNarrationBanner,
-	DriveStageCards,
-	DriveStagePanel,
 } from "./drive/DriveCallChrome";
 import {
 	DRIVE_DEMO_FIXTURE,
 	fixtureStageCards,
 } from "./drive/demoFixture";
+import { Stage } from "./drive/Stage";
+import { projectStageFromMessages } from "./drive/stageReducer";
 import {
 	DEFAULT_DRIVE_UI,
 	type DriveUiState,
@@ -1174,6 +1174,32 @@ export default function Chat({
 		return drive.active ? "waiting for partner activity" : "idle";
 	}, [messages, drive.active]);
 
+	const liveStage = useMemo(
+		() =>
+			projectStageFromMessages(messages, {
+				sharer:
+					drive.stageSharer === "you"
+						? { kind: "human", participantId: "you" }
+						: {
+								kind: "agent",
+								participantId: drive.partnerName.toLowerCase(),
+							},
+			}),
+		[messages, drive.stageSharer, drive.partnerName],
+	);
+
+	/** Offline fixture when demo mode and the session has no stageable tools yet. */
+	const useStageFixture = drive.demo && liveStage.cards.length === 0;
+	const stageCards = useStageFixture
+		? fixtureStageCards()
+		: liveStage.cards;
+	const stageSharerLabel =
+		drive.stageSharer === "you"
+			? "You"
+			: useStageFixture
+				? `${DRIVE_DEMO_FIXTURE.room.partnerName} · ${DRIVE_DEMO_FIXTURE.room.name}`
+				: drive.partnerName;
+
 	const respondToApproval = (approvalId: string, approved: boolean) => {
 		setPendingApprovals((current) =>
 			current.map((item) =>
@@ -1292,6 +1318,7 @@ export default function Chat({
 										active: false,
 										stageLayout: false,
 										handRaised: false,
+										stageSharer: "agent",
 									};
 								});
 							}}
@@ -1337,6 +1364,13 @@ export default function Chat({
 					onSubModeChange={(subMode) => {
 						setDrive((current) => ({ ...current, subMode }));
 						setMode(toNativeMode(subMode));
+					}}
+					onTakeStage={(who) => {
+						setDrive((current) => ({
+							...current,
+							stageSharer: who,
+							stageLayout: true,
+						}));
 					}}
 				/>
 				{driveJoinNote ? (
@@ -1597,40 +1631,39 @@ export default function Chat({
 				/>
 				</div>
 				{drive.active && drive.stageLayout ? (
-					<DriveStagePanel
-						demo={drive.demo}
+					<Stage
+						cards={stageCards}
+						demo={useStageFixture}
+						emptyHint={
+							useStageFixture
+								? "Demo fixture cards."
+								: "Waiting for partner tool activity on this session. Edit / command / test tools update this stage."
+						}
+						humanPin={
+							drive.stageSharer === "you"
+								? {
+										kind: "selection",
+										label: "Current selection (local stub)",
+									}
+								: null
+						}
 						nextLabel={
-							drive.demo
+							useStageFixture
 								? DRIVE_DEMO_FIXTURE.nextLabel
 								: "steer or approve next step"
 						}
 						nowLabel={
-							drive.demo
+							useStageFixture
 								? DRIVE_DEMO_FIXTURE.nowLabel
 								: sending
-									? "partner working"
-									: "idle"
+									? latestToolLabel
+									: liveStage.cards.length > 0
+										? liveStage.cards[liveStage.cards.length - 1]?.title ??
+											"idle"
+										: "idle"
 						}
-						sharingLabel={
-							drive.demo
-								? `${DRIVE_DEMO_FIXTURE.room.partnerName} · ${DRIVE_DEMO_FIXTURE.room.name}`
-								: latestToolLabel
-						}
-					>
-						{drive.demo ? (
-							<DriveStageCards cards={fixtureStageCards()} />
-						) : (
-							<div className="space-y-2 text-xs text-muted-foreground">
-								<p>
-									Live stage over hub session events. Tool cards in the feed are
-									the source of truth; this pane highlights the latest activity.
-								</p>
-								<pre className="overflow-auto rounded-md border bg-background p-2 font-mono text-[11px]">
-									{latestToolLabel}
-								</pre>
-							</div>
-						)}
-					</DriveStagePanel>
+						sharerLabel={stageSharerLabel}
+					/>
 				) : null}
 				</div>
 			</div>

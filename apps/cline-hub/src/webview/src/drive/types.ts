@@ -2,6 +2,9 @@
 
 export type DriveSubMode = "plan" | "agent" | "ask" | "debug";
 
+/** Client-only stage pointer stub until hub call_set_stage (Slice B). */
+export type DriveStageSharerLocal = "agent" | "you";
+
 export type DriveUiState = {
 	active: boolean;
 	/** Call Stage split layout (wireframe B). Off = Drive Layer only (A). */
@@ -15,6 +18,11 @@ export type DriveUiState = {
 	 * Scaffold only. Not hub-owned room state.
 	 */
 	demo: boolean;
+	/**
+	 * Client-only sharer label for Stage header / pin stub.
+	 * Not hub room state — real call_set_stage is Slice B.
+	 */
+	stageSharer: DriveStageSharerLocal;
 };
 
 export const DEFAULT_DRIVE_UI: DriveUiState = {
@@ -25,6 +33,7 @@ export const DEFAULT_DRIVE_UI: DriveUiState = {
 	muted: false,
 	handRaised: false,
 	demo: true,
+	stageSharer: "agent",
 };
 
 /** Map Drive sub-mode onto native Cline plan|act for send config. */
