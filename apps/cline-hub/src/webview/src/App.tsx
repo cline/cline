@@ -64,6 +64,7 @@ import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
 import { sameHubUrl } from "./lib/hub-url";
+import { locationPath, pathWithLocationHash } from "./lib/navigation-url";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -242,14 +243,15 @@ function replaceLegacyCustomizationRoute(): void {
 		return;
 	}
 	const nextPath = routePath(VIEW_PATHS.rules);
-	if (currentPathWithSearch() !== nextPath) {
-		window.history.replaceState(null, "", nextPath);
+	const nextLocation = pathWithLocationHash(nextPath, window.location);
+	if (currentLocationPath() !== nextLocation) {
+		window.history.replaceState(null, "", nextLocation);
 	}
 }
 
-function currentPathWithSearch(): string {
+function currentLocationPath(): string {
 	if (typeof window === "undefined") return "/";
-	return `${window.location.pathname}${window.location.search}`;
+	return locationPath(window.location);
 }
 
 function ViewLoading() {
@@ -1266,8 +1268,9 @@ function App() {
 			setSelectedSessionId(undefined);
 		}
 		const nextPath = routePath(VIEW_PATHS[nextView]);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.pushState(null, "", nextPath);
+		const nextLocation = pathWithLocationHash(nextPath, window.location);
+		if (currentLocationPath() !== nextLocation) {
+			window.history.pushState(null, "", nextLocation);
 		}
 		setView(nextView);
 	}, []);
@@ -1275,8 +1278,9 @@ function App() {
 	const openSession = useCallback((sessionId: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.pushState(null, "", nextPath);
+		const nextLocation = pathWithLocationHash(nextPath, window.location);
+		if (currentLocationPath() !== nextLocation) {
+			window.history.pushState(null, "", nextLocation);
 		}
 		setView("chat");
 	}, []);
@@ -1284,8 +1288,9 @@ function App() {
 	const updateChatSessionRoute = useCallback((sessionId?: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.replaceState(null, "", nextPath);
+		const nextLocation = pathWithLocationHash(nextPath, window.location);
+		if (currentLocationPath() !== nextLocation) {
+			window.history.replaceState(null, "", nextLocation);
 		}
 	}, []);
 

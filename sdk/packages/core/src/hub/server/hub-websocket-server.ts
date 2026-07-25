@@ -311,6 +311,7 @@ export async function startHubWebSocketServer(
 	const sockets = new Set<TrackedNodeWebSocket>();
 	let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 	let closePromise: Promise<void> | undefined;
+	let shutdownPreparationPromise: Promise<void> | undefined;
 	let resolveShutdownRequested:
 		| ((request: { preserveDashboard: boolean }) => void)
 		| undefined;
@@ -325,6 +326,7 @@ export async function startHubWebSocketServer(
 			return closePromise;
 		}
 		closePromise = (async () => {
+			await shutdownPreparationPromise?.catch(() => undefined);
 			if (heartbeatTimer) {
 				clearInterval(heartbeatTimer);
 				heartbeatTimer = undefined;
@@ -427,9 +429,13 @@ export async function startHubWebSocketServer(
 			res.statusCode = 202;
 			res.setHeader("content-type", "application/json");
 			res.end(JSON.stringify({ ok: true }));
-			resolveShutdownRequested?.({
+			const shutdownRequest = {
 				preserveDashboard: req.headers["x-cline-preserve-dashboard"] === "1",
-			});
+			};
+			shutdownPreparationPromise ??= Promise.resolve().then(() =>
+				options.prepareShutdown?.(shutdownRequest),
+			);
+			resolveShutdownRequested?.(shutdownRequest);
 			resolveShutdownRequested = undefined;
 			queueMicrotask(() => {
 				void closeServer();

@@ -3,6 +3,7 @@ import { CLINE_RUN_AS_HUB_DAEMON_ENV } from "@cline/shared";
 import {
 	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV,
 	clearHubDashboardDiscovery,
+	type HubDashboardDiscoveryRecord,
 	isHubDashboardPidAlive,
 	readHubDashboardDiscovery,
 } from "../dashboard-discovery";
@@ -48,6 +49,19 @@ function parseDashboardArgs(env: NodeJS.ProcessEnv): string[] | undefined {
 	}
 }
 
+async function clearDashboardDiscoveryIfOwned(
+	discoveryPath: string,
+	expected: HubDashboardDiscoveryRecord,
+): Promise<void> {
+	const current = await readHubDashboardDiscovery(discoveryPath);
+	if (
+		current?.pid === expected.pid &&
+		current.startedAt === expected.startedAt
+	) {
+		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+	}
+}
+
 export async function stopManagedHubDashboardProcess(
 	discoveryPath: string,
 ): Promise<boolean> {
@@ -62,7 +76,7 @@ export async function stopManagedHubDashboardProcess(
 		if (isHubDashboardPidAlive(discovered.pid)) {
 			throw error;
 		}
-		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+		await clearDashboardDiscoveryIfOwned(discoveryPath, discovered);
 		return false;
 	}
 	const stopped = await waitForPidToExit(discovered.pid);
@@ -71,7 +85,7 @@ export async function stopManagedHubDashboardProcess(
 			`Timed out waiting for dashboard process ${discovered.pid} to stop.`,
 		);
 	}
-	await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+	await clearDashboardDiscoveryIfOwned(discoveryPath, discovered);
 	return true;
 }
 

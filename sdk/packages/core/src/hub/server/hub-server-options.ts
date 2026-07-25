@@ -11,6 +11,10 @@ import type {
 import type { CoreSettingsService } from "../../settings";
 import type { HubOwnerContext } from "../discovery";
 
+export interface HubShutdownRequest {
+	preserveDashboard: boolean;
+}
+
 export interface HubWebSocketServerOptions {
 	host?: string;
 	port?: number;
@@ -48,6 +52,11 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	logger?: BasicLogger;
+	/**
+	 * Host-owned cleanup that must finish before an authenticated shutdown
+	 * request retires the server listener and discovery record.
+	 */
+	prepareShutdown?: (request: HubShutdownRequest) => Promise<void> | void;
 }
 
 export interface HubWebSocketServer {
@@ -56,7 +65,7 @@ export interface HubWebSocketServer {
 	url: string;
 	authToken: string;
 	/** Resolves when the authenticated HTTP shutdown endpoint is invoked. */
-	shutdownRequested: Promise<{ preserveDashboard: boolean }>;
+	shutdownRequested: Promise<HubShutdownRequest>;
 	close(): Promise<void>;
 }
 

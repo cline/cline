@@ -75,6 +75,40 @@ async function main(): Promise<void> {
 
 	const daemonTelemetry = createHubDaemonTelemetry();
 
+	const preserveDashboardDuringStartup =
+		process.env[CLINE_HUB_PRESERVE_DASHBOARD_ENV]?.trim() === "1";
+	let dashboardStartupSettled = false;
+	let preserveDashboardOnShutdown = false;
+	let dashboardRestartPromise: Promise<void> | undefined;
+	let resolveDashboardRestartScheduled: (() => void) | undefined;
+	const dashboardRestartScheduled = new Promise<void>((resolve) => {
+		resolveDashboardRestartScheduled = resolve;
+	});
+	const rememberPreserveDashboard = (preserve: boolean): void => {
+		if (
+			preserve ||
+			(!dashboardStartupSettled && preserveDashboardDuringStartup)
+		) {
+			preserveDashboardOnShutdown = true;
+		}
+	};
+	let dashboardShutdownPromise: Promise<void> | undefined;
+	const prepareDashboardShutdown = (
+		shutdownOptions: { preserveDashboard?: boolean } = {},
+	): Promise<void> => {
+		rememberPreserveDashboard(shutdownOptions.preserveDashboard === true);
+		dashboardShutdownPromise ??= (async () => {
+			await dashboardRestartScheduled;
+			await dashboardRestartPromise;
+			if (!preserveDashboardOnShutdown) {
+				await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
+					() => undefined,
+				);
+			}
+		})();
+		return dashboardShutdownPromise;
+	};
+
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
@@ -87,6 +121,7 @@ async function main(): Promise<void> {
 				telemetry: daemonTelemetry.telemetry,
 			}),
 			cronOptions: { workspaceRoot: options.cwd },
+			prepareShutdown: prepareDashboardShutdown,
 		});
 	} catch (error) {
 		// Flush before the top-level catch exits so failed daemon starts are
@@ -95,40 +130,18 @@ async function main(): Promise<void> {
 		throw error;
 	}
 
-	const preserveDashboardDuringStartup =
-		process.env[CLINE_HUB_PRESERVE_DASHBOARD_ENV]?.trim() === "1";
-	let dashboardStartupSettled = false;
-	let preserveDashboardOnShutdown = false;
-	let dashboardRestartPromise = Promise.resolve();
-	const rememberPreserveDashboard = (preserve: boolean): void => {
-		if (
-			preserve ||
-			(!dashboardStartupSettled && preserveDashboardDuringStartup)
-		) {
-			preserveDashboardOnShutdown = true;
-		}
-	};
-
-	const shutdownRequestPromise = server.shutdownRequested.then((request) => {
-		rememberPreserveDashboard(request.preserveDashboard);
-		return request;
-	});
+	const shutdownRequestPromise = server.shutdownRequested;
 
 	let shutdownStarted = false;
 	const shutdown = async (
-		options: { preserveDashboard?: boolean } = {},
+		shutdownOptions: { preserveDashboard?: boolean } = {},
 	): Promise<void> => {
-		rememberPreserveDashboard(options.preserveDashboard === true);
+		rememberPreserveDashboard(shutdownOptions.preserveDashboard === true);
 		if (shutdownStarted) {
 			return;
 		}
 		shutdownStarted = true;
-		await dashboardRestartPromise;
-		if (!preserveDashboardOnShutdown) {
-			await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
-				() => undefined,
-			);
-		}
+		await prepareDashboardShutdown(shutdownOptions);
 		await server.close();
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
@@ -144,14 +157,7 @@ async function main(): Promise<void> {
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void dashboardRestartPromise
-			.then(async () => {
-				if (!preserveDashboardOnShutdown) {
-					await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
-						() => undefined,
-					);
-				}
-			})
+		void prepareDashboardShutdown()
 			.then(() => server.close())
 			.catch((closeError) => {
 				const closeMessage =
@@ -205,6 +211,7 @@ async function main(): Promise<void> {
 		.finally(() => {
 			dashboardStartupSettled = true;
 		});
+	resolveDashboardRestartScheduled?.();
 	await dashboardRestartPromise;
 
 	const shutdownRequest = await shutdownRequestPromise;

@@ -149,4 +149,55 @@ describe("managed hub dashboard process", () => {
 		await expectedRejection;
 		expect(clearHubDashboardDiscovery).not.toHaveBeenCalled();
 	});
+
+	it("clears discovery after stopping the dashboard that owns it", async () => {
+		vi.spyOn(process, "kill").mockImplementation(() => true);
+		isHubDashboardPidAlive.mockReturnValue(false);
+		const dashboard = {
+			pid: 4242,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			startedAt: "2026-06-22T20:00:00.000Z",
+			updatedAt: "2026-06-22T20:00:00.000Z",
+		};
+		readHubDashboardDiscovery.mockResolvedValue(dashboard);
+		const { stopManagedHubDashboardProcess } = await import(
+			"./dashboard-process"
+		);
+
+		await expect(
+			stopManagedHubDashboardProcess("/tmp/dashboard.json"),
+		).resolves.toBe(true);
+
+		expect(clearHubDashboardDiscovery).toHaveBeenCalledWith(
+			"/tmp/dashboard.json",
+		);
+	});
+
+	it("does not clear discovery replaced while the old dashboard exits", async () => {
+		vi.spyOn(process, "kill").mockImplementation(() => true);
+		isHubDashboardPidAlive.mockReturnValue(false);
+		const oldDashboard = {
+			pid: 4242,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			startedAt: "2026-06-22T20:00:00.000Z",
+			updatedAt: "2026-06-22T20:00:00.000Z",
+		};
+		readHubDashboardDiscovery
+			.mockResolvedValueOnce(oldDashboard)
+			.mockResolvedValueOnce({ ...oldDashboard, pid: 4343 });
+		const { stopManagedHubDashboardProcess } = await import(
+			"./dashboard-process"
+		);
+
+		await expect(
+			stopManagedHubDashboardProcess("/tmp/dashboard.json"),
+		).resolves.toBe(true);
+
+		expect(process.kill).toHaveBeenCalledWith(4242, "SIGTERM");
+		expect(clearHubDashboardDiscovery).not.toHaveBeenCalled();
+	});
 });

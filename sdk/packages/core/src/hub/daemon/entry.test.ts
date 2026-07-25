@@ -167,6 +167,7 @@ describe("hub daemon entry", () => {
 				owner: expect.objectContaining({ ownerId: "production" }),
 				telemetry: mockDaemonTelemetryService,
 				cronOptions: { workspaceRoot: cwd },
+				prepareShutdown: expect.any(Function),
 			}),
 		);
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledOnce();
