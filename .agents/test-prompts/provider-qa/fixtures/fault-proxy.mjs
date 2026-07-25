@@ -227,6 +227,23 @@ const server = http.createServer(async (req, res) => {
 		})
 	}
 
+	// LiteLLM discovers models through /model/info rather than /v1/models.
+	if (req.method === "GET" && /\/model\/info\/?$/.test(url.split("?")[0])) {
+		return sendJson(res, 200, {
+			data: ALL_MODELS.map((id) => ({
+				model_name: id,
+				litellm_params: { model: id },
+				model_info: {
+					max_input_tokens: 128000,
+					max_output_tokens: 8192,
+					input_cost_per_token: 0,
+					output_cost_per_token: 0,
+					supports_vision: false,
+				},
+			})),
+		})
+	}
+
 	if (url.includes("/api/tags")) {
 		// Ollama-shaped list, so an Ollama base URL can be pointed here too.
 		return sendJson(res, 200, {
