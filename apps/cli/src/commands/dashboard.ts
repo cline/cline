@@ -399,17 +399,24 @@ async function runDashboardServeCommand(
 ): Promise<number> {
 	return await withDashboardEnvironment(options, async () => {
 		const server = await (options.startServer ?? startDefaultDashboardServer)();
-		await writeDashboardDiscovery(server);
-		const dashboardUrl =
-			server.inviteUrl || server.publicUrl || server.listenUrl;
-		options.io.writeln(
-			`${c.green}Cline dashboard listening at${c.reset} ${dashboardUrl}`,
-		);
-		if (server.hubUrl) {
-			options.io.writeln(`${c.dim}Hub endpoint: ${server.hubUrl}${c.reset}`);
-		}
 		try {
+			await writeDashboardDiscovery(server);
+			const dashboardUrl =
+				server.inviteUrl || server.publicUrl || server.listenUrl;
+			options.io.writeln(
+				`${c.green}Cline dashboard listening at${c.reset} ${dashboardUrl}`,
+			);
+			if (server.hubUrl) {
+				options.io.writeln(`${c.dim}Hub endpoint: ${server.hubUrl}${c.reset}`);
+			}
 			await (options.waitForShutdown ?? waitForProcessShutdown)(server);
+		} catch (error) {
+			try {
+				await server.stop();
+			} catch {
+				// Preserve the original serve failure after best-effort cleanup.
+			}
+			throw error;
 		} finally {
 			await clearDashboardDiscovery();
 		}

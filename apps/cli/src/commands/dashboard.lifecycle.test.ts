@@ -345,4 +345,34 @@ describe("dashboard command lifecycle", () => {
 			"/tmp/dashboard.json",
 		);
 	});
+
+	it("stops the serve process when dashboard discovery cannot be written", async () => {
+		coreMocks.writeHubDashboardDiscovery.mockRejectedValueOnce(
+			new Error("discovery write failed"),
+		);
+		const stop = vi.fn(async () => undefined);
+		const errors: string[] = [];
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const exitCode = await runDashboardCommand({
+			action: "serve",
+			io: {
+				writeln: () => {},
+				writeErr: (message) => errors.push(message),
+			},
+			startServer: async () => ({
+				listenUrl: "http://127.0.0.1:8787/",
+				publicUrl: "http://127.0.0.1:8787",
+				inviteUrl: "http://127.0.0.1:8787",
+				stop,
+			}),
+		});
+
+		expect(exitCode).toBe(1);
+		expect(errors).toEqual(["discovery write failed"]);
+		expect(stop).toHaveBeenCalledOnce();
+		expect(coreMocks.clearHubDashboardDiscovery).toHaveBeenCalledWith(
+			"/tmp/dashboard.json",
+		);
+	});
 });

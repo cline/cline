@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV } from "../dashboard-discovery";
 
 const {
 	mockCreateLocalHubScheduleRuntimeHandlers,
@@ -102,6 +103,8 @@ vi.mock("./telemetry", () => ({
 
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
+const originalDashboardDiscoveryPath =
+	process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV];
 
 describe("hub daemon entry", () => {
 	const tempDirs: string[] = [];
@@ -109,6 +112,12 @@ describe("hub daemon entry", () => {
 	afterEach(() => {
 		process.argv = [...originalArgv];
 		process.chdir(originalCwd);
+		if (originalDashboardDiscoveryPath === undefined) {
+			delete process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV];
+		} else {
+			process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV] =
+				originalDashboardDiscoveryPath;
+		}
 		vi.restoreAllMocks();
 		vi.resetModules();
 		mockCreateLocalHubScheduleRuntimeHandlers.mockClear();
@@ -162,6 +171,23 @@ describe("hub daemon entry", () => {
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledOnce();
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
 			telemetry: mockDaemonTelemetryService,
+		});
+	});
+
+	it("uses the dashboard discovery path override for managed lifecycle", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV] =
+			"/tmp/overridden-dashboard.json";
+		vi.spyOn(process, "on").mockImplementation(() => process);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(mockRestartManagedHubDashboardProcess).toHaveBeenCalledWith({
+				discoveryPath: "/tmp/overridden-dashboard.json",
+				cwd,
+			});
 		});
 	});
 

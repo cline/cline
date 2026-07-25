@@ -23,11 +23,13 @@ import {
 import {
 	attachHub,
 	detachHub,
-	restartHub,
 	syncHubClientsAndSessions,
 	syncHubHealth,
 } from "./server/hub";
-import { connectHubFromWebview } from "./server/hub-actions";
+import {
+	connectHubFromWebview,
+	restartHubFromWebview,
+} from "./server/hub-actions";
 import { fetchMarketplaceCatalog } from "./server/marketplace";
 import {
 	loadModels,
@@ -250,7 +252,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 							syncClientsAndSessions,
 						);
 					} else if (frame.type === "restart_hub") {
-						await restartHub(ctx);
+						await restartHubFromWebview(ctx, peer);
 					}
 				} catch (error) {
 					ctx.send(peer, {

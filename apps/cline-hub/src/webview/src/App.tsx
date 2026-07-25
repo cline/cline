@@ -471,7 +471,7 @@ function Shell({
 }
 
 function HomeView({
-	connectError,
+	actionError,
 	connectPending,
 	hubState,
 	onConnectHub,
@@ -481,7 +481,7 @@ function HomeView({
 	restartPending,
 	recentSessions,
 }: {
-	connectError?: string;
+	actionError?: string;
 	connectPending: boolean;
 	hubState: WebviewHubState;
 	onConnectHub: (hubUrl: string) => void;
@@ -606,9 +606,9 @@ function HomeView({
 						<span>{connectPending ? "Connecting" : "Connect"}</span>
 					</Button>
 				</form>
-				{connectError ? (
+				{actionError ? (
 					<p className="mt-2 text-sm text-destructive" role="alert">
-						{connectError}
+						{actionError}
 					</p>
 				) : null}
 			</div>
@@ -1183,9 +1183,7 @@ function App() {
 	);
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
 	const [connectPending, setConnectPending] = useState(false);
-	const [hubConnectionError, setHubConnectionError] = useState<
-		string | undefined
-	>();
+	const [hubActionError, setHubActionError] = useState<string | undefined>();
 	const [restartPending, setRestartPending] = useState(false);
 	const [selectedSessionId, setSelectedSessionId] = useState<
 		string | undefined
@@ -1232,7 +1230,12 @@ function App() {
 			}
 			if (message.type === "hub_connection_result") {
 				setConnectPending(false);
-				setHubConnectionError(message.ok ? undefined : message.error);
+				setHubActionError(message.ok ? undefined : message.error);
+				return;
+			}
+			if (message.type === "hub_restart_result") {
+				setRestartPending(false);
+				setHubActionError(message.ok ? undefined : message.error);
 			}
 		};
 		window.addEventListener("message", handleMessage);
@@ -1242,12 +1245,13 @@ function App() {
 
 	const restartHub = useCallback(() => {
 		setRestartPending(true);
+		setHubActionError(undefined);
 		postToHost({ type: "restart_hub" });
 	}, []);
 
 	const connectHub = useCallback((hubUrl: string) => {
 		setConnectPending(true);
-		setHubConnectionError(undefined);
+		setHubActionError(undefined);
 		postToHost({ type: "connect_hub", hubUrl });
 	}, []);
 
@@ -1407,7 +1411,7 @@ function App() {
 		}
 		return (
 			<HomeView
-				connectError={hubConnectionError}
+				actionError={hubActionError}
 				connectPending={connectPending}
 				hubState={hubState}
 				onConnectHub={connectHub}
@@ -1420,7 +1424,7 @@ function App() {
 		);
 	}, [
 		connectPending,
-		hubConnectionError,
+		hubActionError,
 		hubState,
 		connectHub,
 		deleteSession,

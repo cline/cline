@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	attachHub: vi.fn(),
 	initializePeer: vi.fn(),
+	restartHub: vi.fn(),
 }));
 
 vi.mock("./hub", () => ({
 	attachHub: mocks.attachHub,
+	restartHub: mocks.restartHub,
 }));
 
 vi.mock("./sessions", () => ({
@@ -17,6 +19,7 @@ describe("connectHubFromWebview", () => {
 	beforeEach(() => {
 		mocks.attachHub.mockReset();
 		mocks.initializePeer.mockReset();
+		mocks.restartHub.mockReset();
 	});
 
 	it("reports the attached hub after initialization succeeds", async () => {
@@ -78,6 +81,43 @@ describe("connectHubFromWebview", () => {
 			type: "hub_connection_result",
 			ok: false,
 			error: "connection refused",
+		});
+	});
+});
+
+describe("restartHubFromWebview", () => {
+	beforeEach(() => {
+		mocks.restartHub.mockReset();
+	});
+
+	it("reports a successful restart", async () => {
+		const send = vi.fn();
+		const ctx = { send };
+		const peer = {};
+		const { restartHubFromWebview } = await import("./hub-actions");
+
+		await restartHubFromWebview(ctx as never, peer as never);
+
+		expect(mocks.restartHub).toHaveBeenCalledWith(ctx);
+		expect(send).toHaveBeenCalledWith(peer, {
+			type: "hub_restart_result",
+			ok: true,
+		});
+	});
+
+	it("reports restart failures", async () => {
+		mocks.restartHub.mockRejectedValue(new Error("Unable to stop the hub"));
+		const send = vi.fn();
+		const ctx = { send };
+		const peer = {};
+		const { restartHubFromWebview } = await import("./hub-actions");
+
+		await restartHubFromWebview(ctx as never, peer as never);
+
+		expect(send).toHaveBeenCalledWith(peer, {
+			type: "hub_restart_result",
+			ok: false,
+			error: "Unable to stop the hub",
 		});
 	});
 });

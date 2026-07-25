@@ -285,6 +285,12 @@ export type WebviewOutboundMessage =
 			ok: false;
 			error: string;
 	  }
+	| { type: "hub_restart_result"; ok: true }
+	| {
+			type: "hub_restart_result";
+			ok: false;
+			error: string;
+	  }
 	| {
 			type: "desktopCommandResult";
 			id: string;

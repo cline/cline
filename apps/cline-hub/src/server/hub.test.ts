@@ -218,6 +218,36 @@ describe("hub attachment lifecycle", () => {
 		expect(ctx.cline).toBe(nextCline);
 	});
 
+	it("remains detached when a stopped hub cannot be replaced", async () => {
+		const oldCline = createClineClient();
+		const oldUiClient = createUiClient();
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient({
+			connectError: new Error("replacement unavailable"),
+		});
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		ctx.hubUrl = "ws://127.0.0.1:25463/hub";
+		ctx.hubAuthToken = "old-token";
+		ctx.hubManagedLocally = true;
+		ctx.cline = oldCline as never;
+		ctx.uiClient = oldUiClient as never;
+		const { restartHub } = await import("./hub");
+
+		await expect(restartHub(ctx)).rejects.toThrow("replacement unavailable");
+
+		expect(oldUiClient.close).toHaveBeenCalledOnce();
+		expect(oldCline.dispose).toHaveBeenCalledOnce();
+		expect(nextUiClient.close).toHaveBeenCalledOnce();
+		expect(nextCline.dispose).toHaveBeenCalledOnce();
+		expect(ctx.uiClient).toBeUndefined();
+		expect(ctx.cline).toBeUndefined();
+		expect(ctx.hubManagedLocally).toBe(false);
+		expect(mocks.broadcastHubState).toHaveBeenCalledOnce();
+	});
+
 	it("does not claim a restart when the current hub cannot stop", async () => {
 		mocks.stopLocalHubServerGracefully.mockResolvedValue(false);
 		mocks.probeHubServer.mockResolvedValue({

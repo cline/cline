@@ -1,5 +1,5 @@
 import type { WebviewInboundMessage } from "../webview-protocol";
-import { attachHub } from "./hub";
+import { attachHub, restartHub } from "./hub";
 import { initializePeer } from "./sessions";
 import type { HubContext } from "./state";
 import type { BrowserPeer } from "./types";
@@ -29,6 +29,25 @@ export async function connectHubFromWebview(
 	} catch (error) {
 		ctx.send(peer, {
 			type: "hub_connection_result",
+			ok: false,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+export async function restartHubFromWebview(
+	ctx: HubContext,
+	peer: BrowserPeer,
+): Promise<void> {
+	try {
+		await restartHub(ctx);
+		ctx.send(peer, {
+			type: "hub_restart_result",
+			ok: true,
+		});
+	} catch (error) {
+		ctx.send(peer, {
+			type: "hub_restart_result",
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
 		});

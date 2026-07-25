@@ -373,6 +373,8 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 	if (!stopped && (await isAttachedHubReachable(ctx))) {
 		throw new Error("Unable to stop the current Cline Hub.");
 	}
+	await detachHub(ctx);
+	broadcastHubState(ctx);
 	await attachHub(ctx, { preserveDashboard: true });
 	broadcastHubState(ctx);
 	ctx.broadcast({
