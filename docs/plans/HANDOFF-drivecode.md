@@ -41,6 +41,7 @@ Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](cline-driv
 - `docs/plans/cline-drivemode/ard/` records the decisions for Driveagent home, canonical graph data, recruit, RosterPack, and gated learning (see status board).
 - `docs/plans/cline-drivemode/examples/driveagent-pair-partner/` is the concrete agent-home and graph fixture.
 - `docs/plans/cline-drivemode/LEADERSHIP-BRIEF.md` is the SE/PM planning wave that closes contradictions and names Phase 0 entry criteria.
+- `docs/plans/cline-drivemode/SYSTEMS-ANALYSIS.md` is the end-to-end systems analysis (context, interfaces, NFRs, as-is/to-be, delivery slices).
 
 ### Drivecode SDK plan
 

@@ -112,6 +112,7 @@ Human override format (from existing handoffs): `accept all` | `change: <id and 
 ## How to use this brief
 
 1. Read [ARD-0000-status-board.md](ard/ARD-0000-status-board.md).
-2. Accept or amend the recommended package.
-3. Run [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
-4. Only then open schema / `@cline/drive` implementation PRs.
+2. Read [SYSTEMS-ANALYSIS.md](SYSTEMS-ANALYSIS.md) for the E2E product/systems map.
+3. Accept or amend the recommended package.
+4. Run [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
+5. Only then open schema / `@cline/drive` implementation PRs.

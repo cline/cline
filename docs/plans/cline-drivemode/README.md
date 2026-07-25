@@ -20,6 +20,7 @@ Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 | [05-workflows.md](05-workflows.md) | Canonical workflow catalog. 45 sequences a human performs (incl. Group I SDLC leadership), cited to cursor-drive and claude-drive prior art, tiered and mapped to DRV features or gaps |
 | [06-platform-config.md](06-platform-config.md) | Platform configuration surface. `AgentProfile` and `RosterPack` domain model, 34-facet inventory with owner/scope/lane/privacy/phase, ownership matrix, phasing, open forks |
 | [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) | SE lead / PM brief for the planning wave (defaults, MoSCoW, risks) |
+| [SYSTEMS-ANALYSIS.md](SYSTEMS-ANALYSIS.md) | End-to-end systems analysis (context, flows, NFRs, as-is/to-be, recommendations) |
 | [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) | Gate before schema freeze |
 | [MATRIX-workflow-coverage.md](MATRIX-workflow-coverage.md) | Workflow ↔ feature coverage matrix |
 | [decisions/](decisions/) | Leadership DECs (agent SoT, package location, product forks) |

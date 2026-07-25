@@ -101,7 +101,7 @@ Agent SoT and package location are **Recommended closed** (compile-from-`.drivea
 
 ```text
 Read: docs/plans/cline-drivemode/LEADERSHIP-BRIEF.md
-Then:  HANDOFF.md (this file) → ard/ARD-0000-status-board.md → CHECKLIST-phase0-entry.md
+Then:  SYSTEMS-ANALYSIS.md → HANDOFF.md → ard/ARD-0000-status-board.md → CHECKLIST-phase0-entry.md
 Then:  prd/prd-driveagent-portfolio.md → features/DRV-DRIVEAGENT-HOME.md
 Smoke: open docs/design/drive-wireframes/drive-tab-discord-slack.html in a browser
 ```
