@@ -393,6 +393,44 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
+	it("keeps a prior agentic compaction summary frozen", () => {
+		// After an agentic compaction the entire pre-cut history lives only in
+		// the summary message. A later basic pass (e.g. the agentic-failure
+		// fallback running on the compacted projection) must keep it as-is —
+		// folding it away would permanently erase all pre-summary context.
+		const summaryMessage: MessageWithMetadata = {
+			role: "user",
+			content: [{ type: "text", text: "Context summary:\n\nearlier work" }],
+			metadata: {
+				kind: "compaction_summary",
+				summary: "earlier work",
+				details: { readFiles: [], modifiedFiles: [] },
+				tokensBefore: 100,
+				generatedAt: 1,
+			},
+		};
+		const messages: MessageWithMetadata[] = [
+			summaryMessage,
+			{ role: "user", content: "Now add logout please" },
+			assistantToolUseMessage("tool-a"),
+			toolResultMessage("tool-a", "a".repeat(2_000)),
+			{ role: "assistant", content: "Done." },
+		];
+		const targetTokens =
+			totalJsonTokens(messages) - estimateJsonTokens(messages[3]) + 10;
+
+		const compacted = runForcedBasicCompaction(messages, targetTokens);
+
+		expect(compacted.length).toBeLessThan(messages.length);
+		expect(compacted[0]).toMatchObject({
+			role: "user",
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(JSON.stringify(compacted)).toContain("earlier work");
+		expect(JSON.stringify(compacted)).toContain("Now add logout please");
+		expectNoOrphanedToolPairs(compacted);
+	});
+
 	it("removes older tool pairs atomically while preserving a newer pair", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Read the files" },
@@ -1336,6 +1374,74 @@ describe("createContextCompactionPrepareTurn", () => {
 				errorMessage: providerError.message,
 			}),
 		);
+	});
+
+	it("keeps the prior summary when the agentic request fails and basic compaction takes over", async () => {
+		// Re-compaction runs on the projected transcript, which starts with the
+		// previous agentic summary. If the summarizer fails (rate limit,
+		// network), the basic fallback must not drop that summary — it is the
+		// only remaining copy of all pre-summary context, and the fallback
+		// result is persisted as the new compaction state.
+		const providerError = new Error("temporary summarizer failure");
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() => {
+				throw providerError;
+			}),
+		});
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Context summary:\n\nearlier work" }],
+				metadata: {
+					kind: "compaction_summary",
+					summary: "earlier work",
+					details: { readFiles: [], modifiedFiles: [] },
+					tokensBefore: 100,
+					generatedAt: 1,
+				},
+			},
+			{ role: "user", content: "Now add logout please" },
+			{ role: "assistant", content: `Working on it ${"x".repeat(500)}` },
+			{ role: "user", content: "Latest request" },
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: { debug: vi.fn(), log: vi.fn() },
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(result?.messages).toBeDefined();
+		expect(result?.messages[0]).toMatchObject({
+			role: "user",
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(JSON.stringify(result?.messages)).toContain("earlier work");
 	});
 
 	it("does not fall back to basic compaction when agentic compaction is cancelled", async () => {

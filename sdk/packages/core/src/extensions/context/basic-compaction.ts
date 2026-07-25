@@ -12,6 +12,7 @@ import {
 	type EstimateMessageTokens,
 	formatToolActivitySummary,
 	hasToolActivity,
+	isCompactionSummaryMessage,
 	isTurnStartMessage,
 	summarizeToolActivity,
 	type ToolActivitySummary,
@@ -489,14 +490,22 @@ export function runBasicCompaction(options: {
 
 	// Output of an earlier compaction is frozen: those messages are kept
 	// as-is and never re-folded, so this pass only processes new messages.
+	// Agentic compaction summaries are frozen too — they are the only
+	// remaining copy of all pre-summary context, so a basic pass over an
+	// agentic-compacted projection (e.g. the agentic-failure fallback)
+	// must never fold them away.
 	const frozenIndices = new Set<number>();
 	for (let index = 0; index < originalMessages.length; index += 1) {
 		if (sanitizedTypedByIndex.has(index)) {
 			continue;
 		}
-		if (isPreservedByCompaction(originalMessages[index])) {
+		const message = originalMessages[index];
+		if (
+			isPreservedByCompaction(message) ||
+			isCompactionSummaryMessage(message)
+		) {
 			frozenIndices.add(index);
-			totalTokens += estimate(originalMessages[index]);
+			totalTokens += estimate(message);
 		}
 	}
 
