@@ -238,7 +238,8 @@ describe("MetricsCalculator", () => {
 			// Fail fail fail pass, then early-exit with trialsRequested > 4
 			const observed = [false, false, false, true]
 			const base = calc.calculateTaskMetrics(observed)
-			const metrics = calc.applyEarlyExitPassAtK(base, 4, 5, true)
+			// Copy before call: applyEarlyExitPassAtK mutates its metrics argument.
+			const metrics = calc.applyEarlyExitPassAtK({ ...base }, 4, 5, true)
 
 			expect(metrics.passAt1).toBe(base.passAt1)
 			expect(metrics.passAt3).toBe(base.passAt3)
