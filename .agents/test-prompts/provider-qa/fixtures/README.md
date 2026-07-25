@@ -12,6 +12,8 @@ config, and so every case leaves behind reproducible evidence.
 | `apply-keys.mjs` | Turns a flat QA key file into `<data-dir>/settings/providers.json`, the single source of truth both the CLI and the VS Code extension read. |
 | `mock-provider.mjs` | Fault-injecting OpenAI-compatible server. The model id selects the wire-level pathology. |
 | `run-case.sh` | Runs one headless case and captures prompt, transcript, `git diff`, `cat -A`, and the recorded wire traffic. |
+| `check-unicode.sh` | Byte-for-byte verdict on the unicode payload, ignoring only a trailing newline. |
+| `analyze-upstream.mjs` | Summarizes a recorded upstream stream, so a duplicated tool call can be attributed to the provider rather than to Cline. |
 
 ## Key file
 
@@ -84,3 +86,34 @@ OpenAI or Codex credentials.
 
 Inspect what Cline advertised with `bash $QA/qa-env.sh proxy tail`. A tool
 missing from the request is a different bug from a tool the model called wrongly.
+
+## Confirming Plan vs Act mode
+
+Do not trust the webview's Plan/Act highlight. The session's mode comes from the
+globalState `mode` key, and the toggle does not write it, so the UI can show Act
+while the session was built with the read-only plan tool set — which presents as
+an `editor` tool that "does not exist". Check the wire instead:
+
+```bash
+bash $QA/qa-env.sh proxy tools
+```
+
+Act mode advertises `editor`; plan mode advertises `switch_to_act_mode` in its
+place. `prepare`/`ui-select` seed `mode: "act"` on disk so GUI runs start in Act
+mode without any clicking.
+
+## Recording a real provider's wire traffic
+
+A model id of `passthrough:<upstream-model>` forwards to an upstream provider and
+records the raw stream to `<log>.upstream`:
+
+```bash
+QA_UPSTREAM_BASE_URL=https://openrouter.ai/api/v1 \
+QA_UPSTREAM_API_KEY="$OPENROUTER_API_KEY" \
+  bash $QA/qa-env.sh proxy start
+# then point the provider's model id at passthrough:deepseek/deepseek-r1
+node $QA/analyze-upstream.mjs /tmp/cline-qa/proxy/requests.jsonl.upstream
+```
+
+This is how to settle whether a repeated tool call came from the provider or from
+Cline.

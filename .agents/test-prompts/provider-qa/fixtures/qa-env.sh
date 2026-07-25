@@ -535,43 +535,49 @@ cmd_start() {
     >"$out" 2>&1 &
   printf '%s\n' "$name" > "$QA_ROOT/current"
 
-  # The `code` launcher hands the folder to a detached main process and returns,
-  # so its own pid is not the editor. Find the main process by the profile path,
-  # which is unique per instance, and track that instead.
-  local pid="" waited=0
-  while [ "$waited" -lt 60 ]; do
-    pid="$(main_process_pid "$userdata")"
-    if [ -n "$pid" ]; then
+  # Startup spawns several short-lived helpers before the editor settles, so wait
+  # for a window to actually exist before deciding which process to track.
+  # Otherwise the first matching pid is often a transient one that exits on its
+  # own, which looks identical to a failed launch.
+  local waited=0 window=0
+  while [ "$waited" -lt 90 ]; do
+    if DISPLAY="$QA_DISPLAY" xdotool search --onlyvisible --class 'code' >/dev/null 2>&1; then
+      window=1
       break
     fi
     sleep 1
     waited=$((waited + 1))
   done
 
+  if [ "$window" -eq 0 ]; then
+    bad "no VS Code window appeared within 90s; see $out"
+    tail -20 "$out" 2>/dev/null
+    return 1
+  fi
+
+  # The `code` launcher hands the folder to a detached main process and returns,
+  # so its own pid is not the editor. Resolve the editor by the profile path,
+  # which is unique per instance.
+  local pid="" tries=0
+  while [ "$tries" -lt 20 ]; do
+    pid="$(main_process_pid "$userdata")"
+    if [ -n "$pid" ]; then
+      sleep 2
+      if kill -0 "$pid" 2>/dev/null; then
+        break
+      fi
+      pid=""
+    fi
+    sleep 1
+    tries=$((tries + 1))
+  done
+
   if [ -z "$pid" ]; then
-    bad "no VS Code main process appeared for profile $userdata; see $out"
+    bad "a window appeared but no stable main process owns profile $userdata; see $out"
     tail -20 "$out" 2>/dev/null
     return 1
   fi
   echo "$pid" > "$root/vscode.pid"
-
-  # Give it a moment to settle, then confirm it is still the live main process.
-  sleep 4
-  if ! kill -0 "$pid" 2>/dev/null; then
-    bad "VS Code main process $pid exited shortly after starting; see $out"
-    tail -20 "$out" 2>/dev/null
-    rm -f "$root/vscode.pid"
-    return 1
-  fi
-
-  local waited_ui=0
-  while [ "$waited_ui" -lt 40 ]; do
-    if xdotool search --onlyvisible --class 'code' >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-    waited_ui=$((waited_ui + 1))
-  done
 
   log "started instance '$name' (pid $pid)"
   log "  workspace:      $ws"
@@ -636,10 +642,30 @@ cmd_recover() {
     fi
     rm -f "$pidfile"
   done
+  # Children of a stopped instance can outlive the main process and keep its IPC
+  # socket bound, which makes the next `start` hand the folder to a dead
+  # instance and exit. These are matched by our own profile path, so this only
+  # ever touches processes this script started.
   for root in "$QA_ROOT"/*/; do
-    [ -d "${root}userdata" ] || continue
-    rm -f "${root}userdata"/*.lock 2>/dev/null
-    rm -rf "${root}userdata/Crashpad" 2>/dev/null
+    local userdata="${root}userdata"
+    [ -d "$userdata" ] || continue
+    local leftovers
+    leftovers="$(ps -eo pid=,args= 2>/dev/null | awk -v ud="$userdata" 'index($0, ud) != 0 { print $1 }')"
+    for pid in $leftovers; do
+      kill -TERM "$pid" 2>/dev/null
+    done
+    if [ -n "$leftovers" ]; then
+      sleep 3
+      for pid in $leftovers; do
+        if kill -0 "$pid" 2>/dev/null; then
+          warn "leftover pid $pid for $userdata ignored SIGTERM; sending SIGKILL as the documented last resort"
+          kill -KILL "$pid" 2>/dev/null
+        fi
+      done
+    fi
+    find "$userdata" -maxdepth 2 -name '*.sock' -delete 2>/dev/null
+    rm -f "$userdata"/*.lock 2>/dev/null
+    rm -rf "$userdata/Crashpad" 2>/dev/null
   done
   rm -f "$QA_ROOT/current"
   log "recover: done; $(count_instances) instance(s) running"
