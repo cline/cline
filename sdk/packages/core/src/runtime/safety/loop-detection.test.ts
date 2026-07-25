@@ -31,4 +31,27 @@ describe("LoopDetectionTracker", () => {
 
 		expect(tracker.inspect(call).kind).toBe("hard");
 	});
+
+	it("does not let a late parallel outcome reset another call's counter", () => {
+		const tracker = new LoopDetectionTracker({
+			softThreshold: 2,
+			hardThreshold: 3,
+		});
+		const firstPoll = { ...call, id: "poll-1" };
+		const secondPoll = { ...call, id: "poll-2" };
+		const otherCall = {
+			id: "other-1",
+			name: "other",
+			input: { command: "status" },
+		};
+
+		expect(tracker.inspect(firstPoll).kind).toBe("ok");
+		tracker.observeSuccessfulOutcome(firstPoll, "10% complete");
+		expect(tracker.inspect(secondPoll).kind).toBe("soft");
+		expect(tracker.inspect(otherCall).kind).toBe("ok");
+
+		tracker.observeSuccessfulOutcome(secondPoll, "20% complete");
+
+		expect(tracker.inspect({ ...otherCall, id: "other-2" }).kind).toBe("soft");
+	});
 });

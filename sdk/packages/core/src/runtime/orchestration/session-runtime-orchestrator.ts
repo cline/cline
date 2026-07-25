@@ -91,6 +91,17 @@ function formatToolResultError(output: unknown): string {
 	}
 }
 
+function containsFailedToolOperation(output: unknown): boolean {
+	const operations = Array.isArray(output) ? output : [output];
+	return operations.some(
+		(operation) =>
+			operation !== null &&
+			typeof operation === "object" &&
+			!Array.isArray(operation) &&
+			(operation as { success?: unknown }).success === false,
+	);
+}
+
 async function resolveRuleContent(
 	rule: AgentExtensionRule,
 ): Promise<string | undefined> {
@@ -1091,6 +1102,7 @@ export class SessionRuntime {
 				// forceAtLimit:true and abort. Parity with pre-Step-9
 				// agent.ts L917-954.
 				this.inspectLoopForToolCall(
+					event.toolCall.toolCallId,
 					event.toolCall.toolName,
 					event.toolCall.input,
 					event.iteration,
@@ -1108,9 +1120,14 @@ export class SessionRuntime {
 				);
 				const isError =
 					resultPart?.type === "tool-result" && resultPart.isError === true;
-				if (!isError && resultPart?.type === "tool-result") {
+				const isSuccessfulOutcome =
+					!isError &&
+					resultPart?.type === "tool-result" &&
+					!containsFailedToolOperation(resultPart.output);
+				if (isSuccessfulOutcome) {
 					this.loopTracker.observeSuccessfulOutcome(
 						{
+							id: event.toolCall.toolCallId,
 							name: event.toolCall.toolName,
 							input: event.toolCall.input,
 						},
@@ -1251,6 +1268,7 @@ export class SessionRuntime {
 	 *                 abort the active runtime.
 	 */
 	private inspectLoopForToolCall(
+		toolCallId: string,
 		toolName: string,
 		input: unknown,
 		iteration: number,
@@ -1258,7 +1276,11 @@ export class SessionRuntime {
 		if (this.trackerAbortInFlight || this.loopDetectionDisabled) {
 			return;
 		}
-		const verdict = this.loopTracker.inspect({ name: toolName, input });
+		const verdict = this.loopTracker.inspect({
+			id: toolCallId,
+			name: toolName,
+			input,
+		});
 		if (verdict.kind === "ok") {
 			return;
 		}

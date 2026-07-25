@@ -106,6 +106,7 @@ export interface LoopDetectionVerdict {
 
 /** Minimal call shape the tracker needs; matches `AgentToolCallPart` subset. */
 export interface LoopDetectionCall {
+	id?: string;
 	name: string;
 	input: unknown;
 }
@@ -132,6 +133,7 @@ export class LoopDetectionTracker {
 				outputSignature: string;
 		  }
 		| undefined;
+	private latestInspectedCallId: string | undefined;
 
 	constructor(config?: Partial<LoopDetectionConfig>) {
 		this.config = {
@@ -142,6 +144,7 @@ export class LoopDetectionTracker {
 
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		const signature = toolCallSignature(call.input);
+		this.latestInspectedCallId = call.id;
 		const result = checkRepeatedToolCall(
 			this.state,
 			call.name,
@@ -171,6 +174,14 @@ export class LoopDetectionTracker {
 	 */
 	observeSuccessfulOutcome(call: LoopDetectionCall, output: unknown): void {
 		const toolSignature = toolCallSignature(call.input);
+		const isCurrentCall =
+			this.state.lastToolName === call.name &&
+			this.state.lastToolSignature === toolSignature &&
+			(call.id === undefined || call.id === this.latestInspectedCallId);
+		if (!isCurrentCall) {
+			return;
+		}
+
 		const outputSignature = toolCallSignature(output);
 		const previous = this.lastSuccessfulOutcome;
 
@@ -192,5 +203,6 @@ export class LoopDetectionTracker {
 	reset(): void {
 		resetLoopDetectionState(this.state);
 		this.lastSuccessfulOutcome = undefined;
+		this.latestInspectedCallId = undefined;
 	}
 }
