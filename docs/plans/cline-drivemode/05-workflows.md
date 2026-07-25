@@ -821,16 +821,16 @@ Senior engineering leadership on the call. Drive is not only “write the code f
 
 **Happy path.**
 1. The partner interviews for users, must-haves, nice-to-haves, and explicit non-goals.
-2. Stage accumulates **Requirement** cards tagged Must / Should / Could / Won’t.
+2. The partner produces a MoSCoW **Requirement** set (Must / Should / Could / Won’t) in the feed (Phase 1). Stage cards for the same artifacts land with [DRV-STAGE](features/DRV-STAGE.md) in Phase 2.
 3. At least one **Won’t** / non-goal is written down (scope control is the point).
-4. Constraints that are product rules (privacy, single-writer, naming) appear as constraint cards, not buried in chat.
+4. Constraints that are product rules (privacy, single-writer, naming) appear in the feed (Phase 1), not buried in chat; constraint stage cards land in Phase 2.
 5. The partner reads back the MoSCoW set and asks what would falsify the Must list.
 
 **Failure and interrupt.** Infinite interview is a failure. Cap clarifying questions; prefer a provisional Must list marked “assumed.” If requirements conflict, the partner surfaces the conflict as an open question rather than silently picking.
 
-**Surfaces.** Stage, room feed, optional export into handoff text.
-**Tier.** MVP for the loop and stage cards. Phase 2 for recruitable tech-lead agent homes that specialize in this.
-**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-STAGE](features/DRV-STAGE.md), [DRV-NARRATION](features/DRV-NARRATION.md).
+**Surfaces.** Room feed, optional export into handoff text. Stage (Phase 2).
+**Tier.** MVP (feed/narration). Phase 2 for stage cards and recruitable tech-lead agent homes that specialize in this.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-NARRATION](features/DRV-NARRATION.md). Stage cards: [DRV-STAGE](features/DRV-STAGE.md) (Phase 2).
 **Sources.** [prd/prd-success-metrics.md](prd/prd-success-metrics.md) MoSCoW usage; [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) requirements priorities.
 
 ### W-42 · Facilitate an architecture or product decision
