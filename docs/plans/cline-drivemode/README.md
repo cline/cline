@@ -17,7 +17,7 @@ Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 | [02-research-streaming.md](02-research-streaming.md) | Call-architecture research synthesis (Discord, Zoom, Meet, Teams, Webex, Huddles, Twitch) with adopted anti-patterns |
 | [03-research-inventory.md](03-research-inventory.md) | Cline surface inventory, hub and hook gaps, workflows and skills to define |
 | [04-future-multi-user.md](04-future-multi-user.md) | Discord-in-IDE desired state, room/participant/track model, phased media strategy |
-| [05-workflows.md](05-workflows.md) | Canonical workflow catalog. 39 sequences a human performs, cited to cursor-drive and claude-drive prior art, tiered and mapped to DRV features or gaps |
+| [05-workflows.md](05-workflows.md) | Canonical workflow catalog. 45 sequences a human performs (incl. Group I SDLC leadership), cited to cursor-drive and claude-drive prior art, tiered and mapped to DRV features or gaps |
 | [06-platform-config.md](06-platform-config.md) | Platform configuration surface. `AgentProfile` and `RosterPack` domain model, 34-facet inventory with owner/scope/lane/privacy/phase, ownership matrix, phasing, open forks |
 | [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) | SE lead / PM brief for the planning wave (defaults, MoSCoW, risks) |
 | [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) | Gate before schema freeze |
@@ -74,6 +74,7 @@ MVP is phases 0 through 3. Future is phases 4 and 5.
 | [DRV-STEER-QUEUE](features/DRV-STEER-QUEUE.md) | Steering while the partner works | 2 | MVP |
 | [DRV-INTERRUPT](features/DRV-INTERRUPT.md) | Raise hand | 2 | MVP |
 | [DRV-SKILL-PORT](features/DRV-SKILL-PORT.md) | Port persona and mode skills | 2 | MVP |
+| [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md) | Senior SDLC / requirements leadership on the call | 1 | MVP |
 | [DRV-MIC](features/DRV-MIC.md) | Mic input and mute | 3 | MVP |
 | [DRV-TTS](features/DRV-TTS.md) | Partner voice out | 3 | MVP |
 | [DRV-CAPTIONS](features/DRV-CAPTIONS.md) | Live captions | 3 | MVP |

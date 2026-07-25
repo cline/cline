@@ -7,7 +7,7 @@
 
 | Area | Planned location | Contents |
 |---|---|---|
-| Drive events | `sdk/packages/shared/src/drive/events.ts` | Versioned union: presence, call state, stage cards, narration, steer, interrupt, gate, handoff |
+| Events | `sdk/packages/shared/src/drive/events.ts` | Versioned union: presence, call state, stage cards, narration, steer, interrupt, gate, handoff, **guidance artifacts** (problem, constraint, requirement, option, decision, open_question, checklist, coverage_gap) |
 | Participants / roster | `sdk/packages/shared/src/drive/roster.ts` | Participant, seatSources, roles, mute, stale |
 | Address | `sdk/packages/shared/src/drive/address.ts` | everyone \| agentIds \| pack |
 | Facets | `sdk/packages/shared/src/drive/facets.ts` | Catalog, merge, tombestones, schemaVersion |

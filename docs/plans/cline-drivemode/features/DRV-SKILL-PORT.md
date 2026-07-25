@@ -12,7 +12,8 @@ The senior-engineer feel is mostly prompt engineering that already exists. curso
 - All Cursor-specific references (MCP tool names, `drive_set_mode` calls, Cursor mode names) are rebound to the kernel and room ops or removed.
 - Mode-intent detection ("let's plan", "go ahead", "what is", "debug this") maps to `call_set_mode`, and stays Tier 0/1 (regex first, cheap classification only if regex is insufficient).
 - The persona applies only inside Drive. Native Cline behavior is untouched when Drive is off.
-- The workflows named in the inventory (join, leave, steer, interrupt, mode, handoff explain, end session) each have a documented trigger phrase set.
+- The workflows named in the inventory (join, leave, steer, interrupt, mode, handoff explain, end session, **and SDLC guidance W-40–W-45**) each have a documented trigger phrase set.
+- SDLC guidance skill loads with Drive and implements [DRV-SDLC-GUIDE](DRV-SDLC-GUIDE.md) playbooks (discovery, requirements, decision facilitation, coverage mapping, phase-entry freeze, teach-while-doing) without becoming a join wizard.
 
 ## Dependencies
 

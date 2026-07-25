@@ -32,7 +32,7 @@ Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](cline-driv
 
 - `docs/plans/cline-drivemode/00-vision.md` defines the Drive tab, pair-call experience, and staged product direction.
 - `docs/plans/cline-drivemode/01-architecture.md` defines the room model, the hub boundary, and the event-first architecture.
-- `docs/plans/cline-drivemode/05-workflows.md` contains 39 user workflows. It maps them to features and calls out gaps.
+- `docs/plans/cline-drivemode/05-workflows.md` contains 45 user workflows (incl. Group I SDLC / requirements leadership). It maps them to features and calls out gaps.
 - `docs/plans/cline-drivemode/06-platform-config.md` defines the 34-facet platform inventory, `RosterPack`, `AgentProfile`, ownership, privacy, and phases.
 - `docs/plans/cline-drivemode/features/` contains the DRV feature plans.
 - `docs/plans/cline-drivemode/TASK-GRAPH.md` orders phases and acceptance gates.

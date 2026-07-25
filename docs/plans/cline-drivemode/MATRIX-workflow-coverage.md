@@ -45,12 +45,18 @@ Derived from [05-workflows.md](05-workflows.md) during the leadership planning w
 | W-37 Transcript vs profile | DRV-PARTICIPANT-SHEET, DRV-ROSTER, DRV-TRANSCRIPT, DRV-ADDRESS | Phase 1 |
 | W-38 Recruit & seat | DRV-RECRUIT, DRV-AGENT-GRAPH, DRV-ROSTER-PACK, DRV-ROOM-MVP | Phase 2 |
 | W-39 Accept/reject knowledge | DRV-AGENT-GRAPH, DRV-DRIVEAGENT-HOME, DRV-PRIVACY | Phase 2–3 |
+| W-40 Discovery / frame problem | DRV-SDLC-GUIDE, DRV-NARRATION, DRV-STAGE, DRV-SKILL-PORT | Phase 1 must (guidance) |
+| W-41 Structure requirements | DRV-SDLC-GUIDE, DRV-STAGE, DRV-NARRATION | MVP loop; stage depth Phase 2 |
+| W-42 Facilitate a decision | DRV-SDLC-GUIDE, DRV-STAGE, DRV-GATES, DRV-ADR | MVP facilitation |
+| W-43 Map workflows / gaps | DRV-SDLC-GUIDE, DRV-STAGE | In-room map MVP |
+| W-44 Freeze phase entry gate | DRV-SDLC-GUIDE, DRV-LEAVE-END | Phase 1 must (guidance) |
+| W-45 Teach while doing | DRV-SDLC-GUIDE, DRV-NARRATION, DRV-SKILL-PORT, DRV-PARTNER-MVP | Phase 1 must |
 
 ## Features rarely named by workflow ID
 
 | Feature | Role |
 |---|---|
-| DRV-ADR | Phase 0 scaffolding |
+| DRV-ADR | Phase 0 scaffolding; also referenced by W-42 |
 | DRV-CALL-STRIP | Chrome surface used by many flows; ensure Phase 2 gate names it |
 | DRV-PLATFORM-CONFIG | Cross-cutting |
 

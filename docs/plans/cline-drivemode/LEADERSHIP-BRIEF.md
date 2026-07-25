@@ -19,6 +19,8 @@ This wave recommends **defaults**, records them as decisions, patches the contra
 
 Make Cline feel like joining a Discord-style call inside Slack-like chrome: recruitable agents, shared stage of structured work, addressable partners, interruptible turns, privacy-strict by default. Drive tab is home. Chat Join is a shortcut.
 
+**Productized in-call.** The SE/PM discipline in this brief is not only a planning-wave artifact. It is Group I of the workflow catalog ([05-workflows.md](05-workflows.md) W-40–W-45) and [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md): discovery, requirements, decision facilitation, coverage mapping, phase-entry freeze, and teach-while-doing — so less-experienced builders get senior leadership on the call without a mandatory wizard.
+
 ## What “done planning” means for Phase 0 entry
 
 Phase 0 schema work may start only when [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) is green. That checklist is the planning gate — not a calendar.
@@ -64,6 +66,7 @@ Human override format (from existing handoffs): `accept all` | `change: <id and 
 - Rename/ink partner without reseat; no prompts in Drive facet files (W-35).
 - Hub single-writer; no `:7891`.
 - Privacy-strict defaults enforced in schemas.
+- On-demand discovery + teach-while-doing (W-40, W-45); “just build X” escapes to the work loop.
 
 ### Should (Phase 1–2 without blocking join)
 
@@ -71,6 +74,7 @@ Human override format (from existing handoffs): `accept all` | `change: <id and 
 - Builtin / example Driveagent home loadable as fixture (ARD-0001 compile path).
 - Stage + address + steer + interrupt (Phase 2 gate).
 - Gates v1 for high-impact tools (W-24 / W-25).
+- Requirements / decision / phase-entry stage cards (W-41, W-42, W-44).
 
 ### Could (Phase 2+)
 

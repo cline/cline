@@ -792,9 +792,127 @@ Repeated because workflow design is exactly where these get quietly violated.
 
 ---
 
+## Group I. SDLC and requirements leadership
+
+Senior engineering leadership on the call. Drive is not only “write the code faster.” For humans with less product, architecture, or delivery experience, the pair partner must be able to run an effective SDLC loop: frame the problem, gather requirements, force decisions, map coverage, freeze a phase entry gate, and teach *why* while doing. These workflows are the productization of [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md). Feature owner: [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md).
+
+### W-40 · Start a discovery call (frame the problem)
+
+**Actors.** Human, pair partner.
+**Trigger.** The human is about to build something underspecified, or says phrases like “help me figure out what to build,” “let’s gather requirements,” “I don’t know where to start.”
+
+**Happy path.**
+1. The partner does **not** jump into tools. It restates the problem in one or two sentences and asks what “done” would look like for the next slice.
+2. Stage shows a **Problem** card and an **Open questions** card.
+3. The partner lists binding constraints it already knows (hub single-writer, privacy-strict, Bun only, RosterPack≠Team, events-first) only when they affect the problem — not as a lecture.
+4. The human confirms or corrects the problem statement before any implementation turn starts.
+
+**Failure and interrupt.** If the human says “just build X,” the partner acknowledges and switches to W-08 without guilt. If the human cannot name a user, the partner proposes a default persona and marks it assumed. Raising a hand cancels discovery and returns to the prior mode.
+
+**Surfaces.** Room feed, stage, composer/voice, narration.
+**Tier.** MVP.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-NARRATION](features/DRV-NARRATION.md), [DRV-STAGE](features/DRV-STAGE.md), [DRV-SKILL-PORT](features/DRV-SKILL-PORT.md).
+**Sources.** [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md); vision “Senior-engineer tone” and “teaches while doing” ([00-vision.md](00-vision.md)); BRIEF-style problem framing from prior art in the Driveagent PRD stack.
+
+### W-41 · Gather and structure requirements
+
+**Actors.** Human, pair partner.
+**Trigger.** Discovery has a problem statement (W-40), or the human asks to “write requirements,” “MoSCoW this,” or “what are the non-goals?”
+
+**Happy path.**
+1. The partner interviews for users, must-haves, nice-to-haves, and explicit non-goals.
+2. Stage accumulates **Requirement** cards tagged Must / Should / Could / Won’t.
+3. At least one **Won’t** / non-goal is written down (scope control is the point).
+4. Constraints that are product rules (privacy, single-writer, naming) appear as constraint cards, not buried in chat.
+5. The partner reads back the MoSCoW set and asks what would falsify the Must list.
+
+**Failure and interrupt.** Infinite interview is a failure. Cap clarifying questions; prefer a provisional Must list marked “assumed.” If requirements conflict, the partner surfaces the conflict as an open question rather than silently picking.
+
+**Surfaces.** Stage, room feed, optional export into handoff text.
+**Tier.** MVP for the loop and stage cards. Phase 2 for recruitable tech-lead agent homes that specialize in this.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-STAGE](features/DRV-STAGE.md), [DRV-NARRATION](features/DRV-NARRATION.md).
+**Sources.** [prd/prd-success-metrics.md](prd/prd-success-metrics.md) MoSCoW usage; [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) requirements priorities.
+
+### W-42 · Facilitate an architecture or product decision
+
+**Actors.** Human, pair partner.
+**Trigger.** A fork appears (“should we…?”, “home vs facets,” “monorepo vs separate repo”), or the human asks “help me decide.”
+
+**Happy path.**
+1. The partner names the decision in one line and refuses a false binary when a third option exists.
+2. Stage shows ≥2 **Option** cards with consequences (positive / negative / verification).
+3. The partner gives a **Recommendation** with rationale tied to constraints, then asks the human to accept, amend, or defer.
+4. On accept, a **Decision** card is pinned (session-tier). Durable ARD/DEC files are written only when the human asks to record them in the repo (and gates apply if the write is high-impact).
+5. The partner states what is now *not* open, so implementers do not re-litigate it mid-PR.
+
+**Failure and interrupt.** “It depends” without a default is a failure for MVP guidance. Every facilitation ends with a recommended default plus an escape hatch. If the human defers, the open question stays on stage and blocks only the slices that truly require it (see W-44).
+
+**Surfaces.** Stage, feed, optional repo write via gated tools.
+**Tier.** MVP for facilitation + stage cards. Phase 2 for one-click “write DEC/ARD from stage.”
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-STAGE](features/DRV-STAGE.md), [DRV-GATES](features/DRV-GATES.md) when recording to disk, [DRV-ADR](features/DRV-ADR.md) as the doc pattern.
+**Sources.** [ard/ARD-0000-status-board.md](ard/ARD-0000-status-board.md); [decisions/](decisions/); arena-style optioning from `drivecode-sdk/decisions.tsv`.
+
+### W-43 · Map workflows and find coverage gaps
+
+**Actors.** Human, pair partner.
+**Trigger.** The human asks “what can a user do?”, “are we missing workflows?”, or “map this to Drive workflows.”
+
+**Happy path.**
+1. The partner lists user sequences as workflow-shaped rows (trigger → happy path → failure), not as feature brainstorms.
+2. Stage shows a **Coverage** card: workflow ↔ owner feature, or UNMAPPED/GAP.
+3. Gaps are ranked by cost of finding them late (same spirit as this catalog’s gap list).
+4. The partner proposes the smallest owner (new DRV feature vs AC on an existing one) rather than a new subsystem by default.
+
+**Failure and interrupt.** A map with no failure paths is rejected by the partner as incomplete. If the catalog already has entries, the partner cites IDs (W-nn) instead of inventing duplicates.
+
+**Surfaces.** Stage, feed, optional link to `05-workflows.md` when editing the plan set.
+**Tier.** MVP for in-room mapping. Phase 2 for writing back into the plan catalog under gates.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-STAGE](features/DRV-STAGE.md), [MATRIX-workflow-coverage.md](MATRIX-workflow-coverage.md) as the durable twin.
+**Sources.** This file’s catalog method; Subtract Before You Add.
+
+### W-44 · Freeze a phase entry gate before building
+
+**Actors.** Human, pair partner.
+**Trigger.** The human is ready to implement, or asks “can we start coding?”, “what’s the entry checklist?”, “are we ready for phase 0?”
+
+**Happy path.**
+1. The partner refuses to start schema/implementation work while a load-bearing fork is still unmarked (SoT, package boundary, privacy invariant, etc.).
+2. Stage shows a **Phase entry checklist** of decisions and invariants — not dates.
+3. Each unchecked item is either decided now (W-42), explicitly deferred with a non-blocking rationale, or marked blocking.
+4. On green, the partner states the first verifiable implementation slice and the verify command / smoke that will prove it.
+5. Handoff/export can copy the checklist for the next session (W-32).
+
+**Failure and interrupt.** “We’ll figure it out in the PR” on a one-way door is challenged once, then the human can override. Calendar estimates are declined; the partner rewrites them as dependency order.
+
+**Surfaces.** Stage, feed, handoff.
+**Tier.** MVP.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) as the template example, [DRV-LEAVE-END](features/DRV-LEAVE-END.md).
+**Sources.** [TASK-GRAPH.md](TASK-GRAPH.md) gates; [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
+
+### W-45 · Teach while doing (mentor mid-implementation)
+
+**Actors.** Human, pair partner.
+**Trigger.** Default senior posture during W-08+, or the human asks “why are we doing it this way?”, “explain like I’m new,” “what should I learn from this?”
+
+**Happy path.**
+1. Before a non-obvious edit, the partner narrates the decision in one short beat (not a keystroke tour).
+2. After a meaningful tool batch, the partner ties the result back to a requirement, constraint, or decision card on stage.
+3. When the human makes a junior mistake the partner has seen (second daemon, prompts in facets, silent memory, Team vs RosterPack), it corrects with the invariant name and a concrete fix — not shame.
+4. The human can ask for ELI5; the partner switches register without changing the plan.
+5. Teaching never blocks interrupt or steer (W-10, W-11).
+
+**Failure and interrupt.** Wall-of-text teaching is a failure. Quiet mode / “skip the lesson” suppresses mentoring narration for the session. If stage cards do not exist yet, the partner teaches from constraints alone and offers W-40.
+
+**Surfaces.** Narration, stage, feed, voice/TTS later.
+**Tier.** MVP (text narration). Phase 3 inherits voice.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-NARRATION](features/DRV-NARRATION.md), [DRV-SKILL-PORT](features/DRV-SKILL-PORT.md), [DRV-PARTNER-MVP](features/DRV-PARTNER-MVP.md).
+**Sources.** [00-vision.md](00-vision.md) “Senior-engineer tone”; cursor-drive `drive-persona` teaching posture; this repo’s review ELI5 practice ([docs/reviews/](../../reviews/) when present).
+
+---
+
 ## Coverage and gaps
 
-Thirty-nine workflows. W-37 through W-39 cover participant sheet, recruit, and gated knowledge accept. Several entries split across tiers (W-07, W-16, W-19, W-25, W-34, W-36, W-37, W-38, W-39). A split workflow lands its mechanism early and its full behaviour later, so it appears in two gates.
+Forty-five workflows. W-37 through W-39 cover participant sheet, recruit, and gated knowledge accept. W-40 through W-45 cover SDLC / requirements leadership. Several entries split across tiers (W-07, W-16, W-19, W-25, W-34, W-36, W-37, W-38, W-39, W-41, W-42, W-43). A split workflow lands its mechanism early and its full behaviour later, so it appears in two gates.
 
 | Group | Workflows |
 |---|---|
@@ -806,19 +924,21 @@ Thirty-nine workflows. W-37 through W-39 cover participant sheet, recruit, and g
 | F. Safety, policy, privacy | W-24, W-25, W-26 |
 | G. Beyond one partner | W-27, W-28, W-29, W-33, W-36 |
 | H. Parity, recovery, handoff | W-30, W-31, W-32 |
+| I. SDLC and requirements leadership | W-40 through W-45 |
 
 ### Gaps ranked by cost of finding them late
 
-1. **Approval gates have no owner (W-24, W-25).** Both siblings treat human approval of high-impact actions as a hard requirement, and cursor-drive's policy pack states it as a rule. Nothing in the DRV set owns it. Retrofitting a gate onto a turn loop after the fact is the expensive version. Proposed owner `DRV-GATES`, plan phase 0 or 1. **Partially closed.** [06-platform-config.md](06-platform-config.md) gives it a home as facet #26 `gates.highImpact` and establishes that it is a *policy layer over plumbing that already exists* — the hub emits `approval.requested` and tracks pending approvals in `sdk/packages/core/src/hub/server/handlers/approval-handlers.ts`. What remains for `DRV-GATES` is the action taxonomy and the session-scoped allow expiry, not a subsystem.
-2. **Hub-unreachable and reconnect UX has no owner (W-31).** Cheap now, embarrassing later, and both siblings have shipped the bad version. Add as acceptance criteria on [DRV-ROOM-MVP](features/DRV-ROOM-MVP.md).
-3. **Worktree isolation and proposal review (W-28).** Not MVP, and should not be. But it is a prerequisite of turning [DRV-TEAM-OPT](features/DRV-TEAM-OPT.md) on, and the flag currently reads as if it is not. Proposed owner `DRV-ISOLATION`, plan phase 4, blocking the flag.
-4. **Revise-not-restart is not an acceptance criterion (W-12).** [DRV-INTERRUPT](features/DRV-INTERRUPT.md) covers pause and classify. It does not say the answer is revised rather than restarted. claude-drive's `interruptPolicy.ts` is pure and portable, so this is a cheap add to [DRV-KERNEL](features/DRV-KERNEL.md).
-5. **Multi-room focus semantics (W-07).** The Drive tab is specified as channels plus call rooms, but nothing says what happens to an unfocused room's turn loop. Decide before the tab ships, because it determines whether a room is a view or a runtime. Facet #3 `room.focusPolicy` in [06-platform-config.md](06-platform-config.md) is where the answer lands; the decision itself is still open.
-6. **Catch-up on re-join (W-06).** Replay is covered. Orientation is not. Second consumer of the same `handoff.ts` the end-of-session flow needs.
-7. **Mic mute and TTS suppression independence (W-23).** One line of acceptance criteria on [DRV-TTS](features/DRV-TTS.md) and [DRV-MIC](features/DRV-MIC.md). Trivial to state, annoying to discover.
+1. **Approval gates (W-24, W-25).** Owner is now [DRV-GATES](features/DRV-GATES.md). Remaining work is taxonomy wiring + feed-card UI, not finding an owner.
+2. **Hub-unreachable and reconnect UX (W-31).** ACs landed on [DRV-ROOM-MVP](features/DRV-ROOM-MVP.md) / [ops/hub-drive-ops.md](ops/hub-drive-ops.md); implement and smoke.
+3. **Worktree isolation and proposal review (W-28).** Owner [DRV-ISOLATION](features/DRV-ISOLATION.md); hard dependency of [DRV-TEAM-OPT](features/DRV-TEAM-OPT.md).
+4. **Revise-not-restart (W-12).** AC added on [DRV-KERNEL](features/DRV-KERNEL.md) via leadership DEC; implement tests.
+5. **Multi-room focus semantics (W-07).** Closed as Recommended in [DEC-open-product-forks](decisions/DEC-open-product-forks.md) (`focus-room`, unfocused view-only); implement.
+6. **Catch-up on re-join (W-06).** Orientation line owned per DEC; implement as second consumer of handoff/stage projection.
+7. **Mic mute and TTS suppression independence (W-23).** One line of acceptance criteria on [DRV-TTS](features/DRV-TTS.md) and [DRV-MIC](features/DRV-MIC.md).
 8. **Dismiss cancellation semantics (W-29).** Belongs in room ops even at a roster of one.
-9. **Nothing names what may rewrite a prompt (W-34).** [DRV-HOOK-POLICY](features/DRV-HOOK-POLICY.md) requires mutation to be explicit, typed, and logged, but does not enumerate the allowed mutators. An allowlist is one paragraph now and an audit later. Facet #28 `hooks.promptRewriteAllowlist` reserves the workspace-scoped home for it.
-10. **One-shot fork versus seated specialist (W-33).** Both siblings have both concepts and only claude-drive states the boundary. Say it in [DRV-TEAM-OPT](features/DRV-TEAM-OPT.md) so the flag stays about roster seats and a side question never silently becomes a participant.
+9. **Nothing names what may rewrite a prompt (W-34).** [DRV-HOOK-POLICY](features/DRV-HOOK-POLICY.md) + facet `#28`; enumerate allowlist.
+10. **One-shot fork versus seated specialist (W-33).** Still deferred; say the boundary in [DRV-TEAM-OPT](features/DRV-TEAM-OPT.md) so the flag stays about roster seats.
+11. **SDLC guidance stage schemas (W-40–W-45).** New owner [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md); without event shapes, teaching stays chat-only and is not smokeable on the stage.
 
 ### Things the siblings do that Drivecode should deliberately not do
 
@@ -828,7 +948,7 @@ Thirty-nine workflows. W-37 through W-39 cover participant sheet, recruit, and g
 - **Pixel capture on the agent stage.** Named an anti-pattern in [00-vision.md](00-vision.md).
 - **A confirmation modal on the way into a voice turn.** cursor-drive's prompt-optimizer approval is its own rated friction F15. Hygiene stages should be silent (W-34).
 - **A bare keyword that spawns work.** cursor-drive's tangent trigger false-positives on ordinary speech, its failure mode X11. Take the ergonomic, not the trigger (W-33).
-
+- **Mandatory process theater before join.** SDLC guidance (Group I) is on-demand. Instant join stays sacred (W-01).
 ## Spoken and typed triggers
 
 [DRV-SKILL-PORT](features/DRV-SKILL-PORT.md) requires each ported skill to carry a documented trigger phrase set. Both siblings already have one, and the overlap is the safe starting point. Everything below is Tier 0 matching. No model call decides any of it.
@@ -846,8 +966,14 @@ Thirty-nine workflows. W-37 through W-39 cover participant sheet, recruit, and g
 | Add a pack | `/pack <slug>`; spoken "add the cybersecurity team" matches a pack's display name, never a type name | W-36 |
 | Recruit | `/recruit <need>`; Add → Recruit | W-38 |
 | Roster click | chooser Transcript \| Profile; address-follows-focus only on Transcript | W-37 |
+| Discovery | "let's gather requirements", "help me figure out what to build", "I don't know where to start" | W-40 |
+| Requirements | "write requirements", "MoSCoW this", "what are the non-goals" | W-41 |
+| Decide | "help me decide", "what are the options", "should we…" | W-42 |
+| Coverage map | "map the workflows", "what are we missing", "coverage gaps" | W-43 |
+| Phase gate | "are we ready to build", "phase entry checklist", "can we start coding" | W-44 |
+| Teach / ELI5 | "why are we doing this", "explain like I'm new", "what should I learn", "skip the lesson" | W-45 |
 
-The mode rows are `cursor-drive:.cursor/rules/drive-modes.mdc` verbatim and are already mirrored into this repo's plugin rules. The stop and quiet rows are claude-drive's wake-worded session commands (`claude-drive:docs/dynamic-agent/user-experience.md` §6). Three rows are deliberately not bare phrases. Switching rooms, seating a participant, and adding a pack are explicit acts, per W-07, W-33, and W-36.
+The mode rows are `cursor-drive:.cursor/rules/drive-modes.mdc` verbatim and are already mirrored into this repo's plugin rules. The stop and quiet rows are claude-drive's wake-worded session commands (`claude-drive:docs/dynamic-agent/user-experience.md` §6). Three rows are deliberately not bare phrases. Switching rooms, seating a participant, and adding a pack are explicit acts, per W-07, W-33, and W-36. Group I phrases start guidance loops; they must not auto-fire on ordinary coding talk — Tier 0 match with clear intent words, and “just build X” always escapes to W-08.
 
 ## Highest-signal prior art
 
@@ -871,13 +997,14 @@ Read these before designing any workflow above.
 | `cursor-drive:docs/design/ux/voice-mic-vs-wake-word-model.md` | Why the wake word is a transcript check and not an audio gate. Read before promising hands-free. |
 | `claude-drive:src/interruptPolicy.ts` | The four-way barge classifier, pure and dependency-free. The single best port candidate in either repo. |
 | `claude-drive:CLAUDE.md` | Locked curator decisions D1 through D10, the single-writer rule, and the privacy invariant asserted by tests. |
-| [`docs/design/drive-wireframes/DRIVE-TAB.md`](../../design/drive-wireframes/DRIVE-TAB.md) | This repo's own IA decision and the two still-open product forks. |
+| [`docs/design/drive-wireframes/DRIVE-TAB.md`](../../design/drive-wireframes/DRIVE-TAB.md) | This repo's own IA decision; product forks closed in [DEC-open-product-forks](decisions/DEC-open-product-forks.md). |
+| [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) | SE/PM planning wave that Group I productizes as live call workflows. |
 
 ## Principles behind this catalog's choices
 
-- **Experience First.** Entries are sequences a person performs, and every one names its failure path. A workflow with no failure path is a feature description wearing a costume.
-- **Model the Domain.** The catalog is a table with one shape, not thirty-two prose essays, so gaps are visible by scanning a column rather than by reading.
-- **Subtract Before You Add.** Twenty-four of thirty-two workflows map to DRV features that already exist. Only two new feature files are proposed, and three gaps are closed by adding acceptance criteria to features that already exist.
-- **Redesign from First Principles.** Wake word, auto-routing, and pixel share are all things the siblings built or planned. Each is evaluated on whether it earns a place in a room-first product, and two of the three are declined for the MVP.
-- **Sequence Work into Verifiable Units.** Every tier maps to a plan phase whose gate can smoke the workflow end to end, which is the point of writing them down.
-- **Never Block on the Human.** Open forks carry a chosen default plus an escape hatch. Sticky addressing, narration density, pause-versus-cancel, and per-agent stream shape all ship with a decision rather than a question.
+- **Experience First.** Entries are sequences a person performs, and every one names its failure path. A workflow with no failure path is a feature description wearing a costume. Group I exists so less-experienced humans get senior SDLC guidance as a first-class call experience, not as a side doc.
+- **Model the Domain.** The catalog is a table with one shape, not a pile of prose essays, so gaps are visible by scanning a column rather than by reading.
+- **Subtract Before You Add.** Most workflows map to DRV features that already exist. New feature files are proposed only when no honest owner exists (`DRV-GATES`, `DRV-ISOLATION`, `DRV-SDLC-GUIDE`).
+- **Redesign from First Principles.** Wake word, auto-routing, and pixel share are all things the siblings built or planned. Each is evaluated on whether it earns a place in a room-first product, and two of the three are declined for the MVP. Mandatory process theater before join is likewise declined — guidance is on-demand.
+- **Sequence Work into Verifiable Units.** Every tier maps to a plan phase whose gate can smoke the workflow end to end, which is the point of writing them down. W-44 makes that gate visible inside the call.
+- **Never Block on the Human.** Open forks carry a chosen default plus an escape hatch. Sticky addressing, narration density, pause-versus-cancel, per-agent stream shape, and “just build X” during discovery all ship with a decision rather than a question.

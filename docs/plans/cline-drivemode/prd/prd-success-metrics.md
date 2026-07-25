@@ -70,6 +70,15 @@ For a developer who already uses Cline Chat, does Drive make “work with a part
 
 Record as pass/fail with one paragraph of evidence in the Phase 1 gate report. No survey machinery in MVP.
 
+### G. SDLC leadership (Group I)
+
+| ID | Metric | How measured | Pass signal |
+|---|---|---|---|
+| M17 | Discovery before thrash | Scripted underspecified ask | Problem + Open questions appear before file tools |
+| M18 | Escape hatch | “just build X” after W-40 start | Switches to work loop without forcing MoSCoW |
+| M19 | Decision options | Scripted fork | ≥2 options + recommendation on stage |
+| M20 | Teach register | “explain like I'm new” mid-task | Shorter register; plan unchanged; interrupt still works |
+
 ## Instrumentation constraints
 
 - Prefer **tests and local smoke scripts** over phone-home telemetry.
@@ -79,6 +88,6 @@ Record as pass/fail with one paragraph of evidence in the Phase 1 gate report. N
 ## Rollout
 
 1. M5–M8 bind to Phase 0/1 CI.  
-2. M1–M4 bind to Phase 1 gate.  
-3. M9–M11 bind to Phase 2 gate.  
+2. M1–M4 and M17–M18 bind to Phase 1 gate.  
+3. M9–M11 and M19–M20 bind to Phase 2 gate.  
 4. M12–M16 bind when those features enter their phase gates.

@@ -10,6 +10,8 @@ Chat **Join call** remains a shortcut that opens or focuses the active Drive roo
 
 The partner narrates decisions, not keystrokes. The user watches the shared stage, steers with chat or voice, raises a hand to interrupt, and leaves whenever they want. The call persists like a Discord channel. It is a drop-in room, not a scheduled meeting. Fun matters as much as utility. Presence, warmth, and pacing are product features.
 
+When the human has less product or architecture experience, the same call can shift into **senior engineering leadership**: frame the problem, gather requirements, facilitate decisions, map workflow coverage, freeze a phase entry gate, and teach *why* while implementing ([05-workflows.md](05-workflows.md) Group I, [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md)). That guidance is on-demand. Instant join stays sacred — there is no process lobby.
+
 Decision record and throwaway prototype. [DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md), [drive-tab-discord-slack.html](../../design/drive-wireframes/drive-tab-discord-slack.html).
 
 ## Domain shape (locked)
@@ -56,7 +58,8 @@ One developer and one pair partner in the MVP roster. The UI still shows the ros
 
 - **Drive tab first.** The home for rooms, roster, and stage is the Drive activity. Chat Join is a shortcut.
 - **Instant join.** No ceremony, no lobby, no setup wizard. Open the room and you are in.
-- **Senior-engineer tone.** The partner explains why, offers options at forks, and teaches while doing. Ported from the cursor-drive persona work (DRV-SKILL-PORT).
+- **Senior-engineer tone.** The partner explains why, offers options at forks, and teaches while doing. Ported from the cursor-drive persona work (DRV-SKILL-PORT) and productized as SDLC leadership workflows (DRV-SDLC-GUIDE, W-40–W-45).
+- **Leadership on demand.** Requirements gathering, decision facilitation, coverage mapping, and phase-entry freezes are first-class call sequences for less-experienced builders — never a mandatory wizard before join.
 - **Addressable partners.** One / many / everyone / a pack before send (DRV-ADDRESS).
 - **Yours.** Rename your partner and pick its name and body colors. Curate a named pack and drop it into a call in one action. Configuration is a product surface with declared owners, not a settings dump ([06-platform-config.md](06-platform-config.md)).
 - **Interruptible.** Raising a hand pauses the partner after the current tool completes. The user never fights the agent for control.
