@@ -3,8 +3,6 @@ import { createComputerUseTool } from "./tool";
 
 const PORT_ENV_VAR = "CLINE_COMPUTER_USE_PORT";
 const HOST_ENV_VAR = "CLINE_COMPUTER_USE_HOST";
-const DISPLAY_WIDTH_ENV_VAR = "CLINE_COMPUTER_USE_DISPLAY_WIDTH";
-const DISPLAY_HEIGHT_ENV_VAR = "CLINE_COMPUTER_USE_DISPLAY_HEIGHT";
 
 function parsePositiveInt(value: string | undefined): number | undefined {
 	if (!value) {
@@ -21,10 +19,11 @@ function parsePositiveInt(value: string | undefined): number | undefined {
  * This is a proof-of-concept convenience for hosts (starting with the CLI)
  * that want to opt in without any config plumbing of their own: set
  * `CLINE_COMPUTER_USE_PORT` to the backend's TCP port and the tool becomes
- * available. Display size is queried from the backend by default; the
- * `CLINE_COMPUTER_USE_DISPLAY_WIDTH`/`_HEIGHT` variables only need to be set
- * to override that. There is intentionally no persisted setting/toggle yet
- * — see ./README.md.
+ * available. Display size is always queried from the backend — it is the
+ * only component that can know the real framebuffer dimensions, and a
+ * configured value that disagrees with them would corrupt every coordinate
+ * the model computes. There is intentionally no persisted setting/toggle
+ * yet — see ./README.md.
  */
 export async function createComputerUseToolFromEnv(
 	env: NodeJS.ProcessEnv = process.env,
@@ -37,7 +36,5 @@ export async function createComputerUseToolFromEnv(
 	return createComputerUseTool({
 		host: env[HOST_ENV_VAR] || undefined,
 		port,
-		displayWidthPx: parsePositiveInt(env[DISPLAY_WIDTH_ENV_VAR]),
-		displayHeightPx: parsePositiveInt(env[DISPLAY_HEIGHT_ENV_VAR]),
 	});
 }
