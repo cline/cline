@@ -114,7 +114,10 @@ function CommandStageCard({ card }: { card: StageCard }) {
 					{card.title}
 				</TerminalTitle>
 			</TerminalHeader>
-			<TerminalContent />
+			{/* Plain children avoid ansi-to-react default-import ESM quirk in TerminalContent. */}
+			<TerminalContent>
+				<pre className="whitespace-pre-wrap break-words text-zinc-100">{output}</pre>
+			</TerminalContent>
 		</Terminal>
 	);
 }
