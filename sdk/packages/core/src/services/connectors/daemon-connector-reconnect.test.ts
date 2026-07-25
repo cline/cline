@@ -4,7 +4,41 @@ import {
 	type ConnectorCliLaunchSpec,
 } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { __test__ } from "./daemon-connector-reconnect";
+import {
+	__test__,
+	reconnectDaemonConnectors,
+} from "./daemon-connector-reconnect";
+
+const mocks = vi.hoisted(() => ({
+	listActiveConnectors: vi.fn(),
+	readConnectorCliLaunchSpec: vi.fn(),
+	reconnectPersistedConnectors: vi.fn(),
+	spawnProcess: vi.fn(),
+}));
+
+vi.mock("node:child_process", () => ({
+	spawn: mocks.spawnProcess,
+}));
+
+vi.mock("@cline/shared", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/shared")>();
+	return {
+		...actual,
+		readConnectorCliLaunchSpec: mocks.readConnectorCliLaunchSpec,
+	};
+});
+
+vi.mock("./active-connectors", () => ({
+	listActiveConnectors: mocks.listActiveConnectors,
+}));
+
+vi.mock("./connector-autostart", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("./connector-autostart")>();
+	return {
+		...actual,
+		reconnectPersistedConnectors: mocks.reconnectPersistedConnectors,
+	};
+});
 
 class FakeConnectorCliChild extends EventEmitter {
 	stderr = new EventEmitter() as EventEmitter & {
@@ -26,6 +60,7 @@ describe("daemon connector CLI launcher", () => {
 	};
 
 	afterEach(() => {
+		vi.clearAllMocks();
 		if (originalDaemonFlag === undefined) {
 			delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
 		} else {
@@ -43,8 +78,7 @@ describe("daemon connector CLI launcher", () => {
 			spec,
 			"telegram",
 			["-k", "token"],
-			log,
-			spawnProcess,
+			{ log, spawnProcess },
 		);
 		child.emit("close", 0);
 
@@ -71,8 +105,7 @@ describe("daemon connector CLI launcher", () => {
 			spec,
 			"telegram",
 			["-k", "token"],
-			log,
-			spawnProcess,
+			{ log, spawnProcess },
 		);
 		child.stderr.emit("data", "invalid token");
 		child.emit("close", 1);
@@ -80,6 +113,49 @@ describe("daemon connector CLI launcher", () => {
 		await expect(pending).resolves.toBe(false);
 		expect(log).toHaveBeenCalledWith(
 			"[connect] telegram reconnect exited with code 1: invalid token",
+		);
+	});
+
+	it("restarts a surviving connector so it binds to the new hub session", async () => {
+		const child = new FakeConnectorCliChild();
+		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
+		mocks.spawnProcess.mockImplementation(() => {
+			queueMicrotask(() => child.emit("close", 0));
+			return child;
+		});
+		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
+			const ok = await options.start("telegram", ["-k", "token"]);
+			return [{ channel: "telegram", ok }];
+		});
+		const log = vi.fn();
+
+		await expect(reconnectDaemonConnectors(log)).resolves.toEqual([
+			{ channel: "telegram", ok: true },
+		]);
+
+		expect(mocks.spawnProcess).toHaveBeenCalledWith(
+			"/usr/local/bin/bun",
+			[
+				"/repo/apps/cli/src/index.ts",
+				"connect",
+				"--restart",
+				"telegram",
+				"-k",
+				"token",
+			],
+			expect.objectContaining({ cwd: "/workspace" }),
+		);
+		expect(log).toHaveBeenCalledWith(
+			"[connect] restarting surviving telegram connector for the new hub session",
 		);
 	});
 });

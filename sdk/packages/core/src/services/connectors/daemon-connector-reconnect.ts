@@ -33,9 +33,14 @@ async function runConnectorCli(
 	spec: ConnectorCliLaunchSpec,
 	channel: string,
 	args: string[],
-	log: (message: string) => void,
-	spawnProcess: SpawnConnectorCli = spawn as SpawnConnectorCli,
+	options: {
+		restart?: boolean;
+		log: (message: string) => void;
+		spawnProcess?: SpawnConnectorCli;
+	},
 ): Promise<boolean> {
+	const { log, restart = false } = options;
+	const spawnProcess = options.spawnProcess ?? (spawn as SpawnConnectorCli);
 	const childEnv = { ...process.env };
 	delete childEnv[CLINE_RUN_AS_HUB_DAEMON_ENV];
 
@@ -56,7 +61,12 @@ async function runConnectorCli(
 		try {
 			const child = spawnProcess(
 				spec.launcher,
-				[...spec.connectArgsPrefix, channel, ...args],
+				[
+					...spec.connectArgsPrefix,
+					...(restart ? ["--restart"] : []),
+					channel,
+					...args,
+				],
 				{
 					cwd: spec.cwd,
 					env: childEnv,
@@ -117,9 +127,17 @@ export async function reconnectDaemonConnectors(
 				);
 				return false;
 			}
-			return await runConnectorCli(launchSpec, channel, args, log);
+			const restart = activeChannels.has(channel);
+			if (restart) {
+				log(
+					`[connect] restarting surviving ${channel} connector for the new hub session`,
+				);
+			}
+			return await runConnectorCli(launchSpec, channel, args, {
+				restart,
+				log,
+			});
 		},
-		isActive: (channel) => activeChannels.has(channel),
 		log,
 	});
 }

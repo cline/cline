@@ -53,8 +53,8 @@ export interface ReconnectAttempt {
 export interface ReconnectPersistedConnectorsOptions {
 	/** Starts a connector channel with the stored, non-interactive arguments. */
 	start: (channel: string, args: string[]) => Promise<boolean>;
-	/** Reports whether a host already has an active connector for the channel. */
-	isActive?: (channel: string) => boolean;
+	/** Reports whether a connector is known to be healthy in the current host. */
+	isHealthy?: (channel: string) => boolean;
 	log?: (message: string) => void;
 }
 
@@ -85,7 +85,7 @@ export async function reconnectPersistedConnectors(
 
 	const attempts: ReconnectAttempt[] = [];
 	for (const { channel, args } of candidates) {
-		if (options.isActive?.(channel)) {
+		if (options.isHealthy?.(channel)) {
 			continue;
 		}
 		log(`[connect] reconnecting ${channel} connector`);

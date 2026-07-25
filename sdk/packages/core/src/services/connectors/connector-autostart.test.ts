@@ -101,14 +101,14 @@ describe("connector autostart", () => {
 		expect(attempts).toEqual([{ channel: "telegram", ok: true }]);
 	});
 
-	it("lets the host skip connectors that are already active", async () => {
+	it("lets the host skip connectors that are known to be healthy", async () => {
 		useTempDataDir();
 		persistConnectorConnection("telegram", ["-k", "123:token"]);
 
 		const start = vi.fn().mockResolvedValue(true);
 		const attempts = await reconnectPersistedConnectors({
 			start,
-			isActive: (channel) => channel === "telegram",
+			isHealthy: (channel) => channel === "telegram",
 		});
 
 		expect(start).not.toHaveBeenCalled();
