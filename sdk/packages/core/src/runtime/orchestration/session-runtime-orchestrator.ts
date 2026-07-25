@@ -1124,16 +1124,20 @@ export class SessionRuntime {
 					!isError &&
 					resultPart?.type === "tool-result" &&
 					!containsFailedToolOperation(resultPart.output);
-				if (isSuccessfulOutcome) {
-					this.loopTracker.observeSuccessfulOutcome(
-						{
-							id: event.toolCall.toolCallId,
-							name: event.toolCall.toolName,
-							input: event.toolCall.input,
-						},
-						resultPart.output,
-					);
-				}
+				this.loopTracker.observeOutcome(
+					{
+						id: event.toolCall.toolCallId,
+						name: event.toolCall.toolName,
+						input: event.toolCall.input,
+					},
+					{
+						successful: isSuccessfulOutcome,
+						output:
+							resultPart?.type === "tool-result"
+								? resultPart.output
+								: undefined,
+					},
+				);
 				const errorText = isError
 					? formatToolResultError(
 							resultPart?.type === "tool-result"

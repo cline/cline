@@ -2245,23 +2245,47 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("aborts on hard-threshold loop detection of identical tool calls", async () => {
-		const identical = (i: number): AgentRuntimeEvent => ({
-			type: "tool-started",
-			iteration: i,
-			toolCall: {
+		const identical = (i: number): AgentRuntimeEvent[] => {
+			const toolCall = {
 				type: "tool-call",
 				toolCallId: `tc${i}`,
 				toolName: "same",
 				input: { a: 1 },
-			},
-			snapshot: makeSnapshot(),
-		});
+			} as const;
+			return [
+				{
+					type: "tool-started",
+					iteration: i,
+					toolCall,
+					snapshot: makeSnapshot(),
+				},
+				{
+					type: "tool-finished",
+					iteration: i,
+					toolCall,
+					message: {
+						id: `message-${i}`,
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: toolCall.toolCallId,
+								toolName: toolCall.toolName,
+								output: "unchanged",
+							},
+						],
+						createdAt: i,
+					},
+					snapshot: makeSnapshot(),
+				},
+			];
+		};
 		const { deps, abortCalls } = makeScriptedRuntime({
 			events: [
 				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				identical(1),
-				identical(1),
-				identical(1),
+				...identical(1),
+				...identical(2),
+				...identical(3),
 			],
 		});
 		const session = new SessionRuntime(
@@ -2335,6 +2359,68 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		);
 
 		await session.run("monitor progress");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("does not abort identical parallel calls before their progress is observed", async () => {
+		const toolCall = (id: string) => ({
+			type: "tool-call" as const,
+			toolCallId: id,
+			toolName: "poll",
+			input: { command: "status" },
+		});
+		const started = (id: string): AgentRuntimeEvent => ({
+			type: "tool-started",
+			iteration: 1,
+			toolCall: toolCall(id),
+			snapshot: makeSnapshot(),
+		});
+		const finished = (id: string, output: string): AgentRuntimeEvent => ({
+			type: "tool-finished",
+			iteration: 1,
+			toolCall: toolCall(id),
+			message: {
+				id: `message-${id}`,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: id,
+						toolName: "poll",
+						output,
+					},
+				],
+				createdAt: 1,
+			},
+			snapshot: makeSnapshot(),
+		});
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: [
+				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+				started("baseline"),
+				finished("baseline", "10% complete"),
+				started("parallel-1"),
+				started("parallel-2"),
+				started("parallel-3"),
+				finished("parallel-1", "20% complete"),
+				finished("parallel-2", "10% complete"),
+				finished("parallel-3", "10% complete"),
+				started("next"),
+				finished("next", "30% complete"),
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: {
+					maxConsecutiveMistakes: 6,
+					loopDetection: { softThreshold: 2, hardThreshold: 3 },
+				},
+			}),
+			deps,
+		);
+
+		await session.run("monitor parallel progress");
 
 		expect(abortCalls).toHaveLength(0);
 	});
