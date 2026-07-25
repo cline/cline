@@ -7,6 +7,7 @@ import {
 	createBudgetLedger,
 	hashPrivateIdentifier,
 	ledgerExposure,
+	markBudgetUnmeasured,
 	normalizeLocalCoreUrl,
 	parseRouteTraces,
 	recoverLatestUsage,
@@ -19,6 +20,7 @@ import {
 import {
 	assertDirectModelsInLiveCatalog,
 	assertLocalClineVersion,
+	assertLocalCoreVirtualModelsInCatalog,
 	assertModelTransportPrerequisites,
 	assertReusableFingerprint,
 	assertTraceIngestionCompatibility,
@@ -354,6 +356,36 @@ describe("Cline benchmark configuration and matrix", () => {
 		expect(checkpoint.models.find((model) => model.id === "cline/auto")?.allowedCandidates).toContain("z-ai/glm-5.2")
 	})
 
+	test("preflights local Core virtual IDs before any budget reservation", async () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		const fetchCatalog = (async (input: URL | RequestInfo) => {
+			expect(String(input)).toBe("http://127.0.0.1:17777/api/v1/ai/cline/recommended-models")
+			return new Response(
+				JSON.stringify({
+					recommended: [{ id: "cline/auto" }],
+					free: [],
+					clinePass: [],
+				}),
+				{ status: 200 },
+			)
+		}) as typeof fetch
+		await expect(
+			assertLocalCoreVirtualModelsInCatalog(checkpoint, "http://host.docker.internal:17777", fetchCatalog),
+		).resolves.toBeUndefined()
+
+		const missingVirtual = (async () =>
+			new Response(JSON.stringify({ recommended: [], free: [], clinePass: [] }), {
+				status: 200,
+			})) as typeof fetch
+		await expect(
+			assertLocalCoreVirtualModelsInCatalog(
+				checkpoint,
+				"http://host.docker.internal:17777",
+				missingVirtual,
+			),
+		).rejects.toThrow("local Core catalog is missing virtual model(s): cline/auto")
+	})
+
 	test("fails closed when the local CLI build differs from the configured Harbor build", () => {
 		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
 		expect(() =>
@@ -678,6 +710,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 			wave: 1,
 			exposureUsd: model.perTaskBudgetUsd,
 		})
+		if (failed.costUsd === null) throw new Error("expected recovered measured cost")
 		ledger = settleBudget(ledger, "1:1:cline/auto:task-a", failed.costUsd)
 		expect(ledgerExposure(ledger)).toBe(0.25)
 
@@ -687,7 +720,7 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 		expect(ledgerExposure(ledger)).toBe(0.25)
 	})
 
-	test("charges completed no-telemetry work at its reservation and never reruns it", () => {
+	test("marks completed no-telemetry work infrastructure-invalid without inventing measured cost", () => {
 		const jobsRoot = mkdtempSync(join(tmpdir(), "cline-bench-no-telemetry-"))
 		temporaryDirectories.push(jobsRoot)
 		const task = "task-a"
@@ -737,12 +770,13 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 
 		const recovered = reuseCompletedRun(noTelemetryConfig, model, task, jobsRoot, 1)
 		expect(recovered).toMatchObject({
-			outcome: "failed",
+			outcome: "infrastructure_invalid",
 			failureClassification: "CompletedWithoutCostTelemetry",
 			passed: false,
 			reward: null,
-			costUsd: 2.2,
-			costBasis: "reserved-exposure",
+			costUsd: null,
+			costBasis: "unmeasured",
+			reservedExposureUsd: 2.2,
 			inputTokens: null,
 			cacheTokens: null,
 			outputTokens: null,
@@ -754,11 +788,30 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 			wave: 1,
 			exposureUsd: model.perTaskBudgetUsd,
 		})
-		ledger = settleBudget(ledger, "1:1:z-ai/glm-5.2:task-a", recovered?.costUsd || 0)
+		ledger = markBudgetUnmeasured(ledger, "1:1:z-ai/glm-5.2:task-a")
 		expect(ledgerExposure(ledger)).toBe(2.2)
+		expect(ledger.entries[0]).toMatchObject({
+			status: "unmeasured",
+			reservedUsd: 2.2,
+		})
+		expect(ledger.entries[0].actualUsd).toBeUndefined()
 
 		const resumed = reuseCompletedRun(noTelemetryConfig, model, task, jobsRoot, 1)
 		expect(resumed).toEqual(recovered)
+	})
+
+	test("migrates a legacy full-reservation settlement to unmeasured exposure only", () => {
+		let ledger = reserveBudget(createBudgetLedger(10), {
+			runKey: "legacy",
+			model: "cline/auto",
+			wave: 1,
+			exposureUsd: 2.2,
+		})
+		ledger = settleBudget(ledger, "legacy", 2.2)
+		ledger = markBudgetUnmeasured(ledger, "legacy")
+		expect(ledgerExposure(ledger)).toBe(2.2)
+		expect(ledger.entries[0].status).toBe("unmeasured")
+		expect(ledger.entries[0].actualUsd).toBeUndefined()
 	})
 
 	test("keeps a canonical terminal no-spend infrastructure failure at zero", () => {

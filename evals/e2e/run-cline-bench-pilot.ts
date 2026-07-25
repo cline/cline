@@ -41,6 +41,7 @@ import {
 	hashPrivateIdentifier,
 	ledgerExposure,
 	MAX_CHECKPOINT_USD,
+	markBudgetUnmeasured,
 	normalizeLocalCoreUrl,
 	parseRouteTraces,
 	type RouteTrace,
@@ -107,12 +108,13 @@ export type RunResult = {
 	sessionIdSha256: string | null
 	routeTraces: RouteTrace[]
 	routeEvidence: "not-applicable" | "verified" | "missing"
-	outcome: "passed" | "failed" | "timed_out"
+	outcome: "passed" | "failed" | "timed_out" | "infrastructure_invalid"
 	failureClassification: string | null
 	passed: boolean
 	reward: number | null
-	costUsd: number
-	costBasis: "reported-inference" | "cline-pass-reference-quota" | "reserved-exposure"
+	costUsd: number | null
+	costBasis: "reported-inference" | "cline-pass-reference-quota" | "unmeasured"
+	reservedExposureUsd: number
 	durationSeconds: number
 	inputTokens: number | null
 	cacheTokens: number | null
@@ -555,6 +557,63 @@ export async function assertDirectModelsInLiveCatalog(
 	}
 }
 
+export async function assertLocalCoreVirtualModelsInCatalog(
+	config: PilotConfig,
+	localCoreUrl: string | undefined,
+	fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+	const virtualModels = config.models
+		.filter(
+			(model) =>
+				(model.id === "cline/auto" || model.id === "cline-pass/auto") &&
+				(model.transport === "local-core" || model.transport === undefined),
+		)
+		.map((model) => model.id)
+	if (virtualModels.length === 0) return
+	if (!localCoreUrl) {
+		fail("local Core virtual-model catalog preflight requires --local-core-url before budget reservation")
+	}
+
+	const catalogUrl = new URL(normalizeLocalCoreUrl(localCoreUrl))
+	// Harbor reaches the host through host.docker.internal. This preflight runs
+	// on the host, where that Docker-only name is not reliably resolvable.
+	catalogUrl.hostname = "127.0.0.1"
+	catalogUrl.pathname = "/api/v1/ai/cline/recommended-models"
+
+	const controller = new AbortController()
+	const timeout = setTimeout(() => controller.abort(), 5_000)
+	timeout.unref()
+	let response: Response
+	try {
+		response = await fetchImpl(catalogUrl, { signal: controller.signal })
+	} catch {
+		fail("local Core virtual-model catalog preflight request failed before budget reservation")
+	} finally {
+		clearTimeout(timeout)
+	}
+	if (!response.ok) {
+		fail(`local Core virtual-model catalog preflight returned HTTP ${response.status} before budget reservation`)
+	}
+	let raw: ClineRecommendedCatalog
+	try {
+		raw = (await response.json()) as ClineRecommendedCatalog
+	} catch {
+		fail("local Core virtual-model catalog preflight returned invalid JSON before budget reservation")
+	}
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		fail("local Core virtual-model catalog preflight returned an invalid document before budget reservation")
+	}
+	const allowed = new Set([
+		...catalogModelIds(raw.recommended, "recommended"),
+		...catalogModelIds(raw.free, "free"),
+		...catalogModelIds(raw.clinePass, "clinePass"),
+	])
+	const unavailable = virtualModels.filter((id) => !allowed.has(id))
+	if (unavailable.length > 0) {
+		fail(`local Core catalog is missing virtual model(s): ${unavailable.join(", ")}`)
+	}
+}
+
 function createPrivateJobsRoot(requested?: string): string {
 	const runId = new Date().toISOString().replace(/[:.]/g, "-")
 	const base = requested
@@ -961,7 +1020,8 @@ function readJobResult(
 		// producing no session, usage, or cost telemetry. Never report those as
 		// free model work or retry the position. Charge the full declared
 		// reservation as conservative exposure and make the missing telemetry a
-		// terminal benchmark failure.
+		// terminal benchmark failure. The reservation remains a conservative
+		// exposure bound, but it is not measured model cost.
 		return {
 			model: expectedModel,
 			requestedModel: expectedModel,
@@ -971,12 +1031,13 @@ function readJobResult(
 			sessionIdSha256: sessionIdentity?.sessionIdSha256 ?? null,
 			routeTraces: [],
 			routeEvidence: virtualModel ? "missing" : "not-applicable",
-			outcome: "failed",
+			outcome: "infrastructure_invalid",
 			failureClassification: "CompletedWithoutCostTelemetry",
 			passed: false,
 			reward: null,
-			costUsd: model.perTaskBudgetUsd,
-			costBasis: "reserved-exposure",
+			costUsd: null,
+			costBasis: "unmeasured",
+			reservedExposureUsd: model.perTaskBudgetUsd,
 			durationSeconds: measuredDurationSeconds,
 			inputTokens: Number.isInteger(inputTokens) && inputTokens >= 0 ? inputTokens : null,
 			cacheTokens: Number.isInteger(cacheTokens) && cacheTokens >= 0 ? cacheTokens : null,
@@ -1008,6 +1069,7 @@ function readJobResult(
 		reward,
 		costUsd,
 		costBasis: config.routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
+		reservedExposureUsd: model.perTaskBudgetUsd,
 		durationSeconds: measuredDurationSeconds,
 		inputTokens,
 		cacheTokens,
@@ -1130,6 +1192,7 @@ function recoveredUnsuccessfulRun(
 		reward: null,
 		costUsd,
 		costBasis: config.routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
+		reservedExposureUsd: model.perTaskBudgetUsd,
 		durationSeconds: Number.isFinite(startedAt) ? (Date.parse(latestUsage.timestamp) - startedAt) / 1000 : 0,
 		inputTokens,
 		cacheTokens,
@@ -1231,6 +1294,7 @@ function markerRunResult(
 		reward: null,
 		costUsd: usage.totalCost,
 		costBasis: config.routerProfile === "cline-pass-router" ? "cline-pass-reference-quota" : "reported-inference",
+		reservedExposureUsd: model.perTaskBudgetUsd,
 		durationSeconds,
 		inputTokens: usage.totalInputTokens,
 		cacheTokens: usage.totalCacheReadTokens,
@@ -1257,7 +1321,7 @@ export function readLiveCostStoppedRun(
 				"failed",
 				"LiveCostGuardExceeded",
 			)
-			if (recovered.costUsd >= marker.usage.totalCost) return recovered
+			if (recovered.costUsd !== null && recovered.costUsd >= marker.usage.totalCost) return recovered
 		} catch {
 			// The marker is persisted before termination specifically so a
 			// missing or incomplete Harbor result cannot authorize a respent.
@@ -1785,7 +1849,7 @@ export function reuseCompletedRun(
 	if (existsSync(liveCostStopMarkerPath(jobDir))) {
 		const stopped = readLiveCostStoppedRun(jobDir, config, model, task)
 		console.log(`\n[${runNumber}] reusing live-cost-stopped ${model.id} × ${task}`)
-		console.log(`  cost=$${stopped.costUsd.toFixed(4)} classification=${stopped.failureClassification}`)
+		console.log(`  ${resultCostLabel(stopped)} classification=${stopped.failureClassification}`)
 		return stopped
 	}
 	if (!existsSync(join(jobDir, "result.json"))) return null
@@ -1793,12 +1857,12 @@ export function reuseCompletedRun(
 	if (!rootResult.finished_at && rootResult.stats?.n_running_trials > 0) {
 		const interrupted = readInterruptedRun(jobDir, config, model, task)
 		console.log(`\n[${runNumber}] recording interrupted ${model.id} × ${task} as timed out`)
-		console.log(`  cost=$${interrupted.costUsd.toFixed(4)}`)
+		console.log(`  ${resultCostLabel(interrupted)}`)
 		return interrupted
 	}
 	const result = readJobResult(jobDir, config, model, task, 0)
 	console.log(`\n[${runNumber}] reusing completed ${model.id} × ${task}`)
-	console.log(`  outcome=${result.outcome} reward=${result.reward ?? "missing"} cost=$${result.costUsd.toFixed(4)}`)
+	console.log(`  outcome=${result.outcome} reward=${result.reward ?? "missing"} ${resultCostLabel(result)}`)
 	return result
 }
 
@@ -1882,6 +1946,22 @@ function modelForResult(config: PilotConfig, result: RunResult): ModelConfig {
 	)
 }
 
+function conservativeRunExposure(result: RunResult): number {
+	return result.costUsd ?? result.reservedExposureUsd
+}
+
+function settleResultBudget(ledger: BudgetLedger, runKeyValue: string, result: RunResult): BudgetLedger {
+	return result.costUsd === null
+		? markBudgetUnmeasured(ledger, runKeyValue)
+		: settleBudget(ledger, runKeyValue, result.costUsd)
+}
+
+function resultCostLabel(result: RunResult): string {
+	return result.costUsd === null
+		? `cost=unmeasured reservation=$${result.reservedExposureUsd.toFixed(4)}`
+		: `cost=$${result.costUsd.toFixed(4)}`
+}
+
 async function main() {
 	const args = parseArgs(process.argv.slice(2))
 	const config = readConfig(args.configPath)
@@ -1897,6 +1977,8 @@ async function main() {
 		console.log(`Local Cline ${config.clineVersion} preflight passed before jobs-root creation and budget reservation.`)
 		await assertDirectModelsInLiveCatalog(config)
 		console.log("Live Cline catalog preflight passed before budget reservation.")
+		await assertLocalCoreVirtualModelsInCatalog(config, args.localCoreUrl)
+		console.log("Local Core virtual-model catalog preflight passed before budget reservation.")
 	}
 
 	const jobsRoot = createPrivateJobsRoot(args.jobsRoot)
@@ -1990,8 +2072,9 @@ async function main() {
 			const reused = reusedRaw ? attachRouteEvidence(reusedRaw, run.model, traces) : null
 			if (reused) {
 				report.results.push(reused)
-				modelSpend.set(run.model.id, (modelSpend.get(run.model.id) || 0) + reused.costUsd)
-				globalSpend += reused.costUsd
+				const reusedExposure = conservativeRunExposure(reused)
+				modelSpend.set(run.model.id, (modelSpend.get(run.model.id) || 0) + reusedExposure)
+				globalSpend += reusedExposure
 				if (!budgetLedger.entries.some((entry) => entry.runKey === key)) {
 					budgetLedger = reserveBudget(budgetLedger, {
 						runKey: key,
@@ -2001,7 +2084,7 @@ async function main() {
 						waveBudgetUsd: config.waveBudgetsUsd?.[String(run.wave)],
 					})
 				}
-				budgetLedger = settleBudget(budgetLedger, key, reused.costUsd)
+				budgetLedger = settleResultBudget(budgetLedger, key, reused)
 				writeBudgetLedger(jobsRoot, budgetLedger)
 				report.budgetLedger = budgetLedger
 				writeReport(report)
@@ -2040,7 +2123,7 @@ async function main() {
 
 			const rawResult = await runOne(config, run.model, run.task, jobsRoot, index + 1, args.localCoreUrl)
 			const result = attachRouteEvidence(rawResult, run.model, traces)
-			budgetLedger = settleBudget(budgetLedger, key, result.costUsd)
+			budgetLedger = settleResultBudget(budgetLedger, key, result)
 			writeBudgetLedger(jobsRoot, budgetLedger)
 			const waveBudget = config.waveBudgetsUsd?.[String(run.wave)]
 			if (waveBudget !== undefined && ledgerExposure(budgetLedger, run.wave) > waveBudget) {
@@ -2048,14 +2131,15 @@ async function main() {
 			}
 			report.results.push(result)
 			report.budgetLedger = budgetLedger
-			modelSpend.set(run.model.id, currentModelSpend + result.costUsd)
-			globalSpend += result.costUsd
+			const resultExposure = conservativeRunExposure(result)
+			modelSpend.set(run.model.id, currentModelSpend + resultExposure)
+			globalSpend += resultExposure
 			writeReport(report)
 			console.log(
-				`  outcome=${result.outcome} reward=${result.reward ?? "missing"} cost=$${result.costUsd.toFixed(4)} duration=${result.durationSeconds.toFixed(1)}s`,
+				`  outcome=${result.outcome} reward=${result.reward ?? "missing"} ${resultCostLabel(result)} duration=${result.durationSeconds.toFixed(1)}s`,
 			)
 
-			if (result.costUsd > run.model.perTaskBudgetUsd) {
+			if (result.costUsd !== null && result.costUsd > run.model.perTaskBudgetUsd) {
 				fail(`${run.model.id} exceeded its $${run.model.perTaskBudgetUsd.toFixed(2)} per-task stop after ${run.task}`)
 			}
 			if ((modelSpend.get(run.model.id) || 0) > run.model.perModelBudgetUsd) {

@@ -59,10 +59,13 @@ and is graded by the task's deterministic verifier.
 - Optional per-model token prices add cache-read ratio, estimated warm cost,
   cold-equivalent cost, and estimated cache savings to each report result.
 - `costBasis` distinguishes ordinary reported inference cost, ClinePass
-  reference-quota cost, and conservative `reserved-exposure`. A completed trial
-  with no cost telemetry is failed and charged at its full reservation rather
-  than reported as free or retried. A canonical terminal error with explicit
-  zero cumulative usage remains a legitimate zero-spend infrastructure failure.
+  reference-quota cost, and `unmeasured`. A completed trial with no usage or
+  cost telemetry is an `infrastructure_invalid` result: `costUsd` is null and
+  `reservedExposureUsd` retains the full reservation as a conservative bound.
+  The budget ledger records that bound as `unmeasured`, never as invented actual
+  model cost, and the position is not silently retried. A canonical terminal
+  error with explicit zero cumulative usage remains a legitimate measured
+  zero-spend infrastructure failure.
   ClinePass is subscription-billed, so its per-run dollar telemetry is useful
   for quota/economic comparisons but is not an invoice.
 - Paid execution fetches Cline's public recommended-model catalog before
@@ -70,6 +73,11 @@ and is graded by the task's deterministic verifier.
   present in the relevant live catalog, regardless of transport; virtual Auto
   candidates keep Core's internal IDs and are not compared to public picker
   identifiers.
+- When a virtual Auto arm uses local Core, paid execution also fetches that
+  Core instance's recommended-model catalog from the host and requires the
+  public virtual ID (`cline/auto` or `cline-pass/auto`) before creating the jobs
+  root or reserving budget. A missing picker/catalog registration therefore
+  cannot become a paid-looking CLI no-op.
 - The timeout is enforced both in Cline and at Harbor's outer agent boundary.
   Harbor runs in its own process group; timeout and termination signals stop the
   group and task-scoped containers are removed. Interrupted usage is accepted

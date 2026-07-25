@@ -133,7 +133,7 @@ export type BudgetEntry = {
 	wave: number
 	reservedUsd: number
 	actualUsd?: number
-	status: "reserved" | "settled"
+	status: "reserved" | "settled" | "unmeasured"
 	updatedAt: string
 }
 
@@ -215,6 +215,33 @@ export function settleBudget(ledger: BudgetLedger, runKey: string, actualUsd: nu
 						...entry,
 						actualUsd,
 						status: "settled",
+						updatedAt: new Date().toISOString(),
+					}
+				: entry,
+		),
+	}
+}
+
+export function markBudgetUnmeasured(ledger: BudgetLedger, runKey: string): BudgetLedger {
+	const existing = ledger.entries.find((entry) => entry.runKey === runKey)
+	if (!existing) throw new Error(`no budget reservation exists for ${runKey}`)
+	if (existing.status === "unmeasured") return ledger
+	if (
+		existing.status === "settled" &&
+		(existing.actualUsd === undefined || Math.abs(existing.actualUsd - existing.reservedUsd) > 1e-9)
+	) {
+		throw new Error(`cannot discard measured cost for ${runKey}`)
+	}
+	return {
+		...ledger,
+		entries: ledger.entries.map((entry) =>
+			entry.runKey === runKey
+				? {
+						runKey: entry.runKey,
+						model: entry.model,
+						wave: entry.wave,
+						reservedUsd: entry.reservedUsd,
+						status: "unmeasured",
 						updatedAt: new Date().toISOString(),
 					}
 				: entry,
