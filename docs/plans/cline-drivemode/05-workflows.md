@@ -799,38 +799,38 @@ Senior engineering leadership on the call. Drive is not only “write the code f
 ### W-40 · Start a discovery call (frame the problem)
 
 **Actors.** Human, pair partner.
-**Trigger.** The human is about to build something underspecified, or says phrases like “help me figure out what to build,” “let’s gather requirements,” “I don’t know where to start.”
+**Trigger.** The human is about to build something underspecified, or says phrases like “help me figure out what to build,” “I don’t know where to start.”
 
 **Happy path.**
 1. The partner does **not** jump into tools. It restates the problem in one or two sentences and asks what “done” would look like for the next slice.
-2. Stage shows a **Problem** card and an **Open questions** card.
+2. The partner produces a **Problem** statement and **Open questions** in the feed (Phase 1). Stage cards for the same artifacts land with [DRV-STAGE](features/DRV-STAGE.md) in Phase 2.
 3. The partner lists binding constraints it already knows (hub single-writer, privacy-strict, Bun only, RosterPack≠Team, events-first) only when they affect the problem — not as a lecture.
 4. The human confirms or corrects the problem statement before any implementation turn starts.
 
 **Failure and interrupt.** If the human says “just build X,” the partner acknowledges and switches to W-08 without guilt. If the human cannot name a user, the partner proposes a default persona and marks it assumed. Raising a hand cancels discovery and returns to the prior mode.
 
-**Surfaces.** Room feed, stage, composer/voice, narration.
-**Tier.** MVP.
-**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-NARRATION](features/DRV-NARRATION.md), [DRV-STAGE](features/DRV-STAGE.md), [DRV-SKILL-PORT](features/DRV-SKILL-PORT.md).
+**Surfaces.** Room feed, composer/voice, narration. Stage (Phase 2).
+**Tier.** MVP (feed/narration). Phase 2 for stage cards.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-NARRATION](features/DRV-NARRATION.md), [DRV-SKILL-PORT](features/DRV-SKILL-PORT.md). Stage cards: [DRV-STAGE](features/DRV-STAGE.md) (Phase 2).
 **Sources.** [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md); vision “Senior-engineer tone” and “teaches while doing” ([00-vision.md](00-vision.md)); BRIEF-style problem framing from prior art in the Driveagent PRD stack.
 
 ### W-41 · Gather and structure requirements
 
 **Actors.** Human, pair partner.
-**Trigger.** Discovery has a problem statement (W-40), or the human asks to “write requirements,” “MoSCoW this,” or “what are the non-goals?”
+**Trigger.** Discovery has a problem statement (W-40), or the human asks to “let’s gather requirements,” “write requirements,” “MoSCoW this,” or “what are the non-goals?”
 
 **Happy path.**
 1. The partner interviews for users, must-haves, nice-to-haves, and explicit non-goals.
-2. Stage accumulates **Requirement** cards tagged Must / Should / Could / Won’t.
+2. The partner produces a MoSCoW **Requirement** set (Must / Should / Could / Won’t) in the feed (Phase 1). Stage cards for the same artifacts land with [DRV-STAGE](features/DRV-STAGE.md) in Phase 2.
 3. At least one **Won’t** / non-goal is written down (scope control is the point).
-4. Constraints that are product rules (privacy, single-writer, naming) appear as constraint cards, not buried in chat.
+4. Constraints that are product rules (privacy, single-writer, naming) appear in the feed (Phase 1), not buried in chat; constraint stage cards land in Phase 2.
 5. The partner reads back the MoSCoW set and asks what would falsify the Must list.
 
 **Failure and interrupt.** Infinite interview is a failure. Cap clarifying questions; prefer a provisional Must list marked “assumed.” If requirements conflict, the partner surfaces the conflict as an open question rather than silently picking.
 
-**Surfaces.** Stage, room feed, optional export into handoff text.
-**Tier.** MVP for the loop and stage cards. Phase 2 for recruitable tech-lead agent homes that specialize in this.
-**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-STAGE](features/DRV-STAGE.md), [DRV-NARRATION](features/DRV-NARRATION.md).
+**Surfaces.** Room feed, optional export into handoff text. Stage (Phase 2).
+**Tier.** MVP (feed/narration). Phase 2 for stage cards and recruitable tech-lead agent homes that specialize in this.
+**Features.** [DRV-SDLC-GUIDE](features/DRV-SDLC-GUIDE.md), [DRV-NARRATION](features/DRV-NARRATION.md). Stage cards: [DRV-STAGE](features/DRV-STAGE.md) (Phase 2).
 **Sources.** [prd/prd-success-metrics.md](prd/prd-success-metrics.md) MoSCoW usage; [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) requirements priorities.
 
 ### W-42 · Facilitate an architecture or product decision
@@ -966,12 +966,12 @@ Forty-five workflows. W-37 through W-39 cover participant sheet, recruit, and ga
 | Add a pack | `/pack <slug>`; spoken "add the cybersecurity team" matches a pack's display name, never a type name | W-36 |
 | Recruit | `/recruit <need>`; Add → Recruit | W-38 |
 | Roster click | chooser Transcript \| Profile; address-follows-focus only on Transcript | W-37 |
-| Discovery | "let's gather requirements", "help me figure out what to build", "I don't know where to start" | W-40 |
-| Requirements | "write requirements", "MoSCoW this", "what are the non-goals" | W-41 |
+| Discovery | "help me figure out what to build", "I don't know where to start" | W-40 |
+| Requirements | "let's gather requirements", "write requirements", "MoSCoW this", "what are the non-goals" | W-41 |
 | Decide | "help me decide", "what are the options", "should we…" | W-42 |
 | Coverage map | "map the workflows", "what are we missing", "coverage gaps" | W-43 |
 | Phase gate | "are we ready to build", "phase entry checklist", "can we start coding" | W-44 |
-| Teach / ELI5 | "why are we doing this", "explain like I'm new", "what should I learn", "skip the lesson" | W-45 |
+| Teach / ELI5 | "why are we doing this", "explain like I'm new", "what should I learn" | W-45 |
 
 The mode rows are `cursor-drive:.cursor/rules/drive-modes.mdc` verbatim and are already mirrored into this repo's plugin rules. The stop and quiet rows are claude-drive's wake-worded session commands (`claude-drive:docs/dynamic-agent/user-experience.md` §6). Three rows are deliberately not bare phrases. Switching rooms, seating a participant, and adding a pack are explicit acts, per W-07, W-33, and W-36. Group I phrases start guidance loops; they must not auto-fire on ordinary coding talk — Tier 0 match with clear intent words, and “just build X” always escapes to W-08.
 
