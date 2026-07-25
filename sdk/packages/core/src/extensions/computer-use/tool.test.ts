@@ -10,8 +10,18 @@ import { ComputerUseClient } from "./client";
 import type { ComputerUseResponse } from "./protocol";
 import { createComputerUseTool } from "./tool";
 
+/**
+ * Stub backend mirroring the real qbt contract: like the Rust server, it
+ * always answers `get_display_info` (with a fixed 1024x768 unless the test's
+ * `respond` handles it first) since tool construction depends on that query.
+ * Other actions go to the test's `respond`.
+ */
 function startFakeBackend(
 	respond: (request: Record<string, unknown>) => ComputerUseResponse,
+	displayInfo: { widthPx: number; heightPx: number } = {
+		widthPx: 1024,
+		heightPx: 768,
+	},
 ): Promise<{ server: Server; port: number }> {
 	return new Promise((resolve) => {
 		const server = createServer((socket: Socket) => {
@@ -25,7 +35,15 @@ function startFakeBackend(
 					buffer = buffer.slice(newlineIndex + 1);
 					if (line.trim().length > 0) {
 						const request = JSON.parse(line) as Record<string, unknown>;
-						socket.write(`${JSON.stringify(respond(request))}\n`);
+						const response: ComputerUseResponse =
+							request.action === "get_display_info"
+								? {
+										id: request.id as number,
+										ok: true,
+										display: displayInfo,
+									}
+								: respond(request);
+						socket.write(`${JSON.stringify(response)}\n`);
 					}
 					newlineIndex = buffer.indexOf("\n");
 				}
@@ -68,8 +86,6 @@ describe("createComputerUseTool", () => {
 
 		const tool = await createComputerUseTool({
 			port: started.port,
-			displayWidthPx: 1024,
-			displayHeightPx: 768,
 			client,
 		});
 
@@ -78,12 +94,14 @@ describe("createComputerUseTool", () => {
 		expect(tool.description).toContain("1024x768");
 	});
 
-	it("queries the backend for display size when no override is provided", async () => {
-		const started = await startFakeBackend((request) => ({
-			id: request.id as number,
-			ok: true,
-			display: { widthPx: 1920, heightPx: 1080 },
-		}));
+	it("embeds the backend-reported display size in the description", async () => {
+		const started = await startFakeBackend(
+			(request) => ({
+				id: request.id as number,
+				ok: true,
+			}),
+			{ widthPx: 1920, heightPx: 1080 },
+		);
 		server = started.server;
 		client = new ComputerUseClient({ port: started.port });
 
@@ -93,24 +111,6 @@ describe("createComputerUseTool", () => {
 		});
 
 		expect(tool.description).toContain("1920x1080");
-	});
-
-	it("uses a single override without querying the backend for the other dimension", async () => {
-		const started = await startFakeBackend((request) => ({
-			id: request.id as number,
-			ok: true,
-			display: { widthPx: 1920, heightPx: 1080 },
-		}));
-		server = started.server;
-		client = new ComputerUseClient({ port: started.port });
-
-		const tool = await createComputerUseTool({
-			port: started.port,
-			displayWidthPx: 640,
-			client,
-		});
-
-		expect(tool.description).toContain("640x1080");
 	});
 
 	it("returns a screenshot as multimodal text+image content", async () => {
@@ -125,8 +125,6 @@ describe("createComputerUseTool", () => {
 
 		const tool = await createComputerUseTool({
 			port: started.port,
-			displayWidthPx: 1024,
-			displayHeightPx: 768,
 			client,
 		});
 
@@ -149,8 +147,6 @@ describe("createComputerUseTool", () => {
 
 		const tool = await createComputerUseTool({
 			port: started.port,
-			displayWidthPx: 1024,
-			displayHeightPx: 768,
 			client,
 		});
 
@@ -176,8 +172,6 @@ describe("createComputerUseTool", () => {
 
 		const tool = await createComputerUseTool({
 			port: started.port,
-			displayWidthPx: 1024,
-			displayHeightPx: 768,
 			client,
 		});
 
@@ -200,8 +194,6 @@ describe("createComputerUseTool", () => {
 
 		const tool = await createComputerUseTool({
 			port: started.port,
-			displayWidthPx: 1024,
-			displayHeightPx: 768,
 			client,
 		});
 

@@ -72,13 +72,9 @@ export async function createInteractiveComputerUser(input: {
 	notifyDriver: (prompt: string, delivery: "queue" | "steer") => void;
 	env?: NodeJS.ProcessEnv;
 }): Promise<InteractiveComputerUser | undefined> {
-	const computerTool = await createComputerUseToolFromEnv(
-		input.env ?? process.env,
-	);
-	if (!computerTool) {
-		return undefined;
-	}
-
+	// Check the local precondition (credentials) before dialing the backend:
+	// tool construction queries the backend for display info and holds a
+	// socket, which would be wasted if the helper cannot be configured.
 	const helperSettings =
 		input.providerSettingsManager.getProviderSettings(HELPER_PROVIDER_ID);
 	const helperApiKey =
@@ -86,6 +82,13 @@ export async function createInteractiveComputerUser(input: {
 	if (!helperApiKey) {
 		// No silent fallback to the driver's credentials: the helper requires
 		// the Anthropic provider's own configuration.
+		return undefined;
+	}
+
+	const computerTool = await createComputerUseToolFromEnv(
+		input.env ?? process.env,
+	);
+	if (!computerTool) {
 		return undefined;
 	}
 	const helperModelId = resolveHelperModelId(

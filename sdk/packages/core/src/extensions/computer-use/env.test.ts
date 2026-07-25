@@ -91,7 +91,7 @@ describe("createComputerUseToolFromEnv", () => {
 		).resolves.toBeUndefined();
 	});
 
-	it("queries the backend for display size when no override is set", async () => {
+	it("always queries the backend for the display size", async () => {
 		const started = await startFakeBackend(fakeDisplayInfoBackend(1920, 1080));
 		server = started.server;
 		destroyConnections = started.destroyConnections;
@@ -105,18 +105,16 @@ describe("createComputerUseToolFromEnv", () => {
 		expect(tool?.description).toContain("1920x1080");
 	});
 
-	it("honors display size overrides without querying the backend", async () => {
-		const started = await startFakeBackend(() => {
-			throw new Error("backend should not be queried when overrides are set");
-		});
-		server = started.server;
+	it("fails construction when the backend is unreachable rather than guessing a size", async () => {
+		// Grab an ephemeral port, then close the server so nothing listens.
+		const started = await startFakeBackend(fakeDisplayInfoBackend(1, 1));
+		const { port } = started;
+		await new Promise<void>((resolve) => started.server.close(() => resolve()));
 
-		const tool = await createComputerUseToolFromEnv({
-			CLINE_COMPUTER_USE_PORT: String(started.port),
-			CLINE_COMPUTER_USE_DISPLAY_WIDTH: "1024",
-			CLINE_COMPUTER_USE_DISPLAY_HEIGHT: "768",
-		});
-
-		expect(tool?.description).toContain("1024x768");
+		await expect(
+			createComputerUseToolFromEnv({
+				CLINE_COMPUTER_USE_PORT: String(port),
+			}),
+		).rejects.toThrow();
 	});
 });
