@@ -233,6 +233,13 @@ function findWindowsCmdShim(
 	return undefined;
 }
 
+// npm bins are JavaScript run through node, so the wrapped script is only
+// ever extensionless (a shebang bin) or a JS file. Any other extension
+// (`.exe`, `.cmd`, `.ps1`, ...) means a native/non-npm wrapper — leave it to
+// the caller's shell fallback. It also rejects the `"%~dp0\node.exe"`
+// self-reference a shim can contain.
+const NODE_SCRIPT_EXTENSIONS = [".js", ".cjs", ".mjs"];
+
 /**
  * Rewrite an npm-generated `.cmd` shim to the `node <script>` invocation it runs
  * internally, so we can launch its target directly instead of through cmd.exe.
@@ -259,14 +266,14 @@ function resolveCmdShimInvocation(
 	}
 	const shimDir = win32.dirname(shimPath);
 	// Match the script argument in `... "%~dp0\<script>" %*` or the
-	// `"%dp0%\<script>"` variable-indirection form both npm layouts emit. A shim
-	// also references `"%~dp0\node.exe"` with the same prefix, so skip any match
-	// that resolves to node.exe itself and keep the first script that exists.
+	// `"%dp0%\<script>"` variable-indirection form both npm layouts emit, and
+	// keep the first existing target node can run.
 	const scriptPattern = /"%~?dp0%?[\\/]+([^"]+?)"\s+%\*/g;
 	let match: RegExpExecArray | null = scriptPattern.exec(contents);
 	while (match) {
 		const relative = match[1].replace(/[\\/]+/g, win32.sep);
-		if (!/node\.exe$/i.test(relative)) {
+		const extension = win32.extname(relative).toLowerCase();
+		if (!extension || NODE_SCRIPT_EXTENSIONS.includes(extension)) {
 			const scriptPath = win32.join(shimDir, relative);
 			if (fileExists(scriptPath)) {
 				return { command: nodePath, args: [scriptPath, ...extraArgs] };

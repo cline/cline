@@ -298,6 +298,28 @@ describe("resolveShellFreeInvocation", () => {
 		).toBeUndefined();
 	});
 
+	it("returns undefined for a non-npm wrapper that forwards to a native .exe", () => {
+		// `"%~dp0\server.exe" %*` matches the shim pattern but wraps a native
+		// executable; rewriting it to `node server.exe` would break the launch
+		// and disable the caller's required shell fallback.
+		const shimPath = "C:\\tools\\server.cmd";
+		const existing = new Set([
+			shimPath,
+			"C:\\tools\\server.exe",
+			"C:\\Program Files\\nodejs\\node.exe",
+		]);
+
+		expect(
+			resolveShellFreeInvocation(shimPath, ["--port", "1<2"], {
+				platform: "win32",
+				env: { Path: "C:\\Program Files\\nodejs;C:\\tools" },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+				readTextFile: () => '@echo off\r\n"%~dp0\\server.exe" %*\r\n',
+			}),
+		).toBeUndefined();
+	});
+
 	it("rewrites an explicit npm .cmd shim path to node + its script", () => {
 		const dir = "C:\\Program Files\\nodejs";
 		const nodePath = `${dir}\\node.exe`;
