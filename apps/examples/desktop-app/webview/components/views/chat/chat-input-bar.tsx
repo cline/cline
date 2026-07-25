@@ -663,7 +663,7 @@ export function ChatInputBar({
 								</span>
 							</div>
 							{canRecallLastQueuedPrompt ? (
-								<div className="text-[10px] text-muted-foreground/70">
+								<div className="text-[10px] text-muted-foreground">
 									{"\u2191 to edit"}
 								</div>
 							) : null}
@@ -1180,7 +1180,7 @@ function QueuedPromptAction({
 	return (
 		<button
 			aria-label={label}
-			className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+			className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
 			disabled={disabled}
 			onClick={onClick}
 			title={label}
