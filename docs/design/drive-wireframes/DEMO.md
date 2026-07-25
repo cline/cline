@@ -27,10 +27,12 @@ Scaffold vs locked: interactions are client-seeded JS. Domain shape and IA decis
 
 ## Overview canvas
 
-Five-plus pages that replace `cline-drivecode-overview.canvas.tsx` (Architecture, Workflows, Platform/Config, Drive-tab, SDK, Parallel waves).
+Open beside chat:
 
-- Cursor canvas (open beside chat): [drivecode-overview.canvas.tsx](/home/ubuntu/.cursor/projects/workspace/canvases/drivecode-overview.canvas.tsx)
-- In-repo HTML twin: [`overview-canvas.html`](overview-canvas.html)
+- [Drivecode overview](/home/ubuntu/.cursor/projects/workspace/canvases/drivecode-overview.canvas.tsx)
+- [MVP shared screen](/home/ubuntu/.cursor/projects/workspace/canvases/drive-mvp-shared-screen.canvas.tsx)
+
+HTML twin: [`overview-canvas.html`](overview-canvas.html)
 
 
 ## Hub Chat fixture
