@@ -662,16 +662,32 @@ const server = createServer(async (req, res) => {
 	const modelId = typeof body?.model === "string" ? body.model : "fault/ok";
 	const ctx = isResponses ? responsesContext(body) : chatContext(body);
 
-	logRequest({
+	// A stuck agent loop can send hundreds of requests whose history grows every
+	// turn, so full bodies are only kept while they are small. Otherwise the log
+	// itself becomes unreadable (and unparseable) long before the loop is
+	// noticed.
+	const serialized = JSON.stringify(body);
+	const entry = {
 		at: new Date().toISOString(),
 		path,
 		api: isResponses ? "responses" : "chat",
 		model: modelId,
 		phase: ctx.phase,
 		toolsAdvertised: ctx.tools,
-		toolResultsSeen: ctx.toolTexts,
-		body,
-	});
+		toolResultsSeen: ctx.toolTexts.map((t) => String(t).slice(0, 2000)),
+		bodyBytes: serialized.length,
+		messageCount: Array.isArray(body?.messages)
+			? body.messages.length
+			: Array.isArray(body?.input)
+				? body.input.length
+				: 0,
+	};
+	if (serialized.length <= 262144) {
+		entry.body = body;
+	} else {
+		entry.bodyOmitted = "body larger than 256KB";
+	}
+	logRequest(entry);
 
 	if (modelId.startsWith("passthrough:")) {
 		try {

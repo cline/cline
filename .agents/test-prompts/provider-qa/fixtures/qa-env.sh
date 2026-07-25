@@ -203,19 +203,61 @@ cmd_proxy() {
         log "no proxy requests recorded yet ($PROXY_REQUESTS)"
         return 0
       fi
+      # Streamed line by line: a stuck loop can make this file far larger than
+      # the maximum string length, and reading it whole would just crash.
       node -e '
         const fs = require("fs");
-        const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n").filter(Boolean);
-        lines.forEach((line, i) => {
-          const e = JSON.parse(line);
-          console.log(`--- request ${i + 1} [${e.at}] ${e.api} ${e.path}`);
-          console.log(`    model:  ${e.model}`);
-          console.log(`    phase:  ${e.phase}`);
-          console.log(`    tools:  ${(e.toolsAdvertised || []).join(", ") || "(none)"}`);
-          if ((e.toolResultsSeen || []).length) {
-            e.toolResultsSeen.forEach((t, j) =>
-              console.log(`    result[${j}]: ${JSON.stringify(String(t).slice(0, 300))}`));
+        const readline = require("readline");
+        const rl = readline.createInterface({
+          input: fs.createReadStream(process.argv[1]),
+          crlfDelay: Infinity,
+        });
+        let i = 0;
+        rl.on("line", (line) => {
+          if (!line.trim()) return;
+          i += 1;
+          let e;
+          try { e = JSON.parse(line); } catch { console.log(`--- request ${i}: unparseable`); return; }
+          console.log(`--- request ${i} [${e.at}] ${e.api} ${e.path}`);
+          console.log(`    model:    ${e.model}`);
+          console.log(`    phase:    ${e.phase}`);
+          console.log(`    messages: ${e.messageCount ?? "?"} (${e.bodyBytes ?? "?"} bytes)`);
+          console.log(`    tools:    ${(e.toolsAdvertised || []).join(", ") || "(none)"}`);
+          for (const [j, t] of (e.toolResultsSeen || []).entries()) {
+            console.log(`    result[${j}]: ${JSON.stringify(String(t).slice(0, 300))}`);
           }
+        });
+        rl.on("close", () => console.log(`\n${i} request(s) recorded`));
+      ' "$PROXY_REQUESTS"
+      ;;
+    tools)
+      # Objective check of what the host advertised on its most recent request.
+      # In Act mode the list contains `editor`; in Plan mode it contains
+      # `switch_to_act_mode` instead, which is the reliable way to tell the two
+      # apart without trusting the UI's highlight.
+      node -e '
+        const fs = require("fs");
+        const readline = require("readline");
+        const rl = readline.createInterface({
+          input: fs.createReadStream(process.argv[1]),
+          crlfDelay: Infinity,
+        });
+        let last;
+        rl.on("line", (line) => {
+          if (!line.trim()) return;
+          try { last = JSON.parse(line); } catch {}
+        });
+        rl.on("close", () => {
+          if (!last) { console.log("no requests recorded yet"); return; }
+          const tools = last.toolsAdvertised || [];
+          console.log(`last request: ${last.at} model=${last.model} phase=${last.phase}`);
+          console.log(`tools advertised (${tools.length}):`);
+          for (const t of tools) console.log(`  ${t}`);
+          const hasEditor = tools.includes("editor");
+          const hasSwitch = tools.includes("switch_to_act_mode");
+          console.log(`\neditor advertised:            ${hasEditor}`);
+          console.log(`switch_to_act_mode advertised: ${hasSwitch}`);
+          console.log(`inferred mode: ${hasEditor ? "act" : hasSwitch ? "plan" : "unknown"}`);
         });
       ' "$PROXY_REQUESTS"
       ;;
@@ -352,8 +394,14 @@ cmd_start() {
 
   # VS Code writes its own state under userdata; the Cline data dir is separate
   # so provider config can be re-seeded without discarding editor state.
+  #
+  # Both CLINE_DIR and CLINE_DATA_DIR are set because the extension resolves the
+  # data directory in two places that disagree: the SDK-side reader honours
+  # CLINE_DATA_DIR, while the StateManager-backed storage context only looks at
+  # CLINE_DIR (falling back to ~/.cline). Setting just one leaks the UI's own
+  # provider selection into the real home directory.
   local out="$root/vscode.out"
-  DISPLAY="$QA_DISPLAY" CLINE_DATA_DIR="$data" \
+  DISPLAY="$QA_DISPLAY" CLINE_DATA_DIR="$data" CLINE_DIR="$root" \
   nohup code \
     --no-sandbox \
     --disable-gpu-sandbox \
@@ -506,12 +554,22 @@ cmd_state() {
       }
       console.log(`  configured: ${Object.keys(providers.providers ?? {}).join(", ")}`);
     }
-    const gs = read(path.join(dataDir, "globalState.json"));
-    if (gs) {
-      const keys = ["actModeApiProvider", "planModeApiProvider", "actModeApiModelId", "planModeApiModelId",
-        "actModeOpenAiModelId", "planModeOpenAiModelId", "openAiBaseUrl", "mode"];
-      console.log("globalState (UI-owned):");
-      for (const k of keys) if (gs[k] !== undefined) console.log(`  ${k}: ${JSON.stringify(gs[k])}`);
+    // The UI-owned selection can land in either root, because the extension
+    // resolves the data dir inconsistently. Report whichever one holds it: the
+    // legacy globalState values win over providers.json for credentials.
+    const keys = ["actModeApiProvider", "planModeApiProvider", "actModeApiModelId", "planModeApiModelId",
+      "actModeOpenAiModelId", "planModeOpenAiModelId", "openAiBaseUrl", "mode"];
+    const roots = [
+      ["instance", path.join(dataDir, "globalState.json")],
+      ["home fallback", path.join(process.env.HOME || "", ".cline", "data", "globalState.json")],
+    ];
+    for (const [label, file] of roots) {
+      const gs = read(file);
+      if (!gs) continue;
+      const present = keys.filter((k) => gs[k] !== undefined);
+      if (present.length === 0) continue;
+      console.log(`globalState (UI-owned) [${label}] ${file}:`);
+      for (const k of present) console.log(`  ${k}: ${JSON.stringify(gs[k])}`);
     }
   ' "$data"
 }
