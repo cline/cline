@@ -1,0 +1,5 @@
+id: cap-code-review
+kind: capability
+label: Code review
+summary: Reviews diffs with evidence-first comments; does not merge without a gate.
+catalogId: code-review

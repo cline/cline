@@ -60,6 +60,18 @@ import type {
 	WebviewToolEvent,
 } from "../../webview-protocol";
 import { Composer } from "./components/Composer";
+import {
+	DriveCallStrip,
+	DriveHeaderControls,
+	DriveNarrationBanner,
+	DriveStagePanel,
+} from "./drive/DriveCallChrome";
+import {
+	DEFAULT_DRIVE_UI,
+	type DriveUiState,
+	drivePersonaSystemHint,
+	toNativeMode,
+} from "./drive/types";
 import { getVsCodeApi, postToHost } from "./vscode";
 
 type ChatMessage = WebviewChatMessage;
@@ -727,6 +739,20 @@ export default function Chat({
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [maxIterations, setMaxIterations] = useState("");
 	const [mode, setMode] = useState<"act" | "plan">("act");
+	const [drive, setDrive] = useState<DriveUiState>(() => {
+		try {
+			const state = getVsCodeApi()?.getState() as
+				| { driveUi?: DriveUiState }
+				| undefined;
+			if (state?.driveUi) {
+				return { ...DEFAULT_DRIVE_UI, ...state.driveUi };
+			}
+		} catch {
+			// ignore
+		}
+		return DEFAULT_DRIVE_UI;
+	});
+	const [driveJoinNote, setDriveJoinNote] = useState<string | null>(null);
 	const [reasonLevel, setReasonLevel] = useState<WebviewReasonLevel>("none");
 	const [enableTools, setEnableTools] = useState(true);
 	const [enableSpawn, setEnableSpawn] = useState(false);
@@ -1119,6 +1145,30 @@ export default function Chat({
 		});
 	};
 
+	useEffect(() => {
+		try {
+			const api = getVsCodeApi();
+			if (!api) {
+				return;
+			}
+			const state = (api.getState() as Record<string, unknown>) ?? {};
+			api.setState({ ...state, driveUi: drive });
+		} catch {
+			// ignore
+		}
+	}, [drive]);
+
+	const latestToolLabel = useMemo(() => {
+		for (let i = messages.length - 1; i >= 0; i -= 1) {
+			const events = messages[i]?.toolEvents;
+			if (events && events.length > 0) {
+				const last = events[events.length - 1];
+				return `${last.name} · ${last.state}`;
+			}
+		}
+		return drive.active ? "waiting for partner activity" : "idle";
+	}, [messages, drive.active]);
+
 	const respondToApproval = (approvalId: string, approved: boolean) => {
 		setPendingApprovals((current) =>
 			current.map((item) =>
@@ -1206,6 +1256,35 @@ export default function Chat({
 						) : null}
 					</div>
 					<div className="flex items-center gap-2">
+						<DriveHeaderControls
+							disabled={isHydrating}
+							drive={drive}
+							onToggleDrive={() => {
+								setDrive((current) => {
+									const nextActive = !current.active;
+									if (nextActive) {
+										setDriveJoinNote(
+											`On the call. I am ${current.partnerName}. Share what you want to work on and I will drive.`,
+										);
+										setMode(toNativeMode(current.subMode));
+									} else {
+										setDriveJoinNote(null);
+									}
+									return {
+										...current,
+										active: nextActive,
+										stageLayout: nextActive ? current.stageLayout : false,
+										handRaised: nextActive ? current.handRaised : false,
+									};
+								});
+							}}
+							onToggleStage={() => {
+								setDrive((current) => ({
+									...current,
+									stageLayout: !current.stageLayout,
+								}));
+							}}
+						/>
 						<Button
 							disabled={isHydrating}
 							onClick={() => {
@@ -1222,6 +1301,47 @@ export default function Chat({
 						</Button>
 					</div>
 				</div>
+				<DriveCallStrip
+					disabled={isHydrating}
+					drive={drive}
+					onHandToggle={() => {
+						setDrive((current) => {
+							const handRaised = !current.handRaised;
+							if (handRaised && sending) {
+								postToHost({ type: "abort" });
+								setStatus("Drive hand-raise: abort requested...");
+							}
+							return { ...current, handRaised };
+						});
+					}}
+					onMuteToggle={() => {
+						setDrive((current) => ({ ...current, muted: !current.muted }));
+					}}
+					onSubModeChange={(subMode) => {
+						setDrive((current) => ({ ...current, subMode }));
+						setMode(toNativeMode(subMode));
+					}}
+				/>
+				{driveJoinNote ? (
+					<DriveNarrationBanner
+						partnerName={drive.partnerName}
+						text={driveJoinNote}
+					/>
+				) : null}
+				<div
+					className={
+						drive.active && drive.stageLayout
+							? "flex min-h-0 flex-1"
+							: "flex min-h-0 flex-1 flex-col"
+					}
+				>
+				<div
+					className={
+						drive.active && drive.stageLayout
+							? "flex min-h-0 w-[42%] min-w-[280px] flex-col border-r"
+							: "flex min-h-0 flex-1 flex-col"
+					}
+				>
 				<Conversation className="min-h-0 flex-1">
 					<ConversationContent className="px-4 py-5">
 						{isHydrating ? (
@@ -1431,12 +1551,22 @@ export default function Chat({
 								enableTools,
 								maxIterations: parseMaxIterations(maxIterations),
 								model: model || undefined,
-								mode,
+								mode: drive.active ? toNativeMode(drive.subMode) : mode,
 								provider: provider || undefined,
 								reasonLevel: effectiveReasonLevel,
-								systemPrompt: systemPrompt.trim() || undefined,
+								systemPrompt: (() => {
+									const driveHint = drivePersonaSystemHint(drive);
+									const base = systemPrompt.trim();
+									if (driveHint && base) {
+										return `${driveHint}\n\n${base}`;
+									}
+									return driveHint || base || undefined;
+								})(),
 							},
 						});
+						if (driveJoinNote) {
+							setDriveJoinNote(null);
+						}
 					}}
 					onSystemPromptChange={setSystemPrompt}
 					onReasonLevelChange={setReasonLevel}
@@ -1448,6 +1578,25 @@ export default function Chat({
 					reasonLevel={effectiveReasonLevel}
 					workspaceRoot={defaults.workspaceRoot}
 				/>
+				</div>
+				{drive.active && drive.stageLayout ? (
+					<DriveStagePanel
+						nextLabel="steer or approve next step"
+						nowLabel={sending ? "partner working" : "idle"}
+						sharingLabel={latestToolLabel}
+					>
+						<div className="space-y-2 text-xs text-muted-foreground">
+							<p>
+								Live stage over hub session events. Tool cards in the feed are
+								the source of truth; this pane highlights the latest activity.
+							</p>
+							<pre className="overflow-auto rounded-md border bg-background p-2 font-mono text-[11px]">
+								{latestToolLabel}
+							</pre>
+						</div>
+					</DriveStagePanel>
+				) : null}
+				</div>
 			</div>
 		</PromptInputProvider>
 	);

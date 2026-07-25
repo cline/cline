@@ -137,6 +137,11 @@ export interface StatusBarProps {
 	maxInputTokens?: number;
 	uiMode: AgentMode;
 	autoApproveAll: boolean;
+	/** Drive call layer (join-call UX). */
+	driveActive?: boolean;
+	driveSubMode?: "plan" | "agent" | "ask" | "debug";
+	drivePartnerName?: string;
+	onToggleDrive?: () => void;
 	workspaceName: string;
 	gitBranch: string | null;
 	gitDiffStats: {
@@ -156,6 +161,10 @@ export function StatusBar(props: StatusBarProps) {
 		maxInputTokens,
 		uiMode,
 		autoApproveAll,
+		driveActive = false,
+		driveSubMode = "agent",
+		drivePartnerName = "Adam",
+		onToggleDrive,
 		workspaceName,
 		gitBranch,
 		gitDiffStats,
@@ -271,6 +280,19 @@ export function StatusBar(props: StatusBarProps) {
 					</span>
 				)}
 			</text>
+
+			{driveActive ? (
+				<box flexDirection="row" gap={1} onMouseDown={onToggleDrive}>
+					<text fg={actAccent}>
+						Drive on · {drivePartnerName} · {driveSubMode}
+					</text>
+					<text fg="gray">(click / Ctrl+Shift+D leave)</text>
+				</box>
+			) : (
+				<box flexDirection="row" gap={1} onMouseDown={onToggleDrive}>
+					<text fg="gray">Drive off (click / Ctrl+Shift+D join call)</text>
+				</box>
+			)}
 
 			{autoApproveAll ? (
 				<text fg={defaultFg}>

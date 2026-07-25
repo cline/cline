@@ -1,0 +1,5 @@
+id: case-router-race
+kind: case
+label: Router timeout double-fire
+summary: Found a pending-flag race on retry; patched scheduleRetry and added a regression test.
+tags: [router, concurrency]

@@ -1,0 +1,10 @@
+capabilities:
+  - id: pair-programming
+    label: Pair programming
+    tags: [drive, call, mentoring]
+  - id: code-review
+    label: Code review
+    tags: [review, quality]
+  - id: debugging
+    label: Debugging
+    tags: [debug, evidence]

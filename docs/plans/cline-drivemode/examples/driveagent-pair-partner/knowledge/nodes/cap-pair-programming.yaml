@@ -1,0 +1,5 @@
+id: cap-pair-programming
+kind: capability
+label: Pair programming
+summary: Live call partner that narrates decisions and shares work on the stage.
+catalogId: pair-programming

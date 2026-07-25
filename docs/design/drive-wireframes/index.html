@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat-chrome variants (historical) · Drive-in-Cline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  /* Cline brand tokens — see CLINE-BRAND-TOKENS.md.
+     UI font is Schibsted Grotesk to match the hub webview, not the marketing site. */
+  :root {
+    --bg: #0A0A0A;
+    --chrome: #101013;
+    --panel: #0D0D10;
+    --raised: #12131A;
+    --deep: #08080A;
+    --line: rgba(255,255,255,0.10);
+    --hair: rgba(255,255,255,0.05);
+    --text: #FFFFFF;
+    --dim: #9CA3AF;
+    --mute: #6B7280;
+    --drive: #9F58FA;
+    --drive-text: #B98AFF;
+    --ok: #4ADE80;
+    --danger: #F53969;
+    --ui: "Schibsted Grotesk", system-ui, -apple-system, sans-serif;
+    --display: "DM Sans", system-ui, sans-serif;
+    --grotesk: "Space Grotesk", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --r: 9px;
+    --r-lg: 13.5px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --fast: 130ms;
+    --slow: 260ms;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 var(--ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes ring-breathe {
+    0%, 100% { opacity: .35; transform: scale(1); }
+    50% { opacity: .95; transform: scale(1.10); }
+  }
+  @keyframes dot-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+  @keyframes caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* ---------- switcher ---------- */
+  #bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    background: rgba(10,10,10,0.94);
+    backdrop-filter: blur(6px);
+    border-bottom: 0.8px solid var(--hair);
+    position: sticky; top: 0; z-index: 50;
+  }
+  #bar .brand { font: 700 14px/1 var(--display); letter-spacing: -0.02em; }
+  #bar .brand span { color: var(--drive-text); }
+  #bar .kicker {
+    font: 500 10px/1 var(--grotesk); text-transform: uppercase; letter-spacing: .09em;
+    color: var(--mute); padding-right: 4px;
+  }
+  #bar button {
+    background: transparent; color: var(--dim);
+    border: 0.8px solid var(--line); border-radius: var(--r);
+    padding: 6px 12px; cursor: pointer;
+    font: 500 12px/1 var(--ui);
+    transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  #bar button:hover { border-color: rgba(255,255,255,0.22); color: var(--text); }
+  #bar button.on {
+    background: color-mix(in srgb, var(--drive) 16%, transparent);
+    color: var(--text); border-color: var(--drive); font-weight: 600;
+  }
+  #bar .north {
+    margin-left: 2px; text-decoration: none;
+    border: 0.8px solid color-mix(in srgb, var(--drive) 55%, transparent);
+    background: color-mix(in srgb, var(--drive) 12%, transparent);
+    color: var(--drive-text); border-radius: var(--r);
+    padding: 6px 12px; font: 600 12px/1 var(--ui);
+    transition: background var(--fast) var(--ease);
+  }
+  #bar .north:hover { background: color-mix(in srgb, var(--drive) 22%, transparent); }
+  #bar .hint {
+    color: var(--mute); font: 500 10px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: .09em; margin-left: auto;
+  }
+
+  /* ---------- superseded banner ---------- */
+  .super {
+    max-width: 1180px; margin: 16px auto 0;
+    border: 0.8px solid var(--line); border-left: 2px solid var(--drive);
+    border-radius: var(--r); background: var(--raised);
+    padding: 11px 14px; color: var(--dim); font-size: 12.5px;
+  }
+  .super b { color: var(--text); font-weight: 600; }
+  .super a { color: var(--drive-text); }
+
+  .variant { display: none; }
+  .variant.on { display: block; animation: rise-in var(--slow) var(--ease) both; }
+  .frame {
+    max-width: 1180px; margin: 16px auto 52px;
+    border: 0.8px solid var(--line); border-radius: var(--r-lg);
+    overflow: hidden; background: var(--panel);
+  }
+  .vlabel {
+    padding: 11px 16px; background: var(--bg);
+    border-bottom: 0.8px solid var(--line);
+    font-size: 12px; color: var(--dim);
+  }
+  .vlabel b { color: var(--drive-text); font: 700 13px/1 var(--grotesk); }
+  .vlabel .status {
+    float: right; font: 500 10px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: .08em; color: var(--mute);
+  }
+  .vlabel .status.keep { color: var(--ok); }
+  .vlabel .status.cut { color: var(--danger); }
+
+  /* annotation tags */
+  .tag {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 15px; height: 15px; padding: 0 4px; border-radius: 9999px;
+    background: var(--drive); color: #fff;
+    font: 700 9.5px/1 var(--grotesk); vertical-align: top; margin-left: 5px;
+  }
+  .drive-add { outline: 1.2px dashed color-mix(in srgb, var(--drive) 70%, transparent); outline-offset: 2px; }
+  .notes { max-width: 1180px; margin: 0 auto 40px; padding: 0 4px; }
+  .notes h3 {
+    font: 500 10px/1 var(--grotesk); color: var(--mute);
+    margin-bottom: 8px; text-transform: uppercase; letter-spacing: .09em;
+  }
+  .notes ol { margin-left: 20px; color: var(--dim); line-height: 1.75; }
+  .notes li { margin-bottom: 4px; }
+  .notes code {
+    color: #D1D5DB; background: var(--raised); border: 0.8px solid var(--line);
+    padding: 2px 5px; border-radius: 4px; font: 400 11px/1 var(--mono);
+  }
+  .notes a { color: var(--drive-text); }
+
+  /* ---------- hub chrome ---------- */
+  .hub { display: flex; min-height: 560px; }
+  .rail {
+    width: 56px; flex-shrink: 0; background: var(--deep);
+    border-right: 0.8px solid var(--hair);
+    padding: 8px 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .rail .r {
+    width: 44px; padding: 7px 0; border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--mute); font: 500 9px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: .04em;
+    border-left: 2px solid transparent;
+    transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .rail .r svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.4; }
+  .rail .r.on { color: var(--text); background: rgba(255,255,255,0.05); }
+  .rail .r.drive.on { color: var(--drive-text); background: color-mix(in srgb, var(--drive) 12%, transparent); }
+  .rail .port {
+    margin-top: auto; color: var(--mute); font: 400 9px/1 var(--mono);
+    writing-mode: vertical-rl; padding-bottom: 6px;
+  }
+  .side { width: 168px; background: var(--deep); border-right: 0.8px solid var(--line); padding: 10px 0; flex-shrink: 0; }
+  .side .grp {
+    padding: 10px 16px 5px; color: var(--mute);
+    font: 500 9.5px/1 var(--grotesk); text-transform: uppercase; letter-spacing: .1em;
+  }
+  .side .item {
+    padding: 7px 16px; color: var(--dim); font-size: 12px;
+    border-left: 2px solid transparent;
+    transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .side .item.sel { color: var(--text); background: var(--raised); border-left-color: rgba(255,255,255,0.35); font-weight: 500; }
+  .side .item.drive { color: var(--drive-text); }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .chathead {
+    display: flex; align-items: center; gap: 9px;
+    padding: 11px 16px; border-bottom: 0.8px solid var(--line); background: var(--chrome);
+  }
+  .chathead .title { font: 700 14px/1.2 var(--grotesk); letter-spacing: -0.01em; }
+  .chathead .spacer { flex: 1; }
+  .badge {
+    font: 500 10px/1 var(--grotesk); text-transform: uppercase; letter-spacing: .07em;
+    border: 0.8px solid var(--line); border-radius: 9999px; padding: 4px 9px; color: var(--mute);
+  }
+  .badge.drive { border-color: color-mix(in srgb, var(--drive) 45%, transparent); color: var(--drive-text); }
+  .badge.join {
+    border-color: color-mix(in srgb, var(--drive) 55%, transparent);
+    background: color-mix(in srgb, var(--drive) 14%, transparent);
+    color: var(--drive-text);
+  }
+
+  .feed { flex: 1; padding: 14px 18px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+  .feed > * { animation: rise-in var(--slow) var(--ease) both; }
+  .feed > *:nth-child(1) { animation-delay: 30ms; }
+  .feed > *:nth-child(2) { animation-delay: 70ms; }
+  .feed > *:nth-child(3) { animation-delay: 110ms; }
+  .feed > *:nth-child(4) { animation-delay: 150ms; }
+  .feed > *:nth-child(5) { animation-delay: 190ms; }
+  .feed > *:nth-child(6) { animation-delay: 230ms; }
+  /* ai-elements/message.tsx: user messages get ml-auto + rounded secondary bubble,
+     assistant messages are plain full-width text. */
+  .msg { max-width: 78%; border-radius: var(--r); padding: 9px 13px; font-size: 12.5px; border: 0.8px solid var(--line); }
+  .msg.user { align-self: flex-end; background: var(--raised); color: var(--text); }
+  .msg.ai {
+    align-self: stretch; max-width: none; border: 0; padding: 2px 1px;
+    background: transparent; color: #D1D5DB; line-height: 1.6;
+  }
+  .msg.narr {
+    align-self: flex-start; background: transparent;
+    border-color: color-mix(in srgb, var(--drive) 35%, transparent);
+    color: var(--drive-text); font-style: italic;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .avatar {
+    width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0; position: relative;
+    background: var(--raised); border: 0.8px solid color-mix(in srgb, var(--drive) 45%, transparent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font: 600 10px/1 var(--grotesk); color: var(--drive-text);
+  }
+  .avatar.speaking::after {
+    content: ""; position: absolute; inset: -3px;
+    border: 1.5px solid var(--ok); border-radius: 9px;
+    animation: ring-breathe 1900ms var(--ease) infinite;
+  }
+  .toolcard {
+    align-self: stretch; background: #1B1D24;
+    border: 0.8px solid rgba(75,85,99,0.95); border-radius: var(--r);
+    padding: 9px 13px; font-size: 12px; color: var(--mute);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toolcard .t { color: #D1D5DB; font-family: var(--mono); font-size: 11.5px; }
+  .toolcard svg { width: 12px; height: 12px; stroke: var(--drive-text); fill: none; stroke-width: 1.6; flex-shrink: 0; }
+
+  /* ---------- composer (mirrors components/Composer.tsx: input line, then tool row) ---------- */
+  .composer { border-top: 0.8px solid var(--line); background: var(--chrome); padding: 10px 14px 11px; }
+  .box { background: var(--raised); border: 0.8px solid var(--line); border-radius: var(--r); padding: 9px 11px 8px; }
+  .box:focus-within { border-color: color-mix(in srgb, var(--drive) 55%, transparent); }
+  .ph { color: var(--mute); font-size: 12.5px; }
+  .tools { display: flex; align-items: center; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+  .tools .spacer { flex: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 0.8px solid var(--line); border-radius: 7px;
+    background: transparent; color: var(--dim);
+    padding: 5px 9px; font: 500 11px/1 var(--ui); cursor: default;
+    transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .btn:hover { color: var(--text); border-color: rgba(255,255,255,0.22); }
+  .btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .btn.mic { border-color: color-mix(in srgb, var(--drive) 50%, transparent); color: var(--drive-text); }
+  .btn.send { background: var(--drive); border-color: var(--drive); color: #fff; font-weight: 600; }
+  .btn.hand { color: var(--dim); }
+  .modepill { display: inline-flex; border: 0.8px solid var(--line); border-radius: 7px; overflow: hidden; font: 500 11px/1 var(--ui); }
+  .modepill span { padding: 5px 9px; color: var(--mute); }
+  .modepill span.sel { background: rgba(255,255,255,0.10); color: var(--text); font-weight: 600; }
+  .modepill span.ovl { color: var(--drive-text); }
+
+  /* ---------- variant B stage ---------- */
+  .stagewrap { display: flex; flex: 1; min-height: 0; }
+  .convcol { width: 340px; border-right: 0.8px solid var(--line); display: flex; flex-direction: column; flex-shrink: 0; }
+  .stagecol { flex: 1; display: flex; flex-direction: column; background: var(--panel); min-width: 0; }
+  .callstrip {
+    display: flex; align-items: center; gap: 9px; padding: 8px 14px;
+    background: color-mix(in srgb, var(--drive) 9%, var(--raised));
+    border-bottom: 0.8px solid color-mix(in srgb, var(--drive) 30%, transparent);
+  }
+  .callstrip .name { color: var(--text); font-weight: 600; font-size: 12.5px; }
+  .callstrip .state { color: var(--drive-text); font: 500 10px/1 var(--grotesk); text-transform: uppercase; letter-spacing: .07em; }
+  .callstrip .spacer { flex: 1; }
+  .stagehead {
+    padding: 9px 14px; font-size: 11.5px; color: var(--dim);
+    border-bottom: 0.8px solid var(--line); display: flex; gap: 8px; align-items: center;
+  }
+  .stagehead .sharing { color: var(--ok); font: 500 10px/1 var(--grotesk); text-transform: uppercase; letter-spacing: .08em; }
+  .stagehead .sharing::before {
+    content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 9999px;
+    background: var(--ok); margin-right: 5px; vertical-align: middle;
+    animation: dot-breathe 1700ms var(--ease) infinite;
+  }
+  .stagebody { flex: 1; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .stagebody > * { animation: rise-in var(--slow) var(--ease) both; }
+  .stagebody > *:nth-child(2) { animation-delay: 90ms; }
+  .codecard {
+    background: #1B1D24; border: 0.8px solid rgba(75,85,99,0.95);
+    border-radius: 14px; padding: 12px 14px;
+    font: 400 11.5px/1.7 var(--mono); color: #D1D5DB;
+  }
+  .codecard .add { color: var(--ok); }
+  .codecard .del { color: var(--danger); text-decoration: line-through; }
+  .termcard {
+    background: var(--deep); border: 0.8px solid var(--line); border-radius: var(--r);
+    padding: 9px 13px; font: 400 11px/1.7 var(--mono); color: var(--dim);
+  }
+  .termcard .cursor {
+    display: inline-block; width: 6px; height: 11px; background: var(--ok);
+    vertical-align: -1px; margin-left: 3px; animation: caret 1050ms steps(1) infinite;
+  }
+  .nownext { display: flex; gap: 10px; padding: 11px 14px; border-top: 0.8px solid var(--line); }
+  .nownext .cell { flex: 1; background: var(--raised); border: 0.8px solid var(--line); border-radius: var(--r); padding: 9px 13px; font-size: 11.5px; }
+  .nownext .k { color: var(--mute); font: 500 10px/1 var(--grotesk); text-transform: uppercase; letter-spacing: .09em; margin-bottom: 3px; }
+
+  /* ---------- variant C pip ---------- */
+  .ghost { filter: grayscale(1) brightness(.7); pointer-events: none; }
+  .pipstage { position: relative; }
+  .pip {
+    position: absolute; right: 22px; bottom: 22px; width: 250px;
+    background: var(--raised); border: 0.8px solid var(--drive);
+    border-radius: var(--r-lg); padding: 13px;
+    animation: rise-in var(--slow) var(--ease) 120ms both;
+  }
+  .pip .row { display: flex; align-items: center; gap: 10px; }
+  .pip .cap { margin-top: 9px; font-size: 11.5px; color: var(--drive-text); font-style: italic; }
+  .pip .ctl { display: flex; gap: 6px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 16 16"><path d="M2.5 7 8 2.5 13.5 7v6a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5z"/></symbol>
+  <symbol id="i-sessions" viewBox="0 0 16 16"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z"/></symbol>
+  <symbol id="i-drive" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/></symbol>
+  <symbol id="i-agents" viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.4"/><path d="M3 13.2a5 5 0 0 1 10 0"/></symbol>
+  <symbol id="i-mcp" viewBox="0 0 16 16"><path d="M4 3.5v9M8 3.5v9M12 3.5v9M2 6h12M2 10h12"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="7" rx="2"/><path d="M3.6 7.4a4.4 4.4 0 0 0 8.8 0M8 11.8V14"/></symbol>
+  <symbol id="i-send" viewBox="0 0 16 16"><path d="M2 8 14 3l-4 5 4 5z"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 16 16"><path d="M5.5 8V4.2a1.1 1.1 0 0 1 2.2 0V8m0-.6V3.2a1.1 1.1 0 0 1 2.2 0V8m0-.6V4.6a1.1 1.1 0 0 1 2.2 0v5.1a4.2 4.2 0 0 1-4.2 4.2h-.6a4 4 0 0 1-3.3-1.9L2.6 9.4a1.1 1.1 0 0 1 1.8-1.2z"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 16 16"><path d="M6 2.5H2.5V6M10 13.5h3.5V10M13.5 6V2.5H10M2.5 10v3.5H6"/></symbol>
+  <symbol id="i-attach" viewBox="0 0 16 16"><path d="M11.5 6.5 7 11a2.1 2.1 0 0 1-3-3l4.6-4.6a3.2 3.2 0 0 1 4.6 4.6l-4.4 4.4"/></symbol>
+  <symbol id="i-tool" viewBox="0 0 16 16"><path d="M5.5 3 10 8l-4.5 5"/></symbol>
+</svg>
+
+<div id="bar">
+  <span class="brand">Drive<span>code</span></span>
+  <span class="kicker">chat chrome · historical</span>
+  <button data-v="a" class="on">A · Drive Layer</button>
+  <button data-v="b">B · Call Stage</button>
+  <button data-v="c">C · PiP Partner</button>
+  <a class="north" href="drive-tab-discord-slack.html">D · Drive tab (current)</a>
+  <span class="hint">keys 1 / 2 / 3 · dashed violet = Drive addition · numbered tags = annotations below</span>
+</div>
+
+<div class="super">
+  <b>Superseded as primary IA.</b> These three explored Drive landing on the existing hub <b>Chat</b> surface. The
+  north star is now the <a href="drive-tab-discord-slack.html">Drive tab</a> — Discord IA inside Slack chrome, with
+  Chat <b>Join call</b> demoted to a shortcut into the active room. A and B survive <em>inside</em> a Drive room:
+  A is the in-room feed behavior, B is the stage. C is cut. Decision record: <a href="DRIVE-TAB.md">DRIVE-TAB.md</a>.
+</div>
+
+<!-- ============ VARIANT A ============ -->
+<div class="variant on" id="v-a">
+<div class="frame">
+  <div class="vlabel">
+    <span class="status keep">kept as in-room feed behavior</span>
+    <b>A · Drive Layer.</b> Drive is a toggle on the existing hub Chat view. The feed IS the shared screen. No new panels.
+  </div>
+  <div class="hub">
+    <div class="rail">
+      <div class="r"><svg><use href="#i-home"/></svg>Home</div>
+      <div class="r"><svg><use href="#i-sessions"/></svg>Sess</div>
+      <div class="r on"><svg><use href="#i-chat"/></svg>Chat</div>
+      <div class="r drive"><svg><use href="#i-drive"/></svg>Drive</div>
+      <div class="r"><svg><use href="#i-agents"/></svg>Agents</div>
+      <div class="r"><svg><use href="#i-mcp"/></svg>MCP</div>
+      <div class="r"><svg><use href="#i-settings"/></svg>Set</div>
+      <div class="port">:25463</div>
+    </div>
+    <div class="side">
+      <div class="grp">sessions</div>
+      <div class="item sel">fix router retries</div>
+      <div class="item">drive tab spike</div>
+      <div class="item">hub event contract</div>
+      <div class="grp">drive</div>
+      <div class="item drive">router-fix · live</div>
+    </div>
+    <div class="main">
+      <div class="chathead">
+        <span class="title">fix router retries</span>
+        <span class="badge">act</span>
+        <span class="badge drive drive-add">Drive on · Adam<span class="tag">1</span></span>
+        <span class="avatar speaking drive-add" title="persona">A</span><span class="tag">2</span>
+        <span class="spacer"></span>
+        <span class="badge join drive-add">Join call<span class="tag">6</span></span>
+      </div>
+      <div class="feed">
+        <div class="msg user">the retry logic in router.ts double-fires on timeout</div>
+        <div class="msg narr drive-add"><span class="avatar">A</span><span>Okay, I see it. The timeout path re-enters `dispatch` without clearing the pending flag. Let me show you.<span class="tag">3</span></span></div>
+        <div class="toolcard"><svg><use href="#i-tool"/></svg>read_file <span class="t">sdk/packages/core/src/router.ts</span> · 214 lines</div>
+        <div class="msg ai">The bug is in `scheduleRetry`. It registers a second timer when `onTimeout` races the ack. Fix is a guard on `pending`.</div>
+        <div class="msg narr drive-add"><span class="avatar">A</span><span>I'll patch it and run the router tests. Stop me if you want a different approach.</span></div>
+        <div class="toolcard"><svg><use href="#i-tool"/></svg>edit_file <span class="t">router.ts</span> · +6 −2</div>
+      </div>
+      <div class="composer">
+        <div class="box">
+          <div class="ph">Type @ for context and / for skills</div>
+          <div class="tools">
+            <span class="btn"><svg><use href="#i-attach"/></svg>Attach</span>
+            <span class="btn">anthropic:sonnet-4.5</span>
+            <span class="modepill drive-add"><span>plan</span><span class="sel">act</span><span class="ovl">ask</span><span class="ovl">debug</span></span><span class="tag">4</span>
+            <span class="spacer"></span>
+            <span class="btn mic drive-add"><svg><use href="#i-mic"/></svg>Mic</span><span class="tag">5</span>
+            <span class="btn send"><svg><use href="#i-send"/></svg>Send</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="notes">
+  <h3>Variant A annotations</h3>
+  <ol>
+    <li>Drive toggle + partner name renders as a badge in the existing chat header (<code>apps/cline-hub/src/webview/src/Chat.tsx</code> header row).</li>
+    <li>Partner presence chip = <code>ai-elements/persona.tsx</code> (Rive states idle/listening/thinking/speaking) at 22px, ring pulses while speaking/TTS.</li>
+    <li>Narration message = a new message style in the existing feed. Driven by session events; same list, distinct styling. Voice transcript lands here too via <code>ai-elements/transcription.tsx</code>.</li>
+    <li>Mode pill extends the existing plan/act toggle with ask/debug as Drive policy overlays. No new state machine surface; a hub session flag.</li>
+    <li>Mic = <code>ai-elements/speech-input.tsx</code> (already implements Web Speech + MediaRecorder) dropped into <code>components/Composer.tsx</code>. Click = mute/unmute.</li>
+    <li>Join call is the demotion: this header entry focuses the active room in the <a href="drive-tab-discord-slack.html">Drive tab</a> rather than being the only way in.</li>
+  </ol>
+</div>
+</div>
+
+<!-- ============ VARIANT B ============ -->
+<div class="variant" id="v-b">
+<div class="frame">
+  <div class="vlabel">
+    <span class="status keep">kept as the room stage</span>
+    <b>B · Call Stage.</b> The view splits when Drive is on: conversation left, "what my partner is doing right now" stage right. A call strip pins presence + mute.
+  </div>
+  <div class="hub">
+    <div class="rail">
+      <div class="r"><svg><use href="#i-home"/></svg>Home</div>
+      <div class="r"><svg><use href="#i-sessions"/></svg>Sess</div>
+      <div class="r on"><svg><use href="#i-chat"/></svg>Chat</div>
+      <div class="r drive"><svg><use href="#i-drive"/></svg>Drive</div>
+      <div class="r"><svg><use href="#i-agents"/></svg>Agents</div>
+      <div class="r"><svg><use href="#i-mcp"/></svg>MCP</div>
+      <div class="r"><svg><use href="#i-settings"/></svg>Set</div>
+      <div class="port">:25463</div>
+    </div>
+    <div class="main">
+      <div class="callstrip drive-add">
+        <span class="avatar speaking">A</span>
+        <span class="name">Adam</span>
+        <span class="state">speaking · act mode</span><span class="tag">1</span>
+        <span class="spacer"></span>
+        <span class="btn mic"><svg><use href="#i-mic"/></svg>Mic</span><span class="tag">2</span>
+        <span class="btn hand"><svg><use href="#i-hand"/></svg>Raise hand</span><span class="tag">3</span>
+        <span class="modepill"><span>plan</span><span class="sel">act</span><span class="ovl">ask</span><span class="ovl">debug</span></span>
+      </div>
+      <div class="stagewrap">
+        <div class="convcol">
+          <div class="feed">
+            <div class="msg user">the retry logic double-fires on timeout</div>
+            <div class="msg narr"><span class="avatar">A</span><span>Found it. Watch the stage, I'll walk you through the race.</span></div>
+            <div class="msg ai">`scheduleRetry` registers a second timer when `onTimeout` races the ack.</div>
+            <div class="msg narr"><span class="avatar">A</span><span>Patching now, then tests.</span></div>
+          </div>
+          <div class="composer">
+            <div class="box">
+              <div class="ph">Reply or talk…</div>
+              <div class="tools">
+                <span class="btn mic"><svg><use href="#i-mic"/></svg>Mic</span>
+                <span class="spacer"></span>
+                <span class="btn send"><svg><use href="#i-send"/></svg>Send</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stagecol drive-add">
+          <div class="stagehead"><span class="sharing">sharing</span> <span>src/router.ts · edit in progress</span><span class="tag">4</span></div>
+          <div class="stagebody">
+            <div class="codecard">
+              <div>  function scheduleRetry(req) {</div>
+              <div class="del">-   timers.push(setTimeout(fire, delay))</div>
+              <div class="add">+   if (req.pending) return</div>
+              <div class="add">+   req.pending = true</div>
+              <div class="add">+   timers.push(setTimeout(fire, delay))</div>
+              <div>  }</div>
+            </div>
+            <div class="termcard">$ bun -F @cline/core test:unit router<br>✓ router retries once per timeout (12ms)<span class="cursor"></span><span class="tag">5</span></div>
+          </div>
+          <div class="nownext">
+            <div class="cell"><div class="k">now</div>running router unit tests</div>
+            <div class="cell"><div class="k">next</div>check callers of scheduleRetry<span class="tag">6</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="notes">
+  <h3>Variant B annotations</h3>
+  <ol>
+    <li>Call strip = new row above the split. Presence via <code>ai-elements/persona.tsx</code>; state text from hub session status events. Now lives in the Drive room, mirrored by <code>webview/src/drive/DriveCallChrome.tsx</code>.</li>
+    <li>Mute = <code>ai-elements/speech-input.tsx</code> + <code>mic-selector.tsx</code>. Voice out via <code>voice-selector.tsx</code>/<code>audio-player.tsx</code> later.</li>
+    <li>Interrupt ("raise hand") pauses the loop mid-tool. Maps to the hub's session control channel, same path the CLI uses for cancel.</li>
+    <li>Stage renders the latest tool event: edits via <code>ai-elements/code-block.tsx</code>, commands via <code>terminal.tsx</code>, files via <code>file-tree.tsx</code>. It is a reducer over the same event stream the feed already consumes; last-event-wins.</li>
+    <li>Test/tool output cards reuse <code>ai-elements/test-results.tsx</code> and <code>tool.tsx</code>.</li>
+    <li>Now/next = the partner's plan cursor. Comes from plan/task metadata (<code>ai-elements/plan.tsx</code>, <code>task.tsx</code> data shapes), not a new store.</li>
+  </ol>
+</div>
+</div>
+
+<!-- ============ VARIANT C ============ -->
+<div class="variant" id="v-c">
+<div class="frame">
+  <div class="vlabel">
+    <span class="status cut">rejected</span>
+    <b>C · PiP Partner.</b> Cline chrome untouched. A floating call widget carries presence, captions, and mute. Expands into the feed on demand.
+  </div>
+  <div class="pipstage">
+    <div class="hub ghost">
+      <div class="rail">
+        <div class="r"><svg><use href="#i-home"/></svg>Home</div>
+        <div class="r"><svg><use href="#i-sessions"/></svg>Sess</div>
+        <div class="r on"><svg><use href="#i-chat"/></svg>Chat</div>
+        <div class="r"><svg><use href="#i-agents"/></svg>Agents</div>
+        <div class="r"><svg><use href="#i-mcp"/></svg>MCP</div>
+        <div class="r"><svg><use href="#i-settings"/></svg>Set</div>
+      </div>
+      <div class="main">
+        <div class="chathead"><span class="title">fix router retries</span><span class="badge">act</span></div>
+        <div class="feed">
+          <div class="msg user">the retry logic double-fires on timeout</div>
+          <div class="msg ai">`scheduleRetry` registers a second timer when `onTimeout` races the ack.</div>
+          <div class="toolcard"><svg><use href="#i-tool"/></svg>edit_file <span class="t">router.ts</span> · +6 −2</div>
+        </div>
+        <div class="composer"><div class="box"><div class="ph">Reply…</div></div></div>
+      </div>
+    </div>
+    <div class="pip drive-add">
+      <div class="row">
+        <span class="avatar speaking" style="width:34px;height:34px;border-radius:10px;">A</span>
+        <div>
+          <div style="color:#fff;font-weight:600;">Adam<span class="tag">1</span></div>
+          <div style="font-size:10.5px;color:var(--drive-text);">speaking · act</div>
+        </div>
+      </div>
+      <div class="cap">"Patching scheduleRetry, then running the router tests…"<span class="tag">2</span></div>
+      <div class="ctl">
+        <span class="btn mic"><svg><use href="#i-mic"/></svg>Mic</span>
+        <span class="btn hand"><svg><use href="#i-hand"/></svg></span>
+        <span class="btn" title="expand to feed"><svg><use href="#i-expand"/></svg></span><span class="tag">3</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="notes">
+  <h3>Variant C annotations</h3>
+  <ol>
+    <li>Widget floats inside the hub webview only (position: fixed). In VS Code it cannot float over the editor; it would dock inside the Cline panel, which weakens the concept.</li>
+    <li>Live caption mirrors the current narration line. One line, always glanceable.</li>
+    <li>Expand jumps to the full chat feed. The widget is chrome ON TOP of Cline surfaces rather than a layer inside them — the reason it lost to the Drive tab, which puts the call inside the product's own IA.</li>
+  </ol>
+</div>
+</div>
+
+<script>
+  const variants = { a: document.getElementById("v-a"), b: document.getElementById("v-b"), c: document.getElementById("v-c") };
+  const buttons = [...document.querySelectorAll("#bar button")];
+  function show(v) {
+    for (const [k, el] of Object.entries(variants)) el.classList.toggle("on", k === v);
+    for (const b of buttons) b.classList.toggle("on", b.dataset.v === v);
+  }
+  for (const b of buttons) b.addEventListener("click", () => show(b.dataset.v));
+  addEventListener("keydown", (e) => { const m = { "1": "a", "2": "b", "3": "c" }[e.key]; if (m) show(m); });
+  const q = new URLSearchParams(location.search).get("v");
+  if (q && variants[q]) show(q);
+</script>
+</body>
+</html>

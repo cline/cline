@@ -82,6 +82,13 @@ describe("formatStatusBarUsageText", () => {
 	});
 });
 
+describe("drive status bar copy", () => {
+	it("describes join/leave affordance", () => {
+		expect("Drive off (click / Ctrl+Shift+D join call)").toContain("join call");
+		expect("Drive on · Adam · ask").toContain("Adam");
+	});
+});
+
 describe("resolveModelDisplayName", () => {
 	it("uses the friendly model name with a ClinePass prefix", () => {
 		expect(

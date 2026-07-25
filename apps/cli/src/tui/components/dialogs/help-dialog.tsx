@@ -36,6 +36,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "k-ctrl-shift-d",
+		key: "Ctrl+Shift+D",
+		desc: "Join / leave Drive call",
+	},
+	{
+		kind: "entry",
 		id: "k-ctrl-c",
 		key: "Ctrl+C",
 		desc: "Clear input / Exit",

@@ -1,0 +1,14 @@
+- from: agent-self
+  to: cap-pair-programming
+  kind: has_capability
+- from: agent-self
+  to: cap-code-review
+  kind: has_capability
+- from: cap-pair-programming
+  to: case-router-race
+  kind: applied_in
+  note: Narrated the race on stage while patching.
+- from: cap-code-review
+  to: case-router-race
+  kind: applied_in
+  note: Reviewed the regression test shape before seat leave.

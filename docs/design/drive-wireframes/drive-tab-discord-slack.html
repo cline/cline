@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Drive tab · Discord IA in Cline hub chrome (throwaway)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  /* Tokens extracted from cline.bot — see CLINE-BRAND-TOKENS.md.
+     --ui is Schibsted Grotesk because that is what the hub webview actually
+     ships (apps/cline-hub/src/webview/src/index.css imports the variable
+     font); the site's Inter is marketing-side. */
+  :root {
+    --brand-purple: #9F58FA;
+    --brand-purple-text: #B98AFF;
+    --brand-purple-edge: #9663F1;
+    --brand-green: #4ADE80;
+    --brand-pink: #F53969;
+    --brand-blue: #5487C8;
+
+    --bg: #0A0A0A;
+    --well: #08080A;
+    --card: #0D0D10;
+    --panel: #101013;
+    --raised: #12131A;
+    --slate: #171923;
+    --terminal: #1B1D24;
+
+    --text: #FFFFFF;
+    --text-2: #9CA3AF;
+    --text-3: #6B7280;
+    --code: #D1D5DB;
+
+    --line: rgba(255, 255, 255, 0.10);
+    --line-faint: rgba(255, 255, 255, 0.05);
+    --line-inner: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.20);
+    --line-term: rgba(75, 85, 99, 0.95);
+
+    --r: 9px;
+    --r-card: 13.5px;
+    --r-term: 14px;
+    --r-pill: 9999px;
+    --r-micro: 2.25px;
+    --hair: 0.8px;
+
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+    --fast: 150ms;
+    --med: 300ms;
+
+    --ui: "Schibsted Grotesk", Inter, system-ui, -apple-system, sans-serif;
+    --display: "DM Sans", system-ui, sans-serif;
+    --grotesk: "Space Grotesk", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    /* accent treatment — swapped by the accent switcher. Edge is the default
+       because it matches how cline.bot actually spends accent. */
+    --sel-fill: var(--raised);
+    --sel-edge: var(--brand-purple);
+    --sel-text: var(--brand-purple-text);
+    --cta-bg: var(--brand-purple);
+    --cta-fg: #FFFFFF;
+  }
+
+  /* Variant "fill": accent fills the selected surface, Discord-style colour
+     density. The send CTA stays filled in both variants so the comparison
+     isolates selection treatment rather than changing two things at once. */
+  body.accent-fill {
+    --sel-fill: color-mix(in srgb, var(--brand-purple) 16%, transparent);
+    --sel-text: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 var(--ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .eyebrow {
+    font-family: var(--grotesk);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--text-3);
+  }
+
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes ring-breathe {
+    0%, 100% { opacity: 0.30; }
+    50%      { opacity: 1; }
+  }
+  @keyframes dot-breathe {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.45; transform: scale(0.82); }
+  }
+  @keyframes caret {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* ---------- top bar ---------- */
+  #bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(4px);
+    border-bottom: var(--hair) solid var(--line-faint);
+    flex-shrink: 0;
+  }
+  #bar .brand {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-right: 4px;
+  }
+  #bar .brand em { color: var(--brand-purple); font-style: normal; }
+  .seg {
+    display: flex;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+  .seg button {
+    background: transparent;
+    color: var(--text-2);
+    border: 0;
+    padding: 6px 11px;
+    cursor: pointer;
+    font: 500 12px/1 var(--ui);
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .seg button:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+  .seg button.on { background: var(--sel-fill); color: var(--sel-text); }
+  #bar .hint { margin-left: auto; }
+
+  .shell {
+    display: flex;
+    height: calc(100vh - 44px);
+    min-height: 620px;
+  }
+
+  /* ---------- hub activity rail ----------
+     Mirrors the hub webview left nav so the mock reads as in-product rather
+     than as a Discord clone. Drive is one more activity next to Chat. */
+  .rail {
+    width: 62px;
+    background: var(--well);
+    border-right: var(--hair) solid var(--line-faint);
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .rail .act {
+    position: relative;
+    padding: 7px 0 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    color: var(--text-3);
+    transition: color var(--fast) var(--ease);
+  }
+  .rail .act .g {
+    font: 400 13px/1 var(--grotesk);
+    width: 26px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+    border: var(--hair) solid transparent;
+    transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .rail .act .l { font: 500 9px/1 var(--ui); letter-spacing: 0.01em; }
+  .rail .act::before {
+    content: "";
+    position: absolute; left: 0; top: 6px; bottom: 6px;
+    width: 2px;
+    background: var(--sel-edge);
+    border-radius: 0 2px 2px 0;
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform var(--med) var(--ease);
+  }
+  .rail .act:hover { color: var(--text-2); }
+  .rail .act.on { color: var(--sel-text); }
+  .rail .act.on::before { transform: scaleY(1); }
+  .rail .act.on .g { background: var(--sel-fill); border-color: var(--line); }
+  .rail .port { margin-top: auto; text-align: center; padding-bottom: 2px; }
+
+  /* ---------- channel sidebar ---------- */
+  .channels {
+    width: 234px;
+    background: var(--card);
+    display: flex;
+    flex-direction: column;
+    border-right: var(--hair) solid var(--line);
+    flex-shrink: 0;
+    transition: width var(--med) var(--ease);
+  }
+  .ch-head {
+    padding: 12px 14px;
+    border-bottom: var(--hair) solid var(--line-faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ch-head b { font: 600 13px/1 var(--ui); color: var(--text); }
+  .ch-sec { padding: 14px 12px 5px; }
+  .ch {
+    position: relative;
+    padding: 6px 10px;
+    margin: 1px 8px;
+    border-radius: 6px;
+    color: var(--text-2);
+    cursor: pointer;
+    display: flex; gap: 8px; align-items: center;
+    font-size: 13px;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .ch::before {
+    content: "";
+    position: absolute; left: -6px; top: 3px; bottom: 3px;
+    width: 2px;
+    border-radius: 0 2px 2px 0;
+    background: var(--sel-edge);
+    transform: scaleY(0);
+    transition: transform var(--med) var(--ease);
+  }
+  .ch:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+  .ch.on { background: var(--sel-fill); color: var(--sel-text); }
+  .ch.on::before { transform: scaleY(1); }
+  .ch .ico { width: 14px; text-align: center; color: var(--text-3); font-family: var(--grotesk); }
+  .ch.on .ico { color: var(--sel-edge); }
+  .ch .live-tag {
+    margin-left: auto;
+    font: 500 9px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--brand-green);
+    border: var(--hair) solid color-mix(in srgb, var(--brand-green) 40%, transparent);
+    border-radius: var(--r-pill);
+    padding: 3px 6px;
+  }
+
+  .voice-nested { margin: 2px 8px 0 24px; }
+  .vu {
+    position: relative;
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-2);
+    animation: slide-in var(--med) var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .vu::before {
+    content: "";
+    position: absolute; left: -6px; top: 2px; bottom: 2px;
+    width: 2px; border-radius: 0 2px 2px 0;
+    background: var(--sel-edge);
+    transform: scaleY(0);
+    transition: transform var(--med) var(--ease);
+  }
+  .vu:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+  .vu.on { background: var(--sel-fill); color: var(--sel-text); }
+  .vu.on::before { transform: scaleY(1); }
+  .vu .nm { font-size: 12px; }
+  .vu .rl { margin-left: auto; font: 400 10px/1 var(--grotesk); color: var(--text-3); }
+
+  /* avatars: neutral chips with a role letter. no rainbow. */
+  .av {
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    flex-shrink: 0;
+    position: relative;
+    display: grid; place-items: center;
+    font: 600 9px/1 var(--grotesk);
+    color: var(--text-2);
+    text-transform: uppercase;
+  }
+  .av.human { border-color: var(--line-strong); color: var(--text); }
+  .av.agent { border-color: color-mix(in srgb, var(--brand-purple) 45%, transparent); color: var(--brand-purple-text); }
+  .av.speaking::after {
+    content: "";
+    position: absolute; inset: -3px;
+    border: 1.5px solid var(--brand-green);
+    border-radius: 8px;
+    animation: ring-breathe 1.9s var(--ease-io) infinite;
+  }
+  .av .live {
+    position: absolute; right: -3px; bottom: -3px;
+    width: 8px; height: 8px;
+    background: var(--brand-green);
+    border: 1.5px solid var(--card);
+    border-radius: 3px;
+  }
+
+  /* ---------- main column ---------- */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+  .main-head {
+    padding: 10px 16px;
+    border-bottom: var(--hair) solid var(--line);
+    display: flex; gap: 10px; align-items: center;
+    background: var(--panel);
+  }
+  .main-head h1 {
+    font: 700 15px/1.2 var(--grotesk);
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .pill {
+    font: 500 10px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: 0.07em;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-pill);
+    padding: 4px 9px;
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+  .pill.addr {
+    border-color: color-mix(in srgb, var(--brand-purple) 45%, transparent);
+    color: var(--brand-purple-text);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    font-family: var(--ui);
+  }
+
+  /* call strip — the hub's DriveCallStrip, on brand violet instead of amber */
+  .call-strip {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 16px;
+    background: color-mix(in srgb, var(--brand-purple) 7%, transparent);
+    border-bottom: var(--hair) solid color-mix(in srgb, var(--brand-purple) 30%, transparent);
+  }
+  .call-strip .st { font: 400 10px/1 var(--grotesk); letter-spacing: 0.05em; color: var(--brand-purple-text); text-transform: uppercase; }
+  .call-strip .sp { flex: 1; }
+
+  .content { flex: 1; display: flex; min-height: 0; }
+  .thread { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .msgs { flex: 1; padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+  .msg {
+    display: flex; gap: 11px;
+    animation: rise-in var(--med) var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+  .msg .av { width: 30px; height: 30px; border-radius: 8px; font-size: 11px; }
+  .msg .meta { font: 400 10px/1 var(--grotesk); color: var(--text-3); margin-bottom: 3px; letter-spacing: 0.04em; }
+  .msg .meta b { font: 600 13px/1 var(--ui); color: var(--text); margin-right: 7px; letter-spacing: 0; }
+  .msg .meta .role {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--brand-purple-text);
+    margin-right: 7px;
+  }
+  .msg .body { color: var(--code); font-size: 13px; }
+  .msg.system .body { color: var(--text-3); font-style: italic; }
+  .msg .body .to {
+    font: 500 10px/1 var(--grotesk);
+    color: var(--brand-purple-text);
+    border: var(--hair) solid color-mix(in srgb, var(--brand-purple) 35%, transparent);
+    border-radius: var(--r-pill);
+    padding: 2px 7px;
+    margin-right: 7px;
+  }
+
+  /* ---------- composer: mirrors apps/cline-hub components/Composer.tsx ----
+     textarea line on top, tool row beneath (attach, provider:model, thinking,
+     mode, mic, submit). */
+  .composer { border-top: var(--hair) solid var(--line); background: var(--panel); padding: 10px 14px 11px; }
+  .composer .box {
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r);
+    padding: 9px 11px 7px;
+    transition: border-color var(--fast) var(--ease);
+  }
+  .composer .box:focus-within { border-color: var(--brand-purple-edge); }
+  .composer .box input {
+    width: 100%;
+    background: transparent; border: 0;
+    color: var(--text); outline: none;
+    font: 400 13px/1.5 var(--ui);
+    padding: 2px 0 8px;
+  }
+  .composer .box input::placeholder { color: var(--text-3); }
+  .tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tools .sp { flex: 1; }
+  .tool {
+    border: var(--hair) solid transparent;
+    background: transparent;
+    color: var(--text-3);
+    border-radius: 7px;
+    padding: 4px 7px;
+    cursor: pointer;
+    font: 500 11px/1 var(--ui);
+    transition: color var(--fast) var(--ease), background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  }
+  .tool:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+  .tool.on { color: var(--sel-text); background: var(--sel-fill); border-color: var(--sel-edge); }
+  .tool .k { font: 400 9px/1 var(--grotesk); color: var(--text-3); margin-left: 5px; }
+  .modes { display: inline-flex; border: var(--hair) solid var(--line); border-radius: 7px; overflow: hidden; }
+  .modes button {
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--text-3);
+    font: 500 11px/1 var(--ui);
+    padding: 5px 8px;
+    transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .modes button:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+  .modes button.on { color: var(--sel-text); background: var(--sel-fill); }
+  .send {
+    border: var(--hair) solid var(--sel-edge);
+    background: var(--cta-bg);
+    color: var(--cta-fg);
+    padding: 5px 13px;
+    border-radius: 7px;
+    cursor: pointer;
+    font: 600 11px/1 var(--ui);
+    transition: opacity var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .send:hover { opacity: 0.86; }
+  .send:active { transform: translateY(1px); }
+
+  .addr-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .chip {
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-pill);
+    padding: 4px 10px;
+    font: 500 11px/1 var(--ui);
+    cursor: pointer;
+    color: var(--text-2);
+    background: transparent;
+    transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .chip:hover { border-color: var(--line-strong); color: var(--text); }
+  .chip:active { transform: translateY(1px); }
+  .chip .k {
+    font: 400 9px/1 var(--grotesk);
+    color: var(--text-3);
+    margin-left: 6px;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-micro);
+    padding: 2px 3px;
+  }
+  .chip.on { border-color: var(--sel-edge); color: var(--sel-text); background: var(--sel-fill); }
+  .chip.on .k { color: var(--sel-edge); border-color: color-mix(in srgb, var(--brand-purple) 40%, transparent); }
+
+  /* ---------- stage ---------- */
+  .stage {
+    width: 40%;
+    min-width: 300px;
+    border-left: var(--hair) solid var(--line);
+    background: var(--card);
+    display: flex; flex-direction: column;
+  }
+  .stage-h {
+    padding: 10px 13px;
+    border-bottom: var(--hair) solid var(--line-faint);
+    display: flex; gap: 9px; align-items: center;
+  }
+  .stage-h .live {
+    color: var(--brand-green);
+    font: 500 10px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .stage-h .live::before {
+    content: ""; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--brand-green);
+    animation: dot-breathe 2.1s var(--ease-io) infinite;
+  }
+  .stage-h .lbl { font-size: 12px; color: var(--text-2); }
+  .stage-b { flex: 1; padding: 13px; overflow: auto; }
+
+  /* the signature Cline terminal card */
+  .share-card {
+    background: var(--terminal);
+    border: var(--hair) solid var(--line-term);
+    border-radius: var(--r-term);
+    padding: 14px;
+    min-height: 176px;
+    font: 400 12px/1.75 var(--mono);
+    color: var(--code);
+  }
+  .share-card .who {
+    font: 500 10px/1 var(--grotesk);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-3);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: var(--hair) solid rgba(255, 255, 255, 0.07);
+  }
+  .share-card .who b { color: var(--brand-purple-text); font-weight: 500; }
+  .share-card .ev { animation: rise-in var(--med) var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
+  .share-card .add { color: var(--brand-green); }
+  .share-card .ctx { color: var(--text-3); }
+  .share-card .prompt { color: var(--brand-green); margin-right: 8px; }
+  .share-card .cursor {
+    display: inline-block; width: 7px; height: 13px;
+    background: var(--brand-green); vertical-align: -2px;
+    animation: caret 1.05s steps(1) infinite;
+  }
+
+  .stage-actions { margin-top: 12px; display: flex; gap: 7px; flex-wrap: wrap; }
+  .nownext { display: flex; gap: 9px; padding: 11px 13px; border-top: var(--hair) solid var(--line-faint); }
+  .nownext .cell { flex: 1; min-width: 0; }
+  .nownext .v { font-size: 11.5px; color: var(--text-2); margin-top: 3px; }
+
+  /* ---------- member sidebar (Discord-leaning only) ---------- */
+  .members {
+    width: 206px;
+    background: var(--card);
+    border-left: var(--hair) solid var(--line);
+    padding: 12px 0;
+    overflow: auto;
+    flex-shrink: 0;
+  }
+  .m-sec { padding: 10px 14px 6px; }
+  .m-row {
+    position: relative;
+    padding: 6px 14px;
+    display: flex; gap: 9px; align-items: center;
+    cursor: pointer;
+    transition: background var(--fast) var(--ease);
+  }
+  .m-row::before {
+    content: "";
+    position: absolute; left: 0; top: 2px; bottom: 2px;
+    width: 2px; background: var(--sel-edge);
+    transform: scaleY(0);
+    transition: transform var(--med) var(--ease);
+  }
+  .m-row:hover { background: rgba(255, 255, 255, 0.04); }
+  .m-row.on { background: var(--sel-fill); }
+  .m-row.on::before { transform: scaleY(1); }
+  .m-row .name { flex: 1; font-size: 12px; color: var(--text); }
+  .m-row .tag { font: 400 9px/1 var(--grotesk); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .m-row.dim .name { color: var(--text-3); }
+
+  /* ---------- voice dock ---------- */
+  .voice-dock {
+    background: var(--well);
+    border-top: var(--hair) solid var(--line);
+    padding: 10px 11px;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .voice-dock .who { display: flex; gap: 9px; align-items: center; }
+  .voice-dock .who-n { font: 600 12px/1.3 var(--ui); color: var(--text); white-space: nowrap; }
+  .voice-dock .who-s {
+    font: 400 10px/1.3 var(--grotesk);
+    color: var(--brand-green);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .voice-dock .controls { display: flex; gap: 6px; }
+  .voice-dock .controls .btn { flex: 1; text-align: center; }
+  .btn {
+    border: var(--hair) solid var(--line);
+    background: var(--raised);
+    color: var(--text-2);
+    border-radius: 7px;
+    padding: 6px 9px;
+    cursor: pointer;
+    font: 500 11px/1 var(--ui);
+    transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .btn:hover { border-color: var(--line-strong); color: var(--text); }
+  .btn:active { transform: translateY(1px); }
+  .btn.danger {
+    border-color: color-mix(in srgb, var(--brand-pink) 50%, transparent);
+    color: var(--brand-pink);
+  }
+  .btn.danger:hover { background: color-mix(in srgb, var(--brand-pink) 14%, transparent); }
+  .btn.active { border-color: var(--sel-edge); color: var(--sel-text); background: var(--sel-fill); }
+  .btn.cta { background: var(--cta-bg); color: var(--cta-fg); border-color: var(--sel-edge); font-weight: 600; }
+
+  /* ---------- notes ---------- */
+  .notes {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 18px 16px 28px;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .notes h3 { margin-bottom: 8px; }
+  .notes ol { padding-left: 18px; }
+  .notes li { margin-bottom: 3px; }
+  .notes b { color: var(--text); font-weight: 600; }
+  .notes a { color: var(--brand-purple-text); }
+  .notes code {
+    font: 400 11px/1 var(--mono);
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: var(--code);
+  }
+
+  .hidden { display: none !important; }
+
+  /* Slack-leaning: no member sidebar, wider channel list, huddle banner */
+  .slack .members { display: none; }
+  .slack .channels { width: 282px; }
+  .huddle-banner {
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    margin: 10px 8px 2px;
+    border-radius: var(--r);
+    padding: 10px 11px;
+    display: flex; gap: 9px; align-items: center;
+    animation: rise-in var(--med) var(--ease) both;
+  }
+  .shell:not(.slack) .huddle-banner { display: none; }
+  .huddle-banner .go {
+    margin-left: auto;
+    background: var(--cta-bg);
+    color: var(--cta-fg);
+    border: var(--hair) solid var(--sel-edge);
+    border-radius: 7px;
+    padding: 5px 11px;
+    cursor: pointer;
+    font: 600 11px/1 var(--ui);
+    transition: opacity var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .huddle-banner .go:hover { opacity: 0.86; }
+  .huddle-banner .go:active { transform: translateY(1px); }
+</style>
+</head>
+<body class="accent-edge">
+
+<div id="bar">
+  <span class="brand">Drive<em>code</em></span>
+  <span class="eyebrow">drive tab prototype</span>
+  <div class="seg" id="layout-seg">
+    <button data-v="discord" class="on">Discord-leaning</button>
+    <button data-v="slack">Slack-leaning</button>
+  </div>
+  <div class="seg" id="accent-seg">
+    <button data-a="edge" class="on">Violet edge</button>
+    <button data-a="fill">Violet fill</button>
+  </div>
+  <span class="hint eyebrow">throwaway · 1/2 layout · 3/4 accent · alt+1–4 address · click roster</span>
+</div>
+
+<div class="shell" id="app">
+  <div class="rail">
+    <div class="act"><span class="g">◇</span><span class="l">Home</span></div>
+    <div class="act"><span class="g">≡</span><span class="l">Sessions</span></div>
+    <div class="act"><span class="g">▢</span><span class="l">Chat</span></div>
+    <div class="act on"><span class="g">◉</span><span class="l">Drive</span></div>
+    <div class="act"><span class="g">◈</span><span class="l">Agents</span></div>
+    <div class="act"><span class="g">⌘</span><span class="l">MCP</span></div>
+    <div class="act"><span class="g">⚙</span><span class="l">Settings</span></div>
+    <div class="port eyebrow">:25463</div>
+  </div>
+
+  <div class="channels">
+    <div class="ch-head">
+      <b>cline-drivecode</b>
+      <span class="pill" style="margin-left:auto">hub</span>
+    </div>
+
+    <div class="huddle-banner">
+      <div class="av agent">A</div>
+      <div>
+        <div style="font:600 11px/1.3 var(--ui);color:var(--text)">router-fix is live</div>
+        <div class="eyebrow">Adam sharing</div>
+      </div>
+      <button class="go" data-view="call-router">Join</button>
+    </div>
+
+    <div class="ch-sec eyebrow">Text</div>
+    <div class="ch" data-view="channel-general"><span class="ico">#</span> general</div>
+    <div class="ch" data-view="channel-prs"><span class="ico">#</span> pull-requests</div>
+
+    <div class="ch-sec eyebrow">Drive calls</div>
+    <div class="ch on" data-view="call-router" id="call-row">
+      <span class="ico">▸</span> router-fix
+      <span class="live-tag">live</span>
+    </div>
+    <div class="voice-nested" id="roster"></div>
+    <div class="ch" data-view="call-idle"><span class="ico">▸</span> pairing-room</div>
+
+    <div style="flex:1"></div>
+
+    <div class="voice-dock">
+      <div class="who">
+        <div class="av human speaking">Y</div>
+        <div style="flex:1;min-width:0">
+          <div class="who-n">You</div>
+          <div class="who-s" id="dock-state">In router-fix</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="mute-btn" title="Mute">Mic</button>
+        <button class="btn" id="share-btn" title="Share screen">Share</button>
+        <button class="btn danger" id="leave-btn" title="Leave">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="main-head">
+      <h1 id="view-title">router-fix</h1>
+      <span class="pill" id="view-kind">call room</span>
+      <span class="pill addr" id="addr-pill">To: everyone</span>
+      <span style="flex:1"></span>
+      <button class="btn active" id="stage-btn">Stage on</button>
+      <button class="btn cta" id="join-btn">Leave call</button>
+    </div>
+    <div class="call-strip" id="call-strip">
+      <div class="av agent speaking">A</div>
+      <span style="font:600 12.5px/1 var(--ui)">Adam</span>
+      <span class="st" id="strip-state">speaking · agent mode</span>
+      <span class="sp"></span>
+      <button class="btn" id="hand-btn" title="Pause after the current tool">Raise hand</button>
+    </div>
+    <div class="content">
+      <div class="thread">
+        <div class="msgs" id="msgs"></div>
+        <div class="composer">
+          <div class="addr-bar" id="addr-bar"></div>
+          <div class="box">
+            <input id="compose" placeholder="Type @ for context and / for skills" />
+            <div class="tools">
+              <button class="tool" title="Attach">Attach</button>
+              <button class="tool" title="Provider and model">anthropic:sonnet-4.5</button>
+              <button class="tool" title="Thinking level">Thinking</button>
+              <div class="modes" id="mode-seg">
+                <button data-m="plan">plan</button>
+                <button data-m="agent" class="on">agent</button>
+                <button data-m="ask">ask</button>
+                <button data-m="debug">debug</button>
+              </div>
+              <span class="sp"></span>
+              <button class="tool on" id="mic-tool" title="Mute">Mic</button>
+              <button class="send" id="send">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="stage-h">
+          <span class="live">Live</span>
+          <span class="lbl" id="share-label">Adam is sharing · events only</span>
+        </div>
+        <div class="stage-b">
+          <div class="share-card" id="share-card"></div>
+          <div class="stage-actions">
+            <button class="chip" id="agent-share">Agent takes stage</button>
+            <button class="chip" id="you-share">You take stage</button>
+          </div>
+        </div>
+        <div class="nownext">
+          <div class="cell">
+            <div class="eyebrow">now</div>
+            <div class="v" id="now-v">running router unit tests</div>
+          </div>
+          <div class="cell">
+            <div class="eyebrow">next</div>
+            <div class="v" id="next-v">explain the race, then commit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="members">
+    <div class="m-sec eyebrow">In this call — 4</div>
+    <div id="member-list"></div>
+    <div class="m-sec eyebrow">Offline agents</div>
+    <div class="m-row dim"><div class="av agent">N</div><span class="name">Nova</span><span class="tag">idle</span></div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3 class="eyebrow">What this decides</h3>
+  <ol>
+    <li>Drive is a <b>hub activity</b> next to Chat, holding channels + call rooms, not only a header toggle on Chat.</li>
+    <li>Agents are first-class roster members (Discord voice nested list + Slack huddle presence).</li>
+    <li>Click a participant → that agent's private transcript. Click the call → room thread.</li>
+    <li>Address chips / hotkeys set <code>addressSet</code> to one | many | everyone before send.</li>
+    <li>Stage is a last-event-wins projection over hub session events. Either side can hold it.</li>
+  </ol>
+  <h3 class="eyebrow" style="margin-top:16px">Chrome fidelity</h3>
+  <p>
+    The left rail is the <b>hub activity bar</b> (<code>Home / Sessions / Chat / Drive / Agents / MCP / Settings</code>), not a
+    Discord server rail — Drive is one more activity in the product you already have. The composer mirrors
+    <code>apps/cline-hub/src/webview/src/components/Composer.tsx</code>: input line first, then a tool row carrying attach,
+    <code>provider:model</code>, thinking level, and the mode segment, with submit on the right. The call strip mirrors
+    <code>drive/DriveCallChrome.tsx</code> with brand violet in place of its placeholder amber. UI type is
+    <b>Schibsted Grotesk</b>, the font the hub webview actually ships.
+  </p>
+  <h3 class="eyebrow" style="margin-top:16px">Variants</h3>
+  <p>
+    <b>Discord-leaning</b> keeps the right-hand member sidebar, so roster is answerable twice: nested under the call and
+    listed in full. <b>Slack-leaning</b> drops it, widens the channel list, and adds the drop-in huddle banner. Both keep
+    the hub rail.
+  </p>
+  <p style="margin-top:10px">
+    <b>Violet edge</b> (default) spends the accent on a left edge and a text tint over a raised surface.
+    <b>Violet fill</b> puts <code>#9F58FA</code> behind the selected row. Send stays filled in both, so the only thing
+    changing between them is selection.
+  </p>
+  <p style="margin-top:10px">
+    Palette, type, radius, and hairline values come from
+    <a href="CLINE-BRAND-TOKENS.md">CLINE-BRAND-TOKENS.md</a>, extracted from the live site.
+    Discord blurple is deliberately absent — we steal the IA, not the palette.
+  </p>
+</div>
+
+<script>
+const people = [
+  { id: "you",   name: "You",   kind: "human", role: "host",         speaking: false, sharing: false },
+  { id: "adam",  name: "Adam",  kind: "agent", role: "pair_partner", speaking: true,  sharing: true  },
+  { id: "riley", name: "Riley", kind: "agent", role: "specialist",   speaking: false, sharing: false },
+  { id: "sam",   name: "Sam",   kind: "agent", role: "reviewer",     speaking: false, sharing: false },
+];
+
+const transcripts = {
+  call: [
+    { who: "system", text: "You joined router-fix. Adam took the stage." },
+    { who: "you",    text: "the retry logic double-fires on timeout" },
+    { who: "adam",   text: "Found it. Watch the stage — I'll walk the race." },
+    { who: "riley",  text: "I can add a regression test after the patch." },
+    { who: "you",    text: "@Adam go ahead; @Riley wait until green" },
+  ],
+  adam: [
+    { who: "adam", text: "(private stream) Reading scheduleRetry…" },
+    { who: "adam", text: "Root cause: pending flag not cleared on the timeout path." },
+    { who: "adam", text: "Patching + running unit tests." },
+  ],
+  riley: [
+    { who: "riley", text: "(private) Standing by for a test plan." },
+    { who: "riley", text: "Draft: router retries exactly once per timeout." },
+  ],
+  sam: [
+    { who: "sam", text: "(private) Reviewer idle. Ping me for a PR pass." },
+  ],
+  you: [
+    { who: "you", text: "(your notes) Prefer decision-point narration." },
+  ],
+};
+
+const agentStage = [
+  { cls: "add", text: "+ if (req.pending) return" },
+  { cls: "add", text: "+ req.pending = true" },
+  { cls: "ctx", text: "\u00a0\u00a0timers.push(retryAt)" },
+  { cls: "cmd", text: "bun -F @cline/core test:unit" },
+];
+
+const youStage = [
+  { cls: "ctx", text: "apps/cli/src/tui/views/chat-view.tsx:118" },
+  { cls: "ctx", text: "\u00a0\u00a0const [drive, setDrive] = useDriveRoom()" },
+  { cls: "add", text: "keep the room shape, I only want the strip" },
+];
+
+let view = "call";
+let address = new Set(["everyone"]);
+let muted = false;
+let youSharing = false;
+let inCall = true;
+let hand = false;
+let mode = "agent";
+
+const initial = (p) => p.name.slice(0, 1);
+const stagedIndex = (nodes) => nodes.forEach((n, i) => n.style.setProperty("--i", i));
+
+function renderRoster() {
+  const el = document.getElementById("roster");
+  el.innerHTML = !inCall ? "" : people
+    .filter((p) => p.id !== "you")
+    .map((p) => `
+      <div class="vu ${view === p.id ? "on" : ""}" data-person="${p.id}">
+        <div class="av ${p.kind} ${p.speaking && !muted && !hand ? "speaking" : ""}">${initial(p)}${p.sharing ? '<span class="live"></span>' : ""}</div>
+        <span class="nm">${p.name}</span>
+        <span class="rl">${p.role.replace("_", " ")}</span>
+      </div>`)
+    .join("");
+  stagedIndex([...el.children]);
+}
+
+function renderMembers() {
+  document.getElementById("member-list").innerHTML = people
+    .map((p) => {
+      const live = p.sharing || (youSharing && p.id === "you");
+      return `
+      <div class="m-row ${view === p.id ? "on" : ""}" data-person="${p.id}">
+        <div class="av ${p.kind} ${p.speaking && !muted && !hand ? "speaking" : ""}">${initial(p)}${live ? '<span class="live"></span>' : ""}</div>
+        <span class="name">${p.name}</span>
+        <span class="tag">${p.kind === "agent" ? p.role.replace("_", " ") : "human"}</span>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderAddr() {
+  const opts = ["everyone", ...people.filter((p) => p.kind === "agent").map((p) => p.id)];
+  document.getElementById("addr-bar").innerHTML = opts
+    .map((id, i) => {
+      const label = id === "everyone" ? "Everyone" : people.find((p) => p.id === id).name;
+      return `<span class="chip ${address.has(id) ? "on" : ""}" data-addr="${id}">${label}<span class="k">alt+${i + 1}</span></span>`;
+    })
+    .join("");
+  const names = [...address]
+    .map((id) => (id === "everyone" ? "everyone" : people.find((p) => p.id === id)?.name))
+    .join(", ");
+  document.getElementById("addr-pill").textContent = "To: " + (names || "everyone");
+}
+
+function renderStage() {
+  const events = youSharing ? youStage : agentStage;
+  const head = youSharing
+    ? "<b>You</b> · sharing editor selection"
+    : "<b>Adam</b> · edit_file router.ts";
+  document.getElementById("share-card").innerHTML =
+    `<div class="who">${head}</div>` +
+    events
+      .map((e, i) => {
+        const body = e.cls === "cmd"
+          ? `<span class="prompt">$</span>${e.text} <span class="cursor"></span>`
+          : e.text;
+        return `<div class="ev ${e.cls === "cmd" ? "" : e.cls}" style="--i:${i}">${body}</div>`;
+      })
+      .join("");
+  document.getElementById("share-label").textContent = youSharing
+    ? "You are sharing · agent watching"
+    : "Adam is sharing · events only";
+  document.getElementById("now-v").textContent = youSharing
+    ? "reading your selection"
+    : "running router unit tests";
+  document.getElementById("next-v").textContent = youSharing
+    ? "wait for your instruction"
+    : "explain the race, then commit";
+}
+
+function renderMsgs() {
+  const key = view.startsWith("channel") ? "call" : view;
+  const list = transcripts[key] || transcripts.call;
+  const titleMap = {
+    call: "router-fix",
+    adam: "Adam · transcript",
+    riley: "Riley · transcript",
+    sam: "Sam · transcript",
+    you: "You · notes",
+    "channel-general": "# general",
+    "channel-prs": "# pull-requests",
+  };
+  document.getElementById("view-title").textContent = titleMap[view] || view;
+  document.getElementById("view-kind").textContent = view === "call"
+    ? "call room"
+    : view.startsWith("channel")
+      ? "text channel"
+      : "agent stream";
+  const isChannel = view.startsWith("channel");
+  document.getElementById("stage").classList.toggle("hidden", isChannel || !inCall);
+  document.getElementById("call-strip").classList.toggle("hidden", isChannel || !inCall);
+  const el = document.getElementById("msgs");
+  el.innerHTML = list
+    .map((m, i) => {
+      const p = people.find((x) => x.id === m.who);
+      const name = p ? p.name : "System";
+      const role = p && p.kind === "agent" ? `<span class="role">${p.role.replace("_", " ")}</span>` : "";
+      const body = m.text.replace(/^\[to:([^\]]+)\]\s*/, (_, to) => `<span class="to">to ${to}</span>`);
+      return `<div class="msg ${m.who === "system" ? "system" : ""}" style="--i:${i}">
+        <div class="av ${p ? p.kind : ""}">${p ? initial(p) : "·"}</div>
+        <div><div class="meta"><b>${name}</b>${role}now</div><div class="body">${body}</div></div>
+      </div>`;
+    })
+    .join("");
+  el.scrollTop = el.scrollHeight;
+}
+
+function setView(v) {
+  view = v;
+  document.querySelectorAll(".ch").forEach((c) =>
+    c.classList.toggle("on", c.dataset.view === (v === "call" ? "call-router" : v)));
+  if (v === "call") document.getElementById("call-row").classList.add("on");
+  // Addressing follows focus: a participant view is a 1:1, the room is everyone.
+  const asAgent = people.find((p) => p.id === v && p.kind === "agent");
+  address = new Set([asAgent ? asAgent.id : "everyone"]);
+  renderRoster(); renderMembers(); renderMsgs(); renderAddr();
+}
+
+function toggleAddr(id) {
+  if (id === "everyone") {
+    address = new Set(["everyone"]);
+  } else {
+    address.delete("everyone");
+    if (address.has(id)) address.delete(id); else address.add(id);
+    if (address.size === 0) address.add("everyone");
+  }
+  renderAddr();
+}
+
+function setCall(next) {
+  inCall = next;
+  document.getElementById("join-btn").textContent = inCall ? "Leave call" : "Join call";
+  document.getElementById("join-btn").classList.toggle("cta", true);
+  document.getElementById("dock-state").textContent = inCall
+    ? (muted ? "Muted · in router-fix" : "In router-fix")
+    : "Not in a call";
+  if (!inCall) { hand = false; document.getElementById("hand-btn").classList.remove("active"); }
+  renderRoster(); renderMembers(); renderMsgs();
+}
+
+document.getElementById("app").addEventListener("click", (e) => {
+  const person = e.target.closest("[data-person]");
+  if (person) { setView(person.dataset.person); return; }
+  const chip = e.target.closest("[data-addr]");
+  if (chip) { toggleAddr(chip.dataset.addr); return; }
+  const target = e.target.closest("[data-view]");
+  if (target) {
+    const v = target.dataset.view;
+    if (v === "call-router" && !inCall) setCall(true);
+    setView(v === "call-router" ? "call" : v);
+  }
+});
+
+document.querySelectorAll("#layout-seg button").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll("#layout-seg button").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    document.getElementById("app").classList.toggle("slack", btn.dataset.v === "slack");
+  };
+});
+
+document.querySelectorAll("#accent-seg button").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll("#accent-seg button").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    document.body.classList.toggle("accent-fill", btn.dataset.a === "fill");
+  };
+});
+
+document.querySelectorAll("#mode-seg button").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll("#mode-seg button").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    mode = btn.dataset.m;
+    document.getElementById("strip-state").textContent =
+      (hand ? "paused · " : muted ? "muted · " : "speaking · ") + mode + " mode";
+  };
+});
+
+function setMuted(next) {
+  muted = next;
+  const b = document.getElementById("mute-btn");
+  b.textContent = muted ? "Unmute" : "Mic";
+  b.classList.toggle("danger", muted);
+  document.getElementById("mic-tool").classList.toggle("on", !muted);
+  document.getElementById("mic-tool").textContent = muted ? "Muted" : "Mic";
+  document.getElementById("dock-state").textContent = muted ? "Muted · in router-fix" : "In router-fix";
+  document.getElementById("strip-state").textContent =
+    (hand ? "paused · " : muted ? "muted · " : "speaking · ") + mode + " mode";
+  renderRoster(); renderMembers();
+}
+
+document.getElementById("mute-btn").onclick = () => setMuted(!muted);
+document.getElementById("mic-tool").onclick = () => setMuted(!muted);
+
+document.getElementById("hand-btn").onclick = () => {
+  hand = !hand;
+  const b = document.getElementById("hand-btn");
+  b.classList.toggle("active", hand);
+  b.textContent = hand ? "Lower hand" : "Raise hand";
+  document.getElementById("strip-state").textContent =
+    (hand ? "paused after tool · " : muted ? "muted · " : "speaking · ") + mode + " mode";
+  renderRoster(); renderMembers();
+};
+
+document.getElementById("stage-btn").onclick = () => {
+  const stage = document.getElementById("stage");
+  const off = stage.classList.toggle("hidden");
+  const b = document.getElementById("stage-btn");
+  b.textContent = off ? "Stage off" : "Stage on";
+  b.classList.toggle("active", !off);
+};
+
+document.getElementById("join-btn").onclick = () => setCall(!inCall);
+
+function applyShare() {
+  people.find((p) => p.id === "adam").sharing = !youSharing;
+  document.getElementById("share-btn").classList.toggle("active", youSharing);
+  document.getElementById("you-share").classList.toggle("on", youSharing);
+  document.getElementById("agent-share").classList.toggle("on", !youSharing);
+  renderStage(); renderRoster(); renderMembers();
+}
+
+document.getElementById("share-btn").onclick = () => { youSharing = !youSharing; applyShare(); };
+document.getElementById("you-share").onclick = () => { youSharing = true; applyShare(); };
+document.getElementById("agent-share").onclick = () => { youSharing = false; applyShare(); };
+
+document.getElementById("leave-btn").onclick = () => setCall(false);
+
+document.getElementById("send").onclick = () => {
+  const input = document.getElementById("compose");
+  const text = input.value.trim();
+  if (!text) return;
+  const to = [...address].join(",");
+  const bucket = view === "call" || view.startsWith("channel") ? "call" : view;
+  (transcripts[bucket] ||= []).push({ who: "you", text: `[to:${to}] ${text}` });
+  agentStage.push({ cls: "ctx", text: `\u00a0\u00a0steer(${to}): ${text.slice(0, 34)}` });
+  if (agentStage.length > 6) agentStage.splice(0, agentStage.length - 6);
+  input.value = "";
+  renderMsgs();
+  renderStage();
+};
+
+window.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") {
+    if (e.key === "Enter") document.getElementById("send").click();
+    return;
+  }
+  if (e.altKey && e.key >= "1" && e.key <= "4") {
+    toggleAddr(["everyone", "adam", "riley", "sam"][Number(e.key) - 1]);
+    return;
+  }
+  if (e.key === "1") document.querySelector('#layout-seg button[data-v="discord"]').click();
+  if (e.key === "2") document.querySelector('#layout-seg button[data-v="slack"]').click();
+  if (e.key === "3") document.querySelector('#accent-seg button[data-a="edge"]').click();
+  if (e.key === "4") document.querySelector('#accent-seg button[data-a="fill"]').click();
+});
+
+renderRoster(); renderMembers(); renderAddr(); renderStage(); renderMsgs();
+</script>
+</body>
+</html>

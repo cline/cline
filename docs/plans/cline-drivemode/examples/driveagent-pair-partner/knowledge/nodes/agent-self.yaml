@@ -1,0 +1,5 @@
+id: agent-self
+kind: concept
+label: Pair partner
+summary: Root identity node for has_capability edges in this example graph.
+tags: [identity]
