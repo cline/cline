@@ -21,7 +21,7 @@
 The Cline SDK is a TypeScript framework for building AI agents that can edit files, run shell commands, browse the web, call APIs, and use any custom tool you give them. It's the same engine that powers [Cline](https://github.com/cline/cline), packaged as a library you can embed in your own applications.
 
 ```typescript
-import { Agent } from "@cline/sdk"
+import { Agent } from "@cline/core"
 
 const agent = new Agent({
   providerId: "cline",
@@ -39,7 +39,7 @@ That's it. The agent streams its response, calls tools if you give it any, and r
 ## Install
 
 ```bash
-npm install @cline/sdk
+npm install @cline/core
 ```
 
 ## SDK Skill
@@ -80,23 +80,15 @@ async function handleMessage(threadId: string, message: string) {
 }
 ```
 
-Explore full working examples in [`examples/`](examples) and app examples in [`apps/examples/`](apps/examples):
-
-| Example | Description |
-|---------|-------------|
-| [Plugins](examples/plugins) | Custom tools with workspace-aware context, lifecycle hooks, and branch-level safety policies |
-| [Subagent Orchestration](examples/plugins/agents-squad) | Spawn and manage background agents with presets, skills, and cross-agent handoffs |
-| [Hooks](examples/hooks) | File-based and runtime hooks for logging, review gates, context injection, and lifecycle automation |
-| [Cron Automations](examples/cron) | Recurring and event-driven automation specs for scheduled quality checks and PR workflows |
-| [Desktop App](apps/examples/desktop-app) | Tauri desktop shell with a Bun sidecar backend and Next.js UI |
-| [VS Code Extension App](apps/examples/vscode) | VS Code extension example that runs Cline sessions over the RPC runtime |
+The retained host implementation is the VS Code extension in
+[`apps/vscode`](../apps/vscode).
 
 ## Custom Tools
 
 Tools are how agents interact with the world. Define a tool with a name, a description the model reads, a JSON Schema for inputs, and a function that does the work:
 
 ```typescript
-import { createTool } from "@cline/sdk"
+import { createTool } from "@cline/core"
 
 const deploy = createTool({
   name: "deploy",
@@ -185,7 +177,7 @@ const metrics: AgentPlugin = {
 When you need session persistence, built-in tools, config discovery, and multi-process support, use `ClineCore`:
 
 ```typescript
-import { ClineCore } from "@cline/sdk"
+import { ClineCore } from "@cline/core"
 
 const cline = await ClineCore.create({ clientName: "my-app" })
 
@@ -219,34 +211,14 @@ The SDK is a layered stack. Use as much or as little as you need:
 
 | Package | What it does |
 |---------|-------------|
-| `@cline/sdk` | Everything you need -- install this one |
 | `@cline/core` | Sessions, persistence, built-in tools, config discovery, RPC |
 | `@cline/agents` | Stateless agent loop with tool execution and streaming |
 | `@cline/llms` | LLM provider gateway (Anthropic, OpenAI, Google, Bedrock, Mistral, and more) |
 | `@cline/shared` | Types, tool creation helpers, hook engine |
 
-`@cline/sdk` is an alias for `@cline/core` that re-exports from all packages, so a single install gives you the full API. The individual packages are available if you want a minimal dependency footprint.
-
-## CLI
-
-The Cline CLI gives you terminal access to the full SDK:
-
-```bash
-# Interactive agent
-cline
-
-# Single prompt
-cline "Refactor the auth module to use JWT"
-
-# Schedule an agent to run daily
-cline schedule create "PR summary" --cron "0 9 * * MON-FRI" --prompt "Summarize open PRs"
-
-# Connect a Telegram bot created with @BotFather
-cline connect telegram -k "$TELEGRAM_BOT_TOKEN"
-# Then send /help or /start to the bot in Telegram
-```
-
-For Telegram-specific connector behavior, see [`apps/cli/src/connectors/adapters/telegram.md`](./apps/cli/src/connectors/adapters/telegram.md).
+`@cline/core` re-exports the public agent, provider, and shared contracts needed
+by stateful hosts. The lower-level packages remain available when a consumer
+wants a smaller dependency footprint.
 
 ## Providers
 

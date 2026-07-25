@@ -15,13 +15,9 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 | `@cline/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
 | `@cline/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@cline/core/hub`, `@cline/core/hub/daemon-entry`) |
 
-### Apps
+### Host
 
-- `apps/cli`: CLI host and local hub management
-- `apps/examples/desktop-app`: Tauri + Next.js desktop app example
-- `apps/examples/vscode`: VS Code extension example
-- `apps/examples/menubar`: hub notification menubar example
-- `examples`: plugin, hook, and cron automation examples (customizations upon Cline SDK)
+- `apps/vscode`: VS Code extension, webview, and testing platform
 
 ## Development Workflow
 
@@ -30,10 +26,9 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 | Command | Purpose |
 |---------|---------|
 | `bun install` | Install dependencies |
-| `bun run build` | Build SDK and CLI |
+| `bun run build` | Build SDK packages and the VS Code extension |
 | `bun run build:sdk` | Build SDK packages only |
-| `bun run dev` | Build in development mode |
-| `bun run cli` | Run CLI interactively |
+| `bun run dev` | Build the SDK and run the VS Code extension watcher |
 | `bun run test` | Run the Vitest suite |
 | `bun run types` | Typecheck all packages |
 | `bun run lint` / `format` / `fix` | Code quality and formatting |
@@ -47,9 +42,9 @@ bun -F @cline/agents build|test|typecheck
 
 ### Rebuilding
 
-Changes to published SDK packages require `bun run build:sdk`. Direct CLI runs pick up rebuilt packages immediately. Use `dev:*` scripts for automatic rebuilding during development.
-
-The CLI build (`bun -F @cline/cli build`) bundles packages from their compiled `dist/`, not their TypeScript source. If you edit a package and then build the CLI without rebuilding the package first, the CLI binary will silently include the old package code. Always run `bun run build:sdk` (or the relevant `bun -F @cline/<pkg> build`) before building the CLI when testing changes end-to-end.
+Changes to published SDK packages require `bun run build:sdk`. The VS Code
+extension resolves the packages from their compiled `dist/` output, so rebuild
+the SDK before extension typechecks, bundles, or end-to-end verification.
 
 Hub-backed hosts use shared workspace discovery and owned daemon startup logic. If you touch hub bootstrap, preserve the startup lock and owner-scoped discovery behavior so multiple builds can coexist safely.
 
@@ -59,8 +54,6 @@ Hub-backed hosts use shared workspace discovery and owned daemon startup logic. 
 - By default, child-process inspector ports are ephemeral (`--inspect=127.0.0.1:0`) to avoid collisions across parallel dev runs.
 - Set `CLINE_DEBUG_HOST` and `CLINE_DEBUG_PORT_BASE` to opt into deterministic role-based ports. With `CLINE_DEBUG_PORT_BASE=9230`, the roles map to hub `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`, fallback sandbox `9234`.
 - Fallback chain: `CLINE_BUILD_ENV` → `NODE_ENV` → Bun `--conditions=development`.
-- To debug the CLI process itself: `cd apps/cli && CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./src/index.ts "hey"`.
-- The workspace includes a VS Code launch config (`Launch CLI Debugger`) that uses `"type": "bun"` (requires `oven.bun-vscode`).
 
 ### Testing
 
@@ -92,58 +85,6 @@ Additional SDK flags: `--skip-tests`, `--skip-git-tags`.
 The script checks out `main` (and pulls latest) before starting. If the working tree is dirty it aborts.
 
 The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core) → optional `sdk-v{VERSION}` tag creation.
-
-### CLI Release
-
-The CLI is published through npm. Start releases from `apps/cli` with the `publish-cli` skill. The skill should guide the release prep, then offer the GitHub Actions publish path and the local publish path.
-
-Under the hood, every release starts the same way: prepare one release commit, then choose how to publish it.
-
-Prepare the release commit from the code you want to release:
-
-1. Draft user-facing release notes from the commits since the last `cli-vX.Y.Z` tag.
-2. Choose the release version.
-3. Update `apps/cli/package.json`.
-4. Add the approved notes to `apps/cli/CHANGELOG.md`.
-5. Run the requested checks.
-6. Commit the version and changelog changes.
-
-Then publish that release commit with one of these paths.
-
-Path A: publish from GitHub Actions.
-
-Use this for normal releases. Merge the release commit to `main`, create and push the matching release tag, then run:
-
-```sh
-git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
-git push origin refs/tags/cli-vX.Y.Z
-gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
-```
-
-The workflow checks out the provided `cli-vX.Y.Z` tag, verifies it matches `apps/cli/package.json`, builds the platform packages, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
-
-Path B: publish locally.
-
-Use this when publishing from an authenticated local machine. Start from a clean checkout at the release commit:
-
-```sh
-gh auth status
-npm whoami
-git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
-git push origin refs/tags/cli-vX.Y.Z
-bun release cli
-gh release create cli-vX.Y.Z --verify-tag --title "CLI vX.Y.Z" --notes "Paste the approved release notes here."
-```
-
-The local helper verifies the working tree is clean, verifies `cli-vX.Y.Z` points at `HEAD` locally and on `origin`, runs tests, builds platform packages, and publishes to npm.
-
-Nightly release:
-
-```sh
-gh workflow run cli-publish.yml -f publish_target=nightly
-```
-
-Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
 
 ### Manual SDK Publish
 

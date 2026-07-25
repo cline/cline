@@ -117,6 +117,6 @@ The package also exports storage and settings helpers such as:
 
 ## More Examples
 
-- Repo examples: [examples](https://github.com/cline/sdk/tree/main/examples), [apps/examples](https://github.com/cline/sdk/tree/main/apps/examples)
+- VS Code host: [`apps/vscode`](https://github.com/cline/cline/tree/main/apps/vscode)
 - Workspace overview: [README.md](https://github.com/cline/cline/blob/main/README.md)
 - API and architecture references: [DOC.md](https://github.com/cline/cline/blob/main/DOC.md), [ARCHITECTURE.md](https://github.com/cline/cline/blob/main/ARCHITECTURE.md)

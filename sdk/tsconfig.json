@@ -15,7 +15,6 @@
 				"./packages/agents/src/*",
 				"./packages/agents/src/*/index.ts"
 			],
-			"@cline/cline-hub": ["./apps/cline-hub/src/server.ts"],
 			"@cline/core": ["./packages/core/src/index.ts"],
 			"@cline/core/hub": ["./packages/core/src/hub/index.ts"],
 			"@cline/core/hub/daemon-entry": [
@@ -30,7 +29,6 @@
 			],
 			"@cline/llms": ["./packages/llms/src/index.ts"],
 			"@cline/llms/browser": ["./packages/llms/src/index.browser.ts"],
-			"@cline/sdk": ["./packages/sdk/src/index.ts"],
 			"@cline/shared": ["./packages/shared/src/index.ts"],
 			"@cline/shared/automation": ["./packages/shared/src/automation/index.ts"],
 			"@cline/shared/browser": ["./packages/shared/src/index.browser.ts"],

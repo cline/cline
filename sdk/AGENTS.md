@@ -30,7 +30,7 @@ flowchart TD
   shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"]
   llms --> agents & core
   agents --> core
-  core --> apps["CLI / VS Code / Code App"]
+  core --> vscode["VS Code extension"]
 ```
 
 Rules:
@@ -78,7 +78,6 @@ bun -F @cline/shared test
 bun -F @cline/llms test
 bun -F @cline/agents test
 bun -F @cline/core test:unit
-bun -F @cline/cli test:unit
 ```
 
 If a focused test command fails with a missing `@cline/*` export or missing `dist/` file, build the relevant dependency package or run `bun run build:sdk`, then rerun the same test command. Treat that as a workspace setup issue, not as evidence of a source-code bug.

@@ -162,8 +162,8 @@ truth for client-side manifests; transport clients must not invent a local path
 for a remote runtime.
 
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
-polling discovery. This covers package-manager updates that replace the CLI
-binary immediately before a command restarts the shared hub.
+polling discovery. This covers host updates that replace a runtime binary
+immediately before the shared hub restarts.
 
 Local hub discovery also carries the authentication contract for the shared
 daemon. On startup, the hub server generates a cryptographically random
@@ -184,14 +184,6 @@ targets: reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
-
-### Interactive CLI Startup
-
-1. `apps/cli` owns OpenTUI startup and must render the first frame without waiting for detached hub startup.
-2. Interactive sessions use `backendMode: "auto"` so an already-compatible hub can be reused immediately, while a missing hub is only prewarmed in the background and the TUI falls back to a local runtime for responsiveness.
-3. Hub-required flows such as `cline hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
-4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
-5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
 
 ### Remote-Config Managed Runtime
 
@@ -503,8 +495,6 @@ there is no separate schedules table, schedule store, or schedule runner.
 - `*.ts` — TypeScript source
 - `*.test.ts` — unit tests (Vitest)
 - `*.e2e.test.ts` — end-to-end tests requiring full integration
-- `*.ts` in examples — runnable example files (plugins, hooks)
-- `*.md` files in `apps/examples/` — documentation and markdown-based specs (cron, events)
 
 ### Key Type Locations
 
@@ -537,6 +527,4 @@ The following packages are published to npm:
 
 The following workspace apps are internal and not published as SDK packages:
 
-- `apps/cli` — CLI implementation
-- `apps/webview` — VS Code webview
-- `apps/examples` — example plugins and integrations
+- `apps/vscode` — VS Code extension, webview, and testing platform

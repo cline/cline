@@ -178,7 +178,7 @@ jobs:
 
       # Pack with Bun so workspace/catalog protocols are resolved in the tarball,
       # then publish that tarball with npm so npm trusted publishing can use GitHub OIDC.
-      # Publish sequentially in dependency order: shared → llms → agents → core → sdk
+      # Publish sequentially in dependency order: shared → llms → agents → core
       - name: Publish @cline/shared
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -227,18 +227,6 @@ jobs:
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
-      - name: Publish @cline/sdk
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-          CHANNEL: ${{ steps.channel.outputs.channel }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Publishing @cline/sdk@${VERSION} with tag '${CHANNEL}'..."
-          cd sdk/packages/sdk
-          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
-          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
-
       - name: Create package tags for production publish
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
         env:
@@ -247,7 +235,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for PKG in shared llms agents core sdk; do
+          for PKG in shared llms agents core; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"
@@ -267,8 +255,8 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           # The checkout is shallow and tagless, so fetch the release tags explicitly.
-          git fetch origin "+refs/tags/sdk/sdk/v*:refs/tags/sdk/sdk/v*"
-          PREV_TAG=$(git tag -l 'sdk/sdk/v*' | grep -vx "sdk/sdk/v${VERSION}" | sort -V | tail -1 || echo "")
+          git fetch origin "+refs/tags/sdk/core/v*:refs/tags/sdk/core/v*"
+          PREV_TAG=$(git tag -l 'sdk/core/v*' | grep -vx "sdk/core/v${VERSION}" | sort -V | tail -1 || echo "")
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Get Changelog Entry
@@ -286,12 +274,12 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: sdk/sdk/v${{ steps.version.outputs.version }}
+          tag_name: sdk/core/v${{ steps.version.outputs.version }}
           name: "SDK v${{ steps.version.outputs.version }}"
           body: |
             ${{ steps.changelog.outputs.content }}
 
-            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...sdk/sdk/v{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.version) || '' }}
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...sdk/core/v{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.version) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -306,14 +294,12 @@ jobs:
           echo "  - @cline/llms@${VERSION}"
           echo "  - @cline/agents@${VERSION}"
           echo "  - @cline/core@${VERSION}"
-          echo "  - @cline/sdk@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
             echo "Created git tags:"
             echo "  - sdk/shared/v${VERSION}"
             echo "  - sdk/llms/v${VERSION}"
             echo "  - sdk/agents/v${VERSION}"
             echo "  - sdk/core/v${VERSION}"
-            echo "  - sdk/sdk/v${VERSION}"
           fi
 
       - name: Post release to Slack
@@ -337,4 +323,4 @@ jobs:
               - type: "context"
                 elements:
                   - type: "mrkdwn"
-                    text: "<https://www.npmjs.com/package/@cline/sdk/v/${{ steps.version.outputs.version }}|View on npm>${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...sdk/sdk/v{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.version) || '' }}"
+                    text: "<https://www.npmjs.com/package/@cline/core/v/${{ steps.version.outputs.version }}|View on npm>${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...sdk/core/v{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.version) || '' }}"

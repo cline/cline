@@ -3,21 +3,17 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: expected non-null assertions */
 
 /**
- * Unified release script for SDK packages and CLI.
+ * Release script for the retained SDK packages.
  *
  * Usage:
  *   bun release sdk                          # auto-increment patch, publish SDK
  *   bun release sdk 0.1.0                    # publish SDK at exact version
  *   bun release sdk 0.1.0 --tag next         # publish SDK with npm tag
- *   bun release cli                          # publish CLI from the current tagged commit
- *   bun release cli 0.1.0                    # require apps/cli/package.json to match
- *   bun release cli --dry-run                # preview without side effects
  *   bun release sdk --skip-tests             # skip the test suite
  *   bun release sdk --skip-git-tags          # skip git tag creation
  */
 
-import { constants } from "node:fs";
-import { copyFile, readdir, readFile, unlink } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -40,15 +36,13 @@ const npmTag = values.tag!;
 const skipTests = values["skip-tests"]!;
 const skipGitTags = values["skip-git-tags"]!;
 
-const target = positionals[0] as "sdk" | "cli" | undefined;
+const target = positionals[0] as "sdk" | undefined;
 const explicitVersion = positionals[1];
 
-if (!target || !["sdk", "cli"].includes(target)) {
-	console.error("Usage: bun release <sdk|cli> [version] [options]");
+if (target !== "sdk") {
+	console.error("Usage: bun release sdk [version] [options]");
 	console.error("");
-	console.error("Targets:");
-	console.error("  sdk   Publish @cline/{shared,llms,agents,core,sdk} to npm");
-	console.error("  cli   Publish cline from an existing cli-vX.Y.Z git tag");
+	console.error("Publishes @cline/{shared,llms,agents,core} to npm.");
 	console.error("");
 	console.error("Options:");
 	console.error(
@@ -63,7 +57,6 @@ if (!target || !["sdk", "cli"].includes(target)) {
 	console.error("  bun release sdk");
 	console.error("  bun release sdk 0.1.0");
 	console.error("  bun release sdk 0.1.0 --tag next");
-	console.error("  bun release cli");
 	process.exit(1);
 }
 
@@ -74,12 +67,11 @@ if (explicitVersion && !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(explicitVersion)) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SDK_PUBLISH_ORDER = ["shared", "llms", "agents", "core", "sdk"] as const;
+const SDK_PUBLISH_ORDER = ["shared", "llms", "agents", "core"] as const;
 const MAIN_BRANCH = "main";
 const root = join(import.meta.dir, "..", "..");
 const sdkRoot = join(import.meta.dir, "..");
 const packagesDir = join(sdkRoot, "packages");
-const cliDir = join(sdkRoot, "../apps/cli");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -120,36 +112,6 @@ async function run(
 		throw new Error(`Command failed (exit ${exitCode}): ${label}`);
 	}
 	return stdout;
-}
-
-async function stageSdkReadmeForPublish(
-	workspace: (typeof SDK_PUBLISH_ORDER)[number],
-): Promise<string | undefined> {
-	if (workspace !== "sdk") {
-		return undefined;
-	}
-
-	const destination = join(packagesDir, "sdk", "README.md");
-
-	if (dryRun) {
-		console.log(`  [dry-run] Copy README.md to ${destination}`);
-		return undefined;
-	}
-
-	await copyFile(
-		join(sdkRoot, "README.md"),
-		destination,
-		constants.COPYFILE_EXCL,
-	);
-	return destination;
-}
-
-async function removeStagedSdkReadme(path: string | undefined): Promise<void> {
-	if (!path) {
-		return;
-	}
-
-	await unlink(path);
 }
 
 async function confirm(prompt: string): Promise<boolean> {
@@ -200,31 +162,6 @@ async function resolveVersion(): Promise<string> {
 	);
 }
 
-async function resolveCliVersion(): Promise<string> {
-	const raw = await readFile(join(cliDir, "package.json"), "utf-8");
-	const pkg: unknown = JSON.parse(raw);
-	const version =
-		pkg !== null &&
-		typeof pkg === "object" &&
-		!Array.isArray(pkg) &&
-		"version" in pkg &&
-		typeof pkg.version === "string"
-			? pkg.version
-			: undefined;
-	if (!version) {
-		throw new Error("Could not determine version from apps/cli/package.json.");
-	}
-	if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
-		throw new Error(`Invalid apps/cli/package.json version: ${version}`);
-	}
-	if (explicitVersion && explicitVersion !== version) {
-		throw new Error(
-			`CLI version argument ${explicitVersion} does not match apps/cli/package.json version ${version}. Update apps/cli/package.json first.`,
-		);
-	}
-	return version;
-}
-
 async function ensureMainBranch(): Promise<void> {
 	const branch = (
 		await run(["git", "rev-parse", "--abbrev-ref", "HEAD"], { stdout: "pipe" })
@@ -253,107 +190,6 @@ async function ensureMainBranch(): Promise<void> {
 	console.log(`  Switching from ${branch} to ${MAIN_BRANCH}...`);
 	await run(["git", "checkout", MAIN_BRANCH]);
 	await run(["git", "pull", "--ff-only"]);
-}
-
-async function ensureCleanWorkingTree(): Promise<void> {
-	const status = (
-		await run(["git", "status", "--porcelain"], { stdout: "pipe" })
-	).trim();
-	if (status) {
-		throw new Error(
-			`Working tree is dirty. Commit or stash changes before releasing.\n${status}`,
-		);
-	}
-}
-
-async function ensureCliReleaseTag(version: string): Promise<void> {
-	const expectedTag = `cli-v${version}`;
-	if (dryRun) {
-		console.log(`  [dry-run] Required pushed git tag: ${expectedTag}`);
-		return;
-	}
-	const headCommit = (
-		await run(["git", "rev-parse", "HEAD"], { stdout: "pipe" })
-	).trim();
-	const shortHead = headCommit.slice(0, 12);
-	const tagsAtHead = (
-		await run(["git", "tag", "--points-at", "HEAD"], { stdout: "pipe" })
-	)
-		.split(/\r?\n/)
-		.map((tag) => tag.trim())
-		.filter(Boolean);
-	if (!tagsAtHead.includes(expectedTag)) {
-		const localTagExists = (
-			await run(["git", "tag", "--list", expectedTag], { stdout: "pipe" })
-		).trim();
-		if (localTagExists) {
-			const taggedCommit = (
-				await run(["git", "rev-parse", `${expectedTag}^{commit}`], {
-					stdout: "pipe",
-				})
-			).trim();
-			throw new Error(
-				[
-					`Tag ${expectedTag} points at ${taggedCommit.slice(0, 12)}, but current HEAD is ${shortHead}.`,
-					"Check out the tagged commit before publishing:",
-					`  git checkout ${expectedTag}`,
-				].join("\n"),
-			);
-		}
-		throw new Error(
-			`Current HEAD is not tagged ${expectedTag}. Create and push the tag before publishing.`,
-		);
-	}
-	const localTagCommit = (
-		await run(
-			["git", "rev-parse", "-q", "--verify", `${expectedTag}^{commit}`],
-			{
-				stdout: "pipe",
-			},
-		)
-	).trim();
-	if (localTagCommit !== headCommit) {
-		throw new Error(
-			`Current commit is not tagged ${expectedTag}. Create the tag on HEAD before publishing.`,
-		);
-	}
-
-	const remoteRefs = (
-		await run(
-			[
-				"git",
-				"ls-remote",
-				"origin",
-				`refs/tags/${expectedTag}`,
-				`refs/tags/${expectedTag}^{}`,
-			],
-			{ stdout: "pipe" },
-		)
-	)
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter(Boolean);
-	const remotePeeledRef = remoteRefs.find((line) =>
-		line.endsWith(`refs/tags/${expectedTag}^{}`),
-	);
-	const remoteTagRef = remoteRefs.find((line) =>
-		line.endsWith(`refs/tags/${expectedTag}`),
-	);
-	const remoteTagCommit = (remotePeeledRef ?? remoteTagRef)?.split(/\s+/)[0];
-	if (remoteTagCommit !== headCommit) {
-		if (remoteTagCommit) {
-			throw new Error(
-				[
-					`Remote tag ${expectedTag} points at ${remoteTagCommit.slice(0, 12)}, but current HEAD is ${shortHead}.`,
-					"Check out the tagged commit or push the correct tag before publishing.",
-				].join("\n"),
-			);
-		}
-		throw new Error(
-			`Remote tag ${expectedTag} must exist on origin and point at HEAD before publishing.`,
-		);
-	}
-	console.log(`  Found pushed git tag: ${expectedTag}`);
 }
 
 async function getPublishedPackages(): Promise<
@@ -424,14 +260,9 @@ async function releaseSDK(version: string): Promise<number> {
 		const pkgDir = join(packagesDir, workspace);
 		const name = `@cline/${workspace}`;
 		console.log(`  Publishing ${name}@${version} with tag '${npmTag}'...`);
-		const stagedReadme = await stageSdkReadmeForPublish(workspace);
-		try {
-			await run(["bun", "publish", "--tag", npmTag, "--access", "public"], {
-				cwd: pkgDir,
-			});
-		} finally {
-			await removeStagedSdkReadme(stagedReadme);
-		}
+		await run(["bun", "publish", "--tag", npmTag, "--access", "public"], {
+			cwd: pkgDir,
+		});
 	}
 
 	// Step 5: Git tag
@@ -473,76 +304,11 @@ async function releaseSDK(version: string): Promise<number> {
 	return 0;
 }
 
-// ── CLI Release ───────────────────────────────────────────────────────────────
-// Builds cross-platform binaries via apps/cli/script/build.ts, then publishes
-// the generated platform packages and wrapper package to npm.
-
-async function releaseCLI(version: string): Promise<number> {
-	console.log(`\nRelease CLI`);
-	console.log(`  Version:     ${version}`);
-	console.log(`  Git tag:     cli-v${version}`);
-	console.log(`  Tag:         ${npmTag}`);
-	console.log(`  Dry run:     ${dryRun}`);
-	console.log(`  Skip tests:  ${skipTests}`);
-
-	if (!dryRun) {
-		const ok = await confirm("\nProceed with CLI release?");
-		if (!ok) {
-			console.log("Aborted.");
-			return 1;
-		}
-	}
-
-	// Step 1: Tests
-	if (!skipTests) {
-		header("Step 1/3: Running tests");
-		await run(["bun", "run", "test"]);
-	} else {
-		header("Step 1/3: Skipping tests (--skip-tests)");
-	}
-
-	// Step 2: Build all platform binaries
-	header("Step 2/3: Cross-compiling for all platforms");
-	await run(["bun", "script/build.ts", "--install-native-variants"], {
-		cwd: cliDir,
-	});
-
-	// Step 3: Publish to npm
-	header("Step 3/3: Publishing to npm");
-	const npmArgs = ["bun", "script/publish-npm.ts", "--tag", npmTag];
-	if (dryRun) {
-		npmArgs.push("--dry-run");
-	}
-	await run(npmArgs, { cwd: cliDir });
-
-	console.log(`\n${"═".repeat(60)}`);
-	if (dryRun) {
-		console.log("  Dry run complete. CLI was not published.");
-	} else {
-		console.log(`  CLI v${version} published to npm.`);
-		console.log("");
-		console.log("  Install via npm:");
-		console.log("    npm install -g cline");
-	}
-	console.log(`${"═".repeat(60)}\n`);
-
-	return 0;
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-let exitCode: number;
-if (target === "sdk") {
-	header("Checking branch");
-	await ensureMainBranch();
-	const version = await resolveVersion();
-	exitCode = await releaseSDK(version);
-} else {
-	header("Checking CLI release tag");
-	const version = await resolveCliVersion();
-	await ensureCleanWorkingTree();
-	await ensureCliReleaseTag(version);
-	exitCode = await releaseCLI(version);
-}
+header("Checking branch");
+await ensureMainBranch();
+const version = await resolveVersion();
+const exitCode = await releaseSDK(version);
 
 process.exit(exitCode);

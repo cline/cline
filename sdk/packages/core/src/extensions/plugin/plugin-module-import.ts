@@ -11,7 +11,6 @@ const HOST_REQUIRE = createRequire(import.meta.url);
 const WORKSPACE_ROOT = resolve(MODULE_DIR, "..", "..", "..", "..", "..");
 const WORKSPACE_ALIASES = collectWorkspaceAliases(WORKSPACE_ROOT);
 const HOST_PROVIDED_SDK_SPECIFIERS = [
-	"@cline/sdk",
 	"@cline/agents",
 	"@cline/core",
 	"@cline/core/hub",
@@ -45,7 +44,6 @@ export interface ImportPluginModuleOptions {
 function collectWorkspaceAliases(root: string): Record<string, string> {
 	const aliases: Record<string, string> = {};
 	const candidates: Record<string, string> = {
-		"@cline/sdk": resolve(root, "packages/sdk/src/index.ts"),
 		"@cline/agents": resolve(root, "packages/agents/src/index.ts"),
 		"@cline/core": resolve(root, "packages/core/src/index.ts"),
 		"@cline/llms": resolve(root, "packages/llms/src/index.ts"),
