@@ -314,7 +314,7 @@ describe("Cline benchmark configuration and matrix", () => {
 		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
 		const matrix = buildRunMatrix(checkpoint)
 		expect(checkpoint.clineVersion).toBe("3.0.46-nightly.1784896623")
-		expect(checkpoint.localCoreRevision).toBe("587ebe82b3a2337b229d22ed097051215ba145f8")
+		expect(checkpoint.localCoreRevision).toBe("9799914fa0e0082d27d72267f11eb959975706d0")
 		expect(matrix).toHaveLength(24)
 		expect(new Set(checkpoint.tasks).size).toBe(8)
 		expect(matrix.filter((run) => run.model.id === "cline/auto")).toHaveLength(8)
