@@ -1,17 +1,68 @@
-import { describe, expect, it } from "vitest";
+import {
+	type AddressInfo,
+	createServer,
+	type Server,
+	type Socket,
+} from "node:net";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Config } from "../../utils/types";
 import {
 	createInteractiveComputerUser,
 	resolveHelperModelId,
 } from "./computer-user";
 
-// Display overrides keep createComputerUseToolFromEnv from querying a live
-// backend; the socket is only dialed when an action actually runs.
-const enabledEnv = {
-	CLINE_COMPUTER_USE_PORT: "51999",
-	CLINE_COMPUTER_USE_DISPLAY_WIDTH: "1920",
-	CLINE_COMPUTER_USE_DISPLAY_HEIGHT: "1080",
-} as NodeJS.ProcessEnv;
+/**
+ * Stub qbt backend answering get_display_info, which tool construction
+ * always performs (the backend is the sole source of truth for display
+ * dimensions). Tracks sockets so teardown can force-close the tool's
+ * internal client connection.
+ */
+function startStubBackend(): Promise<{
+	server: Server;
+	port: number;
+	destroyConnections: () => void;
+}> {
+	const sockets = new Set<Socket>();
+	return new Promise((resolve) => {
+		const server = createServer((socket: Socket) => {
+			sockets.add(socket);
+			socket.on("close", () => sockets.delete(socket));
+			let buffer = "";
+			socket.setEncoding("utf8");
+			socket.on("data", (chunk: string) => {
+				buffer += chunk;
+				let newlineIndex = buffer.indexOf("\n");
+				while (newlineIndex >= 0) {
+					const line = buffer.slice(0, newlineIndex);
+					buffer = buffer.slice(newlineIndex + 1);
+					if (line.trim().length > 0) {
+						const request = JSON.parse(line) as { id: number };
+						socket.write(
+							`${JSON.stringify({
+								id: request.id,
+								ok: true,
+								display: { widthPx: 1920, heightPx: 1080 },
+							})}\n`,
+						);
+					}
+					newlineIndex = buffer.indexOf("\n");
+				}
+			});
+		});
+		server.listen(0, "127.0.0.1", () => {
+			const address = server.address() as AddressInfo;
+			resolve({
+				server,
+				port: address.port,
+				destroyConnections: () => {
+					for (const socket of sockets) {
+						socket.destroy();
+					}
+				},
+			});
+		});
+	});
+}
 
 function makeConfig(): Config {
 	return {
@@ -27,6 +78,19 @@ function makeSettings(settings: Record<string, unknown> | undefined) {
 }
 
 describe("createInteractiveComputerUser", () => {
+	let server: Server | undefined;
+	let destroyConnections: (() => void) | undefined;
+
+	afterEach(async () => {
+		destroyConnections?.();
+		destroyConnections = undefined;
+		if (!server) {
+			return;
+		}
+		await new Promise<void>((resolve) => server?.close(() => resolve()));
+		server = undefined;
+	});
+
 	it("returns undefined when computer use is not enabled by env", async () => {
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
@@ -38,16 +102,26 @@ describe("createInteractiveComputerUser", () => {
 	});
 
 	it("returns undefined when the Anthropic provider has no api key", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings(undefined),
 			notifyDriver: () => {},
-			env: enabledEnv,
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+			} as NodeJS.ProcessEnv,
 		});
 		expect(result).toBeUndefined();
 	});
 
 	it("exposes the four driver tools when enabled and configured", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({
@@ -55,7 +129,9 @@ describe("createInteractiveComputerUser", () => {
 				model: "claude-sonnet-4-6",
 			}),
 			notifyDriver: () => {},
-			env: enabledEnv,
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+			} as NodeJS.ProcessEnv,
 		});
 		expect(result).toBeDefined();
 		expect(result?.driverTools.map((tool) => tool.name).sort()).toEqual([
