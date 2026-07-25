@@ -235,6 +235,8 @@ seed_profile() {
 
 	cat >"$dir/vscode-user/User/settings.json" <<'JSON'
 {
+  "window.zoomLevel": 0,
+  "window.zoomPerWindow": false,
   "workbench.startupEditor": "none",
   "workbench.tips.enabled": false,
   "workbench.welcomePage.walkthroughs.openOnInstall": false,
