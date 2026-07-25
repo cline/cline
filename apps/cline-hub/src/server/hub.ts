@@ -3,6 +3,7 @@ import {
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubUIClient,
+	probeHubServer,
 	rememberRecoverableLocalHubUrl,
 	stopLocalHubServerGracefully,
 	toHubHealthUrl,
@@ -307,6 +308,16 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 	ctx.initialHubEventEmitted = false;
 }
 
+async function isAttachedHubReachable(ctx: HubContext): Promise<boolean> {
+	if (!ctx.hubUrl) {
+		return false;
+	}
+	const record = await probeHubServer(ctx.hubUrl, {
+		authToken: ctx.hubAuthToken,
+	}).catch(() => undefined);
+	return Boolean(record);
+}
+
 export async function restartHub(ctx: HubContext): Promise<void> {
 	ctx.broadcast({
 		type: "notification",
@@ -320,7 +331,7 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 		console.warn("stopLocalHubServerGracefully failed:", error);
 		return false;
 	});
-	if (!stopped) {
+	if (!stopped && (await isAttachedHubReachable(ctx))) {
 		throw new Error("Unable to stop the current Cline Hub.");
 	}
 	await attachHub(ctx, { preserveDashboard: true });

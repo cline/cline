@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
 	createCline: vi.fn(),
 	createUiClient: vi.fn(),
 	ensureDetachedHubServer: vi.fn(),
+	probeHubServer: vi.fn(),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	stopLocalHubServerGracefully: vi.fn(),
 	rejectAllPendingApprovals: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@cline/core", () => ({
 		return mocks.createUiClient(options);
 	}),
 	ensureDetachedHubServer: mocks.ensureDetachedHubServer,
+	probeHubServer: mocks.probeHubServer,
 	rememberRecoverableLocalHubUrl: mocks.rememberRecoverableLocalHubUrl,
 	stopLocalHubServerGracefully: mocks.stopLocalHubServerGracefully,
 	toHubHealthUrl: (url: string) => url,
@@ -69,6 +71,8 @@ describe("hub attachment lifecycle", () => {
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "new-token",
 		});
+		mocks.probeHubServer.mockReset();
+		mocks.probeHubServer.mockResolvedValue(undefined);
 		mocks.rememberRecoverableLocalHubUrl.mockClear();
 		mocks.stopLocalHubServerGracefully.mockReset();
 		mocks.stopLocalHubServerGracefully.mockResolvedValue(true);
@@ -146,10 +150,15 @@ describe("hub attachment lifecycle", () => {
 
 	it("does not claim a restart when the current hub cannot stop", async () => {
 		mocks.stopLocalHubServerGracefully.mockResolvedValue(false);
+		mocks.probeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+		});
 		const oldCline = createClineClient();
 		const oldUiClient = createUiClient();
 		const { HubContext } = await import("./state");
 		const ctx = new HubContext();
+		ctx.hubUrl = "ws://127.0.0.1:25463/hub";
+		ctx.hubAuthToken = "old-token";
 		ctx.cline = oldCline as never;
 		ctx.uiClient = oldUiClient as never;
 		const { restartHub } = await import("./hub");
@@ -158,8 +167,43 @@ describe("hub attachment lifecycle", () => {
 			"Unable to stop the current Cline Hub.",
 		);
 
+		expect(mocks.probeHubServer).toHaveBeenCalledWith(ctx.hubUrl, {
+			authToken: "old-token",
+		});
 		expect(mocks.ensureDetachedHubServer).not.toHaveBeenCalled();
 		expect(oldUiClient.close).not.toHaveBeenCalled();
 		expect(oldCline.dispose).not.toHaveBeenCalled();
+	});
+
+	it("reattaches when the current hub crashed before it could stop", async () => {
+		mocks.stopLocalHubServerGracefully.mockResolvedValue(false);
+		const oldCline = createClineClient();
+		const oldUiClient = createUiClient();
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient();
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		ctx.hubUrl = "ws://127.0.0.1:25463/hub";
+		ctx.hubAuthToken = "old-token";
+		ctx.cline = oldCline as never;
+		ctx.uiClient = oldUiClient as never;
+		const { restartHub } = await import("./hub");
+
+		await restartHub(ctx);
+
+		expect(mocks.probeHubServer).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			{ authToken: "old-token" },
+		);
+		expect(mocks.ensureDetachedHubServer).toHaveBeenCalledWith("/workspace", {
+			preserveDashboard: true,
+		});
+		expect(nextUiClient.connect).toHaveBeenCalledOnce();
+		expect(oldUiClient.close).toHaveBeenCalledOnce();
+		expect(oldCline.dispose).toHaveBeenCalledOnce();
+		expect(ctx.uiClient).toBe(nextUiClient);
+		expect(ctx.cline).toBe(nextCline);
 	});
 });
