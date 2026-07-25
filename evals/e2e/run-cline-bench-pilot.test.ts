@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+	appendFileSync,
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs"
 import { hostname, tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import {
 	acquireRunLock,
 	createBudgetLedger,
@@ -23,14 +32,18 @@ import {
 	assertLocalCoreVirtualModelsInCatalog,
 	assertModelTransportPrerequisites,
 	assertReusableFingerprint,
+	assertRouteTracePrerequisites,
 	assertTraceIngestionCompatibility,
 	buildRunMatrix,
 	type ExecutionProvenance,
 	fingerprintExecution,
 	hashDirectoryTree,
 	liveCostStopUsd,
+	loadModelRouteTraces,
+	loadRouteTraceFile,
 	localCoreHarborArguments,
 	matchRouteTraces,
+	missingRouteEvidenceStopReason,
 	modelTransportHarborArguments,
 	type PilotConfig,
 	type PilotReport,
@@ -40,6 +53,7 @@ import {
 	readLiveUsage,
 	readRecoveredFailedRun,
 	readTrialSessionIdentity,
+	resolveRouteTracesPath,
 	reuseCompletedRun,
 	verifierHarborArguments,
 } from "./run-cline-bench-pilot"
@@ -1048,6 +1062,86 @@ describe("Cline benchmark recovery, privacy, and routing evidence", () => {
 				undefined,
 			),
 		).not.toThrow()
+	})
+
+	test("requires traces only when selected execution rows include a local-Core virtual model", () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		const traceRoot = mkdtempSync(join(tmpdir(), "cline-bench-route-preflight-"))
+		temporaryDirectories.push(traceRoot)
+		const configuredPath = join(traceRoot, "routes.jsonl")
+		const explicitPath = join(tmpdir(), "explicit-router-traces.jsonl")
+		writeFileSync(configuredPath, "", { mode: 0o600 })
+
+		expect(resolveRouteTracesPath(undefined, configuredPath)).toBe(resolve(configuredPath))
+		expect(resolveRouteTracesPath(explicitPath, configuredPath)).toBe(resolve(explicitPath))
+		expect(() => resolveRouteTracesPath("relative/routes.jsonl")).toThrow("absolute")
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, undefined, 1)).toThrow(
+			"AUTO_ROUTER_BENCHMARK_TRACE_PATH",
+		)
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, configuredPath, 1)).not.toThrow()
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, undefined, 3)).not.toThrow()
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, undefined, undefined, 2)).not.toThrow()
+		expect(() => assertRouteTracePrerequisites(checkpoint, false, undefined, 1)).not.toThrow()
+	})
+
+	test("preflights an existing private parseable trace before local-Core virtual execution", () => {
+		const checkpoint = readConfig(join(import.meta.dir, "cline-bench-router-checkpoint.config.json"))
+		const traceRoot = mkdtempSync(join(tmpdir(), "cline-bench-route-preflight-"))
+		temporaryDirectories.push(traceRoot)
+		const tracePath = join(traceRoot, "routes.jsonl")
+
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, tracePath, 1)).toThrow("does not exist")
+		writeFileSync(tracePath, "", { mode: 0o644 })
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, tracePath, 1)).toThrow("private")
+		chmodSync(tracePath, 0o600)
+		writeFileSync(tracePath, "{not-json}\n")
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, tracePath, 1)).toThrow()
+		writeFileSync(tracePath, "")
+		expect(() => assertRouteTracePrerequisites(checkpoint, true, tracePath, 1)).not.toThrow()
+	})
+
+	test("reloads a private route trace so Core appends from the current run are visible", () => {
+		const traceRoot = mkdtempSync(join(tmpdir(), "cline-bench-route-traces-"))
+		temporaryDirectories.push(traceRoot)
+		const tracePath = join(traceRoot, "routes.jsonl")
+		const route = (timestamp: string) =>
+			JSON.stringify({
+				taskHash: "a".repeat(64),
+				requestedModel: "cline/auto",
+				selectedModel: "z-ai/glm-5.2",
+				timestamp,
+			})
+
+		writeFileSync(tracePath, `${route("2026-01-01T00:00:00Z")}\n`, { mode: 0o600 })
+		expect(loadRouteTraceFile(tracePath)).toHaveLength(1)
+		appendFileSync(tracePath, `${route("2026-01-01T00:00:01Z")}\n`)
+		expect(loadRouteTraceFile(tracePath)).toHaveLength(2)
+	})
+
+	test("does not load traces for fixed models and stops after missing virtual evidence", () => {
+		const missingPath = join(tmpdir(), "does-not-exist.jsonl")
+		const fixedModel: PilotConfig["models"][number] = {
+			id: "zai/glm-5.2",
+			transport: "local-core",
+			perTaskBudgetUsd: 2.2,
+			perModelBudgetUsd: 8.8,
+		}
+		const virtualModel: PilotConfig["models"][number] = {
+			id: "cline/auto",
+			transport: "local-core",
+			perTaskBudgetUsd: 2.2,
+			perModelBudgetUsd: 17.6,
+			allowedCandidates: ["z-ai/glm-5.2"],
+		}
+
+		expect(loadModelRouteTraces(fixedModel, missingPath)).toEqual([])
+		expect(missingRouteEvidenceStopReason(fixedModel, { routeEvidence: "missing", task: "task-a" })).toBeUndefined()
+		expect(
+			missingRouteEvidenceStopReason(virtualModel, { routeEvidence: "verified", task: "task-a" }),
+		).toBeUndefined()
+		expect(missingRouteEvidenceStopReason(virtualModel, { routeEvidence: "missing", task: "task-a" })).toBe(
+			"missing route evidence for cline/auto × task-a",
+		)
 	})
 
 	test("parses privacy-safe route traces and rejects unknown fields", () => {

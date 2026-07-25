@@ -157,12 +157,26 @@ Axios, Telegram, Every Plugin, and V-Edit. All three arms use the same local
 Core transport. It reserves no more than $35.20:
 
 ```bash
-CLINE_API_KEY="$CLINE_API_KEY" \
+trace_path="$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint-traces.jsonl"
+mkdir -p "$(dirname "$trace_path")"
+chmod 700 "$(dirname "$trace_path")"
+if [ ! -e "$trace_path" ]; then install -m 600 /dev/null "$trace_path"; fi
+chmod 600 "$trace_path"
+
+AUTO_ROUTER_BENCHMARK_TRACE_PATH="$trace_path" \
+  CLINE_API_KEY="$CLINE_API_KEY" \
   bun evals/e2e/run-cline-bench-pilot.ts --execute --wave 1 \
   --config evals/e2e/cline-bench-router-checkpoint.config.json \
   --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint" \
   --local-core-url http://localhost:17777
 ```
+
+Launch Core with the same absolute `AUTO_ROUTER_BENCHMARK_TRACE_PATH`. For a
+selected execution containing local-Core `cline/auto` or `cline-pass/auto`,
+the runner requires an existing private, parseable trace file before creating
+the jobs root or reserving budget. It reloads the JSONL after each virtual-model
+result so Core's newly appended decisions are attached immediately. An explicit
+absolute `--route-traces` path overrides the environment variable.
 
 Inspect wave 1 outcomes, route evidence, and the provider-side account limit
 before releasing wave 2. Wave 2 adds GPT-5.6 Sol on all eight tasks, reserves
@@ -170,7 +184,8 @@ no more than another $14.40 through the direct Cline API, and shares the same
 $50 campaign ledger and execution fingerprint:
 
 ```bash
-CLINE_API_KEY="$CLINE_API_KEY" \
+AUTO_ROUTER_BENCHMARK_TRACE_PATH="$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint-traces.jsonl" \
+  CLINE_API_KEY="$CLINE_API_KEY" \
   bun evals/e2e/run-cline-bench-pilot.ts --execute --wave 2 \
   --config evals/e2e/cline-bench-router-checkpoint.config.json \
   --jobs-root "$HOME/.cache/cline-auto-sdlc-bench/router-checkpoint" \

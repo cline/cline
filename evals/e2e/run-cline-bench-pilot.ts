@@ -149,6 +149,16 @@ function fail(message: string): never {
 	throw new Error(message)
 }
 
+export function resolveRouteTracesPath(
+	explicitPath?: string,
+	configuredPath = process.env.AUTO_ROUTER_BENCHMARK_TRACE_PATH,
+): string | undefined {
+	const selected = explicitPath?.trim() || configuredPath?.trim()
+	if (!selected) return undefined
+	if (!isAbsolute(selected)) fail("route trace path must be absolute")
+	return resolve(selected)
+}
+
 function parseArgs(argv: string[]) {
 	let execute = false
 	let configPath = defaultConfigPath
@@ -182,7 +192,7 @@ function parseArgs(argv: string[]) {
 		} else if (arg === "--local-core-url") {
 			localCoreUrl = normalizeLocalCoreUrl(argv[++index] ?? fail("--local-core-url requires a URL"))
 		} else if (arg === "--route-traces") {
-			routeTracesPath = resolve(argv[++index] ?? fail("--route-traces requires a path"))
+			routeTracesPath = argv[++index] ?? fail("--route-traces requires a path")
 		} else if (arg === "--ingest-route-traces") {
 			ingestRouteTraces = true
 		} else if (arg === "--help" || arg === "-h") {
@@ -197,7 +207,8 @@ Options:
   --only-run <n>      Reuse prior work but execute only matrix run n
   --wave <n>          Execute only the selected staged wave
   --local-core-url    Local Core URL (strictly localhost:7777 or :17777)
-  --route-traces      Privacy-safe Core route trace JSON/JSONL
+  --route-traces <path>
+                      Privacy-safe Core route JSON/JSONL (overrides AUTO_ROUTER_BENCHMARK_TRACE_PATH)
   --ingest-route-traces
                       Attach traces to an existing report without model calls
   --help              Show this help`)
@@ -208,8 +219,11 @@ Options:
 	}
 
 	if (stopAfter && onlyRun) fail("--stop-after and --only-run cannot be combined")
+	routeTracesPath = resolveRouteTracesPath(routeTracesPath)
 	if (ingestRouteTraces && execute) fail("--ingest-route-traces cannot be combined with --execute")
-	if (ingestRouteTraces && !routeTracesPath) fail("--ingest-route-traces requires --route-traces")
+	if (ingestRouteTraces && !routeTracesPath) {
+		fail("--ingest-route-traces requires --route-traces or AUTO_ROUTER_BENCHMARK_TRACE_PATH")
+	}
 	if (ingestRouteTraces && !jobsRoot) fail("--ingest-route-traces requires --jobs-root")
 	if (execute && !jobsRoot) fail("--execute requires an explicit --jobs-root")
 	return {
@@ -1467,6 +1481,29 @@ export function assertModelTransportPrerequisites(config: PilotConfig, localCore
 	}
 }
 
+export function assertRouteTracePrerequisites(
+	config: PilotConfig,
+	execute: boolean,
+	routeTracesPath?: string,
+	onlyRun?: number,
+	wave?: number,
+): void {
+	if (!execute) return
+	const requiresTrace = buildRunMatrix(config).some(
+		(run, index) =>
+			(!onlyRun || index + 1 === onlyRun) &&
+			(!wave || run.wave === wave) &&
+			run.model.transport === "local-core" &&
+			(run.model.id === "cline/auto" || run.model.id === "cline-pass/auto"),
+	)
+	if (requiresTrace && !routeTracesPath) {
+		fail(
+			"local-Core virtual-model execution requires --route-traces or AUTO_ROUTER_BENCHMARK_TRACE_PATH before budget reservation",
+		)
+	}
+	if (requiresTrace) loadRouteTraceFile(routeTracesPath)
+}
+
 export function liveCostStopUsd(perTaskBudgetUsd: number): number {
 	if (!Number.isFinite(perTaskBudgetUsd) || perTaskBudgetUsd <= 0) {
 		throw new Error("per-task budget must be positive")
@@ -1923,15 +1960,36 @@ function printMatrix(config: PilotConfig) {
 	}
 }
 
-function loadRouteTraceFile(path?: string): RouteTrace[] {
+export function loadRouteTraceFile(path?: string): RouteTrace[] {
 	if (!path) return []
+	if (!isAbsolute(path)) fail("route trace path must be absolute")
 	if (!existsSync(path)) fail(`route trace file does not exist: ${path}`)
+	const metadata = lstatSync(path)
+	if (!metadata.isFile()) fail("route trace path must be a regular file")
+	if ((metadata.mode & 0o077) !== 0) fail("route trace file must be private")
 	const canonicalPath = realpathSync(path)
 	const canonicalRepo = realpathSync(repoRoot)
 	if (canonicalPath === canonicalRepo || canonicalPath.startsWith(`${canonicalRepo}/`)) {
 		fail("route trace file must live outside the repository")
 	}
 	return parseRouteTraces(readFileSync(canonicalPath, "utf8"))
+}
+
+function isVirtualModel(model: ModelConfig): boolean {
+	return model.id === "cline/auto" || model.id === "cline-pass/auto"
+}
+
+export function loadModelRouteTraces(model: ModelConfig, path?: string): RouteTrace[] {
+	return isVirtualModel(model) ? loadRouteTraceFile(path) : []
+}
+
+export function missingRouteEvidenceStopReason(
+	model: ModelConfig,
+	result: Pick<RunResult, "routeEvidence" | "task">,
+): string | undefined {
+	return isVirtualModel(model) && result.routeEvidence === "missing"
+		? `missing route evidence for ${model.id} × ${result.task}`
+		: undefined
 }
 
 function runKey(index: number, run: ReturnType<typeof buildRunMatrix>[number]): string {
@@ -1965,6 +2023,7 @@ function resultCostLabel(result: RunResult): string {
 async function main() {
 	const args = parseArgs(process.argv.slice(2))
 	const config = readConfig(args.configPath)
+	assertRouteTracePrerequisites(config, args.execute, args.routeTracesPath, args.onlyRun, args.wave)
 	validatePrerequisites(args.execute)
 	printMatrix(config)
 	if (!args.execute && !args.ingestRouteTraces) {
@@ -2012,8 +2071,8 @@ async function main() {
 			}
 		}
 		let budgetLedger = loadBudgetLedger(jobsRoot, config.globalBudgetUsd)
-		const traces = loadRouteTraceFile(args.routeTracesPath)
 		if (args.ingestRouteTraces) {
+			const traces = loadRouteTraceFile(args.routeTracesPath)
 			if (!existsSync(existingReportPath)) fail("route trace ingestion requires an existing pilot report")
 			const existing = JSON.parse(readFileSync(existingReportPath, "utf8")) as PilotReport
 			existing.results = existing.results.map((result) =>
@@ -2069,7 +2128,9 @@ async function main() {
 			}
 			const key = runKey(index, run)
 			const reusedRaw = reuseCompletedRun(config, run.model, run.task, jobsRoot, index + 1)
-			const reused = reusedRaw ? attachRouteEvidence(reusedRaw, run.model, traces) : null
+			const reused = reusedRaw
+				? attachRouteEvidence(reusedRaw, run.model, loadModelRouteTraces(run.model, args.routeTracesPath))
+				: null
 			if (reused) {
 				report.results.push(reused)
 				const reusedExposure = conservativeRunExposure(reused)
@@ -2091,6 +2152,11 @@ async function main() {
 				const reusedWaveBudget = config.waveBudgetsUsd?.[String(run.wave)]
 				if (reusedWaveBudget !== undefined && ledgerExposure(budgetLedger, run.wave) > reusedWaveBudget) {
 					fail(`wave ${run.wave} exceeded its $${reusedWaveBudget.toFixed(2)} checkpoint`)
+				}
+				const reusedRouteStopReason = missingRouteEvidenceStopReason(run.model, reused)
+				if (reusedRouteStopReason) {
+					report.stoppedReason = reusedRouteStopReason
+					break
 				}
 				continue
 			}
@@ -2122,7 +2188,7 @@ async function main() {
 			writeReport(report)
 
 			const rawResult = await runOne(config, run.model, run.task, jobsRoot, index + 1, args.localCoreUrl)
-			const result = attachRouteEvidence(rawResult, run.model, traces)
+			const result = attachRouteEvidence(rawResult, run.model, loadModelRouteTraces(run.model, args.routeTracesPath))
 			budgetLedger = settleResultBudget(budgetLedger, key, result)
 			writeBudgetLedger(jobsRoot, budgetLedger)
 			const waveBudget = config.waveBudgetsUsd?.[String(run.wave)]
@@ -2148,9 +2214,14 @@ async function main() {
 			if (globalSpend > config.globalBudgetUsd) {
 				fail(`pilot exceeded its $${config.globalBudgetUsd.toFixed(2)} global budget`)
 			}
+			const routeStopReason = missingRouteEvidenceStopReason(run.model, result)
+			if (routeStopReason) {
+				report.stoppedReason = routeStopReason
+				break
+			}
 		}
-		if (args.onlyRun) report.stoppedReason = `operator only-run ${args.onlyRun}`
-		if (args.wave) report.stoppedReason = `completed wave ${args.wave}`
+		if (!report.stoppedReason && args.onlyRun) report.stoppedReason = `operator only-run ${args.onlyRun}`
+		if (!report.stoppedReason && args.wave) report.stoppedReason = `completed wave ${args.wave}`
 	} catch (error) {
 		if (report) report.stoppedReason = error instanceof Error ? error.message : String(error)
 		throw error
