@@ -46,6 +46,11 @@ export function mergeFacetScopes(
 		const wIsMap = w?.kind === "map";
 
 		if (uIsMap || wIsMap) {
+			// Key-level workspace tombstone hides the entire user map.
+			if (w?.kind === "tombstone") {
+				maps[key] = {};
+				continue;
+			}
 			const userMap = u?.kind === "map" ? u.entries : {};
 			const workspaceMap = w?.kind === "map" ? w.entries : {};
 			const entityIds = new Set([
@@ -54,10 +59,7 @@ export function mergeFacetScopes(
 			]);
 			const mergedMap: Record<string, unknown> = {};
 			for (const id of entityIds) {
-				const merged = mergeScalarOrTombstone(
-					userMap[id],
-					workspaceMap[id],
-				);
+				const merged = mergeScalarOrTombstone(userMap[id], workspaceMap[id]);
 				if (merged?.kind === "value") {
 					mergedMap[id] = merged.value;
 				}
