@@ -203,6 +203,37 @@ describe("OnboardingView", () => {
 		).toBe("cline");
 	});
 
+	it("lets the user cancel a pending browser sign-in", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		// OAuth login that never resolves (browser round-trip abandoned).
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise(() => undefined);
+			}
+			if (command === "cline_account") {
+				throw new Error("No Cline account auth token found");
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+		await act(async () => {
+			buttonByText("Sign in").click();
+		});
+		expect(container.textContent).toContain("Waiting for browser...");
+
+		await act(async () => {
+			buttonByText("Cancel").click();
+		});
+		expect(container.textContent).not.toContain("Waiting for browser...");
+		expect(buttonByText("Sign in")).toBeDefined();
+	});
+
 	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
 		const onComplete = await render();
 		await act(async () => {

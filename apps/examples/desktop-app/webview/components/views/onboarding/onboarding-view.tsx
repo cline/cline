@@ -8,7 +8,7 @@ import {
 	Loader2,
 	LogIn,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -225,22 +225,42 @@ function ConnectStep({
 		};
 	}, []);
 
+	// Increments whenever the user cancels a pending browser sign-in so a
+	// stale OAuth round-trip (which can dangle until the transport timeout)
+	// cannot advance or error the UI after the user has moved on.
+	const signInAttemptRef = useRef(0);
+
 	const signInWithCline = useCallback(async () => {
+		signInAttemptRef.current += 1;
+		const attempt = signInAttemptRef.current;
 		setSigningIn(true);
 		setSignInError(null);
 		try {
 			await desktopClient.invoke("run_provider_oauth_login", {
 				provider: "cline",
 			});
+			if (signInAttemptRef.current !== attempt) {
+				return;
+			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
 			onConnected({ kind: "cline" });
 		} catch (error) {
+			if (signInAttemptRef.current !== attempt) {
+				return;
+			}
 			setSignInError(error instanceof Error ? error.message : String(error));
 		} finally {
-			setSigningIn(false);
+			if (signInAttemptRef.current === attempt) {
+				setSigningIn(false);
+			}
 		}
 	}, [onConnected, refreshAccount]);
+
+	const cancelSignInWithCline = useCallback(() => {
+		signInAttemptRef.current += 1;
+		setSigningIn(false);
+	}, []);
 
 	const connectWithClineApiKey = useCallback(async () => {
 		const key = clineApiKey.trim();
@@ -361,14 +381,24 @@ function ConnectStep({
 								)}
 								{signingIn ? "Waiting for browser..." : "Sign in"}
 							</Button>
-							<button
-								className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-								onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
-								type="button"
-							>
-								Create account
-								<ExternalLink className="size-3.5" />
-							</button>
+							{signingIn ? (
+								<button
+									className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onClick={cancelSignInWithCline}
+									type="button"
+								>
+									Cancel
+								</button>
+							) : (
+								<button
+									className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+									type="button"
+								>
+									Create account
+									<ExternalLink className="size-3.5" />
+								</button>
+							)}
 						</div>
 					)}
 					{signInError ? (
