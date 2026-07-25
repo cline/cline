@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionHistoryRecord } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { applySessionRename, rawSessionTitle } from "../utils/history-format";
 import {
 	formatCheckpointDetail,
 	formatHistoryListLine,
@@ -192,6 +193,76 @@ describe("formatHistoryListLine", () => {
 			updatedAt: "2026-01-01T00:02:00.000Z",
 			metadata: { title: "hydrated title", totalCost: 0.25 },
 		});
+	});
+});
+
+describe("rawSessionTitle", () => {
+	it("prefers an explicit title over the prompt", () => {
+		const row = createHistoryRow({
+			metadata: { title: "  My renamed session  " },
+			prompt: "original first message",
+		});
+		expect(rawSessionTitle(row)).toBe("My renamed session");
+	});
+
+	it("falls back to the prompt when there is no title", () => {
+		const row = createHistoryRow({
+			metadata: undefined,
+			prompt: "  original first message  ",
+		});
+		expect(rawSessionTitle(row)).toBe("original first message");
+	});
+
+	it("returns an empty string when neither title nor prompt is set", () => {
+		const row = createHistoryRow({ metadata: undefined, prompt: undefined });
+		expect(rawSessionTitle(row)).toBe("");
+	});
+});
+
+describe("applySessionRename", () => {
+	it("sets the title on the matching row", () => {
+		const rows = [
+			createHistoryRow({ sessionId: "sess_1", metadata: { title: "old" } }),
+			createHistoryRow({ sessionId: "sess_2", metadata: { title: "other" } }),
+		];
+
+		const renamed = applySessionRename(rows, "sess_1", "new title");
+
+		expect(renamed[0]?.metadata?.title).toBe("new title");
+		expect(renamed[1]?.metadata?.title).toBe("other");
+	});
+
+	it("preserves other metadata fields on the renamed row", () => {
+		const rows = [
+			createHistoryRow({
+				sessionId: "sess_1",
+				metadata: { title: "old", totalCost: 0.42 },
+			}),
+		];
+
+		const [renamed] = applySessionRename(rows, "sess_1", "new title");
+
+		expect(renamed?.metadata).toEqual({ title: "new title", totalCost: 0.42 });
+	});
+
+	it("sets a title even when the row previously had no metadata", () => {
+		const rows = [
+			createHistoryRow({ sessionId: "sess_1", metadata: undefined }),
+		];
+
+		const [renamed] = applySessionRename(rows, "sess_1", "new title");
+
+		expect(renamed?.metadata).toEqual({ title: "new title" });
+	});
+
+	it("leaves rows unchanged when the session id does not match", () => {
+		const rows = [
+			createHistoryRow({ sessionId: "sess_1", metadata: { title: "old" } }),
+		];
+
+		const renamed = applySessionRename(rows, "does-not-exist", "new title");
+
+		expect(renamed).toEqual(rows);
 	});
 });
 

@@ -10,8 +10,12 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listSessions } from "../../session/session";
-import { mergeHistoryStatusRows } from "../../utils/history-format";
+import { listSessions, updateSession } from "../../session/session";
+import {
+	applySessionRename,
+	mergeHistoryStatusRows,
+	rawSessionTitle,
+} from "../../utils/history-format";
 import { formatUsd } from "../../utils/output";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import { palette } from "../palette";
@@ -53,6 +57,7 @@ type HistoryListActions = {
 	onDismiss: () => void;
 	onExport?: (sessionId: string) => Promise<string | undefined>;
 	onDelete?: (sessionId: string) => Promise<boolean>;
+	onRename?: (sessionId: string, title: string) => Promise<boolean>;
 };
 
 type HistoryKeyEvent = {
@@ -80,8 +85,9 @@ function HistoryListContent({
 	onDismiss,
 	onExport,
 	onDelete,
+	onRename,
 	emptyMessage = "No sessions found",
-	footerText = "\u2191/\u2193 navigate, Enter to resume, Esc to close",
+	footerText = "\u2191/\u2193 navigate, Enter to resume, r to rename, Esc to close",
 	title = "Session History",
 	loadRows = false,
 	refreshRows,
@@ -95,6 +101,9 @@ function HistoryListContent({
 	const [selected, setSelected] = useState(0);
 	const [loading, setLoading] = useState(loadRows);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+	const [renaming, setRenaming] = useState<string | null>(null);
+	const [renameInputKey, setRenameInputKey] = useState(0);
+	const renameValueRef = useRef("");
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
 	const handlerRef = useRef<(key: HistoryKeyEvent | undefined) => void>(
 		() => {},
@@ -229,6 +238,39 @@ function HistoryListContent({
 			return;
 		}
 
+		if (renaming) {
+			if (key.name === "escape") {
+				setRenaming(null);
+				return;
+			}
+			if (key.name === "return" || key.name === "enter") {
+				const sessionId = renaming;
+				const nextTitle = renameValueRef.current.trim();
+				setRenaming(null);
+				if (!nextTitle) {
+					return;
+				}
+				setStatusMessage(`Renaming ${sessionId}...`);
+				void onRename?.(sessionId, nextTitle)
+					.then((updated) => {
+						if (!updated) {
+							setStatusMessage(`Session ${sessionId} not found`);
+							return;
+						}
+						setRows((currentRows) =>
+							applySessionRename(currentRows, sessionId, nextTitle),
+						);
+						setStatusMessage(`Renamed ${sessionId} to "${nextTitle}"`);
+					})
+					.catch((error) => {
+						setStatusMessage(
+							error instanceof Error ? error.message : String(error),
+						);
+					});
+			}
+			return;
+		}
+
 		if (key.name === "escape") {
 			onDismiss();
 			return;
@@ -259,6 +301,16 @@ function HistoryListContent({
 			const row = rowsRef.current[selectedRef.current];
 			if (row?.sessionId && onDelete) {
 				setConfirmDelete(row.sessionId);
+			}
+			return;
+		}
+		if (key.name === "r") {
+			const row = rowsRef.current[selectedRef.current];
+			if (row?.sessionId && onRename) {
+				setStatusMessage(null);
+				renameValueRef.current = rawSessionTitle(row);
+				setRenameInputKey((k) => k + 1);
+				setRenaming(row.sessionId);
 			}
 			return;
 		}
@@ -327,6 +379,7 @@ function HistoryListContent({
 				{window.items.map((row, i) => {
 					const absIdx = window.startIndex + i;
 					const isSel = absIdx === safeSelected;
+					const isRenaming = renaming === row.sessionId;
 					const cost = row.metadata?.totalCost;
 					const showCost = shouldShowCliUsageCost(row.provider);
 					const title = formatTitle(row, titleMaxLen);
@@ -348,12 +401,25 @@ function HistoryListContent({
 							>
 								{isSel ? "\u276f " : "  "}
 							</text>
-							<text
-								fg={isSel ? palette.textOnSelection : undefined}
-								flexGrow={1}
-							>
-								{title}
-							</text>
+							{isRenaming ? (
+								<input
+									key={renameInputKey}
+									value={rawSessionTitle(row)}
+									onInput={(v: string) => {
+										renameValueRef.current = v;
+									}}
+									placeholder="New title..."
+									flexGrow={1}
+									focused
+								/>
+							) : (
+								<text
+									fg={isSel ? palette.textOnSelection : undefined}
+									flexGrow={1}
+								>
+									{title}
+								</text>
+							)}
 							{showCost && cost != null && cost > 0 && (
 								<text
 									fg={isSel ? palette.textOnSelection : "gray"}
@@ -388,7 +454,9 @@ function HistoryListContent({
 						statusMessage.startsWith("Exported") ||
 						statusMessage.startsWith("Exporting") ||
 						statusMessage.startsWith("Deleted") ||
-						statusMessage.startsWith("Deleting")
+						statusMessage.startsWith("Deleting") ||
+						statusMessage.startsWith("Renamed") ||
+						statusMessage.startsWith("Renaming")
 							? palette.success
 							: "red"
 					}
@@ -419,11 +487,17 @@ export function HistoryDialogContent(props: ChoiceContext<string>) {
 
 	useDialogKeyboard((key) => keyHandler?.(key), dialogId);
 
+	const handleRename = useCallback(async (sessionId: string, title: string) => {
+		const result = await updateSession(sessionId, { title });
+		return result.updated;
+	}, []);
+
 	return (
 		<HistoryListContent
 			loadRows
 			onResolve={resolve}
 			onDismiss={dismiss}
+			onRename={handleRename}
 			registerKeyHandler={registerKeyHandler}
 		/>
 	);
@@ -457,12 +531,13 @@ export function HistoryStandaloneContent(
 			onDismiss={props.onDismiss}
 			onExport={props.onExport}
 			onDelete={props.onDelete}
+			onRename={props.onRename}
 			refreshRows={props.refreshRows}
 			refreshIntervalMs={props.refreshIntervalMs}
 			title={props.title ?? "History"}
 			footerText={
 				props.footerText ??
-				"\u2191/\u2193 navigate, Enter to resume, \u2190 delete, \u2192 export, Esc to close"
+				"\u2191/\u2193 navigate, Enter to resume, r to rename, \u2190 delete, \u2192 export, Esc to close"
 			}
 			registerKeyHandler={registerKeyHandler}
 		/>

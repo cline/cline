@@ -9,6 +9,22 @@ export function formatSessionStatusLabel(
 	return status?.trim() || "unknown";
 }
 
+export function rawSessionTitle(row: SessionHistoryRecord): string {
+	return row.metadata?.title?.trim() || row.prompt?.trim() || "";
+}
+
+export function applySessionRename(
+	rows: SessionHistoryRecord[],
+	sessionId: string,
+	title: string,
+): SessionHistoryRecord[] {
+	return rows.map((row) =>
+		row.sessionId === sessionId
+			? { ...row, metadata: { ...row.metadata, title } }
+			: row,
+	);
+}
+
 export function mergeHistoryStatusRows(
 	currentRows: SessionHistoryRecord[],
 	refreshedRows: SessionHistoryRecord[],
