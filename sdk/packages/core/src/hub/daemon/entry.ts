@@ -103,10 +103,14 @@ async function main(): Promise<void> {
 		process.stderr.write(`[hub-daemon] dashboard restart failed: ${message}\n`);
 	});
 
+	let preserveDashboardOnExit = false;
 	const shutdown = async (
 		options: { preserveDashboard?: boolean } = {},
 	): Promise<void> => {
-		if (!options.preserveDashboard) {
+		// Set before awaiting close so an unhandled rejection during teardown
+		// still honors a dashboard-preserving shutdown request.
+		preserveDashboardOnExit = Boolean(options.preserveDashboard);
+		if (!preserveDashboardOnExit) {
 			await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
 				() => undefined,
 			);
@@ -125,8 +129,12 @@ async function main(): Promise<void> {
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void stopManagedHubDashboardProcess(dashboardDiscoveryPath)
-			.catch(() => undefined)
+		const stopDashboard = preserveDashboardOnExit
+			? Promise.resolve(false)
+			: stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
+					() => undefined,
+				);
+		void stopDashboard
 			.then(() => server.close())
 			.catch((closeError) => {
 				const closeMessage =

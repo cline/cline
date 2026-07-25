@@ -236,6 +236,36 @@ describe("runDashboardCommand", () => {
 		);
 	});
 
+	it("does not auto-select a hosted HTTPS dashboard when webview assets are missing", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-no-webview-"));
+		process.env.CLINE_WRAPPER_PATH = join(root, "bin", "cline");
+		delete process.env.CLINE_HUB_WEBVIEW_DIST_DIR;
+		delete process.env.CLINE_HUB_DASHBOARD_WEB_URL;
+		let observedDashboardWebUrl: string | undefined;
+
+		const exitCode = await runDashboardCommand({
+			action: "serve",
+			openBrowser: false,
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			startServer: async () => {
+				observedDashboardWebUrl = process.env.CLINE_HUB_DASHBOARD_WEB_URL;
+				return {
+					listenUrl: "http://127.0.0.1:8787/",
+					publicUrl: "http://127.0.0.1:8787",
+					inviteUrl: "http://127.0.0.1:8787",
+					stop: vi.fn(),
+				};
+			},
+			waitForShutdown: async () => {},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(observedDashboardWebUrl).toBeUndefined();
+	});
+
 	it("finds webview assets from the published wrapper package layout", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-wrapper-layout-"));
 		const wrapperPath = join(root, "node_modules", "cline", "bin", "cline");

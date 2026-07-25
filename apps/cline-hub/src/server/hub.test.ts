@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 	ensureDetachedHubServer: vi.fn(),
 	probeHubServer: vi.fn(),
 	readHubDashboardDiscovery: vi.fn(),
+	readHubDiscovery: vi.fn(),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	resolveDefaultHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub.json",
@@ -27,6 +28,7 @@ vi.mock("@cline/core", () => ({
 	ensureDetachedHubServer: mocks.ensureDetachedHubServer,
 	probeHubServer: mocks.probeHubServer,
 	readHubDashboardDiscovery: mocks.readHubDashboardDiscovery,
+	readHubDiscovery: mocks.readHubDiscovery,
 	rememberRecoverableLocalHubUrl: mocks.rememberRecoverableLocalHubUrl,
 	resolveDefaultHubOwnerContext: mocks.resolveDefaultHubOwnerContext,
 	resolveHubDashboardDiscoveryPath: mocks.resolveHubDashboardDiscoveryPath,
@@ -86,6 +88,8 @@ describe("hub attachment lifecycle", () => {
 		mocks.probeHubServer.mockResolvedValue(undefined);
 		mocks.readHubDashboardDiscovery.mockReset();
 		mocks.readHubDashboardDiscovery.mockResolvedValue(undefined);
+		mocks.readHubDiscovery.mockReset();
+		mocks.readHubDiscovery.mockResolvedValue(undefined);
 		mocks.rememberRecoverableLocalHubUrl.mockClear();
 		mocks.resolveDefaultHubOwnerContext.mockClear();
 		mocks.resolveHubDashboardDiscoveryPath.mockClear();
@@ -187,6 +191,75 @@ describe("hub attachment lifecycle", () => {
 			}),
 		);
 		expect(ctx.hubManagedLocally).toBe(false);
+	});
+
+	it("resolves a tokenless local hub URL from discovery", async () => {
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient();
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		mocks.readHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "discovered-token",
+		});
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		const { attachHub } = await import("./hub");
+
+		await attachHub(ctx, {
+			hubUrl: "ws://127.0.0.1:25463/hub",
+		});
+
+		expect(mocks.createUiClient).toHaveBeenCalledWith(
+			expect.objectContaining({
+				address: "ws://127.0.0.1:25463/hub",
+				authToken: "discovered-token",
+			}),
+		);
+		expect(ctx.hubAuthToken).toBe("discovered-token");
+		expect(ctx.hubManagedLocally).toBe(true);
+	});
+
+	it("keeps restartable when reconnecting to the discovered local hub", async () => {
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient();
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		mocks.readHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "local-token",
+		});
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		const { attachHub } = await import("./hub");
+
+		await attachHub(ctx, {
+			hubUrl: "ws://127.0.0.1:25463/hub?authToken=local-token",
+		});
+
+		expect(ctx.hubManagedLocally).toBe(true);
+	});
+
+	it("reuses the previous auth token when reconnecting to the same hub URL", async () => {
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient();
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		ctx.hubUrl = "ws://127.0.0.1:25463/hub";
+		ctx.hubAuthToken = "previous-token";
+		const { attachHub } = await import("./hub");
+
+		await attachHub(ctx, {
+			hubUrl: "ws://127.0.0.1:25463/hub",
+		});
+
+		expect(mocks.createUiClient).toHaveBeenCalledWith(
+			expect.objectContaining({
+				authToken: "previous-token",
+			}),
+		);
 	});
 
 	it("preserves the dashboard while replacing and reattaching to the hub", async () => {

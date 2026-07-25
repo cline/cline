@@ -56,7 +56,6 @@ export interface RunDashboardCommandOptions {
 const DASHBOARD_PORT_ENV = "CLINE_HUB_DASHBOARD_PORT";
 const WEBVIEW_DIST_ENV = "CLINE_HUB_WEBVIEW_DIST_DIR";
 const DASHBOARD_WEB_URL_ENV = "CLINE_HUB_DASHBOARD_WEB_URL";
-const DEFAULT_HOSTED_DASHBOARD_WEB_URL = "https://cline.bot/dashboard";
 const DASHBOARD_STARTUP_TIMEOUT_MS = 8_000;
 const DASHBOARD_STARTUP_POLL_MS = 200;
 const DASHBOARD_LAUNCHER_ENV = "CLINE_HUB_DASHBOARD_LAUNCHER";
@@ -99,10 +98,12 @@ async function withDashboardEnvironment<T>(
 		setEnvValue("HOST", options.host),
 		setEnvValue(DASHBOARD_PORT_ENV, options.port),
 		setEnvValue("PUBLIC_URL", options.publicUrl),
+		// Only honor an explicit hosted UI URL. Auto-falling back to
+		// https://cline.bot/dashboard with an http://127.0.0.1 bridge is
+		// blocked by browsers as mixed-content WebSockets.
 		setEnvValue(
 			DASHBOARD_WEB_URL_ENV,
-			process.env[DASHBOARD_WEB_URL_ENV]?.trim() ||
-				(webviewDistDir ? undefined : DEFAULT_HOSTED_DASHBOARD_WEB_URL),
+			process.env[DASHBOARD_WEB_URL_ENV]?.trim() || undefined,
 		),
 		setEnvValue("ROOM_SECRET", options.roomSecret),
 		setEnvValue(WEBVIEW_DIST_ENV, webviewDistDir),

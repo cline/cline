@@ -260,4 +260,52 @@ describe("hub daemon entry", () => {
 		expect(close).toHaveBeenCalledOnce();
 		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
 	});
+
+	it("does not kill a preserved dashboard when fatal shutdown races teardown", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		let unhandledRejectionHandler: ((reason: unknown) => void) | undefined;
+		vi.spyOn(process, "on").mockImplementation(((
+			event: string,
+			listener: (...args: unknown[]) => void,
+		) => {
+			if (event === "unhandledRejection") {
+				unhandledRejectionHandler = listener as (reason: unknown) => void;
+			}
+			return process;
+		}) as typeof process.on);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		// First close (from preserve shutdown) hangs so we can race a fatal
+		// path; later close calls from shutdownFatal must settle.
+		let closeCalls = 0;
+		const close = vi.fn(() => {
+			closeCalls += 1;
+			if (closeCalls === 1) {
+				return new Promise<void>(() => undefined);
+			}
+			return Promise.resolve();
+		});
+		mockStartHubWebSocketServer.mockResolvedValueOnce({
+			close,
+			shutdownRequested: Promise.resolve({ preserveDashboard: true }),
+		} as never);
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(close).toHaveBeenCalledOnce();
+			expect(unhandledRejectionHandler).toBeTypeOf("function");
+		});
+		unhandledRejectionHandler?.(
+			new Error("close failed during preserve shutdown"),
+		);
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+
+		expect(mockStopManagedHubDashboardProcess).not.toHaveBeenCalled();
+	});
 });

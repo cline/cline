@@ -6,6 +6,7 @@ import {
 	HubUIClient,
 	probeHubServer,
 	readHubDashboardDiscovery,
+	readHubDiscovery,
 	rememberRecoverableLocalHubUrl,
 	resolveDefaultHubOwnerContext,
 	resolveHubDashboardDiscoveryPath,
@@ -126,9 +127,52 @@ export interface HubAttachmentOverride {
 	preserveDashboard?: boolean;
 }
 
-function resolveHubAttachmentOverride(
+function sameHubEndpoint(left: string, right: string): boolean {
+	try {
+		const leftUrl = new URL(left);
+		const rightUrl = new URL(right);
+		leftUrl.search = "";
+		leftUrl.hash = "";
+		rightUrl.search = "";
+		rightUrl.hash = "";
+		return leftUrl.toString() === rightUrl.toString();
+	} catch {
+		return left.trim() === right.trim();
+	}
+}
+
+async function resolveAuthTokenForHubUrl(
+	hubUrl: string,
+	explicitToken?: string,
+	fallbackAuthToken?: string,
+): Promise<string | undefined> {
+	const explicit = explicitToken?.trim();
+	if (explicit) {
+		return explicit;
+	}
+	const owner = resolveDefaultHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	if (
+		discovery?.authToken?.trim() &&
+		discovery.url &&
+		sameHubEndpoint(hubUrl, discovery.url)
+	) {
+		return discovery.authToken.trim();
+	}
+	const fallback = fallbackAuthToken?.trim();
+	return fallback || undefined;
+}
+
+async function isDefaultLocalHubEndpoint(hubUrl: string): Promise<boolean> {
+	const owner = resolveDefaultHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	return Boolean(discovery?.url && sameHubEndpoint(hubUrl, discovery.url));
+}
+
+async function resolveHubAttachmentOverride(
 	override?: HubAttachmentOverride,
-): { hubUrl: string; authToken: string } | undefined {
+	fallbackAuthToken?: string,
+): Promise<{ hubUrl: string; authToken: string } | undefined> {
 	const rawHubUrl = override?.hubUrl?.trim();
 	if (!rawHubUrl) {
 		return undefined;
@@ -137,14 +181,19 @@ function resolveHubAttachmentOverride(
 	const queryToken = parsed.searchParams.get("authToken")?.trim();
 	parsed.searchParams.delete("authToken");
 	parsed.hash = "";
-	const authToken = override?.authToken?.trim() || queryToken || undefined;
+	const hubUrl = parsed.toString();
+	const authToken = await resolveAuthTokenForHubUrl(
+		hubUrl,
+		override?.authToken?.trim() || queryToken || undefined,
+		fallbackAuthToken,
+	);
 	if (!authToken) {
 		throw new Error(
 			"Hub auth token is required when connecting the dashboard to a custom hub URL.",
 		);
 	}
 	return {
-		hubUrl: parsed.toString(),
+		hubUrl,
 		authToken,
 	};
 }
@@ -153,7 +202,16 @@ export async function attachHub(
 	ctx: HubContext,
 	override?: HubAttachmentOverride,
 ): Promise<void> {
-	const resolvedOverride = resolveHubAttachmentOverride(override);
+	const fallbackAuthToken =
+		override?.hubUrl?.trim() &&
+		ctx.hubUrl &&
+		sameHubEndpoint(override.hubUrl, ctx.hubUrl)
+			? ctx.hubAuthToken
+			: undefined;
+	const resolvedOverride = await resolveHubAttachmentOverride(
+		override,
+		fallbackAuthToken,
+	);
 	const hub = resolvedOverride
 		? {
 				url: rememberRecoverableLocalHubUrl(
@@ -203,7 +261,9 @@ export async function attachHub(
 	await detachHub(ctx);
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
-	ctx.hubManagedLocally = resolvedOverride === undefined;
+	ctx.hubManagedLocally =
+		resolvedOverride === undefined ||
+		(await isDefaultLocalHubEndpoint(hub.url));
 	ctx.cline = nextCline;
 	ctx.uiClient = nextUiClient;
 
