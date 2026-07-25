@@ -228,6 +228,34 @@ describe("hub attachment lifecycle", () => {
 		expect(ctx.hubManagedLocally).toBe(false);
 	});
 
+	it("reuses the previous custom hub auth token when reconnecting without one", async () => {
+		const nextCline = createClineClient();
+		const nextUiClient = createUiClient();
+		mocks.createCline.mockResolvedValue(nextCline);
+		mocks.createUiClient.mockReturnValue(nextUiClient);
+		const { HubContext } = await import("./state");
+		const ctx = new HubContext();
+		ctx.hubUrl = "ws://127.0.0.1:25464/hub";
+		ctx.hubAuthToken = "custom-token";
+		ctx.hubManagedLocally = false;
+		const { attachHub } = await import("./hub");
+
+		await attachHub(ctx, {
+			hubUrl: "ws://127.0.0.1:25464/hub",
+		});
+
+		expect(mocks.createCline).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hub: expect.objectContaining({
+					endpoint: "ws://127.0.0.1:25464/hub",
+					authToken: "custom-token",
+				}),
+			}),
+		);
+		expect(ctx.hubAuthToken).toBe("custom-token");
+		expect(ctx.hubManagedLocally).toBe(false);
+	});
+
 	it("preserves the dashboard while replacing and reattaching to the hub", async () => {
 		const oldCline = createClineClient();
 		const oldUiClient = createUiClient();

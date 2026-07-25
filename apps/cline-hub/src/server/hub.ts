@@ -139,6 +139,7 @@ function sameHubEndpoint(left: string, right: string): boolean {
 
 async function resolveHubAttachmentOverride(
 	override?: HubAttachmentOverride,
+	previous?: { hubUrl?: string; authToken?: string },
 ): Promise<
 	{ hubUrl: string; authToken: string; managedLocally: boolean } | undefined
 > {
@@ -155,10 +156,17 @@ async function resolveHubAttachmentOverride(
 	const managedLocally = Boolean(
 		discovery?.url && sameHubEndpoint(parsed.toString(), discovery.url),
 	);
+	const previousToken =
+		previous?.hubUrl &&
+		previous.authToken?.trim() &&
+		sameHubEndpoint(parsed.toString(), previous.hubUrl)
+			? previous.authToken.trim()
+			: undefined;
 	const authToken =
 		override?.authToken?.trim() ||
 		queryToken ||
-		(managedLocally ? discovery?.authToken.trim() : undefined);
+		(managedLocally ? discovery?.authToken.trim() : undefined) ||
+		previousToken;
 	if (!authToken) {
 		throw new Error(
 			"Hub auth token is required when connecting the dashboard to a custom hub URL.",
@@ -175,7 +183,10 @@ export async function attachHub(
 	ctx: HubContext,
 	override?: HubAttachmentOverride,
 ): Promise<void> {
-	const resolvedOverride = await resolveHubAttachmentOverride(override);
+	const resolvedOverride = await resolveHubAttachmentOverride(override, {
+		hubUrl: ctx.hubUrl,
+		authToken: ctx.hubAuthToken,
+	});
 	const hub = resolvedOverride
 		? {
 				url: rememberRecoverableLocalHubUrl(

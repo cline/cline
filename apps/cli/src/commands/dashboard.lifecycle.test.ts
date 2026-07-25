@@ -82,7 +82,8 @@ describe("dashboard command lifecycle", () => {
 		);
 		coreMocks.stopManagedHubDashboardProcess.mockReset();
 		coreMocks.stopManagedHubDashboardProcess.mockResolvedValue(false);
-		coreMocks.writeHubDashboardDiscovery.mockClear();
+		coreMocks.writeHubDashboardDiscovery.mockReset();
+		coreMocks.writeHubDashboardDiscovery.mockResolvedValue(undefined);
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => ({ ok: true })),
@@ -311,6 +312,11 @@ describe("dashboard command lifecycle", () => {
 			observedDataDirs.push(process.env.CLINE_DATA_DIR);
 			return "/tmp/dashboard.json";
 		});
+		coreMocks.writeHubDashboardDiscovery.mockImplementation(
+			async (_path, record) => {
+				coreMocks.readHubDashboardDiscovery.mockResolvedValue(record);
+			},
+		);
 		const { runDashboardCommand } = await import("./dashboard");
 
 		const exitCode = await runDashboardCommand({
@@ -346,6 +352,37 @@ describe("dashboard command lifecycle", () => {
 		);
 	});
 
+	it("does not clear a rival discovery record when serve exits", async () => {
+		coreMocks.writeHubDashboardDiscovery.mockImplementation(
+			async (_path, record) => {
+				coreMocks.readHubDashboardDiscovery.mockResolvedValue({
+					...record,
+					pid: record.pid + 1,
+					startedAt: "2026-06-22T21:00:00.000Z",
+				});
+			},
+		);
+		const { runDashboardCommand } = await import("./dashboard");
+
+		const exitCode = await runDashboardCommand({
+			action: "serve",
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			startServer: async () => ({
+				listenUrl: "http://127.0.0.1:8787/",
+				publicUrl: "http://127.0.0.1:8787",
+				inviteUrl: "http://127.0.0.1:8787",
+				stop: vi.fn(),
+			}),
+			waitForShutdown: async () => {},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(coreMocks.clearHubDashboardDiscovery).not.toHaveBeenCalled();
+	});
+
 	it("stops the serve process when dashboard discovery cannot be written", async () => {
 		coreMocks.writeHubDashboardDiscovery.mockRejectedValueOnce(
 			new Error("discovery write failed"),
@@ -371,8 +408,6 @@ describe("dashboard command lifecycle", () => {
 		expect(exitCode).toBe(1);
 		expect(errors).toEqual(["discovery write failed"]);
 		expect(stop).toHaveBeenCalledOnce();
-		expect(coreMocks.clearHubDashboardDiscovery).toHaveBeenCalledWith(
-			"/tmp/dashboard.json",
-		);
+		expect(coreMocks.clearHubDashboardDiscovery).not.toHaveBeenCalled();
 	});
 });

@@ -326,7 +326,9 @@ export async function startHubWebSocketServer(
 			return closePromise;
 		}
 		closePromise = (async () => {
-			await shutdownPreparationPromise?.catch(() => undefined);
+			// Close listeners before awaiting prepareShutdown. Dashboard stop can
+			// take nearly the full retire budget; health probes must observe
+			// retirement promptly so graceful stop callers do not time out.
 			if (heartbeatTimer) {
 				clearInterval(heartbeatTimer);
 				heartbeatTimer = undefined;
@@ -362,6 +364,7 @@ export async function startHubWebSocketServer(
 			if (current?.url === url) {
 				await clearHubDiscovery(owner.discoveryPath);
 			}
+			await shutdownPreparationPromise?.catch(() => undefined);
 		})();
 		return closePromise;
 	};

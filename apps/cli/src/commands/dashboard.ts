@@ -343,9 +343,9 @@ async function ensureDefaultDashboard(
 
 async function writeDashboardDiscovery(
 	server: DashboardServerHandle,
-): Promise<void> {
+): Promise<HubDashboardDiscoveryRecord> {
 	const timestamp = new Date().toISOString();
-	await writeHubDashboardDiscovery(resolveDashboardDiscoveryPath(), {
+	const record: HubDashboardDiscoveryRecord = {
 		pid: process.pid,
 		listenUrl: server.listenUrl,
 		publicUrl: server.publicUrl,
@@ -353,13 +353,22 @@ async function writeDashboardDiscovery(
 		hubUrl: server.hubUrl,
 		startedAt: timestamp,
 		updatedAt: timestamp,
-	});
+	};
+	await writeHubDashboardDiscovery(resolveDashboardDiscoveryPath(), record);
+	return record;
 }
 
-async function clearDashboardDiscovery(): Promise<void> {
-	await clearHubDashboardDiscovery(resolveDashboardDiscoveryPath()).catch(
-		() => undefined,
-	);
+async function clearDashboardDiscoveryIfOwned(
+	expected: Pick<HubDashboardDiscoveryRecord, "pid" | "startedAt">,
+): Promise<void> {
+	const discoveryPath = resolveDashboardDiscoveryPath();
+	const current = await readHubDashboardDiscovery(discoveryPath);
+	if (
+		current?.pid === expected.pid &&
+		current.startedAt === expected.startedAt
+	) {
+		await clearHubDashboardDiscovery(discoveryPath).catch(() => undefined);
+	}
 }
 
 export function waitForProcessShutdown(
@@ -399,8 +408,9 @@ async function runDashboardServeCommand(
 ): Promise<number> {
 	return await withDashboardEnvironment(options, async () => {
 		const server = await (options.startServer ?? startDefaultDashboardServer)();
+		let ownedDiscovery: HubDashboardDiscoveryRecord | undefined;
 		try {
-			await writeDashboardDiscovery(server);
+			ownedDiscovery = await writeDashboardDiscovery(server);
 			const dashboardUrl =
 				server.inviteUrl || server.publicUrl || server.listenUrl;
 			options.io.writeln(
@@ -418,7 +428,9 @@ async function runDashboardServeCommand(
 			}
 			throw error;
 		} finally {
-			await clearDashboardDiscovery();
+			if (ownedDiscovery) {
+				await clearDashboardDiscoveryIfOwned(ownedDiscovery);
+			}
 		}
 		return 0;
 	});

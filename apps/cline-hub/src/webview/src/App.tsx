@@ -63,7 +63,7 @@ import type {
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
-import { sameHubUrl } from "./lib/hub-url";
+import { preserveHubUrlAuthToken, sameHubUrl } from "./lib/hub-url";
 import { locationPath, pathWithLocationHash } from "./lib/navigation-url";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
@@ -504,7 +504,9 @@ function HomeView({
 	const [hubUrlInput, setHubUrlInput] = useState(() => hubState.hubUrl ?? "");
 
 	useEffect(() => {
-		setHubUrlInput(hubState.hubUrl ?? "");
+		setHubUrlInput((previous) =>
+			preserveHubUrlAuthToken(previous, hubState.hubUrl ?? ""),
+		);
 	}, [hubState.hubUrl]);
 
 	const copyText = useCallback((value?: string) => {

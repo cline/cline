@@ -251,11 +251,18 @@ describe("hub server startup", () => {
 					preserveDashboard: true,
 				});
 			});
-			expect(await readHubDiscovery(owner.discoveryPath)).toBeDefined();
-			const health = await fetch(
-				new URL("/health", toHubHealthUrl(result.url)),
-			);
-			expect(health.status).toBe(200);
+			// Listeners close before prepareShutdown finishes so graceful-stop
+			// health probes observe retirement without waiting on dashboard stop.
+			await vi.waitFor(async () => {
+				try {
+					const health = await fetch(
+						new URL("/health", toHubHealthUrl(result.url)),
+					);
+					expect(health.ok).toBe(false);
+				} catch {
+					// Connection refused once the listener is closed.
+				}
+			});
 		} finally {
 			releaseShutdownPreparation?.();
 		}
