@@ -6,6 +6,8 @@ Planning only. No implementation lives here and none was written for this wave.
 
 The product that consumes it is `cline-drivecode`, whose feature plan lives in [../cline-drivemode/](../cline-drivemode/). That plan is the north star. This folder adds the SDK layer beneath it and does not relitigate it.
 
+Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
+
 ## Documents
 
 | File | What it holds |

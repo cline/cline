@@ -4,6 +4,8 @@ Drive mode for cline-drivecode. The user opens the **Drive tab**, joins a call r
 
 UX north star decision. [DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md) and [drive-tab-discord-slack.html](../../design/drive-wireframes/drive-tab-discord-slack.html).
 
+Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
+
 **Session handoff.** [HANDOFF.md](HANDOFF.md) — start here if you are picking this work up cold.
 
 ## Documents
