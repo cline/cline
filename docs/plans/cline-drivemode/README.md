@@ -13,14 +13,20 @@ Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 | File | What it holds |
 |---|---|
 | [00-vision.md](00-vision.md) | Drive-tab north star and staged delivery (tab + room, stage/share/address, voice) |
-| [01-architecture.md](01-architecture.md) | Kernel `@cline/drive`, hub `:25463` as single writer, room-first model, Drive tab primary, events-first stage, decisions D1 through D6 |
+| [01-architecture.md](01-architecture.md) | Kernel `@cline/drive`, hub `:25463` as single writer, room-first model, Drive tab primary, events-first stage, decisions D1 through D7 |
 | [02-research-streaming.md](02-research-streaming.md) | Call-architecture research synthesis (Discord, Zoom, Meet, Teams, Webex, Huddles, Twitch) with adopted anti-patterns |
 | [03-research-inventory.md](03-research-inventory.md) | Cline surface inventory, hub and hook gaps, workflows and skills to define |
 | [04-future-multi-user.md](04-future-multi-user.md) | Discord-in-IDE desired state, room/participant/track model, phased media strategy |
-| [05-workflows.md](05-workflows.md) | Canonical workflow catalog. 36 sequences a human performs, cited to cursor-drive and claude-drive prior art, tiered and mapped to DRV features or gaps |
+| [05-workflows.md](05-workflows.md) | Canonical workflow catalog. 39 sequences a human performs, cited to cursor-drive and claude-drive prior art, tiered and mapped to DRV features or gaps |
 | [06-platform-config.md](06-platform-config.md) | Platform configuration surface. `AgentProfile` and `RosterPack` domain model, 34-facet inventory with owner/scope/lane/privacy/phase, ownership matrix, phasing, open forks |
-| [prd/](prd/) | Product requirements. PRD 6 Driveagent portfolio / knowledge graph / recruit (imports BRIEF lessons) |
-| [ard/](ard/) | Architecture decision records for Driveagent home, graph, recruit, gated learn |
+| [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) | SE lead / PM brief for the planning wave (defaults, MoSCoW, risks) |
+| [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) | Gate before schema freeze |
+| [MATRIX-workflow-coverage.md](MATRIX-workflow-coverage.md) | Workflow ↔ feature coverage matrix |
+| [decisions/](decisions/) | Leadership DECs (agent SoT, package location, product forks) |
+| [ops/hub-drive-ops.md](ops/hub-drive-ops.md) | Hub op catalog and failure modes |
+| [schemas/README.md](schemas/README.md) | Phase 0 schema index |
+| [prd/](prd/) | Product requirements. PRD 6 Driveagent portfolio / knowledge graph / recruit; success metrics |
+| [ard/](ard/) | Architecture decision records for Driveagent home, graph, recruit, gated learn (+ status board) |
 | [examples/driveagent-pair-partner/](examples/driveagent-pair-partner/) | Example `.driveagent` home + BRIEF + sample graph |
 | [TASK-GRAPH.md](TASK-GRAPH.md) | Phases 0 through 5 with verifiable gates |
 | [AGENT-RUNBOOK.md](AGENT-RUNBOOK.md) | How agents pick tasks, spawn, verify, and report |
@@ -55,6 +61,7 @@ MVP is phases 0 through 3. Future is phases 4 and 5.
 | [DRV-MODE-OVERLAY](features/DRV-MODE-OVERLAY.md) | Ask/debug overlays on the mode pill | 1 | MVP |
 | [DRV-LEAVE-END](features/DRV-LEAVE-END.md) | Leave the call, end the session | 1 | MVP |
 | [DRV-PARTNER-MVP](features/DRV-PARTNER-MVP.md) | One pair partner, end to end (phase gate) | 1 | MVP |
+| [DRV-GATES](features/DRV-GATES.md) | High-impact approval + policy blocks | 1 | MVP |
 | [DRV-STAGE](features/DRV-STAGE.md) | The Call Stage (agent work projection) | 2 | MVP |
 | [DRV-SHARE](features/DRV-SHARE.md) | Bidirectional stage share (human \| agent) | 2 | MVP |
 | [DRV-TRANSCRIPT](features/DRV-TRANSCRIPT.md) | Room transcript vs per-agent focus | 2 | MVP |
@@ -71,6 +78,7 @@ MVP is phases 0 through 3. Future is phases 4 and 5.
 | [DRV-TTS](features/DRV-TTS.md) | Partner voice out | 3 | MVP |
 | [DRV-CAPTIONS](features/DRV-CAPTIONS.md) | Live captions | 3 | MVP |
 | [DRV-CLI-PARITY](features/DRV-CLI-PARITY.md) | Drive in the TUI | 4 | Future |
+| [DRV-ISOLATION](features/DRV-ISOLATION.md) | Worktree isolation for multi-agent seats | 4 | Future |
 | [DRV-TEAM-OPT](features/DRV-TEAM-OPT.md) | Optional specialist agents (flagged) | 4 | Future |
 
 Multi-user itself (rooms with several humans, remote events, optional WebRTC) is phase 5 design review territory, held in [04-future-multi-user.md](04-future-multi-user.md).
@@ -91,7 +99,7 @@ Each principle below drove a concrete choice you can see in the files.
 - **Subtract Before You Add.** The plan wires bundled ai-elements instead of writing components, collapses cursor-drive's `:7891` daemon into existing hub ops instead of porting it, and reserves the media track with zero members instead of speculating schema.
 - **Boundary Discipline.** Validation lives at hub ops, the kernel is pure with no transport, and surfaces render typed events without re-validating. Ask-mode enforcement sits at the tool-policy layer, not in UI affordances.
 - **Separate Before Serializing Shared State.** The hub is the single writer of room state, clients hold read-only projections, and the stage is a derived reducer, so no lock or CRDT is needed anywhere in the MVP.
-- **Never Block on the Human.** Wireframe forks (per-agent stream model, user share MVP, narration density, pause vs cancel) ship with chosen defaults plus escape hatches rather than blocking on preference calls, and the ADR proceeds as `proposed` without waiting on acceptance.
+- **Never Block on the Human.** Preference forks (stream model, user share, accent, focus policy, pause vs cancel) ship with leadership defaults in [decisions/DEC-open-product-forks.md](decisions/DEC-open-product-forks.md) rather than blocking implementation. ARDs stay on the [status board](ard/ARD-0000-status-board.md) until formally Accepted.
 
 ## Constraints (binding on all work)
 
@@ -102,7 +110,7 @@ Each principle below drove a concrete choice you can see in the files.
 - No timeframes in plans or status docs.
 - Drive tab is primary UX. Chat Join call is a shortcut into the active Drive room.
 - **`Team` is Cline's word.** It means the runtime execution group in `sdk/packages/core/src/extensions/tools/team/`. Drive's human-curated seating preset is a **`RosterPack`**, and no Drive identifier contains `Team`. UI copy says *pack*. See [06-platform-config.md](06-platform-config.md#naming-rosterpack-not-teampack-not-team).
-- Drive **overlays** `ConfiguredAgent` (`.cline/agents/*.yaml`); it never forks it. Prompts, tools, and model ids stay in Cline's files and are never copied into Drive config.
+- Drive **overlays** appearance on the seated agent. Prompts, tools, skills, provider, and model ids are authored under `.driveagent/<slug>/` (or migration-imported from `.cline/agents/*.yaml`) and **compile** into the host runtime. They are never stored in Drive facets / `AgentProfile`. See [DEC-agent-source-of-truth](decisions/DEC-agent-source-of-truth.md).
 
 ## Implementation guidance (poteto-mode non-negotiables for implementers)
 

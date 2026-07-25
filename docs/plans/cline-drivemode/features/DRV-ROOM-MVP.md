@@ -13,8 +13,10 @@ Back to [README](../README.md). Phase 1 in [TASK-GRAPH](../TASK-GRAPH.md).
 - `joinCall()` façade creates or attaches the room and seats exactly one human (`host`) and one agent (`pair_partner`). Used by both the Drive tab and the Chat Join shortcut.
 - Rooms persist across leave. Leave removes a participant, the room object remains attachable (drop-in semantics).
 - Room state is hub-owned. Clients hold read-only projections fed by broadcasts, never a writable copy.
+- Reconnect / hub-down / version-skew behaviors match [ops/hub-drive-ops.md](../ops/hub-drive-ops.md): snapshot + live events on resume; hard stop on major schema skew; explicit empty state when hub is not running.
+- Unfocused rooms are view-only in MVP ([DEC-open-product-forks](../decisions/DEC-open-product-forks.md)); only the focused room runs agent turns.
 - All ops validated at the hub server boundary. Internal room logic trusts typed inputs.
-- Unit tests cover join, re-join idempotency, leave with persistence, mute broadcast, and stage transfer.
+- Unit tests cover join, re-join idempotency, leave with persistence, mute broadcast, stage transfer, reconnect snapshot, and focus-room runtime cap.
 
 ## Dependencies
 

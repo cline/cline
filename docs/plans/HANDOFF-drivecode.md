@@ -22,7 +22,9 @@ Keep these constraints:
 - Do not modify Cursor or VS Code chrome through DOM injection.
 - Do not create a second agent registry or a second runtime path.
 
-The phase 1 package decision remains open. Until Harrison answers it, use the reversible default in the Open Decision section.
+The phase 1 package decision is **closed** by [cline-drivemode/decisions/DEC-package-location.md](cline-drivemode/decisions/DEC-package-location.md): `@cline/drive` in this monorepo. Extract only when a second host needs the package.
+
+Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](cline-drivemode/LEADERSHIP-BRIEF.md). Phase 0 entry checklist. [cline-drivemode/CHECKLIST-phase0-entry.md](cline-drivemode/CHECKLIST-phase0-entry.md).
 
 ## State so far
 
@@ -36,8 +38,9 @@ The phase 1 package decision remains open. Until Harrison answers it, use the re
 - `docs/plans/cline-drivemode/TASK-GRAPH.md` orders phases and acceptance gates.
 - `docs/plans/cline-drivemode/AGENT-RUNBOOK.md` explains how the next agent should select, implement, and verify tasks.
 - `docs/plans/cline-drivemode/prd/prd-driveagent-portfolio.md` defines Driveagent portfolios, knowledge graphs, and recruit.
-- `docs/plans/cline-drivemode/ard/` records the proposed decisions for Driveagent home, canonical graph data, recruit, RosterPack, and gated learning.
+- `docs/plans/cline-drivemode/ard/` records the decisions for Driveagent home, canonical graph data, recruit, RosterPack, and gated learning (see status board).
 - `docs/plans/cline-drivemode/examples/driveagent-pair-partner/` is the concrete agent-home and graph fixture.
+- `docs/plans/cline-drivemode/LEADERSHIP-BRIEF.md` is the SE/PM planning wave that closes contradictions and names Phase 0 entry criteria.
 
 ### Drivecode SDK plan
 
@@ -102,6 +105,10 @@ The implementation must also keep `AgentProfile` separate from agent behavior. P
 
 ## Open Decision (needs Harrison)
 
-Should `drivecode-sdk` live as `sdk/packages/drivecode` or `@cline/drivecode` inside this monorepo in phase 1, or as a separate `drivecode-sdk` repo that cline-drivecode consumes?
+**Package location — closed as Recommended.** See [cline-drivemode/decisions/DEC-package-location.md](cline-drivemode/decisions/DEC-package-location.md). Flip to Accepted with `accept all` or override with `change: DEC-package-location …`.
 
-Recommended default. Put it in the monorepo first for delivery speed and direct conformance testing. Extract it only when a second host needs the package.
+**Still needs explicit reply:** Accept ARD-0001 through ARD-0004 (and the leadership DEC bundle) as written, or name one change before phase-0 schema work.
+
+Reply with one of: `accept all` | `change: <id and new default>`.
+
+Board: [cline-drivemode/ard/ARD-0000-status-board.md](cline-drivemode/ard/ARD-0000-status-board.md).

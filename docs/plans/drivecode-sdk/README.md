@@ -17,6 +17,7 @@ Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 | [02-architecture.md](02-architecture.md) | The layer cake, the host port with its capability descriptor, the ownership matrix, the data shapes, and the resolution of `drivecode-sdk` against the planned `@cline/drive` kernel. |
 | [03-phased-plan.md](03-phased-plan.md) | Phases with verifiable acceptance criteria. No time estimates. |
 | [04-relationship-to-cline-drivecode.md](04-relationship-to-cline-drivecode.md) | How the product consumes the SDK and the Cline SDK together. What changes in the existing drivemode plan. |
+| [05-alignment-with-driveagent.md](05-alignment-with-driveagent.md) | How host port + `.driveagent/` compile coexist; reconciles older “no Drive-owned definition” wording. |
 | [decisions.tsv](decisions.tsv) | The decision trail for this wave. One row per decision, with evidence pointers. |
 
 ## Reading order

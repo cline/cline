@@ -76,12 +76,16 @@ Keep the existing Chat **Join call** as a shortcut that opens/focuses the active
 2. Promote agents to **room participants** (already in future multi-user plan). MVP can still be 1 human + 1 pair_partner, but the UI shows the roster shape.
 3. Two transcript views. Room thread and per-agent stream.
 4. Send path gains `addressSet`. Kernel/hub enforce delivery.
-5. Stage accepts `sharer: human | agent`. User share MVP can be window/tab capture or “pin this editor selection as share payload” before full WebRTC.
+5. Stage accepts `sharer: human | agent`. User share MVP is structured (“pin this editor selection / file / terminal as share payload”). WebRTC pixels stay later.
 
-## Open forks (preference)
+## Open forks (closed by leadership defaults)
 
-1. Per-agent stream. True private agent log vs filtered view of the same room events. Prototype assumes a dedicated stream.
-2. User screen share MVP. Pixel capture vs structured “share selection / file / terminal” only until WebRTC.
+See [DEC-open-product-forks](../../plans/cline-drivemode/decisions/DEC-open-product-forks.md).
+
+1. **Per-agent stream.** MVP = filtered projection of room events. Dedicated private log deferred.
+2. **User screen share MVP.** Structured share only (selection / file / terminal pin). Pixels / WebRTC later.
+3. **Accent.** Violet edge default (not violet fill density).
+4. **Multi-room focus.** Unfocused rooms are view-only; one active runtime room.
 
 ## Sources
 

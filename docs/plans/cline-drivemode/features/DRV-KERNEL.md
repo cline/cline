@@ -12,9 +12,13 @@ Drive behavior (sub-modes, narration policy, interrupt policy) must live somewhe
 - Kernel exposes a state machine: `active` flag plus `subMode` (`plan | act | ask | debug`), transitions validated, illegal transitions rejected.
 - Narration policy is a pure function from work events to optional narration events, with a density setting (`decision-points` default, `every-tool` opt-in).
 - Interrupt policy is a pure function classifying a hand-raise against turn state into `pause-after-tool | hard-cancel | queue-steer`.
+- **Revise-not-restart.** Mid-turn corrections default to revise (preserve useful tool results) unless the user explicitly cancels/restarts ([DEC-open-product-forks](../decisions/DEC-open-product-forks.md)).
 - Kernel emits only `DriveEvent` values from DRV-EVENTS. No transport, no UI, no file persistence inside the kernel.
+- Host port: `DriveHostPort` interface + capability descriptor declared; no concrete hub I/O inside the kernel.
+- Conformance kit stub: fakeHost that declares a capability and no-ops fails closed.
+- Pure `reduceRoom` / `projectStage` live in this package (apps import them; hub commits separately).
 - Dependency direction holds. Kernel depends on `@cline/shared` only. `@cline/core` consumes kernel interfaces, never the reverse.
-- Unit tests cover mode transitions, narration density both settings, and all interrupt classifications.
+- Unit tests cover mode transitions, narration density both settings, all interrupt classifications, revise-not-restart, and fakeHost fail-closed.
 
 ## Dependencies
 

@@ -69,4 +69,4 @@ One developer and one pair partner in the MVP roster. The UI still shows the ros
 - Multiple concurrent agents on the stage by default (DRV-TEAM-OPT is the flagged exception).
 - Pixel screen capture as the agent stage path.
 - A second daemon. The hub on `:25463` is the only server. Nothing defaults to `:7891`.
-- A Drive-owned agent definition format. Prompts, tools, and models stay in Cline's `.cline/agents/*.yaml`; Drive only overlays how an agent appears in a call.
+- A second prompt/tool registry inside Drive call facets or `AgentProfile`. Agent definitions are authored under `.driveagent/<slug>/` and **compile** into the host runtime (see [DEC-agent-source-of-truth](decisions/DEC-agent-source-of-truth.md) and [ARD-0001](ard/ARD-0001-driveagent-home.md)). Drive overlays appearance only; there is exactly one runtime path.

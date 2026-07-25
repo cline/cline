@@ -21,6 +21,7 @@ Drive identifiers never contain `Team`; that word belongs to Cline's runtime con
 ## Acceptance criteria
 
 - Behind a config flag (default off), the pair partner can seat one `specialist` agent in the room.
+- Seating a specialist **requires** isolation capability ([DRV-ISOLATION](DRV-ISOLATION.md)); otherwise the op fails with a typed, visible error.
 - The specialist's capability preset never exceeds the partner's (readonly default, per the operator-hierarchy rule).
 - The specialist appears in the roster and on the call strip. Its work events render on the stage only when it holds the stage pointer.
 - Dismissing the partner cascades to its specialists.
@@ -31,6 +32,7 @@ Drive identifiers never contain `Team`; that word belongs to Cline's runtime con
 ## Dependencies
 
 - Phase 2 gate complete. DRV-ROOM-MVP (roster and stage pointer already model this), DRV-STAGE. [DRV-ROSTER-PACK](DRV-ROSTER-PACK.md) shares the `seatSources` refcount and the `capPreset` path.
+- **[DRV-ISOLATION](DRV-ISOLATION.md) is a hard dependency.** `teamOpt` must not seat a second agent when isolation is unavailable (fail closed).
 
 ## Surfaces touched
 

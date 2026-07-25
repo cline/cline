@@ -81,21 +81,27 @@ Roster click = **Transcript | Profile** (W-37). Address-follows-focus only on Tr
 
 ## Open Decision (needs Harrison)
 
-**Accept ARD-0001 through ARD-0004 as written (including lexical-only recruit MVP and propose/accept learn), or change one default before phase-0 schema work starts?**
+**Accept ARD-0001 through ARD-0004 as written (including lexical-only recruit MVP and propose/accept learn), plus the leadership DEC bundle, or change one default before phase-0 schema work starts?**
 
-Reply with one of: `accept all` | `change: <ARD-id and new default>`.
+Reply with one of: `accept all` | `change: <id and new default>`.
+
+Defaults and board: [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md), [ard/ARD-0000-status-board.md](ard/ARD-0000-status-board.md), [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
+
+Agent SoT and package location are **Recommended closed** (compile-from-`.driveagent/`; `@cline/drive` in monorepo). Overturn only via `change: …`.
 
 ## Suggested next slices (after the decision)
 
-1. Phase 0: `@cline/shared` Drive event + home/graph schemas; no-prompt assertion tests.
-2. Phase 1: hub ops stub + Drive tab shell (replace webview-local-only state) + participant sheet chooser.
-3. Wire example `examples/driveagent-pair-partner/` into a fixture test for compile.
-4. Keep drivecode-sdk plan as the meta-harness track; do not block Driveagent home on Omnigent parity.
+1. Clear [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
+2. Phase 0: `@cline/shared` Drive event + home/graph schemas; no-prompt assertion tests; `@cline/drive` scaffold + host port stub.
+3. Phase 1: hub ops stub + Drive tab shell (replace webview-local-only state) + participant sheet chooser + gates feed-card MVP.
+4. Wire example `examples/driveagent-pair-partner/` into a fixture test for compile.
+5. Keep drivecode-sdk plan as the meta-harness track; see [../drivecode-sdk/05-alignment-with-driveagent.md](../drivecode-sdk/05-alignment-with-driveagent.md).
 
 ## How to resume
 
 ```text
-Read: docs/plans/cline-drivemode/HANDOFF.md (this file)
-Then:  prd/prd-driveagent-portfolio.md → ard/README.md → features/DRV-DRIVEAGENT-HOME.md
+Read: docs/plans/cline-drivemode/LEADERSHIP-BRIEF.md
+Then:  HANDOFF.md (this file) → ard/ARD-0000-status-board.md → CHECKLIST-phase0-entry.md
+Then:  prd/prd-driveagent-portfolio.md → features/DRV-DRIVEAGENT-HOME.md
 Smoke: open docs/design/drive-wireframes/drive-tab-discord-slack.html in a browser
 ```
