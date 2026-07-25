@@ -103,6 +103,7 @@ function HistoryListContent({
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const [renameInputKey, setRenameInputKey] = useState(0);
+	const [renamePrefill, setRenamePrefill] = useState("");
 	const renameValueRef = useRef("");
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
 	const handlerRef = useRef<(key: HistoryKeyEvent | undefined) => void>(
@@ -307,8 +308,10 @@ function HistoryListContent({
 		if (key.name === "r") {
 			const row = rowsRef.current[selectedRef.current];
 			if (row?.sessionId && onRename) {
+				const initialValue = rawSessionTitle(row);
 				setStatusMessage(null);
-				renameValueRef.current = rawSessionTitle(row);
+				renameValueRef.current = initialValue;
+				setRenamePrefill(initialValue);
 				setRenameInputKey((k) => k + 1);
 				setRenaming(row.sessionId);
 			}
@@ -391,7 +394,10 @@ function HistoryListContent({
 							flexDirection="row"
 							paddingX={1}
 							backgroundColor={isSel ? palette.selection : undefined}
-							onMouseDown={() => onResolve(row.sessionId)}
+							onMouseDown={() => {
+								if (isRenaming) return;
+								onResolve(row.sessionId);
+							}}
 							overflow="hidden"
 							height={1}
 						>
@@ -404,7 +410,7 @@ function HistoryListContent({
 							{isRenaming ? (
 								<input
 									key={renameInputKey}
-									value={rawSessionTitle(row)}
+									value={renamePrefill}
 									onInput={(v: string) => {
 										renameValueRef.current = v;
 									}}
