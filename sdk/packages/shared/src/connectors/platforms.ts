@@ -41,6 +41,11 @@ export interface ConnectorPlatformDef {
 	type: "polling" | "webhook" | "hybrid";
 	hint: string;
 	fields: ConnectorFieldDef[];
+	/**
+	 * Adapter-derived flags that may be persisted for fast reconnects but must
+	 * be regenerated whenever dashboard-managed configuration changes.
+	 */
+	derivedReconnectFlags?: string[];
 	security?: ConnectorSecurityDef;
 }
 
@@ -214,9 +219,13 @@ export function mergeConnectorConnectArgs(
 	configuredArgs: string[],
 	options: { replaceSecurityArgs: boolean },
 ): string[] {
-	const managedFlags = new Set(
-		platform.fields.flatMap((field) => [field.flag, ...(field.aliases ?? [])]),
-	);
+	const managedFlags = new Set([
+		...platform.fields.flatMap((field) => [
+			field.flag,
+			...(field.aliases ?? []),
+		]),
+		...(platform.derivedReconnectFlags ?? []),
+	]);
 	if (options.replaceSecurityArgs) {
 		for (const flag of platform.security?.argumentFlags ?? []) {
 			managedFlags.add(flag);
@@ -300,6 +309,7 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 		name: "Telegram",
 		type: "polling",
 		hint: "Easiest to set up. No public URL needed.",
+		derivedReconnectFlags: ["-m", "--bot-username"],
 		fields: [
 			{
 				flag: "-k",

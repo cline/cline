@@ -66,4 +66,34 @@ describe("mergeConnectorConnectArgs", () => {
 			"app-token",
 		]);
 	});
+
+	it.each([
+		["long flag", ["--bot-username", "old_bot"]],
+		["short flag", ["-m", "old_bot"]],
+		["equals syntax", ["--bot-username=old_bot"]],
+	])("drops a persisted Telegram username after token rotation using %s", (_label, persistedUsernameArgs) => {
+		expect(
+			mergeConnectorConnectArgs(
+				platform("telegram"),
+				[
+					"--provider",
+					"openrouter",
+					"-k",
+					"old-token",
+					...persistedUsernameArgs,
+					"--cwd",
+					"/workspace",
+				],
+				["-k", "new-token"],
+				{ replaceSecurityArgs: false },
+			),
+		).toEqual([
+			"--provider",
+			"openrouter",
+			"--cwd",
+			"/workspace",
+			"-k",
+			"new-token",
+		]);
+	});
 });

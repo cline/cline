@@ -112,6 +112,8 @@ describe("connector hub handlers", () => {
 				"openrouter",
 				"--bot-token",
 				"123456:old-token",
+				"--bot-username",
+				"old_bot",
 				"--cwd",
 				"/workspace",
 				"--no-tools",
