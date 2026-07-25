@@ -137,6 +137,7 @@ const CUSTOMIZATION_VIEW_SECTIONS = {
 const EMPTY_HUB_STATE: WebviewHubState = {
 	type: "hub_state",
 	connected: false,
+	restartable: false,
 	clients: [],
 	connectors: [],
 	sessions: [],
@@ -470,6 +471,8 @@ function Shell({
 }
 
 function HomeView({
+	connectError,
+	connectPending,
 	hubState,
 	onConnectHub,
 	onOpenSession,
@@ -478,6 +481,8 @@ function HomeView({
 	restartPending,
 	recentSessions,
 }: {
+	connectError?: string;
+	connectPending: boolean;
 	hubState: WebviewHubState;
 	onConnectHub: (hubUrl: string) => void;
 	onOpenSession: (sessionId: string) => void;
@@ -497,10 +502,8 @@ function HomeView({
 	const [hubUrlInput, setHubUrlInput] = useState(() => hubState.hubUrl ?? "");
 
 	useEffect(() => {
-		if (!hubUrlInput.trim() && hubState.hubUrl) {
-			setHubUrlInput(hubState.hubUrl);
-		}
-	}, [hubState.hubUrl, hubUrlInput]);
+		setHubUrlInput(hubState.hubUrl ?? "");
+	}, [hubState.hubUrl]);
 
 	const copyText = useCallback((value?: string) => {
 		if (!value || typeof navigator === "undefined") return;
@@ -556,10 +559,16 @@ function HomeView({
 							</span>
 						</button>
 						<Button
-							disabled={!hubState.connected || restartPending}
+							disabled={
+								!hubState.connected || !hubState.restartable || restartPending
+							}
 							onClick={() => setRestartDialogOpen(true)}
 							size="sm"
-							title="Restart Cline Hub"
+							title={
+								hubState.restartable
+									? "Restart Cline Hub"
+									: "Custom hubs must be restarted externally"
+							}
 							type="button"
 							variant="outline"
 							className="h-7 rounded px-2 text-xs"
@@ -572,25 +581,37 @@ function HomeView({
 					</>
 				}
 			/>
-			<form
-				className="mb-5 flex max-w-[52rem] items-center gap-2"
-				onSubmit={(event) => {
-					event.preventDefault();
-					submitHubUrl();
-				}}
-			>
-				<Input
-					aria-label="Hub URL"
-					className="h-8"
-					onChange={(event) => setHubUrlInput(event.target.value)}
-					placeholder="ws://127.0.0.1:25463/hub?authToken=..."
-					value={hubUrlInput}
-				/>
-				<Button className="h-8 rounded px-2" size="sm" type="submit">
-					<LinkIcon className="size-3.5" />
-					<span>Connect</span>
-				</Button>
-			</form>
+			<div className="mb-5 max-w-[52rem]">
+				<form
+					className="flex items-center gap-2"
+					onSubmit={(event) => {
+						event.preventDefault();
+						submitHubUrl();
+					}}
+				>
+					<Input
+						aria-label="Hub URL"
+						className="h-8"
+						onChange={(event) => setHubUrlInput(event.target.value)}
+						placeholder="ws://127.0.0.1:25463/hub?authToken=..."
+						value={hubUrlInput}
+					/>
+					<Button
+						className="h-8 rounded px-2"
+						disabled={connectPending}
+						size="sm"
+						type="submit"
+					>
+						<LinkIcon className="size-3.5" />
+						<span>{connectPending ? "Connecting" : "Connect"}</span>
+					</Button>
+				</form>
+				{connectError ? (
+					<p className="mt-2 text-sm text-destructive" role="alert">
+						{connectError}
+					</p>
+				) : null}
+			</div>
 			<AlertDialog
 				open={restartDialogOpen}
 				onOpenChange={(open) => {
@@ -613,7 +634,9 @@ function HomeView({
 							Cancel
 						</AlertDialogCancel>
 						<AlertDialogAction
-							disabled={!hubState.connected || restartPending}
+							disabled={
+								!hubState.connected || !hubState.restartable || restartPending
+							}
 							onClick={confirmRestartHub}
 							variant="destructive"
 						>
@@ -1159,6 +1182,10 @@ function App() {
 		readCurrentSettingsSection(),
 	);
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
+	const [connectPending, setConnectPending] = useState(false);
+	const [hubConnectionError, setHubConnectionError] = useState<
+		string | undefined
+	>();
 	const [restartPending, setRestartPending] = useState(false);
 	const [selectedSessionId, setSelectedSessionId] = useState<
 		string | undefined
@@ -1201,6 +1228,11 @@ function App() {
 			}
 			if (message.type === "sessions") {
 				setRecentSessions(message.sessions);
+				return;
+			}
+			if (message.type === "hub_connection_result") {
+				setConnectPending(false);
+				setHubConnectionError(message.ok ? undefined : message.error);
 			}
 		};
 		window.addEventListener("message", handleMessage);
@@ -1214,6 +1246,8 @@ function App() {
 	}, []);
 
 	const connectHub = useCallback((hubUrl: string) => {
+		setConnectPending(true);
+		setHubConnectionError(undefined);
 		postToHost({ type: "connect_hub", hubUrl });
 	}, []);
 
@@ -1373,6 +1407,8 @@ function App() {
 		}
 		return (
 			<HomeView
+				connectError={hubConnectionError}
+				connectPending={connectPending}
 				hubState={hubState}
 				onConnectHub={connectHub}
 				onOpenSession={openSession}
@@ -1383,6 +1419,8 @@ function App() {
 			/>
 		);
 	}, [
+		connectPending,
+		hubConnectionError,
 		hubState,
 		connectHub,
 		deleteSession,

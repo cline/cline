@@ -29,6 +29,5 @@ export const providerSettingsManager = new ProviderSettingsManager();
 export const browserConfig: BrowserConfig = {
 	bridgeUrl: publicUrl,
 	dashboardWebUrl,
-	inviteRequired: Boolean(roomSecret),
 	publicUrl,
 };

@@ -25,6 +25,7 @@ export function hubStatePayload(ctx: HubContext): WebviewHubState {
 	return {
 		type: "hub_state",
 		connected: Boolean(ctx.cline && ctx.uiClient),
+		restartable: ctx.hubManagedLocally,
 		hubUrl: ctx.hubUrl,
 		hubStartedAt: ctx.hubStartedAt,
 		coreVersion: ctx.coreVersion,

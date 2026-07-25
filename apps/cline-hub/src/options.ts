@@ -6,7 +6,7 @@ export interface ClineHubServerOptions {
 	port: number;
 	publicUrl: string;
 	dashboardWebUrl: string;
-	roomSecret?: string;
+	roomSecret: string;
 	workspaceRoot: string;
 }
 
@@ -83,7 +83,7 @@ function normalizeDashboardWebUrl(
 	return parsed.toString().replace(/\/$/, "");
 }
 
-function normalizeRoomSecret(value: string | undefined): string | undefined {
+function normalizeRoomSecret(value: string | undefined): string {
 	const secret = value?.trim();
 	return secret ? secret : randomBytes(32).toString("hex");
 }
@@ -133,14 +133,12 @@ function shouldAddDashboardPortToPublicUrl(url: URL, port: number): boolean {
 export function buildDashboardLaunchUrl(
 	dashboardWebUrl: string,
 	bridgeUrl: string,
-	roomSecret: string | undefined,
+	roomSecret: string,
 ): string {
 	const url = new URL(dashboardWebUrl);
 	const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
 	fragment.set("bridgeUrl", bridgeUrl);
-	if (roomSecret) {
-		fragment.set("roomSecret", roomSecret);
-	}
+	fragment.set("roomSecret", roomSecret);
 	url.hash = fragment.toString();
 	return url.toString();
 }

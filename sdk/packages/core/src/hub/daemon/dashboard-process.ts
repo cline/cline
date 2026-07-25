@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { CLINE_RUN_AS_HUB_DAEMON_ENV } from "@cline/shared";
 import {
+	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV,
 	clearHubDashboardDiscovery,
 	isHubDashboardPidAlive,
 	readHubDashboardDiscovery,
@@ -91,7 +92,7 @@ export async function restartManagedHubDashboardProcess(options: {
 	await stopManagedHubDashboardProcess(options.discoveryPath);
 	const childEnv: NodeJS.ProcessEnv = {
 		...env,
-		CLINE_HUB_DASHBOARD_DISCOVERY_PATH: options.discoveryPath,
+		[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV]: options.discoveryPath,
 		CLINE_NO_INTERACTIVE: "1",
 	};
 	delete childEnv[CLINE_RUN_AS_HUB_DAEMON_ENV];

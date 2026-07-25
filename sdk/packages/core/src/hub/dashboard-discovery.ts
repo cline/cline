@@ -10,6 +10,8 @@ import { basename, dirname, join } from "node:path";
 import type { HubOwnerContext } from "./discovery";
 
 const DASHBOARD_DISCOVERY_FILENAME = "dashboard.json";
+export const CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV =
+	"CLINE_HUB_DASHBOARD_DISCOVERY_PATH";
 
 export interface HubDashboardDiscoveryRecord {
 	pid: number;

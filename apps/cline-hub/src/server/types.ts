@@ -14,7 +14,6 @@ export type ProviderSettingsUpdate = Partial<
 export interface BrowserConfig {
 	bridgeUrl: string;
 	dashboardWebUrl: string;
-	inviteRequired: boolean;
 	publicUrl: string;
 }
 

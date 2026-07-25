@@ -17,6 +17,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 vi.mock("../dashboard-discovery", () => ({
+	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV: "CLINE_HUB_DASHBOARD_DISCOVERY_PATH",
 	clearHubDashboardDiscovery,
 	isHubDashboardPidAlive,
 	readHubDashboardDiscovery,

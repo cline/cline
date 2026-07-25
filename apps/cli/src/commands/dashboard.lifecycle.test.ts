@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { spawn, coreMocks, buildCliSubcommandCommand } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
 	coreMocks: {
+		CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV:
+			"CLINE_HUB_DASHBOARD_DISCOVERY_PATH",
 		clearHubDashboardDiscovery: vi.fn(async () => undefined),
 		ensureDetachedHubServer: vi.fn(async () => ({
 			url: "ws://127.0.0.1:25463/hub",

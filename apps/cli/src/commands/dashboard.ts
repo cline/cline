@@ -4,6 +4,7 @@ import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV,
 	clearHubDashboardDiscovery,
 	ensureDetachedHubServer,
 	type HubDashboardDiscoveryRecord,
@@ -55,7 +56,6 @@ export interface RunDashboardCommandOptions {
 const DASHBOARD_PORT_ENV = "CLINE_HUB_DASHBOARD_PORT";
 const WEBVIEW_DIST_ENV = "CLINE_HUB_WEBVIEW_DIST_DIR";
 const DASHBOARD_WEB_URL_ENV = "CLINE_HUB_DASHBOARD_WEB_URL";
-const DASHBOARD_DISCOVERY_PATH_ENV = "CLINE_HUB_DASHBOARD_DISCOVERY_PATH";
 const DEFAULT_HOSTED_DASHBOARD_WEB_URL = "https://cline.bot/dashboard";
 const DASHBOARD_STARTUP_TIMEOUT_MS = 8_000;
 const DASHBOARD_STARTUP_POLL_MS = 200;
@@ -183,7 +183,7 @@ async function openDefaultUrl(url: string): Promise<void> {
 
 function resolveDashboardDiscoveryPath(): string {
 	return (
-		process.env[DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
+		process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
 		resolveHubDashboardDiscoveryPath(resolveDefaultHubOwnerContext())
 	);
 }
@@ -218,7 +218,7 @@ function spawnDetachedDashboardServer(cwd: string): void {
 		env: {
 			...process.env,
 			CLINE_NO_INTERACTIVE: "1",
-			[DASHBOARD_DISCOVERY_PATH_ENV]: resolveDashboardDiscoveryPath(),
+			[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV]: resolveDashboardDiscoveryPath(),
 		},
 		windowsHide: true,
 	});
