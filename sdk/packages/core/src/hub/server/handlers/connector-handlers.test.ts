@@ -188,6 +188,31 @@ describe("connector hub handlers", () => {
 		expect(readPersistedConnector("slack")).toBeUndefined();
 	});
 
+	it("preserves CLI reconnect state when dashboard config is deleted", () => {
+		useTempDataDir();
+		withConnectorStore((store) =>
+			store.recordConnected("telegram", ["-k", "123456:fake-token"]),
+		);
+		__test__.configureConnector({
+			channel: "telegram",
+			values: { "-k": "123456:fake-token" },
+		});
+
+		const response = __test__.deleteConnectorConfig({
+			channel: "telegram",
+		});
+
+		expect(response.configured).toEqual([]);
+		expect(readPersistedConnector("telegram")).toEqual(
+			expect.objectContaining({
+				configured: false,
+				values: {},
+				connectArgs: ["-k", "123456:fake-token"],
+				enabled: true,
+			}),
+		);
+	});
+
 	it("validates only included conditional connector fields", () => {
 		useTempDataDir();
 

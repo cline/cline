@@ -7,6 +7,7 @@ import {
 	buildConnectorConnectArgs,
 	CONNECTOR_PLATFORMS,
 	listConnectorCatalog,
+	setConnectorCliLaunchSpec,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import type { JsonRecord } from "./types";
@@ -135,6 +136,15 @@ function buildCliConnectCommand(
 	return { launcher, childArgs };
 }
 
+export function configureConnectorCliLaunch(workspaceRoot: string): void {
+	const command = buildCliConnectCommand(workspaceRoot, []);
+	setConnectorCliLaunchSpec({
+		launcher: command.launcher,
+		connectArgsPrefix: command.childArgs,
+		cwd: workspaceRoot,
+	});
+}
+
 export function connectorChannelsPayload(): WebviewConnectorChannelsResponse {
 	const supported = new Set(
 		listConnectorCatalog().map((connector) => connector.name),
@@ -252,15 +262,25 @@ function buildConnectorLaunchArgs(
 	return isRestart ? ["--restart", ...cliArgs] : cliArgs;
 }
 
+function shouldRestartConnector(channel: string, activeCount: number): boolean {
+	if (activeCount > 1) {
+		throw new Error(
+			`cannot safely restart ${channel}: ${activeCount} instances are active; stop the intended instances explicitly first`,
+		);
+	}
+	return activeCount === 1;
+}
+
 export async function startConnectorChannel(
 	workspaceRoot: string,
 	args?: Record<string, unknown>,
 ): Promise<WebviewConnectorChannelsResponse> {
 	const cliArgs = buildConnectorStartArgs(args);
 	const channel = cliArgs[0] ?? "";
-	const isRestart = listActiveConnectors().some(
+	const activeCount = listActiveConnectors().filter(
 		(connector) => connector.type === channel,
-	);
+	).length;
+	const isRestart = shouldRestartConnector(channel, activeCount);
 	const result = await runCliConnectCommand(
 		workspaceRoot,
 		buildConnectorLaunchArgs(cliArgs, isRestart),
@@ -280,7 +300,9 @@ export async function startConnectorChannel(
 }
 
 export const __test__ = {
+	buildCliConnectCommand,
 	buildConnectorLaunchArgs,
+	shouldRestartConnector,
 };
 
 export async function stopConnectorChannel(

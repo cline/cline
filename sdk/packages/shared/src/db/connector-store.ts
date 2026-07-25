@@ -259,12 +259,50 @@ export class SqliteConnectorStore {
 			.run(nowIso());
 	}
 
-	delete(channel: string): boolean {
-		const changes =
-			this.getRawDb()
-				.prepare(`DELETE FROM connectors WHERE channel = ?`)
-				.run(channel).changes ?? 0;
-		return changes > 0;
+	/**
+	 * Remove only the dashboard-managed configuration for a channel. CLI
+	 * connection state is independent: when reconnect args exist, keep them
+	 * and clear the configuration fields instead of deleting the whole row.
+	 */
+	deleteConfig(channel: string): boolean {
+		const db = this.getRawDb();
+		db.exec("BEGIN IMMEDIATE;");
+		try {
+			const row = db
+				.prepare(
+					`SELECT configured, connect_args_json
+					 FROM connectors
+					 WHERE channel = ?`,
+				)
+				.get(channel);
+			if (!row || row.configured !== 1) {
+				db.exec("COMMIT;");
+				return false;
+			}
+
+			if (typeof row.connect_args_json === "string") {
+				db.prepare(
+					`UPDATE connectors
+					 SET configured = 0,
+					     values_json = '{}',
+					     security_enabled = 0,
+					     security_values_json = '{}',
+					     updated_at = ?
+					 WHERE channel = ?`,
+				).run(nowIso(), channel);
+			} else {
+				db.prepare(`DELETE FROM connectors WHERE channel = ?`).run(channel);
+			}
+			db.exec("COMMIT;");
+			return true;
+		} catch (error) {
+			try {
+				db.exec("ROLLBACK;");
+			} catch {
+				// Preserve the original transaction failure.
+			}
+			throw error;
+		}
 	}
 
 	/**

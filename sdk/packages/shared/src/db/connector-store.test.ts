@@ -126,17 +126,51 @@ describe("SqliteConnectorStore", () => {
 		});
 	});
 
-	it("disables all connectors and deletes individual entries", () => {
+	it("disables autostart for all connectors", () => {
 		useTempDataDir();
 		withStore((store) => {
 			store.recordConnected("slack", ["--bot-token", "xoxb"]);
 			store.recordConnected("telegram", ["-k", "123:token"]);
 			store.disableAll();
 			expect(store.list().every((entry) => !entry.enabled)).toBe(true);
+		});
+	});
 
-			expect(store.delete("slack")).toBe(true);
-			expect(store.delete("slack")).toBe(false);
-			expect(store.list().map((entry) => entry.channel)).toEqual(["telegram"]);
+	it("deletes dashboard config without clearing CLI autostart state", () => {
+		useTempDataDir();
+		withStore((store) => {
+			store.recordConnected("telegram", ["-k", "123:token"]);
+			store.upsertConfig({
+				channel: "telegram",
+				values: { "-k": "123:token" },
+				security: { enabled: true, values: { userId: "42" } },
+			});
+
+			expect(store.deleteConfig("telegram")).toBe(true);
+			expect(store.get("telegram")).toEqual(
+				expect.objectContaining({
+					channel: "telegram",
+					configured: false,
+					values: {},
+					security: undefined,
+					connectArgs: ["-k", "123:token"],
+					enabled: true,
+				}),
+			);
+			expect(store.deleteConfig("telegram")).toBe(false);
+		});
+	});
+
+	it("removes config-only rows when dashboard config is deleted", () => {
+		useTempDataDir();
+		withStore((store) => {
+			store.upsertConfig({
+				channel: "telegram",
+				values: { "-k": "123:token" },
+			});
+
+			expect(store.deleteConfig("telegram")).toBe(true);
+			expect(store.get("telegram")).toBeUndefined();
 		});
 	});
 

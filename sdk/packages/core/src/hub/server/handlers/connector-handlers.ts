@@ -162,7 +162,7 @@ function deleteConnectorConfig(payload: unknown): ConnectorChannelsResponse {
 	if (!channel) {
 		throw new Error("channel is required");
 	}
-	withConnectorStore((store) => store.delete(channel));
+	withConnectorStore((store) => store.deleteConfig(channel));
 	return connectorChannelsPayload();
 }
 

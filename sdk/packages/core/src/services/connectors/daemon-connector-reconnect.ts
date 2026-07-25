@@ -116,9 +116,13 @@ export async function reconnectDaemonConnectors(
 		process.stderr.write(`[hub-daemon] ${message}\n`),
 ): Promise<ReconnectAttempt[]> {
 	const launchSpec = readConnectorCliLaunchSpec();
-	const activeChannels = new Set(
-		listActiveConnectors().map((record) => record.type),
-	);
+	const activeChannelCounts = new Map<string, number>();
+	for (const record of listActiveConnectors()) {
+		activeChannelCounts.set(
+			record.type,
+			(activeChannelCounts.get(record.type) ?? 0) + 1,
+		);
+	}
 	return await reconnectPersistedConnectors({
 		start: async (channel, args) => {
 			if (!launchSpec) {
@@ -127,7 +131,14 @@ export async function reconnectDaemonConnectors(
 				);
 				return false;
 			}
-			const restart = activeChannels.has(channel);
+			const activeCount = activeChannelCounts.get(channel) ?? 0;
+			if (activeCount > 1) {
+				log(
+					`[connect] cannot safely reconnect ${channel}: found ${activeCount} surviving instances but persisted autostart state identifies only the channel`,
+				);
+				return false;
+			}
+			const restart = activeCount === 1;
 			if (restart) {
 				log(
 					`[connect] restarting surviving ${channel} connector for the new hub session`,

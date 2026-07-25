@@ -151,4 +151,10 @@ describe("connector launch command", () => {
 			__test__.buildConnectorLaunchArgs(["telegram", "-k", "token"], "start"),
 		).toEqual(["telegram", "-k", "token"]);
 	});
+
+	it("rejects a channel-wide restart when multiple instances are active", () => {
+		expect(() => __test__.resolveConnectorLaunchMode("telegram", 2)).toThrow(
+			"cannot safely restart telegram: 2 instances are active",
+		);
+	});
 });

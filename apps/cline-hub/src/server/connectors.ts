@@ -211,16 +211,27 @@ function buildConnectorLaunchArgs(
 	return mode === "restart" ? ["--restart", ...cliArgs] : cliArgs;
 }
 
+function resolveConnectorLaunchMode(
+	channel: string,
+	activeCount: number,
+): "start" | "restart" {
+	if (activeCount > 1) {
+		throw new Error(
+			`cannot safely restart ${channel}: ${activeCount} instances are active; stop the intended instances explicitly first`,
+		);
+	}
+	return activeCount === 1 ? "restart" : "start";
+}
+
 export async function startConnectorChannel(
 	args?: Record<string, unknown>,
 ): Promise<WebviewConnectorChannelsResponse> {
 	const cliArgs = buildConnectorStartArgs(args);
 	const channel = cliArgs[0] ?? "";
-	const mode = listActiveConnectors().some(
+	const activeCount = listActiveConnectors().filter(
 		(connector) => connector.type === channel,
-	)
-		? "restart"
-		: "start";
+	).length;
+	const mode = resolveConnectorLaunchMode(channel, activeCount);
 	const result = await runCliConnectCommand(
 		buildConnectorLaunchArgs(cliArgs, mode),
 	);
@@ -243,6 +254,7 @@ export const __test__ = {
 	buildConnectorLaunchArgs,
 	buildConnectorStartArgs,
 	normalizeConnectorError,
+	resolveConnectorLaunchMode,
 };
 
 export async function stopConnectorChannel(
