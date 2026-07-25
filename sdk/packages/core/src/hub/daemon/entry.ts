@@ -5,7 +5,10 @@ import {
 	stopManagedHubDashboardProcess,
 } from "../daemon/dashboard-process";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
-import { resolveHubDashboardDiscoveryPath } from "../dashboard-discovery";
+import {
+	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV,
+	resolveHubDashboardDiscoveryPath,
+} from "../dashboard-discovery";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
@@ -65,7 +68,9 @@ async function main(): Promise<void> {
 	});
 
 	const owner = resolveDefaultHubOwnerContext();
-	const dashboardDiscoveryPath = resolveHubDashboardDiscoveryPath(owner);
+	const dashboardDiscoveryPath =
+		process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
+		resolveHubDashboardDiscoveryPath(owner);
 
 	const daemonTelemetry = createHubDaemonTelemetry();
 

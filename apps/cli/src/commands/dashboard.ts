@@ -399,7 +399,16 @@ async function runDashboardServeCommand(
 ): Promise<number> {
 	return await withDashboardEnvironment(options, async () => {
 		const server = await (options.startServer ?? startDefaultDashboardServer)();
-		await writeDashboardDiscovery(server);
+		try {
+			await writeDashboardDiscovery(server);
+		} catch (error) {
+			try {
+				await server.stop();
+			} catch {
+				// best-effort cleanup after a failed discovery publish
+			}
+			throw error;
+		}
 		const dashboardUrl =
 			server.inviteUrl || server.publicUrl || server.listenUrl;
 		options.io.writeln(

@@ -373,6 +373,10 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 	if (!stopped && (await isAttachedHubReachable(ctx))) {
 		throw new Error("Unable to stop the current Cline Hub.");
 	}
+	// Hub process is already gone; drop stale clients before reattach so a
+	// failed connect cannot leave the dashboard pointed at a dead hub.
+	await detachHub(ctx);
+	broadcastHubState(ctx);
 	await attachHub(ctx, { preserveDashboard: true });
 	broadcastHubState(ctx);
 	ctx.broadcast({

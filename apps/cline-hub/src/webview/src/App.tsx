@@ -1230,6 +1230,10 @@ function App() {
 				setRecentSessions(message.sessions);
 				return;
 			}
+			if (message.type === "error") {
+				setRestartPending(false);
+				return;
+			}
 			if (message.type === "hub_connection_result") {
 				setConnectPending(false);
 				setHubConnectionError(message.ok ? undefined : message.error);
