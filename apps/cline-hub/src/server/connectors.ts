@@ -204,12 +204,26 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 	];
 }
 
+function buildConnectorLaunchArgs(
+	cliArgs: string[],
+	mode: "start" | "restart",
+): string[] {
+	return mode === "restart" ? ["--restart", ...cliArgs] : cliArgs;
+}
+
 export async function startConnectorChannel(
 	args?: Record<string, unknown>,
 ): Promise<WebviewConnectorChannelsResponse> {
 	const cliArgs = buildConnectorStartArgs(args);
 	const channel = cliArgs[0] ?? "";
-	const result = await runCliConnectCommand(cliArgs);
+	const mode = listActiveConnectors().some(
+		(connector) => connector.type === channel,
+	)
+		? "restart"
+		: "start";
+	const result = await runCliConnectCommand(
+		buildConnectorLaunchArgs(cliArgs, mode),
+	);
 	if (result.code !== 0) {
 		throw new Error(
 			normalizeConnectorError(
@@ -226,6 +240,7 @@ export async function startConnectorChannel(
 
 export const __test__ = {
 	buildCliConnectCommand,
+	buildConnectorLaunchArgs,
 	buildConnectorStartArgs,
 	normalizeConnectorError,
 };

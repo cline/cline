@@ -139,4 +139,16 @@ describe("connector launch command", () => {
 			"987654321",
 		]);
 	});
+
+	it("uses the atomic restart command for an active connector", () => {
+		expect(
+			__test__.buildConnectorLaunchArgs(["telegram", "-k", "token"], "restart"),
+		).toEqual(["--restart", "telegram", "-k", "token"]);
+	});
+
+	it("starts an inactive connector directly", () => {
+		expect(
+			__test__.buildConnectorLaunchArgs(["telegram", "-k", "token"], "start"),
+		).toEqual(["telegram", "-k", "token"]);
+	});
 });
