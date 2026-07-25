@@ -33,17 +33,17 @@ This feature is the mechanism, not a facet. It ships with exactly two entries (`
 
 ## Agent tasks
 
-- [ ] Define `FacetDef`, lanes, scopes, privacy classes, conflict rules, and the mapped-type catalog access in `@cline/shared`.
+- [x] Define `FacetDef`, lanes, scopes, privacy classes, conflict rules, and the mapped-type catalog access in `@cline/shared`.
   - Owner package: `@cline/shared`
   - Files likely: `sdk/packages/shared/src/drive/facets/types.ts`, `schemas.ts`, tests
   - Verify: `bun -F @cline/shared test`
   - Done when: a wrong-typed `set` fails `bun run types`, and parse rejects an unknown `schemaVersion` major with a named error.
-- [ ] Add the two-tier path helpers and the tombstone-aware merge.
+- [x] Add the two-tier path helpers and the tombstone-aware merge.
   - Owner package: `@cline/shared`
   - Files likely: `sdk/packages/shared/src/storage/paths.ts`, merge unit tests
   - Verify: `bun -F @cline/shared test`
   - Done when: workspace-over-user precedence, inherit-on-absence, and tombstone-hides-user all have passing tests.
-- [ ] Ship `DRIVE_FACET_CATALOG` with two entries plus the pure store in the kernel.
+- [x] Ship `DRIVE_FACET_CATALOG` with two entries plus the pure store in the kernel.
   - Owner package: `@cline/drive`
   - Files likely: `sdk/packages/drive/src/facets/catalog.ts`, `store.ts`, tests
   - Verify: `bun -F @cline/drive test`

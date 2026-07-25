@@ -31,6 +31,9 @@ export {
 	resolveDbDataDir,
 	resolveDocumentsClineDirectoryPath,
 	resolveDocumentsExtensionPath,
+	resolveDriveConfigSearchPaths,
+	resolveDriveFacetsPath,
+	resolveDriveRegistryPath,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalCronSpecsDir,
 	resolveGlobalSettingsPath,
@@ -51,4 +54,8 @@ export {
 	setHomeDir,
 	setHomeDirIfUnset,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
+	DRIVE_CONFIG_DIRECTORY_NAME,
+	DRIVE_FACETS_FILE_NAME,
+	DRIVE_REGISTRY_FILE_NAME,
+	type DriveConfigScope,
 } from "./paths";

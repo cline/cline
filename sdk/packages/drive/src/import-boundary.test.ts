@@ -10,6 +10,13 @@ import { describe, expect, it } from "vitest";
 function listTsFiles(dir: string): string[] {
 	const out: string[] = [];
 	for (const name of readdirSync(dir)) {
+		if (
+			name === "node_modules" ||
+			name === "dist" ||
+			name === ".git"
+		) {
+			continue;
+		}
 		const path = join(dir, name);
 		if (statSync(path).isDirectory()) {
 			out.push(...listTsFiles(path));
@@ -39,12 +46,32 @@ describe("import boundary", () => {
 		expect(offenders).toEqual([]);
 	});
 
-	it("does not hard-code a :7891 writer", () => {
+	it("does not hard-code a second-daemon writer port literal", () => {
 		const root = join(import.meta.dirname, "..");
 		const files = listTsFiles(root);
 		for (const file of files) {
 			const source = readFileSync(file, "utf8");
 			expect(source.includes(":7891")).toBe(false);
 		}
+	});
+
+	it("bans Team identifiers in Drive kernel source", () => {
+		const root = join(import.meta.dirname, "..");
+		const files = listTsFiles(root);
+		const banned = /\bTeam\b|\bteam_/;
+		const offenders: string[] = [];
+		for (const file of files) {
+			const source = readFileSync(file, "utf8");
+			for (const line of source.split("\n")) {
+				const trimmed = line.trim();
+				if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
+					continue;
+				}
+				if (banned.test(line)) {
+					offenders.push(`${file}: ${trimmed}`);
+				}
+			}
+		}
+		expect(offenders).toEqual([]);
 	});
 });

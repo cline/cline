@@ -41,3 +41,18 @@ export {
 	projectStage,
 	reduceRoom,
 } from "./reduceRoom";
+export {
+	DEFAULT_AGENT_APPEARANCE,
+	DEFAULT_BODY_INK,
+	DEFAULT_NAME_INK,
+	DRIVE_FACET_CATALOG,
+	listFacetDefs,
+	type DriveFacetCatalog,
+	type DriveFacetKey,
+	type DriveFacetValue,
+} from "./facets/catalog";
+export {
+	createFacetStore,
+	type FacetStore,
+	type FacetStoreSnapshot,
+} from "./facets/store";

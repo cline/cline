@@ -10,11 +10,9 @@
 | Events | `sdk/packages/shared/src/drive/events.ts` | Versioned union: presence, call state, stage cards, narration, steer, interrupt, gate, handoff, **guidance artifacts** (problem, constraint, requirement, option, decision, open_question, checklist, coverage_gap) |
 | Participants / roster | `sdk/packages/shared/src/drive/roster.ts` | Participant, seatSources, roles, mute, stale |
 | Address | `sdk/packages/shared/src/drive/address.ts` | everyone \| agentIds \| pack |
-| Facets | `sdk/packages/shared/src/drive/facets.ts` | Catalog, merge, tombestones, schemaVersion |
-| AgentRef / profile | `sdk/packages/shared/src/drive/profile.ts` | AgentRef union per DEC-agent-SoT; AgentProfile overlay |
-| Home / graph | `sdk/packages/shared/src/drive/home.ts` + `graph.ts` | agent/permissions/env + node/edge kinds |
-| Host port | `sdk/packages/drive/src/host-port.ts` | `DriveHostPort`, capability descriptor |
-| Reducers | `sdk/packages/drive/src/reduce-room.ts`, `project-stage.ts` | Pure fold / projection |
+| Facets | `sdk/packages/shared/src/drive/facets/` + `sdk/packages/drive/src/facets/` | Catalog, merge, tombestones, schemaVersion — **landed** (hub IO still open) |
+| Host port | `sdk/packages/drive/src/hostPort.ts` | `DriveHostPort`, capability descriptor — **landed** |
+| Reducers | `sdk/packages/drive/src/reduceRoom.ts` | Pure fold / projection — **landed** |
 
 ## Invariants to encode in types + tests
 

@@ -64,3 +64,4 @@ export {
 	type StageSharer,
 	type StageState,
 } from "./room";
+export * from "./facets";
