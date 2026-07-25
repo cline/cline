@@ -46,6 +46,7 @@ import {
 } from "./server/sessions";
 import { HubContext } from "./server/state";
 import { broadcastHubState, hubStatusPayload } from "./server/state-payloads";
+import { handleCallCommand } from "./server/drive-calls";
 import type { BrowserFrame, BrowserPeer } from "./server/types";
 
 export interface ClineHubDashboardServer {
@@ -244,6 +245,14 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						);
 					} else if (frame.type === "restart_hub") {
 						await restartHub(ctx);
+					} else if (
+						frame.type === "call_join" ||
+						frame.type === "call_leave" ||
+						frame.type === "call_mute" ||
+						frame.type === "call_set_stage" ||
+						frame.type === "call_set_mode"
+					) {
+						await handleCallCommand(ctx, peer, frame);
 					}
 				} catch (error) {
 					ctx.send(peer, {

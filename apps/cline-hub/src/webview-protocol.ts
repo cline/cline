@@ -268,7 +268,45 @@ export type WebviewInboundMessage =
 			metadata: Record<string, unknown>;
 	  }
 	| { type: "restore"; checkpointRunCount: number }
-	| { type: "forkSession" };
+	| { type: "forkSession" }
+	| {
+			type: "call_join";
+			roomId: string;
+			human: { id: string; displayName: string };
+			agent: { id: string; displayName: string };
+			activateDrive?: boolean;
+	  }
+	| {
+			type: "call_leave";
+			roomId: string;
+			participantId: string;
+			reason?: string;
+	  }
+	| {
+			type: "call_mute";
+			roomId: string;
+			participantId: string;
+			muted: boolean;
+	  }
+	| {
+			type: "call_set_stage";
+			roomId: string;
+			sharer: {
+				kind: "human" | "agent";
+				participantId: string;
+			} | null;
+			pin?: {
+				kind: "selection" | "file" | "terminal";
+				label: string;
+				ref?: string;
+			} | null;
+	  }
+	| {
+			type: "call_set_mode";
+			roomId: string;
+			subMode: "plan" | "act" | "ask" | "debug";
+			driveActive?: boolean;
+	  };
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
@@ -341,4 +379,16 @@ export type WebviewOutboundMessage =
 			forkedFromSessionId: string;
 			newSessionId: string;
 	  }
-	| { type: "fork_error"; text: string };
+	| { type: "fork_error"; text: string }
+	| {
+			type: "room_snapshot";
+			roomId: string;
+			snapshot: import("@cline/shared").RoomSnapshot;
+	  }
+	| {
+			type: "drive_event";
+			roomId: string;
+			event: import("@cline/shared").DriveEvent;
+			snapshot: import("@cline/shared").RoomSnapshot;
+	  }
+	| { type: "call_error"; text: string; code?: string };

@@ -84,6 +84,13 @@ export class HubUIClient {
 			: [];
 	}
 
+	async command(
+		command: Parameters<NodeHubClient["command"]>[0],
+		payload?: Record<string, unknown>,
+	) {
+		return await this.client.command(command, payload);
+	}
+
 	/**
 	 * Subscribe to UI-relevant hub events.
 	 * Returns an unsubscribe function.
@@ -96,6 +103,8 @@ export class HubUIClient {
 		onSessionCreated?: (payload: Record<string, unknown>) => void;
 		onSessionUpdated?: (payload: Record<string, unknown>) => void;
 		onSessionDetached?: (payload: Record<string, unknown>) => void;
+		onRoomSnapshot?: (payload: Record<string, unknown>) => void;
+		onRoomEvent?: (payload: Record<string, unknown>) => void;
 	}): () => void {
 		return this.client.subscribe((event: HubEventEnvelope) => {
 			switch (event.event) {
@@ -121,6 +130,12 @@ export class HubUIClient {
 					break;
 				case "session.detached":
 					handlers.onSessionDetached?.(event.payload ?? {});
+					break;
+				case "room.snapshot":
+					handlers.onRoomSnapshot?.(event.payload ?? {});
+					break;
+				case "room.event":
+					handlers.onRoomEvent?.(event.payload ?? {});
 					break;
 			}
 		});

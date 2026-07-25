@@ -50,6 +50,7 @@ export {
 	ParticipantStatusSchema,
 	RoomSnapshotSchema,
 	StageCardSchema,
+	StagePinSchema,
 	StageSharerSchema,
 	StageStateSchema,
 	type AgentParticipant,
@@ -61,6 +62,7 @@ export {
 	type ParticipantStatus,
 	type RoomSnapshot,
 	type StageCard,
+	type StagePin,
 	type StageSharer,
 	type StageState,
 } from "./room";

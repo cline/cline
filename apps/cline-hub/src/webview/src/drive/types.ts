@@ -2,7 +2,7 @@
 
 export type DriveSubMode = "plan" | "agent" | "ask" | "debug";
 
-/** Client-only stage pointer stub until hub call_set_stage (Slice B). */
+/** Projection of hub stage.sharer for strip/Stage chrome. */
 export type DriveStageSharerLocal = "agent" | "you";
 
 export type DriveUiState = {
@@ -14,15 +14,17 @@ export type DriveUiState = {
 	muted: boolean;
 	handRaised: boolean;
 	/**
-	 * Local UX demo fixture for Join / Stage without a hub room writer.
-	 * Scaffold only. Not hub-owned room state.
+	 * Offline fixture cards when demo and no live session tools yet.
+	 * Room ownership still goes through hub call_* when connected.
 	 */
 	demo: boolean;
 	/**
-	 * Client-only sharer label for Stage header / pin stub.
-	 * Not hub room state — real call_set_stage is Slice B.
+	 * Mirror of hub room stage.sharer (agent|you). Updated from room_snapshot.
+	 * Authority is hub call_set_stage — not this field alone.
 	 */
 	stageSharer: DriveStageSharerLocal;
+	/** Hub room id when Join has attached a call. */
+	roomId: string | null;
 };
 
 export const DEFAULT_DRIVE_UI: DriveUiState = {
@@ -34,6 +36,7 @@ export const DEFAULT_DRIVE_UI: DriveUiState = {
 	handRaised: false,
 	demo: true,
 	stageSharer: "agent",
+	roomId: null,
 };
 
 /** Map Drive sub-mode onto native Cline plan|act for send config. */
@@ -45,6 +48,41 @@ export function toNativeMode(subMode: DriveSubMode): "act" | "plan" {
 		case "agent":
 		case "debug":
 			return "act";
+		default: {
+			const _exhaustive: never = subMode;
+			return _exhaustive;
+		}
+	}
+}
+
+/** Map UI sub-mode onto shared DriveSubMode for call_set_mode. */
+export function toSharedDriveSubMode(
+	subMode: DriveSubMode,
+): "plan" | "act" | "ask" | "debug" {
+	switch (subMode) {
+		case "agent":
+			return "act";
+		case "plan":
+		case "ask":
+		case "debug":
+			return subMode;
+		default: {
+			const _exhaustive: never = subMode;
+			return _exhaustive;
+		}
+	}
+}
+
+export function fromSharedDriveSubMode(
+	subMode: "plan" | "act" | "ask" | "debug",
+): DriveSubMode {
+	switch (subMode) {
+		case "act":
+			return "agent";
+		case "plan":
+		case "ask":
+		case "debug":
+			return subMode;
 		default: {
 			const _exhaustive: never = subMode;
 			return _exhaustive;

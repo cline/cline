@@ -195,7 +195,7 @@ function HumanPinStub({ pin }: { pin: StageHumanPin }) {
 				<span className="normal-case text-foreground">{pin.label}</span>
 			</div>
 			<p className="mt-1 text-[11px] text-muted-foreground">
-				Client-only share stub. Hub <code>call_set_stage</code> lands in Slice B.
+				Structured share from hub <code>call_set_stage</code>.
 			</p>
 		</div>
 	);

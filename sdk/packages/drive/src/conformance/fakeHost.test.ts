@@ -53,7 +53,7 @@ describe("host port conformance", () => {
 					driveActive: false,
 					subMode: "plan" as const,
 					participants: [],
-					stage: { sharer: null, cards: [] },
+					stage: { sharer: null, pin: null, cards: [] },
 					addressSet: { mode: "everyone" as const },
 					muteByParticipantId: {},
 					raisedHandByParticipantId: {},

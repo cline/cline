@@ -646,6 +646,7 @@
       "version": "0.0.65",
       "dependencies": {
         "@cline/agents": "workspace:*",
+        "@cline/drive": "workspace:*",
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",

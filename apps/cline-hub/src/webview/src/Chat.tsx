@@ -75,8 +75,11 @@ import {
 	DEFAULT_DRIVE_UI,
 	type DriveUiState,
 	drivePersonaSystemHint,
+	fromSharedDriveSubMode,
 	toNativeMode,
+	toSharedDriveSubMode,
 } from "./drive/types";
+import type { RoomSnapshot, StagePin } from "@cline/shared";
 import { getVsCodeApi, postToHost } from "./vscode";
 
 type ChatMessage = WebviewChatMessage;
@@ -757,6 +760,7 @@ export default function Chat({
 		}
 		return DEFAULT_DRIVE_UI;
 	});
+	const [roomSnapshot, setRoomSnapshot] = useState<RoomSnapshot | null>(null);
 	const [driveJoinNote, setDriveJoinNote] = useState<string | null>(null);
 	const [reasonLevel, setReasonLevel] = useState<WebviewReasonLevel>("none");
 	const [enableTools, setEnableTools] = useState(true);
@@ -1065,6 +1069,33 @@ export default function Chat({
 					setForkError(message.text);
 					setStatus(`Fork failed: ${message.text}`);
 					return;
+				case "room_snapshot":
+				case "drive_event": {
+					const snapshot = message.snapshot;
+					setRoomSnapshot(snapshot);
+					const agent = snapshot.participants.find((p) => p.kind === "agent");
+					const sharer = snapshot.stage.sharer;
+					setDrive((current) => ({
+						...current,
+						active: snapshot.driveActive || current.active,
+						roomId: snapshot.roomId,
+						partnerName: agent?.displayName ?? current.partnerName,
+						subMode: fromSharedDriveSubMode(snapshot.subMode),
+						muted: Boolean(snapshot.muteByParticipantId.you),
+						stageSharer:
+							sharer?.kind === "human" && sharer.participantId === "you"
+								? "you"
+								: "agent",
+						stageLayout:
+							snapshot.driveActive || current.demo
+								? true
+								: current.stageLayout,
+					}));
+					return;
+				}
+				case "call_error":
+					setStatus(`Drive call error: ${message.text}`);
+					return;
 			}
 		};
 
@@ -1190,6 +1221,10 @@ export default function Chat({
 
 	/** Offline fixture when demo mode and the session has no stageable tools yet. */
 	const useStageFixture = drive.demo && liveStage.cards.length === 0;
+	const hubPin: StagePin | null =
+		roomSnapshot?.stage.sharer?.kind === "human"
+			? (roomSnapshot.stage.pin ?? null)
+			: null;
 	const stageCards = useStageFixture
 		? fixtureStageCards()
 		: liveStage.cards;
@@ -1297,28 +1332,50 @@ export default function Chat({
 										const partnerName = current.demo
 											? DRIVE_DEMO_FIXTURE.room.partnerName
 											: current.partnerName;
+										const roomId =
+											current.roomId ??
+											`drive_${sessionIdRef.current ?? "local"}`;
 										setDriveJoinNote(
 											current.demo
 												? DRIVE_DEMO_FIXTURE.narration
 												: `On the call. I am ${partnerName}. Share what you want to work on and I will drive.`,
 										);
 										setMode(toNativeMode(current.subMode));
+										postToHost({
+											type: "call_join",
+											roomId,
+											human: { id: "you", displayName: "You" },
+											agent: {
+												id: partnerName.toLowerCase(),
+												displayName: partnerName,
+											},
+										});
 										return {
 											...current,
 											active: true,
 											partnerName,
+											roomId,
 											stageLayout: current.demo
 												? true
 												: current.stageLayout,
 										};
 									}
+									if (current.roomId) {
+										postToHost({
+											type: "call_leave",
+											roomId: current.roomId,
+											participantId: "you",
+										});
+									}
 									setDriveJoinNote(null);
+									setRoomSnapshot(null);
 									return {
 										...current,
 										active: false,
 										stageLayout: false,
 										handRaised: false,
 										stageSharer: "agent",
+										roomId: null,
 									};
 								});
 							}}
@@ -1359,18 +1416,63 @@ export default function Chat({
 						});
 					}}
 					onMuteToggle={() => {
-						setDrive((current) => ({ ...current, muted: !current.muted }));
+						setDrive((current) => {
+							const muted = !current.muted;
+							if (current.roomId) {
+								postToHost({
+									type: "call_mute",
+									roomId: current.roomId,
+									participantId: "you",
+									muted,
+								});
+							}
+							return { ...current, muted };
+						});
 					}}
 					onSubModeChange={(subMode) => {
-						setDrive((current) => ({ ...current, subMode }));
+						setDrive((current) => {
+							if (current.roomId) {
+								postToHost({
+									type: "call_set_mode",
+									roomId: current.roomId,
+									subMode: toSharedDriveSubMode(subMode),
+									driveActive: true,
+								});
+							}
+							return { ...current, subMode };
+						});
 						setMode(toNativeMode(subMode));
 					}}
 					onTakeStage={(who) => {
-						setDrive((current) => ({
-							...current,
-							stageSharer: who,
-							stageLayout: true,
-						}));
+						setDrive((current) => {
+							const roomId = current.roomId;
+							const agentId = current.partnerName.toLowerCase();
+							if (roomId) {
+								if (who === "you") {
+									postToHost({
+										type: "call_set_stage",
+										roomId,
+										sharer: { kind: "human", participantId: "you" },
+										pin: {
+											kind: "selection",
+											label: "Current selection",
+										},
+									});
+								} else {
+									postToHost({
+										type: "call_set_stage",
+										roomId,
+										sharer: { kind: "agent", participantId: agentId },
+										pin: null,
+									});
+								}
+							}
+							return {
+								...current,
+								stageSharer: who,
+								stageLayout: true,
+							};
+						});
 					}}
 				/>
 				{driveJoinNote ? (
@@ -1641,10 +1743,10 @@ export default function Chat({
 						}
 						humanPin={
 							drive.stageSharer === "you"
-								? {
+								? (hubPin ?? {
 										kind: "selection",
-										label: "Current selection (local stub)",
-									}
+										label: "Current selection",
+									})
 								: null
 						}
 						nextLabel={
