@@ -48,6 +48,8 @@ export type LiveSession = {
 	config: JsonRecord;
 	messages: unknown[];
 	promptsInQueue: PromptInQueue[];
+	/** A steered prompt is waiting to be picked up by the running turn. */
+	steerInFlight?: boolean;
 	busy: boolean;
 	startedAt: number;
 	endedAt?: number;

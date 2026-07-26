@@ -298,6 +298,104 @@ describe("first-send connection updates", () => {
 		expect(response.promptsInQueue).toEqual([]);
 	});
 
+	// The shared runtime puts every steered prompt at the head of the queue, so
+	// the desktop keeps a single steer in flight to stop a later message from
+	// overtaking an earlier one.
+	it("queues a mid-run message behind a steer that is still pending", async () => {
+		const { ctx, send, sessionId } = createContext();
+		const session = ctx.liveSessions.get(sessionId);
+		if (!session) throw new Error("missing session");
+		session.busy = true;
+		const pending: Array<{ id: string; prompt: string; delivery: string }> = [];
+		(
+			ctx.sessionManager as unknown as {
+				pendingPrompts: { list: () => Promise<unknown> };
+			}
+		).pendingPrompts.list = vi.fn(async () => pending);
+		send.mockImplementation(async (input?: unknown) => {
+			const { prompt, delivery } = input as {
+				prompt: string;
+				delivery?: string;
+			};
+			const entry = {
+				id: `p${pending.length}`,
+				prompt,
+				delivery: delivery ?? "",
+			};
+			if (delivery === "steer") pending.unshift(entry);
+			else pending.push(entry);
+			return undefined as never;
+		});
+
+		for (const prompt of ["first", "second", "third"]) {
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt,
+			});
+		}
+
+		expect(send.mock.calls.map((call) => (call[0] as any).delivery)).toEqual([
+			"steer",
+			"queue",
+			"queue",
+		]);
+		// Only one steer means the runtime's head insertion cannot reorder them.
+		expect(pending.map((entry) => entry.prompt)).toEqual([
+			"first",
+			"second",
+			"third",
+		]);
+	});
+
+	it("keeps queuing while earlier messages are still waiting", async () => {
+		const { ctx, send, sessionId } = createContext();
+		const session = ctx.liveSessions.get(sessionId);
+		if (!session) throw new Error("missing session");
+		session.busy = true;
+		// The steer was already picked up by the turn, but the messages sent
+		// behind it are still waiting, so a new message must not jump the head.
+		session.steerInFlight = false;
+		session.promptsInQueue = [
+			{ id: "p1", prompt: "BBB", steer: false },
+			{ id: "p2", prompt: "CCC", steer: false },
+		];
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "DDD",
+		});
+
+		expect((send.mock.calls[0]?.[0] as any).delivery).toBe("queue");
+	});
+
+	it("steers again once the queue has fully drained", async () => {
+		const { ctx, send, sessionId } = createContext();
+		const session = ctx.liveSessions.get(sessionId);
+		if (!session) throw new Error("missing session");
+		session.busy = true;
+		session.steerInFlight = true;
+		session.promptsInQueue = [];
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "while a steer is pending",
+		});
+		// An empty pending list from the runtime releases the reserved slot.
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "after it was consumed",
+		});
+
+		expect(send.mock.calls.map((call) => (call[0] as any).delivery)).toEqual([
+			"queue",
+			"steer",
+		]);
+	});
+
 	it.each([
 		undefined,
 		"queue",

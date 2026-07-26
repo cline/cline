@@ -444,6 +444,7 @@ function applyPendingPrompts(
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
 		session.promptsInQueue = mapped;
+		session.steerInFlight = mapped.some((item) => item.steer);
 	}
 	sendPromptsInQueueSnapshot(ctx, sessionId);
 	return mapped.map(({ id, prompt, steer, attachmentCount }) => ({
@@ -452,6 +453,21 @@ function applyPendingPrompts(
 		steer,
 		attachmentCount,
 	}));
+}
+
+// The runtime inserts every steered prompt at the head of the pending queue,
+// which is only the right position when nothing is pending behind it —
+// otherwise a later message would overtake messages the user sent first. So a
+// message steers into the running turn when the queue is empty and takes a
+// queued turn otherwise, which keeps delivery in the order it was typed.
+// Reserving is synchronous so two overlapping sends cannot both claim the slot
+// before the queue snapshot catches up.
+function reserveSteerSlot(session: LiveSession | undefined): boolean {
+	if (!session || session.steerInFlight || session.promptsInQueue.length > 0) {
+		return false;
+	}
+	session.steerInFlight = true;
+	return true;
 }
 
 function getSessionManager(ctx: SidecarContext): ClineCore {
@@ -732,6 +748,9 @@ async function handleSend(
 		// held back for a whole new turn.
 		delivery = "steer";
 	}
+	if (delivery === "steer" && !reserveSteerSlot(session)) {
+		delivery = "queue";
+	}
 	const nextConfig = request.config
 		? mergeSessionConfig(session?.config ?? {}, request.config)
 		: undefined;
@@ -866,6 +885,10 @@ async function handleSend(
 		};
 	} catch (error) {
 		ctx.logger?.error?.("Desktop chat prompt failed", { sessionId, error });
+		if (session && delivery === "steer") {
+			// The reserved slot was never filled, so hand it back.
+			session.steerInFlight = session.promptsInQueue.some((item) => item.steer);
+		}
 		if (session && ownsBusyState) {
 			session.status = "error";
 		}

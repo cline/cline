@@ -345,6 +345,7 @@ function handleCoreSessionEvent(
 				);
 				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
+				session.steerInFlight = mapped.some((item) => item.steer);
 				if (
 					previous.length > mapped.length &&
 					previous[0] &&
