@@ -27,7 +27,11 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import type { Provider, ProviderCatalogResponse } from "@/lib/provider-schema";
+import {
+	invalidateProviderCatalog,
+	loadProviderCatalog,
+} from "@/lib/provider-model-catalog";
+import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
@@ -193,13 +197,11 @@ function ConnectStep({
 		let cancelled = false;
 		async function loadProviders() {
 			try {
-				const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-					"list_provider_catalog",
-				);
+				const catalog = await loadProviderCatalog();
 				if (cancelled) {
 					return;
 				}
-				setProviders(sortProvidersForApiKeySetup(payload.providers ?? []));
+				setProviders(sortProvidersForApiKeySetup(catalog));
 				setProvidersError(null);
 			} catch (error) {
 				if (cancelled) {
@@ -227,6 +229,7 @@ function ConnectStep({
 			await desktopClient.invoke("run_provider_oauth_login", {
 				provider: "cline",
 			});
+			invalidateProviderCatalog();
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
 			onConnected({ kind: "cline" });
@@ -252,6 +255,7 @@ function ConnectStep({
 				enabled: true,
 				api_key: apiKey.trim(),
 			});
+			invalidateProviderCatalog();
 			rememberProviderSelection(selectedProvider);
 			onConnected({
 				kind: "provider",

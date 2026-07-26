@@ -111,6 +111,36 @@ const NATIVE_COMMANDS = new Set([
 	"set_app_icon",
 ]);
 
+/**
+ * Side-effect-free reads that several components request independently.
+ * Mounting the shell fires a handful of these in the same tick — the sidebar
+ * and the window title both want the process context, the chat pane and the
+ * account provider both want credentials — and each duplicate costs a full
+ * round trip plus another copy of the payload to parse. Requests issued while
+ * an identical one is still in flight share its response; nothing is retained
+ * afterwards, so no caller can observe stale data.
+ */
+const COALESCABLE_COMMANDS = new Set([
+	"cline_account",
+	"get_git_branch",
+	"get_global_settings",
+	"get_process_context",
+	"list_connector_channels",
+	"list_discovered_sessions",
+	"list_marketplace_installed_entries",
+	"list_mcp_servers",
+	"list_provider_catalog",
+	"list_provider_models",
+	"list_user_instruction_configs",
+	"read_session_hooks",
+	"read_session_messages",
+	"validate_workspace_directory",
+]);
+
+function coalesceKey(command: string, args?: Record<string, unknown>): string {
+	return args === undefined ? command : `${command}:${JSON.stringify(args)}`;
+}
+
 class DesktopClient {
 	private socket: WebSocket | null = null;
 	private connectPromise: Promise<void> | null = null;
@@ -123,6 +153,7 @@ class DesktopClient {
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
+	private inFlightReads = new Map<string, Promise<unknown>>();
 
 	private setTransportState(next: DesktopTransportState) {
 		this.transportState = next;
@@ -271,6 +302,25 @@ class DesktopClient {
 			return await tryTauriInvoke<T>(command, args);
 		}
 
+		if (!COALESCABLE_COMMANDS.has(command)) {
+			return await this.send<T>(command, args);
+		}
+		const key = coalesceKey(command, args);
+		const existing = this.inFlightReads.get(key);
+		if (existing) {
+			return (await existing) as T;
+		}
+		const request = this.send<T>(command, args).finally(() => {
+			this.inFlightReads.delete(key);
+		});
+		this.inFlightReads.set(key, request);
+		return await request;
+	}
+
+	private async send<T>(
+		command: string,
+		args?: Record<string, unknown>,
+	): Promise<T> {
 		await this.ensureConnected();
 		const socket = this.socket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {

@@ -55,6 +55,7 @@ import {
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { loadProviderCatalog } from "@/lib/provider-model-catalog";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -459,18 +460,12 @@ function ChatThreadPane({
 
 		async function loadProviderCredentials() {
 			try {
-				const payload = await desktopClient.invoke<{
-					providers?: Array<{
-						id?: string;
-						apiKey?: string;
-						baseUrl?: string;
-					}>;
-				}>("list_provider_catalog");
+				const providers = await loadProviderCatalog();
 				if (cancelled) {
 					return;
 				}
 				const next: Record<string, { apiKey: string }> = {};
-				for (const provider of payload.providers ?? []) {
+				for (const provider of providers) {
 					const id = provider.id?.trim();
 					if (!id) {
 						continue;

@@ -48,11 +48,61 @@ export function buildProviderModelCatalog(
 	};
 }
 
+/**
+ * The catalog is ~700KB of JSON — every provider Cline knows about, each with
+ * its full model list. Four unrelated call sites want it (chat composer,
+ * onboarding, settings, routines) and several of them mount at once, so
+ * without a shared cache a single cold start used to ship it over the
+ * transport ten times.
+ *
+ * The payload carries live credential and enabled state, so anything that
+ * mutates provider settings must call `invalidateProviderCatalog`.
+ */
+const PROVIDER_CATALOG_TTL_MS = 60_000;
+
+let catalogCache: { providers: Provider[]; fetchedAt: number } | null = null;
+let catalogInFlight: Promise<Provider[]> | null = null;
+
+export function readCachedProviderCatalog(): Provider[] | null {
+	if (!catalogCache) return null;
+	if (Date.now() - catalogCache.fetchedAt > PROVIDER_CATALOG_TTL_MS) return null;
+	return catalogCache.providers;
+}
+
+/** Replaces the cache after a local edit, so the next reader sees it. */
+export function writeProviderCatalogCache(providers: Provider[]): void {
+	catalogCache = { providers, fetchedAt: Date.now() };
+}
+
+export function invalidateProviderCatalog(): void {
+	catalogCache = null;
+}
+
+export async function loadProviderCatalog(
+	options: { force?: boolean } = {},
+): Promise<Provider[]> {
+	if (!options.force) {
+		const cached = readCachedProviderCatalog();
+		if (cached) return cached;
+		if (catalogInFlight) return catalogInFlight;
+	}
+
+	catalogInFlight = (async () => {
+		const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+			"list_provider_catalog",
+		);
+		const providers = payload.providers ?? [];
+		writeProviderCatalogCache(providers);
+		return providers;
+	})().finally(() => {
+		catalogInFlight = null;
+	});
+
+	return catalogInFlight;
+}
+
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
-	const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-		"list_provider_catalog",
-	);
-	return buildProviderModelCatalog(payload.providers ?? []);
+	return buildProviderModelCatalog(await loadProviderCatalog());
 }
 
 export async function loadProviderModels(
