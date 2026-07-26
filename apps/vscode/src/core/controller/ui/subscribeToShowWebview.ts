@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { ShowWebviewEvent } from "@shared/proto/cline/ui"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
+import { ShowWebviewEvent } from "@shared/proto/bedrock_coder/ui"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"

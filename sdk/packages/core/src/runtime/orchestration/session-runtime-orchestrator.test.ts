@@ -18,7 +18,7 @@ import {
 	type AgentRuntime,
 	type AgentRuntimeConfig,
 	createAgentRuntime,
-} from "@cline/agents";
+} from "@bedrock-coder/agents";
 import {
 	type AgentConfig,
 	type AgentEvent,
@@ -31,7 +31,7 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	EMPTY_CONTENT_TEXT,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { describe, expect, it, vi } from "vitest";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
@@ -389,7 +389,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 				extensions: [extension],
 				extensionContext: {
 					session: { sessionId: "sess_plugin_context" },
-					client: { name: "cline-sdk", version: "1.2.3" },
+					client: { name: "bedrock-coder-sdk", version: "1.2.3" },
 					workspace: { rootPath: "/tmp/workspace" },
 					logger,
 				},
@@ -401,7 +401,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 
 		expect(observed?.session?.sessionId).toBe("sess_plugin_context");
 		expect(observed?.client).toEqual({
-			name: "cline-sdk",
+			name: "bedrock-coder-sdk",
 			version: "1.2.3",
 		});
 		expect(observed?.workspaceInfo?.rootPath).toBe("/tmp/workspace");

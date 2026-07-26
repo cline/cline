@@ -15,11 +15,11 @@ describe("worktree mutation safety", () => {
 	})
 
 	test("allows a reviewed managed creation and rejects deletion of the repository root", async () => {
-		repositoryRoot = await mkdtemp(path.join(os.tmpdir(), "cline-worktree-safety-"))
+		repositoryRoot = await mkdtemp(path.join(os.tmpdir(), "bedrock-coder-worktree-safety-"))
 		const git = simpleGit(repositoryRoot)
 		await git.init()
-		await git.addConfig("user.name", "Cline Test")
-		await git.addConfig("user.email", "cline-test@example.invalid")
+		await git.addConfig("user.name", "Bedrock Coder Test")
+		await git.addConfig("user.email", "bedrock-coder-test@example.invalid")
 		await writeFile(path.join(repositoryRoot, "README.md"), "test\n")
 		await git.add("README.md")
 		await git.commit("initial")

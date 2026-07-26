@@ -1,5 +1,5 @@
-import type { ToolResultRequest } from "@shared/proto/cline/ui"
-import { ToolResultResponse } from "@shared/proto/cline/ui"
+import type { ToolResultRequest } from "@shared/proto/bedrock_coder/ui"
+import { ToolResultResponse } from "@shared/proto/bedrock_coder/ui"
 import type { Controller } from "../index"
 
 export async function getToolResult(controller: Controller, request: ToolResultRequest): Promise<ToolResultResponse> {

@@ -4,7 +4,7 @@ import type {
 	AgentConfig,
 	AgentExtensionMcpServer,
 	AgentTool,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	type McpServerRegistration,
 	resolveDefaultMcpSettingsPath,
@@ -14,7 +14,7 @@ import { loadSandboxedPlugins } from "../extensions/plugin/plugin-sandbox";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
-type AgentExtensionWithPath = AgentExtension & { __clinePluginPath?: string };
+type AgentExtensionWithPath = AgentExtension & { __bedrockCoderPluginPath?: string };
 
 export interface PluginMcpSettingsMutation {
 	name: string;
@@ -263,7 +263,7 @@ async function collectPluginMcpServers(
 		}));
 		for (const extension of sandboxed.extensions ?? []) {
 			const pluginPath = (extension as AgentExtensionWithPath)
-				.__clinePluginPath;
+				.__bedrockCoderPluginPath;
 			if (!pluginPath) {
 				continue;
 			}

@@ -1,5 +1,5 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import { ToolResultRequest } from "@shared/proto/cline/ui"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
+import { ToolResultRequest } from "@shared/proto/bedrock_coder/ui"
 import { ChevronDownIcon, ChevronRightIcon, ClipboardIcon } from "lucide-react"
 import { memo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { UiServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
 
-export const ToolResultDisclosure = memo(({ message }: { message: ClineMessage }) => {
+export const ToolResultDisclosure = memo(({ message }: { message: BedrockCoderMessage }) => {
 	const [expanded, setExpanded] = useState(false)
 	const [content, setContent] = useState<string>()
 	const [truncated, setTruncated] = useState(message.toolResultTruncated ?? false)

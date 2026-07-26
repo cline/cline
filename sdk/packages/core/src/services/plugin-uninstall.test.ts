@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import { setBedrockCoderDir, setHomeDir } from "@bedrock-coder/shared/storage";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readGlobalSettings, writeGlobalSettings } from "./global-settings";
 import { uninstallPlugin } from "./plugin-uninstall";
@@ -11,8 +11,8 @@ describe("plugin uninstall service", () => {
 	let root = "";
 	let home = "";
 	let originalHome: string | undefined;
-	let originalClineDir: string | undefined;
-	let originalClineDataDir: string | undefined;
+	let originalBedrockCoderDir: string | undefined;
+	let originalBedrockCoderDataDir: string | undefined;
 	let originalGlobalSettingsPath: string | undefined;
 	let originalMcpSettingsPath: string | undefined;
 
@@ -20,22 +20,22 @@ describe("plugin uninstall service", () => {
 		root = mkdtempSync(join(tmpdir(), "core-plugin-uninstall-"));
 		home = join(root, "home");
 		originalHome = process.env.HOME;
-		originalClineDir = process.env.CLINE_DIR;
-		originalClineDataDir = process.env.CLINE_DATA_DIR;
-		originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
-		originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		originalBedrockCoderDir = process.env.BEDROCK_CODER_DIR;
+		originalBedrockCoderDataDir = process.env.BEDROCK_CODER_DATA_DIR;
+		originalGlobalSettingsPath = process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
+		originalMcpSettingsPath = process.env.BEDROCK_CODER_MCP_SETTINGS_PATH;
 		process.env.HOME = home;
-		process.env.CLINE_DIR = join(home, ".cline");
-		process.env.CLINE_DATA_DIR = join(home, ".cline", "data");
-		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+		process.env.BEDROCK_CODER_DIR = join(home, ".bedrock-coder");
+		process.env.BEDROCK_CODER_DATA_DIR = join(home, ".bedrock-coder", "data");
+		process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH = join(
 			home,
-			".cline",
+			".bedrock-coder",
 			"data",
 			"settings",
 			"global-settings.json",
 		);
 		setHomeDir(home);
-		setClineDir(process.env.CLINE_DIR);
+		setBedrockCoderDir(process.env.BEDROCK_CODER_DIR);
 	});
 
 	afterEach(() => {
@@ -44,25 +44,25 @@ describe("plugin uninstall service", () => {
 		} else {
 			process.env.HOME = originalHome;
 		}
-		if (originalClineDir === undefined) {
-			delete process.env.CLINE_DIR;
+		if (originalBedrockCoderDir === undefined) {
+			delete process.env.BEDROCK_CODER_DIR;
 		} else {
-			process.env.CLINE_DIR = originalClineDir;
+			process.env.BEDROCK_CODER_DIR = originalBedrockCoderDir;
 		}
-		if (originalClineDataDir === undefined) {
-			delete process.env.CLINE_DATA_DIR;
+		if (originalBedrockCoderDataDir === undefined) {
+			delete process.env.BEDROCK_CODER_DATA_DIR;
 		} else {
-			process.env.CLINE_DATA_DIR = originalClineDataDir;
+			process.env.BEDROCK_CODER_DATA_DIR = originalBedrockCoderDataDir;
 		}
 		if (originalGlobalSettingsPath === undefined) {
-			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			delete process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
 		} else {
-			process.env.CLINE_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
+			process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
 		}
 		if (originalMcpSettingsPath === undefined) {
-			delete process.env.CLINE_MCP_SETTINGS_PATH;
+			delete process.env.BEDROCK_CODER_MCP_SETTINGS_PATH;
 		} else {
-			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath;
+			process.env.BEDROCK_CODER_MCP_SETTINGS_PATH = originalMcpSettingsPath;
 		}
 		rmSync(root, { recursive: true, force: true });
 	});
@@ -70,7 +70,7 @@ describe("plugin uninstall service", () => {
 	it("uninstalls an installed package plugin by package name", async () => {
 		const installPath = join(
 			home,
-			".cline",
+			".bedrock-coder",
 			"plugins",
 			"_installed",
 			"local",
@@ -82,8 +82,8 @@ describe("plugin uninstall service", () => {
 			join(installPath, "package.json"),
 			JSON.stringify(
 				{
-					name: "cline-installed-plugin-test",
-					cline: {
+					name: "bedrock-coder-installed-plugin-test",
+					bedrockCoder: {
 						plugins: [{ paths: ["./package/index.ts"] }],
 					},
 				},
@@ -94,7 +94,7 @@ describe("plugin uninstall service", () => {
 		);
 		await writeFile(
 			join(installPath, "package", "package.json"),
-			JSON.stringify({ name: "cline-internal-bundled-skills-demo" }, null, 2),
+			JSON.stringify({ name: "bedrock-coder-internal-bundled-skills-demo" }, null, 2),
 			"utf8",
 		);
 		await writeFile(
@@ -107,7 +107,7 @@ describe("plugin uninstall service", () => {
 		});
 
 		const result = await uninstallPlugin({
-			name: "cline-internal-bundled-skills-demo",
+			name: "bedrock-coder-internal-bundled-skills-demo",
 		});
 
 		expect(result.installPath).toBe(installPath);
@@ -119,8 +119,8 @@ describe("plugin uninstall service", () => {
 	});
 
 	it("uninstalls a direct plugin file by path", async () => {
-		const pluginPath = join(home, ".cline", "plugins", "direct-plugin.ts");
-		await mkdir(join(home, ".cline", "plugins"), { recursive: true });
+		const pluginPath = join(home, ".bedrock-coder", "plugins", "direct-plugin.ts");
+		await mkdir(join(home, ".bedrock-coder", "plugins"), { recursive: true });
 		await writeFile(
 			pluginPath,
 			"export default { name: 'direct', manifest: { capabilities: ['tools'] } };",
@@ -136,10 +136,10 @@ describe("plugin uninstall service", () => {
 	it.skipIf(process.platform === "win32")(
 		"keeps plugin files when MCP settings cleanup fails",
 		async () => {
-			const pluginPath = join(home, ".cline", "plugins", "mcp-plugin.ts");
-			const settingsPath = join(root, "cline_mcp_settings.json");
-			process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
-			await mkdir(join(home, ".cline", "plugins"), { recursive: true });
+			const pluginPath = join(home, ".bedrock-coder", "plugins", "mcp-plugin.ts");
+			const settingsPath = join(root, "mcp_settings.json");
+			process.env.BEDROCK_CODER_MCP_SETTINGS_PATH = settingsPath;
+			await mkdir(join(home, ".bedrock-coder", "plugins"), { recursive: true });
 			await writeFile(
 				pluginPath,
 				"export default { name: 'mcp-plugin', manifest: { capabilities: ['mcp'] } };",
@@ -186,7 +186,7 @@ describe("plugin uninstall service", () => {
 	it.skipIf(process.platform === "win32")(
 		"keeps disabled plugin settings if file deletion fails",
 		async () => {
-			const pluginRoot = join(home, ".cline", "plugins");
+			const pluginRoot = join(home, ".bedrock-coder", "plugins");
 			const pluginPath = join(pluginRoot, "locked-plugin.ts");
 			await mkdir(pluginRoot, { recursive: true });
 			await writeFile(

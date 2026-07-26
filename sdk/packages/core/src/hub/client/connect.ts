@@ -2,8 +2,8 @@ import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 	HubTransportFrame,
-} from "@cline/shared";
-import { resolveClineBuildEnv } from "@cline/shared";
+} from "@bedrock-coder/shared";
+import { resolveBedrockCoderBuildEnv } from "@bedrock-coder/shared";
 import { createHubServerUrl, readHubDiscovery } from "../discovery";
 import {
 	type HubEndpointOverrides,
@@ -52,7 +52,7 @@ function normalizeHubConnectionError(error: unknown, url: string): Error {
 	);
 }
 
-const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
+const HUB_AUTH_PROTOCOL_PREFIX = "bedrock-coder-hub-auth.";
 
 function hasExplicitEndpoint(overrides: HubEndpointOverrides): boolean {
 	return (
@@ -73,7 +73,7 @@ function sameHubEndpoint(left: string, right: string): boolean {
 }
 
 function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
+	return resolveBedrockCoderBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
 }

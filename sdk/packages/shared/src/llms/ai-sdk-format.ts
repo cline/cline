@@ -109,7 +109,7 @@ function pushAiSdkMessage(result: AiSdkMessage[], message: AiSdkMessage): void {
 
 /**
  * Type guard for tool-output content blocks that should be passed to the model
- * as native multimodal parts (rather than JSON-encoded). We accept the cline
+ * as native multimodal parts (rather than JSON-encoded). We accept the bedrockCoder
  * `image` and `text` block shapes used by `formatStructuredToolResult`.
  */
 function isAiSdkContentBlockArray(

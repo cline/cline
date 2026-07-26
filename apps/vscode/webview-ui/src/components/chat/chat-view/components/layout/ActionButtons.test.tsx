@@ -1,4 +1,4 @@
-import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage, TurnState } from "@shared/ExtensionMessage"
 import { fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
@@ -19,7 +19,7 @@ vi.mock("../../../../../context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({ turnState: mockTurnState() }),
 }))
 
-function fileApprovalAsk(ts: number, path: string): ClineMessage {
+function fileApprovalAsk(ts: number, path: string): BedrockCoderMessage {
 	return {
 		ts,
 		type: "ask",
@@ -44,7 +44,7 @@ function makeChatState(): ChatState {
 describe("ActionButtons", () => {
 	it("does not render a scroll button when there are no action buttons", () => {
 		mockTurnState.mockReturnValue(undefined)
-		const task: ClineMessage = {
+		const task: BedrockCoderMessage = {
 			ts: 1,
 			type: "ask",
 			ask: "followup",

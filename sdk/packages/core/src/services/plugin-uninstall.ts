@@ -19,7 +19,7 @@ import {
 import {
 	discoverPluginModulePaths,
 	resolvePluginConfigSearchPaths,
-} from "@cline/shared/storage";
+} from "@bedrock-coder/shared/storage";
 import { readGlobalSettings, writeGlobalSettings } from "./global-settings";
 import { removePluginMcpServersFromSettings } from "./plugin-mcp-settings";
 

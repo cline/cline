@@ -4,7 +4,7 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { readCompactionStrategyGlobally } from "@cline/core"
+import { readCompactionStrategyGlobally } from "@bedrock-coder/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -38,7 +38,7 @@ export async function getStateToPostToWebview(controller: {
 	const mcpDisplayMode = stateManager.getGlobalStateKey("mcpDisplayMode")
 	const planActSeparateModelsSetting = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 	const enableCheckpointsSetting = stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
-	const globalClineRulesToggles = stateManager.getGlobalStateKey("globalClineRulesToggles")
+	const globalBedrockCoderRulesToggles = stateManager.getGlobalStateKey("globalBedrockCoderRulesToggles")
 	const globalWorkflowToggles = stateManager.getGlobalStateKey("globalWorkflowToggles")
 	const globalSkillsToggles = stateManager.getGlobalStateKey("globalSkillsToggles")
 	const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles")
@@ -57,7 +57,7 @@ export async function getStateToPostToWebview(controller: {
 	const lastDismissedCliBannerVersion = stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 	const showFeatureTips = stateManager.getGlobalSettingsKey("showFeatureTips")
 
-	const localClineRulesToggles = stateManager.getWorkspaceStateKey("localClineRulesToggles")
+	const localBedrockCoderRulesToggles = stateManager.getWorkspaceStateKey("localBedrockCoderRulesToggles")
 	const localWindsurfRulesToggles = stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 	const localCursorRulesToggles = stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 	const localAgentsRulesToggles = stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
@@ -66,7 +66,7 @@ export async function getStateToPostToWebview(controller: {
 	const currentTaskItem = controller.task?.taskId
 		? (taskHistory || []).find((item: any) => item.id === controller.task?.taskId)
 		: undefined
-	const clineMessages = [...(controller.task?.messageStateHandler?.getClineMessages?.() || [])]
+	const bedrockCoderMessages = [...(controller.task?.messageStateHandler?.getBedrockCoderMessages?.() || [])]
 	const checkpointRestoreInput = controller.checkpointRestoreInput
 
 	const processedTaskHistory = (taskHistory || [])
@@ -82,7 +82,7 @@ export async function getStateToPostToWebview(controller: {
 		version,
 		apiConfiguration,
 		currentTaskItem,
-		clineMessages,
+		bedrockCoderMessages,
 		checkpointRestoreInput,
 		browserSettings,
 		preferredLanguage,
@@ -95,8 +95,8 @@ export async function getStateToPostToWebview(controller: {
 		enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 		platform,
 		environment,
-		globalClineRulesToggles: globalClineRulesToggles || {},
-		localClineRulesToggles: localClineRulesToggles || {},
+		globalBedrockCoderRulesToggles: globalBedrockCoderRulesToggles || {},
+		localBedrockCoderRulesToggles: localBedrockCoderRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
 		localAgentsRulesToggles: localAgentsRulesToggles || {},

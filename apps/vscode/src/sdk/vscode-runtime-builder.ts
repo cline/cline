@@ -1,5 +1,5 @@
-import { createDefaultShellExecutor, createMcpTools } from "@cline/core"
-import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared"
+import { createDefaultShellExecutor, createMcpTools } from "@bedrock-coder/core"
+import { type AgentTool, type AgentToolContext, createTool } from "@bedrock-coder/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"

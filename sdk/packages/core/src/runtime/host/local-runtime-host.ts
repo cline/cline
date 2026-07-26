@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import type * as LlmsProviders from "@cline/llms";
+import type * as LlmsProviders from "@bedrock-coder/llms";
 import {
 	type AgentConfig,
 	type AgentEvent,
@@ -15,8 +15,8 @@ import {
 	type TeamRunRecord,
 	type TeamTask,
 	type UpdateTeamTaskInput,
-} from "@cline/shared";
-import { setHomeDirIfUnset } from "@cline/shared/storage";
+} from "@bedrock-coder/shared";
+import { setHomeDirIfUnset } from "@bedrock-coder/shared/storage";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
@@ -1522,7 +1522,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 * Detect the assistant's explicit completion declaration. This occurs
 	 * at most once per session, the moment
 	 * a successful `submit_and_exit` tool call is observed in the run
-	 * result. This is the SDK analog of original Cline's
+	 * result. This is the SDK analog of original BedrockCoder's
 	 * `attempt_completion`-driven emission and works for both interactive
 	 * and non-interactive sessions.
 	 *

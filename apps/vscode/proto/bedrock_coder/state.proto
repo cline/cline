@@ -1,0 +1,212 @@
+syntax = "proto3";
+package bedrock_coder;
+
+import "bedrock_coder/browser.proto";
+import "bedrock_coder/common.proto";
+import "bedrock_coder/models.proto";
+
+option go_package = "github.com/FFFalexgo/AWS_Bedrock_Coder/grpc-go/bedrock_coder";
+option java_multiple_files = true;
+option java_package = "com.fffalexgo.bedrock_coder.proto";
+
+service StateService {
+  rpc getLatestState(EmptyRequest) returns (State);
+  rpc updateTerminalConnectionTimeout(UpdateTerminalConnectionTimeoutRequest) returns (UpdateTerminalConnectionTimeoutResponse);
+  rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
+  rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
+  rpc subscribeToState(EmptyRequest) returns (stream State);
+  rpc resetState(ResetStateRequest) returns (Empty);
+  rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
+  rpc updateSettings(UpdateSettingsRequest) returns (Empty);
+  rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
+  rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
+  rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
+  rpc installBedrockCoderCli(EmptyRequest) returns (Empty);
+  rpc checkCliInstallation(EmptyRequest) returns (Boolean);
+  rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
+  rpc flushPendingState(EmptyRequest) returns (Empty);
+}
+
+// NOTE: Add the new secret fields under SECRETS_KEYS in src/shared/storage/state-keys.ts
+// and use the scripts/generate-state-proto.mjs script to regenerate this list.
+message Secrets {
+  optional string mcp_o_auth_secrets = 43;
+}
+
+// NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
+// in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
+// script to regenerate this list.
+message Settings {
+  optional string aws_region = 6;
+  optional string aws_profile = 12;
+  optional string aws_bedrock_endpoint = 13;
+  optional string plan_mode_api_model_id = 44;
+  optional int64 plan_mode_thinking_budget_tokens = 45;
+  optional string plan_mode_reasoning_effort = 47;
+  optional string act_mode_api_model_id = 84;
+  optional int64 act_mode_thinking_budget_tokens = 85;
+  optional string act_mode_reasoning_effort = 87;
+  optional string global_bedrock_coder_rules_toggles = 129;
+  optional string global_workflow_toggles = 130;
+  optional string global_skills_toggles = 131;
+  optional BrowserSettings browser_settings = 132;
+  optional bool plan_act_separate_models_setting = 134;
+  optional bool enable_checkpoints_setting = 135;
+  optional int32 shell_integration_timeout = 136;
+  optional string default_terminal_profile = 137;
+  optional int32 max_consecutive_mistakes = 139;
+  optional bool use_auto_condense = 143;
+  optional string preferred_language = 145;
+  optional PlanActMode mode = 147;
+  optional FocusChainSettings focus_chain_settings = 149;
+  optional string custom_prompt = 150;
+  optional bool hooks_enabled = 152;
+  optional bool subagents_enabled = 153;
+  optional bool worktrees_enabled = 172;
+  optional bool show_feature_tips = 182;
+  optional string aws_bedrock_ca_bundle_path = 187;
+  optional string aws_bedrock_control_plane_endpoint = 188;
+}
+
+message State {
+  string state_json = 1;
+}
+
+message TerminalProfiles {
+  repeated TerminalProfile profiles = 1;
+}
+
+message TerminalProfile {
+  string id = 1;
+  string name = 2;
+  optional string path = 3;
+  optional string description = 4;
+}
+
+message TerminalProfileUpdateResponse {
+  int32 closed_count = 1;
+  int32 busy_terminals_count = 2;
+  bool has_busy_terminals = 3;
+}
+
+message TogglePlanActModeRequest {
+  Metadata metadata = 1;
+  PlanActMode mode = 2;
+  optional ChatContent chat_content = 3;
+}
+
+enum PlanActMode {
+  PLAN = 0;
+  ACT = 1;
+}
+
+enum OpenaiReasoningEffort {
+  LOW = 0;
+  MEDIUM = 1;
+  HIGH = 2;
+  reserved 3; // was MINIMAL
+}
+
+enum McpDisplayMode {
+  RICH = 0;
+  PLAIN = 1;
+  MARKDOWN = 2;
+}
+
+message ChatContent {
+  optional string message = 1;
+  repeated string images = 2;
+  repeated string files = 3;
+}
+
+message ResetStateRequest {
+  Metadata metadata = 1;
+  optional bool global = 2;
+}
+
+// Browser settings for UpdateSettingsRequest
+message BrowserSettingsUpdate {
+  optional Viewport viewport = 1;
+  optional string remote_browser_host = 2;
+  optional bool remote_browser_enabled = 3;
+  optional string chrome_executable_path = 4;
+  optional bool disable_tool_use = 5;
+  optional string custom_args = 6;
+}
+
+message UpdateSettingsRequestCli {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
+  optional Secrets secrets = 3;
+  optional string environment = 4;
+}
+
+message UpdateTaskSettingsRequest {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
+  optional string task_id = 3;
+}
+
+// Message for updating settings
+message UpdateSettingsRequest {
+  reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
+  reserved 23; // was dictation_settings (dictation removed)
+  reserved 32, 34, 35, 41;
+  reserved 38; // was skills_enabled (removed - now always enabled)
+  reserved 43; // was lazy_teammate_mode_enabled (removed)
+  reserved 12; // was terminal_output_line_limit (removed; SDK command output limits are character-based)
+  reserved "native_tool_call_enabled", "bedrock_coder_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
+
+  Metadata metadata = 1;
+  optional ModelsApiConfiguration api_configuration = 2;
+  reserved 3; // was telemetry_setting
+  optional bool plan_act_separate_models_setting = 4;
+  optional bool enable_checkpoints_setting = 5;
+  reserved 6; // was mcp_marketplace_enabled
+  optional int32 shell_integration_timeout = 8;
+  optional bool terminal_reuse_enabled = 9;
+  optional bool mcp_responses_collapsed = 10;
+  optional McpDisplayMode mcp_display_mode = 11;
+  optional PlanActMode mode = 13;
+  optional string preferred_language = 14;
+  reserved 16; // was strict_plan_mode_enabled (removed)
+  optional FocusChainSettings focus_chain_settings = 17;
+  optional bool use_auto_condense = 18;
+  optional string custom_prompt = 19;
+  optional BrowserSettingsUpdate browser_settings = 20;
+  optional string default_terminal_profile = 21;
+  reserved 22; // was yolo_mode_toggled
+  optional bool multi_root_enabled = 25;
+  optional bool hooks_enabled = 26;
+  optional string vscode_terminal_execution_mode = 27;
+  optional int32 max_consecutive_mistakes = 28;
+  optional bool subagents_enabled = 29;
+  optional int32 subagent_terminal_output_line_limit = 30;
+  reserved 31; // was bedrock_coder_env
+  reserved 33; // was hosted onboarding models
+  reserved 36; // was background_edit_enabled
+  reserved 37; // was oca_reasoning_effort
+  reserved 39; // was opt_out_of_remote_config
+  optional bool worktrees_enabled = 40;
+  optional bool show_feature_tips = 42;
+  optional string compaction_strategy = 44;
+}
+
+message UpdateTerminalConnectionTimeoutRequest {
+  optional int32 timeout_ms = 1;
+}
+
+message FocusChainSettings {
+  bool enabled = 1;
+  int32 remind_bedrock_coder_interval = 2;
+}
+
+message UpdateTerminalConnectionTimeoutResponse {
+  optional int32 timeout_ms = 1;
+}
+
+message ProcessInfo {
+  int32 process_id = 1;
+  optional string version = 2;
+  optional int64 uptime_ms = 3;
+}

@@ -1,16 +1,16 @@
 ---
-description: Development guidance for the @cline/llms package.
+description: Development guidance for the @bedrock-coder/llms package.
 globs: "src/**/*.ts,src/**/*.tsx,*.md"
 alwaysApply: true
 ---
 
-# @cline/llms Development Guidance
+# @bedrock-coder/llms Development Guidance
 
 ## Provider Option Routing
 
 - `models.dev` catalog data and AI SDK provider behavior are the default
   sources of truth for general model/provider support.
-- Do not build a broad Cline-maintained model capability or behavior registry.
+- Do not build a broad BedrockCoder-maintained model capability or behavior registry.
 - `GatewayModelCapability` is semantic: what the model can do, not provider
   quirks, default behavior, or wire-format details.
 - Stable, reliable known-model facts belong in typed `ModelInfo.metadata`

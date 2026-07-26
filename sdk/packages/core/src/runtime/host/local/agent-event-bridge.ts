@@ -1,4 +1,4 @@
-import type { AgentEvent, BasicLogger, BasicLogMetadata } from "@cline/shared";
+import type { AgentEvent, BasicLogger, BasicLogMetadata } from "@bedrock-coder/shared";
 import type { TeamEvent } from "../../../extensions/tools/team";
 import {
 	type AgentEventContext,

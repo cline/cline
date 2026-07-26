@@ -1,4 +1,4 @@
-import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/bedrock_coder/worktree"
 import { createWorktree as createWorktreeUtil } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import { inspectWorktreeMutation } from "@utils/worktree-safety"

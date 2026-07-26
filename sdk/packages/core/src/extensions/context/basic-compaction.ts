@@ -2,7 +2,7 @@ import type {
 	BasicLogger,
 	ContentBlock,
 	MessageWithMetadata,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,

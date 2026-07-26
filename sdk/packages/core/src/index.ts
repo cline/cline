@@ -1,11 +1,11 @@
 /**
- * @cline/core
+ * @bedrock-coder/core
  *
  * Core contracts, shared state utilities, and Node runtime services.
  */
 
-export { Agent, createAgentRuntime } from "@cline/agents";
-export * as Llms from "@cline/llms";
+export { Agent, createAgentRuntime } from "@bedrock-coder/agents";
+export * as Llms from "@bedrock-coder/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AgentConfig,
@@ -50,9 +50,9 @@ export type {
 	WorkspaceInfoSchema,
 	WorkspaceManifest,
 	WorkspaceManifestSchema,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 export {
-	buildClineSystemPrompt as getClineDefaultSystemPrompt,
+	buildBedrockCoderSystemPrompt as getBedrockCoderDefaultSystemPrompt,
 	ContributionRegistry,
 	createContributionRegistry,
 	createTool,
@@ -63,14 +63,14 @@ export {
 	parseUserCommandEnvelope,
 	registerDisposable,
 	stripUtf8Bom,
-} from "@cline/shared";
-export * from "@cline/shared/storage";
-export { ClineCore } from "./ClineCore";
+} from "@bedrock-coder/shared";
+export * from "@bedrock-coder/shared/storage";
+export { BedrockCoderCore } from "./BedrockCoderCore";
 export type {
-	ClineCoreListHistoryOptions,
-	ClineCoreOptions,
-	ClineCoreSettingsApi,
-	ClineCoreStartInput,
+	BedrockCoderCoreListHistoryOptions,
+	BedrockCoderCoreOptions,
+	BedrockCoderCoreSettingsApi,
+	BedrockCoderCoreStartInput,
 	CompareCheckpointInput,
 	CompareCheckpointResult,
 	HubOptions,
@@ -78,7 +78,7 @@ export type {
 	RestoreInput,
 	RestoreOptions,
 	RestoreResult,
-} from "./cline-core/types";
+} from "./bedrock-coder-core/types";
 export type {
 	LoadAgentPluginFromPathOptions,
 	PluginInitializationFailure,
@@ -593,7 +593,7 @@ export {
 export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
-	ClineCoreStartConfig,
+	BedrockCoderCoreStartConfig,
 	CoreAgentMode,
 	CoreCheckpointConfig,
 	CoreCheckpointContext,

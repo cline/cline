@@ -3,7 +3,7 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
-import { HookOutput } from "../../../shared/proto/cline/hooks"
+import { HookOutput } from "../../../shared/proto/bedrock_coder/hooks"
 import { HookFactory } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
@@ -39,7 +39,7 @@ describe("TaskResume Hook", () => {
 
 	describe("Hook Input Format", () => {
 		it("should receive all required taskResume fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasRequiredFields = 
@@ -78,10 +78,10 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
+const hasAllFields = input.bedrockCoderVersion && input.hookName && input.timestamp &&
                      input.taskId && input.workspaceRoots !== undefined &&
                      input.model && input.model.provider && input.model.slug;
 console.log(JSON.stringify({
@@ -117,7 +117,7 @@ console.log(JSON.stringify({
 				if (process.platform === "win32") {
 				}
 
-				const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+				const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 				const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
@@ -166,7 +166,7 @@ console.log(JSON.stringify({
 				if (process.platform === "win32") {
 				}
 
-				const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+				const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 				const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
@@ -202,7 +202,7 @@ console.log(JSON.stringify({
 		)
 
 		it("should handle edge case: future timestamp", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
@@ -242,7 +242,7 @@ console.log(JSON.stringify({
 				if (process.platform === "win32") {
 				}
 
-				const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+				const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 				const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const count = parseInt(input.taskResume.previousState.messageCount);
@@ -286,7 +286,7 @@ console.log(JSON.stringify({
 		)
 
 		it("should handle zero message count", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const count = parseInt(input.taskResume.previousState.messageCount);
@@ -318,7 +318,7 @@ console.log(JSON.stringify({
 
 	describe("State Combination Analysis", () => {
 		it("should analyze combination of long pause and many messages", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
@@ -352,7 +352,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should combine context deletion with other state", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const deleted = input.taskResume.previousState.conversationHistoryDeleted === 'true';
@@ -387,7 +387,7 @@ console.log(JSON.stringify({
 
 	describe("Error Handling", () => {
 		it("should handle malformed JSON output", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -415,7 +415,7 @@ console.log("not valid json")`
 		})
 
 		it("should handle invalid timestamp gracefully", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
@@ -453,7 +453,7 @@ console.log(JSON.stringify({
 		beforeEach(async () => {
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
-			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
+			workspaceHooksDir = path.join(tempDir, ".bedrock-coder", "hooks")
 
 			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
@@ -467,7 +467,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -509,7 +509,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskResume")
 			const workspaceHookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const count = parseInt(input.taskResume.previousState.messageCount);

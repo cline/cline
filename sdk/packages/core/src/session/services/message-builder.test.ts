@@ -3,7 +3,7 @@ import {
 	formatMessagesForAiSdk,
 	type Message,
 	type ToolResultContent,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { describe, expect, it } from "vitest";
 import {
 	agentMessagesToMessages,
@@ -270,9 +270,9 @@ describe("MessageBuilder", () => {
 	it("parses message-builder limit environment overrides", () => {
 		const builder = new MessageBuilder(
 			getMessageBuilderOptionsFromEnv({
-				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "96",
-				CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "5000",
-				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
+				BEDROCK_CODER_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "96",
+				BEDROCK_CODER_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "5000",
+				BEDROCK_CODER_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
 			}),
 		);
 		const messages: Message[] = [
@@ -318,7 +318,7 @@ describe("MessageBuilder", () => {
 
 		const eagerBuilder = new MessageBuilder(
 			getMessageBuilderOptionsFromEnv({
-				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
+				BEDROCK_CODER_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
 			}),
 		);
 		const eager = eagerBuilder.buildForApi([
@@ -334,7 +334,7 @@ describe("MessageBuilder", () => {
 	it("parses an env disable value for outdated-read rewrites", () => {
 		const builder = new MessageBuilder(
 			getMessageBuilderOptionsFromEnv({
-				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "disable",
+				BEDROCK_CODER_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "disable",
 			}),
 		);
 		const result = builder.buildForApi([
@@ -351,8 +351,8 @@ describe("MessageBuilder", () => {
 
 	it("ignores zero env overrides instead of disabling the limits", () => {
 		const options = getMessageBuilderOptionsFromEnv({
-			CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "0",
-			CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "0",
+			BEDROCK_CODER_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "0",
+			BEDROCK_CODER_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "0",
 		});
 		expect(options.maxToolResultChars).toBeUndefined();
 		expect(options.maxTotalTextBytes).toBeUndefined();
@@ -654,7 +654,7 @@ describe("MessageBuilder", () => {
 
 /**
  * Regression coverage for the real `ToolOperationResult[]` shape emitted by
- * the default Cline tools (run_commands, read_files, search_codebase).
+ * the default BedrockCoder tools (run_commands, read_files, search_codebase).
  *
  * The runtime stores these structured results directly as the tool_result
  * `content` array (see `agentPartToContentBlock` in

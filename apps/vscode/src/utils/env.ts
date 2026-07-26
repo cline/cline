@@ -1,4 +1,4 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/bedrock_coder/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
@@ -38,7 +38,7 @@ export async function readTextFromClipboard(): Promise<string> {
  * Uses the host bridge RPC first (VS Code's openExternal which handles remote environments).
  * Falls back to the `open` npm package if the host doesn't implement the RPC (e.g., JetBrains).
  *
- * When CLINE_CAPTURE_BROWSER is set (debug harness mode), the URL is captured
+ * When BEDROCK_CODER_CAPTURE_BROWSER is set (debug harness mode), the URL is captured
  * to a file and/or posted to the debug harness instead of opening a real browser.
  * This enables automated OAuth flow testing.
  *
@@ -47,7 +47,7 @@ export async function readTextFromClipboard(): Promise<string> {
  */
 export async function openExternal(url: string): Promise<void> {
 	// Debug harness mode: capture URL instead of opening browser
-	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
+	if (process.env.BEDROCK_CODER_CAPTURE_BROWSER === "1" || process.env.BEDROCK_CODER_CAPTURE_BROWSER === "true") {
 		await captureBrowserUrl(url)
 		return
 	}
@@ -79,13 +79,13 @@ async function captureBrowserUrl(url: string): Promise<void> {
 	const entry = { timestamp: Date.now(), url }
 	Logger.log(`[CaptureBrowser] Captured URL: ${url}`)
 
-	// Write to JSONL file in CLINE_DIR/data/
+	// Write to JSONL file in BEDROCK_CODER_DIR/data/
 	try {
 		const fs = await import("node:fs")
 		const path = await import("node:path")
 		const os = await import("node:os")
-		const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-		const dataDir = path.join(clineDir, "data")
+		const bedrockCoderDir = process.env.BEDROCK_CODER_DIR || path.join(os.homedir(), ".bedrock-coder")
+		const dataDir = path.join(bedrockCoderDir, "data")
 		fs.mkdirSync(dataDir, { recursive: true })
 		const captureFile = path.join(dataDir, "debug-captured-urls.jsonl")
 		fs.appendFileSync(captureFile, JSON.stringify(entry) + "\n")
@@ -94,7 +94,7 @@ async function captureBrowserUrl(url: string): Promise<void> {
 	}
 
 	// POST to debug harness server if configured
-	const harnessPort = process.env.CLINE_DEBUG_HARNESS_PORT
+	const harnessPort = process.env.BEDROCK_CODER_DEBUG_HARNESS_PORT
 	if (harnessPort) {
 		try {
 			const http = await import("node:http")

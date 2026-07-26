@@ -1,6 +1,6 @@
-# Cline SDK
+# BedrockCoder SDK
 
-The Cline SDK is the Bedrock-backed TypeScript runtime used by the retained
+The BedrockCoder SDK is the Bedrock-backed TypeScript runtime used by the retained
 VS Code extension. It provides an agent loop, tools, persistent sessions,
 plugins, automations, and local or hub-backed execution.
 
@@ -10,7 +10,7 @@ The inference path is intentionally AWS Bedrock only. Standalone agents accept
 a Bedrock model ID and connection settings:
 
 ```ts
-import { Agent } from "@cline/agents";
+import { Agent } from "@bedrock-coder/agents";
 
 const agent = new Agent({
 	providerId: "bedrock",
@@ -34,10 +34,10 @@ in the generic agent or RPC contracts.
 
 | Package | Responsibility |
 | --- | --- |
-| `@cline/shared` | Shared runtime, tool, hook, and transport contracts |
-| `@cline/llms` | Bedrock model construction and streaming |
-| `@cline/agents` | Stateless agent loop and tool execution |
-| `@cline/core` | Stateful sessions, storage, plugins, automation, and hub services |
+| `@bedrock-coder/shared` | Shared runtime, tool, hook, and transport contracts |
+| `@bedrock-coder/llms` | Bedrock model construction and streaming |
+| `@bedrock-coder/agents` | Stateless agent loop and tool execution |
+| `@bedrock-coder/core` | Stateful sessions, storage, plugins, automation, and hub services |
 
 SDK packages resolve workspace dependencies through compiled `dist/` exports.
 After changing SDK source, build the complete SDK before running extension or
@@ -52,4 +52,4 @@ The retained host implementation is the VS Code extension in
 
 ## License
 
-[Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2026 BedrockCoder Bot Inc.](./LICENSE)

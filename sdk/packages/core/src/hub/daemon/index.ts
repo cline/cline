@@ -3,12 +3,12 @@ import { closeSync, mkdirSync, openSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	BEDROCK_CODER_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
 	isHubProtocolCompatible,
-	resolveClineBuildEnv,
-	withResolvedClineBuildEnv,
-} from "@cline/shared";
+	resolveBedrockCoderBuildEnv,
+	withResolvedBedrockCoderBuildEnv,
+} from "@bedrock-coder/shared";
 import {
 	rememberRecoverableLocalHubUrl,
 	requestHubShutdown,
@@ -21,7 +21,7 @@ import {
 	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
-	resolveClineDataDir,
+	resolveBedrockCoderDataDir,
 } from "../discovery";
 import {
 	type HubEndpointOverrides,
@@ -37,7 +37,7 @@ const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
 const HUB_SPAWN_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
-const COMPILED_BUN_HUB_DAEMON_ARG = "--cline-hub-daemon";
+const COMPILED_BUN_HUB_DAEMON_ARG = "--bedrock-coder-hub-daemon";
 
 function endpointArgs(endpoint: HubEndpointOverrides): string[] {
 	return [
@@ -51,7 +51,7 @@ function endpointArgs(endpoint: HubEndpointOverrides): string[] {
 
 function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 	try {
-		const logPath = join(resolveClineDataDir(), "logs", "hub-daemon.log");
+		const logPath = join(resolveBedrockCoderDataDir(), "logs", "hub-daemon.log");
 		mkdirSync(dirname(logPath), { recursive: true });
 		return { fd: openSync(logPath, "a"), logPath };
 	} catch {
@@ -60,7 +60,7 @@ function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 }
 
 function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
+	return resolveBedrockCoderBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
 }
@@ -146,7 +146,7 @@ async function retireIncompatibleHub(
  * record so upgrades do not leave orphaned daemons running stale code.
  */
 async function retireLegacySharedHub(owner: HubOwnerContext): Promise<void> {
-	if (resolveClineBuildEnv() !== "production") {
+	if (resolveBedrockCoderBuildEnv() !== "production") {
 		return;
 	}
 	const legacy = resolveSharedHubOwnerContext();
@@ -195,9 +195,9 @@ function resolveLaunchCommand(
 		args: [...entryArgs, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
 		cwd: workspaceRoot,
 		env: {
-			...withResolvedClineBuildEnv(process.env),
-			CLINE_NO_INTERACTIVE: "1",
-			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
+			...withResolvedBedrockCoderBuildEnv(process.env),
+			BEDROCK_CODER_NO_INTERACTIVE: "1",
+			[BEDROCK_CODER_RUN_AS_HUB_DAEMON_ENV]: "1",
 		},
 	};
 }
@@ -356,7 +356,7 @@ export async function ensureDetachedHubServer(
 		endpointOverrides.host !== undefined ||
 		endpointOverrides.port !== undefined ||
 		endpointOverrides.pathname !== undefined ||
-		!!process.env.CLINE_HUB_PORT?.trim();
+		!!process.env.BEDROCK_CODER_HUB_PORT?.trim();
 	const endpoint = resolveHubEndpointOptions(endpointOverrides);
 	const expectedUrl = createHubServerUrl(
 		endpoint.host,
@@ -415,10 +415,10 @@ export async function ensureDetachedHubServer(
 		);
 		if (isCompatibleHubRecord(expected)) {
 			const upgradeHint = retiredUnusableDiscovery
-				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
+				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'bedrockCoder doctor fix' to stop the old daemon and repair local hub discovery."
 				: "";
 			throw new Error(
-				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
+				`A compatible BedrockCoder Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'bedrockCoder doctor fix' to repair local hub discovery.${upgradeHint}`,
 			);
 		}
 		const retiredExpected = await retireIncompatibleHub(
@@ -431,7 +431,7 @@ export async function ensureDetachedHubServer(
 			endpoint.port !== 0
 		) {
 			throw new Error(
-				`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+				`An incompatible BedrockCoder Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'bedrockCoder doctor fix' to stop stale hub daemons before starting a new hub.`,
 			);
 		}
 	}
@@ -479,7 +479,7 @@ export async function ensureDetachedHubServer(
 				endpoint.port !== 0
 			) {
 				throw new Error(
-					`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+					`An incompatible BedrockCoder Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'bedrockCoder doctor fix' to stop stale hub daemons before starting a new hub.`,
 				);
 			}
 		}

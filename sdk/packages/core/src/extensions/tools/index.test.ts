@@ -1,6 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentToolContext } from "@bedrock-coder/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawn = vi.hoisted(() => vi.fn());

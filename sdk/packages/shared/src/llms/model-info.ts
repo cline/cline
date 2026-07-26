@@ -3,7 +3,7 @@
  *
  * Zod schemas and inferred types for model capabilities, pricing,
  * and metadata. These live in shared so that agent types can reference
- * ModelInfo without depending on @cline/llms.
+ * ModelInfo without depending on @bedrock-coder/llms.
  */
 
 import { z } from "zod";

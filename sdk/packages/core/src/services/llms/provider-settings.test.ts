@@ -30,7 +30,7 @@ describe("provider settings", () => {
 	it("rejects removed provider settings", () => {
 		expect(
 			safeParseSettings({
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 			}).success,
 		).toBe(false);

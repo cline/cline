@@ -2,15 +2,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
-	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
-	CLINE_MCP_SETTINGS_FILE_NAME,
-	CLINE_WORKSPACES_DIRECTORY_NAME,
+	BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME,
+	BEDROCK_CODER_MCP_SETTINGS_FILE_NAME,
+	BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
-	resolveClineDataDir,
+	resolveBedrockCoderDataDir,
 	resolveDbDataDir,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalSettingsPath,
@@ -24,39 +24,39 @@ import {
 } from "./paths";
 
 type EnvSnapshot = {
-	CLINE_DIR: string | undefined;
-	CLINE_DATA_DIR: string | undefined;
-	CLINE_DB_DATA_DIR: string | undefined;
-	CLINE_GLOBAL_SETTINGS_PATH: string | undefined;
-	CLINE_MCP_SETTINGS_PATH: string | undefined;
-	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
-	CLINE_SESSION_DATA_DIR: string | undefined;
-	CLINE_TEAM_DATA_DIR: string | undefined;
+	BEDROCK_CODER_DIR: string | undefined;
+	BEDROCK_CODER_DATA_DIR: string | undefined;
+	BEDROCK_CODER_DB_DATA_DIR: string | undefined;
+	BEDROCK_CODER_GLOBAL_SETTINGS_PATH: string | undefined;
+	BEDROCK_CODER_MCP_SETTINGS_PATH: string | undefined;
+	BEDROCK_CODER_PROVIDER_SETTINGS_PATH: string | undefined;
+	BEDROCK_CODER_SESSION_DATA_DIR: string | undefined;
+	BEDROCK_CODER_TEAM_DATA_DIR: string | undefined;
 };
 
 function captureEnv(): EnvSnapshot {
 	return {
-		CLINE_DIR: process.env.CLINE_DIR,
-		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
-		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
-		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
-		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
-		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
-		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
-		CLINE_TEAM_DATA_DIR: process.env.CLINE_TEAM_DATA_DIR,
+		BEDROCK_CODER_DIR: process.env.BEDROCK_CODER_DIR,
+		BEDROCK_CODER_DATA_DIR: process.env.BEDROCK_CODER_DATA_DIR,
+		BEDROCK_CODER_DB_DATA_DIR: process.env.BEDROCK_CODER_DB_DATA_DIR,
+		BEDROCK_CODER_GLOBAL_SETTINGS_PATH: process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH,
+		BEDROCK_CODER_MCP_SETTINGS_PATH: process.env.BEDROCK_CODER_MCP_SETTINGS_PATH,
+		BEDROCK_CODER_PROVIDER_SETTINGS_PATH: process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH,
+		BEDROCK_CODER_SESSION_DATA_DIR: process.env.BEDROCK_CODER_SESSION_DATA_DIR,
+		BEDROCK_CODER_TEAM_DATA_DIR: process.env.BEDROCK_CODER_TEAM_DATA_DIR,
 	};
 }
 
 function restoreEnv(snapshot: EnvSnapshot): void {
-	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
-	process.env.CLINE_DIR = snapshot.CLINE_DIR;
-	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
-	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
-	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
-	process.env.CLINE_PROVIDER_SETTINGS_PATH =
-		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
-	process.env.CLINE_SESSION_DATA_DIR = snapshot.CLINE_SESSION_DATA_DIR;
-	process.env.CLINE_TEAM_DATA_DIR = snapshot.CLINE_TEAM_DATA_DIR;
+	process.env.BEDROCK_CODER_DATA_DIR = snapshot.BEDROCK_CODER_DATA_DIR;
+	process.env.BEDROCK_CODER_DIR = snapshot.BEDROCK_CODER_DIR;
+	process.env.BEDROCK_CODER_DB_DATA_DIR = snapshot.BEDROCK_CODER_DB_DATA_DIR;
+	process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH = snapshot.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
+	process.env.BEDROCK_CODER_MCP_SETTINGS_PATH = snapshot.BEDROCK_CODER_MCP_SETTINGS_PATH;
+	process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH =
+		snapshot.BEDROCK_CODER_PROVIDER_SETTINGS_PATH;
+	process.env.BEDROCK_CODER_SESSION_DATA_DIR = snapshot.BEDROCK_CODER_SESSION_DATA_DIR;
+	process.env.BEDROCK_CODER_TEAM_DATA_DIR = snapshot.BEDROCK_CODER_TEAM_DATA_DIR;
 }
 
 describe("storage path resolution", () => {
@@ -66,119 +66,119 @@ describe("storage path resolution", () => {
 		restoreEnv(snapshot);
 	});
 
-	it("uses CLINE_DATA_DIR as-is when set", () => {
+	it("uses BEDROCK_CODER_DATA_DIR as-is when set", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
-		expect(resolveClineDataDir()).toBe("/tmp/cline-data");
+		expect(resolveBedrockCoderDataDir()).toBe("/tmp/bedrock-coder-data");
 	});
 
-	it("falls back to CLINE_DATA_DIR/sessions for session storage", () => {
+	it("falls back to BEDROCK_CODER_DATA_DIR/sessions for session storage", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_SESSION_DATA_DIR;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_SESSION_DATA_DIR;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
-		expect(resolveSessionDataDir()).toBe(join("/tmp/cline-data", "sessions"));
+		expect(resolveSessionDataDir()).toBe(join("/tmp/bedrock-coder-data", "sessions"));
 	});
 
-	it("falls back to CLINE_DATA_DIR/teams for team storage", () => {
+	it("falls back to BEDROCK_CODER_DATA_DIR/teams for team storage", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_TEAM_DATA_DIR;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_TEAM_DATA_DIR;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
-		expect(resolveTeamDataDir()).toBe(join("/tmp/cline-data", "teams"));
+		expect(resolveTeamDataDir()).toBe(join("/tmp/bedrock-coder-data", "teams"));
 	});
 
-	it("falls back to CLINE_DATA_DIR/db for sqlite storage", () => {
+	it("falls back to BEDROCK_CODER_DATA_DIR/db for sqlite storage", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_DB_DATA_DIR;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_DB_DATA_DIR;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
-		expect(resolveDbDataDir()).toBe(join("/tmp/cline-data", "db"));
+		expect(resolveDbDataDir()).toBe(join("/tmp/bedrock-coder-data", "db"));
 	});
 
-	it("falls back to CLINE_DATA_DIR/settings/providers.json for provider settings", () => {
+	it("falls back to BEDROCK_CODER_DATA_DIR/settings/providers.json for provider settings", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_PROVIDER_SETTINGS_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		expect(resolveProviderSettingsPath()).toBe(
-			join("/tmp/cline-data", "settings", "providers.json"),
+			join("/tmp/bedrock-coder-data", "settings", "providers.json"),
 		);
 	});
 
-	it("falls back to CLINE_DATA_DIR/settings/global-settings.json for global settings", () => {
+	it("falls back to BEDROCK_CODER_DATA_DIR/settings/global-settings.json for global settings", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		expect(resolveGlobalSettingsPath()).toBe(
-			join("/tmp/cline-data", "settings", "global-settings.json"),
+			join("/tmp/bedrock-coder-data", "settings", "global-settings.json"),
 		);
 	});
 
-	it("falls back to CLINE_DATA_DIR/settings/cline_mcp_settings.json for MCP settings", () => {
+	it("falls back to BEDROCK_CODER_DATA_DIR/settings/mcp_settings.json for MCP settings", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_MCP_SETTINGS_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_MCP_SETTINGS_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		expect(resolveMcpSettingsPath()).toBe(
-			join("/tmp/cline-data", "settings", CLINE_MCP_SETTINGS_FILE_NAME),
+			join("/tmp/bedrock-coder-data", "settings", BEDROCK_CODER_MCP_SETTINGS_FILE_NAME),
 		);
 	});
 
-	it("falls back to ~/.cline/.agents for agent configs", () => {
+	it("falls back to ~/.bedrock-coder/.agents for agent configs", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DIR = "/tmp/home/.cline";
+		process.env.BEDROCK_CODER_DIR = "/tmp/home/.bedrock-coder";
 
 		expect(resolveAgentsConfigDirPath()).toBe(
-			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".bedrock-coder", AGENT_CONFIG_DIRECTORY_NAME),
 		);
 	});
 
-	it("resolves global hooks from ~/.cline", () => {
+	it("resolves global hooks from ~/.bedrock-coder", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DIR = "/tmp/home/.cline";
-		process.env.CLINE_DATA_DIR = "/tmp/home/.cline/data";
+		process.env.BEDROCK_CODER_DIR = "/tmp/home/.bedrock-coder";
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/home/.bedrock-coder/data";
 
 		expect(resolveHooksConfigSearchPaths()).toEqual(
 			expect.arrayContaining([
-				join("/tmp/home", ".cline", HOOKS_CONFIG_DIRECTORY_NAME),
+				join("/tmp/home", ".bedrock-coder", HOOKS_CONFIG_DIRECTORY_NAME),
 			]),
 		);
 		expect(resolveHooksConfigSearchPaths()).not.toContain(
-			join("/tmp/home", ".cline", "data", HOOKS_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".bedrock-coder", "data", HOOKS_CONFIG_DIRECTORY_NAME),
 		);
 	});
 
-	it("resolves global rules from ~/.cline", () => {
+	it("resolves global rules from ~/.bedrock-coder", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DIR = "/tmp/home/.cline";
-		process.env.CLINE_DATA_DIR = "/tmp/home/.cline/data";
+		process.env.BEDROCK_CODER_DIR = "/tmp/home/.bedrock-coder";
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/home/.bedrock-coder/data";
 
 		expect(resolveRulesConfigSearchPaths()).toEqual(
 			expect.arrayContaining([
 				resolveGlobalAgentsRulesPath(),
-				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
+				join("/tmp/home", ".bedrock-coder", RULES_CONFIG_DIRECTORY_NAME),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths()).not.toContain(
-			join("/tmp/home", ".cline", "data", RULES_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".bedrock-coder", "data", RULES_CONFIG_DIRECTORY_NAME),
 		);
 	});
 
-	it("resolves legacy and new workflow paths, with .cline paths later for duplicate-name precedence", () => {
+	it("resolves legacy and new workflow paths, with .bedrock-coder paths later for duplicate-name precedence", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DIR = "/tmp/home/.cline";
+		process.env.BEDROCK_CODER_DIR = "/tmp/home/.bedrock-coder";
 		const workspacePath = "/repo/demo";
 
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 
 		expect(paths).toEqual([
-			join(workspacePath, ".clinerules", "workflows"),
-			expect.stringContaining(join("Documents", "Cline", "Workflows")),
-			join("/tmp/home", ".cline", "workflows"),
-			join(workspacePath, ".cline", "workflows"),
+			join(workspacePath, ".bedrock-coder", "workflows"),
+			expect.stringContaining(join("Documents", "Bedrock Coder", "Workflows")),
+			join("/tmp/home", ".bedrock-coder", "workflows"),
+			join(workspacePath, ".bedrock-coder", "workflows"),
 		]);
 	});
 });
@@ -191,48 +191,48 @@ describe("chat workspace paths", () => {
 	});
 
 	it("exports the canonical path segments", () => {
-		expect(CLINE_WORKSPACES_DIRECTORY_NAME).toBe("workspaces");
-		expect(CLINE_CHAT_WORKSPACE_DIRECTORY_NAME).toBe("chat");
+		expect(BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME).toBe("workspaces");
+		expect(BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME).toBe("chat");
 	});
 
-	it("resolves the shared chat workspace under the cline data dir", () => {
+	it("resolves the shared chat workspace under the bedrockCoder data dir", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_DATA_DIR;
-		process.env.CLINE_DIR = "/tmp/home/.cline";
+		delete process.env.BEDROCK_CODER_DATA_DIR;
+		process.env.BEDROCK_CODER_DIR = "/tmp/home/.bedrock-coder";
 
 		expect(resolveChatWorkspacePath()).toBe(
-			join("/tmp/home/.cline", "data", "workspaces", "chat"),
+			join("/tmp/home/.bedrock-coder", "data", "workspaces", "chat"),
 		);
 	});
 
-	it("honors the CLINE_DATA_DIR override", () => {
+	it("honors the BEDROCK_CODER_DATA_DIR override", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		expect(resolveChatWorkspacePath()).toBe(
-			join("/tmp/cline-data", "workspaces", "chat"),
+			join("/tmp/bedrock-coder-data", "workspaces", "chat"),
 		);
 	});
 
 	it.each([
-		"/home/user/.cline/data/workspaces/chat",
-		"//home//user//.cline//data//workspaces//chat//",
-		"C:\\Users\\dev\\.cline\\data\\workspaces\\chat\\",
-		"\\\\server\\share\\.cline\\data\\workspaces\\chat",
+		"/home/user/.bedrock-coder/data/workspaces/chat",
+		"//home//user//.bedrock-coder//data//workspaces//chat//",
+		"C:\\Users\\dev\\.bedrock-coder\\data\\workspaces\\chat\\",
+		"\\\\server\\share\\.bedrock-coder\\data\\workspaces\\chat",
 	])("recognizes chat workspace root %s", (path) => {
 		expect(isChatWorkspacePath(path)).toBe(true);
 	});
 
 	it.each([
-		".cline/data/workspaces/chat",
+		".bedrock-coder/data/workspaces/chat",
 		"/tmp/chat",
-		"/tmp/cline/sessions/session-a1b2c3-temp/project",
-		"/home/user/cline/data/workspaces/chat",
-		"/home/user/.cline/workspaces/chat",
-		"/home/user/.cline/data/other/chat",
-		"/home/user/.cline/data/workspaces/Chat",
-		"/home/user/.cline/data/workspaces/chat/my-app",
-		"/home/user/.cline/data/workspaces",
+		"/tmp/bedrock-coder/sessions/session-a1b2c3-temp/project",
+		"/home/user/bedrock-coder/data/workspaces/chat",
+		"/home/user/.bedrock-coder/workspaces/chat",
+		"/home/user/.bedrock-coder/data/other/chat",
+		"/home/user/.bedrock-coder/data/workspaces/Chat",
+		"/home/user/.bedrock-coder/data/workspaces/chat/my-app",
+		"/home/user/.bedrock-coder/data/workspaces",
 	])("rejects non-chat workspace path %s", (path) => {
 		expect(isChatWorkspacePath(path)).toBe(false);
 	});

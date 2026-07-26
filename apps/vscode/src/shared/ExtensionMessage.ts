@@ -3,12 +3,12 @@
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
+import { BedrockCoderRulesToggles } from "./bedrock-coder-rules"
 import type { BedrockStartupState } from "./bedrock-startup"
-import { ClineRulesToggles } from "./cline-rules"
 import type { Environment } from "./config-types"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
-import { ClineMessageModelInfo } from "./messages"
+import { BedrockCoderMessageModelInfo } from "./messages"
 import { Mode } from "./storage/types"
 // webview will hold state
 export interface ExtensionMessage {
@@ -28,7 +28,7 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 
 export const DEFAULT_PLATFORM = "unknown"
 
-export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+export const COMMAND_CANCEL_TOKEN = "__bedrockCoder_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
@@ -38,7 +38,7 @@ export interface ExtensionState {
 	remoteBrowserHost?: string
 	preferredLanguage?: string
 	mode: Mode
-	clineMessages: ClineMessage[]
+	bedrockCoderMessages: BedrockCoderMessage[]
 	checkpointRestoreInput?: {
 		text: string
 		images?: string[]
@@ -47,7 +47,7 @@ export interface ExtensionState {
 	}
 	/**
 	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
-	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
+	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of bedrockCoderMessages.
 	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).
 	 */
 	turnState?: TurnState
@@ -66,7 +66,7 @@ export interface ExtensionState {
 	 */
 	stateVersion?: number
 	/**
-	 * Conversation/replica fence for this snapshot (see ClineMessage.epoch). A snapshot with a
+	 * Conversation/replica fence for this snapshot (see BedrockCoderMessage.epoch). A snapshot with a
 	 * newer epoch replaces the webview transcript; an older one is dropped; an equal one merges.
 	 * Optional for classic/legacy.
 	 */
@@ -92,13 +92,13 @@ export interface ExtensionState {
 	foregroundCommandRunning?: boolean
 	lastCompletedCommandTs?: number
 	version: string
-	globalClineRulesToggles: ClineRulesToggles
-	localClineRulesToggles: ClineRulesToggles
-	localWorkflowToggles: ClineRulesToggles
-	globalWorkflowToggles: ClineRulesToggles
-	localCursorRulesToggles: ClineRulesToggles
-	localWindsurfRulesToggles: ClineRulesToggles
-	localAgentsRulesToggles: ClineRulesToggles
+	globalBedrockCoderRulesToggles: BedrockCoderRulesToggles
+	localBedrockCoderRulesToggles: BedrockCoderRulesToggles
+	localWorkflowToggles: BedrockCoderRulesToggles
+	globalWorkflowToggles: BedrockCoderRulesToggles
+	localCursorRulesToggles: BedrockCoderRulesToggles
+	localWindsurfRulesToggles: BedrockCoderRulesToggles
+	localAgentsRulesToggles: BedrockCoderRulesToggles
 	mcpResponsesCollapsed?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
@@ -122,7 +122,7 @@ export interface ExtensionState {
 
 /**
  * The authoritative UI mode for the current agent turn, owned by the extension. The webview reads
- * this instead of inferring mode from the tail of clineMessages.
+ * this instead of inferring mode from the tail of bedrockCoderMessages.
  */
 export type TurnPhase =
 	| "idle" // no active turn; input enabled, no buttons
@@ -135,7 +135,7 @@ export type TurnPhase =
 
 export interface TurnState {
 	phase: TurnPhase
-	/** ts of the ClineMessage this phase is "about" (e.g. the pending approval/ask). */
+	/** ts of the BedrockCoderMessage this phase is "about" (e.g. the pending approval/ask). */
 	anchorTs?: number
 	/** Monotonic; the webview keeps the highest-seq TurnState and ignores older ones. */
 	seq: number
@@ -193,11 +193,11 @@ export interface QueuedPrompt {
 	attachmentCount: number
 }
 
-export interface ClineMessage {
+export interface BedrockCoderMessage {
 	ts: number
 	type: "ask" | "say"
-	ask?: ClineAsk
-	say?: ClineSay
+	ask?: BedrockCoderAsk
+	say?: BedrockCoderSay
 	text?: string
 	reasoning?: string
 	images?: string[]
@@ -221,7 +221,7 @@ export interface ClineMessage {
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
-	modelInfo?: ClineMessageModelInfo
+	modelInfo?: BedrockCoderMessageModelInfo
 	/** Reference to extension-host retained output. Full content is fetched only on demand. */
 	toolResultId?: string
 	toolResultPreview?: string
@@ -229,7 +229,7 @@ export interface ClineMessage {
 	toolResultIsError?: boolean
 }
 
-export type ClineAsk =
+export type BedrockCoderAsk =
 	| "followup"
 	| "plan_mode_respond"
 	| "act_mode_respond"
@@ -249,7 +249,7 @@ export type ClineAsk =
 	| "report_bug"
 	| "use_subagents"
 
-export type ClineSay =
+export type BedrockCoderSay =
 	| "task"
 	| "error"
 	| "error_retry"
@@ -275,7 +275,7 @@ export type ClineSay =
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
-	| "clineignore_error"
+	| "bedrockCoderignore_error"
 	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
@@ -289,7 +289,7 @@ export type ClineSay =
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
 
-export interface ClineSayTool {
+export interface BedrockCoderSayTool {
 	tool:
 		| "editedExistingFile"
 		| "newFileCreated"
@@ -320,7 +320,7 @@ export interface ClineSayTool {
 const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
 
-export interface ClineSayBrowserAction {
+export interface BedrockCoderSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
@@ -344,7 +344,7 @@ export interface SubagentStatusItem {
 	error?: string
 }
 
-export interface ClineSaySubagentStatus {
+export interface BedrockCoderSaySubagentStatus {
 	status: "running" | "completed" | "failed"
 	total: number
 	completed: number
@@ -366,7 +366,7 @@ export type BrowserActionResult = {
 	currentMousePosition?: string
 }
 
-export interface ClineAskUseMcpServer {
+export interface BedrockCoderAskUseMcpServer {
 	serverName: string
 	type: "use_mcp_tool" | "access_mcp_resource"
 	toolName?: string
@@ -374,30 +374,30 @@ export interface ClineAskUseMcpServer {
 	uri?: string
 }
 
-export interface ClineAskUseSubagents {
+export interface BedrockCoderAskUseSubagents {
 	prompts: string[]
 }
 
-export interface ClinePlanModeResponse {
+export interface BedrockCoderPlanModeResponse {
 	response: string
 	options?: string[]
 	selected?: string
 }
 
-export interface ClineAskQuestion {
+export interface BedrockCoderAskQuestion {
 	question: string
 	options?: string[]
 	selected?: string
 }
 
-export interface ClineApiReqInfo {
+export interface BedrockCoderApiReqInfo {
 	request?: string
 	tokensIn?: number
 	tokensOut?: number
 	cacheWrites?: number
 	cacheReads?: number
 	cost?: number
-	cancelReason?: ClineApiReqCancelReason
+	cancelReason?: BedrockCoderApiReqCancelReason
 	streamingFailedMessage?: string
 	retryStatus?: {
 		attempt: number
@@ -412,7 +412,7 @@ export interface ClineApiReqInfo {
  * divider (apps/cli/src/tui/utils/compaction-status.ts): a "started" row shows
  * a spinner and is later updated in place (same ts) to its terminal status.
  */
-export interface ClineCompactionInfo {
+export interface BedrockCoderCompactionInfo {
 	status: "started" | "completed" | "skipped" | "failed" | "cancelled"
 	mode: "auto" | "manual"
 	tokensBefore?: number
@@ -421,7 +421,7 @@ export interface ClineCompactionInfo {
 	messagesAfter?: number
 }
 
-export interface ClineSubagentUsageInfo {
+export interface BedrockCoderSubagentUsageInfo {
 	source: "subagents"
 	tokensIn: number
 	tokensOut: number
@@ -430,6 +430,6 @@ export interface ClineSubagentUsageInfo {
 	cost: number
 }
 
-type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
+type BedrockCoderApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

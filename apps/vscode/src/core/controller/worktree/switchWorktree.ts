@@ -1,4 +1,4 @@
-import { SwitchWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { SwitchWorktreeRequest, WorktreeResult } from "@shared/proto/bedrock_coder/worktree"
 import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import path from "path"
@@ -29,7 +29,7 @@ export async function switchWorktree(controller: Controller, request: SwitchWork
 			})
 		}
 
-		// Set state so Cline auto-opens when the worktree folder loads
+		// Set state so BedrockCoder auto-opens when the worktree folder loads
 		controller.stateManager.setGlobalState("worktreeAutoOpenPath", requestedPath)
 
 		// When opening in current window, the window reloads immediately and StateManager's

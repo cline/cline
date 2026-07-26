@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
@@ -96,7 +96,7 @@ export class SdkMcpCoordinator {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to restart session for MCP tools:", error)
 
-			const errorMessage: ClineMessage = {
+			const errorMessage: BedrockCoderMessage = {
 				ts: Date.now(),
 				type: "say",
 				say: "error",

@@ -184,12 +184,12 @@ export {
 } from "./parse/string";
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
-export type { ClineSystemPromptOptions } from "./prompt/cline";
+export type { BedrockCoderSystemPromptOptions } from "./prompt/bedrock-coder";
 export {
-	buildClineSystemPrompt,
+	buildBedrockCoderSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
-} from "./prompt/cline";
+} from "./prompt/bedrock-coder";
 export type {
 	ModeSwitchNotice,
 	ModeSwitchNoticeTracker,
@@ -206,8 +206,8 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
-export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
-export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
+export { BEDROCK_CODER_DEFAULT_MODEL_ID } from "./providers/defaults";
+export { BEDROCK_CODER_DEFAULT_RPC_ADDRESS, BEDROCK_CODER_DEFAULT_RPC_PORT } from "./rpc";
 export type {
 	ChatAttachmentFile,
 	ChatAttachments,
@@ -269,8 +269,8 @@ export {
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export {
-	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
-	CLINE_WORKSPACES_DIRECTORY_NAME,
+	BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME,
+	BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
 export * from "./team";

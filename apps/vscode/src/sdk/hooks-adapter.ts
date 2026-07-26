@@ -1,4 +1,4 @@
-// Bridges Cline's file-based hook scripts into the SDK's runtime hooks.
+// Bridges BedrockCoder's file-based hook scripts into the SDK's runtime hooks.
 //
 // Runtime hooks use typed in-process lifecycle callbacks:
 //   TaskStart        -> beforeRun
@@ -17,14 +17,14 @@ import type {
 	AgentHooks,
 	AgentRunLifecycleContext,
 	AgentStopControl,
-} from "@cline/shared"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+} from "@bedrock-coder/shared"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { HookFactory } from "@/core/hooks/hook-factory"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
 import type { StateManager } from "@/core/storage/StateManager"
 
-export type HookMessageEmitter = (message: ClineMessage) => void
+export type HookMessageEmitter = (message: BedrockCoderMessage) => void
 
 function toStringRecord(input: unknown): Record<string, string> {
 	if (input == null || typeof input !== "object" || Array.isArray(input)) {
@@ -73,7 +73,7 @@ function buildHookStatusMessage(opts: {
 	status: "running" | "completed" | "failed" | "cancelled"
 	toolName?: string
 	ts?: number
-}): ClineMessage {
+}): BedrockCoderMessage {
 	return {
 		ts: opts.ts ?? Date.now(),
 		type: "say",

@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
-import type * as LlmsProviders from "@cline/llms";
-import type { AgentResult, BasicLogger } from "@cline/shared";
+import type * as LlmsProviders from "@bedrock-coder/llms";
+import type { AgentResult, BasicLogger } from "@bedrock-coder/shared";
 import { nanoid } from "nanoid";
 import type {
 	SubAgentEndContext,

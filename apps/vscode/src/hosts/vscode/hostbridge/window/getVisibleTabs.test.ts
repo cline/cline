@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
 import { strict as assert } from "assert"
 import * as fs from "fs/promises"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -149,7 +149,7 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 
 	it("should return all visible tabs including deleted files)", async () => {
 		// Create a temporary file on disk
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-test-"))
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "bedrock-coder-test-"))
 		const testFilePath = path.join(tempDir, "test-file-to-delete.txt")
 		await fs.writeFile(testFilePath, "This file will be deleted")
 

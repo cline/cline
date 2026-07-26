@@ -1,9 +1,9 @@
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
-import type * as LlmsProviders from "@cline/llms";
-import type { AgentResult } from "@cline/shared";
-import { resolveRootSessionId } from "@cline/shared";
-import { ensureHookLogDir } from "@cline/shared/storage";
+import type * as LlmsProviders from "@bedrock-coder/llms";
+import type { AgentResult } from "@bedrock-coder/shared";
+import { resolveRootSessionId } from "@bedrock-coder/shared";
+import { ensureHookLogDir } from "@bedrock-coder/shared/storage";
 import { z } from "zod";
 import type {
 	SubAgentEndContext,
@@ -404,7 +404,7 @@ export class TeamChildSessionManager {
 	}
 
 	appendSubagentHookAudit(event: HookEventPayload): void {
-		const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
+		const envPath = process.env.BEDROCK_CODER_HOOKS_LOG_PATH?.trim() || undefined;
 		const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
 		appendFileSync(
 			logPath,

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PLUGIN_FILE_EXTENSIONS } from "@cline/shared";
+import { PLUGIN_FILE_EXTENSIONS } from "@bedrock-coder/shared";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const HOST_REQUIRE = createRequire(import.meta.url);
@@ -11,17 +11,17 @@ const HOST_REQUIRE = createRequire(import.meta.url);
 const WORKSPACE_ROOT = resolve(MODULE_DIR, "..", "..", "..", "..", "..");
 const WORKSPACE_ALIASES = collectWorkspaceAliases(WORKSPACE_ROOT);
 const HOST_PROVIDED_SDK_SPECIFIERS = [
-	"@cline/agents",
-	"@cline/core",
-	"@cline/core/hub",
-	"@cline/core/hub/daemon-entry",
-	"@cline/llms",
-	"@cline/llms/browser",
-	"@cline/shared",
-	"@cline/shared/browser",
-	"@cline/shared/storage",
-	"@cline/shared/db",
-	"@cline/shared/types",
+	"@bedrock-coder/agents",
+	"@bedrock-coder/core",
+	"@bedrock-coder/core/hub",
+	"@bedrock-coder/core/hub/daemon-entry",
+	"@bedrock-coder/llms",
+	"@bedrock-coder/llms/browser",
+	"@bedrock-coder/shared",
+	"@bedrock-coder/shared/browser",
+	"@bedrock-coder/shared/storage",
+	"@bedrock-coder/shared/db",
+	"@bedrock-coder/shared/types",
 ];
 const BUILTIN_MODULES = new Set(
 	builtinModules.flatMap((id) => [id, id.replace(/^node:/, "")]),
@@ -42,15 +42,15 @@ export interface ImportPluginModuleOptions {
 function collectWorkspaceAliases(root: string): Record<string, string> {
 	const aliases: Record<string, string> = {};
 	const candidates: Record<string, string> = {
-		"@cline/agents": resolve(root, "packages/agents/src/index.ts"),
-		"@cline/core": resolve(root, "packages/core/src/index.ts"),
-		"@cline/llms": resolve(root, "packages/llms/src/index.ts"),
-		"@cline/shared": resolve(root, "packages/shared/src/index.ts"),
-		"@cline/shared/storage": resolve(
+		"@bedrock-coder/agents": resolve(root, "packages/agents/src/index.ts"),
+		"@bedrock-coder/core": resolve(root, "packages/core/src/index.ts"),
+		"@bedrock-coder/llms": resolve(root, "packages/llms/src/index.ts"),
+		"@bedrock-coder/shared": resolve(root, "packages/shared/src/index.ts"),
+		"@bedrock-coder/shared/storage": resolve(
 			root,
 			"packages/shared/src/storage/index.ts",
 		),
-		"@cline/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
+		"@bedrock-coder/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
 	};
 	for (const [key, value] of Object.entries(candidates)) {
 		if (existsSync(value)) {
@@ -202,8 +202,8 @@ function getPackageExportPath(specifier: string): string {
 	return `.${specifier.slice(packageName.length)}`;
 }
 
-function isClineSdkSpecifier(specifier: string): boolean {
-	return getPackageName(specifier).startsWith("@cline/");
+function isBedrockCoderSdkSpecifier(specifier: string): boolean {
+	return getPackageName(specifier).startsWith("@bedrock-coder/");
 }
 
 function hasInstalledDependency(
@@ -288,7 +288,7 @@ function resolveHostPackageExport(specifier: string): string | null {
 
 function getHostPackageSearchRoots(): string[] {
 	const roots = [MODULE_DIR];
-	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	const wrapperPath = process.env.BEDROCK_CODER_WRAPPER_PATH?.trim();
 	if (wrapperPath) {
 		roots.push(dirname(dirname(wrapperPath)));
 	}
@@ -346,11 +346,11 @@ function findHostPackageRoot(packageName: string): string | null {
 }
 
 function isPackageBasedPlugin(pluginFilePath: string): boolean {
-	// Walk up from the plugin file looking for a package.json with a `cline`
+	// Walk up from the plugin file looking for a package.json with a `bedrockCoder`
 	// manifest. Stop at the first package.json we encounter; if it doesn't
-	// declare `cline` we've left the plugin boundary (e.g. hit the workspace
+	// declare `bedrockCoder` we've left the plugin boundary (e.g. hit the workspace
 	// root).  Also cap the traversal so we never wander far from the plugin
-	// search root (.cline/plugins).
+	// search root (.bedrock-coder/plugins).
 	const MAX_DEPTH = 4;
 	let current = dirname(pluginFilePath);
 	for (let depth = 0; depth < MAX_DEPTH; depth++) {
@@ -358,7 +358,7 @@ function isPackageBasedPlugin(pluginFilePath: string): boolean {
 		if (existsSync(packageJsonPath)) {
 			try {
 				const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-				return pkg != null && typeof pkg === "object" && "cline" in pkg;
+				return pkg != null && typeof pkg === "object" && "bedrockCoder" in pkg;
 			} catch {
 				return false;
 			}
@@ -455,7 +455,7 @@ function assertPluginDependenciesInstalled(
 				Object.hasOwn(WORKSPACE_ALIASES, specifier) ||
 				Object.hasOwn(WORKSPACE_ALIASES, getPackageName(specifier)) ||
 				hasInstalledDependency(pluginPath, specifier) ||
-				(isClineSdkSpecifier(specifier) &&
+				(isBedrockCoderSdkSpecifier(specifier) &&
 					resolvesFromHostRuntime(specifier)) ||
 				(preferHostRuntimeDependencies && resolvesFromHostRuntime(specifier))
 			) {
@@ -523,7 +523,7 @@ function collectPluginImportAliases(
 	for (const specifier of staticSpecifiers) {
 		if (
 			isBareSpecifier(specifier) &&
-			(isClineSdkSpecifier(specifier) || preferHostRuntimeDependencies)
+			(isBedrockCoderSdkSpecifier(specifier) || preferHostRuntimeDependencies)
 		) {
 			hostRuntimeSpecifiers.add(specifier);
 		}
@@ -668,7 +668,7 @@ export async function importPluginModule(
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns
-		// every nested import in the plugin, sees `import "@cline/core"` with no
+		// every nested import in the plugin, sees `import "@bedrock-coder/core"` with no
 		// node_modules adjacent to the drop-in plugin. Forcing tryNative off keeps
 		// jiti in charge so bare specifiers can be rewritten through aliases first.
 		tryNative: false,

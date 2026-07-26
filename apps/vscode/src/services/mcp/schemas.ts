@@ -11,7 +11,7 @@ export const BaseConfigSchema = z.object({
 	metadata: z.unknown().optional(),
 })
 
-// Transport schemas for the nested format (as written by the Cline CLI)
+// Transport schemas for the nested format (as written by the BedrockCoder CLI)
 const nestedStdioTransportSchema = z.object({
 	type: z.literal("stdio"),
 	command: z.string().min(1),
@@ -33,7 +33,7 @@ const nestedStreamableHttpTransportSchema = z.object({
 })
 
 /**
- * Nested transport format as produced by the Cline CLI (`cline mcp add`).
+ * Nested transport format as produced by the BedrockCoder CLI (`bedrockCoder mcp add`).
  *
  * The CLI writes:
  * ```json

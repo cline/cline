@@ -1,11 +1,11 @@
 import { describe, it } from "bun:test"
 import { strict as assert } from "node:assert"
-import type { ClineMessage } from "../ExtensionMessage"
+import type { BedrockCoderMessage } from "../ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "../getApiMetrics"
 
 describe("getApiMetrics", () => {
 	it("includes subagent_usage in aggregate totals", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -55,7 +55,7 @@ describe("getApiMetrics", () => {
 	})
 
 	it("ignores malformed usage payloads", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -73,7 +73,7 @@ describe("getApiMetrics", () => {
 
 describe("getLastApiReqTotalTokens", () => {
 	it("uses only the latest api_req_started payload", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -104,7 +104,7 @@ describe("getLastApiReqTotalTokens", () => {
 	it("scales the last request by the shrink ratio of a compaction completed after it", () => {
 		// The compaction counters are the SDK's estimate — a different scale from
 		// the provider-reported request total. Only the ratio carries over.
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -124,7 +124,7 @@ describe("getLastApiReqTotalTokens", () => {
 	})
 
 	it("compounds multiple compactions completed since the last request", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -151,7 +151,7 @@ describe("getLastApiReqTotalTokens", () => {
 
 	it("leaves the request total unscaled when a completed compaction lacks token counters", () => {
 		// The coordinator's fallback divider carries only message counts.
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -171,7 +171,7 @@ describe("getLastApiReqTotalTokens", () => {
 	})
 
 	it("returns 0 when a compaction completed but no request preceded it", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -185,7 +185,7 @@ describe("getLastApiReqTotalTokens", () => {
 	})
 
 	it("ignores compaction rows without a usable compacted size", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -211,7 +211,7 @@ describe("getLastApiReqTotalTokens", () => {
 	})
 
 	it("prefers a request newer than the last compaction", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",

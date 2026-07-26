@@ -1,4 +1,4 @@
-import type { WorktreeMutationInspection } from "@shared/proto/cline/worktree"
+import type { WorktreeMutationInspection } from "@shared/proto/bedrock_coder/worktree"
 import { AlertTriangle, CheckCircle2 } from "lucide-react"
 import { memo } from "react"
 

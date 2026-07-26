@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import { PlanActMode, UpdateTaskSettingsRequest } from "@shared/proto/cline/state"
+import { Empty } from "@shared/proto/bedrock_coder/common"
+import { PlanActMode, UpdateTaskSettingsRequest } from "@shared/proto/bedrock_coder/state"
 import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."
 import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"

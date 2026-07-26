@@ -2,11 +2,11 @@
 export {};
 
 // Externalize third-party runtime deps plus the provider/runtime layer that
-// the Agent facade loads dynamically. `@cline/shared` stays bundled.
-const external = ["@cline/llms", "nanoid"];
-const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+// the Agent facade loads dynamically. `@bedrock-coder/shared` stays bundled.
+const external = ["@bedrock-coder/llms", "nanoid"];
+const sourcemap = Bun.env.BEDROCK_CODER_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
-const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
+const minify = Bun.env.BEDROCK_CODER_SOURCEMAPS !== "1";
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{

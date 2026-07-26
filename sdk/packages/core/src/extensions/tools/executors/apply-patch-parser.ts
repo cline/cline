@@ -1,7 +1,7 @@
 /**
  * Apply Patch parser and patch model types.
  *
- * This parser supports the Cline apply_patch format used by the legacy runtime.
+ * This parser supports the BedrockCoder apply_patch format used by the legacy runtime.
  */
 
 export const PATCH_MARKERS = {

@@ -279,7 +279,7 @@ describe("createFileReadExecutor", () => {
 	});
 
 	it("resolves macOS screenshot paths with narrow no-break space (U+202F) before PM", async () => {
-		// Repro for the agent-tool side of the U+202F bug: a Cline session
+		// Repro for the agent-tool side of the U+202F bug: a BedrockCoder session
 		// (e.g. 1778635423953_jac9b) sent a screenshot path with a regular
 		// space, but the on-disk filename contains U+202F. Without the
 		// Unicode-aware resolver, fs.stat returns ENOENT and the tool fails.

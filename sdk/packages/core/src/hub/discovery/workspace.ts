@@ -2,12 +2,12 @@ import { join } from "node:path";
 import { normalizeWorkspacePath } from "../../services/workspace/workspace-manifest";
 import {
 	type HubOwnerContext,
-	resolveClineDataDir,
+	resolveBedrockCoderDataDir,
 	resolveHubOwnerContext,
 } from ".";
 
-const DEFAULT_SHARED_HUB_OWNER_LABEL = "shared:cline";
-const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
+const DEFAULT_SHARED_HUB_OWNER_LABEL = "shared:bedrockCoder";
+const HUB_DISCOVERY_ENV = "BEDROCK_CODER_HUB_DISCOVERY_PATH";
 const PRODUCTION_HUB_OWNER_ID = "hub-production";
 
 export function resolveWorkspaceHubOwnerContext(
@@ -30,6 +30,6 @@ export function resolveProductionHubOwnerContext(): HubOwnerContext {
 		ownerId: PRODUCTION_HUB_OWNER_ID,
 		discoveryPath:
 			process.env[HUB_DISCOVERY_ENV]?.trim() ||
-			join(resolveClineDataDir(), "locks", "hub", "production.json"),
+			join(resolveBedrockCoderDataDir(), "locks", "hub", "production.json"),
 	};
 }

@@ -1,4 +1,4 @@
-import type { BasicLogger, ExtensionContext, ModelInfo } from "@cline/shared";
+import type { BasicLogger, ExtensionContext, ModelInfo } from "@bedrock-coder/shared";
 import {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,

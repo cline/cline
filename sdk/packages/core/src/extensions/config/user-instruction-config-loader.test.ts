@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
 	resolveGlobalAgentsRulesPath,
 	setHomeDir,
-} from "@cline/shared/storage";
+} from "@bedrock-coder/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	createRulesConfigDefinition,
@@ -53,16 +53,16 @@ describe("user instruction config loader", () => {
 		const workspacePath = "/repo/demo";
 		expect(resolveSkillsConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
-				join(workspacePath, ".clinerules", "skills"),
-				join(workspacePath, ".cline", "skills"),
+				join(workspacePath, ".bedrock-coder", "skills"),
+				join(workspacePath, ".bedrock-coder", "skills"),
 				join(workspacePath, ".agents", "skills"),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
 				join(workspacePath, "AGENTS.md"),
-				join(workspacePath, ".clinerules"),
-				join(workspacePath, ".cline", "rules"),
+				join(workspacePath, ".bedrock-coder"),
+				join(workspacePath, ".bedrock-coder", "rules"),
 			]),
 		);
 		expect(
@@ -71,32 +71,32 @@ describe("user instruction config loader", () => {
 			),
 		).toBe(true);
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
-		expect(paths).toContain(join(workspacePath, ".clinerules", "workflows"));
-		expect(paths).toContain(join(workspacePath, ".cline", "workflows"));
+		expect(paths).toContain(join(workspacePath, ".bedrock-coder", "workflows"));
+		expect(paths).toContain(join(workspacePath, ".bedrock-coder", "workflows"));
 		expect(
 			paths.some(
 				(p) =>
 					p.includes("Documents") &&
-					p.includes("Cline") &&
+					p.includes("Bedrock Coder") &&
 					p.includes("Workflows"),
 			),
 		).toBe(true);
 		expect(paths).not.toContain(
-			join(process.env.HOME ?? "~", ".cline", "data", "workflows"),
+			join(process.env.HOME ?? "~", ".bedrock-coder", "data", "workflows"),
 		);
 	});
 
-	it("discovers managed plugin instruction roots from workspace .cline manifests", () => {
+	it("discovers managed plugin instruction roots from workspace .bedrock-coder manifests", () => {
 		const workspacePath = "/repo/demo";
 		expect(
 			createSkillsConfigDefinition({ workspacePath }).directories,
-		).toContain(join(workspacePath, ".cline"));
+		).toContain(join(workspacePath, ".bedrock-coder"));
 		expect(
 			createRulesConfigDefinition({ workspacePath }).directories,
-		).toContain(join(workspacePath, ".cline"));
+		).toContain(join(workspacePath, ".bedrock-coder"));
 		expect(
 			createWorkflowsConfigDefinition({ workspacePath }).directories,
-		).toContain(join(workspacePath, ".cline"));
+		).toContain(join(workspacePath, ".bedrock-coder"));
 	});
 
 	it("parses markdown frontmatter for skill, rule, and workflow configs", () => {
@@ -137,7 +137,7 @@ Document rollout and rollback steps.`,
 		expect(workflow.disabled).toBe(true);
 	});
 
-	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// Regression test for https://github.com/FFFalexgo/AWS_Bedrock_Coder/issues/12151: a leading UTF-8 BOM
 	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
 	// from being recognized.
 	it("parses markdown frontmatter when the content starts with a UTF-8 BOM", () => {
@@ -267,7 +267,7 @@ Escalation runbook`,
 				join(tmpdir(), "core-user-instructions-symlink-skill-"),
 			);
 			tempRoots.push(tempRoot);
-			const skillsDir = join(tempRoot, ".cline", "skills");
+			const skillsDir = join(tempRoot, ".bedrock-coder", "skills");
 			const externalSkillsDir = join(tempRoot, "external-skills");
 			const targetSkillDir = join(externalSkillsDir, "data-agent-skill");
 			const linkedSkillDir = join(skillsDir, "data-agent-skill");
@@ -307,7 +307,7 @@ Use the data agent skill.`,
 				join(tmpdir(), "core-user-instructions-circular-symlink-skill-"),
 			);
 			tempRoots.push(tempRoot);
-			const skillsDir = join(tempRoot, ".cline", "skills");
+			const skillsDir = join(tempRoot, ".bedrock-coder", "skills");
 			const skillDir = join(skillsDir, "commit");
 			const circularLink = join(skillsDir, "loop");
 			await mkdir(skillDir, { recursive: true });
@@ -341,7 +341,7 @@ Use conventional commits.`,
 		);
 		tempRoots.push(tempRoot);
 
-		const pluginRoot = join(tempRoot, ".cline", "enterprise");
+		const pluginRoot = join(tempRoot, ".bedrock-coder", "enterprise");
 		await mkdir(join(pluginRoot, "workflows"), { recursive: true });
 		await mkdir(join(pluginRoot, "skills", "security-review"), {
 			recursive: true,
@@ -400,25 +400,25 @@ Use the security review checklist.`,
 		).toBe(true);
 	});
 
-	it("lets workspace .cline workflows override legacy .clinerules workflows with the same name", async () => {
+	it("lets workspace .bedrock-coder workflows override legacy .bedrock-coder workflows with the same name", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-workflow-precedence-"),
 		);
 		tempRoots.push(tempRoot);
 
-		await mkdir(join(tempRoot, ".clinerules", "workflows"), {
+		await mkdir(join(tempRoot, ".bedrock-coder", "workflows"), {
 			recursive: true,
 		});
-		await mkdir(join(tempRoot, ".cline", "workflows"), { recursive: true });
+		await mkdir(join(tempRoot, ".bedrock-coder", "workflows"), { recursive: true });
 		await writeFile(
-			join(tempRoot, ".clinerules", "workflows", "release.md"),
+			join(tempRoot, ".bedrock-coder", "workflows", "release.md"),
 			`---
 name: release
 ---
 Legacy release workflow.`,
 		);
 		await writeFile(
-			join(tempRoot, ".cline", "workflows", "release.md"),
+			join(tempRoot, ".bedrock-coder", "workflows", "release.md"),
 			`---
 name: release
 ---
@@ -435,7 +435,7 @@ New release workflow.`,
 
 		expect(release?.item.instructions).toBe("New release workflow.");
 		expect(release?.filePath).toBe(
-			join(tempRoot, ".cline", "workflows", "release.md"),
+			join(tempRoot, ".bedrock-coder", "workflows", "release.md"),
 		);
 	});
 });

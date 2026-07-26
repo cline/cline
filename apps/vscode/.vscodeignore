@@ -5,7 +5,7 @@
 # Agent tooling, never shipped in the VSIX
 .agents/**
 .claude/**
-.cline/**
+.bedrock-coder/**
 .codex/**
 CLAUDE.local.md
 out/
@@ -19,7 +19,7 @@ testing-platform/node_modules/**
 standalone/**/node_modules/**
 src/**
 standalone/**
-# Build/dev tooling and inputs â€” bundled into dist/extension.js, not needed in the VSIX.
+# Build/dev tooling and inputs â€?bundled into dist/extension.js, not needed in the VSIX.
 bunfig.toml
 esbuild.mjs
 knip.json
@@ -66,7 +66,7 @@ old_docs/
 evals/
 .codespellrc
 buf.yaml
-.clinerules/
+.bedrock-coder/
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**

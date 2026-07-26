@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
-import type { BasicLogger } from "@cline/shared";
-import { resolveSessionDataDir } from "@cline/shared/storage";
+import type { BasicLogger } from "@bedrock-coder/shared";
+import { resolveSessionDataDir } from "@bedrock-coder/shared/storage";
 import { nowIso } from "../../services/session-artifacts";
 import type { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import type { SessionMessagesArtifactUploader } from "../../types/session";

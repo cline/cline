@@ -1,4 +1,4 @@
-import type { MessageWithMetadata } from "@cline/llms";
+import type { MessageWithMetadata } from "@bedrock-coder/llms";
 import { describe, expect, it } from "vitest";
 import { getCurrentContextSize, summarizeUsageFromMessages } from "./usage";
 

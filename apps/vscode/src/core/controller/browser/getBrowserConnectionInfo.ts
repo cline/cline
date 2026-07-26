@@ -1,5 +1,5 @@
-import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { BrowserConnectionInfo } from "@shared/proto/bedrock_coder/browser"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
 

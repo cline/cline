@@ -5,7 +5,7 @@ import * as path from "path"
 import should from "should"
 import sinon from "sinon"
 import { HostProvider } from "../../../hosts/host-provider"
-import { HookOutput } from "../../../shared/proto/cline/hooks"
+import { HookOutput } from "../../../shared/proto/bedrock_coder/hooks"
 import { setVscodeHostProviderMock } from "../../../test/host-provider-test-utils"
 import * as diskModule from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
@@ -127,15 +127,15 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 /**
  * Creates a hooks directory structure at the specified location.
  *
- * @param baseDir Base directory where .clinerules/hooks will be created
+ * @param baseDir Base directory where .bedrock-coder/hooks will be created
  * @returns Path to the created hooks directory
  *
  * @example
  * const hooksDir = await createHooksDirectory("/tmp/test")
- * // Returns: "/tmp/test/.clinerules/hooks"
+ * // Returns: "/tmp/test/.bedrock-coder/hooks"
  */
 export async function createHooksDirectory(baseDir: string): Promise<string> {
-	const hooksDir = path.join(baseDir, ".clinerules", "hooks")
+	const hooksDir = path.join(baseDir, ".bedrock-coder", "hooks")
 	await fs.mkdir(hooksDir, { recursive: true })
 	return hooksDir
 }
@@ -573,7 +573,7 @@ export class MockHookRunner<Name extends HookName> {
  *
  * @example
  * await loadFixture("hooks/pretooluse/success", tempDir)
- * // Hook is now available at tempDir/.clinerules/hooks/PreToolUse
+ * // Hook is now available at tempDir/.bedrock-coder/hooks/PreToolUse
  */
 export async function loadFixture(fixtureName: string, destDir: string): Promise<void> {
 	const fixturesDir = path.join(__dirname, "fixtures")

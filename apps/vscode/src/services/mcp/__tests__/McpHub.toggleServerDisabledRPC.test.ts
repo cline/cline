@@ -49,7 +49,7 @@ describe("McpHub.toggleServerDisabledRPC", () => {
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `mcp-toggle-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
-		settingsPath = path.join(tempDir, "cline_mcp_settings.json")
+		settingsPath = path.join(tempDir, "mcp_settings.json")
 		sandbox.stub(diskModule, "getMcpSettingsFilePath").resolves(settingsPath)
 
 		connectArgs = []

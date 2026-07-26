@@ -1,16 +1,16 @@
-import type * as LlmsProviders from "@cline/llms";
+import type * as LlmsProviders from "@bedrock-coder/llms";
 import type {
 	AgentMode,
 	AgentResult,
 	RuntimeConfigExtensionKind,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { SessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
 import type {
-	ClineCoreStartConfig,
+	BedrockCoderCoreStartConfig,
 	CoreSessionConfig,
 } from "../../types/config";
 import type {
@@ -120,7 +120,7 @@ export interface StartSessionInput {
 	 */
 	localRuntime?: LocalRuntimeStartOptions;
 	capabilities?: RuntimeCapabilities;
-	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
+	toolPolicies?: import("@bedrock-coder/shared").AgentConfig["toolPolicies"];
 }
 
 /** Session input after the execution host has resolved a concrete workspace. */
@@ -129,7 +129,7 @@ export interface ResolvedStartSessionInput
 	config: RuntimeSessionConfig;
 }
 
-export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
+export function splitCoreSessionConfig(config: BedrockCoderCoreStartConfig): {
 	config: StartSessionConfig;
 	localRuntime?: LocalRuntimeStartOptions;
 } {

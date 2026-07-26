@@ -2,8 +2,7 @@ import os from "os"
 import * as path from "path"
 
 const SKILL_DIRECTORY_NAMES = {
-	clineruleSkillsDir: ".clinerules/skills",
-	clineSkillsDir: ".cline/skills",
+	bedrockCoderSkillsDir: ".bedrock-coder/skills",
 	claudeSkillsDir: ".claude/skills",
 	agentsSkillsDir: ".agents/skills",
 } as const
@@ -13,12 +12,12 @@ export type SkillsScanDirectory = {
 	source: "project" | "global"
 }
 
-function getClineHomePath(): string {
-	return path.join(os.homedir(), ".cline")
+function getBedrockCoderHomePath(): string {
+	return path.join(os.homedir(), ".bedrock-coder")
 }
 
-function getClineSkillsDirectoryPath(): string {
-	return path.join(getClineHomePath(), "skills")
+function getBedrockCoderSkillsDirectoryPath(): string {
+	return path.join(getBedrockCoderHomePath(), "skills")
 }
 
 function getAgentSkillsDirectoryPath(): string {
@@ -31,11 +30,10 @@ function getAgentSkillsDirectoryPath(): string {
  */
 export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] {
 	return [
-		{ path: path.join(cwd, SKILL_DIRECTORY_NAMES.clineruleSkillsDir), source: "project" },
-		{ path: path.join(cwd, SKILL_DIRECTORY_NAMES.clineSkillsDir), source: "project" },
+		{ path: path.join(cwd, SKILL_DIRECTORY_NAMES.bedrockCoderSkillsDir), source: "project" },
 		{ path: path.join(cwd, SKILL_DIRECTORY_NAMES.claudeSkillsDir), source: "project" },
 		{ path: path.join(cwd, SKILL_DIRECTORY_NAMES.agentsSkillsDir), source: "project" },
-		{ path: getClineSkillsDirectoryPath(), source: "global" },
+		{ path: getBedrockCoderSkillsDirectoryPath(), source: "global" },
 		{ path: getAgentSkillsDirectoryPath(), source: "global" },
 	]
 }

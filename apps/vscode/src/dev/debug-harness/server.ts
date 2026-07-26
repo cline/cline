@@ -3,7 +3,7 @@
 /**
  * Debug Harness Server
  *
- * Launches VSCode with the Cline extension in debug mode and provides
+ * Launches VSCode with the BedrockCoder extension in debug mode and provides
  * an HTTP API for:
  *   - Extension host debugging (breakpoints, evaluate, stepping) via CDP
  *   - Webview debugging (breakpoints, evaluate, stepping) via CDP
@@ -64,14 +64,14 @@ const EXT_INSPECT_PORT = 9230
 // 60s default, so allow more headroom and let it be overridden.
 const LAUNCH_TIMEOUT_MS = Number.parseInt(getArg("--launch-timeout") || "120000", 10)
 const PROJECT_ROOT = path.resolve(__script_dir, "..", "..", "..")
-const SCREENSHOT_DIR = path.join(os.tmpdir(), "cline-debug")
-const DEFAULT_WORKSPACE = path.join(os.tmpdir(), "cline-debug-workspace")
-const DEFAULT_CLINE_DIR = path.join(os.homedir(), ".cline2") // Separate profile from user's ~/.cline
+const SCREENSHOT_DIR = path.join(os.tmpdir(), "bedrock-coder-debug")
+const DEFAULT_WORKSPACE = path.join(os.tmpdir(), "bedrock-coder-debug-workspace")
+const DEFAULT_BEDROCK_CODER_DIR = path.join(os.homedir(), ".bedrock-coder2") // Separate profile from user's ~/.bedrock-coder
 const SKIP_BUILD = args.includes("--skip-build")
 const AUTO_LAUNCH = args.includes("--auto-launch")
 const BROWSER_CAPTURE = !args.includes("--no-browser-capture")
 const WORKSPACE_ARG = getArg("--workspace")
-const CLINE_DIR_ARG = getArg("--cline-dir") // Override the isolated CLINE_DIR
+const BEDROCK_CODER_DIR_ARG = getArg("--bedrock-coder-dir") // Override the isolated BEDROCK_CODER_DIR
 
 // ============================================================
 // VLQ Sourcemap Decoder
@@ -314,7 +314,7 @@ class DebugHarness {
 	private webCdpSession: CDPSession | null = null // Playwright CDP session fallback
 	private screenshotCounter = 0
 	private extSourceMap: SourceMapJSON | null = null
-	private clineDir: string = DEFAULT_CLINE_DIR // The CLINE_DIR used for the debugee
+	private bedrockCoderDir: string = DEFAULT_BEDROCK_CODER_DIR // The BEDROCK_CODER_DIR used for the debugee
 
 	// Pause waiters - resolved when any debuggee hits a breakpoint
 	private pauseWaiters: { resolve: (info: any) => void; timer: NodeJS.Timeout }[] = []
@@ -369,22 +369,22 @@ class DebugHarness {
 		const executablePath = await downloadAndUnzipVSCode(vscodeVersion, undefined, new SilentReporter())
 		log(`VSCode binary: ${executablePath}`)
 
-		// Resolve the CLINE_DIR for the debugee (separate from debugger's ~/.cline)
-		this.clineDir = CLINE_DIR_ARG || DEFAULT_CLINE_DIR
-		fs.mkdirSync(this.clineDir, { recursive: true })
-		fs.mkdirSync(path.join(this.clineDir, "data"), { recursive: true })
-		log(`Debugee CLINE_DIR: ${this.clineDir}`)
+		// Resolve the BEDROCK_CODER_DIR for the debugee (separate from debugger's ~/.bedrock-coder)
+		this.bedrockCoderDir = BEDROCK_CODER_DIR_ARG || DEFAULT_BEDROCK_CODER_DIR
+		fs.mkdirSync(this.bedrockCoderDir, { recursive: true })
+		fs.mkdirSync(path.join(this.bedrockCoderDir, "data"), { recursive: true })
+		log(`Debugee BEDROCK_CODER_DIR: ${this.bedrockCoderDir}`)
 
 		// Clear any previously captured URLs
 		this.capturedUrls = []
 		// Also clear the captured URLs file on disk
-		const captureFile = path.join(this.clineDir, "data", "debug-captured-urls.jsonl")
+		const captureFile = path.join(this.bedrockCoderDir, "data", "debug-captured-urls.jsonl")
 		try {
 			fs.unlinkSync(captureFile)
 		} catch {}
 
 		// Create temp user data dir to avoid interfering with real VSCode profile
-		const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-debug-profile-"))
+		const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "bedrock-coder-debug-profile-"))
 		log(`User data dir: ${userDataDir}`)
 
 		// Launch VSCode with Playwright
@@ -418,12 +418,12 @@ class DebugHarness {
 					IS_DEV: "true",
 					TEMP_PROFILE: "true",
 					DEV_WORKSPACE_FOLDER: PROJECT_ROOT,
-					CLINE_ENVIRONMENT: "production",
-					// ── Data isolation: use separate profile from user's ~/.cline ──
-					CLINE_DIR: this.clineDir,
+					BEDROCK_CODER_ENVIRONMENT: "production",
+					// ── Data isolation: use separate profile from user's ~/.bedrock-coder ──
+					BEDROCK_CODER_DIR: this.bedrockCoderDir,
 					// ── Browser capture: intercept openExternal() for OAuth testing unless explicitly disabled ──
-					CLINE_CAPTURE_BROWSER: BROWSER_CAPTURE ? "1" : "0",
-					CLINE_DEBUG_HARNESS_PORT: String(PORT),
+					BEDROCK_CODER_CAPTURE_BROWSER: BROWSER_CAPTURE ? "1" : "0",
+					BEDROCK_CODER_DEBUG_HARNESS_PORT: String(PORT),
 				},
 				timeout: LAUNCH_TIMEOUT_MS,
 			})
@@ -459,7 +459,7 @@ class DebugHarness {
 			workspace,
 			extCdpConnected: this.extCdp.connected,
 			screenshotDir: SCREENSHOT_DIR,
-			clineDir: this.clineDir,
+			bedrockCoderDir: this.bedrockCoderDir,
 			browserCapture: BROWSER_CAPTURE,
 		}
 	}
@@ -543,7 +543,7 @@ class DebugHarness {
 				if (frame.isDetached()) continue
 				try {
 					const title = await frame.title()
-					if (title.startsWith("Cline")) {
+					if (title.startsWith("Bedrock Coder")) {
 						this.sidebarFrame = frame
 						return frame
 					}
@@ -799,7 +799,7 @@ class DebugHarness {
 
 	/**
 	 * Send a postMessage to the extension host via the webview's exposed vsCodeApi.
-	 * The vsCodeApi is exposed on window.__clineVsCodeApi by platform.config.ts.
+	 * The vsCodeApi is exposed on window.__bedrockCoderVsCodeApi by platform.config.ts.
 	 * This works even though acquireVsCodeApi() can only be called once.
 	 */
 	async webPostMessage(params: { message: any }): Promise<any> {
@@ -807,10 +807,10 @@ class DebugHarness {
 		if (!sidebar) throw new Error("Sidebar not found")
 		try {
 			const result = await sidebar.evaluate((msg: any) => {
-				const api = (window as any).__clineVsCodeApi
+				const api = (window as any).__bedrockCoderVsCodeApi
 				if (!api) {
 					throw new Error(
-						"window.__clineVsCodeApi not found. " +
+						"window.__bedrockCoderVsCodeApi not found. " +
 							"The webview may not have loaded yet, or the extension was built without the debug bridge.",
 					)
 				}
@@ -887,12 +887,15 @@ class DebugHarness {
 	async uiOpenSidebar(): Promise<any> {
 		if (!this.page) throw new Error("VSCode not running")
 		try {
-			await this.page.getByRole("tab", { name: /Cline/ }).locator("a").click()
+			await this.page
+				.getByRole("tab", { name: /BedrockCoder/ })
+				.locator("a")
+				.click()
 		} catch {
 			// Activity bar might need a different approach
 			await this.page.keyboard.press("Meta+Shift+p")
 			await sleep(300)
-			await this.page.keyboard.type("Cline: Focus on Cline View")
+			await this.page.keyboard.type("Bedrock Coder: Focus on Bedrock Coder View")
 			await sleep(200)
 			await this.page.keyboard.press("Enter")
 		}
@@ -1014,9 +1017,9 @@ class DebugHarness {
 				files: string[]
 				responseType?: string
 			}) => {
-				const api = (window as any).__clineVsCodeApi
+				const api = (window as any).__bedrockCoderVsCodeApi
 				if (!api) {
-					throw new Error("window.__clineVsCodeApi not found")
+					throw new Error("window.__bedrockCoderVsCodeApi not found")
 				}
 
 				// Send as a gRPC request via postMessage, which the extension host
@@ -1027,7 +1030,7 @@ class DebugHarness {
 					api.postMessage({
 						type: "grpc_request",
 						grpc_request: {
-							service: "cline.TaskService",
+							service: "bedrock_coder.TaskService",
 							method: "askResponse",
 							message: { responseType, text, images, files },
 							request_id: `debug-${Date.now()}`,
@@ -1039,7 +1042,7 @@ class DebugHarness {
 					api.postMessage({
 						type: "grpc_request",
 						grpc_request: {
-							service: "cline.TaskService",
+							service: "bedrock_coder.TaskService",
 							method: "newTask",
 							message: { text, images, files },
 							request_id: `debug-${Date.now()}`,
@@ -1169,7 +1172,7 @@ class DebugHarness {
 			sourceMapFiles: this.extSourceMap?.sources.length || 0,
 			screenshotDir: SCREENSHOT_DIR,
 			projectRoot: PROJECT_ROOT,
-			clineDir: this.clineDir,
+			bedrockCoderDir: this.bedrockCoderDir,
 			capturedUrls: this.capturedUrls.length,
 		}
 	}
@@ -1180,7 +1183,7 @@ class DebugHarness {
 
 	/**
 	 * Get URLs that the debugee tried to open in a browser (captured by
-	 * CLINE_CAPTURE_BROWSER). Each entry has a timestamp and URL.
+	 * BEDROCK_CODER_CAPTURE_BROWSER). Each entry has a timestamp and URL.
 	 * Use this to inspect OAuth authorization URLs that were intercepted.
 	 *
 	 * Params:
@@ -1197,7 +1200,7 @@ class DebugHarness {
 	 * Useful for verifying that an OAuth flow successfully persisted tokens.
 	 */
 	oauthReadStoredToken(): any {
-		const secretsFile = path.join(this.clineDir, "data", "secrets.json")
+		const secretsFile = path.join(this.bedrockCoderDir, "data", "secrets.json")
 		if (!fs.existsSync(secretsFile)) {
 			return { found: false, path: secretsFile }
 		}
@@ -1231,7 +1234,7 @@ class DebugHarness {
 		if (!this.app) throw new Error("VSCode not running")
 
 		// Build the URI
-		const extensionId = "saoudrizwan.claude-dev"
+		const extensionId = "fffalexgo.bedrock-coder"
 		const scheme = "vscode"
 		const searchParams = new URLSearchParams()
 		if (params.code) searchParams.set("code", params.code)
@@ -1258,7 +1261,7 @@ class DebugHarness {
 						// SharedUriHandler which is imported in extension.ts.
 						//
 						// For now, we'll note the URI and the agent should use
-						// ui.command_palette with "Cline: Handle URI" or similar.
+						// ui.command_palette with "BedrockCoder: Handle URI" or similar.
 						return ${JSON.stringify(uri)}
 					})()
 				`,
@@ -1284,12 +1287,12 @@ class DebugHarness {
 	}
 
 	/**
-	 * Read the captured URLs JSONL file from the debugee's CLINE_DIR.
+	 * Read the captured URLs JSONL file from the debugee's BEDROCK_CODER_DIR.
 	 * This is the on-disk log of all URLs that openExternal() captured.
 	 * Use this if the real-time POST to /captured-url was missed.
 	 */
 	oauthReadCapturedUrlsFile(): any {
-		const captureFile = path.join(this.clineDir, "data", "debug-captured-urls.jsonl")
+		const captureFile = path.join(this.bedrockCoderDir, "data", "debug-captured-urls.jsonl")
 		if (!fs.existsSync(captureFile)) {
 			return { found: false, path: captureFile }
 		}

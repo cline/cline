@@ -1,4 +1,4 @@
-import type { HubUINotifyPayload } from "@cline/shared";
+import type { HubUINotifyPayload } from "@bedrock-coder/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionSource } from "../../types/common";
 import { HubUIClient } from "../client/ui-client";
@@ -147,7 +147,7 @@ describe("hub UI events", () => {
 			updatedAt: new Date(0).toISOString(),
 			status: "running" as const,
 			interactive: true,
-			provider: "cline",
+			provider: "bedrockCoder",
 			model: "test-model",
 			cwd: "/tmp/project",
 			workspaceRoot: "/tmp/project",

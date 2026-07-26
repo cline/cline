@@ -132,7 +132,7 @@ export interface PluginSetupContext {
 	 * lifecycle hook contexts once SessionRuntime creates them.
 	 */
 	session?: AgentExtensionSessionContext;
-	/** Host/client identity such as `cline-cli`, `cline-vscode`, or an SDK app. */
+	/** Host/client identity such as `bedrock-coder-cli`, `bedrock-coder-vscode`, or an SDK app. */
 	client?: ClientContext;
 	/**
 	 * Structured workspace and git metadata for the session. Contains
@@ -187,7 +187,7 @@ export interface AgentExtensionRegistry<TTool = AgentTool, TMessage = unknown> {
  *
  * Hook handler properties are typed `unknown` here so that the generic base
  * interface stays free of agent-specific imports. Concrete extension types
- * (e.g. `AgentExtension` in `@cline/agents`) narrow them to the correct
+ * (e.g. `AgentExtension` in `@bedrock-coder/agents`) narrow them to the correct
  * context and return types.
  */
 export interface ContributionRegistryExtension<
@@ -201,7 +201,7 @@ export interface ContributionRegistryExtension<
 	manifest: PluginManifest;
 	/** Indicates whether this extension is disabled. Disabled extensions are ignored during setup. */
 	disabled?: boolean;
-	/** Runtime-native hooks consumed directly by `@cline/agents`. */
+	/** Runtime-native hooks consumed directly by `@bedrock-coder/agents`. */
 	hooks?: AgentExtensionHooks;
 	/**
 	 * Called once during registry setup to register tools, commands, and other

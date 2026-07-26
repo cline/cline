@@ -46,7 +46,7 @@ async function generateWebviewProtobusClients(protobusServices) {
 			}
 		}
 		clients.push(`export class ${serviceName}Client extends ProtoBusClient {
-	static override serviceName: string = "cline.${serviceName}"
+	static override serviceName: string = "bedrock_coder.${serviceName}"
 ${rpcs.join("\n")}
 }`)
 	}
@@ -120,7 +120,7 @@ async function generateVscodeProtobusServers(protobusServices) {
 			servers.push(`    ${rpcName}: ${rpcName},`)
 		}
 		servers.push(`} \n`)
-		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`)
+		serviceMap.push(`    "bedrock_coder.${serviceName}": ${serviceName}Handlers,`)
 		imports.push("")
 	}
 

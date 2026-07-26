@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
 import { describe, it, vi } from "vitest"
 import type { Controller } from ".."
 import { condense } from "./condense"

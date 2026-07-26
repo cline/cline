@@ -9,15 +9,15 @@ type PackageManifest = {
 const packageJson = (await Bun.file(
 	new URL("./package.json", import.meta.url),
 ).json()) as PackageManifest;
-const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+const sourcemap = Bun.env.BEDROCK_CODER_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
-const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
+const minify = Bun.env.BEDROCK_CODER_SOURCEMAPS !== "1";
 
 // Keep published third-party runtime packages external, but bundle internal workspace code.
 const external = Object.keys({
 	...(packageJson.dependencies ?? {}),
 	...(packageJson.peerDependencies ?? {}),
-}).filter((name) => !name.startsWith("@cline/"));
+}).filter((name) => !name.startsWith("@bedrock-coder/"));
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{

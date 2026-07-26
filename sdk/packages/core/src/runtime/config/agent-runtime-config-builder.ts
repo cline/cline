@@ -23,7 +23,7 @@ import type {
 	AgentRuntimePrepareTurnResult,
 	AgentTool,
 	BasicLogger
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 
 /**
  * Inputs required to assemble an `AgentRuntimeConfig`. Distinct from

@@ -29,9 +29,9 @@ const originalRequire = Module.prototype.require
 Module.prototype.require = function (id) {
 	// The SDK packages are ESM-only and expose only an `import` condition.
 	// Integration tests run the tsc-built `out/` tree as CommonJS in VS Code's
-	// extension host, so `require("@cline/core")` fails before tests start.
+	// extension host, so `require("@bedrock-coder/core")` fails before tests start.
 	// Mock the small surface needed by legacy VS Code integration tests.
-	if (id === "@cline/core") {
+	if (id === "@bedrock-coder/core") {
 		class BedrockSettingsStore {
 			constructor(_options) {
 				this.state = { providers: {}, lastUsedProvider: undefined }
@@ -49,7 +49,7 @@ Module.prototype.require = function (id) {
 		}
 
 		return {
-			ClineCore: class {
+			BedrockCoderCore: class {
 				constructor() {
 					this.runtimeAddress = undefined
 					this.pendingPrompts = {
@@ -110,21 +110,21 @@ Module.prototype.require = function (id) {
 		}
 	}
 
-	if (id === "@cline/shared") {
+	if (id === "@bedrock-coder/shared") {
 		return {
-			buildClineSystemPrompt: () => "",
+			buildBedrockCoderSystemPrompt: () => "",
 			createTool: (tool) => tool,
 			formatDisplayUserInput: (input) => (typeof input === "string" ? input : JSON.stringify(input)),
 		}
 	}
 
-	if (id === "@cline/shared/storage") {
+	if (id === "@bedrock-coder/shared/storage") {
 		return {
 			resolveGlobalSettingsPath: () => path.join(baseUrl, ".vscode-test", "shared-global-settings.json"),
 		}
 	}
 
-	if (id === "@cline/llms") {
+	if (id === "@bedrock-coder/llms") {
 		return {
 			BUILT_IN_PROVIDER: "bedrock",
 			BUILT_IN_PROVIDER_IDS: ["bedrock"],

@@ -1,4 +1,4 @@
-# Contributing to the Cline SDK
+# Contributing to the BedrockCoder SDK
 
 This document covers onboarding, development workflow, and publishing. For package boundaries and change routing during development, see [AGENTS.md](./AGENTS.md). For architecture and runtime flows, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -10,10 +10,10 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 
 | Package | Owns |
 |---------|------|
-| `@cline/shared` | Contracts, schemas, path helpers, hook engine, extension registry |
-| `@cline/llms` | Provider settings, model catalogs, manifests, handler creation |
-| `@cline/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
-| `@cline/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@cline/core/hub`, `@cline/core/hub/daemon-entry`) |
+| `@bedrock-coder/shared` | Contracts, schemas, path helpers, hook engine, extension registry |
+| `@bedrock-coder/llms` | Provider settings, model catalogs, manifests, handler creation |
+| `@bedrock-coder/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
+| `@bedrock-coder/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@bedrock-coder/core/hub`, `@bedrock-coder/core/hub/daemon-entry`) |
 
 ### Host
 
@@ -36,8 +36,8 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 Package-scoped commands:
 
 ```sh
-bun -F @cline/core build|test|typecheck
-bun -F @cline/agents build|test|typecheck
+bun -F @bedrock-coder/core build|test|typecheck
+bun -F @bedrock-coder/agents build|test|typecheck
 ```
 
 ### Rebuilding
@@ -50,10 +50,10 @@ Hub-backed hosts use shared workspace discovery and owned daemon startup logic. 
 
 ### Debug Builds
 
-- Set `CLINE_BUILD_ENV=development` for debug builds. Spawned Node/Bun subprocesses get an inspector endpoint plus `--enable-source-maps`.
+- Set `BEDROCK_CODER_BUILD_ENV=development` for debug builds. Spawned Node/Bun subprocesses get an inspector endpoint plus `--enable-source-maps`.
 - By default, child-process inspector ports are ephemeral (`--inspect=127.0.0.1:0`) to avoid collisions across parallel dev runs.
-- Set `CLINE_DEBUG_HOST` and `CLINE_DEBUG_PORT_BASE` to opt into deterministic role-based ports. With `CLINE_DEBUG_PORT_BASE=9230`, the roles map to hub `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`, fallback sandbox `9234`.
-- Fallback chain: `CLINE_BUILD_ENV` → `NODE_ENV` → Bun `--conditions=development`.
+- Set `BEDROCK_CODER_DEBUG_HOST` and `BEDROCK_CODER_DEBUG_PORT_BASE` to opt into deterministic role-based ports. With `BEDROCK_CODER_DEBUG_PORT_BASE=9230`, the roles map to hub `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`, fallback sandbox `9234`.
+- Fallback chain: `BEDROCK_CODER_BUILD_ENV` → `NODE_ENV` → Bun `--conditions=development`.
 
 ### Testing
 
@@ -121,7 +121,7 @@ tar -xOf "$tmpdir"/*.tgz package/package.json | jq '.version, .dependencies'
 Check installed versions in a consuming project:
 
 ```sh
-bun pm ls @cline/core @cline/agents @cline/llms
+bun pm ls @bedrock-coder/core @bedrock-coder/agents @bedrock-coder/llms
 ```
 
 ### CI

@@ -1,5 +1,5 @@
 import type { ExtensionMessage } from "@shared/ExtensionMessage"
-import { ResetStateRequest } from "@shared/proto/cline/state"
+import { ResetStateRequest } from "@shared/proto/bedrock_coder/state"
 import { CheckCheck, FlaskConical, Info, type LucideIcon, SlidersHorizontal, SquareTerminal, Wrench } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
@@ -62,7 +62,7 @@ const SETTINGS_TABS: SettingsTab[] = [
 	{
 		id: "about",
 		name: "About",
-		tooltipText: "About Cline",
+		tooltipText: "About Bedrock Coder",
 		headerText: "About",
 		icon: Info,
 	},

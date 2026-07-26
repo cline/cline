@@ -4,7 +4,7 @@
  * =====================
  *
  * A self-contained, zero-dependency (Node `http` only) test server for
- * exercising and debugging Cline's MCP OAuth flow locally, including failure
+ * exercising and debugging BedrockCoder's MCP OAuth flow locally, including failure
  * modes such as:
  *
  *   - State expiry — the OAuth `state` times out before the callback returns
@@ -44,17 +44,17 @@
  *                         Set small (e.g. 1000) to exercise expiry races.
  *   --slow-authorize <ms> Delay before /authorize responds, to simulate a user
  *                         who takes a long time on the consent screen (useful
- *                         for exercising Cline's OAuth state-expiry window).
+ *                         for exercising BedrockCoder's OAuth state-expiry window).
  *   --verbose             Log every request.
  *
  * Run interactively:
  *   cd apps/vscode
  *   bun src/dev/mcp-oauth-test-server/server.ts --verbose
  *
- * Then add an MCP server to Cline pointing at:
+ * Then add an MCP server to BedrockCoder pointing at:
  *   http://127.0.0.1:7777/mcp   (type: streamableHttp)
  *
- * Click "Authenticate" in Cline; a browser opens the /authorize consent page.
+ * Click "Authenticate" in BedrockCoder; a browser opens the /authorize consent page.
  */
 
 import crypto from "node:crypto"
@@ -75,7 +75,7 @@ interface TestServerOptions {
 	/**
 	 * Number of independent server instances to start. When > 1, each instance
 	 * binds its own OS-assigned random port (the fixed `--port` can't be shared),
-	 * so you can add several distinct MCP servers to Cline at once and exercise
+	 * so you can add several distinct MCP servers to BedrockCoder at once and exercise
 	 * concurrent OAuth flows.
 	 */
 	instances: number
@@ -165,7 +165,7 @@ Options:
   --random-port         Bind an OS-assigned random free port instead of --port
   --instances <n>       Start N independent servers, each on its own random
                         port (implies --random-port). Use to add several MCP
-                        servers to Cline at once.
+                        servers to BedrockCoder at once.
   --accept-consent      Accept authorization without a consent screen
   --auto-deny           Always deny authorization (simulate "Deny" click)
   --code-ttl <ms>       Authorization code lifetime (default 600000)
@@ -558,7 +558,7 @@ class TestServer {
 		const hasBearer = typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")
 
 		if (!hasBearer) {
-			// This is what triggers Cline's OAuth flow: 401 + WWW-Authenticate
+			// This is what triggers BedrockCoder's OAuth flow: 401 + WWW-Authenticate
 			// with a resource_metadata pointer (RFC 9728).
 			const metadataUrl = `${this.baseUrl}/.well-known/oauth-protected-resource`
 			res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${metadataUrl}"`)
@@ -566,7 +566,7 @@ class TestServer {
 		}
 
 		// Authenticated: respond to a minimal MCP `initialize` so the connection
-		// succeeds and Cline shows the server as connected.
+		// succeeds and BedrockCoder shows the server as connected.
 		const body = await this.readJsonBody(req)
 		const id = body?.id ?? null
 		if (body?.method === "initialize") {
@@ -669,7 +669,7 @@ class TestServer {
 </head>
 <body>
   <div class="card">
-    <h1>Authorize Cline?</h1>
+    <h1>Authorize BedrockCoder?</h1>
     <p>The MCP OAuth Test Server is asking you to authorize this client.</p>
     <div class="row">Client: <code>${escapeHtml(clientId)}</code></div>
     <div class="row">Redirect: <code>${escapeHtml(redirectUri)}</code></div>
@@ -790,7 +790,7 @@ function delay(ms: number): Promise<void> {
 export { buildSettingsFragment, parseArgs, TestServer, type TestServerOptions }
 
 /**
- * Build a paste-ready `mcpServers` fragment for cline_mcp_settings.json from a
+ * Build a paste-ready `mcpServers` fragment for mcp_settings.json from a
  * set of running test-server endpoints.
  *
  * Uses the nested `transport` shape the CLI/SDK writes (and the extension also
@@ -830,7 +830,7 @@ if (isMain) {
 		}
 		// Emit a paste-ready settings fragment so you don't have to hand-write
 		// the JSON (handy with random ports / multiple instances).
-		console.log("\nPaste into ~/.cline/data/settings/cline_mcp_settings.json (merge under mcpServers):\n")
+		console.log("\nPaste into ~/.bedrock-coder/data/settings/mcp_settings.json (merge under mcpServers):\n")
 		console.log(buildSettingsFragment(servers.map((server) => server.mcpEndpoint)))
 	})()
 

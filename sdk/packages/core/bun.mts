@@ -17,9 +17,9 @@ const external = Object.keys({
 	...(packageJson.peerDependencies ?? {}),
 });
 
-const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+const sourcemap = Bun.env.BEDROCK_CODER_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
-const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
+const minify = Bun.env.BEDROCK_CODER_SOURCEMAPS !== "1";
 
 const buildConfig = {
 	target: "node",

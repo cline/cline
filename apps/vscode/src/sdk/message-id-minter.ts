@@ -1,8 +1,8 @@
-// Single source of truth for ClineMessage identity (`id`), update freshness (`seq`),
+// Single source of truth for BedrockCoderMessage identity (`id`), update freshness (`seq`),
 // and the conversation/replica fence (`epoch`).
 //
 // Rationale (why this exists):
-// - `ClineMessage.ts` is used as a message IDENTITY / merge key, not as a wall clock. It
+// - `BedrockCoderMessage.ts` is used as a message IDENTITY / merge key, not as a wall clock. It
 //   was historically minted from Date.now() in TWO independent places (the live translator
 //   and the interaction coordinator), which can COLLIDE: the translator's pure-increment
 //   counter drifts behind wall-clock and can later catch up to a clock-based value minted by
@@ -19,7 +19,7 @@
  * One instance per extension process, owned by SdkController and shared by:
  * - live SDK event translation (MessageTranslatorState),
  * - the interaction coordinator (tool approval / ask_question / user_feedback),
- * - history rendering (sdkMessagesToClineMessages).
+ * - history rendering (sdkMessagesToBedrockCoderMessages).
  *
  * This guarantees every `id` is globally unique and monotonically increasing within the
  * process, so regenerated history ids never overlap live ids.

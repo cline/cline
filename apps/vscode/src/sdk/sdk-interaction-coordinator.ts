@@ -1,6 +1,6 @@
-import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision, ToolApprovalRequest } from "@cline/shared"
-import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
-import type { ClineAskResponse } from "@shared/WebviewMessage"
+import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision, ToolApprovalRequest } from "@bedrock-coder/shared"
+import type { BedrockCoderAskQuestion, BedrockCoderMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { BedrockCoderAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
@@ -53,11 +53,11 @@ export class SdkInteractionCoordinator {
 	): Promise<ConsecutiveMistakeLimitDecision> {
 		const detail = context.details?.trim()
 		const latest = detail ? `${context.reason}: ${detail}` : `${context.reason} at iteration ${context.iteration}`
-		const askMessage: ClineMessage = {
+		const askMessage: BedrockCoderMessage = {
 			ts: this.nextMessageTs(),
 			type: "ask",
 			ask: "mistake_limit_reached",
-			text: `Cline ran into repeated tool errors (${context.consecutiveMistakes}/${context.maxConsecutiveMistakes}).\n\nLatest: ${latest}`,
+			text: `Bedrock Coder ran into repeated tool errors (${context.consecutiveMistakes}/${context.maxConsecutiveMistakes}).\n\nLatest: ${latest}`,
 			partial: false,
 		}
 
@@ -84,7 +84,11 @@ export class SdkInteractionCoordinator {
 			Logger.warn(`[SdkController] onToolApprovalAsk failed; showing plain approval ask: ${error}`)
 		}
 
-		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(request.toolName, request.input, this.nextMessageTs())
+		const toolAskMessage: BedrockCoderMessage = buildToolApprovalAskMessage(
+			request.toolName,
+			request.input,
+			this.nextMessageTs(),
+		)
 
 		this.options.messages.appendAndEmit([toolAskMessage], {
 			type: "status",
@@ -105,11 +109,11 @@ export class SdkInteractionCoordinator {
 
 	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
 		this.options.onRunWaitingForApproval?.("ask_question")
-		const askData: ClineAskQuestion = {
+		const askData: BedrockCoderAskQuestion = {
 			question,
 			options: options?.length ? options : undefined,
 		}
-		const askMessage: ClineMessage = {
+		const askMessage: BedrockCoderMessage = {
 			ts: this.nextMessageTs(),
 			type: "ask",
 			ask: "followup",
@@ -131,7 +135,7 @@ export class SdkInteractionCoordinator {
 
 	resolvePendingToolApproval(
 		prompt: string | undefined,
-		responseType: ClineAskResponse | undefined,
+		responseType: BedrockCoderAskResponse | undefined,
 		images?: string[],
 		files?: string[],
 	): boolean {
@@ -166,7 +170,7 @@ export class SdkInteractionCoordinator {
 		// unchanged) — raw feedback alone reads like iteration on an applied change.
 		const denialReason = buildToolApprovalDenialReason(pendingMessage?.toolName, prompt)
 		if (!approved && (prompt?.trim() || images?.length || files?.length)) {
-			const userMessage: ClineMessage = {
+			const userMessage: BedrockCoderMessage = {
 				ts: this.nextMessageTs(),
 				type: "say",
 				say: "user_feedback",
@@ -201,7 +205,7 @@ export class SdkInteractionCoordinator {
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
 		if (responseText) {
-			const userMessage: ClineMessage = {
+			const userMessage: BedrockCoderMessage = {
 				ts: this.nextMessageTs(),
 				type: "say",
 				say: "user_feedback",
@@ -221,7 +225,7 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
-	resolvePendingMistakeLimit(prompt: string | undefined, responseType: ClineAskResponse | undefined): boolean {
+	resolvePendingMistakeLimit(prompt: string | undefined, responseType: BedrockCoderAskResponse | undefined): boolean {
 		if (!this.pendingMistakeLimitResolve) {
 			return false
 		}
@@ -238,7 +242,7 @@ export class SdkInteractionCoordinator {
 
 		const trimmedPrompt = prompt?.trim()
 		if (trimmedPrompt) {
-			const userMessage: ClineMessage = {
+			const userMessage: BedrockCoderMessage = {
 				ts: this.nextMessageTs(),
 				type: "say",
 				say: "user_feedback",

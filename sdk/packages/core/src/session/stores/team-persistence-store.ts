@@ -1,4 +1,4 @@
-import type { TeamTeammateSpec } from "@cline/shared";
+import type { TeamTeammateSpec } from "@bedrock-coder/shared";
 import type { AgentTeamsRuntime, TeamEvent } from "../../extensions/tools/team";
 import {
 	FileTeamStore,

@@ -1,4 +1,4 @@
-import { BooleanRequest, KeyValuePair } from "@shared/proto/cline/common"
+import { BooleanRequest, KeyValuePair } from "@shared/proto/bedrock_coder/common"
 import { Controller } from ".."
 
 /**

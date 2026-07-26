@@ -55,7 +55,7 @@ describe("MCP install service", () => {
 	});
 
 	it("installs remote MCP servers with headers into the settings file", () => {
-		const settingsPath = join(root, "cline_mcp_settings.json");
+		const settingsPath = join(root, "mcp_settings.json");
 		const result = installMcpServer({
 			name: "docs",
 			transport: "http",
@@ -98,7 +98,7 @@ describe("MCP install service", () => {
 	});
 
 	it("preserves existing MCP settings while adding a server", () => {
-		const settingsPath = join(root, "cline_mcp_settings.json");
+		const settingsPath = join(root, "mcp_settings.json");
 		writeFileSync(
 			settingsPath,
 			JSON.stringify(

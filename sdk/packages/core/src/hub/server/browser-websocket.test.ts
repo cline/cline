@@ -1,4 +1,4 @@
-import type { HubReplyEnvelope } from "@cline/shared";
+import type { HubReplyEnvelope } from "@bedrock-coder/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 

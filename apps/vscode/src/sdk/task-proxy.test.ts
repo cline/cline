@@ -4,7 +4,7 @@ import { createTaskProxy, MessageStateHandler } from "./task-proxy"
 describe("MessageStateHandler", () => {
 	it("should start with empty messages", () => {
 		const handler = new MessageStateHandler()
-		expect(handler.getClineMessages()).toEqual([])
+		expect(handler.getBedrockCoderMessages()).toEqual([])
 	})
 
 	it("should add and retrieve messages", () => {
@@ -14,31 +14,31 @@ describe("MessageStateHandler", () => {
 			{ ts: 2, type: "say" as const, say: "tool" as const, text: "tool call", partial: false },
 		]
 		handler.addMessages(messages)
-		expect(handler.getClineMessages()).toHaveLength(2)
-		expect(handler.getClineMessages()[0].text).toBe("hello")
-		expect(handler.getClineMessages()[1].text).toBe("tool call")
+		expect(handler.getBedrockCoderMessages()).toHaveLength(2)
+		expect(handler.getBedrockCoderMessages()[0].text).toBe("hello")
+		expect(handler.getBedrockCoderMessages()[1].text).toBe("tool call")
 	})
 
 	it("should return a copy of messages", () => {
 		const handler = new MessageStateHandler()
 		handler.addMessages([{ ts: 1, type: "say", say: "text", text: "hello", partial: false }])
-		const copy = handler.getClineMessages()
+		const copy = handler.getBedrockCoderMessages()
 		copy.push({ ts: 2, type: "say", say: "text", text: "extra", partial: false })
-		expect(handler.getClineMessages()).toHaveLength(1)
+		expect(handler.getBedrockCoderMessages()).toHaveLength(1)
 	})
 
 	it("should clear messages", () => {
 		const handler = new MessageStateHandler()
 		handler.addMessages([{ ts: 1, type: "say", say: "text", text: "hello", partial: false }])
 		handler.clear()
-		expect(handler.getClineMessages()).toEqual([])
+		expect(handler.getBedrockCoderMessages()).toEqual([])
 	})
 
 	it("should accumulate messages across multiple addMessages calls", () => {
 		const handler = new MessageStateHandler()
 		handler.addMessages([{ ts: 1, type: "say", say: "text", text: "first", partial: false }])
 		handler.addMessages([{ ts: 2, type: "say", say: "text", text: "second", partial: false }])
-		expect(handler.getClineMessages()).toHaveLength(2)
+		expect(handler.getBedrockCoderMessages()).toHaveLength(2)
 	})
 })
 
@@ -139,7 +139,7 @@ describe("createTaskProxy", () => {
 		const proxy = createTaskProxy("session-123", onAskResponse, onCancelTask)
 
 		expect(proxy.messageStateHandler).toBeInstanceOf(MessageStateHandler)
-		expect(proxy.messageStateHandler.getClineMessages()).toEqual([])
+		expect(proxy.messageStateHandler.getBedrockCoderMessages()).toEqual([])
 	})
 
 	it("should accumulate messages in messageStateHandler", () => {
@@ -149,6 +149,6 @@ describe("createTaskProxy", () => {
 
 		proxy.messageStateHandler.addMessages([{ ts: 1, type: "say", say: "text", text: "hello", partial: false }])
 
-		expect(proxy.messageStateHandler.getClineMessages()).toHaveLength(1)
+		expect(proxy.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1)
 	})
 })

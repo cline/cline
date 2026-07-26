@@ -775,7 +775,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
-		delete process.env.CLINE_HUB_BUILD_ID;
+		delete process.env.BEDROCK_CODER_HUB_BUILD_ID;
 		vi.resetModules();
 	});
 
@@ -1037,8 +1037,8 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 	it("waits on shared discovery after spawning in development builds", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
-		const originalBuildEnv = process.env.CLINE_BUILD_ENV;
-		process.env.CLINE_BUILD_ENV = "development";
+		const originalBuildEnv = process.env.BEDROCK_CODER_BUILD_ENV;
+		process.env.BEDROCK_CODER_BUILD_ENV = "development";
 		const spawnDetachedHubServerWithRetryMock = vi.fn(async () => undefined);
 		const record = {
 			hubId: "hub-test",
@@ -1095,9 +1095,9 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			);
 		} finally {
 			if (originalBuildEnv === undefined) {
-				delete process.env.CLINE_BUILD_ENV;
+				delete process.env.BEDROCK_CODER_BUILD_ENV;
 			} else {
-				process.env.CLINE_BUILD_ENV = originalBuildEnv;
+				process.env.BEDROCK_CODER_BUILD_ENV = originalBuildEnv;
 			}
 		}
 	});

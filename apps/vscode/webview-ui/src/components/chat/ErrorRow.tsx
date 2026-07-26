@@ -1,10 +1,10 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
-import { ClineError } from "../../../../src/services/error/ClineError"
+import { BedrockCoderError } from "../../../../src/services/error/BedrockCoderError"
 
 interface ErrorRowProps {
-	message: ClineMessage
-	errorType: "error" | "mistake_limit_reached" | "diff_error" | "clineignore_error"
+	message: BedrockCoderMessage
+	errorType: "error" | "mistake_limit_reached" | "diff_error" | "bedrockCoderignore_error"
 	apiRequestFailedMessage?: string
 	apiReqStreamingFailedMessage?: string
 }
@@ -18,10 +18,10 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 		)
 	}
 
-	if (errorType === "clineignore_error") {
+	if (errorType === "bedrockCoderignore_error") {
 		return (
 			<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
-				Cline tried to access <code>{message.text}</code>, which is blocked by <code>.clineignore</code>.
+				Bedrock Coder tried to access <code>{message.text}</code>, which is blocked by <code>.bedrock-coderignore</code>.
 			</div>
 		)
 	}
@@ -31,7 +31,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 		return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{message.text}</p>
 	}
 
-	const error = ClineError.parse(rawError)
+	const error = BedrockCoderError.parse(rawError)
 	const errorMessage = error?._error.message || error?.message || rawError
 	const requestId = error?.requestId
 

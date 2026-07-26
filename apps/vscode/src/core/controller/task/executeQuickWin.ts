@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import { ExecuteQuickWinRequest } from "@shared/proto/cline/task"
+import { Empty } from "@shared/proto/bedrock_coder/common"
+import { ExecuteQuickWinRequest } from "@shared/proto/bedrock_coder/task"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
@@ -12,7 +12,7 @@ import type { Controller } from "../index"
  * @example
  * // Usage from webview:
  * import { TaskServiceClient } from "@/services/grpc-client"
- * import { ExecuteQuickWinRequest } from "@shared/proto/cline/task"
+ * import { ExecuteQuickWinRequest } from "@shared/proto/bedrock_coder/task"
  *
  * const request: ExecuteQuickWinRequest = {
  *   command: "npm install",

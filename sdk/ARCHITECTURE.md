@@ -1,10 +1,10 @@
-# Cline SDK Architecture
+# BedrockCoder SDK Architecture
 
-This document is the architecture source of truth for the Cline SDK repository. It describes how the system is organized, how components interact, and the design principles that guide development decisions.
+This document is the architecture source of truth for the BedrockCoder SDK repository. It describes how the system is organized, how components interact, and the design principles that guide development decisions.
 
 **Who should read this?**
 - SDK contributors working across multiple packages
-- Developers building integrations or host applications using `@cline/core`
+- Developers building integrations or host applications using `@bedrock-coder/core`
 - Plugin authors understanding the runtime and extension systems
 
 **What this covers:**
@@ -25,10 +25,10 @@ The workspace is organized as a layered runtime stack.
 
 ```mermaid
 flowchart LR
-  shared["@cline/shared"]
-  llms["@cline/llms"]
-  agents["@cline/agents"]
-  core["@cline/core"]
+  shared["@bedrock-coder/shared"]
+  llms["@bedrock-coder/llms"]
+  agents["@bedrock-coder/agents"]
+  core["@bedrock-coder/core"]
   apps["Host Apps"]
 
   llms --> shared
@@ -42,7 +42,7 @@ flowchart LR
 
 ## Package Responsibilities
 
-### `@cline/shared`
+### `@bedrock-coder/shared`
 
 Owns reusable low-level contracts and infrastructure:
 
@@ -57,7 +57,7 @@ Design rule:
 
 - `shared` should not depend on higher-level runtime packages.
 
-### `@cline/llms`
+### `@bedrock-coder/llms`
 
 Owns model/provider runtime concerns:
 
@@ -69,7 +69,7 @@ Design rule:
 
 - Bedrock-specific behavior should be isolated here, not spread across `core` or apps.
 
-### `@cline/agents`
+### `@bedrock-coder/agents`
 
 Owns the stateless runtime loop:
 
@@ -84,7 +84,7 @@ Design rule:
 
 - `agents` should not own persistent storage or host lifecycle concerns.
 
-### `@cline/core`
+### `@bedrock-coder/core`
 
 Owns stateful orchestration:
 
@@ -97,8 +97,8 @@ Owns stateful orchestration:
 - plugin discovery/loading
 - default context compaction policy
 - hub server and scheduled-runtime services under `src/hub/`
-- hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
-- host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- hub discovery, the detached hub daemon, and the `@bedrock-coder/core/hub/daemon-entry` subpath
+- host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@bedrock-coder/core/hub`
 
 Design rules:
 
@@ -115,19 +115,19 @@ Design rules:
 
 ### Local In-Process Runtime
 
-1. Host constructs a `RuntimeHost` through `@cline/core`.
-2. `@cline/core` selects `LocalRuntimeHost` through `packages/core/src/runtime/host.ts`.
+1. Host constructs a `RuntimeHost` through `@bedrock-coder/core`.
+2. `@bedrock-coder/core` selects `LocalRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. Hosts normalize broad local config into `RuntimeSessionConfig` plus `localRuntime` overrides before calling `RuntimeHost.start(...)`.
-4. `@cline/core` prepares a local bootstrap artifact from `localRuntime`, then builds the runtime from it.
-5. `@cline/core` creates an `Agent` from `@cline/agents`.
-6. `@cline/agents` runs the loop using `@cline/llms` handlers.
-7. `@cline/core` persists state, artifacts, and metadata.
+4. `@bedrock-coder/core` prepares a local bootstrap artifact from `localRuntime`, then builds the runtime from it.
+5. `@bedrock-coder/core` creates an `Agent` from `@bedrock-coder/agents`.
+6. `@bedrock-coder/agents` runs the loop using `@bedrock-coder/llms` handlers.
+7. `@bedrock-coder/core` persists state, artifacts, and metadata.
 
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
 moment a successful `submit_and_exit` (the SDK analog of original
-Cline's `attempt_completion`) is observed. `shutdownSession(...)`
+BedrockCoder's `attempt_completion`) is observed. `shutdownSession(...)`
 retains a fallback emission for completed sessions that finished
 without an explicit completion-tool observation, so non-interactive
 runs not using the yolo preset still produce a `task.completed` signal.
@@ -139,7 +139,7 @@ event payload and `source` field.
 Local team execution reuses the in-process runtime rather than introducing a
 second agent authority:
 
-1. `@cline/shared` owns the six-state `TeamTask`, agent, run, board, and
+1. `@bedrock-coder/shared` owns the six-state `TeamTask`, agent, run, board, and
    incremental progress contracts.
 2. `DefaultRuntimeBuilder` creates one `AgentTeamsRuntime` per active root
    session and limits concurrent teammate runs with `maxConcurrentTeamRuns`.
@@ -159,22 +159,22 @@ only the validated worktree assignment and uses it as the child tool boundary.
 
 ### Hub-Backed Runtime
 
-1. Host constructs a `RuntimeHost` through `@cline/core`.
-2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+1. Host constructs a `RuntimeHost` through `@bedrock-coder/core`.
+2. `@bedrock-coder/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
+3. When no compatible local hub is already discovered, `@bedrock-coder/core` can spawn a detached hub daemon and reconnect through discovery.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
-5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
-6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
+5. The hub-hosted runtime executes the agent loop using `@bedrock-coder/agents` and `@bedrock-coder/llms`.
+6. `@bedrock-coder/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
-8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+8. Hub client adapters exported from `@bedrock-coder/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat
 workspace on its own filesystem at
-`<cline-data-dir>/workspaces/chat` (by default
-`~/.cline/data/workspaces/chat`). The chat workspace is seeded with an
+`<bedrock-coder-data-dir>/workspaces/chat` (by default
+`~/.bedrock-coder/data/workspaces/chat`). The chat workspace is seeded with an
 `AGENTS.md` rules file that tells the agent to treat the session as a chat
 and to create a named project folder only when the user asks for one.
 The resolved paths are returned in the session snapshot and are the source of
@@ -253,15 +253,15 @@ Concrete implementations:
 Design implication:
 
 - host selection happens in `packages/core/src/runtime/host.ts`
-- `ClineCore` delegates uniformly to `RuntimeHost` and does not branch on local vs hub behavior
+- `BedrockCoderCore` delegates uniformly to `RuntimeHost` and does not branch on local vs hub behavior
 - transport-specific translation belongs inside concrete hosts, not in top-level orchestration
-- `RuntimeHost` inputs stay transport-safe, while `ClineCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
+- `RuntimeHost` inputs stay transport-safe, while `BedrockCoderCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
 - `RuntimeSessionConfig` is transport-neutral across local, shared hub, and remote hub modes; host-local bootstrap concerns stay under `localRuntime`
 - client-local runtime behaviors that must survive hub mode, such as `defaultToolExecutors`, are attached at session start and proxied through hub capability requests instead of changing host selection
 - pending prompt list/update/delete are exposed through the grouped
-  `ClineCore.pendingPrompts` service. Usage summary lookup and active-session
+  `BedrockCoderCore.pendingPrompts` service. Usage summary lookup and active-session
   model switching are also service-style capabilities exposed through
-  `ClineCore` when the concrete transport implements them. These service APIs
+  `BedrockCoderCore` when the concrete transport implements them. These service APIs
   are intentionally outside the minimal `RuntimeHost` primitive vocabulary.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
@@ -284,7 +284,7 @@ Design implication:
 
 ### 5. Session Startup Bootstrap
 
-`ClineCore.create(...)` exposes a generic `prepare(input)` hook.
+`BedrockCoderCore.create(...)` exposes a generic `prepare(input)` hook.
 
 Design implication:
 
@@ -294,7 +294,7 @@ Design implication:
 
 ### 6. Logging
 
-Cross-package logging uses a small injected interface exported from `@cline/shared`:
+Cross-package logging uses a small injected interface exported from `@bedrock-coder/shared`:
 
 - **`BasicLogger`** — required `debug` and `log`; optional `error`. Hosts map these to their backend (Pino, VS Code `OutputChannel`, etc.). Many runtime options take `logger?: BasicLogger`; when omitted, components skip logging or use `noopBasicLogger` where a full object is required.
 - **`BasicLogMetadata`** — optional structured fields (`sessionId`, `runId`, `providerId`, `toolName`, `durationMs`, …) plus `severity` on `log` when a single method must represent both informational and warning-style messages (for example the CLI Pino bridge maps `severity: "warn"` to Pino `warn`).
@@ -302,7 +302,7 @@ Cross-package logging uses a small injected interface exported from `@cline/shar
 Naming clarity:
 
 - **`CliLoggerAdapter` (CLI)** — a **host bundle**: holds the raw `pino` logger (for file paths, rotation, and CLI-only concerns) and exposes `.core: BasicLogger` for anything that consumes the SDK contract. It is not an `ITelemetryAdapter`.
-- **`TelemetryLoggerSink` (`@cline/core`)** — an **`ITelemetryAdapter`** that mirrors telemetry events and metrics into a `BasicLogger`. It is a telemetry sink, not a host logging implementation.
+- **`TelemetryLoggerSink` (`@bedrock-coder/core`)** — an **`ITelemetryAdapter`** that mirrors telemetry events and metrics into a `BasicLogger`. It is a telemetry sink, not a host logging implementation.
 
 The agent and other call sites route former `info` / `warn` semantics through `log` (warnings include `severity: "warn"` in metadata). Errors prefer `error` when implemented; otherwise `log` with `severity: "error"` is used as a fallback.
 
@@ -334,11 +334,11 @@ Design implication:
 
 Context compaction is owned by `core`.
 
-- `@cline/agents` owns the generic turn-preparation seam:
+- `@bedrock-coder/agents` owns the generic turn-preparation seam:
   - run normal lifecycle hooks
   - allow hosts to project message history or system prompt before the provider call
   - keep its canonical runtime transcript append-only when a projection is returned
-- `@cline/core` owns compaction policy:
+- `@bedrock-coder/core` owns compaction policy:
   - inject a prepare-turn pipeline for root sessions
   - choose between built-in strategies through a registry map
   - persist the latest compacted working context as a session compaction artifact
@@ -370,7 +370,7 @@ Design implications:
 
 ### Keep `agents` Stateless
 
-Do not move these concerns into `@cline/agents`:
+Do not move these concerns into `@bedrock-coder/agents`:
 
 - session persistence
 - Bedrock settings storage
@@ -380,7 +380,7 @@ Do not move these concerns into `@cline/agents`:
 
 ### Keep `core` Host-Neutral
 
-Keep host UI behavior out of `@cline/core`. Bedrock is the one inference
+Keep host UI behavior out of `@bedrock-coder/core`. Bedrock is the one inference
 backend; host-specific presentation and settings controls remain in the app.
 
 ### Use One-Way Optional Layers
@@ -388,30 +388,30 @@ backend; host-specific presentation and settings controls remain in the app.
 Optional higher-level integrations may depend on lower layers.
 Lower layers should not depend on optional feature packages.
 
-## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
+## File-Based And Event-Driven Automation (`BedrockCoderCore` / `CronService`)
 
-`@cline/core` ships a file-based automation subsystem under
+`@bedrock-coder/core` ships a file-based automation subsystem under
 `packages/core/src/cron/`. It lets operators author recurring and one-off
-tasks as Markdown files under global `~/.cline/cron/` by default, and
+tasks as Markdown files under global `~/.bedrock-coder/cron/` by default, and
 event-driven tasks as `events/*.event.md` specs. All trigger kinds run
-through the same durable queue and runtime handlers. `ClineCore` exposes the
-SDK-facing `cline.automation.*` entry points; `CronService` is the internal
+through the same durable queue and runtime handlers. `BedrockCoderCore` exposes the
+SDK-facing `bedrockCoder.automation.*` entry points; `CronService` is the internal
 orchestrator used by core and hub layers.
 
 ### Layers
 
 1. **Spec parser** (`cron/specs/cron-spec-parser.ts`): parses YAML frontmatter + body
    into a `CronSpec` discriminated union (`one_off | schedule | event`).
-   Types live in `@cline/shared` under `src/cron/cron-spec-types.ts`
+   Types live in `@bedrock-coder/shared` under `src/cron/cron-spec-types.ts`
    so other packages can consume them without the YAML parser. Schedule
    expressions and timezones are validated before a spec can become
    runnable.
 2. **Store** (`cron/store/sqlite-cron-store.ts`): owns `cron.db` at
-   `resolveCronDbPath()` (default `.cline/data/db/cron.db`). Schema is
+   `resolveCronDbPath()` (default `.bedrock-coder/data/db/cron.db`). Schema is
    bootstrapped from `cron/store/cron-schema.ts` — sessions and cron live in separate
    DBs so their lifecycles stay decoupled.
 3. **Reconciler** (`cron/specs/cron-reconciler.ts`): scans the configured cron specs
-   directory (global `~/.cline/cron/` by default, or workspace-scoped when
+   directory (global `~/.bedrock-coder/cron/` by default, or workspace-scoped when
    configured), parses each file independently, and upserts spec state.
    Invalid specs are recorded
    with `parse_status='invalid'` so state is durable rather than silently
@@ -444,16 +444,16 @@ orchestrator used by core and hub layers.
    the system prompt. Event runs include the normalized trigger event context
    in the prompt.
 8. **Reports** (`cron/reports/cron-report-writer.ts`): writes
-   `.cline/cron/reports/<run-id>.md` with run frontmatter plus
+   `.bedrock-coder/cron/reports/<run-id>.md` with run frontmatter plus
    `## Summary`, `## Usage`, `## Tool Calls`, and, for event runs,
    `## Trigger Event` sections.
 9. **Service** (`cron/service/cron-service.ts`): orchestrates all of the above.
-   `ClineCore.create({ automation })` owns the SDK-facing lifecycle and exposes
-   `cline.automation.*` methods. Hub-side callers can submit normalized events
+   `BedrockCoderCore.create({ automation })` owns the SDK-facing lifecycle and exposes
+   `bedrockCoder.automation.*` methods. Hub-side callers can submit normalized events
    through the `cron.event.ingest` command.
 
 The detached hub daemon passes its workspace root as `cronOptions`, so
-normal CLI/hub startup watches `${workspaceRoot}/.cline/cron/` without a
+normal CLI/hub startup watches `${workspaceRoot}/.bedrock-coder/cron/` without a
 custom host needing to opt in.
 
 Programmatic hub schedules are stored as `cron_specs` with source
@@ -504,7 +504,7 @@ there is no separate schedules table, schedule store, or schedule runner.
 
 ### Key Type Locations
 
-- **`ClineCore`** — `packages/core/src/index.ts` — the main SDK orchestrator
+- **`BedrockCoderCore`** — `packages/core/src/index.ts` — the main SDK orchestrator
 - **`Agent`** — `packages/agents/src/agent.ts` — the agent loop
 - **`RuntimeHost`** — `packages/core/src/runtime/host/runtime-host.ts` — execution abstraction
 - **`AgentPlugin`** — `packages/shared/src/plugin/` — plugin contract
@@ -524,10 +524,10 @@ Architectural consequence:
 
 The following packages are published to npm:
 
-- `@cline/shared` — shared types, contracts, and low-level utilities
-- `@cline/llms` — provider integrations and model manifests
-- `@cline/agents` — the agent loop and tool orchestration
-- `@cline/core` — the main SDK with session management, hub, and configuration
+- `@bedrock-coder/shared` — shared types, contracts, and low-level utilities
+- `@bedrock-coder/llms` — provider integrations and model manifests
+- `@bedrock-coder/agents` — the agent loop and tool orchestration
+- `@bedrock-coder/core` — the main SDK with session management, hub, and configuration
 
 ### Internal Apps
 

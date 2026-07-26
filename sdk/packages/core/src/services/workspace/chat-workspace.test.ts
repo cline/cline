@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
 	isChatWorkspacePath,
 	resolveChatWorkspacePath,
-} from "@cline/shared/storage";
+} from "@bedrock-coder/shared/storage";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { StartSessionConfig } from "../../runtime/host/runtime-host";
 import {
@@ -31,21 +31,21 @@ describe("chat workspace", () => {
 	let isolatedDataDir: string;
 
 	beforeEach(async () => {
-		previousDataDir = process.env.CLINE_DATA_DIR;
+		previousDataDir = process.env.BEDROCK_CODER_DATA_DIR;
 		isolatedDataDir = await mkdtemp(join(tmpdir(), "chat-workspace-test-"));
-		process.env.CLINE_DATA_DIR = isolatedDataDir;
+		process.env.BEDROCK_CODER_DATA_DIR = isolatedDataDir;
 	});
 
 	afterEach(async () => {
 		if (previousDataDir === undefined) {
-			delete process.env.CLINE_DATA_DIR;
+			delete process.env.BEDROCK_CODER_DATA_DIR;
 		} else {
-			process.env.CLINE_DATA_DIR = previousDataDir;
+			process.env.BEDROCK_CODER_DATA_DIR = previousDataDir;
 		}
 		await rm(isolatedDataDir, { recursive: true, force: true });
 	});
 
-	it("creates the shared chat workspace under the cline data directory", async () => {
+	it("creates the shared chat workspace under the bedrockCoder data directory", async () => {
 		const workspace = await ensureChatWorkspace();
 		expect(workspace).toBe(resolveChatWorkspacePath());
 		expect(workspace).toBe(join(isolatedDataDir, "workspaces", "chat"));
@@ -67,11 +67,11 @@ describe("chat workspace", () => {
 	});
 
 	it("recognizes the default data-dir layout as the chat workspace", () => {
-		expect(isChatWorkspacePath("/home/user/.cline/data/workspaces/chat")).toBe(
+		expect(isChatWorkspacePath("/home/user/.bedrock-coder/data/workspaces/chat")).toBe(
 			true,
 		);
 		expect(
-			isChatWorkspacePath("/home/user/.cline/data/workspaces/chat/my-app"),
+			isChatWorkspacePath("/home/user/.bedrock-coder/data/workspaces/chat/my-app"),
 		).toBe(false);
 	});
 

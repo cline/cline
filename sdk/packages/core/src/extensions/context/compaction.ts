@@ -1,4 +1,4 @@
-import { estimateRequestInputTokens } from "@cline/shared";
+import { estimateRequestInputTokens } from "@bedrock-coder/shared";
 import {
 	createSessionCompactionState,
 	projectSessionCompactionState,

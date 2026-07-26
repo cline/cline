@@ -1,11 +1,11 @@
 import { describe, it } from "mocha"
-import type { ClineMessage } from "./ExtensionMessage"
+import type { BedrockCoderMessage } from "./ExtensionMessage"
 import "should"
 import { combineHookSequences } from "./combineHookSequences"
 
 describe("combineHookSequences", () => {
 	it("keeps partial tool messages when no newer tool message with same timestamp exists", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 1,
 				type: "say",
@@ -34,7 +34,7 @@ describe("combineHookSequences", () => {
 	})
 
 	it("keeps only the newest tool message variant for a shared timestamp", () => {
-		const messages: ClineMessage[] = [
+		const messages: BedrockCoderMessage[] = [
 			{
 				ts: 10,
 				type: "ask",

@@ -1,8 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type * as LlmsProviders from "@cline/llms";
-import { formatDisplayUserInput, normalizeUserInput } from "@cline/shared";
-import { resolveSessionDataDir } from "@cline/shared/storage";
+import type * as LlmsProviders from "@bedrock-coder/llms";
+import { formatDisplayUserInput, normalizeUserInput } from "@bedrock-coder/shared";
+import { resolveSessionDataDir } from "@bedrock-coder/shared/storage";
 import { toSessionRecord } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionManifestSchema } from "../../session/models/session-manifest";

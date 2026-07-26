@@ -34,10 +34,10 @@ describe("readGitWorkspaceState", () => {
 		await git.addConfig("user.name", "Test");
 		await git.commit("initial", ["--allow-empty"]);
 		await git.addRemote("backup", "https://example.com/backup.git");
-		await git.addRemote("origin", "git@github.com:cline/cline.git");
+		await git.addRemote("origin", "git@github.com:bedrock-coder/bedrockCoder.git");
 
 		await expect(readGitWorkspaceState(dir)).resolves.toEqual({
-			url: "git@github.com:cline/cline.git",
+			url: "git@github.com:bedrock-coder/bedrockCoder.git",
 			branch: (await git.branch()).current,
 		});
 	});

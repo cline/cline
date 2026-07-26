@@ -10,7 +10,7 @@ import {
 	type AgentToolContext,
 	getDefaultShell,
 	getShellArgs,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
 import {

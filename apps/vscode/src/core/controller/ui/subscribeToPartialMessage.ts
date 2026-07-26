@@ -1,14 +1,14 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { ClineMessage } from "@shared/proto/cline/ui"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
+import { BedrockCoderMessage } from "@shared/proto/bedrock_coder/ui"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
 // Keep track of active partial message subscriptions (gRPC streams)
-const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<ClineMessage>>()
+const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<BedrockCoderMessage>>()
 
 // Keep track of callback-based subscriptions (for CLI and other non-gRPC consumers)
-type PartialMessageCallback = (message: ClineMessage) => void
+type PartialMessageCallback = (message: BedrockCoderMessage) => void
 const callbackSubscriptions = new Set<PartialMessageCallback>()
 
 /**
@@ -21,7 +21,7 @@ const callbackSubscriptions = new Set<PartialMessageCallback>()
 export async function subscribeToPartialMessage(
 	_controller: Controller,
 	_request: EmptyRequest,
-	responseStream: StreamingResponseHandler<ClineMessage>,
+	responseStream: StreamingResponseHandler<BedrockCoderMessage>,
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
@@ -40,9 +40,9 @@ export async function subscribeToPartialMessage(
 
 /**
  * Send a partial message event to all active subscribers
- * @param partialMessage The ClineMessage to send
+ * @param partialMessage The BedrockCoderMessage to send
  */
-export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
+export async function sendPartialMessageEvent(partialMessage: BedrockCoderMessage): Promise<void> {
 	// FIRE-AND-FORGET: do NOT await delivery to the webview. The webview can be hidden,
 	// reloaded, or closed, and VSCode's postMessage may hang or resolve false; awaiting it
 	// could stall the backend's turn loop on a dead consumer. Correctness does not depend on

@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentToolContext } from "@bedrock-coder/shared";
 import { describe, expect, it } from "vitest";
 import { MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
 import { createSearchExecutor } from "./search";

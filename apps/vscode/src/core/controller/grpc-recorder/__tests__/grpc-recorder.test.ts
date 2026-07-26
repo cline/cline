@@ -121,11 +121,12 @@ describe("grpc-recorder", () => {
 			const customRecorder = GrpcRecorder.builder()
 				.withFilters(
 					(req) => req.is_streaming,
-					(req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service),
+					(req) =>
+						["bedrock_coder.UiService", "bedrock_coder.McpService", "bedrock_coder.WebService"].includes(req.service),
 				)
 				.enableIf(true)
 				.build()
-			const unwantedServices = ["cline.UiService", "cline.McpService", "cline.WebService"]
+			const unwantedServices = ["bedrock_coder.UiService", "bedrock_coder.McpService", "bedrock_coder.WebService"]
 			unwantedServices.forEach((us) => {
 				customRecorder.recordRequest({
 					service: us,

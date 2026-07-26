@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const createContextCompactionPrepareTurn = vi.fn()
 const createSessionCompactionState = vi.fn((input: unknown) => ({ version: 1, input }))
-vi.mock("@cline/core", () => ({
+vi.mock("@bedrock-coder/core", () => ({
 	createContextCompactionPrepareTurn: (...args: unknown[]) => createContextCompactionPrepareTurn(...args),
 	createSessionCompactionState: (input: unknown) => createSessionCompactionState(input),
 }))
@@ -114,7 +114,7 @@ describe("compactSessionMessages", () => {
 		expect(result).toEqual({ compacted: false, messages })
 	})
 
-	it("returns compacted=false when the strategy declines (returns undefined)", async () => {
+	it("returns compacted=false when the strategy debedrockCoders (returns undefined)", async () => {
 		const compact = vi.fn().mockResolvedValue(undefined)
 		createContextCompactionPrepareTurn.mockReturnValueOnce(compact)
 

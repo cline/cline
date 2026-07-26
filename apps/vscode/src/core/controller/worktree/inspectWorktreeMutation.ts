@@ -1,4 +1,4 @@
-import { InspectWorktreeMutationRequest, WorktreeMutationInspection } from "@shared/proto/cline/worktree"
+import { InspectWorktreeMutationRequest, WorktreeMutationInspection } from "@shared/proto/bedrock_coder/worktree"
 import { getWorkspacePath } from "@utils/path"
 import { inspectWorktreeMutation as inspectMutation } from "@utils/worktree-safety"
 import { Controller } from ".."

@@ -86,7 +86,7 @@ ${content}`);
 		expect(updateSkillMarkdownEnabledState(content, true)).toBe(content);
 	});
 
-	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// Regression test for https://github.com/FFFalexgo/AWS_Bedrock_Coder/issues/12151: a leading UTF-8 BOM
 	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
 	// from being recognized when toggling a skill's enabled state.
 	it("disables a skill whose content starts with a UTF-8 BOM", () => {

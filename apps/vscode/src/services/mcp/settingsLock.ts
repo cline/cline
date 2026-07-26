@@ -1,17 +1,7 @@
-import { setTimeout as delay } from "node:timers/promises"
 import { randomUUID } from "node:crypto"
-import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	rmdirSync,
-	rmSync,
-	statSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs"
+import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { Logger } from "@/shared/services/Logger"
 
 const SETTINGS_LOCK_STALE_MS = 10_000
@@ -199,7 +189,7 @@ function runPureSettingsMutator<T>(settings: Record<string, unknown>, mutator: M
  *
  * Waiting for another process to release the lock is async, but once this
  * process owns the lock, the critical section uses synchronous filesystem calls.
- * @cline/core OAuth writes use a synchronous lock in the same extension host;
+ * @bedrock-coder/core OAuth writes use a synchronous lock in the same extension host;
  * yielding here while holding the lock would let that sync waiter block the
  * event loop before this holder can resume and release it.
  */

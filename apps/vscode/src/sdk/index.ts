@@ -5,7 +5,7 @@
 // The webview continues to communicate via gRPC; this layer translates
 // between gRPC handlers and SDK calls.
 
-export * from "./cline-session-factory"
+export * from "./bedrock-coder-session-factory"
 export * from "./message-translator"
 export { Controller } from "./SdkController"
 export * from "./sdk-followup-coordinator"

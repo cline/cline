@@ -1,4 +1,4 @@
-import { migrateTeamRuntimeState, type TeamTeammateSpec } from "@cline/shared";
+import { migrateTeamRuntimeState, type TeamTeammateSpec } from "@bedrock-coder/shared";
 import type { AgentTeamsRuntime } from "../../extensions/tools/team";
 import type { SessionSource, SessionStatus } from "../../types/common";
 import type { SessionManifest } from "./session-manifest";

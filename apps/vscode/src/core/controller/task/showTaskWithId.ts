@@ -1,5 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import { TaskResponse } from "@shared/proto/cline/task"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
+import { TaskResponse } from "@shared/proto/bedrock_coder/task"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"

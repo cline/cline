@@ -1,4 +1,4 @@
-import type { TeamProgressProjectionEvent } from "@cline/shared";
+import type { TeamProgressProjectionEvent } from "@bedrock-coder/shared";
 import type { SessionUsageSummary } from "../../../runtime/host/runtime-host";
 import type {
 	CoreSessionEvent,

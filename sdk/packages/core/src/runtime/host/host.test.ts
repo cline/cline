@@ -60,8 +60,8 @@ describe("runtime host resolution", () => {
 		logger.debug.mockReset();
 		logger.log.mockReset();
 		logger.error.mockReset();
-		delete process.env.CLINE_SESSION_BACKEND_MODE;
-		delete process.env.CLINE_VCR;
+		delete process.env.BEDROCK_CODER_SESSION_BACKEND_MODE;
+		delete process.env.BEDROCK_CODER_VCR;
 		vi.resetModules();
 	});
 
@@ -92,7 +92,7 @@ describe("runtime host resolution", () => {
 	});
 
 	it("honors env-managed local mode inside core backend resolution", async () => {
-		process.env.CLINE_SESSION_BACKEND_MODE = "local";
+		process.env.BEDROCK_CODER_SESSION_BACKEND_MODE = "local";
 		const { resolveSessionBackend } = await import("./host");
 
 		const backend = await resolveSessionBackend({});
@@ -101,7 +101,7 @@ describe("runtime host resolution", () => {
 	});
 
 	it("forces local backend when vcr is enabled", async () => {
-		process.env.CLINE_VCR = "1";
+		process.env.BEDROCK_CODER_VCR = "1";
 		const { resolveSessionBackend } = await import("./host");
 
 		const backend = await resolveSessionBackend({});

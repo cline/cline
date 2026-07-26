@@ -21,9 +21,9 @@ import {
 } from "node:path";
 import {
 	isPluginModulePath,
-	resolveClineDir,
+	resolveBedrockCoderDir,
 	resolvePluginModuleEntries,
-} from "@cline/shared/storage";
+} from "@bedrock-coder/shared/storage";
 import {
 	type McpServerRegistration,
 	resolveDefaultMcpSettingsPath,
@@ -65,7 +65,7 @@ export type ParsedPluginSource = {
 export type PluginInstallSourceType = "local";
 
 interface PluginPackageManifest {
-	cline?: {
+	bedrockCoder?: {
 		plugins?: Array<{ paths?: string[] } | string>;
 	};
 }
@@ -73,9 +73,9 @@ interface PluginPackageManifest {
 const INSTALLS_DIRECTORY_NAME = "_installed";
 const PACKAGE_DIRECTORY_NAME = "package";
 const WRAPPER_PACKAGE_JSON = {
-	name: "cline-local-plugin",
+	name: "bedrock-coder-local-plugin",
 	private: true,
-	cline: {
+	bedrockCoder: {
 		plugins: [] as Array<{ paths: string[] }>,
 	},
 };
@@ -145,8 +145,8 @@ export function parsePluginSource(
 
 function getPluginRoot(cwd: string | undefined): string {
 	return cwd
-		? join(cwd, ".cline", "plugins")
-		: join(resolveClineDir(), "plugins");
+		? join(cwd, ".bedrock-coder", "plugins")
+		: join(resolveBedrockCoderDir(), "plugins");
 }
 
 function readPackageManifest(
@@ -166,7 +166,7 @@ function readPackageManifest(
 }
 
 function getManifestPaths(manifest: PluginPackageManifest | null): string[] {
-	const entries = manifest?.cline?.plugins;
+	const entries = manifest?.bedrockCoder?.plugins;
 	if (!Array.isArray(entries)) {
 		return [];
 	}
@@ -278,7 +278,7 @@ async function writeWrapperManifest(
 			{
 				...WRAPPER_PACKAGE_JSON,
 				name: packageName,
-				cline: { plugins: [{ paths: entryPaths }] },
+				bedrockCoder: { plugins: [{ paths: entryPaths }] },
 			},
 			null,
 			2,

@@ -1,4 +1,4 @@
-import { CreateTeamTaskRequest, TeamTask } from "@shared/proto/cline/team"
+import { CreateTeamTaskRequest, TeamTask } from "@shared/proto/bedrock_coder/team"
 import { Controller } from ".."
 import { toTeamTaskProto } from "./team-conversions"
 import { validateTeamWorktreeAssignment } from "./validateTeamWorktreeAssignment"

@@ -1,10 +1,10 @@
-import type { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
+import type { BedrockCoderMessageMetricsInfo, BedrockCoderMessageModelInfo } from "./metrics"
 
-export type ClinePromptInputContent = string
+export type BedrockCoderPromptInputContent = string
 
-export type ClineMessageRole = "user" | "assistant"
+export type BedrockCoderMessageRole = "user" | "assistant"
 
-export interface ClineReasoningDetailParam {
+export interface BedrockCoderReasoningDetailParam {
 	type: "reasoning.text" | string
 	text: string
 	signature: string
@@ -12,105 +12,107 @@ export interface ClineReasoningDetailParam {
 	index: number
 }
 
-interface ClineSharedMessageParam {
+interface BedrockCoderSharedMessageParam {
 	// The id of the response that the block belongs to
 	call_id?: string
 }
 
-export interface ClineTextContentBlock extends ClineSharedMessageParam {
+export interface BedrockCoderTextContentBlock extends BedrockCoderSharedMessageParam {
 	type: "text"
 	text: string
 	[key: string]: unknown
 }
 
-export interface ClineImageContentBlock extends ClineSharedMessageParam {
+export interface BedrockCoderImageContentBlock extends BedrockCoderSharedMessageParam {
 	type: "image"
 	source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }
 	[key: string]: unknown
 }
 
-export interface ClineDocumentContentBlock extends ClineSharedMessageParam {
+export interface BedrockCoderDocumentContentBlock extends BedrockCoderSharedMessageParam {
 	type: "document"
 	source: unknown
 	[key: string]: unknown
 }
 
-export interface ClineUserToolResultContentBlock extends ClineSharedMessageParam {
+export interface BedrockCoderUserToolResultContentBlock extends BedrockCoderSharedMessageParam {
 	type: "tool_result"
 	tool_use_id: string
-	content?: string | Array<ClineTextContentBlock | ClineImageContentBlock>
+	content?: string | Array<BedrockCoderTextContentBlock | BedrockCoderImageContentBlock>
 	is_error?: boolean
 	[key: string]: unknown
 }
 
-export interface ClineAssistantToolUseBlock extends ClineSharedMessageParam {
+export interface BedrockCoderAssistantToolUseBlock extends BedrockCoderSharedMessageParam {
 	type: "tool_use"
 	id: string
 	name: string
 	input: unknown
-	reasoning_details?: unknown[] | ClineReasoningDetailParam[]
+	reasoning_details?: unknown[] | BedrockCoderReasoningDetailParam[]
 	signature?: string
 	[key: string]: unknown
 }
 
-export interface ClineAssistantThinkingBlock extends ClineSharedMessageParam {
+export interface BedrockCoderAssistantThinkingBlock extends BedrockCoderSharedMessageParam {
 	type: "thinking"
 	thinking: string
 	signature: string
-	summary?: unknown[] | ClineReasoningDetailParam[]
+	summary?: unknown[] | BedrockCoderReasoningDetailParam[]
 	[key: string]: unknown
 }
 
-export interface ClineAssistantRedactedThinkingBlock extends ClineSharedMessageParam {
+export interface BedrockCoderAssistantRedactedThinkingBlock extends BedrockCoderSharedMessageParam {
 	type: "redacted_thinking"
 	data: string
 	[key: string]: unknown
 }
 
-export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
+export const REASONING_DETAILS_PROVIDERS = ["bedrockCoder", "openrouter"]
 
-export type ClineToolResponseContent = ClinePromptInputContent | Array<ClineTextContentBlock | ClineImageContentBlock>
+export type BedrockCoderToolResponseContent =
+	| BedrockCoderPromptInputContent
+	| Array<BedrockCoderTextContentBlock | BedrockCoderImageContentBlock>
 
-export type ClineUserContent =
-	| ClineTextContentBlock
-	| ClineImageContentBlock
-	| ClineDocumentContentBlock
-	| ClineUserToolResultContentBlock
+export type BedrockCoderUserContent =
+	| BedrockCoderTextContentBlock
+	| BedrockCoderImageContentBlock
+	| BedrockCoderDocumentContentBlock
+	| BedrockCoderUserToolResultContentBlock
 
-export type ClineAssistantContent =
-	| ClineTextContentBlock
-	| ClineImageContentBlock
-	| ClineDocumentContentBlock
-	| ClineAssistantToolUseBlock
-	| ClineAssistantThinkingBlock
-	| ClineAssistantRedactedThinkingBlock
+export type BedrockCoderAssistantContent =
+	| BedrockCoderTextContentBlock
+	| BedrockCoderImageContentBlock
+	| BedrockCoderDocumentContentBlock
+	| BedrockCoderAssistantToolUseBlock
+	| BedrockCoderAssistantThinkingBlock
+	| BedrockCoderAssistantRedactedThinkingBlock
 
-export type ClineContent = ClineUserContent | ClineAssistantContent
+export type BedrockCoderContent = BedrockCoderUserContent | BedrockCoderAssistantContent
 
 /**
- * An extension of Anthropic.MessageParam that includes Cline-specific fields.
+ * An extension of Anthropic.MessageParam that includes BedrockCoder-specific fields.
  * This ensures backward compatibility where the messages were stored in Anthropic format,
- * while allowing for additional metadata specific to Cline to avoid unknown fields in Anthropic SDK
+ * while allowing for additional metadata specific to BedrockCoder to avoid unknown fields in Anthropic SDK
  * added by ignoring the type checking for those fields.
  */
-export interface ClineStorageMessage {
+export interface BedrockCoderStorageMessage {
 	/**
 	 * Response ID associated with this message
 	 */
 	id?: string
-	role: ClineMessageRole
-	content: ClinePromptInputContent | ClineContent[]
+	role: BedrockCoderMessageRole
+	content: BedrockCoderPromptInputContent | BedrockCoderContent[]
 	/**
 	 * NOTE: model information used when generating this message.
 	 * Internal use for message conversion only.
 	 * MUST be removed before sending message to any LLM provider.
 	 */
-	modelInfo?: ClineMessageModelInfo
+	modelInfo?: BedrockCoderMessageModelInfo
 	/**
 	 * LLM operational and performance metrics for this message
 	 * Includes token counts, costs.
 	 */
-	metrics?: ClineMessageMetricsInfo
+	metrics?: BedrockCoderMessageMetricsInfo
 	/**
 	 * Timestamp of when the message was created
 	 */
@@ -118,14 +120,14 @@ export interface ClineStorageMessage {
 }
 
 /**
- * Converts ClineStorageMessage to Anthropic.MessageParam by removing Cline-specific fields
- * Cline-specific fields (like modelInfo, reasoning_details) are properly omitted.
+ * Converts BedrockCoderStorageMessage to Anthropic.MessageParam by removing BedrockCoder-specific fields
+ * BedrockCoder-specific fields (like modelInfo, reasoning_details) are properly omitted.
  */
-export function convertClineStorageToAnthropicMessage(
-	clineMessage: ClineStorageMessage,
+export function convertBedrockCoderStorageToAnthropicMessage(
+	bedrockCoderMessage: BedrockCoderStorageMessage,
 	provider = "anthropic",
-): ClineStorageMessage {
-	const { role, content } = clineMessage
+): BedrockCoderStorageMessage {
+	const { role, content } = bedrockCoderMessage
 
 	// Handle string content - fast path
 	if (typeof content === "string") {
@@ -135,7 +137,7 @@ export function convertClineStorageToAnthropicMessage(
 	// Removes thinking block that has no signature (invalid thinking block that's incompatible with Anthropic API)
 	const filteredContent = content.filter((b) => b.type !== "thinking" || !!b.signature)
 
-	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
+	// Handle array content - strip BedrockCoder-specific fields for non-reasoning_details providers
 	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
 	const cleanedContent = shouldCleanContent ? filteredContent.map(cleanContentBlock) : filteredContent
 
@@ -143,12 +145,12 @@ export function convertClineStorageToAnthropicMessage(
 }
 
 /**
- * Cline stores images as base64, so an image block's source is always a base64 source.
+ * BedrockCoder stores images as base64, so an image block's source is always a base64 source.
  * The Anthropic SDK types the source as a Base64ImageSource | URLImageSource union, so this
- * narrows to the base64 variant for the transform layer. URL sources are not produced by Cline,
+ * narrows to the base64 variant for the transform layer. URL sources are not produced by BedrockCoder,
  * so they degrade to empty values rather than throwing.
  */
-export function getBase64ImageSource(source: ClineImageContentBlock["source"]): { mediaType: string; data: string } {
+export function getBase64ImageSource(source: BedrockCoderImageContentBlock["source"]): { mediaType: string; data: string } {
 	if (source.type === "base64") {
 		return { mediaType: source.media_type, data: source.data }
 	}
@@ -158,27 +160,27 @@ export function getBase64ImageSource(source: ClineImageContentBlock["source"]): 
 /**
  * Builds a base64 data URL from an image block's source. See getBase64ImageSource.
  */
-export function getImageDataUrl(source: ClineImageContentBlock["source"]): string {
+export function getImageDataUrl(source: BedrockCoderImageContentBlock["source"]): string {
 	const { mediaType, data } = getBase64ImageSource(source)
 	return `data:${mediaType};base64,${data}`
 }
 
 /**
- * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
+ * Clean a content block by removing BedrockCoder-specific fields and returning only Anthropic-compatible fields
  */
-export function cleanContentBlock(block: ClineContent): ClineContent {
-	// Fast path: if no Cline-specific fields exist, return as-is
-	const hasClineFields =
+export function cleanContentBlock(block: BedrockCoderContent): BedrockCoderContent {
+	// Fast path: if no BedrockCoder-specific fields exist, return as-is
+	const hasBedrockCoderFields =
 		"reasoning_details" in block ||
 		"call_id" in block ||
 		"summary" in block ||
 		(block.type !== "thinking" && "signature" in block)
 
-	if (!hasClineFields) {
+	if (!hasBedrockCoderFields) {
 		return block
 	}
 
-	// Removes Cline-specific fields & the signature field that's added for Gemini.
+	// Removes BedrockCoder-specific fields & the signature field that's added for Gemini.
 	const { reasoning_details, call_id, summary, ...rest } = block as any
 
 	// Remove signature from non-thinking blocks that were added for Gemini
@@ -186,5 +188,5 @@ export function cleanContentBlock(block: ClineContent): ClineContent {
 		rest.signature = undefined
 	}
 
-	return rest as ClineContent
+	return rest as BedrockCoderContent
 }

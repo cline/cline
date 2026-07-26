@@ -1,4 +1,4 @@
-import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
+import { Empty, StringArrayRequest } from "@shared/proto/bedrock_coder/common"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"

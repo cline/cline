@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderCapability } from "@cline/shared";
+import type { ModelInfo, ProviderCapability } from "@bedrock-coder/shared";
 
 export {
 	type ModelCapability,
@@ -13,7 +13,7 @@ export {
 	ModelStatusSchema,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 
 export type { ProviderCapability };
 

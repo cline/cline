@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type * as LlmsProviders from "@cline/llms";
-import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
-import { normalizeUserInput, stripModeNotices } from "@cline/shared";
+import type * as LlmsProviders from "@bedrock-coder/llms";
+import type { AgentConfig, AgentEvent, AgentResult } from "@bedrock-coder/shared";
+import { normalizeUserInput, stripModeNotices } from "@bedrock-coder/shared";
 import { nanoid } from "nanoid";
 import {
 	parseSubSessionId,

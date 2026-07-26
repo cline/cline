@@ -13,8 +13,8 @@ import {
 	migrateTeamRuntimeState,
 	type TeamRuntimeState,
 	type TeamTeammateSpec,
-} from "@cline/shared";
-import { resolveTeamDataDir } from "@cline/shared/storage";
+} from "@bedrock-coder/shared";
+import { resolveTeamDataDir } from "@bedrock-coder/shared/storage";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { TeamStore } from "../../types/storage";
 

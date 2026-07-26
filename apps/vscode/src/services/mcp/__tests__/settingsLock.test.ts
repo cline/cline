@@ -12,7 +12,7 @@ describe("updateMcpSettingsFile", () => {
 	beforeEach(async () => {
 		tempDir = path.join(os.tmpdir(), `mcp-settings-lock-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
-		settingsPath = path.join(tempDir, "cline_mcp_settings.json")
+		settingsPath = path.join(tempDir, "mcp_settings.json")
 		await fs.writeFile(settingsPath, JSON.stringify({ mcpServers: {} }, null, 2))
 	})
 
@@ -40,7 +40,7 @@ describe("updateMcpSettingsFile", () => {
 	})
 
 	it("creates a missing settings file inside the lock", async () => {
-		const missingPath = path.join(tempDir, "fresh", "cline_mcp_settings.json")
+		const missingPath = path.join(tempDir, "fresh", "mcp_settings.json")
 
 		await updateMcpSettingsFile(missingPath, (settings) => {
 			settings.mcpServers = { alpha: { type: "stdio", command: "node" } }

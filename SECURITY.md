@@ -2,13 +2,14 @@
 
 ## Supported Versions
 
-We actively patch only the most recent minor release of Cline. Older versions receive fixes at our discretion.
+We actively patch only the most recent minor release of Bedrock Coder. Older versions receive fixes at our discretion.
 
 ## Reporting a Vulnerability
 
 We appreciate your efforts to responsibly disclose your findings and will make every effort to acknowledge your contributions.
 
-To report a security issue, please submit your report through our [Bugcrowd Vulnerability Disclosure Program](https://bugcrowd.com/engagements/clinebot-vdp-ess). Bugcrowd will manage communication and triage on our behalf.
+Report security issues privately through the repository's GitHub Security
+Advisories.
 
 When reporting, please include:
 
@@ -20,6 +21,8 @@ Please keep the details private until a resolution has been reached.
 
 ## Escalation
 
-If you are unable to submit through Bugcrowd, you may send an email to security@cline.bot.
+If private reporting is unavailable, open a minimal GitHub issue asking the
+maintainers for a private disclosure channel. Do not include vulnerability
+details in the public issue.
 
-Thank you for helping us keep Cline users safe.
+Thank you for helping us keep Bedrock Coder users safe.

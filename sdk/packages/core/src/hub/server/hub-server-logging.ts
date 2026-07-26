@@ -23,7 +23,7 @@ const LOG_LEVEL_PRIORITY: Record<HubLogLevel, number> = {
 };
 
 function resolveHubLogLevel(): HubLogLevel {
-	const configured = process.env.CLINE_HUB_LOG_LEVEL?.trim().toLowerCase();
+	const configured = process.env.BEDROCK_CODER_HUB_LOG_LEVEL?.trim().toLowerCase();
 	if (
 		configured === "debug" ||
 		configured === "info" ||

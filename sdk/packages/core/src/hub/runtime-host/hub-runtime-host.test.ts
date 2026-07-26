@@ -1,4 +1,4 @@
-import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
+import type { AgentToolContext, HubEventEnvelope } from "@bedrock-coder/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
@@ -102,7 +102,7 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
-					client: { name: "cline-cli", version: "3.0.38" },
+					client: { name: "bedrock-coder-cli", version: "3.0.38" },
 				},
 			},
 			prompt: "Hey",
@@ -142,7 +142,7 @@ describe("HubRuntimeHost", () => {
 
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
 		subscribeMock.mockReturnValue(() => {});
-		const resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
+		const resolvedWorkspace = "/home/host/.bedrock-coder/data/workspaces/chat";
 		commandMock.mockResolvedValue({
 			payload: {
 				session: {
@@ -312,7 +312,7 @@ describe("HubRuntimeHost", () => {
 			finishReason: "completed",
 			model: {
 				id: "anthropic/claude-haiku-4.5",
-				provider: "cline",
+				provider: "bedrockCoder",
 				info: {},
 			},
 			startedAt: new Date("2026-04-21T00:00:00.000Z"),

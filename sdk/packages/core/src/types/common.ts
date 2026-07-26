@@ -1,4 +1,4 @@
-import { SESSION_STATUS_VALUES } from "@cline/shared";
+import { SESSION_STATUS_VALUES } from "@bedrock-coder/shared";
 
 export const SESSION_STATUSES = SESSION_STATUS_VALUES;
 

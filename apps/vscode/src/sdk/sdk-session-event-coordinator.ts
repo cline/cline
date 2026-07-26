@@ -1,4 +1,4 @@
-import type { CoreSessionEvent } from "@cline/core"
+import type { CoreSessionEvent } from "@bedrock-coder/core"
 import type { TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
@@ -33,7 +33,7 @@ export class SdkSessionEventCoordinator {
 	private readonly translateSessionEvent: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	private readonly pendingStreamMessages = new Map<
 		number,
-		{ message: import("@shared/ExtensionMessage").ClineMessage; event: CoreSessionEvent }
+		{ message: import("@shared/ExtensionMessage").BedrockCoderMessage; event: CoreSessionEvent }
 	>()
 	private streamFlushTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -206,7 +206,10 @@ export class SdkSessionEventCoordinator {
 		)
 	}
 
-	private queueStreamMessages(messages: import("@shared/ExtensionMessage").ClineMessage[], event: CoreSessionEvent): void {
+	private queueStreamMessages(
+		messages: import("@shared/ExtensionMessage").BedrockCoderMessage[],
+		event: CoreSessionEvent,
+	): void {
 		for (const message of messages) {
 			this.pendingStreamMessages.set(message.ts, { message, event })
 		}

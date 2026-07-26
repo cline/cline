@@ -1,4 +1,4 @@
-import type { HubEventEnvelope } from "@cline/shared";
+import type { HubEventEnvelope } from "@bedrock-coder/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
 import { buildHubEvent, type HubTransportContext } from "./context";

@@ -11,20 +11,19 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { PluginManifest } from "..";
 import {
-	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
-	CLINE_WORKSPACES_DIRECTORY_NAME,
+	BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME,
+	BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME,
 } from "./chat-workspace-paths";
 
 // Keep the structural pieces browser-safe while exposing them through the
 // canonical Node storage-path module alongside the data-dir resolver.
 export {
-	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
-	CLINE_WORKSPACES_DIRECTORY_NAME,
+	BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME,
+	BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./chat-workspace-paths";
 
-const DEPRECATED_CONFIG_DIR = ".clinerules";
-const CLINE_CONFIG_DIR = ".cline";
+const BEDROCK_CODER_CONFIG_DIR = ".bedrock-coder";
 const LEGACY_AGENT_SKILLS_CONFIG_DIR = ".agents";
 
 export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
@@ -37,19 +36,19 @@ export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
 
 /**
  * Shared workspace for all sessions started without a `cwd`/`workspaceRoot`.
- * Lives under the cline data dir (not `os.tmpdir()`) so OS temp reapers never
+ * Lives under the bedrockCoder data dir (not `os.tmpdir()`) so OS temp reapers never
  * delete user work, the path is private to the user on multi-user hosts, and
  * the directory shares the session store's lifecycle and env overrides.
  */
 export function resolveChatWorkspacePath(): string {
 	return join(
-		resolveClineDataDir(),
-		CLINE_WORKSPACES_DIRECTORY_NAME,
-		CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+		resolveBedrockCoderDataDir(),
+		BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME,
+		BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME,
 	);
 }
 
-export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
+export const BEDROCK_CODER_MCP_SETTINGS_FILE_NAME = "mcp_settings.json";
 
 function resolveDefaultHomeDir(): string {
 	const envHome = process?.env?.HOME?.trim();
@@ -95,111 +94,94 @@ export function setHomeDirIfUnset(dir: string) {
 	HOME_DIR = trimmed;
 }
 
-let CLINE_DIR: string | undefined;
-let CLINE_DIR_SET_EXPLICITLY = false;
+let BEDROCK_CODER_DIR: string | undefined;
+let BEDROCK_CODER_DIR_SET_EXPLICITLY = false;
 
-export function setClineDir(dir: string): void {
+export function setBedrockCoderDir(dir: string): void {
 	const trimmed = dir.trim();
 	if (!trimmed) {
 		return;
 	}
-	CLINE_DIR = trimmed;
-	CLINE_DIR_SET_EXPLICITLY = true;
+	BEDROCK_CODER_DIR = trimmed;
+	BEDROCK_CODER_DIR_SET_EXPLICITLY = true;
 }
 
-export function setClineDirIfUnset(dir: string): void {
-	if (CLINE_DIR_SET_EXPLICITLY) {
+export function setBedrockCoderDirIfUnset(dir: string): void {
+	if (BEDROCK_CODER_DIR_SET_EXPLICITLY) {
 		return;
 	}
 	const trimmed = dir.trim();
 	if (!trimmed) {
 		return;
 	}
-	CLINE_DIR = trimmed;
+	BEDROCK_CODER_DIR = trimmed;
 }
 
-export function resolveClineDir(): string {
-	if (CLINE_DIR) {
-		return CLINE_DIR;
+export function resolveBedrockCoderDir(): string {
+	if (BEDROCK_CODER_DIR) {
+		return BEDROCK_CODER_DIR;
 	}
-	const envDir = process.env.CLINE_DIR?.trim();
+	const envDir = process.env.BEDROCK_CODER_DIR?.trim();
 	if (envDir) {
 		return envDir;
 	}
-	return join(HOME_DIR, ".cline");
+	return join(HOME_DIR, ".bedrock-coder");
 }
 
-export function resolveDocumentsClineDirectoryPath(): string {
-	return join(HOME_DIR, "Documents", "Cline");
-}
-
-type DocumentsExtensionName =
-	| "Agents"
-	| "Hooks"
-	| "Rules"
-	| "Workflows"
-	| "Plugins";
-
-export function resolveDocumentsExtensionPath(
-	name: DocumentsExtensionName,
-): string {
-	return join(resolveDocumentsClineDirectoryPath(), name);
-}
-
-export function resolveClineDataDir(): string {
-	const explicitDir = process.env.CLINE_DATA_DIR?.trim();
+export function resolveBedrockCoderDataDir(): string {
+	const explicitDir = process.env.BEDROCK_CODER_DATA_DIR?.trim();
 	if (explicitDir) {
 		return explicitDir;
 	}
-	return join(resolveClineDir(), "data");
+	return join(resolveBedrockCoderDir(), "data");
 }
 
 export function resolveSessionDataDir(): string {
-	const explicitDir = process.env.CLINE_SESSION_DATA_DIR?.trim();
+	const explicitDir = process.env.BEDROCK_CODER_SESSION_DATA_DIR?.trim();
 	if (explicitDir) {
 		return explicitDir;
 	}
-	return join(resolveClineDataDir(), "sessions");
+	return join(resolveBedrockCoderDataDir(), "sessions");
 }
 
 export function resolveTeamDataDir(): string {
-	const explicitDir = process.env.CLINE_TEAM_DATA_DIR?.trim();
+	const explicitDir = process.env.BEDROCK_CODER_TEAM_DATA_DIR?.trim();
 	if (explicitDir) {
 		return explicitDir;
 	}
-	return join(resolveClineDataDir(), "teams");
+	return join(resolveBedrockCoderDataDir(), "teams");
 }
 
 export function resolveDbDataDir(): string {
-	const explicitDir = process.env.CLINE_DB_DATA_DIR?.trim();
+	const explicitDir = process.env.BEDROCK_CODER_DB_DATA_DIR?.trim();
 	if (explicitDir) {
 		return explicitDir;
 	}
-	return join(resolveClineDataDir(), "db");
+	return join(resolveBedrockCoderDataDir(), "db");
 }
 
 export function resolveProviderSettingsPath(): string {
-	const explicitPath = process.env.CLINE_PROVIDER_SETTINGS_PATH?.trim();
+	const explicitPath = process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH?.trim();
 	if (explicitPath) {
 		return explicitPath;
 	}
-	return join(resolveClineDataDir(), "settings", "providers.json");
+	return join(resolveBedrockCoderDataDir(), "settings", "providers.json");
 }
 
 export function resolveGlobalSettingsPath(): string {
-	const explicitPath = process.env.CLINE_GLOBAL_SETTINGS_PATH?.trim();
+	const explicitPath = process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH?.trim();
 	if (explicitPath) {
 		return explicitPath;
 	}
-	return join(resolveClineDataDir(), "settings", "global-settings.json");
+	return join(resolveBedrockCoderDataDir(), "settings", "global-settings.json");
 }
 
 export function resolveMcpSettingsPath(): string {
-	const explicitPath = process.env.CLINE_MCP_SETTINGS_PATH?.trim();
+	const explicitPath = process.env.BEDROCK_CODER_MCP_SETTINGS_PATH?.trim();
 	if (explicitPath) {
 		return explicitPath;
 	}
-	return join(resolveClineDataDir(), "settings", CLINE_MCP_SETTINGS_FILE_NAME);
+	return join(resolveBedrockCoderDataDir(), "settings", BEDROCK_CODER_MCP_SETTINGS_FILE_NAME);
 }
 
 function dedupePaths(paths: ReadonlyArray<string>): string[] {
@@ -220,14 +202,13 @@ function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 		return [];
 	}
 	return [
-		DEPRECATED_CONFIG_DIR,
-		CLINE_CONFIG_DIR,
+		BEDROCK_CODER_CONFIG_DIR,
 		LEGACY_AGENT_SKILLS_CONFIG_DIR,
 	].map((dir) => join(workspacePath, dir, SKILLS_CONFIG_DIRECTORY_NAME));
 }
 
 export function resolveAgentsConfigDirPath(): string {
-	return join(resolveClineDir(), AGENT_CONFIG_DIRECTORY_NAME);
+	return join(resolveBedrockCoderDir(), AGENT_CONFIG_DIRECTORY_NAME);
 }
 
 export function resolveAgentConfigSearchPaths(
@@ -235,7 +216,7 @@ export function resolveAgentConfigSearchPaths(
 ): string[] {
 	return dedupePaths([
 		workspacePath
-			? join(workspacePath, CLINE_CONFIG_DIR, AGENT_CONFIG_DIRECTORY_NAME)
+			? join(workspacePath, BEDROCK_CODER_CONFIG_DIR, AGENT_CONFIG_DIRECTORY_NAME)
 			: "",
 		resolveAgentsConfigDirPath(),
 	]);
@@ -244,15 +225,9 @@ export function resolveAgentConfigSearchPaths(
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
-	const hooks = [
-		resolveDocumentsExtensionPath("Hooks"),
-		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
-	];
+	const hooks = [join(resolveBedrockCoderDir(), HOOKS_CONFIG_DIRECTORY_NAME)];
 	if (workspacePath) {
-		hooks.push(
-			join(workspacePath, DEPRECATED_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
-			join(workspacePath, CLINE_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
-		);
+		hooks.push(join(workspacePath, BEDROCK_CODER_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME));
 	}
 	return dedupePaths(hooks);
 }
@@ -262,7 +237,7 @@ export function resolveSkillsConfigSearchPaths(
 ): string[] {
 	return dedupePaths([
 		...getWorkspaceSkillDirectories(workspacePath),
-		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
+		join(resolveBedrockCoderDir(), SKILLS_CONFIG_DIRECTORY_NAME),
 		join(
 			HOME_DIR,
 			LEGACY_AGENT_SKILLS_CONFIG_DIR,
@@ -279,10 +254,7 @@ export function resolveRulesConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	const wsPaths = workspacePath
-		? [
-				join(workspacePath, DEPRECATED_CONFIG_DIR),
-				join(workspacePath, CLINE_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME),
-			]
+		? [join(workspacePath, BEDROCK_CODER_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME)]
 		: [];
 	const workspaceAgentsFile = workspacePath
 		? [join(workspacePath, AGENTS_RULES_FILE_NAME)]
@@ -291,8 +263,7 @@ export function resolveRulesConfigSearchPaths(
 		...workspaceAgentsFile,
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
-		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
-		resolveDocumentsExtensionPath("Rules"),
+		join(resolveBedrockCoderDir(), RULES_CONFIG_DIRECTORY_NAME),
 	]);
 }
 
@@ -301,13 +272,9 @@ export function resolveWorkflowsConfigSearchPaths(
 ): string[] {
 	return dedupePaths([
 		workspacePath
-			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
+			? join(workspacePath, ".bedrock-coder", WORKFLOWS_CONFIG_DIRECTORY_NAME)
 			: "",
-		resolveDocumentsExtensionPath("Workflows"),
-		join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
-		workspacePath
-			? join(workspacePath, ".cline", WORKFLOWS_CONFIG_DIRECTORY_NAME)
-			: "",
+		join(resolveBedrockCoderDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
 	]);
 }
 
@@ -315,9 +282,8 @@ export function resolvePluginConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	return dedupePaths([
-		workspacePath ? join(workspacePath, ".cline", PLUGINS_DIRECTORY_NAME) : "",
-		join(resolveClineDir(), PLUGINS_DIRECTORY_NAME),
-		resolveDocumentsExtensionPath("Plugins"),
+		workspacePath ? join(workspacePath, ".bedrock-coder", PLUGINS_DIRECTORY_NAME) : "",
+		join(resolveBedrockCoderDir(), PLUGINS_DIRECTORY_NAME),
 	]);
 }
 
@@ -342,12 +308,12 @@ function readPluginPackageManifest(
 ): PluginPackageManifest | null {
 	try {
 		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-			cline?: PluginPackageManifest;
+			bedrockCoder?: PluginPackageManifest;
 		};
-		if (!packageJson.cline || typeof packageJson.cline !== "object") {
+		if (!packageJson.bedrockCoder || typeof packageJson.bedrockCoder !== "object") {
 			return null;
 		}
-		return packageJson.cline;
+		return packageJson.bedrockCoder;
 	} catch {
 		return null;
 	}
@@ -499,7 +465,7 @@ export function ensureHookLogDir(filePath?: string): string {
 		ensureParentDir(filePath);
 		return dirname(filePath);
 	}
-	const dir = join(resolveClineDataDir(), "logs");
+	const dir = join(resolveBedrockCoderDataDir(), "logs");
 	if (!existsSync(dir)) {
 		mkdirSync(dir, { recursive: true });
 	}

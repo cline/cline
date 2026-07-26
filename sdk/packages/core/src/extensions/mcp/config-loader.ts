@@ -12,8 +12,8 @@ import {
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { BasicLogger } from "@cline/shared";
-import { resolveMcpSettingsPath } from "@cline/shared/storage";
+import type { BasicLogger } from "@bedrock-coder/shared";
+import { resolveMcpSettingsPath } from "@bedrock-coder/shared/storage";
 import { z } from "zod";
 import type {
 	McpManager,

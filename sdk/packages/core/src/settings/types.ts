@@ -63,7 +63,7 @@ export interface CoreSettingsMutationResult {
 	changedTypes: CoreSettingsType[];
 }
 
-export interface ClineCoreSettingsApi {
+export interface BedrockCoderCoreSettingsApi {
 	list(input?: CoreSettingsListInput): Promise<CoreSettingsSnapshot>;
 	toggle(input: CoreSettingsToggleInput): Promise<CoreSettingsMutationResult>;
 }

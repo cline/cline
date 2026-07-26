@@ -6,8 +6,8 @@
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
 		"paths": {
-			"@cline/shared": ["../shared/src/index.ts"],
-			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+			"@bedrock-coder/shared": ["../shared/src/index.ts"],
+			"@bedrock-coder/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
 		}
 	}
 }

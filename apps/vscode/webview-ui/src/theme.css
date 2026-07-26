@@ -1,6 +1,6 @@
 /* Editor theme mapping */
 @theme {
-	--color-cline: #9663f1;
+	--color-bedrockCoder: #9663f1;
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);

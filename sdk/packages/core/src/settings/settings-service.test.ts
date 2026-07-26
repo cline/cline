@@ -8,21 +8,21 @@ import { CoreSettingsService } from "./settings-service";
 describe("CoreSettingsService", () => {
 	const tempRoots: string[] = [];
 	const envSnapshot = {
-		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
-		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
+		BEDROCK_CODER_GLOBAL_SETTINGS_PATH: process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH,
+		BEDROCK_CODER_MCP_SETTINGS_PATH: process.env.BEDROCK_CODER_MCP_SETTINGS_PATH,
 	};
 
 	afterEach(async () => {
-		if (envSnapshot.CLINE_GLOBAL_SETTINGS_PATH === undefined) {
-			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		if (envSnapshot.BEDROCK_CODER_GLOBAL_SETTINGS_PATH === undefined) {
+			delete process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
 		} else {
-			process.env.CLINE_GLOBAL_SETTINGS_PATH =
-				envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
+			process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH =
+				envSnapshot.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
 		}
-		if (envSnapshot.CLINE_MCP_SETTINGS_PATH === undefined) {
-			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		if (envSnapshot.BEDROCK_CODER_MCP_SETTINGS_PATH === undefined) {
+			delete process.env.BEDROCK_CODER_MCP_SETTINGS_PATH;
 		} else {
-			process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+			process.env.BEDROCK_CODER_MCP_SETTINGS_PATH = envSnapshot.BEDROCK_CODER_MCP_SETTINGS_PATH;
 		}
 		await Promise.all(
 			tempRoots.map((dir) => rm(dir, { recursive: true, force: true })),
@@ -95,7 +95,7 @@ Use this skill.`,
 	it("uses cwd as the workspace root when listing instruction settings", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
 		tempRoots.push(tempRoot);
-		const skillDir = join(tempRoot, ".cline", "skills", "skill-one");
+		const skillDir = join(tempRoot, ".bedrock-coder", "skills", "skill-one");
 		await mkdir(skillDir, { recursive: true });
 		await writeFile(join(skillDir, "SKILL.md"), "Use this skill.");
 
@@ -120,7 +120,7 @@ Use this skill.`,
 		tempRoots.push(tempRoot);
 		const installRoot = join(
 			tempRoot,
-			".cline",
+			".bedrock-coder",
 			"plugins",
 			"_installed",
 			"local",
@@ -134,7 +134,7 @@ Use this skill.`,
 			join(installRoot, "package.json"),
 			JSON.stringify({
 				name: "test-plugin-skill-owner",
-				cline: {
+				bedrockCoder: {
 					plugins: [{ paths: ["./package/index.ts"] }],
 				},
 			}),
@@ -171,10 +171,10 @@ Use the browser.`,
 		);
 		tempRoots.push(tempRoot);
 		const settingsPath = join(tempRoot, "global-settings.json");
-		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH = settingsPath;
 		const installRoot = join(
 			tempRoot,
-			".cline",
+			".bedrock-coder",
 			"plugins",
 			"_installed",
 			"local",
@@ -188,7 +188,7 @@ Use the browser.`,
 			join(installRoot, "package.json"),
 			JSON.stringify({
 				name: "test-plugin-skill-disabled",
-				cline: {
+				bedrockCoder: {
 					plugins: [{ paths: ["./package/index.ts"] }],
 				},
 			}),
@@ -222,8 +222,8 @@ Use the browser.`,
 	it("lists and toggles MCP server disabled state", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
 		tempRoots.push(tempRoot);
-		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
-		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const settingsPath = join(tempRoot, "mcp_settings.json");
+		process.env.BEDROCK_CODER_MCP_SETTINGS_PATH = settingsPath;
 		await writeFile(
 			settingsPath,
 			`${JSON.stringify(
@@ -379,7 +379,7 @@ Use the browser.`,
 	it("honors explicit enabled values for plugin tool settings", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
 		tempRoots.push(tempRoot);
-		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+		process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH = join(
 			tempRoot,
 			"global-settings.json",
 		);
@@ -398,7 +398,7 @@ Use the browser.`,
 
 		expect(
 			JSON.parse(
-				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+				await readFile(process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
 		).toEqual({
 			autoUpdateEnabled: true,
@@ -409,7 +409,7 @@ Use the browser.`,
 
 		expect(
 			JSON.parse(
-				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+				await readFile(process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
 		).toEqual({ autoUpdateEnabled: true });
 	});

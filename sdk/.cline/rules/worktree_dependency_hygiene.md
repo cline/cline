@@ -7,7 +7,7 @@ another checkout, causing mixed-source type errors or runtime behavior.
 Quick check:
  
 ```sh
-realpath node_modules packages/core/node_modules packages/core/node_modules/@cline/llms
+realpath node_modules packages/core/node_modules packages/core/node_modules/@bedrock-coder/llms
 ```
  
 All paths should stay under the current worktree. If any path points to another

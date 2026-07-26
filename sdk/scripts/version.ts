@@ -112,7 +112,7 @@ if (!values.dry) {
 	console.log("Removed stale bun.lock if present");
 	await runCommandOrThrow(["bun", "install", "--lockfile-only"], root);
 	await runCommandOrThrow(
-		["bun", "-F", "@cline/llms", "generate:models"],
+		["bun", "-F", "@bedrock-coder/llms", "generate:models"],
 		root,
 	);
 	await runCommandOrThrow(["bun", "format", "--write"], root);

@@ -1,4 +1,4 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChatState, PendingUserMessage } from "../types/chatTypes"
 
@@ -6,7 +6,7 @@ import { ChatState, PendingUserMessage } from "../types/chatTypes"
  * Custom hook for managing chat state
  * Handles input values, selection states, and UI state
  */
-export function useChatState(messages: ClineMessage[]): ChatState {
+export function useChatState(messages: BedrockCoderMessage[]): ChatState {
 	// Input and selection state
 	const [inputValue, setInputValue] = useState("")
 	const [activeQuote, setActiveQuote] = useState<string | null>(null)
@@ -28,7 +28,7 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	// Derived state
 	const lastMessage = useMemo(() => messages.at(-1), [messages])
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
-	const clineAsk = useMemo(() => (lastMessage?.type === "ask" ? lastMessage.ask : undefined), [lastMessage])
+	const bedrockCoderAsk = useMemo(() => (lastMessage?.type === "ask" ? lastMessage.ask : undefined), [lastMessage])
 
 	// Clear expanded rows when task changes
 	const task = useMemo(() => messages.at(0), [messages])
@@ -85,7 +85,7 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		// Derived values
 		lastMessage,
 		secondLastMessage,
-		clineAsk,
+		bedrockCoderAsk,
 		task,
 
 		// Handlers

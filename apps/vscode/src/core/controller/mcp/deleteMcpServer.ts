@@ -1,5 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import { McpServers } from "@shared/proto/cline/mcp"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
+import { McpServers } from "@shared/proto/bedrock_coder/mcp"
 import { Logger } from "@/shared/services/Logger"
 import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
 import type { Controller } from "../index"

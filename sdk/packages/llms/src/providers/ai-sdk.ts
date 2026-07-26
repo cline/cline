@@ -6,14 +6,14 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	formatMessagesForAiSdk,
 	parseJsonStream,
 	sanitizeSurrogates,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { extractErrorMessage } from "./format";

@@ -56,7 +56,7 @@ const vsCodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : 
 
 // Expose the VSCode API for debug harness access
 if (vsCodeApi && typeof window !== "undefined") {
-	;(window as any).__clineVsCodeApi = vsCodeApi
+	;(window as any).__bedrockCoderVsCodeApi = vsCodeApi
 }
 
 // Implementations for post message handling

@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkModeCoordinator, type SdkModeCoordinatorOptions } from "./sdk-mode-coordinator"
@@ -13,7 +13,7 @@ vi.mock("@/shared/services/Logger", () => ({
 }))
 
 vi.mock("@core/storage/disk", () => ({
-	saveClineMessages: vi.fn().mockResolvedValue(undefined),
+	saveBedrockCoderMessages: vi.fn().mockResolvedValue(undefined),
 }))
 
 describe("SdkModeCoordinator", () => {
@@ -416,7 +416,7 @@ describe("SdkModeCoordinator", () => {
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
-		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
+		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getBedrockCoderMessages())
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 	})
 
@@ -629,14 +629,14 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 	}
 }
 
-function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
+function makeTask(taskId: string, messages: Array<Partial<BedrockCoderMessage>> = []) {
 	return {
 		taskId,
 		messageStateHandler: {
-			getClineMessages: vi.fn(() => messages as ClineMessage[]),
+			getBedrockCoderMessages: vi.fn(() => messages as BedrockCoderMessage[]),
 		},
 	} as unknown as {
 		taskId: string
-		messageStateHandler: { getClineMessages: () => ClineMessage[] }
+		messageStateHandler: { getBedrockCoderMessages: () => BedrockCoderMessage[] }
 	}
 }

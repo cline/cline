@@ -6,8 +6,8 @@ import type {
 	SessionRecord as HubSessionRecord,
 	JsonValue,
 	SessionParticipant,
-} from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+} from "@bedrock-coder/shared";
+import { createSessionId } from "@bedrock-coder/shared";
 import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,

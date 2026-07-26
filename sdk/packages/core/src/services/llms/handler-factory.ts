@@ -2,13 +2,13 @@ import {
 	BEDROCK_MODELS,
 	createBedrockAgentModel,
 	type ProviderConfig,
-} from "@cline/llms";
+} from "@bedrock-coder/llms";
 import type {
 	AgentConfig,
 	AgentModel,
 	BasicLogger,
 	ModelInfo,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,

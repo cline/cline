@@ -4,7 +4,7 @@
  * Built-in implementation for fetching web content using native fetch.
  */
 
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentToolContext } from "@bedrock-coder/shared";
 import type { WebFetchExecutor } from "../types";
 
 /**

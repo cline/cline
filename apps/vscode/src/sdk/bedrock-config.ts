@@ -1,5 +1,5 @@
-import type { ProviderSettings } from "@cline/core"
-import type { BedrockConnection, ProviderConfig } from "@cline/llms"
+import type { ProviderSettings } from "@bedrock-coder/core"
+import type { BedrockConnection, ProviderConfig } from "@bedrock-coder/llms"
 import { type ApiConfiguration, BEDROCK_DEFAULT_REGION } from "@shared/api"
 
 function optionalString(value: unknown): string | undefined {

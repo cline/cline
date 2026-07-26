@@ -1,12 +1,12 @@
-import type { EmptyRequest } from "@shared/proto/cline/common"
-import { Empty } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/bedrock_coder/common"
+import { Empty } from "@shared/proto/bedrock_coder/common"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
- * Opens the Cline walkthrough in VSCode
+ * Opens the BedrockCoder walkthrough in VSCode
  * @param controller The controller instance
  * @param request Empty request
  * @returns Empty response
@@ -15,7 +15,7 @@ export async function openWalkthrough(_controller: Controller, _request: EmptyRe
 	try {
 		await vscode.commands.executeCommand(
 			"workbench.action.openWalkthrough",
-			`saoudrizwan.${ExtensionRegistryInfo.name}#ClineWalkthrough`,
+			`fffalexgo.${ExtensionRegistryInfo.name}#BedrockCoderWalkthrough`,
 		)
 		return Empty.create({})
 	} catch (error) {

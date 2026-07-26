@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
+import { Empty } from "@shared/proto/bedrock_coder/common"
+import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/bedrock_coder/state"
 import type { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."

@@ -1,12 +1,12 @@
-import { after, describe, it } from "mocha"
 import * as fs from "fs/promises"
+import { after, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
 import { copyWorktreeIncludeFiles, hasWorktreeInclude } from "./worktree-include"
 
 describe("Worktree Include Utilities", () => {
-	const tmpDir = path.join(os.tmpdir(), "cline-worktree-test-" + Math.random().toString(36).slice(2))
+	const tmpDir = path.join(os.tmpdir(), "bedrock-coder-worktree-test-" + Math.random().toString(36).slice(2))
 	const sourceDir = path.join(tmpDir, "source")
 	const targetDir = path.join(tmpDir, "target")
 

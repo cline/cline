@@ -169,7 +169,7 @@ async function loadSkillMetadata(
 }
 
 /**
- * Discover skills from global (~/.cline/skills) and project directories.
+ * Discover skills from global (~/.bedrock-coder/skills) and project directories.
  *
  * Precedence (highest wins on name collision via getAvailableSkills):
  *   disk-global (user personal) > project (workspace)

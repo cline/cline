@@ -76,7 +76,7 @@ describe("plugin MCP server registration", () => {
 			},
 			env: {
 				MISSING_TOKEN: {
-					fromEnv: "CLINE_TEST_MISSING_PLUGIN_MCP_TOKEN",
+					fromEnv: "BEDROCK_CODER_TEST_MISSING_PLUGIN_MCP_TOKEN",
 					required: true,
 				},
 			},

@@ -1,4 +1,4 @@
-import { type ApiHandler, createBedrockClient, type ProviderConfig } from "@cline/llms"
+import { type ApiHandler, createBedrockClient, type ProviderConfig } from "@bedrock-coder/llms"
 import { type ApiConfiguration, BEDROCK_DEFAULT_MODEL_ID } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { buildBedrockProviderConfig } from "./bedrock-config"

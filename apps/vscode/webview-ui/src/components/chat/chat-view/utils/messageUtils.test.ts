@@ -1,36 +1,36 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { canRestoreWorkspaceFromMessage, filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
 
-const createTextMessage = (ts: number, text: string): ClineMessage => ({
+const createTextMessage = (ts: number, text: string): BedrockCoderMessage => ({
 	type: "say",
 	say: "text",
 	text,
 	ts,
 })
 
-const createToolMessage = (ts: number, tool: string): ClineMessage => ({
+const createToolMessage = (ts: number, tool: string): BedrockCoderMessage => ({
 	type: "say",
 	say: "tool",
 	text: JSON.stringify({ tool, path: "src/file.ts" }),
 	ts,
 })
 
-const createReasoningMessage = (ts: number, text: string): ClineMessage => ({
+const createReasoningMessage = (ts: number, text: string): BedrockCoderMessage => ({
 	type: "say",
 	say: "reasoning",
 	text,
 	ts,
 })
 
-const createUserFeedbackMessage = (ts: number, text: string): ClineMessage => ({
+const createUserFeedbackMessage = (ts: number, text: string): BedrockCoderMessage => ({
 	type: "say",
 	say: "user_feedback",
 	text,
 	ts,
 })
 
-const createTaskMessage = (ts: number, text: string): ClineMessage => ({
+const createTaskMessage = (ts: number, text: string): BedrockCoderMessage => ({
 	type: "say",
 	say: "task",
 	text,
@@ -42,7 +42,7 @@ const createAskMessage = (
 	ask: "followup" | "plan_mode_respond",
 	options: string[],
 	selected?: string,
-): ClineMessage => ({
+): BedrockCoderMessage => ({
 	type: "ask",
 	ask,
 	text: JSON.stringify(
@@ -83,7 +83,7 @@ describe("filterVisibleMessages", () => {
 
 	it("keeps exact option feedback when it includes attachments", () => {
 		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
-		const userMessage: ClineMessage = {
+		const userMessage: BedrockCoderMessage = {
 			...createUserFeedbackMessage(2, "Use this"),
 			images: ["data:image/png;base64,abc"],
 		}

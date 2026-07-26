@@ -8,8 +8,8 @@ import { createReadStream } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInterface } from "node:readline";
-import type { AgentToolContext } from "@cline/shared";
-import { resolveExistingFilePath } from "@cline/shared/storage";
+import type { AgentToolContext } from "@bedrock-coder/shared";
+import { resolveExistingFilePath } from "@bedrock-coder/shared/storage";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
 import {

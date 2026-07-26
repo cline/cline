@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import type React from "react"
 import { useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
@@ -11,9 +11,9 @@ import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
 interface MessageRendererProps {
 	index: number
-	messageOrGroup: ClineMessage | ClineMessage[]
-	groupedMessages: (ClineMessage | ClineMessage[])[]
-	modifiedMessages: ClineMessage[]
+	messageOrGroup: BedrockCoderMessage | BedrockCoderMessage[]
+	groupedMessages: (BedrockCoderMessage | BedrockCoderMessage[])[]
+	modifiedMessages: BedrockCoderMessage[]
 	expandedRows: Record<number, boolean>
 	onToggleExpand: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
 	onHeightChange: (isTaller: boolean) => void
@@ -133,8 +133,8 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
  * This allows us to encapsulate the rendering logic while maintaining performance
  */
 export const createMessageRenderer = (
-	groupedMessages: (ClineMessage | ClineMessage[])[],
-	modifiedMessages: ClineMessage[],
+	groupedMessages: (BedrockCoderMessage | BedrockCoderMessage[])[],
+	modifiedMessages: BedrockCoderMessage[],
 	expandedRows: Record<number, boolean>,
 	onToggleExpand: (ts: number, options?: { preserveAutoScroll?: boolean }) => void,
 	onHeightChange: (isTaller: boolean) => void,
@@ -144,7 +144,7 @@ export const createMessageRenderer = (
 	messageHandlers: MessageHandlers,
 	footerActive: boolean,
 ) => {
-	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
+	return (index: number, messageOrGroup: BedrockCoderMessage | BedrockCoderMessage[]) => (
 		<MessageRenderer
 			expandedRows={expandedRows}
 			footerActive={footerActive}

@@ -49,7 +49,7 @@ describe("VscodeTerminalManager", () => {
 
 	it("creates a fresh terminal after timing out an unconfirmed reused-terminal cwd change", async () => {
 		setVscodeHostProviderMock()
-		const targetCwd = "/tmp/cline-target"
+		const targetCwd = "/tmp/bedrock-coder-target"
 		const executeCommandStub = sandbox.stub().returns({
 			read: () => createNeverEndingStream(),
 		})
@@ -60,7 +60,7 @@ describe("VscodeTerminalManager", () => {
 			lastActive: Date.now(),
 			terminal: {
 				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
+					cwd: vscode.Uri.file("/tmp/bedrock-coder-original"),
 					executeCommand: executeCommandStub,
 				},
 				show: sandbox.stub(),
@@ -95,8 +95,8 @@ describe("VscodeTerminalManager", () => {
 	})
 
 	it("reuses a terminal after its cwd change is confirmed", async () => {
-		const targetCwd = "/tmp/cline-target"
-		let currentCwd = vscode.Uri.file("/tmp/cline-original")
+		const targetCwd = "/tmp/bedrock-coder-target"
+		let currentCwd = vscode.Uri.file("/tmp/bedrock-coder-original")
 		const terminalInfo: TerminalInfo = {
 			id: 1,
 			busy: false,
@@ -137,13 +137,13 @@ describe("VscodeTerminalManager", () => {
 			lastCommand: "",
 			lastActive: Date.now(),
 			terminal: {
-				shellIntegration: { cwd: vscode.Uri.file("/tmp/cline-original") },
+				shellIntegration: { cwd: vscode.Uri.file("/tmp/bedrock-coder-original") },
 				show: sandbox.stub().throws(new Error("terminal closed")),
 			} as unknown as vscode.Terminal,
 		}
 		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
 
-		await assert.rejects(manager.getOrCreateTerminal("/tmp/cline-target"), /terminal closed/)
+		await assert.rejects(manager.getOrCreateTerminal("/tmp/bedrock-coder-target"), /terminal closed/)
 
 		assert.equal(terminalInfo.busy, false)
 		assert.equal(terminalInfo.pendingCwdChange, undefined)
@@ -159,7 +159,7 @@ describe("VscodeTerminalManager", () => {
 			lastActive: Date.now(),
 			terminal: {
 				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
+					cwd: vscode.Uri.file("/tmp/bedrock-coder-original"),
 					executeCommand: () => {
 						throw new Error("cwd command failed")
 					},
@@ -169,7 +169,7 @@ describe("VscodeTerminalManager", () => {
 		}
 		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
 
-		const terminal = (await manager.getOrCreateTerminal("/tmp/cline-target")) as unknown as TerminalInfo
+		const terminal = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-target")) as unknown as TerminalInfo
 		try {
 			assert.notEqual(terminal, terminalInfo)
 			assert.equal(terminal.busy, true)
@@ -192,7 +192,7 @@ describe("VscodeTerminalManager", () => {
 			lastActive: Date.now(),
 			terminal: {
 				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
+					cwd: vscode.Uri.file("/tmp/bedrock-coder-original"),
 					executeCommand: () => ({ read: () => createFailingStream(new Error("cwd stream failed")) }),
 				},
 				show: sandbox.stub(),
@@ -200,7 +200,7 @@ describe("VscodeTerminalManager", () => {
 		}
 		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
 
-		const terminal = (await manager.getOrCreateTerminal("/tmp/cline-target")) as unknown as TerminalInfo
+		const terminal = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-target")) as unknown as TerminalInfo
 		try {
 			assert.notEqual(terminal, terminalInfo)
 			assert.equal(terminal.busy, true)
@@ -226,7 +226,7 @@ describe("VscodeTerminalManager", () => {
 					return exitStatus
 				},
 				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
+					cwd: vscode.Uri.file("/tmp/bedrock-coder-original"),
 					executeCommand: () => ({ read: createNeverEndingStream }),
 				},
 				show: sandbox.stub(),
@@ -234,7 +234,10 @@ describe("VscodeTerminalManager", () => {
 		}
 		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
 
-		const rejectedAcquisition = assert.rejects(manager.getOrCreateTerminal("/tmp/cline-target"), /exited while preparing/)
+		const rejectedAcquisition = assert.rejects(
+			manager.getOrCreateTerminal("/tmp/bedrock-coder-target"),
+			/exited while preparing/,
+		)
 		exitStatus = { code: undefined, reason: vscode.TerminalExitReason.Unknown }
 		await sandbox.clock.tickAsync(5000)
 		await rejectedAcquisition
@@ -246,8 +249,8 @@ describe("VscodeTerminalManager", () => {
 
 	it("reserves different terminals for parallel acquisitions", async () => {
 		setVscodeHostProviderMock()
-		const first = (await manager.getOrCreateTerminal("/tmp/cline-parallel")) as unknown as TerminalInfo
-		const second = (await manager.getOrCreateTerminal("/tmp/cline-parallel")) as unknown as TerminalInfo
+		const first = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-parallel")) as unknown as TerminalInfo
+		const second = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-parallel")) as unknown as TerminalInfo
 
 		try {
 			assert.notEqual(first.id, second.id)
@@ -288,9 +291,9 @@ describe("VscodeTerminalManager", () => {
 
 	it("does not reuse a terminal after its command stream fails", async () => {
 		setVscodeHostProviderMock()
-		const terminalInfo = TerminalRegistry.createTerminal("/tmp/cline-stream-error")
+		const terminalInfo = TerminalRegistry.createTerminal("/tmp/bedrock-coder-stream-error")
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => ({
-			cwd: vscode.Uri.file("/tmp/cline-stream-error"),
+			cwd: vscode.Uri.file("/tmp/bedrock-coder-stream-error"),
 			executeCommand: () => ({ read: () => createFailingStream(new Error("command stream failed")) }),
 		}))
 
@@ -300,7 +303,7 @@ describe("VscodeTerminalManager", () => {
 		)
 		await assert.rejects(process, /command stream failed/)
 
-		const nextTerminal = (await manager.getOrCreateTerminal("/tmp/cline-stream-error")) as unknown as TerminalInfo
+		const nextTerminal = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-stream-error")) as unknown as TerminalInfo
 		try {
 			assert.notEqual(nextTerminal.id, terminalInfo.id)
 			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined)
@@ -323,7 +326,9 @@ describe("VscodeTerminalManager", () => {
 		let didRestoreFailedDispose = false
 
 		try {
-			acquiredTerminal = (await manager.getOrCreateTerminal("/tmp/cline-after-cleanup-error")) as unknown as TerminalInfo
+			acquiredTerminal = (await manager.getOrCreateTerminal(
+				"/tmp/bedrock-coder-after-cleanup-error",
+			)) as unknown as TerminalInfo
 			assert.equal(successfulDispose.calledOnce, true)
 			assert.notEqual(acquiredTerminal.id, failedCleanup.id)
 
@@ -385,7 +390,7 @@ describe("VscodeTerminalManager", () => {
 			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined, "the terminal must be evicted from reuse")
 
 			nextManager = new VscodeTerminalManager()
-			nextTerminal = (await nextManager.getOrCreateTerminal("/tmp/cline-next-command")) as unknown as TerminalInfo
+			nextTerminal = (await nextManager.getOrCreateTerminal("/tmp/bedrock-coder-next-command")) as unknown as TerminalInfo
 			assert.equal(disposeSpy.calledOnce, true, "the next acquisition must reclaim the fallback terminal")
 		} finally {
 			nextManager?.disposeAll()
@@ -419,7 +424,7 @@ describe("VscodeTerminalManager", () => {
 			await sandbox.clock.tickAsync(3000)
 			await unobservedCommand
 
-			nextTerminal = (await manager.getOrCreateTerminal("/tmp/cline-next-command")) as unknown as TerminalInfo
+			nextTerminal = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-next-command")) as unknown as TerminalInfo
 			assert.equal(disposeSpy.called, false, "Proceed While Running transfers terminal ownership to the user")
 			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined, "detached terminals must not be reused")
 		} finally {
@@ -451,7 +456,7 @@ describe("VscodeTerminalManager", () => {
 			await sandbox.clock.tickAsync(3000)
 			await unobservedCommand
 
-			nextTerminal = (await manager.getOrCreateTerminal("/tmp/cline-next-command")) as unknown as TerminalInfo
+			nextTerminal = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-next-command")) as unknown as TerminalInfo
 			assert.equal(disposeSpy.called, false, "stopping the wait relinquishes cleanup ownership")
 			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined, "continued terminals must not be reused")
 		} finally {
@@ -485,7 +490,7 @@ describe("VscodeTerminalManager", () => {
 				source: "markerlessShellIntegration",
 				ownership: "managed",
 			})
-			nextTerminal = (await manager.getOrCreateTerminal("/tmp/cline-next-command")) as unknown as TerminalInfo
+			nextTerminal = (await manager.getOrCreateTerminal("/tmp/bedrock-coder-next-command")) as unknown as TerminalInfo
 			assert.equal(disposeSpy.called, false, "an SSH or nested-shell session remains user-owned")
 			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined, "markerless terminals must not be reused")
 		} finally {

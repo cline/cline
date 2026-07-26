@@ -1,4 +1,4 @@
-import type { MessageWithMetadata } from "@cline/shared";
+import type { MessageWithMetadata } from "@bedrock-coder/shared";
 import { describe, expect, it } from "vitest";
 import {
 	buildBudgetProjection,

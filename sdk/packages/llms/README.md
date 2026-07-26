@@ -1,6 +1,6 @@
-# @cline/llms
+# @bedrock-coder/llms
 
-AWS Bedrock inference for Cline agents.
+AWS Bedrock inference for BedrockCoder agents.
 
 The runtime accepts a Bedrock model ID plus:
 

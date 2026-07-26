@@ -1,4 +1,4 @@
-import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
+import { EditMessageAndRegenerateRequest } from "@shared/proto/bedrock_coder/task"
 import type React from "react"
 import { useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"

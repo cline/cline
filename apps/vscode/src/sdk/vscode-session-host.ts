@@ -1,14 +1,14 @@
-// VscodeSessionHost — wraps ClineCore with VSCode-specific customizations
+// VscodeSessionHost — wraps BedrockCoderCore with VSCode-specific customizations
 //
-// Uses ClineCore.create() so the SDK owns session input normalization,
+// Uses BedrockCoderCore.create() so the SDK owns session input normalization,
 // lifecycle bootstrapping, and host selection while the VSCode extension
 // still provides its custom McpHub-backed runtime builder.
 
 import {
 	type ApplyPatchExecutor,
-	ClineCore,
-	type ClineCoreListHistoryOptions,
-	type ClineCoreStartInput,
+	BedrockCoderCore,
+	type BedrockCoderCoreListHistoryOptions,
+	type BedrockCoderCoreStartInput,
 	type CoreSessionEvent,
 	type EditorExecutor,
 	type HookEventPayload,
@@ -27,8 +27,8 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 	type ToolExecutors,
-} from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+} from "@bedrock-coder/core"
+import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@bedrock-coder/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
@@ -67,9 +67,9 @@ export interface VscodeSessionHostOptions {
 
 export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
-	private readonly inner: ClineCore
+	private readonly inner: BedrockCoderCore
 
-	private constructor(inner: ClineCore) {
+	private constructor(inner: BedrockCoderCore) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
 	}
@@ -79,10 +79,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 	getTeamBoard(sessionId: string) {
 		return this.inner.getTeamBoard(sessionId)
 	}
-	createTeamTask(sessionId: string, input: Parameters<ClineCore["createTeamTask"]>[1]) {
+	createTeamTask(sessionId: string, input: Parameters<BedrockCoderCore["createTeamTask"]>[1]) {
 		return this.inner.createTeamTask(sessionId, input)
 	}
-	updateTeamTask(sessionId: string, input: Parameters<ClineCore["updateTeamTask"]>[1]) {
+	updateTeamTask(sessionId: string, input: Parameters<BedrockCoderCore["updateTeamTask"]>[1]) {
 		return this.inner.updateTeamTask(sessionId, input)
 	}
 	cancelTeamRun(sessionId: string, runId: string, reason?: string) {
@@ -111,7 +111,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
-		const inner = await ClineCore.create({
+		const inner = await BedrockCoderCore.create({
 			backendMode: "local",
 			capabilities: {
 				requestToolApproval: options.requestToolApproval as
@@ -121,7 +121,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			},
 			toolPolicies: options.toolPolicies,
 			prepare: async () => ({
-				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
+				applyToStartSessionInput: async (input: BedrockCoderCoreStartInput): Promise<BedrockCoderCoreStartInput> => {
 					const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 					const extraTools = await createVscodeExtraTools(options.mcpHub, {
 						cwd: input.config.cwd,
@@ -141,7 +141,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			}),
 		})
 
-		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
+		Logger.log("[VscodeSessionHost] Initialized with Bedrock CoderCore + VSCode extra tools")
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}
@@ -149,9 +149,9 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async start(input: StartSessionInput): Promise<StartSessionResult>
-	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
-	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
-		return this.inner.start(input as ClineCoreStartInput)
+	async start(input: BedrockCoderCoreStartInput): Promise<StartSessionResult>
+	async start(input: StartSessionInput | BedrockCoderCoreStartInput): Promise<StartSessionResult> {
+		return this.inner.start(input as BedrockCoderCoreStartInput)
 	}
 
 	async send(input: SendSessionInput) {
@@ -200,11 +200,11 @@ export class VscodeSessionHost implements SdkSessionHost {
 		return this.inner.get(sessionId)
 	}
 
-	async list(limit?: number, options: Omit<ClineCoreListHistoryOptions, "limit"> = {}): Promise<SessionHistoryRecord[]> {
+	async list(limit?: number, options: Omit<BedrockCoderCoreListHistoryOptions, "limit"> = {}): Promise<SessionHistoryRecord[]> {
 		return this.inner.list(limit, options)
 	}
 
-	async listHistory(options: ClineCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
+	async listHistory(options: BedrockCoderCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
 		return this.inner.listHistory(options)
 	}
 

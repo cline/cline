@@ -2,7 +2,7 @@ import {
 	type AgentMode,
 	type AgentResult,
 	formatUserInputBlock,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { TeamEvent } from "../../extensions/tools/team";
 import {
 	buildTeamProgressSummary,

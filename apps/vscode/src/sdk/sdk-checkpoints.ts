@@ -1,10 +1,10 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 
-export function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
+export function isVisibleCheckpointUserMessage(message: BedrockCoderMessage): boolean {
 	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
 }
 
-export function isCheckpointAnswerMessage(messages: ClineMessage[], index: number): boolean {
+export function isCheckpointAnswerMessage(messages: BedrockCoderMessage[], index: number): boolean {
 	const message = messages[index]
 	if (message?.type !== "say" || message.say !== "user_feedback") {
 		return false
@@ -26,11 +26,11 @@ export function isCheckpointAnswerMessage(messages: ClineMessage[], index: numbe
 	return false
 }
 
-export function isCheckpointRunUserMessage(messages: ClineMessage[], index: number): boolean {
+export function isCheckpointRunUserMessage(messages: BedrockCoderMessage[], index: number): boolean {
 	return isVisibleCheckpointUserMessage(messages[index]) && !isCheckpointAnswerMessage(messages, index)
 }
 
-export function getCheckpointRunCountForMessage(messages: ClineMessage[], targetIndex: number): number | undefined {
+export function getCheckpointRunCountForMessage(messages: BedrockCoderMessage[], targetIndex: number): number | undefined {
 	if (!isCheckpointRunUserMessage(messages, targetIndex)) {
 		return undefined
 	}
@@ -45,9 +45,9 @@ export function getCheckpointRunCountForMessage(messages: ClineMessage[], target
 }
 
 export function findVisibleCheckpointUserMessageByRun(
-	messages: ClineMessage[],
+	messages: BedrockCoderMessage[],
 	runCount: number,
-): { message: ClineMessage; index: number } | undefined {
+): { message: BedrockCoderMessage; index: number } | undefined {
 	let seenUsers = 0
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index]

@@ -5,9 +5,9 @@ import {
 	safeJsonParse,
 	type TeamRuntimeState,
 	type TeamTeammateSpec,
-} from "@cline/shared";
-import { loadSqliteDb, nowIso, type SqliteDb } from "@cline/shared/db";
-import { resolveDbDataDir } from "@cline/shared/storage";
+} from "@bedrock-coder/shared";
+import { loadSqliteDb, nowIso, type SqliteDb } from "@bedrock-coder/shared/db";
+import { resolveDbDataDir } from "@bedrock-coder/shared/storage";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { TeamStore } from "../../types/storage";
 
@@ -173,7 +173,7 @@ export class SqliteTeamStore implements TeamStore {
 		db.exec("PRAGMA journal_mode = WAL;");
 		db.exec("PRAGMA busy_timeout = 5000;");
 		// Single-row table so ALTER-based upgrades can run in order (baseline = 1).
-		// Session schemas use a separate migration path in @cline/shared.
+		// Session schemas use a separate migration path in @bedrock-coder/shared.
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_store_schema_version (
 				lock INTEGER PRIMARY KEY CHECK (lock = 1),

@@ -16,7 +16,7 @@ import {
 	type ToolApprovalResult,
 	type ToolPolicy,
 	zodToJsonSchema,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { z } from "zod";
 import {
 	createDelegatedAgent,

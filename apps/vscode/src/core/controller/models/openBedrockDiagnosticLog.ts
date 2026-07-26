@@ -1,6 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises"
 import { dirname } from "node:path"
-import { Empty, type EmptyRequest } from "@shared/proto/cline/common"
+import { Empty, type EmptyRequest } from "@shared/proto/bedrock_coder/common"
 import { HostProvider } from "@/hosts/host-provider"
 import type { Controller } from "../index"
 

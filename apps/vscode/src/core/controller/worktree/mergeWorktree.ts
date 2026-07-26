@@ -1,4 +1,4 @@
-import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
+import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/bedrock_coder/worktree"
 import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import { inspectWorktreeMutation } from "@utils/worktree-safety"

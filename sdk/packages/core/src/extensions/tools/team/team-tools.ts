@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import type { AgentResult } from "@cline/shared";
+import type { AgentResult } from "@bedrock-coder/shared";
 import {
 	type AgentConfig,
 	type AgentTool,
@@ -76,7 +76,7 @@ import {
 	type ToolApprovalResult,
 	validateWithZod,
 	zodToJsonSchema,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	buildDelegatedAgentConfig,
 	type DelegatedAgentConfigProvider,

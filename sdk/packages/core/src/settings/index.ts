@@ -3,7 +3,7 @@ export {
 	createCoreSettingsService,
 } from "./settings-service";
 export type {
-	ClineCoreSettingsApi,
+	BedrockCoderCoreSettingsApi,
 	CoreSettingsItem,
 	CoreSettingsItemKind,
 	CoreSettingsItemSource,

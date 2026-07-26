@@ -1,4 +1,4 @@
-import type { AgentExtension } from "@cline/shared";
+import type { AgentExtension } from "@bedrock-coder/shared";
 import type { SkillsExecutorWithMetadata } from "../tools";
 import {
 	type AvailableRuntimeCommand,

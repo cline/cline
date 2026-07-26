@@ -1,5 +1,5 @@
 import type { AgentRunState } from "@shared/ExtensionMessage"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
 import { CheckCircle2Icon, CircleXIcon, Clock3Icon, LoaderCircleIcon, TriangleAlertIcon } from "lucide-react"
 import { memo, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"

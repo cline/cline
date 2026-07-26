@@ -1,5 +1,5 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type { GatewayResolvedProviderConfig } from "@bedrock-coder/shared";
 import {
 	createBedrockTransport,
 	createBedrockCredentialProvider,

@@ -7,11 +7,11 @@
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
 		"paths": {
-			"@cline/agents": ["../agents/src/index.ts"],
-			"@cline/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
-			"@cline/llms": ["../llms/src/index.ts"],
-			"@cline/shared": ["../shared/src/index.ts"],
-			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+			"@bedrock-coder/agents": ["../agents/src/index.ts"],
+			"@bedrock-coder/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
+			"@bedrock-coder/llms": ["../llms/src/index.ts"],
+			"@bedrock-coder/shared": ["../shared/src/index.ts"],
+			"@bedrock-coder/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
 		}
 	},
 	"include": ["scripts/**/*", "src/**/*"]

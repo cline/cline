@@ -12,7 +12,7 @@ const badgeVariants = cva(
 				info: "border-transparent bg-button-background/80",
 				danger: "border-transparent bg-error-icon",
 				outline: "text-foreground border border-accent/20",
-				cline: "bg-cline border-cline",
+				bedrockCoder: "bg-bedrockCoder border-bedrockCoder",
 				success: "bg-success/80 border-success",
 				warning: "bg-warning/80 border-warning/50",
 			},

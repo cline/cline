@@ -4,9 +4,9 @@
 		"baseUrl": ".",
 		"rootDir": "..",
 		"paths": {
-			"@cline/agents": ["../agents/src/index.ts"],
-			"@cline/shared": ["../shared/src/index.ts"],
-			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+			"@bedrock-coder/agents": ["../agents/src/index.ts"],
+			"@bedrock-coder/shared": ["../shared/src/index.ts"],
+			"@bedrock-coder/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
 		}
 	}
 }

@@ -1,5 +1,5 @@
 import type { QueuedPrompt } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
 import { useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 

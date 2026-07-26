@@ -1,6 +1,6 @@
-import type { MessageWithMetadata } from "@cline/llms";
-import type { AgentResult } from "@cline/shared";
-import { formatModeSwitchNotice, formatUserInputBlock } from "@cline/shared";
+import type { MessageWithMetadata } from "@bedrock-coder/llms";
+import type { AgentResult } from "@bedrock-coder/shared";
+import { formatModeSwitchNotice, formatUserInputBlock } from "@bedrock-coder/shared";
 import { describe, expect, it } from "vitest";
 import {
 	deriveTitleFromPrompt,

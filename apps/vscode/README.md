@@ -1,4 +1,9 @@
-# AWS Bedrock startup
+# Bedrock Coder for VS Code
+
+Bedrock Coder is a local-first coding agent powered exclusively by Amazon
+Bedrock.
+
+## AWS Bedrock startup
 
 The VS Code extension validates its AWS connection on activation, discovers
 streaming text foundation models and inference profiles from the regional

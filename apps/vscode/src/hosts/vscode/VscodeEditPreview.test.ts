@@ -12,7 +12,7 @@ describe("VscodeEditPreview", () => {
 		const preview = new VscodeEditPreview()
 
 		await preview.open({
-			title: "example.ts: Original ↔ Cline's Changes (Preview)",
+			title: "example.ts: Original ↔ Bedrock Coder's Changes (Preview)",
 			absolutePath: "/workspace/example.ts",
 			displayPath: "example.ts",
 			leftContent: "before",
@@ -23,7 +23,7 @@ describe("VscodeEditPreview", () => {
 			"vscode.diff",
 			expect.any(vscode.Uri),
 			expect.any(vscode.Uri),
-			"example.ts: Original ↔ Cline's Changes (Preview)",
+			"example.ts: Original ↔ Bedrock Coder's Changes (Preview)",
 			{ preview: false, preserveFocus: true },
 		)
 

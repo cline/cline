@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
@@ -123,7 +123,7 @@ export class SdkTerminalExecutionModeCoordinator {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to restart session for terminal execution mode:", error)
 
-			const errorMessage: ClineMessage = {
+			const errorMessage: BedrockCoderMessage = {
 				ts: Date.now(),
 				type: "say",
 				say: "error",

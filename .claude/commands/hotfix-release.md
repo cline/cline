@@ -1,1 +1,0 @@
-../../.clinerules/workflows/hotfix-release.md

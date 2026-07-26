@@ -10,7 +10,7 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentTool,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildMessageModelInfo,

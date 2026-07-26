@@ -278,7 +278,7 @@ describe("File Search", () => {
 		})
 
 		it("should not duplicate a folder when the host returns it as both an explicit folder and a parent of a file", async () => {
-			// Repro for CLINE-2092 review feedback: with `selectedType=undefined`, the
+			// Repro for BEDROCK_CODER-2092 review feedback: with `selectedType=undefined`, the
 			// host-index path returned `src/` as an explicit folder *and* `src/main.ts`
 			// as a file, then the parent-walk re-added `src` as an inferred dir, so the
 			// picker showed `src` twice.

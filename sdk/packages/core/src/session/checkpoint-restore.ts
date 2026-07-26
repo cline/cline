@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
-import type * as LlmsProviders from "@cline/llms";
+import type * as LlmsProviders from "@bedrock-coder/llms";
 import type {
 	CheckpointEntry,
 	CheckpointMetadata,
@@ -362,7 +362,7 @@ async function writeAtomically(
 	content: Buffer,
 ): Promise<void> {
 	await validateParentPath(root, filePath, relativePath, true);
-	const temporaryPath = `${filePath}.cline-restore-${process.pid}-${Date.now()}`;
+	const temporaryPath = `${filePath}.bedrock-coder-restore-${process.pid}-${Date.now()}`;
 	await writeFile(temporaryPath, content);
 	await rename(temporaryPath, filePath).catch(async (error) => {
 		await rm(temporaryPath, { force: true }).catch(() => {});

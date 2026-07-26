@@ -1,4 +1,4 @@
-import { KeyValuePair, StringRequest } from "@shared/proto/cline/common"
+import { KeyValuePair, StringRequest } from "@shared/proto/bedrock_coder/common"
 import { Controller } from ".."
 
 /**

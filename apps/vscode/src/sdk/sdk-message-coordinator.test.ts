@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it, vi } from "vitest"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -33,7 +33,7 @@ describe("SdkMessageCoordinator", () => {
 
 		coordinator.appendMessages(messages)
 
-		expect(task.messageStateHandler.getClineMessages()).toEqual(messages)
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toEqual(messages)
 	})
 
 	it("appends and emits messages in order", () => {
@@ -47,7 +47,7 @@ describe("SdkMessageCoordinator", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: test-only event shape
 		coordinator.appendAndEmit(messages, event as any)
 
-		expect(task.messageStateHandler.getClineMessages()).toEqual(messages)
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toEqual(messages)
 		expect(listener).toHaveBeenCalledWith(messages, event)
 	})
 
@@ -71,8 +71,8 @@ describe("SdkMessageCoordinator", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkMessageCoordinator({ getTask: () => task, getMinter: () => minter })
 
-		const a: ClineMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "a", partial: true }
-		const b: ClineMessage = { ts: 2, type: "say" as const, say: "text" as const, text: "b", partial: false }
+		const a: BedrockCoderMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "a", partial: true }
+		const b: BedrockCoderMessage = { ts: 2, type: "say" as const, say: "text" as const, text: "b", partial: false }
 		coordinator.appendMessages([a, b])
 
 		// Both got the current epoch, and seq strictly increases in append order.
@@ -87,12 +87,12 @@ describe("SdkMessageCoordinator", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkMessageCoordinator({ getTask: () => task, getMinter: () => minter })
 
-		const partial: ClineMessage = { ts: 10, type: "say" as const, say: "text" as const, text: "Hel", partial: true }
+		const partial: BedrockCoderMessage = { ts: 10, type: "say" as const, say: "text" as const, text: "Hel", partial: true }
 		coordinator.appendMessages([partial])
 		const partialSeq = partial.seq ?? 0
 
 		// A new copy with the SAME ts (identity) passes through again on finalize.
-		const final: ClineMessage = { ts: 10, type: "say" as const, say: "text" as const, text: "Hello", partial: false }
+		const final: BedrockCoderMessage = { ts: 10, type: "say" as const, say: "text" as const, text: "Hello", partial: false }
 		coordinator.appendMessages([final])
 
 		expect((final.seq ?? 0) > partialSeq).toBe(true)
@@ -103,10 +103,10 @@ describe("SdkMessageCoordinator", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkMessageCoordinator({ getTask: () => task, getMinter: () => minter })
 
-		const before: ClineMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "before", partial: false }
+		const before: BedrockCoderMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "before", partial: false }
 		coordinator.appendMessages([before])
 		minter.bumpEpoch()
-		const after: ClineMessage = { ts: 2, type: "say" as const, say: "text" as const, text: "after", partial: false }
+		const after: BedrockCoderMessage = { ts: 2, type: "say" as const, say: "text" as const, text: "after", partial: false }
 		coordinator.appendMessages([after])
 
 		expect(before.epoch).toBe(0)
@@ -116,7 +116,7 @@ describe("SdkMessageCoordinator", () => {
 	it("leaves messages unstamped when no minter is wired (classic/legacy)", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkMessageCoordinator({ getTask: () => task })
-		const m: ClineMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "x", partial: false }
+		const m: BedrockCoderMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "x", partial: false }
 		coordinator.appendMessages([m])
 		expect(m.seq).toBeUndefined()
 		expect(m.epoch).toBeUndefined()

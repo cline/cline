@@ -8,16 +8,16 @@ import type {
 	AgentHooks,
 	AgentRunLifecycleContext,
 	AgentRuntimeEvent,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	augmentNodeCommandForDebug,
 	type BasicLogger,
 	type HookControl,
 	type HookSessionContext,
 	type WorkspaceInfo,
-	withResolvedClineBuildEnv,
-} from "@cline/shared";
-import { ensureHookLogDir } from "@cline/shared/storage";
+	withResolvedBedrockCoderBuildEnv,
+} from "@bedrock-coder/shared";
+import { ensureHookLogDir } from "@bedrock-coder/shared/storage";
 import { createAgentHooksExtension } from "./hook-extension";
 import { listHookConfigFiles } from "./hook-file-config";
 import type { HookEventName, HookEventPayload } from "./subprocess";
@@ -179,12 +179,12 @@ function createPayloadBase(
 	options: HookRuntimeOptions,
 ): Omit<HookEventPayload, "hookName"> {
 	const userId =
-		process.env.CLINE_USER_ID?.trim() || process.env.USER?.trim() || "unknown";
+		process.env.BEDROCK_CODER_USER_ID?.trim() || process.env.USER?.trim() || "unknown";
 	const sessionContext: HookSessionContext = {
 		rootSessionId: options.rootSessionId || ctx.conversationId,
 	};
 	return {
-		clineVersion: process.env.CLINE_VERSION?.trim() || "",
+		bedrockCoderVersion: process.env.BEDROCK_CODER_VERSION?.trim() || "",
 		timestamp: new Date().toISOString(),
 		taskId: ctx.conversationId,
 		sessionContext,
@@ -330,7 +330,7 @@ async function runHookCommandOnce(
 	});
 	const child = spawn(command[0], command.slice(1), {
 		cwd: options.cwd,
-		env: withResolvedClineBuildEnv(options.env),
+		env: withResolvedBedrockCoderBuildEnv(options.env),
 		stdio: options.detached
 			? ["pipe", "ignore", "ignore"]
 			: ["pipe", "pipe", "pipe"],
@@ -533,7 +533,7 @@ async function runBlockingHookCommands(options: {
 			const result = await runHookCommand(options.payload, {
 				command,
 				cwd: options.cwd,
-				env: withResolvedClineBuildEnv(process.env),
+				env: withResolvedBedrockCoderBuildEnv(process.env),
 				detached: false,
 				timeoutMs: options.timeoutMs,
 			});
@@ -571,7 +571,7 @@ function runAsyncHookCommands(options: {
 		void runHookCommand(options.payload, {
 			command,
 			cwd: options.cwd,
-			env: withResolvedClineBuildEnv(process.env),
+			env: withResolvedBedrockCoderBuildEnv(process.env),
 			detached: true,
 		}).catch((error) => {
 			logHookError(
@@ -679,7 +679,7 @@ export function createHookAuditHooks(options: {
 			ts: new Date().toISOString(),
 			...payload,
 		})}\n`;
-		const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
+		const envPath = process.env.BEDROCK_CODER_HOOKS_LOG_PATH?.trim() || undefined;
 		const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
 		ensureHookLogDir(logPath);
 		appendFileSync(logPath, line, "utf8");
@@ -998,7 +998,7 @@ export function createHookConfigFileHooks(
 		) {
 			hooks.beforeRun = async (ctx: AgentRunLifecycleContext) => {
 				const hookName =
-					process.env.CLINE_HOOK_AGENT_RESUME === "1"
+					process.env.BEDROCK_CODER_HOOK_AGENT_RESUME === "1"
 						? "agent_resume"
 						: "agent_start";
 				await runAgentStart(baseContextFromSnapshot(ctx.snapshot), hookName);

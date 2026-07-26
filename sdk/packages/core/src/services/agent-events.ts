@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@cline/shared";
+import type { AgentEvent } from "@bedrock-coder/shared";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";

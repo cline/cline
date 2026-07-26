@@ -2,9 +2,9 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
-import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, StringRequest } from "@shared/proto/bedrock_coder/common"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -39,7 +39,7 @@ interface ChatViewProps {
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 
-const sameUserMessage = (left: ClineMessage, right: ClineMessage) => {
+const sameUserMessage = (left: BedrockCoderMessage, right: BedrockCoderMessage) => {
 	const leftImages = left.images ?? []
 	const rightImages = right.images ?? []
 	const leftFiles = left.files ?? []
@@ -62,7 +62,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
 		version,
-		clineMessages: messages,
+		bedrockCoderMessages: messages,
 		taskHistory,
 		mode,
 		hooksEnabled,
@@ -111,7 +111,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
 	}, [messages, pendingUserMessage, setPendingUserMessage])
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see BedrockCoder.abort)
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = displayMessages.slice(1)
 		// Only combine hook sequences if hooks are enabled

@@ -9,34 +9,34 @@ This directory is the single documentation source for package-level responsibili
 
 | Package | Primary responsibility | Typical consumers | Internal deps |
 | --- | --- | --- | --- |
-| `@cline/shared` | Cross-package shared primitives (path resolution, session common types, indexing helpers) | `@cline/agents`, `@cline/core`, apps | None |
-| `@cline/llms` | AWS Bedrock model construction and streaming | `@cline/agents`, `@cline/core`, apps | `@cline/shared` |
-| `@cline/agents` | Stateless agent runtime loop (tools, hooks, extensions, teams, streaming) | `@cline/core`, apps | `@cline/llms`, `@cline/shared` |
-| `@cline/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, local and hub runtime services, hub discovery and client helpers) | VS Code extension | `@cline/agents`, `@cline/llms`, `@cline/shared` |
+| `@bedrock-coder/shared` | Cross-package shared primitives (path resolution, session common types, indexing helpers) | `@bedrock-coder/agents`, `@bedrock-coder/core`, apps | None |
+| `@bedrock-coder/llms` | AWS Bedrock model construction and streaming | `@bedrock-coder/agents`, `@bedrock-coder/core`, apps | `@bedrock-coder/shared` |
+| `@bedrock-coder/agents` | Stateless agent runtime loop (tools, hooks, extensions, teams, streaming) | `@bedrock-coder/core`, apps | `@bedrock-coder/llms`, `@bedrock-coder/shared` |
+| `@bedrock-coder/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, local and hub runtime services, hub discovery and client helpers) | VS Code extension | `@bedrock-coder/agents`, `@bedrock-coder/llms`, `@bedrock-coder/shared` |
 
 ## How Packages Work Together
 
-1. `@cline/llms` constructs the configured Bedrock model and streaming handler.
-2. `@cline/agents` runs the agent loop on top of those handlers and tool execution primitives.
-3. `@cline/core` composes runtime behavior with persistent sessions/storage and local or hub-backed runtime services.
-4. `@cline/core` hub services orchestrate scheduled runtime execution, execution history, and schedule command handling.
-5. `@cline/core/hub` exposes discovery, the detached hub daemon, and session-oriented client APIs (`HubSessionClient`, `HubUIClient`) when hosts need a shared daemon.
-6. `@cline/shared` provides the shared contracts and path/session primitives used across the stack.
+1. `@bedrock-coder/llms` constructs the configured Bedrock model and streaming handler.
+2. `@bedrock-coder/agents` runs the agent loop on top of those handlers and tool execution primitives.
+3. `@bedrock-coder/core` composes runtime behavior with persistent sessions/storage and local or hub-backed runtime services.
+4. `@bedrock-coder/core` hub services orchestrate scheduled runtime execution, execution history, and schedule command handling.
+5. `@bedrock-coder/core/hub` exposes discovery, the detached hub daemon, and session-oriented client APIs (`HubSessionClient`, `HubUIClient`) when hosts need a shared daemon.
+6. `@bedrock-coder/shared` provides the shared contracts and path/session primitives used across the stack.
 
 ## Practical Boundary Rules
 
-- Put Bedrock model configuration and handler wiring in `@cline/llms`.
-- Put loop/tool/hook/team execution behavior in `@cline/agents`.
-- Put persistence, session lifecycle, and runtime assembly in `@cline/core`.
-- Put scheduled execution and schedule persistence in `@cline/core` hub services.
-- Put hub discovery, attach flows, and session-oriented client adapters in `@cline/core/hub`.
-- Put cross-package utility types and path/session constants in `@cline/shared`.
+- Put Bedrock model configuration and handler wiring in `@bedrock-coder/llms`.
+- Put loop/tool/hook/team execution behavior in `@bedrock-coder/agents`.
+- Put persistence, session lifecycle, and runtime assembly in `@bedrock-coder/core`.
+- Put scheduled execution and schedule persistence in `@bedrock-coder/core` hub services.
+- Put hub discovery, attach flows, and session-oriented client adapters in `@bedrock-coder/core/hub`.
+- Put cross-package utility types and path/session constants in `@bedrock-coder/shared`.
 
 ## Runtime Entry Points
 
 - Node-oriented imports exist where packages expose a distinct Node alias.
-- `@cline/core` itself is now the Node/runtime-oriented entry point for host/session services.
-- Browser entry points still exist in packages that intentionally publish a browser surface, but `@cline/core` no longer does.
+- `@bedrock-coder/core` itself is now the Node/runtime-oriented entry point for host/session services.
+- Browser entry points still exist in packages that intentionally publish a browser surface, but `@bedrock-coder/core` no longer does.
 
 ## Notes for Doc Consolidation
 

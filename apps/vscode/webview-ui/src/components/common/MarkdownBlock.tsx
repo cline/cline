@@ -1,5 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/bedrock_coder/state"
 import { SquareArrowOutUpRightIcon } from "lucide-react"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
@@ -266,7 +266,7 @@ const remarkHighlightActMode = () => {
 /**
  * Custom remark plugin that prevents filenames with extensions from being parsed as bold text
  * For example: __init__.py should not be rendered as bold "init" followed by ".py"
- * Solves https://github.com/cline/cline/issues/1028
+ * Solves https://github.com/FFFalexgo/AWS_Bedrock_Coder/issues/1028
  */
 const remarkPreventBoldFilenames = () => {
 	return (tree: any) => {

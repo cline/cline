@@ -15,8 +15,8 @@ import {
 	createContextCompactionPrepareTurn,
 	createSessionCompactionState,
 	type SessionCompactionState,
-} from "@cline/core"
-import type { Message as SdkMessage, ModelInfo as SdkModelInfo } from "@cline/llms"
+} from "@bedrock-coder/core"
+import type { Message as SdkMessage, ModelInfo as SdkModelInfo } from "@bedrock-coder/llms"
 import { Logger } from "@/shared/services/Logger"
 
 // When the active model does not declare a context window, fall back to a
@@ -48,7 +48,7 @@ export interface CompactSessionMessagesResult {
  * Run a manual context compaction over the supplied messages.
  *
  * Returns `{ compacted: false }` (with the original messages) when there is
- * nothing to compact or the configured strategy declines to compact.
+ * nothing to compact or the configured strategy debedrockCoders to compact.
  */
 export async function compactSessionMessages(input: CompactSessionMessagesInput): Promise<CompactSessionMessagesResult> {
 	if (input.messages.length === 0) {
@@ -88,7 +88,7 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 	}
 
 	const result = await compact({
-		agentId: "cline-vscode",
+		agentId: "bedrock-coder-vscode",
 		conversationId: input.sessionId,
 		parentAgentId: null,
 		iteration: 0,

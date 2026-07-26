@@ -3,7 +3,7 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
-import { HookOutput } from "../../../shared/proto/cline/hooks"
+import { HookOutput } from "../../../shared/proto/bedrock_coder/hooks"
 import { HookFactory } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
@@ -32,7 +32,7 @@ describe("TaskComplete Hook", () => {
 
 	describe("Hook Input Format", () => {
 		it("should receive task metadata with result and command", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskComplete.taskMetadata;
@@ -65,7 +65,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle completion without command", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskComplete.taskMetadata;
@@ -98,10 +98,10 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasAllFields = input.clineVersion && input.hookName === 'TaskComplete' && 
+const hasAllFields = input.bedrockCoderVersion && input.hookName === 'TaskComplete' &&
                      input.timestamp && input.taskId && 
                      input.workspaceRoots !== undefined &&
                      input.model && input.model.provider && input.model.slug;
@@ -133,7 +133,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive result text for logging", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const result = input.taskComplete.taskMetadata.result;
@@ -167,7 +167,7 @@ console.log(JSON.stringify({
 
 	describe("Hook Behavior", () => {
 		it("should execute successfully and capture context modification", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -197,7 +197,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should capture contextModification for logging even though task is complete", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -228,7 +228,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should not block task completion when hook returns cancel: true", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,
@@ -262,7 +262,7 @@ console.log(JSON.stringify({
 
 	describe("Error Handling", () => {
 		it("should handle hook script errors", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 console.error("Hook execution error");
 process.exit(1);`
@@ -291,7 +291,7 @@ process.exit(1);`
 		})
 
 		it("should handle malformed JSON output from hook", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -327,7 +327,7 @@ console.log("not valid json")`
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
-			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
+			workspaceHooksDir = path.join(tempDir, ".bedrock-coder", "hooks")
 
 			// Use deterministic hook directories to avoid test flakiness.
 			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
@@ -345,7 +345,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -380,7 +380,7 @@ console.error("Global hook error");
 process.exit(1);`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskComplete")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskComplete")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,

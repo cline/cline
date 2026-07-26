@@ -1,5 +1,5 @@
-import type { TeamTaskStatus } from "@cline/shared"
-import { TeamTask, UpdateTeamTaskRequest } from "@shared/proto/cline/team"
+import type { TeamTaskStatus } from "@bedrock-coder/shared"
+import { TeamTask, UpdateTeamTaskRequest } from "@shared/proto/bedrock_coder/team"
 import { Controller } from ".."
 import { toTeamTaskProto } from "./team-conversions"
 import { validateTeamWorktreeAssignment } from "./validateTeamWorktreeAssignment"

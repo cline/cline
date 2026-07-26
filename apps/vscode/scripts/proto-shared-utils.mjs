@@ -15,7 +15,7 @@ export async function parseProtoForServices(protoFilePaths, protoDir) {
 		const serviceMatches = content.matchAll(/service\s+(\w+Service)\s*\{([\s\S]*?)\}/g)
 
 		// Determine proto package from file path
-		const protoPackage = protoFilePath.startsWith("host/") ? "host" : "cline"
+		const protoPackage = protoFilePath.startsWith("host/") ? "host" : "bedrock_coder"
 
 		for (const serviceMatch of serviceMatches) {
 			const serviceName = serviceMatch[1]
@@ -49,7 +49,7 @@ export async function parseProtoForServices(protoFilePaths, protoDir) {
 export function createServiceNameMap(services) {
 	const serviceNameMap = {}
 	for (const [serviceKey, serviceDef] of Object.entries(services)) {
-		const packagePrefix = serviceDef.protoPackage === "host" ? "host" : "cline"
+		const packagePrefix = serviceDef.protoPackage === "host" ? "host" : "bedrock_coder"
 		serviceNameMap[serviceKey] = `${packagePrefix}.${serviceDef.name}`
 	}
 	return serviceNameMap

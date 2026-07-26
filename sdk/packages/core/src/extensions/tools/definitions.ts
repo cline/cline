@@ -13,7 +13,7 @@ import {
 	type ShellKind,
 	validateWithZod,
 	zodToJsonSchema,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { CommandExitError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -787,7 +787,7 @@ export function createSubmitAndExitTool(
  *
  * @example
  * ```typescript
- * import { Agent, createDefaultTools } from "@cline/core"
+ * import { Agent, createDefaultTools } from "@bedrock-coder/core"
  * import * as fs from "fs/promises"
  * import { exec } from "child_process"
  *

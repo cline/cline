@@ -1,0 +1,322 @@
+syntax = "proto3";
+
+package bedrock_coder;
+
+import "bedrock_coder/common.proto";
+
+option go_package = "github.com/FFFalexgo/AWS_Bedrock_Coder/grpc-go/bedrock_coder";
+option java_multiple_files = true;
+option java_package = "com.fffalexgo.bedrock_coder.proto";
+
+// Enum for BedrockCoderMessage type
+enum BedrockCoderMessageType {
+  ASK = 0;
+  SAY = 1;
+}
+
+// Enum for BedrockCoderAsk types
+enum BedrockCoderAsk {
+  FOLLOWUP = 0;
+  PLAN_MODE_RESPOND = 1;
+  COMMAND = 2;
+  COMMAND_OUTPUT = 3;
+  COMPLETION_RESULT = 4;
+  TOOL = 5;
+  API_REQ_FAILED = 6;
+  RESUME_TASK = 7;
+  RESUME_COMPLETED_TASK = 8;
+  MISTAKE_LIMIT_REACHED = 9;
+  BROWSER_ACTION_LAUNCH = 10;
+  USE_MCP_SERVER = 11;
+  NEW_TASK = 12;
+  CONDENSE = 13;
+  REPORT_BUG = 14;
+  SUMMARIZE_TASK = 15;
+  ACT_MODE_RESPOND = 16;
+  USE_SUBAGENTS = 17;
+}
+
+// Enum for BedrockCoderSay types
+enum BedrockCoderSay {
+  TASK = 0;
+  ERROR = 1;
+  API_REQ_STARTED = 2;
+  API_REQ_FINISHED = 3;
+  TEXT = 4;
+  REASONING = 5;
+  COMPLETION_RESULT_SAY = 6;
+  USER_FEEDBACK = 7;
+  USER_FEEDBACK_DIFF = 8;
+  API_REQ_RETRIED = 9;
+  COMMAND_SAY = 10;
+  COMMAND_OUTPUT_SAY = 11;
+  TOOL_SAY = 12;
+  SHELL_INTEGRATION_WARNING = 13;
+  BROWSER_ACTION_LAUNCH_SAY = 14;
+  BROWSER_ACTION = 15;
+  BROWSER_ACTION_RESULT = 16;
+  MCP_SERVER_REQUEST_STARTED = 17;
+  MCP_SERVER_RESPONSE = 18;
+  MCP_NOTIFICATION = 19;
+  USE_MCP_SERVER_SAY = 20;
+  DIFF_ERROR = 21;
+  DELETED_API_REQS = 22;
+  BEDROCK_CODERIGNORE_ERROR = 23;
+  CHECKPOINT_CREATED = 24;
+  LOAD_MCP_DOCUMENTATION = 25;
+  INFO = 26;
+  TASK_PROGRESS = 27;
+  ERROR_RETRY = 28;
+  HOOK_STATUS = 30;
+  HOOK_OUTPUT_STREAM = 31;
+  COMMAND_PERMISSION_DENIED = 32;
+  CONDITIONAL_RULES_APPLIED = 33;
+  SUBAGENT_STATUS = 34;
+  USE_SUBAGENTS_SAY = 35;
+  SUBAGENT_USAGE = 36;
+  COMPACTION = 37;
+}
+
+// Enum for BedrockCoderSayTool tool types
+enum BedrockCoderSayToolType {
+  EDITED_EXISTING_FILE = 0;
+  NEW_FILE_CREATED = 1;
+  READ_FILE = 2;
+  LIST_FILES_TOP_LEVEL = 3;
+  LIST_FILES_RECURSIVE = 4;
+  LIST_CODE_DEFINITION_NAMES = 5;
+  SEARCH_FILES = 6;
+  WEB_FETCH = 7;
+  FILE_DELETED = 8;
+}
+
+// Enum for browser actions
+enum BrowserAction {
+  LAUNCH = 0;
+  CLICK = 1;
+  TYPE = 2;
+  SCROLL_DOWN = 3;
+  SCROLL_UP = 4;
+  CLOSE = 5;
+}
+
+// Enum for MCP server request types
+enum McpServerRequestType {
+  USE_MCP_TOOL = 0;
+  ACCESS_MCP_RESOURCE = 1;
+}
+
+// Enum for API request cancel reasons
+enum BedrockCoderApiReqCancelReason {
+  STREAMING_FAILED = 0;
+  USER_CANCELLED = 1;
+  RETRIES_EXHAUSTED = 2;
+}
+
+// Message for conversation history deleted range
+message ConversationHistoryDeletedRange {
+  int32 start_index = 1;
+  int32 end_index = 2;
+}
+
+// Message for BedrockCoderSayTool
+message BedrockCoderSayTool {
+  BedrockCoderSayToolType tool = 1;
+  string path = 2;
+  string diff = 3;
+  string content = 4;
+  string regex = 5;
+  string file_pattern = 6;
+  bool operation_is_located_in_workspace = 7;
+}
+
+// Message for BedrockCoderSayBrowserAction
+message BedrockCoderSayBrowserAction {
+  BrowserAction action = 1;
+  string coordinate = 2;
+  string text = 3;
+}
+
+// Message for BrowserActionResult
+message BrowserActionResult {
+  string screenshot = 1;
+  string logs = 2;
+  string current_url = 3;
+  string current_mouse_position = 4;
+}
+
+// Message for BedrockCoderAskUseMcpServer
+message BedrockCoderAskUseMcpServer {
+  string server_name = 1;
+  McpServerRequestType type = 2;
+  string tool_name = 3;
+  string arguments = 4;
+  string uri = 5;
+}
+
+// Message for BedrockCoderPlanModeResponse
+message BedrockCoderPlanModeResponse {
+  string response = 1;
+  repeated string options = 2;
+  string selected = 3;
+}
+
+// Message for BedrockCoderAskQuestion
+message BedrockCoderAskQuestion {
+  string question = 1;
+  repeated string options = 2;
+  string selected = 3;
+}
+
+// Message for BedrockCoderAskNewTask
+message BedrockCoderAskNewTask {
+  string context = 1;
+}
+
+// Message for API request retry status
+message ApiReqRetryStatus {
+  int32 attempt = 1;
+  int32 max_attempts = 2;
+  int32 delay_sec = 3;
+  string error_snippet = 4;
+}
+
+// Message for BedrockCoderApiReqInfo
+message BedrockCoderApiReqInfo {
+  string request = 1;
+  int32 tokens_in = 2;
+  int32 tokens_out = 3;
+  int32 cache_writes = 4;
+  int32 cache_reads = 5;
+  double cost = 6;
+  BedrockCoderApiReqCancelReason cancel_reason = 7;
+  string streaming_failed_message = 8;
+  ApiReqRetryStatus retry_status = 9;
+}
+
+message BedrockCoderModelInfo {
+  string provider_id = 1;
+  string model_id = 2;
+}
+
+// Main BedrockCoderMessage type
+message BedrockCoderMessage {
+  int64 ts = 1;
+  BedrockCoderMessageType type = 2;
+  BedrockCoderAsk ask = 3;
+  BedrockCoderSay say = 4;
+  string text = 5;
+  string reasoning = 6;
+  repeated string images = 7;
+  repeated string files = 8;
+  bool partial = 9;
+  string last_checkpoint_hash = 10;
+  bool is_checkpoint_checked_out = 11;
+  bool is_operation_outside_workspace = 12;
+  int32 conversation_history_index = 13;
+  ConversationHistoryDeletedRange conversation_history_deleted_range = 14;
+
+  // Additional fields for specific ask/say types
+  BedrockCoderSayTool say_tool = 15;
+  BedrockCoderSayBrowserAction say_browser_action = 16;
+  BrowserActionResult browser_action_result = 17;
+  BedrockCoderAskUseMcpServer ask_use_mcp_server = 18;
+  BedrockCoderPlanModeResponse plan_mode_response = 19;
+  BedrockCoderAskQuestion ask_question = 20;
+  BedrockCoderAskNewTask ask_new_task = 21;
+  BedrockCoderApiReqInfo api_req_info = 22;
+  BedrockCoderModelInfo model_info = 23;
+
+  // Convergent-replica fields (see webview-message-state-design.md):
+  // seq = monotonic freshness (higher seq wins for the same ts/identity)
+  // epoch = conversation/replica fence (older epoch is dropped by the webview)
+  int64 seq = 24;
+  int64 epoch = 25;
+  string tool_result_id = 26;
+  string tool_result_preview = 27;
+  bool tool_result_truncated = 28;
+  bool tool_result_is_error = 29;
+}
+
+message ToolResultRequest {
+  string id = 1;
+}
+
+message ToolResultResponse {
+  string id = 1;
+  string tool_name = 2;
+  string content = 3;
+  bool is_error = 4;
+  bool truncated = 5;
+  int64 created_at = 6;
+}
+
+message ShowWebviewEvent {
+  bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
+}
+
+message IntentEvent {
+  string action = 1;
+  string source = 2;
+  bool has_text = 3;
+  bool has_images = 4;
+  bool has_files = 5;
+  bool has_active_task = 6;
+  int32 text_length = 7;
+}
+
+// UiService provides methods for managing UI interactions
+service UiService {
+  // Scrolls to a specific settings section in the settings view
+  rpc scrollToSettings(StringRequest) returns (KeyValuePair);
+
+  // Sets the terminal execution mode (vscodeTerminal or backgroundExec)
+  rpc setTerminalExecutionMode(BooleanRequest) returns (KeyValuePair);
+
+  // Subscribe to addToInput events (when user adds content via context menu)
+  rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
+
+  // Subscribe to MCP button clicked events
+  rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to history button click events
+  rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
+  rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to settings button clicked events
+  rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to worktrees button clicked events
+  rpc subscribeToWorktreesButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to local Teams/Kanban button clicked events
+  rpc subscribeToTeamsButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to partial message updates (streaming BedrockCoder messages as they're built)
+  rpc subscribeToPartialMessage(EmptyRequest) returns (stream BedrockCoderMessage);
+
+  // Loads retained command/tool output only when the user explicitly expands it.
+  rpc getToolResult(ToolResultRequest) returns (ToolResultResponse);
+
+  // Initialize webview when it launches
+  rpc initializeWebview(EmptyRequest) returns (Empty);
+
+  // Subscribe to relinquish control events
+  rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to show webview events
+  rpc subscribeToShowWebview(EmptyRequest) returns (stream ShowWebviewEvent);
+
+  // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
+
+  // Opens a URL in the default browser
+  rpc openUrl(StringRequest) returns (Empty);
+
+  // Opens the BedrockCoder walkthrough
+  rpc openWalkthrough(EmptyRequest) returns (Empty);
+
+  // Tracks intent signals before task creation or first model activity
+  rpc trackIntent(IntentEvent) returns (Empty);
+}

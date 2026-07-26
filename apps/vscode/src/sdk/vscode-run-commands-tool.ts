@@ -19,9 +19,9 @@ import {
 	type ShellExecutor,
 	type StructuredCommandInput,
 	truncateCommandOutput,
-} from "@cline/core"
-import type { AgentTool } from "@cline/shared"
-import { ClineTempManager } from "@services/temp"
+} from "@bedrock-coder/core"
+import type { AgentTool } from "@bedrock-coder/shared"
+import { BedrockCoderTempManager } from "@services/temp"
 import * as fs from "fs"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
@@ -48,7 +48,7 @@ export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 /**
  * Cap on the "Proceed While Running" log file. A detached devserver can log
  * for days; once the cap is hit we stop appending and note the truncation.
- * ClineTempManager's periodic cleanup (age + total-size caps) is the backstop
+ * BedrockCoderTempManager's periodic cleanup (age + total-size caps) is the backstop
  * for the files themselves.
  */
 export const PROCEED_LOG_MAX_BYTES = 10 * 1024 * 1024
@@ -113,7 +113,7 @@ interface DetachedCommandLog {
 }
 
 function createDetachedCommandLog(terminalCommand: string, existingLines: string[]): DetachedCommandLog {
-	const logFilePath = ClineTempManager.createTempFilePath("proceed-while-running")
+	const logFilePath = BedrockCoderTempManager.createTempFilePath("proceed-while-running")
 	const stream = fs.createWriteStream(logFilePath, { flags: "a" })
 	const sizeCapMessage = `[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached; further output is not logged.]`
 	stream.on("error", (error) => {

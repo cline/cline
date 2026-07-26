@@ -3,7 +3,7 @@ import { buildEditPreviewAnimation, EditPreview, type EditPreviewContent } from 
 import { Logger } from "@/shared/services/Logger"
 import { DecorationController } from "./DecorationController"
 
-export const EDIT_PREVIEW_URI_SCHEME = "cline-edit-preview"
+export const EDIT_PREVIEW_URI_SCHEME = "bedrock-coder-edit-preview"
 
 /**
  * Hold at the top of the file — whole doc under the faded overlay, cursor parked on
@@ -18,7 +18,7 @@ const MAX_ANIMATED_LINES = 3_000
 
 /**
  * Serves the virtual documents backing edit-preview diff tabs. Mutable (unlike the
- * base64-query `cline-diff` provider) so the right side can be animated: setting new
+ * base64-query `bedrock-coder-diff` provider) so the right side can be animated: setting new
  * content fires onDidChange and VS Code re-renders the document in place.
  */
 class EditPreviewContentStore implements vscode.TextDocumentContentProvider {

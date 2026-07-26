@@ -251,7 +251,7 @@ async function performCommitMsgGeneration(
 	inputBox: GitRepositoryInputBox,
 ) {
 	try {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+		vscode.commands.executeCommand("setContext", "bedrockCoder.isGeneratingCommit", true)
 		const currentInput = inputBox.value?.trim() || ""
 		const gitContext = await getCommitMessageGitContext(repoPath)
 		const prompt = buildCommitMessageInput({
@@ -322,13 +322,13 @@ async function performCommitMsgGeneration(
 		})
 	} finally {
 		commitGenerationAbortController = undefined
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		vscode.commands.executeCommand("setContext", "bedrockCoder.isGeneratingCommit", false)
 	}
 }
 
 export function abortCommitGeneration() {
 	commitGenerationAbortController?.abort()
-	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	vscode.commands.executeCommand("setContext", "bedrockCoder.isGeneratingCommit", false)
 }
 
 /**

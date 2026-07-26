@@ -1,5 +1,5 @@
-import { EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
+import { EmptyRequest, StringArrayRequest } from "@shared/proto/bedrock_coder/common"
+import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/bedrock_coder/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"

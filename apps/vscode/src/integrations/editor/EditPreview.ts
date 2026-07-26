@@ -12,7 +12,7 @@ import { diffLines } from "diff"
  * One instance per preview; obtain instances via HostProvider.get().createEditPreview().
  */
 export interface EditPreviewContent {
-	/** Diff tab title, e.g. "utils.ts: Original ↔ Cline's Changes (Preview)". */
+	/** Diff tab title, e.g. "utils.ts: Original ↔ BedrockCoder's Changes (Preview)". */
 	title: string
 	/** Absolute path of the file being edited. */
 	absolutePath: string

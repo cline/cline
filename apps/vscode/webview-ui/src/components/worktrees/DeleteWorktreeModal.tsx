@@ -1,4 +1,4 @@
-import { InspectWorktreeMutationRequest, type WorktreeMutationInspection } from "@shared/proto/cline/worktree"
+import { InspectWorktreeMutationRequest, type WorktreeMutationInspection } from "@shared/proto/bedrock_coder/worktree"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"

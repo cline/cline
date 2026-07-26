@@ -25,10 +25,10 @@ export class TerminalRegistry {
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
-			name: "Cline",
-			iconPath: new vscode.ThemeIcon("cline-icon"),
+			name: "Bedrock Coder",
+			iconPath: new vscode.ThemeIcon("bedrock-coder-icon"),
 			env: {
-				CLINE_ACTIVE: "true",
+				BEDROCK_CODER_ACTIVE: "true",
 				// Override $SHELL to match the selected shell profile so that
 				// child processes (make, npm scripts, etc.) that read $SHELL
 				// see the correct value instead of the user's login shell.

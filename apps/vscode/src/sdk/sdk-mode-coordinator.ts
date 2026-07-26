@@ -1,6 +1,6 @@
-import { createModeSwitchNoticeTracker, type ModeSwitchNotice, type ModeSwitchNoticeTracker } from "@cline/shared"
+import { createModeSwitchNoticeTracker, type ModeSwitchNotice, type ModeSwitchNoticeTracker } from "@bedrock-coder/shared"
 import type { ChatContent } from "@shared/ChatContent"
-import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
@@ -57,7 +57,7 @@ export class SdkModeCoordinator {
 	/**
 	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
 	 * next outbound message by SdkSessionLifecycle.fireAndForgetSend. Shares the
-	 * CLI's round-trip-cancelling tracker (@cline/shared), scoped to the session
+	 * CLI's round-trip-cancelling tracker (@bedrock-coder/shared), scoped to the session
 	 * it was recorded for: unlike the CLI, the extension hops between tasks, and
 	 * a notice recorded while looking at task A must not leak onto a message
 	 * sent to task B (whose transcript never saw the "from" mode).
@@ -289,7 +289,7 @@ export class SdkModeCoordinator {
 				// leave an echoed-but-never-sent user message in the transcript.
 				const prompt = userPrompt ? await this.options.resolveContextMentions(userPrompt) : ACT_MODE_CONTINUATION_PROMPT
 				if (userPrompt || userImages?.length || userFiles?.length) {
-					const userMessage: ClineMessage = {
+					const userMessage: BedrockCoderMessage = {
 						ts: Date.now(),
 						type: "say",
 						say: "user_feedback",
@@ -335,7 +335,7 @@ export class SdkModeCoordinator {
 				this.options.sessions.setRunning(false)
 				this.options.onAutoContinueFailed()
 			}
-			const errorMessage: ClineMessage = {
+			const errorMessage: BedrockCoderMessage = {
 				ts: Date.now(),
 				type: "say",
 				say: "error",
@@ -368,7 +368,7 @@ export class SdkModeCoordinator {
 			return
 		}
 
-		const current = task.messageStateHandler.getClineMessages()
+		const current = task.messageStateHandler.getBedrockCoderMessages()
 		const finalized = this.options.messages.finalizeMessagesForSave(current)
 		this.options.messages.appendMessages(finalized)
 	}

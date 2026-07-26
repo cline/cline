@@ -1,4 +1,4 @@
-import type { ClineCompactionInfo, ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderCompactionInfo, BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { FoldVerticalIcon, LoaderCircleIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -13,14 +13,14 @@ function formatTokenCount(count: number): string {
 	return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
 }
 
-function parseCompactionInfo(text: string | undefined): ClineCompactionInfo | undefined {
+function parseCompactionInfo(text: string | undefined): BedrockCoderCompactionInfo | undefined {
 	if (!text) {
 		return undefined
 	}
 	try {
 		const parsed = JSON.parse(text)
 		if (parsed && typeof parsed === "object" && typeof parsed.status === "string") {
-			return parsed as ClineCompactionInfo
+			return parsed as BedrockCoderCompactionInfo
 		}
 	} catch {
 		// Fall through to undefined for malformed payloads.
@@ -29,7 +29,7 @@ function parseCompactionInfo(text: string | undefined): ClineCompactionInfo | un
 }
 
 /** Mirrors the CLI's formatCompactionDividerLabel wording for product consistency. */
-function formatCompactionLabel(info: ClineCompactionInfo): string {
+function formatCompactionLabel(info: BedrockCoderCompactionInfo): string {
 	if (info.status === "started") {
 		return info.mode === "manual" ? "Compacting context" : "Auto compacting context"
 	}
@@ -58,7 +58,7 @@ function formatCompactionLabel(info: ClineCompactionInfo): string {
  * compaction is running; the same message (same ts) is updated in place to
  * its terminal state when it finishes.
  */
-export const CompactionRow = ({ message }: { message: ClineMessage }) => {
+export const CompactionRow = ({ message }: { message: BedrockCoderMessage }) => {
 	const info = parseCompactionInfo(message.text)
 	if (!info) {
 		// Virtuoso cannot handle zero-height items; render a spacer instead of null.

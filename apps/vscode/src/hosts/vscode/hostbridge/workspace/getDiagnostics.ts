@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
-import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.bedrock_coder"
 import "@/utils/path" // for String.prototype.toPosix
 import { Logger } from "@/shared/services/Logger"
 

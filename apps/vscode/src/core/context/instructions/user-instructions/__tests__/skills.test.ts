@@ -73,7 +73,7 @@ describe("Skills Utility Functions", () => {
 
 	// Use path.join for OS-independent paths
 	const TEST_CWD = path.join("/test", "project")
-	const GLOBAL_SKILLS_DIR = path.join("/home", "user", ".cline", "skills")
+	const GLOBAL_SKILLS_DIR = path.join("/home", "user", ".bedrock-coder", "skills")
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -97,8 +97,8 @@ describe("Skills Utility Functions", () => {
 		readFileStub = readFileStub_
 
 		getSkillsDirectoriesForScanStub.returns([
-			{ path: path.join(TEST_CWD, ".clinerules", "skills"), source: "project" },
-			{ path: path.join(TEST_CWD, ".cline", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".bedrock-coder", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".bedrock-coder", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".agents", "skills"), source: "project" },
 			{ path: GLOBAL_SKILLS_DIR, source: "global" },
@@ -138,7 +138,7 @@ Instructions here`)
 			expect(skills[0].source).to.equal("global")
 		})
 
-		// Regression test for https://github.com/cline/cline/issues/12151:
+		// Regression test for https://github.com/FFFalexgo/AWS_Bedrock_Coder/issues/12151:
 		// SKILL.md files saved with a UTF-8 BOM (e.g. by Windows Notepad's "UTF-8 with BOM"
 		// encoding) were silently skipped because the frontmatter regex required "---" at the
 		// very start of the file and never accounted for the leading \uFEFF byte sequence.
@@ -166,8 +166,8 @@ This is a test skill.`)
 			expect(skills[0].source).to.equal("global")
 		})
 
-		it("should discover skills from project .clinerules/skills directory", async () => {
-			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+		it("should discover skills from project .bedrock-coder/skills directory", async () => {
+			const projectSkillsDir = path.join(TEST_CWD, ".bedrock-coder", "skills")
 			const skillDir = path.join(projectSkillsDir, "explaining-code")
 			const skillMdPath = path.join(skillDir, "SKILL.md")
 
@@ -189,15 +189,15 @@ Use analogies and ASCII diagrams when explaining code.`)
 			expect(skills[0].source).to.equal("project")
 		})
 
-		it("should discover skills from project .cline/skills directory", async () => {
-			const clineSkillsDir = path.join(TEST_CWD, ".cline", "skills")
-			const skillDir = path.join(clineSkillsDir, "debugging")
+		it("should discover skills from project .bedrock-coder/skills directory", async () => {
+			const bedrockCoderSkillsDir = path.join(TEST_CWD, ".bedrock-coder", "skills")
+			const skillDir = path.join(bedrockCoderSkillsDir, "debugging")
 			const skillMdPath = path.join(skillDir, "SKILL.md")
 
-			fileExistsStub.withArgs(clineSkillsDir).resolves(true)
+			fileExistsStub.withArgs(bedrockCoderSkillsDir).resolves(true)
 			fileExistsStub.withArgs(skillMdPath).resolves(true)
-			isDirectoryStub.withArgs(clineSkillsDir).resolves(true)
-			readdirStub.withArgs(clineSkillsDir).resolves(["debugging"])
+			isDirectoryStub.withArgs(bedrockCoderSkillsDir).resolves(true)
+			readdirStub.withArgs(bedrockCoderSkillsDir).resolves(["debugging"])
 			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
 			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
 name: debugging
@@ -325,7 +325,7 @@ description: Global coding skill
 Global instructions`)
 
 			// Setup project skill with same name (lower priority)
-			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+			const projectSkillsDir = path.join(TEST_CWD, ".bedrock-coder", "skills")
 			const projectSkillDir = path.join(projectSkillsDir, "coding")
 			const projectSkillMdPath = path.join(projectSkillDir, "SKILL.md")
 
@@ -365,7 +365,7 @@ description: A global skill
 Content`)
 
 			// Setup project skill with different name
-			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+			const projectSkillsDir = path.join(TEST_CWD, ".bedrock-coder", "skills")
 			const projectSkillDir = path.join(projectSkillsDir, "project-skill")
 			const projectSkillMdPath = path.join(projectSkillDir, "SKILL.md")
 
@@ -645,7 +645,7 @@ describe("setSkillDisabledInFrontmatter", () => {
 	afterEach(() => sandbox.restore())
 
 	it("writes disabled: true to the SKILL.md when disabling a disk skill", async () => {
-		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		const skillPath = path.join("/home", "user", ".bedrock-coder", "skills", "s", "SKILL.md")
 		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "description: d", "---", "Body"].join("\n"))
 
 		const ok = await setSkillDisabledInFrontmatter(skillPath, false)
@@ -656,7 +656,7 @@ describe("setSkillDisabledInFrontmatter", () => {
 		expect(written).to.contain("disabled: true")
 	})
 	it("skips the write when content is unchanged", async () => {
-		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		const skillPath = path.join("/home", "user", ".bedrock-coder", "skills", "s", "SKILL.md")
 		// Already disabled; disabling again yields identical content.
 		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "disabled: true", "---", "B"].join("\n"))
 

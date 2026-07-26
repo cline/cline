@@ -10,7 +10,7 @@ import {
 	listSessionHistoryFromBackend,
 } from "./history";
 
-const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+const originalSessionDataDir = process.env.BEDROCK_CODER_SESSION_DATA_DIR;
 
 let tempSessionDataDir = "";
 
@@ -48,7 +48,7 @@ function createBackendRow(
 		status: "completed",
 		statusLock: 0,
 		interactive: false,
-		provider: "cline",
+		provider: "bedrockCoder",
 		model: "anthropic/claude-sonnet-4.6",
 		cwd: "/tmp/workspace",
 		workspaceRoot: "/tmp/workspace",
@@ -83,7 +83,7 @@ async function writeManifest(
 		started_at: "2026-04-20T00:00:00.000Z",
 		status: "completed",
 		interactive: false,
-		provider: "cline",
+		provider: "bedrockCoder",
 		model: "anthropic/claude-sonnet-4.6",
 		cwd: "/tmp/workspace",
 		workspace_root: "/tmp/workspace",
@@ -105,7 +105,7 @@ async function writeMessagesFile(
 	messages: unknown[] = [{ role: "user", content: "hi" }],
 ): Promise<string> {
 	if (!tempSessionDataDir) {
-		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "bedrock-coder-core-history-"));
 	}
 	const path = join(tempSessionDataDir, filename);
 	await writeFile(
@@ -124,9 +124,9 @@ describe("session history", () => {
 			tempSessionDataDir = "";
 		}
 		if (originalSessionDataDir === undefined) {
-			delete process.env.CLINE_SESSION_DATA_DIR;
+			delete process.env.BEDROCK_CODER_SESSION_DATA_DIR;
 		} else {
-			process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
+			process.env.BEDROCK_CODER_SESSION_DATA_DIR = originalSessionDataDir;
 		}
 	});
 
@@ -135,7 +135,7 @@ describe("session history", () => {
 		const rows = await hydrateSessionHistory({ readSessionMessages }, [
 			createRow({
 				sessionId: "sess_1",
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 				prompt: "hello",
 				metadata: {
@@ -148,7 +148,7 @@ describe("session history", () => {
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_1",
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 				metadata: expect.objectContaining({
 					title: "hello",
@@ -169,7 +169,7 @@ describe("session history", () => {
 				role: "assistant",
 				content: [{ type: "text", text: "hi" }],
 				modelInfo: {
-					provider: "cline",
+					provider: "bedrockCoder",
 					id: "anthropic/claude-sonnet-4.6",
 				},
 				metrics: {
@@ -189,7 +189,7 @@ describe("session history", () => {
 		expect(readSessionMessages).toHaveBeenCalledWith("sess_2");
 		expect(row).toMatchObject({
 			sessionId: "sess_2",
-			provider: "cline",
+			provider: "bedrockCoder",
 			model: "anthropic/claude-sonnet-4.6",
 			metadata: {
 				title: "hello",
@@ -208,13 +208,13 @@ describe("session history", () => {
 				sessionId: "sess_3",
 				metadata: {
 					title: "hello",
-					provider: { id: "cline" },
+					provider: { id: "bedrockCoder" },
 					model: { id: "anthropic/claude-haiku-4.5" },
 				},
 			}),
 		]);
 
-		expect(row.provider).toBe("cline");
+		expect(row.provider).toBe("bedrockCoder");
 		expect(row.model).toBe("anthropic/claude-haiku-4.5");
 		expect(readSessionMessages).toHaveBeenCalledWith("sess_3");
 	});
@@ -268,7 +268,7 @@ describe("session history", () => {
 		const list = vi.fn().mockResolvedValue([
 			createRow({
 				sessionId: "sess_lightweight",
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 				metadata: { title: "stored title" },
 			}),
@@ -287,7 +287,7 @@ describe("session history", () => {
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_lightweight",
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 				metadata: expect.objectContaining({ title: "stored title" }),
 			}),
@@ -300,7 +300,7 @@ describe("session history", () => {
 				sessionId: "sess_legacy_idle",
 				status: "running",
 				interactive: true,
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 			}),
 		]);
@@ -332,7 +332,7 @@ describe("session history", () => {
 				sessionId: "sess_legacy_running",
 				status: "running",
 				interactive: true,
-				provider: "cline",
+				provider: "bedrockCoder",
 				model: "anthropic/claude-sonnet-4.6",
 			}),
 		]);
@@ -478,7 +478,7 @@ describe("session history", () => {
 	});
 
 	it("lists directly from a session backend without a runtime host", async () => {
-		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "bedrock-coder-core-history-"));
 		const messagesPath = join(tempSessionDataDir, "messages.json");
 		await writeFile(
 			messagesPath,
@@ -510,8 +510,8 @@ describe("session history", () => {
 	});
 
 	it("merges manifest fallback rows when the backend list is short", async () => {
-		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
-		process.env.CLINE_SESSION_DATA_DIR = tempSessionDataDir;
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "bedrock-coder-core-history-"));
+		process.env.BEDROCK_CODER_SESSION_DATA_DIR = tempSessionDataDir;
 		const manifestMessagesPath = join(
 			tempSessionDataDir,
 			"manifest.messages.json",
@@ -534,7 +534,7 @@ describe("session history", () => {
 			session_id: "sess_1800000000000",
 			started_at: "2026-04-20T00:00:00.000Z",
 			source: "cli",
-			provider: "cline",
+			provider: "bedrockCoder",
 			model: "anthropic/claude-sonnet-4.6",
 			cwd: "/tmp/workspace",
 			workspace_root: "/tmp/workspace",
@@ -549,7 +549,7 @@ describe("session history", () => {
 			session_id: "sess_1700000000000",
 			started_at: "2026-04-19T00:00:00.000Z",
 			source: "cli",
-			provider: "cline",
+			provider: "bedrockCoder",
 			model: "anthropic/claude-haiku-4.5",
 			cwd: "/tmp/workspace",
 			workspace_root: "/tmp/workspace",
@@ -566,7 +566,7 @@ describe("session history", () => {
 					createRow({
 						sessionId: "sess_backend",
 						startedAt: "2026-04-21T00:00:00.000Z",
-						provider: "cline",
+						provider: "bedrockCoder",
 						model: "anthropic/claude-opus-4.1",
 						metadata: {
 							title: "backend title",
@@ -588,7 +588,7 @@ describe("session history", () => {
 			"sess_1700000000000",
 		]);
 		expect(rows[1]).toMatchObject({
-			provider: "cline",
+			provider: "bedrockCoder",
 			model: "anthropic/claude-sonnet-4.6",
 			prompt: "manifest prompt",
 			metadata: {

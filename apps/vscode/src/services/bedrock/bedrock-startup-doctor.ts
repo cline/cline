@@ -7,7 +7,7 @@ import {
 	createBedrockTransport,
 	type ToolDefinition,
 	validateBedrockConnection,
-} from "@cline/llms"
+} from "@bedrock-coder/llms"
 import type { BedrockTarget } from "@shared/bedrock-startup"
 import { type BedrockDiscoveryResult, BedrockDiscoveryService } from "./bedrock-discovery"
 

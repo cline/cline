@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises"
 import { isAbsolute, join, resolve } from "node:path"
-import type { BedrockConnection } from "@cline/llms"
+import type { BedrockConnection } from "@bedrock-coder/llms"
 import { BEDROCK_DEFAULT_MODEL_ID } from "@shared/api"
 import {
 	type BedrockDoctorError,

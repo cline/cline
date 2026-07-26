@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, AgentTool } from "@cline/shared";
-import { resolveGlobalSettingsPath } from "@cline/shared/storage";
+import type { AgentConfig, AgentTool } from "@bedrock-coder/shared";
+import { resolveGlobalSettingsPath } from "@bedrock-coder/shared/storage";
 import { z } from "zod";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];

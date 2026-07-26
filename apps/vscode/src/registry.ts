@@ -1,14 +1,14 @@
 import { name, publisher, version } from "../package.json"
 
-const prefix = name === "claude-dev" ? "cline" : name
+const prefix = name === "bedrock-coder" ? "bedrockCoder" : name
 
 /**
  * List of commands with the name of the extension they are registered under.
  * These should match the command IDs defined in package.json.
  * For Nightly build, the publish script has updated all the commands to use the extension name as prefix.
- * In production, all commands are registered under "cline" for consistency.
+ * In production, all commands are registered under "bedrockCoder" for consistency.
  */
-const ClineCommands = {
+const BedrockCoderCommands = {
 	PlusButton: prefix + ".plusButtonClicked",
 	McpButton: prefix + ".mcpButtonClicked",
 	SettingsButton: prefix + ".settingsButtonClicked",
@@ -17,7 +17,7 @@ const ClineCommands = {
 	TeamsButton: prefix + ".teamsButtonClicked",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
 	AddToChat: prefix + ".addToChat",
-	FixWithCline: prefix + ".fixWithCline",
+	FixWithBedrockCoder: prefix + ".fixWithBedrockCoder",
 	ExplainCode: prefix + ".explainCode",
 	ImproveCode: prefix + ".improveCode",
 	FocusChatInput: prefix + ".focusChatInput",
@@ -33,7 +33,7 @@ const ClineCommands = {
  * IDs for the views registered by the extension.
  * These should match the name + view IDs defined in package.json.
  */
-const ClineViewIds = {
+const BedrockCoderViewIds = {
 	Sidebar: name + ".SidebarProvider",
 }
 
@@ -46,6 +46,6 @@ export const ExtensionRegistryInfo = {
 	name,
 	version,
 	publisher,
-	commands: ClineCommands,
-	views: ClineViewIds,
+	commands: BedrockCoderCommands,
+	views: BedrockCoderViewIds,
 }

@@ -1,5 +1,5 @@
-import { type CoreSettingsItem, createCoreSettingsService } from "@cline/core"
-import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
+import { type CoreSettingsItem, createCoreSettingsService } from "@bedrock-coder/core"
+import { RefreshedSkills, SkillInfo } from "@shared/proto/bedrock_coder/file"
 import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from ".."
 

@@ -1,6 +1,6 @@
 import { synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import { BedrockCoderRulesToggles } from "@shared/bedrock-coder-rules"
 import path from "path"
 import { Controller } from "@/core/controller"
 
@@ -11,13 +11,13 @@ export async function refreshWorkflowToggles(
 	controller: Controller,
 	workingDirectory: string,
 ): Promise<{
-	globalWorkflowToggles: ClineRulesToggles
-	localWorkflowToggles: ClineRulesToggles
+	globalWorkflowToggles: BedrockCoderRulesToggles
+	localWorkflowToggles: BedrockCoderRulesToggles
 }> {
 	// Global workflows
 	const globalWorkflowToggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
-	const globalClineWorkflowsFilePath = await ensureWorkflowsDirectoryExists()
-	const updatedGlobalWorkflowToggles = await synchronizeRuleToggles(globalClineWorkflowsFilePath, globalWorkflowToggles)
+	const globalBedrockCoderWorkflowsFilePath = await ensureWorkflowsDirectoryExists()
+	const updatedGlobalWorkflowToggles = await synchronizeRuleToggles(globalBedrockCoderWorkflowsFilePath, globalWorkflowToggles)
 	controller.stateManager.setGlobalState("globalWorkflowToggles", updatedGlobalWorkflowToggles)
 
 	const workflowRulesToggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")

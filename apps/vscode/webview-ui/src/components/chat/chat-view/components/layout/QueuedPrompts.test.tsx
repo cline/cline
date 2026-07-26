@@ -11,7 +11,7 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
-vi.mock("@shared/proto/cline/common", () => ({
+vi.mock("@shared/proto/bedrock_coder/common", () => ({
 	StringRequest: {
 		create: (request: unknown) => request,
 	},

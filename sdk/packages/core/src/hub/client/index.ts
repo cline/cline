@@ -6,9 +6,9 @@ import {
 	type HubReplyEnvelope,
 	type HubTransportFrame,
 	isHubProtocolCompatible,
-	resolveClineBuildEnv,
+	resolveBedrockCoderBuildEnv,
 	resolveHubCommandTimeoutMs,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -36,7 +36,7 @@ type SubscriptionEntry = {
 };
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
-	return resolveClineBuildEnv() === "production"
+	return resolveBedrockCoderBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
 }
@@ -182,7 +182,7 @@ const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
 const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
-const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
+const HUB_AUTH_PROTOCOL_PREFIX = "bedrock-coder-hub-auth.";
 const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
 const RECOVERABLE_LOCAL_HUB_URLS = new Set<string>();
 const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 3_000;
@@ -521,7 +521,7 @@ export class NodeHubClient {
 								new HubCommandError(
 									command,
 									"hub_command_timeout",
-									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run 'cline doctor fix' to restart the hub.`,
+									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run 'bedrockCoder doctor fix' to restart the hub.`,
 								),
 							);
 						}, effectiveTimeoutMs);

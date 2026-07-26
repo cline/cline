@@ -50,7 +50,7 @@ function isWithin(parent: string, child: string): boolean {
 export function getManagedWorktreeRoot(repositoryRoot: string): string {
 	const digest = createHash("sha256").update(normalizeForComparison(repositoryRoot)).digest("hex").slice(0, 10)
 	const repoName = path.basename(repositoryRoot).replace(/[^a-zA-Z0-9._-]+/g, "-") || "repository"
-	return path.join(homedir(), ".cline", "data", "worktrees", `${repoName}-${digest}`)
+	return path.join(homedir(), ".bedrock-coder", "data", "worktrees", `${repoName}-${digest}`)
 }
 
 export async function inspectWorktreeMutation(
@@ -157,7 +157,7 @@ export async function inspectWorktreeMutation(
 		return {
 			...base,
 			allowed: false,
-			reason: `Only recognized worktrees under ${managedRoot} are managed by Cline`,
+			reason: `Only recognized worktrees under ${managedRoot} are managed by Bedrock Coder`,
 			gitOperation,
 		}
 	}

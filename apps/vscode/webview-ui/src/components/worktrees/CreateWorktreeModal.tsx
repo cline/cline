@@ -1,10 +1,10 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
 import {
 	CreateWorktreeRequest,
 	InspectWorktreeMutationRequest,
 	SwitchWorktreeRequest,
 	type WorktreeMutationInspection,
-} from "@shared/proto/cline/worktree"
+} from "@shared/proto/bedrock_coder/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircle, AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
@@ -173,7 +173,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 							No .worktreeinclude detected.{" "}
 							<a
 								className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
-								href="https://docs.cline.bot/features/worktrees#worktreeinclude"
+								href="https://github.com/FFFalexgo/AWS_Bedrock_Coder#readme"
 								rel="noopener noreferrer"
 								style={{ fontSize: "inherit" }}
 								target="_blank">

@@ -1,4 +1,4 @@
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentToolContext } from "@bedrock-coder/shared";
 
 export interface McpToolDescriptor {
 	name: string;

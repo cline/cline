@@ -50,7 +50,7 @@ describe("SharedUriHandler", () => {
 	describe("handleUri", () => {
 		describe("Unknown path handling", () => {
 			it("should return false for unknown paths", async () => {
-				const result = await SharedUriHandler.handleUri("vscode://cline.cline/unknown?param=value")
+				const result = await SharedUriHandler.handleUri("vscode://bedrockCoder.bedrock-coder/unknown?param=value")
 
 				expect(result).to.be.false
 			})
@@ -73,7 +73,7 @@ describe("SharedUriHandler", () => {
 					writeHooksStub.resolves()
 
 					const result = await SharedUriHandler.handleUri(
-						`vscode://cline.cline/lg-task?prompt-file=${encodeURIComponent(
+						`vscode://bedrockCoder.bedrock-coder/lg-task?prompt-file=${encodeURIComponent(
 							promptFilePath,
 						)}&webhook-url=${encodeURIComponent(webhookUrl)}&webhook-token=${encodeURIComponent(webhookToken)}`,
 					)
@@ -99,7 +99,7 @@ describe("SharedUriHandler", () => {
 				writeHooksStub.reset()
 				writeHooksStub.resolves()
 				const result = await SharedUriHandler.handleUri(
-					"vscode://cline.cline/lg-task?prompt-file=%2Ftmp%2Fspec.md&webhook-url=https%3A%2F%2Fexample.com",
+					"vscode://bedrockCoder.bedrock-coder/lg-task?prompt-file=%2Ftmp%2Fspec.md&webhook-url=https%3A%2F%2Fexample.com",
 				)
 
 				expect(result).to.be.false

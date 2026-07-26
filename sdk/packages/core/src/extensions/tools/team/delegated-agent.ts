@@ -7,7 +7,7 @@ import type {
 	HookErrorMode,
 	ToolApprovalRequest,
 	ToolApprovalResult,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
 import {
 	buildSubAgentSystemPrompt,
@@ -33,8 +33,8 @@ export interface DelegatedAgentRuntimeConfig
 	extends DelegatedAgentConnectionConfig {
 	cwd?: string;
 	providerId: "bedrock";
-	clinePlatform?: string;
-	clineIdeName?: string;
+	bedrockCoderPlatform?: string;
+	bedrockCoderIdeName?: string;
 	maxIterations?: number;
 	hooks?: AgentHooks;
 	extensions?: AgentExtension[];

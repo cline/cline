@@ -4,7 +4,7 @@ import type {
 	TeamProgressLifecycleEvent,
 	TeamProgressSummary,
 	TeamRuntimeState,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { TeamEvent } from "./multi-agent";
 
 function toIsoNow(): string {

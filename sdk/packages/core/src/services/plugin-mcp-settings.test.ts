@@ -28,7 +28,7 @@ describe("plugin MCP settings sync", () => {
 		const root = await mkdtemp(join(tmpdir(), "core-plugin-mcp-settings-"));
 		tempRoots.push(root);
 		const pluginPath = join(root, "plugin.mjs");
-		const settingsPath = join(root, "cline_mcp_settings.json");
+		const settingsPath = join(root, "mcp_settings.json");
 		await writeFile(pluginPath, source, "utf8");
 		return { root, pluginPath, settingsPath };
 	}
@@ -444,7 +444,7 @@ export default {
 `);
 		const blockedDirectory = join(root, "not-a-directory");
 		await writeFile(blockedDirectory, "file", "utf8");
-		const settingsPath = join(blockedDirectory, "cline_mcp_settings.json");
+		const settingsPath = join(blockedDirectory, "mcp_settings.json");
 
 		const result = await syncPluginMcpServersToSettings({
 			pluginPaths: [pluginPath],

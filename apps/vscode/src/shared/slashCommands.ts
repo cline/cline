@@ -26,13 +26,13 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{
 		name: "newrule",
-		description: "Create a new Cline rule based on your conversation",
+		description: "Create a new Bedrock Coder rule based on your conversation",
 		section: "default",
 		cliCompatible: true,
 	},
 	{
 		name: "reportbug",
-		description: "Create a Github issue with Cline",
+		description: "Create a Github issue with Bedrock Coder",
 		section: "default",
 		cliCompatible: true,
 	},

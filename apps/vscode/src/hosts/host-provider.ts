@@ -24,7 +24,7 @@ export class HostProvider {
 	// Logs to a user-visible output channel.
 	logToChannel: LogToChannel
 
-	// Returns a callback URL that will redirect to Cline.
+	// Returns a callback URL that will redirect to BedrockCoder.
 	// The path parameter specifies the callback route.
 	// The optional preferredPort parameter hints that the provider should try to bind
 	// this specific port first (used to preserve OAuth client registrations across sessions).

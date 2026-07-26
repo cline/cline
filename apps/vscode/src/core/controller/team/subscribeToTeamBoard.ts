@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { TeamBoard } from "@shared/proto/cline/team"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
+import { TeamBoard } from "@shared/proto/bedrock_coder/team"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"

@@ -9,7 +9,7 @@
 
 param(
     [string]$Workspace = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-    [string]$Environment = $(if ($env:CLINE_ENVIRONMENT) { $env:CLINE_ENVIRONMENT } else { "production" })
+    [string]$Environment = $(if ($env:BEDROCK_CODER_ENVIRONMENT) { $env:BEDROCK_CODER_ENVIRONMENT } else { "production" })
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,7 +19,7 @@ Set-Location $Workspace
 # Export env vars for this process and any child processes it spawns.
 $env:IS_DEV = "true"
 $env:DEV_WORKSPACE_FOLDER = $Workspace
-$env:CLINE_ENVIRONMENT = $Environment
+$env:BEDROCK_CODER_ENVIRONMENT = $Environment
 
 $envFile = Join-Path $Workspace ".env"
 if (Test-Path $envFile) {
@@ -44,7 +44,7 @@ if ($LASTEXITCODE -ne 0) { Write-Error "Webview build failed"; exit 1 }
 
 # Step 3: Kill any windows left over from a previous run of this script.
 Get-Process -Name "powershell", "pwsh" -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowTitle -like "cline-dev:*" } |
+    Where-Object { $_.MainWindowTitle -like "bedrock-coder-dev:*" } |
     Stop-Process -Force -ErrorAction SilentlyContinue
 
 # Step 4: Launch each watcher in its own window (tmux-pane equivalent).
@@ -55,7 +55,7 @@ function Start-WatcherWindow {
     $psi = Start-Process -FilePath "powershell.exe" -ArgumentList @(
         "-NoExit",
         "-Command",
-        "`$Host.UI.RawUI.WindowTitle = 'cline-dev: $Title'; Set-Location '$Workspace'; $Command"
+        "`$Host.UI.RawUI.WindowTitle = 'bedrock-coder-dev: $Title'; Set-Location '$Workspace'; $Command"
     ) -PassThru
     return $psi
 }
@@ -76,8 +76,8 @@ while (-not (Test-Path $extensionJs)) {
 Write-Host "Launching Extension Host..."
 code --extensionDevelopmentPath="$Workspace" `
     --disable-workspace-trust `
-    --disable-extension saoudrizwan.claude-dev `
-    --disable-extension saoudrizwan.cline-nightly `
+    --disable-extension fffalexgo.bedrock-coder `
+    --disable-extension fffalexgo.bedrock-coder-nightly `
     "$Workspace"
 Write-Host "Extension Host launched."
 

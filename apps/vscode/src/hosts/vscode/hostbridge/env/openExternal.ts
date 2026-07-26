@@ -1,4 +1,4 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, StringRequest } from "@shared/proto/bedrock_coder/common"
 import * as vscode from "vscode"
 
 export async function openExternal(request: StringRequest): Promise<Empty> {

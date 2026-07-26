@@ -1,4 +1,4 @@
-import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
+import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.bedrock_coder"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
 import { PlatformType } from "@/config/platform.config"
@@ -106,7 +106,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 								<VSCodeOption value="backgroundExec">Background Exec</VSCodeOption>
 							</VSCodeDropdown>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-								Choose whether Cline runs commands in the VS Code terminal or a background process.
+								Choose whether Bedrock Coder runs commands in the VS Code terminal or a background process.
 							</p>
 						</div>
 					)}
@@ -130,8 +130,8 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 									)}
 								</div>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
-									Set how long Cline waits for shell integration to activate before executing commands. Increase
-									this value if you experience terminal connection timeouts.
+									Set how long Bedrock Coder waits for shell integration to activate before executing commands.
+									Increase this value if you experience terminal connection timeouts.
 								</p>
 							</div>
 
@@ -144,8 +144,9 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 									</VSCodeCheckbox>
 								</div>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
-									When enabled, Cline will reuse existing terminal windows that aren't in the current working
-									directory. Disable this if you experience issues with task lockout after a terminal command.
+									When enabled, Bedrock Coder will reuse existing terminal windows that aren't in the current
+									working directory. Disable this if you experience issues with task lockout after a terminal
+									command.
 								</p>
 							</div>
 						</>
@@ -168,7 +169,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 							))}
 						</VSCodeDropdown>
 						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+							Select the default terminal Bedrock Coder will use. 'Default' uses your VSCode global setting.
 						</p>
 					</div>
 					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
@@ -176,7 +177,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 							<strong>Having terminal issues?</strong> Check our{" "}
 							<a
 								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
-								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
+								href="https://github.com/FFFalexgo/AWS_Bedrock_Coder#readme"
 								rel="noopener noreferrer"
 								target="_blank">
 								Terminal Quick Fixes
@@ -184,7 +185,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 							or the{" "}
 							<a
 								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
-								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
+								href="https://github.com/FFFalexgo/AWS_Bedrock_Coder#readme"
 								rel="noopener noreferrer"
 								target="_blank">
 								Complete Troubleshooting Guide

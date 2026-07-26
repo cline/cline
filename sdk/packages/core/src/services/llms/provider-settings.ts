@@ -1,4 +1,4 @@
-import * as Llms from "@cline/llms";
+import * as Llms from "@bedrock-coder/llms";
 import { z } from "zod";
 
 export type ModelInfo = Llms.ModelInfo;

@@ -16,6 +16,7 @@
 		},
 		"webview-ui": {
 			"entry": [
+				"src/main.tsx",
 				"src/services/grpc-client.ts",
 				"src/**/*.test.{ts,tsx}",
 				"src/**/*.spec.{ts,tsx}",

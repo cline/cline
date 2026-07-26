@@ -1,4 +1,4 @@
-import { ClineRulesToggles } from "@shared/cline-rules"
+import { BedrockCoderRulesToggles } from "@shared/bedrock-coder-rules"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
@@ -38,10 +38,10 @@ async function readDirectoryRecursive(
  */
 export async function synchronizeRuleToggles(
 	rulesDirectoryPath: string,
-	currentToggles: ClineRulesToggles,
+	currentToggles: BedrockCoderRulesToggles,
 	allowedFileExtension = "",
 	excludedPaths: string[][] = [],
-): Promise<ClineRulesToggles> {
+): Promise<BedrockCoderRulesToggles> {
 	// Create a copy of toggles to modify
 	const updatedToggles = { ...currentToggles }
 
@@ -105,20 +105,23 @@ export async function synchronizeRuleToggles(
 /**
  * Certain project rules have more than a single location where rules are allowed to be stored
  */
-export function combineRuleToggles(toggles1: ClineRulesToggles, toggles2: ClineRulesToggles): ClineRulesToggles {
+export function combineRuleToggles(
+	toggles1: BedrockCoderRulesToggles,
+	toggles2: BedrockCoderRulesToggles,
+): BedrockCoderRulesToggles {
 	return { ...toggles1, ...toggles2 }
 }
 
 /**
  * Read the content of rules files
  */
-const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
+const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: BedrockCoderRulesToggles) => {
 	return (await getRuleFilesTotalContentWithMetadata(rulesFilePaths, basePath, toggles)).content
 }
 
 const LOCAL_RULE_PATHS = {
-	clineRules: ".clinerules",
-	workflows: ".clinerules/workflows",
+	bedrockCoderRules: ".bedrock-coder",
+	workflows: ".bedrock-coder/workflows",
 } as const
 
 type ActivatedConditionalRule = {
@@ -128,24 +131,24 @@ type ActivatedConditionalRule = {
 
 type RuleFileController = {
 	stateManager: {
-		getGlobalSettingsKey(key: "globalWorkflowToggles" | "globalClineRulesToggles"): ClineRulesToggles
-		setGlobalState(key: "globalWorkflowToggles" | "globalClineRulesToggles", value: ClineRulesToggles): void
+		getGlobalSettingsKey(key: "globalWorkflowToggles" | "globalBedrockCoderRulesToggles"): BedrockCoderRulesToggles
+		setGlobalState(key: "globalWorkflowToggles" | "globalBedrockCoderRulesToggles", value: BedrockCoderRulesToggles): void
 		getWorkspaceStateKey(
 			key:
 				| "workflowToggles"
 				| "localCursorRulesToggles"
 				| "localWindsurfRulesToggles"
 				| "localAgentsRulesToggles"
-				| "localClineRulesToggles",
-		): ClineRulesToggles
+				| "localBedrockCoderRulesToggles",
+		): BedrockCoderRulesToggles
 		setWorkspaceState(
 			key:
 				| "workflowToggles"
 				| "localCursorRulesToggles"
 				| "localWindsurfRulesToggles"
 				| "localAgentsRulesToggles"
-				| "localClineRulesToggles",
-			value: ClineRulesToggles,
+				| "localBedrockCoderRulesToggles",
+			value: BedrockCoderRulesToggles,
 		): void
 	}
 }
@@ -164,7 +167,7 @@ export type RuleLoadResult = {
 
 /**
  * Result type for rule loading functions that return formatted instructions.
- * Used by getGlobalClineRules and getLocalClineRules.
+ * Used by getGlobalBedrockCoderRules and getLocalBedrockCoderRules.
  */
 type RuleLoadResultWithInstructions = {
 	instructions?: string
@@ -174,7 +177,7 @@ type RuleLoadResultWithInstructions = {
 export const getRuleFilesTotalContentWithMetadata = async (
 	rulesFilePaths: string[],
 	basePath: string,
-	toggles: ClineRulesToggles,
+	toggles: BedrockCoderRulesToggles,
 	opts?: { evaluationContext?: RuleEvaluationContext; ruleNamePrefix?: keyof typeof RULE_SOURCE_PREFIX },
 ): Promise<RuleLoadResult> => {
 	const evaluationContext = opts?.evaluationContext ?? {}
@@ -227,31 +230,31 @@ export const getRuleFilesTotalContentWithMetadata = async (
 }
 
 /**
- * Handles converting any directory into a file (specifically used for .clinerules and .clinerules/workflows)
- * The old .clinerules file or .clinerules/workflows file will be renamed to a default filename
+ * Handles converting any directory into a file (specifically used for .bedrock-coder and .bedrock-coder/workflows)
+ * The old .bedrock-coder file or .bedrock-coder/workflows file will be renamed to a default filename
  * Doesn't do anything if the dir already exists or doesn't exist
  * Returns whether there are any uncaught errors
  */
-async function ensureLocalClineDirExists(clinerulePath: string, defaultRuleFilename: string): Promise<boolean> {
+async function ensureLocalBedrockCoderDirExists(bedrockCoderrulePath: string, defaultRuleFilename: string): Promise<boolean> {
 	try {
-		const exists = await fileExistsAtPath(clinerulePath)
+		const exists = await fileExistsAtPath(bedrockCoderrulePath)
 
-		if (exists && !(await isDirectory(clinerulePath))) {
-			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
-			const content = await fs.readFile(clinerulePath, "utf8")
-			const tempPath = clinerulePath + ".bak"
-			await fs.rename(clinerulePath, tempPath) // create backup
+		if (exists && !(await isDirectory(bedrockCoderrulePath))) {
+			// logic to convert .bedrock-coder file into directory, and rename the rules file to {defaultRuleFilename}
+			const content = await fs.readFile(bedrockCoderrulePath, "utf8")
+			const tempPath = bedrockCoderrulePath + ".bak"
+			await fs.rename(bedrockCoderrulePath, tempPath) // create backup
 			try {
-				await fs.mkdir(clinerulePath, { recursive: true })
-				await fs.writeFile(path.join(clinerulePath, defaultRuleFilename), content, "utf8")
+				await fs.mkdir(bedrockCoderrulePath, { recursive: true })
+				await fs.writeFile(path.join(bedrockCoderrulePath, defaultRuleFilename), content, "utf8")
 				await fs.unlink(tempPath).catch(() => {}) // delete backup
 
 				return false // conversion successful with no errors
 			} catch (_conversionError) {
 				// attempt to restore backup on conversion failure
 				try {
-					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
-					await fs.rename(tempPath, clinerulePath) // restore backup
+					await fs.rm(bedrockCoderrulePath, { recursive: true, force: true }).catch(() => {})
+					await fs.rename(tempPath, bedrockCoderrulePath) // restore backup
 				} catch (_restoreError) {}
 				return true // in either case here we consider this an error
 			}
@@ -275,26 +278,26 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 				ensureRulesDirectoryExists: () => Promise<string>
 			}
 			if (type === "workflow") {
-				const globalClineWorkflowFilePath = await disk.ensureWorkflowsDirectoryExists()
-				filePath = path.join(globalClineWorkflowFilePath, filename)
+				const globalBedrockCoderWorkflowFilePath = await disk.ensureWorkflowsDirectoryExists()
+				filePath = path.join(globalBedrockCoderWorkflowFilePath, filename)
 			} else {
-				const globalClineRulesFilePath = await disk.ensureRulesDirectoryExists()
-				filePath = path.join(globalClineRulesFilePath, filename)
+				const globalBedrockCoderRulesFilePath = await disk.ensureRulesDirectoryExists()
+				filePath = path.join(globalBedrockCoderRulesFilePath, filename)
 			}
 		} else {
-			const localClineRulesFilePath = path.resolve(cwd, LOCAL_RULE_PATHS.clineRules)
+			const localBedrockCoderRulesFilePath = path.resolve(cwd, LOCAL_RULE_PATHS.bedrockCoderRules)
 
-			const hasError = await ensureLocalClineDirExists(localClineRulesFilePath, "default-rules.md")
+			const hasError = await ensureLocalBedrockCoderDirExists(localBedrockCoderRulesFilePath, "default-rules.md")
 			if (hasError === true) {
 				return { filePath: null, fileExists: false }
 			}
 
-			await fs.mkdir(localClineRulesFilePath, { recursive: true })
+			await fs.mkdir(localBedrockCoderRulesFilePath, { recursive: true })
 
 			if (type === "workflow") {
 				const localWorkflowsFilePath = path.resolve(cwd, LOCAL_RULE_PATHS.workflows)
 
-				const hasError = await ensureLocalClineDirExists(localWorkflowsFilePath, "default-workflows.md")
+				const hasError = await ensureLocalBedrockCoderDirExists(localWorkflowsFilePath, "default-workflows.md")
 				if (hasError === true) {
 					return { filePath: null, fileExists: false }
 				}
@@ -303,8 +306,8 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 
 				filePath = path.join(localWorkflowsFilePath, filename)
 			} else {
-				// clinerules file creation
-				filePath = path.join(localClineRulesFilePath, filename)
+				// bedrock-coder-rules file creation
+				filePath = path.join(localBedrockCoderRulesFilePath, filename)
 			}
 		}
 
@@ -354,9 +357,9 @@ export async function deleteRuleFile(
 				delete toggles[rulePath]
 				controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
 			} else {
-				const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
+				const toggles = controller.stateManager.getGlobalSettingsKey("globalBedrockCoderRulesToggles")
 				delete toggles[rulePath]
-				controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
+				controller.stateManager.setGlobalState("globalBedrockCoderRulesToggles", toggles)
 			}
 		} else {
 			if (type === "workflow") {
@@ -376,9 +379,9 @@ export async function deleteRuleFile(
 				delete toggles[rulePath]
 				controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 			} else {
-				const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
+				const toggles = controller.stateManager.getWorkspaceStateKey("localBedrockCoderRulesToggles")
 				delete toggles[rulePath]
-				controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localBedrockCoderRulesToggles", toggles)
 			}
 		}
 

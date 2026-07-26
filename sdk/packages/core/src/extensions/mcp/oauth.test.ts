@@ -19,7 +19,7 @@ describe("mcp oauth", () => {
 	async function createSettingsFile(): Promise<string> {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-oauth-"));
 		tempRoots.push(tempRoot);
-		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		const filePath = join(tempRoot, "mcp_settings.json");
 		await writeFile(
 			filePath,
 			JSON.stringify(

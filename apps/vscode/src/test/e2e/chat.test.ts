@@ -8,20 +8,20 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	// Submit a message
 	const inputbox = sidebar.getByTestId("chat-input")
 	await expect(inputbox).toBeVisible()
-	await inputbox.fill("Hello, Cline!")
-	await expect(inputbox).toHaveValue("Hello, Cline!")
+	await inputbox.fill("Hello, Bedrock Coder!")
+	await expect(inputbox).toHaveValue("Hello, Bedrock Coder!")
 	await sidebar.getByTestId("send-button").click()
 	await expect(inputbox).toHaveValue("")
 
 	// Wait for the (mock) agent turn to finish before navigating away — the task
 	// is persisted to SDK session history when the turn completes, so clicking
 	// "New Task" mid-turn races the history write and "Recent" may not show.
-	await expect(sidebar.getByText("mock Cline API response")).toBeVisible()
+	await expect(sidebar.getByText("mock Bedrock Coder API response")).toBeVisible()
 
 	// Starting a new task should clear the current chat view and show the recent tasks
 	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
 	await expect(sidebar.getByText("Recent")).toBeVisible()
-	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
+	await expect(sidebar.getByText("Hello, Bedrock Coder!")).toBeVisible()
 
 	// Makes sure the act and plan switches are working correctly
 	// Aria-checked state should be true for Act and false for Plan

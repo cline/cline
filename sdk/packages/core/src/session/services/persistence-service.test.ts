@@ -251,7 +251,7 @@ describe("UnifiedSessionPersistenceService", () => {
 				(manifest.metadata as Record<string, unknown>).terminal_marker_at,
 			).toBeTruthy();
 
-			const globalHookLog = process.env.CLINE_HOOKS_LOG_PATH ?? "";
+			const globalHookLog = process.env.BEDROCK_CODER_HOOKS_LOG_PATH ?? "";
 			if (globalHookLog && existsSync(globalHookLog)) {
 				const hookContent = readFileSync(globalHookLog, "utf8");
 				expect(hookContent).toContain('"hookName":"session_shutdown"');

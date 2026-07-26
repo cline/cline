@@ -1,4 +1,4 @@
-import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { EMPTY_CONTENT_TEXT } from "@bedrock-coder/shared";
 import { describe, expect, it } from "vitest";
 import {
 	agentMessageToMessageWithMetadata,

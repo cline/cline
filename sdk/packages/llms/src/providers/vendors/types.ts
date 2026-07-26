@@ -1,7 +1,7 @@
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { CallSettings } from "ai";
 
 export interface ProviderFactoryResult {

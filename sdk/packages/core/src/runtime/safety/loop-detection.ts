@@ -11,7 +11,7 @@
  * `SessionRuntime` installs as a `beforeTool` hook per §3.2.3.
  */
 
-import type { LoopDetectionConfig } from "@cline/shared";
+import type { LoopDetectionConfig } from "@bedrock-coder/shared";
 
 // =============================================================================
 // Pure helpers (verbatim port)

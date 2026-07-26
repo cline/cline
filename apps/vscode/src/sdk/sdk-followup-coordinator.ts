@@ -1,6 +1,6 @@
-import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
-import type { ClineAskResponse } from "@shared/WebviewMessage"
+import type { BedrockCoderAskResponse } from "@shared/WebviewMessage"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
@@ -48,7 +48,7 @@ export class SdkFollowupCoordinator {
 		prompt?: string,
 		images?: string[],
 		files?: string[],
-		askResponse?: ClineAskResponse,
+		askResponse?: BedrockCoderAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
 	): Promise<void> {
 		if (this.options.interactions.resolvePendingMistakeLimit(prompt, askResponse)) {
@@ -140,13 +140,9 @@ export class SdkFollowupCoordinator {
 		const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
 		config.sessionId = taskId
 
-		const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
 		const tempManager = await this.options.createTempSessionHost()
-		const persistedInitialMessages = await this.options.loadInitialMessages(tempManager, taskId)
+		const initialMessages = await this.options.loadInitialMessages(tempManager, taskId)
 		await tempManager.dispose("readMessages")
-		const initialMessages = isLegacyTask
-			? await this.options.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
-			: persistedInitialMessages
 
 		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
 
@@ -199,7 +195,7 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		const userMessage: ClineMessage = {
+		const userMessage: BedrockCoderMessage = {
 			ts: Date.now(),
 			type: "say",
 			say: "user_feedback",

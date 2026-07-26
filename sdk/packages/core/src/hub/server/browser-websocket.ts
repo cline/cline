@@ -3,12 +3,12 @@ import type {
 	HubEventEnvelope,
 	HubReplyEnvelope,
 	HubTransportFrame
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	HUB_COMMAND_SLOW_LOG_MS,
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { HubCommandTransport } from "./command-transport";
 import { logHubMessage } from "./hub-server-logging";
 

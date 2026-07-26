@@ -8,13 +8,13 @@ import type {
 	TeamTask,
 	TeamTeammateSpec,
 	UpdateTeamTaskInput,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import {
 	getToolApprovalDecision,
 	hasRuntimeConfigExtension,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { nanoid } from "nanoid";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {

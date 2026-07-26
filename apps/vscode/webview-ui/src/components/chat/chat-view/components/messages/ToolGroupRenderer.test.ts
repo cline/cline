@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { buildToolsWithReasoning, getToolGroupSummaryFromParsedTools } from "./ToolGroupRenderer"
 
@@ -7,7 +7,7 @@ const readToolMessage = (
 	type: "ask" | "say",
 	path: string,
 	range?: { start: number; end: number },
-): ClineMessage => ({
+): BedrockCoderMessage => ({
 	ts,
 	type,
 	...(type === "ask" ? { ask: "tool" as const } : { say: "tool" as const }),
@@ -54,6 +54,6 @@ describe("getToolGroupSummaryFromParsedTools", () => {
 			readToolMessage(2, "say", "src/a.ts", { start: 1, end: 20 }),
 		])
 
-		expect(getToolGroupSummaryFromParsedTools(tools.map((tool) => tool.parsedTool))).toBe("Cline read 1 file")
+		expect(getToolGroupSummaryFromParsedTools(tools.map((tool) => tool.parsedTool))).toBe("Bedrock Coder read 1 file")
 	})
 })

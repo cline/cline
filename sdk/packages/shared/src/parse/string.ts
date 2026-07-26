@@ -42,7 +42,7 @@ export function maskSecret(value: string): string {
  * signal the encoding, but `fs.readFileSync(path, "utf8")` does not strip it, so it survives
  * into the decoded string as a leading `\uFEFF` character. Frontmatter parsers anchor on
  * `^---` and silently fail to match when that character is present, hiding the file's
- * name/description (see cline/cline#12151).
+ * name/description (see bedrock-coder/bedrockCoder#12151).
  *
  * We only need to check for this one mark: a BOM disambiguates byte order for multi-byte
  * code units (UTF-16, UTF-32), but UTF-8 is a byte-oriented encoding with no byte-order

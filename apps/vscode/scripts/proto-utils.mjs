@@ -58,7 +58,7 @@ export async function loadServicesFromProtoDescriptor() {
 		sources.push({ packageName, source })
 	}
 
-	const servicesByPackage = { cline: {}, host: {} }
+	const servicesByPackage = { bedrock_coder: {}, host: {} }
 	for (const { packageName, source } of sources) {
 		const packageServices = servicesByPackage[packageName]
 		if (!packageServices) {
@@ -70,7 +70,7 @@ export async function loadServicesFromProtoDescriptor() {
 	}
 
 	return {
-		protobusServices: servicesByPackage.cline,
+		protobusServices: servicesByPackage.bedrock_coder,
 		hostServices: servicesByPackage.host,
 	}
 }

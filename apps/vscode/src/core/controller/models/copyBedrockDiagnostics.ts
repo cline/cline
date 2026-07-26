@@ -1,4 +1,4 @@
-import { Empty, type EmptyRequest } from "@shared/proto/cline/common"
+import { Empty, type EmptyRequest } from "@shared/proto/bedrock_coder/common"
 import { writeTextToClipboard } from "@/utils/env"
 import type { Controller } from "../index"
 

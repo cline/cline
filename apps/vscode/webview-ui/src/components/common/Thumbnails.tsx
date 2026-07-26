@@ -1,5 +1,5 @@
 import { cn } from "@heroui/react"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
 import React, { memo, useLayoutEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -103,7 +103,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 									color: "var(--vscode-foreground)",
 									fontSize: 10,
 									fontWeight: "bold",
-								}}></span>
+								}}
+							/>
 						</div>
 					)}
 				</div>
@@ -137,7 +138,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 								style={{
 									fontSize: 16,
 									color: "var(--vscode-foreground)",
-								}}></span>
+								}}
+							/>
 							<span
 								style={{
 									fontSize: 7,
@@ -174,7 +176,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 										color: "var(--vscode-foreground)",
 										fontSize: 10,
 										fontWeight: "bold",
-									}}></span>
+									}}
+								/>
 							</div>
 						)}
 					</div>

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package bedrock_coder;
+
+import "bedrock_coder/common.proto";
+
+option go_package = "github.com/FFFalexgo/AWS_Bedrock_Coder/grpc-go/bedrock_coder";
+option java_multiple_files = true;
+option java_package = "com.fffalexgo.bedrock_coder.proto";
+
+service CheckpointsService {
+  rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
+}
+
+message CheckpointRestoreRequest {
+  Metadata metadata = 1;
+  int64 number = 2;
+  string restore_type = 3;
+  optional int64 offset = 4;
+}

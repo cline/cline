@@ -1,4 +1,4 @@
-import type { AgentToolContext, ApplyPatchExecutor, EditFileInput, EditorExecutor } from "@cline/core"
+import type { AgentToolContext, ApplyPatchExecutor, EditFileInput, EditorExecutor } from "@bedrock-coder/core"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
@@ -254,7 +254,7 @@ describe("SdkDiffEditCoordinator", () => {
 			displayPath: "a.ts",
 			leftContent: "line1\nline2\n",
 			rightContent: "changed\nline2\n",
-			title: "a.ts: Original ↔ Cline's Changes (Preview)",
+			title: "a.ts: Original ↔ Bedrock Coder's Changes (Preview)",
 		})
 	})
 

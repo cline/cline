@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import {
 	formatDisplayUserInput,
 	type MessageWithMetadata,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { z } from "zod";
 
 function isMessageWithMetadata(value: unknown): value is MessageWithMetadata {
@@ -113,7 +113,7 @@ function sourcePrefixHash(
 	count = messages.length,
 ): string {
 	const hash = createHash("sha256");
-	hash.update("cline-session-compaction-source-v1\n");
+	hash.update("bedrock-coder-session-compaction-source-v1\n");
 	hash.update(`${count}\n`);
 	for (const message of messages.slice(0, count)) {
 		hash.update(JSON.stringify(sourceMessageHashInput(message)));

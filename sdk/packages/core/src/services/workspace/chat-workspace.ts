@@ -3,15 +3,15 @@ import { join } from "node:path";
 import {
 	AGENTS_RULES_FILE_NAME,
 	resolveChatWorkspacePath,
-} from "@cline/shared/storage";
+} from "@bedrock-coder/shared/storage";
 import type {
 	RuntimeSessionConfig,
 	StartSessionConfig,
 } from "../../runtime/host/runtime-host";
 
-const CHAT_WORKSPACE_RULES = `# Cline chat workspace
+const CHAT_WORKSPACE_RULES = `# Bedrock Coder chat workspace
 
-This directory is Cline's shared workspace for chat sessions that were
+This directory is Bedrock Coder's shared workspace for chat sessions that were
 started without a project. It is not a project of its own, and other chat
 sessions use it too. Treat the conversation as a chat first: do not create
 or edit files here unless the user asks for something that requires them.

@@ -1,5 +1,5 @@
 import { HistoryItem } from "@shared/HistoryItem"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import {
 	ArrowDownIcon,

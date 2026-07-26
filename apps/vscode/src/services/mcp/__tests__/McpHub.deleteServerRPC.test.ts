@@ -82,7 +82,7 @@ describe("McpHub.deleteServerRPC", () => {
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `mcp-delete-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
-		settingsPath = path.join(tempDir, "cline_mcp_settings.json")
+		settingsPath = path.join(tempDir, "mcp_settings.json")
 		getMcpSettingsFilePathStub.reset()
 		getMcpSettingsFilePathStub.resolves(settingsPath)
 		// Default writeFile to the real implementation; individual tests can wrap

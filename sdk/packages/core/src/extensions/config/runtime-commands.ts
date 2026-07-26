@@ -1,4 +1,4 @@
-import { truncateSplit } from "@cline/shared";
+import { truncateSplit } from "@bedrock-coder/shared";
 import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,

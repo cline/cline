@@ -30,7 +30,7 @@ describe("TaskCancel Hook", () => {
 
 	describe("Hook Input Format", () => {
 		it("should receive task metadata with completionStatus", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskCancel.taskMetadata;
@@ -62,7 +62,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle 'abandoned' completion status", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const status = input.taskCancel.taskMetadata.completionStatus;
@@ -97,10 +97,10 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasAllFields = input.clineVersion && input.hookName === 'TaskCancel' && 
+const hasAllFields = input.bedrockCoderVersion && input.hookName === 'TaskCancel' &&
                      input.timestamp && input.taskId && 
                      input.workspaceRoots !== undefined &&
                      input.model && input.model.provider && input.model.slug;
@@ -137,7 +137,7 @@ console.log(JSON.stringify({
 
 	describe("Fire-and-Forget Behavior", () => {
 		it("should ignore contextModification regardless of content", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -193,7 +193,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should succeed regardless of hook return value", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
@@ -223,7 +223,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should return error message when hook returns cancel: true", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,
@@ -255,7 +255,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should execute without errors for cleanup purposes", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const status = input.taskCancel.taskMetadata.completionStatus;
@@ -289,7 +289,7 @@ console.log(JSON.stringify({
 
 	describe("Error Handling", () => {
 		it("should surface hook errors to the user", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.error("Hook execution error");
 process.exit(1);`
@@ -318,7 +318,7 @@ process.exit(1);`
 		})
 
 		it("should handle malformed JSON output from hook", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -353,7 +353,7 @@ console.log("not valid json")`
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
-			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
+			workspaceHooksDir = path.join(tempDir, ".bedrock-coder", "hooks")
 
 			// Use deterministic hook directories to avoid test flakiness.
 			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
@@ -372,7 +372,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const workspaceHookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
@@ -412,7 +412,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "TaskCancel")
 			const workspaceHookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({

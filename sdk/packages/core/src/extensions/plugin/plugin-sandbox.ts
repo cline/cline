@@ -12,7 +12,7 @@ import type {
 	Message,
 	PluginSetupContext,
 	WorkspaceInfo,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
@@ -27,7 +27,7 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	exportName?: string;
 	/**
 	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
-	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
+	 * to the `BEDROCK_CODER_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
 	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
 	 * to raise the ceiling without touching code.
 	 */
@@ -57,7 +57,7 @@ type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
 type SandboxedAgentExtension = AgentExtension & {
 	/** Internal metadata used by settings surfaces that need source paths. */
-	__clinePluginPath?: string;
+	__bedrockCoderPluginPath?: string;
 };
 
 type SandboxedContributionDescriptor = {
@@ -124,11 +124,11 @@ function isUnknownPluginIdError(error: unknown): boolean {
 
 function getPlatformPackageName(): string {
 	const platform = process.platform === "win32" ? "windows" : process.platform;
-	return `@cline/cli-${platform}-${process.arch}`;
+	return `@bedrock-coder/cli-${platform}-${process.arch}`;
 }
 
 function resolveBootstrapFromWrapper(): string | undefined {
-	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	const wrapperPath = process.env.BEDROCK_CODER_WRAPPER_PATH?.trim();
 	if (!wrapperPath) {
 		return undefined;
 	}
@@ -252,7 +252,7 @@ export async function loadSandboxedPlugins(
 	const importTimeoutMs = withTimeoutFallback(
 		options.importTimeoutMs,
 		4000,
-		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+		"BEDROCK_CODER_PLUGIN_IMPORT_TIMEOUT_MS",
 	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
@@ -302,7 +302,7 @@ export async function loadSandboxedPlugins(
 		(descriptor) => {
 			const extension: SandboxedAgentExtension = {
 				name: descriptor.name,
-				__clinePluginPath: descriptor.pluginPath,
+				__bedrockCoderPluginPath: descriptor.pluginPath,
 				manifest: descriptor.manifest,
 				setup: (api: AgentExtensionApi) => {
 					registerTools(

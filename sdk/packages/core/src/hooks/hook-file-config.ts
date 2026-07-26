@@ -3,7 +3,7 @@ import { basename, extname, join } from "node:path";
 import {
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	resolveHooksConfigSearchPaths as resolveHooksConfigSearchPathsFromShared,
-} from "@cline/shared/storage";
+} from "@bedrock-coder/shared/storage";
 import type { HookEventName } from "./subprocess";
 
 export { HOOKS_CONFIG_DIRECTORY_NAME };

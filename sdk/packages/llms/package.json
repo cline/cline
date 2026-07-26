@@ -1,10 +1,11 @@
 {
-	"name": "@cline/llms",
-	"version": "0.0.65",
-	"description": "AWS Bedrock runtime for Cline agents",
+	"name": "@bedrock-coder/llms",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Amazon Bedrock runtime for Bedrock Coder agents",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline",
+		"url": "https://github.com/FFFalexgo/AWS_Bedrock_Coder",
 		"directory": "sdk/packages/llms"
 	},
 	"main": "./dist/index.js",
@@ -38,7 +39,7 @@
 	"dependencies": {
 		"@ai-sdk/amazon-bedrock": "^4.0.89",
 		"@aws-sdk/credential-providers": "^3.922.0",
-		"@cline/shared": "workspace:*",
+		"@bedrock-coder/shared": "workspace:*",
 		"@smithy/node-http-handler": "^4.9.5",
 		"ai": "^6.0.144",
 		"nanoid": "^5.1.7",

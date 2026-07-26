@@ -11,9 +11,7 @@
 		"lint": "biome lint --changed --no-errors-on-unmatched",
 		"test": "vitest run",
 		"test:watch": "vitest dev",
-		"test:coverage": "vitest run --coverage",
-		"storybook": "storybook dev -p 6006",
-		"build-storybook": "storybook build"
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"@fontsource/azeret-mono": "^5.2.9",
@@ -61,7 +59,6 @@
 		"uuid": "^9.0.1"
 	},
 	"devDependencies": {
-		"@storybook/react-vite": "^9.1.6",
 		"@tailwindcss/vite": "^4.1.13",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
@@ -76,7 +73,6 @@
 		"@vitest/coverage-v8": "^3.0.9",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
-		"storybook": "^9.1.17",
 		"tailwindcss": "^4.1.13",
 		"typescript": "^5.7.3",
 		"vite": "^7.1.11",

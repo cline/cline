@@ -1,10 +1,11 @@
 {
-	"name": "@cline/shared",
-	"version": "0.0.65",
-	"description": "Shared utilities, types, and schemas for Cline packages",
+	"name": "@bedrock-coder/shared",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Shared utilities, types, and schemas for Bedrock Coder packages",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline",
+		"url": "https://github.com/FFFalexgo/AWS_Bedrock_Coder",
 		"directory": "sdk/packages/shared"
 	},
 	"type": "module",

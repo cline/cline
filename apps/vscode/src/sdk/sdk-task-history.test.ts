@@ -1,10 +1,9 @@
-import type { SessionHistoryRecord } from "@cline/core"
+import type { SessionHistoryRecord } from "@bedrock-coder/core"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
-import { sdkMessagesToClineMessages } from "./message-translator"
+import { sdkMessagesToBedrockCoderMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -20,21 +19,12 @@ vi.mock("@/core/storage/disk", () => ({
 
 vi.mock("@/hosts/host-provider", () => ({
 	HostProvider: {
-		get: vi.fn(() => ({ globalStorageFsPath: "/tmp/cline" })),
+		get: vi.fn(() => ({ globalStorageFsPath: "/tmp/bedrockCoder" })),
 	},
 }))
 
 vi.mock("@/utils/fs", () => ({
 	fileExistsAtPath: vi.fn(() => Promise.resolve(false)),
-}))
-
-const legacyStateReaderMock = vi.hoisted(() => ({
-	taskHistory: [] as HistoryItem[],
-	taskHistoryByDataDir: new Map<string | undefined, HistoryItem[]>(),
-	uiMessages: [] as unknown[],
-	uiMessagesByDataDir: new Map<string | undefined, unknown[]>(),
-	apiConversationHistory: [] as unknown[],
-	apiConversationHistoryByDataDir: new Map<string | undefined, unknown[]>(),
 }))
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -45,31 +35,6 @@ vi.mock("@/shared/services/Logger", () => ({
 	},
 }))
 
-vi.mock("./legacy-state-reader", () => ({
-	readTaskHistory: vi.fn(
-		(dataDir?: string) => legacyStateReaderMock.taskHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.taskHistory,
-	),
-	deleteLegacyTask: vi.fn((taskId: string, dataDir?: string) => {
-		const history = legacyStateReaderMock.taskHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.taskHistory
-		const filteredHistory = history.filter((item) => item.id !== taskId)
-		if (legacyStateReaderMock.taskHistoryByDataDir.has(dataDir)) {
-			legacyStateReaderMock.taskHistoryByDataDir.set(dataDir, filteredHistory)
-		} else {
-			legacyStateReaderMock.taskHistory = filteredHistory
-		}
-		return filteredHistory.length !== history.length
-	}),
-	readUiMessages: vi.fn(
-		(_taskId: string, dataDir?: string) =>
-			legacyStateReaderMock.uiMessagesByDataDir.get(dataDir) ?? legacyStateReaderMock.uiMessages,
-	),
-	readApiConversationHistory: vi.fn(
-		(_taskId: string, dataDir?: string) =>
-			legacyStateReaderMock.apiConversationHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.apiConversationHistory,
-	),
-	taskDirPath: vi.fn((taskId: string, dataDir?: string) => `${dataDir ?? "default"}/tasks/${taskId}`),
-}))
-
 vi.mock("get-folder-size", () => ({
 	default: {
 		loose: vi.fn(),
@@ -78,12 +43,6 @@ vi.mock("get-folder-size", () => ({
 
 describe("SdkTaskHistory", () => {
 	beforeEach(() => {
-		legacyStateReaderMock.taskHistory = []
-		legacyStateReaderMock.taskHistoryByDataDir.clear()
-		legacyStateReaderMock.uiMessages = []
-		legacyStateReaderMock.uiMessagesByDataDir.clear()
-		legacyStateReaderMock.apiConversationHistory = []
-		legacyStateReaderMock.apiConversationHistoryByDataDir.clear()
 		vi.clearAllMocks()
 		vi.mocked(getFolderSize.loose).mockReset()
 	})
@@ -120,8 +79,8 @@ describe("SdkTaskHistory", () => {
 		expect(result.ts).toBeGreaterThan(0)
 	})
 
-	it("converts SDK persisted conversation messages to Cline messages", () => {
-		const result = sdkMessagesToClineMessages([
+	it("converts SDK persisted conversation messages to Bedrock Coder messages", () => {
+		const result = sdkMessagesToBedrockCoderMessages([
 			{ role: "user", content: "Build the feature" },
 			{ role: "assistant", content: [{ type: "text", text: "Done" }] },
 			{ role: "user", content: "Follow up" },
@@ -138,7 +97,7 @@ describe("SdkTaskHistory", () => {
 	})
 
 	it("includes persisted SDK message metrics for task header pricing", () => {
-		const result = sdkMessagesToClineMessages([
+		const result = sdkMessagesToBedrockCoderMessages([
 			{ role: "user", content: "Build the feature" },
 			{
 				role: "assistant",
@@ -171,7 +130,7 @@ describe("SdkTaskHistory", () => {
 			success: true,
 		})
 
-		const result = sdkMessagesToClineMessages([
+		const result = sdkMessagesToBedrockCoderMessages([
 			{ role: "user", content: "add a joke" },
 			{
 				role: "assistant",
@@ -183,7 +142,7 @@ describe("SdkTaskHistory", () => {
 						input: {
 							path: "/Users/maxpaulus/c/c2/README.md",
 							old_text: "## License",
-							new_text: "## A Note from Cline\n\n> Why do programmers prefer dark mode?",
+							new_text: "## A Note from Bedrock Coder\n\n> Why do programmers prefer dark mode?",
 						},
 					},
 				],
@@ -244,7 +203,7 @@ describe("SdkTaskHistory", () => {
 		const { history, updateSession } = makeHistory([
 			makeSessionRecord("task-1", {
 				metadata: { title: "Build feature" },
-				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+				messagesPath: "/tmp/bedrock-coder/sessions/task-1/task-1.messages.json",
 			}),
 		])
 
@@ -253,7 +212,7 @@ describe("SdkTaskHistory", () => {
 			size: 4096,
 		})
 
-		expect(getFolderSize.loose).toHaveBeenCalledWith("/tmp/cline/sessions/task-1", { bigint: false })
+		expect(getFolderSize.loose).toHaveBeenCalledWith("/tmp/bedrock-coder/sessions/task-1", { bigint: false })
 		expect(updateSession).toHaveBeenCalledWith(
 			"task-1",
 			expect.objectContaining({
@@ -269,7 +228,7 @@ describe("SdkTaskHistory", () => {
 		vi.mocked(getFolderSize.loose).mockResolvedValue(0 as never)
 		const { history, updateSession } = makeHistory([
 			makeSessionRecord("task-1", {
-				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+				messagesPath: "/tmp/bedrock-coder/sessions/task-1/task-1.messages.json",
 			}),
 		])
 
@@ -344,7 +303,7 @@ describe("SdkTaskHistory", () => {
 		vi.mocked(getFolderSize.loose).mockResolvedValue(8192 as never)
 		const existing = makeSessionRecord("task-1", {
 			metadata: { size: 1024 },
-			messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			messagesPath: "/tmp/bedrock-coder/sessions/task-1/task-1.messages.json",
 		})
 		const { history, updateSession } = makeHistory([existing])
 
@@ -362,7 +321,7 @@ describe("SdkTaskHistory", () => {
 	it("does not cache unavailable artifact size as zero", async () => {
 		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
 		const existing = makeSessionRecord("task-1", {
-			messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			messagesPath: "/tmp/bedrock-coder/sessions/task-1/task-1.messages.json",
 		})
 		const { history, updateSession } = makeHistory([existing])
 
@@ -379,147 +338,6 @@ describe("SdkTaskHistory", () => {
 		await history.deleteTaskFromState("task-1")
 
 		expect(deleteSession).toHaveBeenCalledWith("task-1")
-		expect(deleteLegacyTask).not.toHaveBeenCalled()
-	})
-
-	it("deletes legacy task records when deleting history", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		const { history, deleteSession } = makeHistory([])
-
-		const result = await history.deleteTaskFromState("legacy-task")
-
-		expect(deleteSession).toHaveBeenCalledWith("legacy-task")
-		expect(deleteLegacyTask).toHaveBeenCalledWith("legacy-task", undefined)
-		expect(result.some((item) => item.id === "legacy-task")).toBe(false)
-	})
-
-	it("deletes legacy task records when deleting all history", async () => {
-		legacyStateReaderMock.taskHistory = [
-			makeHistoryItem("legacy-task", { task: "legacy prompt" }),
-			makeHistoryItem("favorite-legacy-task", { task: "favorite legacy prompt", isFavorited: true }),
-		]
-		const { history, deleteSession } = makeHistory([makeSessionRecord("sdk-task")])
-
-		const deletedCount = await history.deleteAllTaskHistory({ preserveFavorites: true })
-
-		expect(deletedCount).toBe(2)
-		expect(deleteSession).toHaveBeenCalledWith("sdk-task")
-		expect(deleteSession).toHaveBeenCalledWith("legacy-task")
-		expect(deleteLegacyTask).toHaveBeenCalledWith("legacy-task", undefined)
-		expect(deleteLegacyTask).not.toHaveBeenCalledWith("favorite-legacy-task", undefined)
-		await expect(history.findHistoryItem("legacy-task")).resolves.toBeUndefined()
-		await expect(history.findHistoryItem("favorite-legacy-task")).resolves.toMatchObject({ id: "favorite-legacy-task" })
-	})
-
-	it("identifies legacy tasks without migrating them", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		const { history, startSession } = makeHistory([])
-
-		await expect(history.isLegacyTask("legacy-task")).resolves.toBe(true)
-
-		expect(startSession).not.toHaveBeenCalled()
-	})
-
-	it("reads legacy task UI messages without migrating", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		legacyStateReaderMock.uiMessages = [{ ts: 1, type: "say", say: "task", text: "legacy prompt" }]
-		const { history, startSession } = makeHistory([])
-
-		const messages = await history.getClineMessages("legacy-task")
-
-		expect(readUiMessages).toHaveBeenCalledWith("legacy-task", undefined)
-		expect(messages).toEqual(legacyStateReaderMock.uiMessages)
-		expect(startSession).not.toHaveBeenCalled()
-	})
-
-	it("adds a tool warning to legacy initial messages when resuming", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		legacyStateReaderMock.apiConversationHistory = [
-			{ role: "user", content: "legacy prompt" },
-			{ role: "assistant", content: "legacy answer" },
-		]
-		const { history } = makeHistory([])
-
-		const messages = await history.getLegacyResumeInitialMessages("legacy-task")
-
-		expect(readApiConversationHistory).toHaveBeenCalledWith("legacy-task", undefined)
-		expect(messages).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ role: "user", content: "legacy prompt" }),
-				expect.objectContaining({ role: "assistant", content: "legacy answer" }),
-				expect.objectContaining({ role: "user", content: expect.stringContaining("tool names may have changed") }),
-			]),
-		)
-	})
-
-	it("uses pretty legacy UI messages plus resumed SDK messages when both stores exist", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		legacyStateReaderMock.uiMessages = [{ ts: 1, type: "say", say: "task", text: "old legacy UI" }]
-		legacyStateReaderMock.apiConversationHistory = [{ role: "user", content: "old legacy API" }]
-		const { history, readMessages } = makeHistory([makeSessionRecord("legacy-task", { metadata: { legacyTask: true } })])
-		readMessages.mockResolvedValueOnce([
-			{ role: "user", content: "raw legacy prompt with <task>tags</task>" },
-			{
-				role: "user",
-				content:
-					"Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of.",
-			},
-			{ role: "assistant", content: "new SDK answer" },
-		] as never)
-		const fallbackMessages = [
-			{
-				role: "user",
-				content: [
-					{
-						type: "text",
-						text: "Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of.",
-					},
-					{ type: "text", text: "new SDK history" },
-				],
-			},
-		]
-
-		const clineMessages = await history.getClineMessages("legacy-task")
-		const resumeMessages = await history.getLegacyResumeInitialMessages("legacy-task", fallbackMessages)
-
-		expect(readUiMessages).toHaveBeenCalledWith("legacy-task", undefined)
-		expect(readApiConversationHistory).not.toHaveBeenCalled()
-		expect(readMessages).toHaveBeenCalledWith("legacy-task")
-		expect(clineMessages).toEqual([
-			{ ts: 1, type: "say", say: "task", text: "old legacy UI" },
-			expect.objectContaining({ text: "new SDK answer" }),
-			expect.objectContaining({ type: "ask", ask: "completion_result" }),
-		])
-		expect(resumeMessages).toEqual(fallbackMessages)
-	})
-	it("includes legacy tasks from VS Code extension storage", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("cline-dir-task", { task: "~/.cline task" })]
-		legacyStateReaderMock.taskHistoryByDataDir.set("/legacy/globalStorage", [
-			makeHistoryItem("extension-storage-task", {
-				task: "extension storage task",
-			}),
-		])
-		const { history } = makeHistory([], "/legacy/globalStorage")
-
-		const result = await history.listHistory({ hydrate: false })
-
-		expect(readTaskHistory).toHaveBeenCalledWith(undefined)
-		expect(readTaskHistory).toHaveBeenCalledWith("/legacy/globalStorage")
-		expect(result.map((item) => item.sessionId)).toEqual(["cline-dir-task", "extension-storage-task"])
-	})
-
-	it("identifies legacy tasks from VS Code extension storage without migrating them", async () => {
-		legacyStateReaderMock.taskHistoryByDataDir.set("/legacy/globalStorage", [
-			makeHistoryItem("extension-storage-task", {
-				task: "extension storage prompt",
-				cwdOnTaskInitialization: "/legacy/repo",
-			}),
-		])
-		const { history, startSession } = makeHistory([], "/legacy/globalStorage")
-
-		await expect(history.isLegacyTask("extension-storage-task")).resolves.toBe(true)
-
-		expect(startSession).not.toHaveBeenCalled()
 	})
 
 	it("updates usage for an existing SDK task", async () => {
@@ -734,7 +552,7 @@ function makeSessionRecord(id: string, overrides: Partial<SessionHistoryRecord> 
 	}
 }
 
-function makeHistory(records: SessionHistoryRecord[], legacyExtensionStorageDir?: string) {
+function makeHistory(records: SessionHistoryRecord[]) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -786,7 +604,6 @@ function makeHistory(records: SessionHistoryRecord[], legacyExtensionStorageDir?
 	const history = new SdkTaskHistory({
 		mcpHub: {} as McpHub,
 		sessions,
-		legacyExtensionStorageDir,
 	})
 
 	return {

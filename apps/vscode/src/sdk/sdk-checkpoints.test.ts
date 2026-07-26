@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {
 	findVisibleCheckpointUserMessageByRun,
@@ -7,7 +7,7 @@ import {
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
 
-const userTask = (text: string, ts: number): ClineMessage => ({
+const userTask = (text: string, ts: number): BedrockCoderMessage => ({
 	ts,
 	type: "say",
 	say: "task",
@@ -15,7 +15,7 @@ const userTask = (text: string, ts: number): ClineMessage => ({
 	partial: false,
 })
 
-const userFeedback = (text: string, ts: number): ClineMessage => ({
+const userFeedback = (text: string, ts: number): BedrockCoderMessage => ({
 	ts,
 	type: "say",
 	say: "user_feedback",
@@ -23,7 +23,7 @@ const userFeedback = (text: string, ts: number): ClineMessage => ({
 	partial: false,
 })
 
-const assistant = (text: string, ts: number): ClineMessage => ({
+const assistant = (text: string, ts: number): BedrockCoderMessage => ({
 	ts,
 	type: "say",
 	say: "text",
@@ -31,7 +31,7 @@ const assistant = (text: string, ts: number): ClineMessage => ({
 	partial: false,
 })
 
-const followupAsk = (text: string, ts: number): ClineMessage => ({
+const followupAsk = (text: string, ts: number): BedrockCoderMessage => ({
 	ts,
 	type: "ask",
 	ask: "followup",
@@ -39,7 +39,7 @@ const followupAsk = (text: string, ts: number): ClineMessage => ({
 	partial: false,
 })
 
-const checkpointRow = (runCount: number, ts: number, ref = "old-ref"): ClineMessage => ({
+const checkpointRow = (runCount: number, ts: number, ref = "old-ref"): BedrockCoderMessage => ({
 	ts,
 	type: "say",
 	say: "checkpoint_created",

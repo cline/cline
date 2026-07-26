@@ -1,5 +1,5 @@
-import type { ToggleCursorRuleRequest } from "@shared/proto/cline/file"
-import { ClineRulesToggles } from "@shared/proto/cline/file"
+import type { ToggleCursorRuleRequest } from "@shared/proto/bedrock_coder/file"
+import { BedrockCoderRulesToggles } from "@shared/proto/bedrock_coder/file"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
@@ -9,7 +9,10 @@ import type { Controller } from "../index"
  * @param request The toggle request
  * @returns The updated Cursor rule toggles
  */
-export async function toggleCursorRule(controller: Controller, request: ToggleCursorRuleRequest): Promise<ClineRulesToggles> {
+export async function toggleCursorRule(
+	controller: Controller,
+	request: ToggleCursorRuleRequest,
+): Promise<BedrockCoderRulesToggles> {
 	const { rulePath, enabled } = request
 
 	if (!rulePath || typeof enabled !== "boolean") {
@@ -28,7 +31,7 @@ export async function toggleCursorRule(controller: Controller, request: ToggleCu
 	// Get the current state to return in the response
 	const cursorToggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 
-	return ClineRulesToggles.create({
+	return BedrockCoderRulesToggles.create({
 		toggles: cursorToggles,
 	})
 }

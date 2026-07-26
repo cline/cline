@@ -2,8 +2,8 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { basename } from "node:path";
 import {
 	augmentNodeCommandForDebug,
-	withResolvedClineBuildEnv,
-} from "@cline/shared";
+	withResolvedBedrockCoderBuildEnv,
+} from "@bedrock-coder/shared";
 
 interface SandboxCallMessage {
 	type: "call";
@@ -54,7 +54,7 @@ function asError(value: unknown): Error {
 	return new Error(String(value));
 }
 
-export const CLINE_JS_RUNTIME_PATH_ENV = "CLINE_JS_RUNTIME_PATH";
+export const BEDROCK_CODER_JS_RUNTIME_PATH_ENV = "BEDROCK_CODER_JS_RUNTIME_PATH";
 
 function isRuntimeExecutable(value: string | undefined): boolean {
 	const trimmed = value?.trim();
@@ -79,7 +79,7 @@ export function resolveSubprocessRuntimeExecutable(
 ): string {
 	const env = options.env ?? process.env;
 	const explicit =
-		options.runtimeExecutable?.trim() || env[CLINE_JS_RUNTIME_PATH_ENV]?.trim();
+		options.runtimeExecutable?.trim() || env[BEDROCK_CODER_JS_RUNTIME_PATH_ENV]?.trim();
 	if (explicit) {
 		return explicit;
 	}
@@ -169,7 +169,7 @@ export class SubprocessSandbox {
 			command.slice(1),
 			{
 				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
+				env: withResolvedBedrockCoderBuildEnv(process.env),
 				// Prevent a console window from flashing on Windows.
 				windowsHide: true,
 			},

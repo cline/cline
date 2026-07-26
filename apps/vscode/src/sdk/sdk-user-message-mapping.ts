@@ -1,4 +1,4 @@
-import { normalizeUserInput, stripModeNotices } from "@cline/shared"
+import { normalizeUserInput, stripModeNotices } from "@bedrock-coder/shared"
 import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 
 export type SdkUserMessage = {

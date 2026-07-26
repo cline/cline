@@ -14,7 +14,7 @@
         },
         {
           "type": "text",
-          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:462-480\n\nFiles edited:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:467-477\n\nCommands ran:\n</SYSTEM_NOTICE>"
+          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:462-480\n\nFiles edited:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:467-477\n\nCommands ran:\n</SYSTEM_NOTICE>"
         }
       ],
       "ts": 1783376868634,
@@ -44,7 +44,7 @@
       "ts": 1783376880004,
       "modelInfo": {
         "id": "anthropic/claude-opus-4.8-fast",
-        "provider": "cline",
+        "provider": "bedrockCoder",
         "family": "claude-opus"
       },
       "metadata": {
@@ -61,7 +61,7 @@
         },
         {
           "type": "text",
-          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n\n\nFiles edited:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:217-217\n\nCommands ran:\n</SYSTEM_NOTICE>"
+          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n\n\nFiles edited:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:217-217\n\nCommands ran:\n</SYSTEM_NOTICE>"
         }
       ],
       "ts": 1783377122343
@@ -78,7 +78,7 @@
       "ts": 1783377129713,
       "modelInfo": {
         "id": "anthropic/claude-opus-4.8-fast",
-        "provider": "cline",
+        "provider": "bedrockCoder",
         "family": "claude-opus"
       },
       "metadata": {
@@ -95,7 +95,7 @@
         },
         {
           "type": "text",
-          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/ui/button.tsx:1-45\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:250-300\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:240-251\n\nFiles edited:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:469-469\n\nCommands ran:\ngrep -rn \"sidebarItem\\|sidebarText\\|sidebar:\\|variant\" /Users/example/dev/cline/apps/examples/deskto...</SYSTEM_NOTICE>"
+          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/ui/button.tsx:1-45\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:250-300\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:240-251\n\nFiles edited:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:469-469\n\nCommands ran:\ngrep -rn \"sidebarItem\\|sidebarText\\|sidebar:\\|variant\" /Users/example/dev/bedrock-coder/apps/examples/deskto...</SYSTEM_NOTICE>"
         }
       ],
       "ts": 1783377201986
@@ -112,7 +112,7 @@
       "ts": 1783377222621,
       "modelInfo": {
         "id": "anthropic/claude-opus-4.8-fast",
-        "provider": "cline",
+        "provider": "bedrockCoder",
         "family": "claude-opus"
       },
       "metadata": {
@@ -129,7 +129,7 @@
         },
         {
           "type": "text",
-          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:354-380\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:356-368\n\nFiles edited:\n/Users/example/dev/cline/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:358-457\n\nCommands ran:\n\n\nYour recent responses:\nThe edit was applied correctly (the diff is just showing line-number shifts). Let me verify the \"Show more\" button now has the `pl-0` class.</SYSTEM_NOTICE>"
+          "text": "<SYSTEM_NOTICE>\nEarlier context was compacted. Summary of your actions after the request above:\nFiles read:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:354-380\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:356-368\n\nFiles edited:\n/Users/example/dev/bedrock-coder/apps/examples/desktop-app/webview/components/agent-sidebar.tsx:358-457\n\nCommands ran:\n\n\nYour recent responses:\nThe edit was applied correctly (the diff is just showing line-number shifts). Let me verify the \"Show more\" button now has the `pl-0` class.</SYSTEM_NOTICE>"
         }
       ],
       "ts": 1783377620570
@@ -146,7 +146,7 @@
       "ts": 1783377635412,
       "modelInfo": {
         "id": "anthropic/claude-opus-4.8-fast",
-        "provider": "cline",
+        "provider": "bedrockCoder",
         "family": "claude-opus"
       },
       "metadata": {
@@ -176,7 +176,7 @@
       "ts": 1783463093615,
       "modelInfo": {
         "id": "mistralai/voxtral-small-24b-2507",
-        "provider": "cline",
+        "provider": "bedrockCoder",
         "family": "mistral"
       },
       "metadata": {
@@ -184,5 +184,5 @@
       }
     }
   ],
-  "system_prompt": "You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.\n\nAlways gather all the necessary context before starting to work on a task. For example, if you are generating a unit test or new code, make sure you understand the requirement, the naming conventions, frameworks and libraries used and aligned in the current codebase, and the environment and commands used to run and test the code etc. Always validate the new unit test at the end including running the code if possible for live feedback.\nReview each question carefully and answer it with detailed, accurate information.\nIf you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.\n\nEnvironment you are running in:\n<env>\n1. Platform: darwin\n2. Date: 7/15/2026\n3. IDE: Terminal Shell\n4. Working Directory: /Users/example/dev/cline\n</env>\n\nRemember:\n- Always adhere to existing code conventions and patterns.\n- Use only libraries and frameworks that are confirmed to be in use in the current codebase.\n- Provide complete and functional code without omissions or placeholders.\n- Be explicit about any assumptions or limitations in your solution.\n- Always show your planning process before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's needs.\n- Always use absolute paths when referring to files.\n- You can call multiple tools in a single response. Before using tools, identify every independent read, search, command, or edit needed for the next step and emit all of those tool calls now, either as multiple tool calls or as one batched input for tools that accept arrays. Do not wait for one independent result before requesting another. Do not split independent reads, searches, checks, or edits across separate turns.\n- Good parallelism examples: read all known relevant files in one read_files call; run independent inspection commands in one run_commands call; emit independent read_files, search_codebase, and run_commands calls together in one response; emit multiple editor calls together when editing different files or non-overlapping regions.\n- Always verify the files you have edited or created at the end of the task to ensure they are completed and working as expected.\n\nBegin by analyzing the user's input and gathering any necessary additional context. Then, present your plan at the start of your response along with tool calls before proceeding with the task. It's OK for this section to be quite long.\n\nREMEMBER, be helpful and proactive! Don't ask for permission to do something when you can do it! Do not indicates you will be using a tool unless you are actually going to use it.\n\nIMPORTANT: Always includes tool calls in your response until the task is completed. Response without tool calls will considered as completed with final answer.\n\nWhen you have completed the task, please provide a summary of what you did and any relevant information that the user should know. This will help ensure that the user understands the changes made and can easily follow up if they have any questions or need further assistance. Do not indicate that you will perform an action without actually doing it. Always provide the final result in your response. Always validate your answer with checking the code and running it if possible. \n\nIf user asked a simple question without any coding context, answer it directly without using any tools."
+  "system_prompt": "You are BedrockCoder, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.\n\nAlways gather all the necessary context before starting to work on a task. For example, if you are generating a unit test or new code, make sure you understand the requirement, the naming conventions, frameworks and libraries used and aligned in the current codebase, and the environment and commands used to run and test the code etc. Always validate the new unit test at the end including running the code if possible for live feedback.\nReview each question carefully and answer it with detailed, accurate information.\nIf you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.\n\nEnvironment you are running in:\n<env>\n1. Platform: darwin\n2. Date: 7/15/2026\n3. IDE: Terminal Shell\n4. Working Directory: /Users/example/dev/bedrockCoder\n</env>\n\nRemember:\n- Always adhere to existing code conventions and patterns.\n- Use only libraries and frameworks that are confirmed to be in use in the current codebase.\n- Provide complete and functional code without omissions or placeholders.\n- Be explicit about any assumptions or limitations in your solution.\n- Always show your planning process before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's needs.\n- Always use absolute paths when referring to files.\n- You can call multiple tools in a single response. Before using tools, identify every independent read, search, command, or edit needed for the next step and emit all of those tool calls now, either as multiple tool calls or as one batched input for tools that accept arrays. Do not wait for one independent result before requesting another. Do not split independent reads, searches, checks, or edits across separate turns.\n- Good parallelism examples: read all known relevant files in one read_files call; run independent inspection commands in one run_commands call; emit independent read_files, search_codebase, and run_commands calls together in one response; emit multiple editor calls together when editing different files or non-overlapping regions.\n- Always verify the files you have edited or created at the end of the task to ensure they are completed and working as expected.\n\nBegin by analyzing the user's input and gathering any necessary additional context. Then, present your plan at the start of your response along with tool calls before proceeding with the task. It's OK for this section to be quite long.\n\nREMEMBER, be helpful and proactive! Don't ask for permission to do something when you can do it! Do not indicates you will be using a tool unless you are actually going to use it.\n\nIMPORTANT: Always includes tool calls in your response until the task is completed. Response without tool calls will considered as completed with final answer.\n\nWhen you have completed the task, please provide a summary of what you did and any relevant information that the user should know. This will help ensure that the user understands the changes made and can easily follow up if they have any questions or need further assistance. Do not indicate that you will perform an action without actually doing it. Always provide the final result in your response. Always validate your answer with checking the code and running it if possible. \n\nIf user asked a simple question without any coding context, answer it directly without using any tools."
 }

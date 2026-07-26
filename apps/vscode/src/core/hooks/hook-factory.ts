@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { version as clineVersion } from "../../../package.json"
+import { version as bedrockCoderVersion } from "../../../package.json"
 import {
 	HookInput,
 	HookModelContext,
@@ -15,7 +15,7 @@ import {
 	TaskResumeData,
 	TaskStartData,
 	UserPromptSubmitData,
-} from "../../shared/proto/cline/hooks"
+} from "../../shared/proto/bedrock_coder/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
 import { HookExecutionError } from "./HookError"
@@ -137,7 +137,7 @@ type HookName = keyof Hooks
 
 /**
  * The hook input parameters for a named hook. These are the parameters the caller must
- * provide--the other common parameters like clineVersion and userId are handled by the
+ * provide--the other common parameters like bedrockCoderVersion and userId are handled by the
  * hook system.
  */
 export type NamedHookInput<Name extends HookName> = {
@@ -181,11 +181,11 @@ export abstract class HookRunner<Name extends HookName> {
 	 *
 	 * This method enriches the hook-specific input (like preToolUse or postToolUse data)
 	 * with standard information that all hooks receive:
-	 * - clineVersion: Current Cline extension version
+	 * - bedrockCoderVersion: Current BedrockCoder extension version
 	 * - hookName: The type of hook being executed (e.g., "PreToolUse")
 	 * - timestamp: Execution time in milliseconds since epoch
 	 * - workspaceRoots: Array of workspace folder paths
-	 * - userId: Cline user ID, machine ID, or generated UUID
+	 * - userId: BedrockCoder user ID, machine ID, or generated UUID
 	 *
 	 * This separation allows hook scripts to receive consistent metadata without
 	 * requiring callers to manually provide it each time.
@@ -205,7 +205,7 @@ export abstract class HookRunner<Name extends HookName> {
 		}
 
 		return {
-			clineVersion,
+			bedrockCoderVersion,
 			hookName: this.hookName,
 			timestamp: Date.now().toString(),
 			workspaceRoots,
@@ -483,8 +483,8 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 /**
  * Combines multiple hook runners and executes them in parallel.
  *
- * Used in multi-root workspaces where both global hooks (from ~/Documents/Cline/Hooks/)
- * and workspace-specific hooks (from each workspace's .clinerules/hooks/) exist for the
+ * Used in multi-root workspaces where both global hooks (from ~/.bedrock-coder/Hooks/)
+ * and workspace-specific hooks (from each workspace's .bedrock-coder/hooks/) exist for the
  * same hook type.
  *
  * Behavior:
@@ -553,7 +553,7 @@ function isExpectedHookError(error: unknown): boolean {
 	}
 
 	// Expected: Permission denied (file not executable or not readable)
-	// Note: This is expected because users may have hooks in .clinerules that they don't want to execute
+	// Note: This is expected because users may have hooks in .bedrock-coder that they don't want to execute
 	if (nodeError.code === "EACCES") {
 		return true
 	}
@@ -652,7 +652,7 @@ export class HookFactory {
 
 	/**
 	 * Checks if a hooks directory is a global hooks directory.
-	 * Global hooks are located in paths containing "Cline/Hooks" or "cline/hooks".
+	 * Global hooks are located in paths containing "BedrockCoder/Hooks" or "bedrock-coder/hooks".
 	 */
 	private static isGlobalHooksDir(dir: string): boolean {
 		return /[/\\][Cc]line[/\\][Hh]ooks/i.test(dir)
@@ -672,8 +672,8 @@ export class HookFactory {
 	/**
 	 * Determines the working directory for a hook script based on its location.
 	 *
-	 * - Global hooks (from ~/Documents/Cline/Hooks/): run from the primary workspace root
-	 * - Workspace hooks (from workspaceRoot/.clinerules/hooks/): run from that specific workspace root
+	 * - Global hooks (from ~/.bedrock-coder/Hooks/): run from the primary workspace root
+	 * - Workspace hooks (from workspaceRoot/.bedrock-coder/hooks/): run from that specific workspace root
 	 *
 	 * This ensures workspace-specific hooks can use relative paths that are meaningful
 	 * within their own workspace context.
@@ -698,7 +698,7 @@ export class HookFactory {
 		}
 
 		// If workspace hook, find which workspace root it belongs to
-		// Workspace hooks are at: workspaceRoot/.clinerules/hooks/
+		// Workspace hooks are at: workspaceRoot/.bedrock-coder/hooks/
 		// So find the workspace root whose path is a prefix of the containing hooks dir
 		if (containingDir && workspaceRoots) {
 			const workspaceRoot = workspaceRoots.find((root) => containingDir.startsWith(root.path))
@@ -713,8 +713,8 @@ export class HookFactory {
 
 	/**
 	 * @returns A list of paths to scripts for the given hook name.
-	 * Includes both global hooks (from ~/Documents/Cline/Hooks/) and workspace hooks
-	 * (from .clinerules/hooks/ in each workspace root).
+	 * Includes both global hooks (from ~/.bedrock-coder/Hooks/) and workspace hooks
+	 * (from .bedrock-coder/hooks/ in each workspace root).
 	 */
 	private static async findHookScripts(hookName: HookName): Promise<string[]> {
 		const hookScripts = []
@@ -726,10 +726,10 @@ export class HookFactory {
 	}
 
 	/**
-	 * Finds the path to a hook in a .clinerules hooks directory.
+	 * Finds the path to a hook in a .bedrock-coder hooks directory.
 	 *
 	 * @param hookName the name of the hook to search for, for example 'PreToolUse'
-	 * @param hooksDir the .clinerules directory path to search
+	 * @param hooksDir the .bedrock-coder directory path to search
 	 * @returns the path to the hook to execute, or undefined if none found
 	 * @throws Error if an unexpected file system error occurs
 	 */
@@ -782,7 +782,7 @@ export class HookFactory {
 	 * with canonical extensionless hook names.
 	 *
 	 * @param hookName the name of the hook to search for
-	 * @param hooksDir the .clinerules directory path to search
+	 * @param hooksDir the .bedrock-coder directory path to search
 	 * @returns the path to the hook to execute, or undefined if none found
 	 * @throws Error if an unexpected file system error occurs
 	 */

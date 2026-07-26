@@ -5,9 +5,8 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import type { ClineStorageMessage } from "@/shared/messages/content"
+import type { BedrockCoderStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { getDocumentsPath } from "./documents-path"
 import { StateManager } from "./StateManager"
 
 export { getDocumentsPath } from "./documents-path"
@@ -18,12 +17,12 @@ export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
-	mcpSettings: "cline_mcp_settings.json",
-	clineRules: ".clinerules",
-	workflows: ".clinerules/workflows",
-	hooksDir: ".clinerules/hooks",
-	clineruleSkillsDir: ".clinerules/skills",
-	clineSkillsDir: ".cline/skills",
+	mcpSettings: "mcp_settings.json",
+	bedrockCoderRules: ".bedrock-coder",
+	workflows: ".bedrock-coder/workflows",
+	hooksDir: ".bedrock-coder/hooks",
+	bedrockCoderruleSkillsDir: ".bedrock-coder/skills",
+	bedrockCoderSkillsDir: ".bedrock-coder/skills",
 	claudeSkillsDir: ".claude/skills",
 	agentsSkillsDir: ".agents/skills",
 	cursorRulesDir: ".cursor/rules",
@@ -34,16 +33,15 @@ export const GlobalFileNames = {
 }
 
 /**
- * Returns the cross-platform path to the Cline home directory (~/.cline).
+ * Returns the cross-platform path to the BedrockCoder home directory (~/.bedrock-coder).
  * This works on macOS, Linux, and Windows:
- * - macOS: /Users/username/.cline
- * - Linux: /home/username/.cline
- * - Windows: C:\Users\username\.cline
+ * - macOS: /Users/username/.bedrock-coder
+ * - Linux: /home/username/.bedrock-coder
+ * - Windows: C:\Users\username\.bedrock-coder
  *
- * This is intended to eventually replace ~/Documents/Cline as the global config location.
  */
-function getClineHomePath(): string {
-	return path.join(os.homedir(), ".cline")
+function getBedrockCoderHomePath(): string {
+	return path.join(os.homedir(), ".bedrock-coder")
 }
 
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
@@ -51,54 +49,50 @@ export async function ensureTaskDirectoryExists(taskId: string): Promise<string>
 }
 
 export async function ensureRulesDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
+	const bedrockCoderRulesDir = path.join(getBedrockCoderHomePath(), "rules")
 	try {
-		await fs.mkdir(clineRulesDir, { recursive: true })
+		await fs.mkdir(bedrockCoderRulesDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		return bedrockCoderRulesDir
 	}
-	return clineRulesDir
+	return bedrockCoderRulesDir
 }
 
 export async function ensureWorkflowsDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineWorkflowsDir = path.join(userDocumentsPath, "Cline", "Workflows")
+	const bedrockCoderWorkflowsDir = path.join(getBedrockCoderHomePath(), "workflows")
 	try {
-		await fs.mkdir(clineWorkflowsDir, { recursive: true })
+		await fs.mkdir(bedrockCoderWorkflowsDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Workflows") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		return bedrockCoderWorkflowsDir
 	}
-	return clineWorkflowsDir
+	return bedrockCoderWorkflowsDir
 }
 
 export async function ensureMcpServersDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
+	const mcpServersDir = path.join(getBedrockCoderHomePath(), "mcp")
 	try {
 		await fs.mkdir(mcpServersDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "MCP") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+		return mcpServersDir
 	}
 	return mcpServersDir
 }
 
 export async function ensureHooksDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineHooksDir = path.join(userDocumentsPath, "Cline", "Hooks")
+	const bedrockCoderHooksDir = path.join(getBedrockCoderHomePath(), "hooks")
 	try {
-		await fs.mkdir(clineHooksDir, { recursive: true })
+		await fs.mkdir(bedrockCoderHooksDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		return bedrockCoderHooksDir
 	}
-	return clineHooksDir
+	return bedrockCoderHooksDir
 }
 
 /**
- * Returns the global skills directory path (~/.cline/skills) without creating it.
+ * Returns the global skills directory path (~/.bedrock-coder/skills) without creating it.
  */
-function getClineSkillsDirectoryPath(): string {
-	return path.join(getClineHomePath(), "skills")
+function getBedrockCoderSkillsDirectoryPath(): string {
+	return path.join(getBedrockCoderHomePath(), "skills")
 }
 
 function getAgentSkillsDirectoryPath(): string {
@@ -150,7 +144,7 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 	return mcpSettingsFilePath
 }
 
-export async function getSavedApiConversationHistory(taskId: string): Promise<ClineStorageMessage[]> {
+export async function getSavedApiConversationHistory(taskId: string): Promise<BedrockCoderStorageMessage[]> {
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
 	const fileExists = await fileExistsAtPath(filePath)
 	if (fileExists) {
@@ -252,7 +246,7 @@ export function setRuntimeHooksDir(dir: string | undefined): void {
  * Gets the paths to all hooks directories to search for hooks, including:
  * 1. The runtime hooks directory (if set via --hooks-dir CLI flag)
  * 2. The global hooks directory (if it exists)
- * 3. Each workspace root's .clinerules/hooks directory (if they exist)
+ * 3. Each workspace root's .bedrock-coder/hooks directory (if they exist)
  *
  * Note: Hooks from different directories may be executed concurrently.
  * No execution order is guaranteed between hooks from different directories.
@@ -281,7 +275,7 @@ export async function getAllHooksDirs(): Promise<string[]> {
 }
 
 /**
- * Gets the paths to the workspace's .clinerules/hooks directories to search for
+ * Gets the paths to the workspace's .bedrock-coder/hooks directories to search for
  * hooks. A workspace may not use hooks, and the resulting array will be empty. A
  * multi-root workspace may have multiple hooks directories.
  */
@@ -294,7 +288,7 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
 	return (
 		await Promise.all(
 			workspaceRootPaths.map(async (workspaceRootPath) => {
-				// Look for a .clinerules/hooks folder in this workspace root.
+				// Look for a .bedrock-coder/hooks folder in this workspace root.
 				const candidate = path.join(workspaceRootPath, GlobalFileNames.hooksDir)
 				return (await isDirectory(candidate)) ? candidate : undefined
 			}),

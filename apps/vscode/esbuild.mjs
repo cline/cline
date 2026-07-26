@@ -88,7 +88,7 @@ const buildEnvVars = {
 	"import.meta.url": "_importMetaUrl",
 	// Always inline these values so ordinary builds cannot be mislabeled by a
 	// user's runtime environment. Only the combined rollout workflow sets them.
-	"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(process.env.CLINE_ROLLOUT_VARIANT || ""),
+	"process.env.BEDROCK_CODER_ROLLOUT_VARIANT": JSON.stringify(process.env.BEDROCK_CODER_ROLLOUT_VARIANT || ""),
 }
 
 if (production) {
@@ -96,8 +96,8 @@ if (production) {
 	buildEnvVars["process.env.IS_DEV"] = "false"
 }
 // Set the build environment when explicitly supplied.
-if (process.env.CLINE_ENVIRONMENT) {
-	buildEnvVars["process.env.CLINE_ENVIRONMENT"] = JSON.stringify(process.env.CLINE_ENVIRONMENT)
+if (process.env.BEDROCK_CODER_ENVIRONMENT) {
+	buildEnvVars["process.env.BEDROCK_CODER_ENVIRONMENT"] = JSON.stringify(process.env.BEDROCK_CODER_ENVIRONMENT)
 }
 const baseConfig = {
 	bundle: true,

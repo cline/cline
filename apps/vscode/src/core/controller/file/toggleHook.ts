@@ -1,4 +1,4 @@
-import { ToggleHookRequest, ToggleHookResponse } from "@shared/proto/cline/file"
+import { ToggleHookRequest, ToggleHookResponse } from "@shared/proto/bedrock_coder/file"
 import fs from "fs/promises"
 import { HookDiscoveryCache } from "../../hooks/HookDiscoveryCache"
 import { resolveExistingHookPath, resolveHooksDirectory } from "../../hooks/utils"

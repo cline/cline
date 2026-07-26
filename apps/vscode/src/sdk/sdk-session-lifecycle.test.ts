@@ -550,7 +550,7 @@ describe("SdkSessionLifecycle", () => {
 		const send = vi.fn().mockResolvedValue(undefined)
 		const sdkHost = makeSdkHost({ send })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		// Real tracker semantics live in @cline/shared and SdkModeCoordinator;
+		// Real tracker semantics live in @bedrock-coder/shared and SdkModeCoordinator;
 		// here a one-shot stub proves the consume-once wiring: first send is
 		// stamped, later sends go out untouched.
 		let pending: { from: "act"; to: "plan" } | null = { from: "act", to: "plan" }

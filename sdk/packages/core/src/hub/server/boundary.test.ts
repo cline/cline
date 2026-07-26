@@ -1,4 +1,4 @@
-import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
+import type { AgentToolContext, HubEventEnvelope } from "@bedrock-coder/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	SessionNotFoundError,
@@ -104,7 +104,7 @@ describe("HubServerTransport boundaries", () => {
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
 				capturedStartInput = input;
 				const sessionId = input.config.sessionId?.trim() || "missing-session";
-				resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
+				resolvedWorkspace = "/home/host/.bedrock-coder/data/workspaces/chat";
 				return {
 					sessionId,
 					manifest: {
@@ -115,7 +115,7 @@ describe("HubServerTransport boundaries", () => {
 						started_at: new Date(0).toISOString(),
 						status: "running",
 						interactive: true,
-						provider: "cline",
+						provider: "bedrockCoder",
 						model: "test-model",
 						cwd: resolvedWorkspace,
 						workspace_root: resolvedWorkspace,
@@ -139,7 +139,7 @@ describe("HubServerTransport boundaries", () => {
 					startedAt: new Date(0).toISOString(),
 					updatedAt: new Date(0).toISOString(),
 					interactive: true,
-					provider: "cline",
+					provider: "bedrockCoder",
 					model: "test-model",
 					cwd: resolvedWorkspace,
 					workspaceRoot: resolvedWorkspace,
@@ -232,7 +232,7 @@ describe("HubServerTransport boundaries", () => {
 					startedAt: new Date(0).toISOString(),
 					status: "completed",
 					interactive: false,
-					provider: "cline",
+					provider: "bedrockCoder",
 					model: "test-model",
 					cwd: "/tmp/project",
 					workspaceRoot: "/tmp/project",
@@ -299,7 +299,7 @@ describe("HubServerTransport boundaries", () => {
 					startedAt: new Date(0).toISOString(),
 					status: "completed",
 					interactive: false,
-					provider: "cline",
+					provider: "bedrockCoder",
 					model: "test-model",
 					cwd: "/tmp/project",
 					workspaceRoot: "/tmp/project",
@@ -391,7 +391,7 @@ describe("HubServerTransport boundaries", () => {
 			workspaceRoot: "/tmp/project",
 			cwd: "/tmp/project",
 			interactive: true,
-			provider: "cline",
+			provider: "bedrockCoder",
 			model: "test-model",
 			enableTools: true,
 			enableSpawn: true,
@@ -607,7 +607,7 @@ describe("HubServerTransport boundaries", () => {
 						started_at: new Date(0).toISOString(),
 						status: "running",
 						interactive: true,
-						provider: "cline",
+						provider: "bedrockCoder",
 						model: "test-model",
 						cwd: "/tmp/project",
 						workspace_root: "/tmp/project",
@@ -739,7 +739,7 @@ describe("HubServerTransport boundaries", () => {
 					started_at: new Date(0).toISOString(),
 					status: "running",
 					interactive: true,
-					provider: "cline",
+					provider: "bedrockCoder",
 					model: "test-model",
 					cwd: "/tmp/project",
 					workspace_root: "/tmp/project",
@@ -1313,7 +1313,7 @@ describe("HubServerTransport boundaries", () => {
 					startedAt: new Date(0).toISOString(),
 					status: "running",
 					interactive: true,
-					provider: "cline",
+					provider: "bedrockCoder",
 					model: "test-model",
 					cwd: "/tmp/project",
 					workspaceRoot: "/tmp/project",

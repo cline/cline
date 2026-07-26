@@ -1,5 +1,5 @@
-import { createSessionId } from "@cline/shared"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import { createSessionId } from "@bedrock-coder/shared"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
@@ -204,7 +204,7 @@ export class SdkTaskStartCoordinator {
 	}
 
 	private emitInitialTaskMessage(sessionId: string, task: string): void {
-		const taskMessage: ClineMessage = {
+		const taskMessage: BedrockCoderMessage = {
 			ts: Date.now(),
 			type: "say",
 			say: "task",
@@ -221,8 +221,8 @@ export class SdkTaskStartCoordinator {
 		const errorDetails =
 			error instanceof Error ? `${error.name}: ${error.message}\n${error.stack?.substring(0, 500)}` : String(error)
 		Logger.error(`[SdkController] Failed to init task: ${errorDetails}`)
-		;(globalThis as Record<string, unknown>).__cline_last_init_error = errorDetails
-		;(globalThis as Record<string, unknown>).__cline_last_init_error_raw = error
+		;(globalThis as Record<string, unknown>).__bedrockCoder_last_init_error = errorDetails
+		;(globalThis as Record<string, unknown>).__bedrockCoder_last_init_error_raw = error
 		this.options.messages.appendAndEmit(
 			[
 				{

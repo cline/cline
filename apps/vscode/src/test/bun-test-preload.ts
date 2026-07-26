@@ -3,7 +3,7 @@
 // API and module aliases — run under `bun test`.
 //
 // TODO: migrate these suites to native `bun:test` (use `mock.module` / `spyOn`
-// directly and stub `vscode`/`@cline/core` per-file) and delete this preload's
+// directly and stub `vscode`/`@bedrock-coder/core` per-file) and delete this preload's
 // `vi` shim. Until then the detail below documents exactly why the shim is shaped
 // the way it is.
 //
@@ -11,20 +11,20 @@
 // lightweight stubs in unit tests:
 //
 //   vscode       -> src/test/vscode-vitest-stub.ts     (no VS Code host under bun)
-//   @cline/core  -> src/test/cline-core-vitest-stub.ts (lightweight SDK stub)
+//   @bedrock-coder/core  -> src/test/bedrock-coder-core-vitest-stub.ts (lightweight SDK stub)
 //
 // bun's runtime plugin `onResolve` hook does NOT intercept these (`vscode` is
-// host/builtin-like and `@cline/core` is a symlinked workspace package — both
+// host/builtin-like and `@bedrock-coder/core` is a symlinked workspace package — both
 // resolve below the JS plugin resolver). `mock.module()` is what works: it
 // registers an in-memory override that takes precedence for the whole test
-// process. (Other workspace packages — @cline/llms, @cline/shared,
-// @cline/shared/storage — and the tsconfig `paths` aliases resolve on their own.)
+// process. (Other workspace packages — @bedrock-coder/llms, @bedrock-coder/shared,
+// @bedrock-coder/shared/storage — and the tsconfig `paths` aliases resolve on their own.)
 //
 // bun's ESM linker statically validates every named import against the names on
-// the mock namespace. The stub only implements the @cline/core exports these
+// the mock namespace. The stub only implements the @bedrock-coder/core exports these
 // tests exercise, but other modules in the import graph statically import
 // additional names; a missing name is a hard "Export named 'X' not found" link
-// error. So we seed the mock namespace with every name the real @cline/core
+// error. So we seed the mock namespace with every name the real @bedrock-coder/core
 // exports (value `undefined`) and overlay the stub on top: stub names keep stub
 // behavior, every other valid import links as `undefined`.
 //
@@ -32,21 +32,21 @@
 // file, so this is the only point the real module is linked, and we only read
 // its export *names*, never its behavior (the mock shadows it everywhere tests look).
 import { beforeEach as bunBeforeEach, vi as bunVi, mock } from "bun:test"
-import * as realClineCore from "@cline/core"
-import * as clineCoreStub from "./cline-core-vitest-stub"
+import * as realBedrockCoderCore from "@bedrock-coder/core"
+import * as bedrockCoderCoreStub from "./bedrock-coder-core-vitest-stub"
 import * as vscodeStub from "./vscode-vitest-stub"
 
-const clineCoreNamespace: Record<string, unknown> = {}
-for (const name of Object.keys(realClineCore)) {
-	clineCoreNamespace[name] = undefined
+const bedrockCoderCoreNamespace: Record<string, unknown> = {}
+for (const name of Object.keys(realBedrockCoderCore)) {
+	bedrockCoderCoreNamespace[name] = undefined
 }
-Object.assign(clineCoreNamespace, clineCoreStub)
+Object.assign(bedrockCoderCoreNamespace, bedrockCoderCoreStub)
 
 bunBeforeEach(() => {
-	clineCoreStub.resetModelsFileState()
+	bedrockCoderCoreStub.resetModelsFileState()
 })
 
-mock.module("@cline/core", () => clineCoreNamespace)
+mock.module("@bedrock-coder/core", () => bedrockCoderCoreNamespace)
 
 // `vscode`: the stub provides both named exports (Position, Uri, …) and a
 // default export (the namespace object). Preserve both shapes so `import * as
@@ -73,7 +73,7 @@ mock.module("vscode", () => ({ ...vscodeStub, default: vscodeStub.default }))
 //   • vi.importActual(s)  — the module as resolved by vitest's `resolve.alias`
 //                           BEFORE `vi.mock` is layered on. For specifiers we
 //                           substitute via `mock.module` in this preload
-//                           (@cline/core, vscode), calling bun's `import()` from
+//                           (@bedrock-coder/core, vscode), calling bun's `import()` from
 //                           inside a `vi.mock(sameSpecifier)` factory re-enters
 //                           the in-flight mock and DEADLOCKS. So we serve those
 //                           from a registry of the pre-built "actual" namespaces
@@ -112,7 +112,7 @@ const viWaitFor = async <T>(predicate: () => T | Promise<T>, options?: { timeout
 // substitutes. `importActual` serves these directly to avoid the re-entrant
 // mock-factory deadlock described above.
 const actualNamespaceRegistry: Record<string, unknown> = {
-	"@cline/core": clineCoreNamespace,
+	"@bedrock-coder/core": bedrockCoderCoreNamespace,
 	vscode: { ...vscodeStub, default: vscodeStub.default },
 }
 

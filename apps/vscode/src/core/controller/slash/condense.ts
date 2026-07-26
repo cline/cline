@@ -1,4 +1,4 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, StringRequest } from "@shared/proto/bedrock_coder/common"
 import type { Controller } from ".."
 
 /**
@@ -8,7 +8,7 @@ import type { Controller } from ".."
  * (the same effect as the CLI's `/compact` / `/smol` command), instead of
  * sending the literal text `/compact` to the model. The model does not treat
  * `/compact` as a command, so the old behavior produced an improvised fake
- * summary without actually compacting the context (CLINE-2503).
+ * summary without actually compacting the context (BEDROCK_CODER-2503).
  */
 export async function condense(controller: Controller, _request: StringRequest): Promise<Empty> {
 	await controller.compactTask()

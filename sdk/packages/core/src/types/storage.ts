@@ -1,4 +1,4 @@
-import type { TeamRuntimeState, TeamTeammateSpec } from "@cline/shared";
+import type { TeamRuntimeState, TeamTeammateSpec } from "@bedrock-coder/shared";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { SessionStatus } from "./common";
 import type { SessionRecord } from "./sessions";

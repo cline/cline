@@ -11,7 +11,7 @@ const ORIGINAL_FETCH = globalThis.fetch;
 const tempDirs: string[] = [];
 
 function createTempCassettePath(): string {
-	const dir = mkdtempSync(path.join(os.tmpdir(), "cline-vcr-test-"));
+	const dir = mkdtempSync(path.join(os.tmpdir(), "bedrock-coder-vcr-test-"));
 	tempDirs.push(dir);
 	return path.join(dir, "cassette.json");
 }
@@ -32,8 +32,8 @@ afterEach(async () => {
 describe("VCR request body contracts", () => {
 	it("records sanitized request body contracts when opted in", async () => {
 		const cassettePath = createTempCassettePath();
-		process.env.CLINE_VCR_CASSETTE = cassettePath;
-		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY = "1";
+		process.env.BEDROCK_CODER_VCR_CASSETTE = cassettePath;
+		process.env.BEDROCK_CODER_VCR_INCLUDE_REQUEST_BODY = "1";
 		globalThis.fetch = vi.fn(async () => {
 			return new Response(JSON.stringify({ ok: true }), {
 				status: 200,
@@ -66,8 +66,8 @@ describe("VCR request body contracts", () => {
 
 	it("canonicalizes URL-encoded bodies when content type is form encoded", async () => {
 		const cassettePath = createTempCassettePath();
-		process.env.CLINE_VCR_CASSETTE = cassettePath;
-		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY = "1";
+		process.env.BEDROCK_CODER_VCR_CASSETTE = cassettePath;
+		process.env.BEDROCK_CODER_VCR_INCLUDE_REQUEST_BODY = "1";
 		globalThis.fetch = vi.fn(async () => {
 			return new Response("ok", {
 				status: 200,
@@ -96,8 +96,8 @@ describe("VCR request body contracts", () => {
 
 	it("leaves URL-encoded-looking strings raw without form content type", async () => {
 		const cassettePath = createTempCassettePath();
-		process.env.CLINE_VCR_CASSETTE = cassettePath;
-		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY = "1";
+		process.env.BEDROCK_CODER_VCR_CASSETTE = cassettePath;
+		process.env.BEDROCK_CODER_VCR_INCLUDE_REQUEST_BODY = "1";
 		globalThis.fetch = vi.fn(async () => {
 			return new Response("ok", {
 				status: 200,
@@ -132,7 +132,7 @@ describe("VCR request body contracts", () => {
 			contentType: "text/plain",
 		};
 		writeFileSync(cassettePath, JSON.stringify([recording], null, 2));
-		process.env.CLINE_VCR_CASSETTE = cassettePath;
+		process.env.BEDROCK_CODER_VCR_CASSETTE = cassettePath;
 
 		initVcr("playback");
 
@@ -159,7 +159,7 @@ describe("VCR request body contracts", () => {
 			contentType: "text/plain",
 		};
 		writeFileSync(cassettePath, JSON.stringify([recording], null, 2));
-		process.env.CLINE_VCR_CASSETTE = cassettePath;
+		process.env.BEDROCK_CODER_VCR_CASSETTE = cassettePath;
 
 		initVcr("playback");
 
@@ -187,7 +187,7 @@ describe("VCR request body contracts", () => {
 			contentType: "text/plain",
 		};
 		writeFileSync(cassettePath, JSON.stringify([recording], null, 2));
-		process.env.CLINE_VCR_CASSETTE = cassettePath;
+		process.env.BEDROCK_CODER_VCR_CASSETTE = cassettePath;
 
 		initVcr("playback");
 

@@ -3,7 +3,7 @@ import { HookConfigFileName, toHookConfigFileName } from "./hook-file-config";
 
 describe("hook file config", () => {
 	afterEach(() => {
-		delete process.env.CLINE_DATA_DIR;
+		delete process.env.BEDROCK_CODER_DATA_DIR;
 	});
 
 	it("recognizes PowerShell hook files", () => {

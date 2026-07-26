@@ -10,32 +10,32 @@
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
 		"paths": {
-			"@cline/agents": ["./packages/agents/src/index.ts"],
-			"@cline/agents/*": [
+			"@bedrock-coder/agents": ["./packages/agents/src/index.ts"],
+			"@bedrock-coder/agents/*": [
 				"./packages/agents/src/*",
 				"./packages/agents/src/*/index.ts"
 			],
-			"@cline/core": ["./packages/core/src/index.ts"],
-			"@cline/core/hub": ["./packages/core/src/hub/index.ts"],
-			"@cline/core/hub/daemon-entry": [
+			"@bedrock-coder/core": ["./packages/core/src/index.ts"],
+			"@bedrock-coder/core/hub": ["./packages/core/src/hub/index.ts"],
+			"@bedrock-coder/core/hub/daemon-entry": [
 				"./packages/core/src/hub/daemon/entry.ts"
 			],
-			"@cline/core/telemetry": [
+			"@bedrock-coder/core/telemetry": [
 				"./packages/core/src/services/telemetry/index.ts"
 			],
-			"@cline/core/*": [
+			"@bedrock-coder/core/*": [
 				"./packages/core/src/*",
 				"./packages/core/src/*/index.ts"
 			],
-			"@cline/llms": ["./packages/llms/src/index.ts"],
-			"@cline/llms/browser": ["./packages/llms/src/index.browser.ts"],
-			"@cline/shared": ["./packages/shared/src/index.ts"],
-			"@cline/shared/automation": ["./packages/shared/src/automation/index.ts"],
-			"@cline/shared/browser": ["./packages/shared/src/index.browser.ts"],
-			"@cline/shared/db": ["./packages/shared/src/db/index.ts"],
-			"@cline/shared/storage": ["./packages/shared/src/storage/index.ts"],
-			"@cline/shared/types": ["./packages/shared/src/types/index.ts"],
-			"@cline/shared/*": [
+			"@bedrock-coder/llms": ["./packages/llms/src/index.ts"],
+			"@bedrock-coder/llms/browser": ["./packages/llms/src/index.browser.ts"],
+			"@bedrock-coder/shared": ["./packages/shared/src/index.ts"],
+			"@bedrock-coder/shared/automation": ["./packages/shared/src/automation/index.ts"],
+			"@bedrock-coder/shared/browser": ["./packages/shared/src/index.browser.ts"],
+			"@bedrock-coder/shared/db": ["./packages/shared/src/db/index.ts"],
+			"@bedrock-coder/shared/storage": ["./packages/shared/src/storage/index.ts"],
+			"@bedrock-coder/shared/types": ["./packages/shared/src/types/index.ts"],
+			"@bedrock-coder/shared/*": [
 				"./packages/shared/src/*",
 				"./packages/shared/src/*/index.ts"
 			]

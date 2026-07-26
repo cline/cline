@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
-import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.cline"
+import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.bedrock_coder"
 import { expect } from "chai"
 import * as sinon from "sinon"
 import * as actualPathUtils from "@/utils/path"

@@ -1,4 +1,4 @@
-import type { AgentExtension, AgentTool } from "@cline/shared";
+import type { AgentExtension, AgentTool } from "@bedrock-coder/shared";
 import { loadRulesForSystemPromptFromWatcher } from "../../runtime/safety/rules";
 import {
 	createSkillsTool,
@@ -227,7 +227,7 @@ export function createUserInstructionPlugin(
 	].filter((value): value is "rules" | "tools" | "commands" => Boolean(value));
 
 	return {
-		name: "cline-user-instructions",
+		name: "bedrock-coder-user-instructions",
 		manifest: {
 			capabilities,
 		},
@@ -236,7 +236,7 @@ export function createUserInstructionPlugin(
 
 			if (options.includeRules) {
 				api.registerRule({
-					id: "cline-user-instructions:rules",
+					id: "bedrock-coder-user-instructions:rules",
 					source: "user-instruction-watcher",
 					content: () => loadRulesForSystemPromptFromWatcher(options.watcher),
 				});

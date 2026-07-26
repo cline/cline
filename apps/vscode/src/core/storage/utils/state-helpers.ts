@@ -1,4 +1,4 @@
-import type { ClineFileStorage } from "@shared/storage/ClineFileStorage"
+import type { BedrockCoderFileStorage } from "@shared/storage/BedrockCoderFileStorage"
 import {
 	applyTransform,
 	GlobalStateAndSettingKeys,
@@ -12,15 +12,15 @@ import {
 	Secrets,
 } from "@shared/storage/state-keys"
 import { Logger } from "@/shared/services/Logger"
-import { ClineMemento } from "@/shared/storage"
+import { BedrockCoderMemento } from "@/shared/storage"
 import { StateManager } from "../StateManager"
 
 // ─── File-backed storage readers (used by StateManager) ────────────────────
 
 /**
- * Read secrets from a ClineFileStorage instance.
+ * Read secrets from a BedrockCoderFileStorage instance.
  */
-export function readSecretsFromStorage(store: ClineFileStorage<string>): Secrets {
+export function readSecretsFromStorage(store: BedrockCoderFileStorage<string>): Secrets {
 	return SecretKeys.reduce((acc, key) => {
 		acc[key] = store.get(key)
 		return acc
@@ -28,9 +28,9 @@ export function readSecretsFromStorage(store: ClineFileStorage<string>): Secrets
 }
 
 /**
- * Read workspace state from a ClineFileStorage instance.
+ * Read workspace state from a BedrockCoderFileStorage instance.
  */
-export function readWorkspaceStateFromStorage(store: ClineFileStorage): LocalState {
+export function readWorkspaceStateFromStorage(store: BedrockCoderFileStorage): LocalState {
 	return LocalStateKeys.reduce((acc, key) => {
 		acc[key] = store.get(key) || {}
 		return acc
@@ -38,9 +38,9 @@ export function readWorkspaceStateFromStorage(store: ClineFileStorage): LocalSta
 }
 
 /**
- * Read global state from a ClineFileStorage instance.
+ * Read global state from a BedrockCoderFileStorage instance.
  */
-export async function readGlobalStateFromStorage(store: ClineMemento): Promise<GlobalStateAndSettings> {
+export async function readGlobalStateFromStorage(store: BedrockCoderMemento): Promise<GlobalStateAndSettings> {
 	try {
 		// Batch read all state values in a single optimized pass
 		const stateValues = new Map<string, any>()

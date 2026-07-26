@@ -7,8 +7,8 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
-} from "@cline/shared";
-import { estimateRequestInputTokens } from "@cline/shared";
+} from "@bedrock-coder/shared";
+import { estimateRequestInputTokens } from "@bedrock-coder/shared";
 import { nanoid } from "nanoid";
 import { BEDROCK_DEFAULT_MODEL_ID } from "../catalog/bedrock";
 import { createBedrockProvider } from "./ai-sdk";

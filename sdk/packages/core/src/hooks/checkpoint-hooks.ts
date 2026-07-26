@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentHooks, BasicLogger } from "@cline/shared";
+import type { AgentHooks, BasicLogger } from "@bedrock-coder/shared";
 
 const execFile = promisify(execFileCallback);
 
@@ -106,7 +106,7 @@ async function runGit(
 }
 
 /**
- * Deletes all private git refs under refs/cline/checkpoints/{sessionId}/ that
+ * Deletes all private git refs under refs/bedrock-coder/checkpoints/{sessionId}/ that
  * were created by the checkpoint system to keep stash objects reachable.
  * Errors are swallowed - if the cwd is not a git repo or the refs don't exist,
  * the delete is a no-op.
@@ -116,7 +116,7 @@ export async function deleteCheckpointRefs(
 	sessionId: string,
 ): Promise<void> {
 	if (!cwd) return;
-	const prefix = `refs/cline/checkpoints/${sessionId}/`;
+	const prefix = `refs/bedrock-coder/checkpoints/${sessionId}/`;
 	try {
 		const { stdout } = await runGit(cwd, [
 			"for-each-ref",
@@ -142,7 +142,7 @@ export async function retainCheckpointRefs(
 		checkpoints.map((entry) =>
 			runGit(cwd, [
 				"update-ref",
-				`refs/cline/checkpoints/${sessionId}/${entry.runCount}`,
+				`refs/bedrock-coder/checkpoints/${sessionId}/${entry.runCount}`,
 				entry.ref,
 			]),
 		),
@@ -230,7 +230,7 @@ export function createCheckpointHooks(
 			}
 		};
 
-		const message = `cline checkpoint session=${options.sessionId} run=${runCount}`;
+		const message = `bedrockCoder checkpoint session=${options.sessionId} run=${runCount}`;
 		let ref = "";
 		try {
 			const untracked = await runGit(options.cwd, [
@@ -247,7 +247,7 @@ export function createCheckpointHooks(
 				ref = result.stdout.trim();
 			} else {
 				const temporaryDirectory = await mkdtemp(
-					join(tmpdir(), "cline-checkpoint-index-"),
+					join(tmpdir(), "bedrock-coder-checkpoint-index-"),
 				);
 				try {
 					const env = {
@@ -295,7 +295,7 @@ export function createCheckpointHooks(
 		// ref path keeps the object reachable (GC-safe) without surfacing
 		// it to the user.  The raw SHA already works with `git stash apply`
 		// on the restore path, so no restore-side changes are needed.
-		const privateRef = `refs/cline/checkpoints/${options.sessionId}/${runCount}`;
+		const privateRef = `refs/bedrock-coder/checkpoints/${options.sessionId}/${runCount}`;
 		try {
 			await runGit(options.cwd, ["update-ref", privateRef, ref]);
 		} catch (error) {

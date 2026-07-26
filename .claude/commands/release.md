@@ -1,1 +1,0 @@
-../../.clinerules/workflows/release.md

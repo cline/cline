@@ -1,5 +1,5 @@
-import { createBedrockClient } from "@cline/llms";
-import type { BasicLogger } from "@cline/shared";
+import { createBedrockClient } from "@bedrock-coder/llms";
+import type { BasicLogger } from "@bedrock-coder/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,

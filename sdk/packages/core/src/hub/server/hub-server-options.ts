@@ -1,4 +1,4 @@
-import type { BasicLogger } from "@cline/shared";
+import type { BasicLogger } from "@bedrock-coder/shared";
 import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,

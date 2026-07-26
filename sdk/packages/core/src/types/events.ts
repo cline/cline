@@ -34,9 +34,9 @@ export interface SessionToolEvent {
 export interface SessionTeamProgressEvent {
 	sessionId: string;
 	teamName: string;
-	lifecycle: import("@cline/shared").TeamProgressLifecycleEvent;
-	summary: import("@cline/shared").TeamProgressSummary;
-	changes?: import("@cline/shared").TeamProgressProjectionEvent["changes"];
+	lifecycle: import("@bedrock-coder/shared").TeamProgressLifecycleEvent;
+	summary: import("@bedrock-coder/shared").TeamProgressSummary;
+	changes?: import("@bedrock-coder/shared").TeamProgressProjectionEvent["changes"];
 }
 
 export interface SessionPendingPrompt {
@@ -74,7 +74,7 @@ export type CoreSessionEvent =
 			type: "agent_event";
 			payload: {
 				sessionId: string;
-				event: import("@cline/shared").AgentEvent;
+				event: import("@bedrock-coder/shared").AgentEvent;
 				/** Identifies the named agent within the team (e.g. "educator", "assessor", "coordinator") for both lead and teammate agents */
 				teamAgentId?: string;
 				/** Whether this is the lead agent or a teammate */

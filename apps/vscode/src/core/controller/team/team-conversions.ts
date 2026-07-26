@@ -1,5 +1,5 @@
-import type { TeamTask as SharedTeamTask, TeamBoardSnapshot, TeamRunRecord } from "@cline/shared"
-import { TeamAgent, TeamBoard, TeamRun, TeamTask } from "@shared/proto/cline/team"
+import type { TeamTask as SharedTeamTask, TeamBoardSnapshot, TeamRunRecord } from "@bedrock-coder/shared"
+import { TeamAgent, TeamBoard, TeamRun, TeamTask } from "@shared/proto/bedrock_coder/team"
 
 export function toTeamTaskProto(task: SharedTeamTask): TeamTask {
 	return TeamTask.create({

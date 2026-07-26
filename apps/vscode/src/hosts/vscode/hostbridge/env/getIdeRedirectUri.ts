@@ -1,4 +1,4 @@
-import { EmptyRequest, String } from "@shared/proto/cline/common"
+import { EmptyRequest, String } from "@shared/proto/bedrock_coder/common"
 import * as vscode from "vscode"
 
 export async function getIdeRedirectUri(_: EmptyRequest): Promise<String> {
@@ -9,5 +9,5 @@ export async function getIdeRedirectUri(_: EmptyRequest): Promise<String> {
 		return { value: "" }
 	}
 	const uriScheme = vscode.env.uriScheme || "vscode"
-	return { value: `${uriScheme}://saoudrizwan.claude-dev` }
+	return { value: `${uriScheme}://fffalexgo.bedrock-coder` }
 }

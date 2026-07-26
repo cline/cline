@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { Controller } from "@core/controller"
 import * as actualOpenFileIntegration from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, StringRequest } from "@shared/proto/bedrock_coder/common"
 import * as actualPathUtils from "@utils/path"
 import { expect } from "chai"
 import * as path from "path"

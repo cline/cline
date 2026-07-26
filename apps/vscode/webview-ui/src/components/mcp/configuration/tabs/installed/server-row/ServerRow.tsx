@@ -1,6 +1,6 @@
 import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "@shared/mcp"
-import { StringRequest } from "@shared/proto/cline/common"
-import { McpServers, ToggleMcpServerRequest, UpdateMcpTimeoutRequest } from "@shared/proto/cline/mcp"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
+import { McpServers, ToggleMcpServerRequest, UpdateMcpTimeoutRequest } from "@shared/proto/bedrock_coder/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { VSCodeDropdown, VSCodeOption, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCcwIcon, Trash2Icon } from "lucide-react"

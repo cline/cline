@@ -13,10 +13,10 @@ export async function executeCommandInTerminal(
 	try {
 		// Create terminal with fixed options
 		const terminalOptions: vscode.TerminalOptions = {
-			name: "Cline",
-			iconPath: new vscode.ThemeIcon("cline-icon"),
+			name: "Bedrock Coder",
+			iconPath: new vscode.ThemeIcon("bedrock-coder-icon"),
 			env: {
-				CLINE_ACTIVE: "true",
+				BEDROCK_CODER_ACTIVE: "true",
 			},
 		}
 

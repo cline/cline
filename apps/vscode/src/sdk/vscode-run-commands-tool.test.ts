@@ -1,4 +1,4 @@
-import { CommandExitError } from "@cline/core"
+import { CommandExitError } from "@bedrock-coder/core"
 import { EventEmitter } from "events"
 import * as fs from "fs"
 import { afterEach, describe, expect, it, vi } from "vitest"

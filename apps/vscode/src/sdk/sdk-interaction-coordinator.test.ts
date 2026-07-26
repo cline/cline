@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@cline/shared"
+import type { AgentEvent } from "@bedrock-coder/shared"
 import { describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
@@ -11,7 +11,7 @@ vi.mock("./webview-grpc-bridge", () => ({
 }))
 
 vi.mock("@core/storage/disk", () => ({
-	saveClineMessages: vi.fn().mockResolvedValue(undefined),
+	saveBedrockCoderMessages: vi.fn().mockResolvedValue(undefined),
 }))
 
 describe("SdkInteractionCoordinator", () => {
@@ -41,15 +41,15 @@ describe("SdkInteractionCoordinator", () => {
 		})
 		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalled())
 
-		const clineMessages = task.messageStateHandler.getClineMessages()
-		expect(clineMessages).toHaveLength(1)
-		expect(clineMessages[0].type).toBe("ask")
-		expect(clineMessages[0].ask).toBe("tool")
-		expect(JSON.parse(clineMessages[0].text || "{}")).toMatchObject({ tool: "readFile", path: "README.md" })
+		const bedrockCoderMessages = task.messageStateHandler.getBedrockCoderMessages()
+		expect(bedrockCoderMessages).toHaveLength(1)
+		expect(bedrockCoderMessages[0].type).toBe("ask")
+		expect(bedrockCoderMessages[0].ask).toBe("tool")
+		expect(JSON.parse(bedrockCoderMessages[0].text || "{}")).toMatchObject({ tool: "readFile", path: "README.md" })
 		expect(listener).toHaveBeenCalledOnce()
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
-		expect(recordApprovedToolMessage).toHaveBeenCalledWith("tool-call", clineMessages[0].ts)
+		expect(recordApprovedToolMessage).toHaveBeenCalledWith("tool-call", bedrockCoderMessages[0].ts)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
@@ -75,8 +75,8 @@ describe("SdkInteractionCoordinator", () => {
 			input: { path: "calculator.py", old_text: "# comment", new_text: "" },
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-		const approvalTs = task.messageStateHandler.getClineMessages()[0].ts
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
+		const approvalTs = task.messageStateHandler.getBedrockCoderMessages()[0].ts
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
@@ -124,16 +124,16 @@ describe("SdkInteractionCoordinator", () => {
 			input: { command: "npm test" },
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
-		const clineMessages = task.messageStateHandler.getClineMessages()
-		expect(clineMessages[0]).toMatchObject({ type: "ask", ask: "command", text: "npm test" })
+		const bedrockCoderMessages = task.messageStateHandler.getBedrockCoderMessages()
+		expect(bedrockCoderMessages[0]).toMatchObject({ type: "ask", ask: "command", text: "npm test" })
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 		const expectedReason = `${DEFAULT_TOOL_APPROVAL_DENIAL_REASON} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", expectedReason)
-		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
+		expect(task.messageStateHandler.getBedrockCoderMessages()[1]).toMatchObject({
 			type: "say",
 			say: "user_feedback",
 			text: "too risky",
@@ -162,7 +162,7 @@ describe("SdkInteractionCoordinator", () => {
 			input: { path: "a.ts", old_text: "a", new_text: "b" },
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		// Feedback typed into the approval row denies the edit; the model-facing reason must
 		// state the file is unchanged, or it will treat the feedback as iteration on an
@@ -185,7 +185,7 @@ describe("SdkInteractionCoordinator", () => {
 			policy: {},
 		})
 		// Prior messages: ask #1 + the user_feedback say from the first denial.
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages().length).toBeGreaterThanOrEqual(3))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages().length).toBeGreaterThanOrEqual(3))
 		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
 		await expect(secondApproval).resolves.toEqual({ approved: false, reason: EDIT_TOOL_APPROVAL_DENIAL_REASON })
 	})
@@ -212,11 +212,14 @@ describe("SdkInteractionCoordinator", () => {
 			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		expect(coordinator.resolvePendingToolApproval("just give me an answer", "messageResponse")).toBe(false)
 		expect(recordDeniedToolApproval).not.toHaveBeenCalled()
-		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_approval", task.messageStateHandler.getClineMessages()[0].ts)
+		expect(setTurnPhase).toHaveBeenLastCalledWith(
+			"awaiting_approval",
+			task.messageStateHandler.getBedrockCoderMessages()[0].ts,
+		)
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
@@ -242,14 +245,14 @@ describe("SdkInteractionCoordinator", () => {
 			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({
 			approved: false,
 			reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
 		})
-		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1)
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
 			"tool-call",
 			"fetch_web_content",
@@ -272,18 +275,18 @@ describe("SdkInteractionCoordinator", () => {
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "github__search-repos",
-			input: { query: "cline" },
+			input: { query: "bedrockCoder" },
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
-		const [message] = task.messageStateHandler.getClineMessages()
+		const [message] = task.messageStateHandler.getBedrockCoderMessages()
 		expect(message).toMatchObject({ type: "ask", ask: "use_mcp_server", partial: false })
 		expect(JSON.parse(message.text || "{}")).toEqual({
 			type: "use_mcp_tool",
 			serverName: "github",
 			toolName: "search-repos",
-			arguments: '{\n  "query": "cline"\n}',
+			arguments: '{\n  "query": "bedrockCoder"\n}',
 		})
 	})
 
@@ -297,12 +300,12 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const answerPromise = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		await new Promise((resolve) => setTimeout(resolve, 1))
 		expect(coordinator.resolvePendingAskQuestion("yes")).toBe(true)
 		await expect(answerPromise).resolves.toBe("yes")
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toMatchObject([
 			{ type: "ask", ask: "followup" },
 			{ type: "say", say: "user_feedback", text: "yes" },
 		])
@@ -325,21 +328,21 @@ describe("SdkInteractionCoordinator", () => {
 			reason: "tool_execution_failed",
 			details: "bad arguments",
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
-		expect(task.messageStateHandler.getClineMessages()[0]).toMatchObject({
+		expect(task.messageStateHandler.getBedrockCoderMessages()[0]).toMatchObject({
 			type: "ask",
 			ask: "mistake_limit_reached",
 			partial: false,
 		})
-		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getClineMessages()[0].ts)
+		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getBedrockCoderMessages()[0].ts)
 
 		expect(coordinator.resolvePendingMistakeLimit("try smaller steps", "yesButtonClicked")).toBe(true)
 		await expect(decisionPromise).resolves.toEqual({
 			action: "continue",
 			guidance: "mistake_limit_reached: try smaller steps",
 		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toMatchObject([
 			{ type: "ask", ask: "mistake_limit_reached" },
 			{ type: "say", say: "user_feedback", text: "try smaller steps" },
 		])
@@ -362,7 +365,7 @@ describe("SdkInteractionCoordinator", () => {
 			maxConsecutiveMistakes: 3,
 			reason: "tool_execution_failed",
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		expect(coordinator.resolvePendingMistakeLimit(undefined, "noButtonClicked")).toBe(true)
 
@@ -370,7 +373,7 @@ describe("SdkInteractionCoordinator", () => {
 			action: "stop",
 			reason: "stopped after mistake_limit_reached prompt",
 		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
 		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
 	})
 
@@ -388,7 +391,7 @@ describe("SdkInteractionCoordinator", () => {
 			maxConsecutiveMistakes: 3,
 			reason: "tool_execution_failed",
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		coordinator.clearPending("Task cleared")
 
@@ -416,7 +419,7 @@ describe("SdkInteractionCoordinator", () => {
 			input: {},
 			policy: {},
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 
 		coordinator.clearPending("Task cancelled")
 
@@ -456,10 +459,10 @@ describe("SdkInteractionCoordinator", () => {
 
 		await vi.waitFor(() => expect(events).toEqual(["hook-start"]))
 		// The ask message must not exist while the diff preview is still opening.
-		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
+		expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(0)
 
 		releaseHook()
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 		expect(onToolApprovalAsk).toHaveBeenCalledWith(expect.objectContaining({ toolCallId: "tool-call", toolName: "editor" }))
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
@@ -486,7 +489,7 @@ describe("SdkInteractionCoordinator", () => {
 			policy: {},
 		})
 
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await vi.waitFor(() => expect(task.messageStateHandler.getBedrockCoderMessages()).toHaveLength(1))
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})

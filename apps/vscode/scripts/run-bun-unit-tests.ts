@@ -13,7 +13,7 @@ import path from "node:path"
  * Why one process per file: `bun test --parallel <allFiles>` reuses a pool of
  * worker processes, and `mock.module(...)` registrations accumulate across files
  * sharing a worker. Suites that mock the same specifier with different shapes
- * (e.g. `@core/storage/disk`, `@cline/core`, `fs/promises`, `os`) then clobber
+ * (e.g. `@core/storage/disk`, `@bedrock-coder/core`, `fs/promises`, `os`) then clobber
  * each other and fail only at scale. Spawning one `bun test` process per file
  * (bounded by a small concurrency pool, via `Bun.spawn`) gives each file a fresh
  * module registry.
@@ -40,7 +40,7 @@ const IGNORED = new Set<string>([
 	"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 	"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",
 	"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
-	"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
+	"src/core/controller/models/__tests__/refreshBedrockCoderRecommendedModels.test.ts",
 ])
 
 // Files that require the real VSCode Electron host (@vscode/test-cli). Excluded

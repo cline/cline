@@ -1,6 +1,6 @@
-# `@cline/shared`
+# `@bedrock-coder/shared`
 
-`@cline/shared` owns dependency-light contracts and utilities shared by the
+`@bedrock-coder/shared` owns dependency-light contracts and utilities shared by the
 agent, Bedrock, and core runtime packages.
 
 It includes:
@@ -9,7 +9,7 @@ It includes:
 - session and workspace configuration primitives
 - logging contracts
 - chat runtime transport payloads
-- Node storage-path helpers through `@cline/shared/storage`
+- Node storage-path helpers through `@bedrock-coder/shared/storage`
 
 Inference transport contracts are Bedrock-only. Provider catalogs, provider
 mutation actions, account actions, and generic credential fields are not part

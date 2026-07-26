@@ -3,8 +3,8 @@ import type {
 	HubReplyEnvelope,
 	JsonValue,
 	ToolApprovalRequest,
-} from "@cline/shared";
-import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
+} from "@bedrock-coder/shared";
+import { createSessionId, parseRuntimeConfigExtensions } from "@bedrock-coder/shared";
 import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
 	RuntimeSessionConfig,

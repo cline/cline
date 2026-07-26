@@ -23,7 +23,7 @@ You are a code reviewer.`);
 		});
 	});
 
-	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// Regression test for https://github.com/FFFalexgo/AWS_Bedrock_Coder/issues/12151: a leading UTF-8 BOM
 	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
 	// from being recognized.
 	it("parses frontmatter when the content starts with a UTF-8 BOM", () => {

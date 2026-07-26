@@ -1,21 +1,21 @@
 import { basename } from "node:path";
 
-export const CLINE_BUILD_ENV_ENV = "CLINE_BUILD_ENV";
-export const CLINE_DEBUG_HOST_ENV = "CLINE_DEBUG_HOST";
-export const CLINE_DEBUG_PORT_BASE_ENV = "CLINE_DEBUG_PORT_BASE";
+export const BEDROCK_CODER_BUILD_ENV_ENV = "BEDROCK_CODER_BUILD_ENV";
+export const BEDROCK_CODER_DEBUG_HOST_ENV = "BEDROCK_CODER_DEBUG_HOST";
+export const BEDROCK_CODER_DEBUG_PORT_BASE_ENV = "BEDROCK_CODER_DEBUG_PORT_BASE";
 
-export type ClineBuildEnv = "development" | "production";
-export type ClineDebugRole = "rpc" | "hook" | "plugin-sandbox" | "sandbox";
+export type BedrockCoderBuildEnv = "development" | "production";
+export type BedrockCoderDebugRole = "rpc" | "hook" | "plugin-sandbox" | "sandbox";
 
-export interface ResolveClineBuildEnvOptions {
+export interface ResolveBedrockCoderBuildEnvOptions {
 	env?: NodeJS.ProcessEnv;
 	execArgv?: string[];
-	debugRole?: ClineDebugRole;
+	debugRole?: BedrockCoderDebugRole;
 }
 
 function normalizeBuildEnv(
 	value: string | undefined,
-): ClineBuildEnv | undefined {
+): BedrockCoderBuildEnv | undefined {
 	const normalized = value?.trim().toLowerCase();
 	if (normalized === "development" || normalized === "production") {
 		return normalized;
@@ -77,11 +77,11 @@ function hasSourceMapFlag(values: string[]): boolean {
 }
 
 function resolveDebugHost(env: NodeJS.ProcessEnv): string {
-	return env[CLINE_DEBUG_HOST_ENV]?.trim() || "127.0.0.1";
+	return env[BEDROCK_CODER_DEBUG_HOST_ENV]?.trim() || "127.0.0.1";
 }
 
 function resolveDebugPortBase(env: NodeJS.ProcessEnv): number | undefined {
-	const raw = env[CLINE_DEBUG_PORT_BASE_ENV]?.trim();
+	const raw = env[BEDROCK_CODER_DEBUG_PORT_BASE_ENV]?.trim();
 	if (!raw) {
 		return undefined;
 	}
@@ -89,7 +89,7 @@ function resolveDebugPortBase(env: NodeJS.ProcessEnv): number | undefined {
 	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function resolveRolePortOffset(role: ClineDebugRole | undefined): number {
+function resolveRolePortOffset(role: BedrockCoderDebugRole | undefined): number {
 	switch (role) {
 		case "rpc":
 			return 0;
@@ -104,13 +104,13 @@ function resolveRolePortOffset(role: ClineDebugRole | undefined): number {
 	}
 }
 
-export function resolveClineBuildEnv(
-	options: ResolveClineBuildEnvOptions = {},
-): ClineBuildEnv {
+export function resolveBedrockCoderBuildEnv(
+	options: ResolveBedrockCoderBuildEnvOptions = {},
+): BedrockCoderBuildEnv {
 	const env = options.env ?? process.env;
 	const execArgv = options.execArgv ?? process.execArgv;
 
-	const explicit = normalizeBuildEnv(env[CLINE_BUILD_ENV_ENV]);
+	const explicit = normalizeBuildEnv(env[BEDROCK_CODER_BUILD_ENV_ENV]);
 	if (explicit) {
 		return explicit;
 	}
@@ -126,16 +126,16 @@ export function resolveClineBuildEnv(
 	return hasDevelopmentCondition(execArgv) ? "development" : "production";
 }
 
-export function withResolvedClineBuildEnv(
+export function withResolvedBedrockCoderBuildEnv(
 	env: NodeJS.ProcessEnv = process.env,
-	options: Omit<ResolveClineBuildEnvOptions, "env"> = {},
+	options: Omit<ResolveBedrockCoderBuildEnvOptions, "env"> = {},
 ): NodeJS.ProcessEnv {
-	if (normalizeBuildEnv(env[CLINE_BUILD_ENV_ENV])) {
+	if (normalizeBuildEnv(env[BEDROCK_CODER_BUILD_ENV_ENV])) {
 		return env;
 	}
 	return {
 		...env,
-		[CLINE_BUILD_ENV_ENV]: resolveClineBuildEnv({
+		[BEDROCK_CODER_BUILD_ENV_ENV]: resolveBedrockCoderBuildEnv({
 			env,
 			execArgv: options.execArgv,
 		}),
@@ -144,12 +144,12 @@ export function withResolvedClineBuildEnv(
 
 export function augmentNodeCommandForDebug(
 	command: string[],
-	options: ResolveClineBuildEnvOptions = {},
+	options: ResolveBedrockCoderBuildEnvOptions = {},
 ): string[] {
 	if (command.length === 0 || !isNodeLauncher(command[0])) {
 		return [...command];
 	}
-	if (resolveClineBuildEnv(options) !== "development") {
+	if (resolveBedrockCoderBuildEnv(options) !== "development") {
 		return [...command];
 	}
 

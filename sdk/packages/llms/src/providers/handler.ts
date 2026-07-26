@@ -4,7 +4,7 @@
  * Core interfaces that all provider handlers must implement.
  */
 
-import type { Message, ModelInfo, ToolDefinition } from "@cline/shared";
+import type { Message, ModelInfo, ToolDefinition } from "@bedrock-coder/shared";
 import type { ApiStream, ApiStreamUsageChunk } from "./stream";
 
 /**
@@ -24,7 +24,7 @@ export interface HandlerModelInfo {
  */
 export interface ApiHandler {
 	/**
-	 * Convert Cline messages into provider-specific message format
+	 * Convert BedrockCoder messages into provider-specific message format
 	 *
 	 * @param systemPrompt - The system prompt to use
 	 * @param messages - Conversation history

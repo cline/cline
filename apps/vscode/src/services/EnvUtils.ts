@@ -1,10 +1,10 @@
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { EmptyRequest } from "@/shared/proto/cline/common"
+import { EmptyRequest } from "@/shared/proto/bedrock_coder/common"
 import { Logger } from "@/shared/services/Logger"
 
 // Canonical header names for extra client/host context
-const ClineHeaders = {
+const BedrockCoderHeaders = {
 	PLATFORM: "X-PLATFORM",
 	PLATFORM_VERSION: "X-PLATFORM-VERSION",
 	CLIENT_VERSION: "X-CLIENT-VERSION",
@@ -15,26 +15,26 @@ const ClineHeaders = {
 
 export function buildExternalBasicHeaders(): Record<string, string> {
 	return {
-		"User-Agent": `Cline/${ExtensionRegistryInfo.version}`,
+		"User-Agent": `BedrockCoder/${ExtensionRegistryInfo.version}`,
 	}
 }
 
-export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
+export async function buildBasicBedrockCoderHeaders(): Promise<Record<string, string>> {
 	const headers: Record<string, string> = buildExternalBasicHeaders()
 	try {
 		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
-		headers[ClineHeaders.PLATFORM] = host.platform || "unknown"
-		headers[ClineHeaders.PLATFORM_VERSION] = host.version || "unknown"
-		headers[ClineHeaders.CLIENT_TYPE] = host.clineType || "unknown"
-		headers[ClineHeaders.CLIENT_VERSION] = host.clineVersion || "unknown"
+		headers[BedrockCoderHeaders.PLATFORM] = host.platform || "unknown"
+		headers[BedrockCoderHeaders.PLATFORM_VERSION] = host.version || "unknown"
+		headers[BedrockCoderHeaders.CLIENT_TYPE] = host.bedrockCoderType || "unknown"
+		headers[BedrockCoderHeaders.CLIENT_VERSION] = host.bedrockCoderVersion || "unknown"
 	} catch (error) {
 		Logger.log("Failed to get IDE/platform info via HostBridge EnvService.getHostVersion", error)
-		headers[ClineHeaders.PLATFORM] = "unknown"
-		headers[ClineHeaders.PLATFORM_VERSION] = "unknown"
-		headers[ClineHeaders.CLIENT_TYPE] = "unknown"
-		headers[ClineHeaders.CLIENT_VERSION] = "unknown"
+		headers[BedrockCoderHeaders.PLATFORM] = "unknown"
+		headers[BedrockCoderHeaders.PLATFORM_VERSION] = "unknown"
+		headers[BedrockCoderHeaders.CLIENT_TYPE] = "unknown"
+		headers[BedrockCoderHeaders.CLIENT_VERSION] = "unknown"
 	}
-	headers[ClineHeaders.CORE_VERSION] = ExtensionRegistryInfo.version
+	headers[BedrockCoderHeaders.CORE_VERSION] = ExtensionRegistryInfo.version
 
 	return headers
 }

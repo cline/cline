@@ -10,27 +10,27 @@
  * SDKs (all of which delegate to the global fetch).
  *
  * Environment variables:
- *   CLINE_VCR           - "record" to record HTTP requests, "playback" to replay them
- *   CLINE_VCR_CASSETTE  - Path to the cassette file (default: ./vcr-cassette.json)
- *   CLINE_VCR_FILTER    - Substring to filter recorded/replayed request paths.
+ *   BEDROCK_CODER_VCR           - "record" to record HTTP requests, "playback" to replay them
+ *   BEDROCK_CODER_VCR_CASSETTE  - Path to the cassette file (default: ./vcr-cassette.json)
+ *   BEDROCK_CODER_VCR_FILTER    - Substring to filter recorded/replayed request paths.
  *                         When set to a non-empty string, only requests whose path
  *                         contains this substring are recorded/replayed; all other
  *                         requests pass through to the real network.
  *                         When empty or unset, ALL requests are intercepted (no filter).
- *   CLINE_VCR_INCLUDE_REQUEST_BODY - "1" to save sanitized request bodies and
+ *   BEDROCK_CODER_VCR_INCLUDE_REQUEST_BODY - "1" to save sanitized request bodies and
  *                         assert them during playback.
- *   CLINE_VCR_SSE_DELAY - Milliseconds between SSE chunks during playback (default: 100).
+ *   BEDROCK_CODER_VCR_SSE_DELAY - Milliseconds between SSE chunks during playback (default: 100).
  *                         Set to 0 for instant delivery.
  *
  * Usage:
  *   # Record only inference requests
- *   CLINE_VCR=record CLINE_VCR_CASSETTE=./fixtures/my-test.json cline task "hello"
+ *   BEDROCK_CODER_VCR=record BEDROCK_CODER_VCR_CASSETTE=./fixtures/my-test.json bedrockCoder task "hello"
  *
  *   # Replay: auth/S3/etc. requests go through normally, only inference is mocked
- *   CLINE_VCR=playback CLINE_VCR_CASSETTE=./fixtures/my-test.json cline task "hello"
+ *   BEDROCK_CODER_VCR=playback BEDROCK_CODER_VCR_CASSETTE=./fixtures/my-test.json bedrockCoder task "hello"
  *
  *   # Record everything (no filter)
- *   CLINE_VCR=record CLINE_VCR_FILTER="" CLINE_VCR_CASSETTE=./fixtures/all.json cline task "hello"
+ *   BEDROCK_CODER_VCR=record BEDROCK_CODER_VCR_FILTER="" BEDROCK_CODER_VCR_CASSETTE=./fixtures/all.json bedrockCoder task "hello"
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -210,7 +210,7 @@ const PATH_NORMALIZATION_PATTERNS: { pattern: RegExp; replacement: string }[] =
 			replacement: "tasks/usr-test/taskid/api_conversation_history",
 		},
 		// Prefixed entity IDs in path segments (org-XXX, usr-XXX, mbr-XXX, ses-XXX, etc.)
-		// Matches common Cline ID formats: prefix + ULID/UUID-like suffix
+		// Matches common BedrockCoder ID formats: prefix + ULID/UUID-like suffix
 		{
 			pattern:
 				/\/(org|usr|mbr|ses|gen|req|msg|tsk|sch|exe|srv|cli|wkr|evt|sub|tkn)-[A-Za-z0-9]{10,}(?=[/?#]|$)/g,
@@ -455,25 +455,25 @@ function getVcrConfig(vcrMode: string | undefined): VcrConfig | null {
 		return null;
 	}
 
-	if (!process.env.CLINE_VCR_CASSETTE) {
+	if (!process.env.BEDROCK_CODER_VCR_CASSETTE) {
 		process.stderr.write(
-			"[VCR] No CLINE_VCR_CASSETTE: requests will not be recorded or played back.\n",
+			"[VCR] No BEDROCK_CODER_VCR_CASSETTE: requests will not be recorded or played back.\n",
 		);
 		return null;
 	}
 
 	if (vcrMode !== "record" && vcrMode !== "playback") {
 		process.stderr.write(
-			`[VCR] Invalid CLINE_VCR value: "${vcrMode}". Expected "record" or "playback".\n`,
+			`[VCR] Invalid BEDROCK_CODER_VCR value: "${vcrMode}". Expected "record" or "playback".\n`,
 		);
 		process.exit(1);
 	}
 
-	const cassettePath = resolve(process.env.CLINE_VCR_CASSETTE);
-	const filter = process.env.CLINE_VCR_FILTER ?? "";
+	const cassettePath = resolve(process.env.BEDROCK_CODER_VCR_CASSETTE);
+	const filter = process.env.BEDROCK_CODER_VCR_FILTER ?? "";
 	const includeRequestBody =
-		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY === "1" ||
-		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY === "true";
+		process.env.BEDROCK_CODER_VCR_INCLUDE_REQUEST_BODY === "1" ||
+		process.env.BEDROCK_CODER_VCR_INCLUDE_REQUEST_BODY === "true";
 
 	return { mode: vcrMode, cassettePath, filter, includeRequestBody };
 }
@@ -750,7 +750,7 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 	);
 
 	const sseDelayMs = Number.parseInt(
-		process.env.CLINE_VCR_SSE_DELAY ?? "100",
+		process.env.BEDROCK_CODER_VCR_SSE_DELAY ?? "100",
 		10,
 	);
 
@@ -833,7 +833,7 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 				}
 
 				// For SSE responses, stream chunks with a delay to simulate
-				// real-time delivery (controlled by CLINE_VCR_SSE_DELAY).
+				// real-time delivery (controlled by BEDROCK_CODER_VCR_SSE_DELAY).
 				if (isSSEResponse && typeof rec.response === "string") {
 					const chunks = splitSseChunks(rec.response);
 					if (chunks.length > 1) {
@@ -880,7 +880,7 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
  * Initialize VCR mode based on environment variables.
  * Must be called early in startup, before HTTP requests are made.
  *
- * Does nothing if `CLINE_VCR` is not set.
+ * Does nothing if `BEDROCK_CODER_VCR` is not set.
  */
 export function initVcr(vcrMode: string | undefined): void {
 	const config = getVcrConfig(vcrMode);

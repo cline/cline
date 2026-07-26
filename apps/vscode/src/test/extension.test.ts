@@ -1,12 +1,12 @@
-import { after, describe, it } from "mocha"
 import { readFile } from "fs/promises"
+import { after, describe, it } from "mocha"
 import path from "path"
 import "should"
 import * as vscode from "vscode"
 
 const packagePath = path.join(__dirname, "..", "..", "package.json")
 
-describe("Cline Extension", () => {
+describe("Bedrock Coder Extension", () => {
 	after(() => {
 		vscode.window.showInformationMessage("All tests done!")
 	})
@@ -14,14 +14,14 @@ describe("Cline Extension", () => {
 	it("should verify extension ID matches package.json", async () => {
 		const packageJSON = JSON.parse(await readFile(packagePath, "utf8"))
 		const id = packageJSON.publisher + "." + packageJSON.name
-		const clineExtensionApi = vscode.extensions.getExtension(id)
+		const bedrockCoderExtensionApi = vscode.extensions.getExtension(id)
 
-		clineExtensionApi?.id.should.equal(id)
+		bedrockCoderExtensionApi?.id.should.equal(id)
 	})
 
 	it("should successfully execute the plus button command", async () => {
 		await new Promise((resolve) => setTimeout(resolve, 400))
-		await vscode.commands.executeCommand("cline.plusButtonClicked")
+		await vscode.commands.executeCommand("bedrockCoder.plusButtonClicked")
 	})
 
 	// New test to verify xvfb and webview functionality

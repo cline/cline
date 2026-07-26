@@ -9,7 +9,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	JsonValue,
 	ToolApprovalRequest,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	createSessionId,
 	HUB_CHECKPOINT_CAPABILITY,
@@ -20,7 +20,7 @@ import {
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isHubToolExecutorName,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -1047,7 +1047,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.ensureSessionSubscription(newSessionId);
 		}
 		const messages = Array.isArray(reply.payload?.messages)
-			? (reply.payload.messages as import("@cline/llms").Message[])
+			? (reply.payload.messages as import("@bedrock-coder/llms").Message[])
 			: undefined;
 		const checkpoint = reply.payload?.checkpoint as
 			| RestoreSessionResult["checkpoint"]
@@ -1383,7 +1383,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").Message[]> {
+	): Promise<import("@bedrock-coder/llms").Message[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1398,7 +1398,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").Message[])
+			? (messages as import("@bedrock-coder/llms").Message[])
 			: [];
 	}
 

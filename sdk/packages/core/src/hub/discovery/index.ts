@@ -2,11 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
+import { resolveBedrockCoderDataDir, resolveBedrockCoderDir } from "@bedrock-coder/shared/storage";
 import corePackage from "../../../package.json";
 
-const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
-const HUB_BUILD_ID_ENV = "CLINE_HUB_BUILD_ID";
+const HUB_DISCOVERY_ENV = "BEDROCK_CODER_HUB_DISCOVERY_PATH";
+const HUB_BUILD_ID_ENV = "BEDROCK_CODER_HUB_BUILD_ID";
 const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const HUB_STARTUP_LOCK_WAIT_MS = 15_000;
 const HUB_STARTUP_LOCK_POLL_MS = 100;
@@ -118,7 +118,7 @@ export function resolveHubOwnerContext(
 	const discoveryPath =
 		process.env[HUB_DISCOVERY_ENV]?.trim() ||
 		join(
-			resolveClineDataDir(),
+			resolveBedrockCoderDataDir(),
 			"locks",
 			"hub",
 			"owners",
@@ -344,4 +344,4 @@ export function isDiscoveryFilePresent(pathname: string): boolean {
 	return existsSync(pathname);
 }
 
-export { resolveClineDataDir, resolveClineDir };
+export { resolveBedrockCoderDataDir, resolveBedrockCoderDir };

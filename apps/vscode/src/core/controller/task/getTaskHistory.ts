@@ -1,4 +1,4 @@
-import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
+import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/bedrock_coder/task"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 

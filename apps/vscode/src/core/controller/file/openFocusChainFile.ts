@@ -1,5 +1,5 @@
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "../../../shared/proto/cline/common"
+import { Empty, StringRequest } from "../../../shared/proto/bedrock_coder/common"
 import { ensureFocusChainFile, extractFocusChainListFromText } from "../../task/focus-chain/file-utils"
 import { Controller } from ".."
 
@@ -19,9 +19,9 @@ export async function openFocusChainFile(controller: Controller, request: String
 	const currentTask = controller.task
 	if (currentTask) {
 		// Get the task's message history and find the most recent task_progress message
-		// TODO - can we decouple this from ClineMessages?
-		const clineMessages = currentTask.messageStateHandler.getClineMessages()
-		const lastProgressMessage = clineMessages
+		// TODO - can we decouple this from BedrockCoderMessages?
+		const bedrockCoderMessages = currentTask.messageStateHandler.getBedrockCoderMessages()
+		const lastProgressMessage = bedrockCoderMessages
 			.slice()
 			.reverse()
 			.find((m: any) => m.say === "task_progress")

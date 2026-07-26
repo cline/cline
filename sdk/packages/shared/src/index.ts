@@ -191,13 +191,13 @@ export {
 } from "./parse/string";
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
-export type { ClineSystemPromptOptions } from "./prompt/cline";
+export type { BedrockCoderSystemPromptOptions } from "./prompt/bedrock-coder";
 export {
-	buildClineSystemPrompt,
+	buildBedrockCoderSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
 	processWorkspaceInfo,
-} from "./prompt/cline";
+} from "./prompt/bedrock-coder";
 export type {
 	ModeSwitchNotice,
 	ModeSwitchNoticeTracker,
@@ -215,12 +215,12 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
-export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export { BEDROCK_CODER_DEFAULT_MODEL_ID } from "./providers/defaults";
 export {
-	CLINE_DEFAULT_RPC_ADDRESS,
-	CLINE_DEFAULT_RPC_PORT,
-	CLINE_HUB_DEV_PORT,
-	CLINE_HUB_PORT,
+	BEDROCK_CODER_DEFAULT_RPC_ADDRESS,
+	BEDROCK_CODER_DEFAULT_RPC_PORT,
+	BEDROCK_CODER_HUB_DEV_PORT,
+	BEDROCK_CODER_HUB_PORT,
 } from "./rpc";
 export type {
 	ChatAttachmentFile,
@@ -251,20 +251,20 @@ export {
 	TEAM_PROGRESS_EVENT_TYPE,
 } from "./rpc/team-progress";
 export type {
-	ClineBuildEnv,
-	ClineDebugRole,
-	ResolveClineBuildEnvOptions,
+	BedrockCoderBuildEnv,
+	BedrockCoderDebugRole,
+	ResolveBedrockCoderBuildEnvOptions,
 } from "./runtime/build-env";
 export {
 	augmentNodeCommandForDebug,
-	CLINE_BUILD_ENV_ENV,
-	CLINE_DEBUG_HOST_ENV,
-	CLINE_DEBUG_PORT_BASE_ENV,
-	resolveClineBuildEnv,
-	withResolvedClineBuildEnv,
+	BEDROCK_CODER_BUILD_ENV_ENV,
+	BEDROCK_CODER_DEBUG_HOST_ENV,
+	BEDROCK_CODER_DEBUG_PORT_BASE_ENV,
+	resolveBedrockCoderBuildEnv,
+	withResolvedBedrockCoderBuildEnv,
 } from "./runtime/build-env";
 export {
-	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	BEDROCK_CODER_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
 } from "./runtime/hub-daemon-env";
 export type {
@@ -300,8 +300,8 @@ export {
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export {
-	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
-	CLINE_WORKSPACES_DIRECTORY_NAME,
+	BEDROCK_CODER_CHAT_WORKSPACE_DIRECTORY_NAME,
+	BEDROCK_CODER_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
 export * from "./team";

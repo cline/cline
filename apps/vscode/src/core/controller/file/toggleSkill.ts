@@ -1,5 +1,5 @@
 import { setSkillDisabledInFrontmatter } from "@core/context/instructions/user-instructions/skills"
-import { SkillsToggles, ToggleSkillRequest } from "@shared/proto/cline/file"
+import { SkillsToggles, ToggleSkillRequest } from "@shared/proto/bedrock_coder/file"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 

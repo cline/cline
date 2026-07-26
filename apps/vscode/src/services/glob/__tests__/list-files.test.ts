@@ -10,7 +10,7 @@ function normalizeForComparison(filePath: string): string {
 }
 
 describe("listFiles", () => {
-	const tmpDir = path.join(os.tmpdir(), `cline-list-files-test-${Math.random().toString(36).slice(2)}`)
+	const tmpDir = path.join(os.tmpdir(), `bedrock-coder-list-files-test-${Math.random().toString(36).slice(2)}`)
 
 	afterAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined)
@@ -42,7 +42,7 @@ describe("listFiles gitignore handling", () => {
 	// Each test gets its own isolated subdirectory to avoid cross-test pollution.
 	// Previous version shared a single tmpDir, which meant later tests could
 	// overwrite earlier .gitignore files and pass for the wrong reasons.
-	const baseDir = path.join(os.tmpdir(), `cline-gitignore-test-${Math.random().toString(36).slice(2)}`)
+	const baseDir = path.join(os.tmpdir(), `bedrock-coder-gitignore-test-${Math.random().toString(36).slice(2)}`)
 
 	afterAll(async () => {
 		await fs.rm(baseDir, { recursive: true, force: true }).catch(() => undefined)

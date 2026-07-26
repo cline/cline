@@ -1,4 +1,4 @@
-import { ClineMessage } from "./ExtensionMessage"
+import { BedrockCoderMessage } from "./ExtensionMessage"
 
 interface ApiMetrics {
 	totalTokensIn: number
@@ -9,7 +9,7 @@ interface ApiMetrics {
 }
 
 /**
- * Calculates API metrics from an array of ClineMessages.
+ * Calculates API metrics from an array of BedrockCoderMessages.
  *
  * This function processes usage-carrying say messages.
  * It includes:
@@ -18,7 +18,7 @@ interface ApiMetrics {
  * - 'subagent_usage' messages, which are aggregated usage snapshots emitted by subagent batches
  * It extracts and sums up the tokensIn, tokensOut, cacheWrites, cacheReads, and cost from these messages.
  *
- * @param messages - An array of ClineMessage objects to process.
+ * @param messages - An array of BedrockCoderMessage objects to process.
  * @returns An ApiMetrics object containing totalTokensIn, totalTokensOut, totalCacheWrites, totalCacheReads, and totalCost.
  *
  * @example
@@ -28,7 +28,7 @@ interface ApiMetrics {
  * const { totalTokensIn, totalTokensOut, totalCost } = getApiMetrics(messages);
  * // Result: { totalTokensIn: 10, totalTokensOut: 20, totalCost: 0.005 }
  */
-export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
+export function getApiMetrics(messages: BedrockCoderMessage[]): ApiMetrics {
 	const result: ApiMetrics = {
 		totalTokensIn: 0,
 		totalTokensOut: 0,
@@ -88,10 +88,10 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
  * their ratio is scale-free. Multiple compactions since the last request
  * compound.
  *
- * @param messages - An array of ClineMessage objects to process.
+ * @param messages - An array of BedrockCoderMessage objects to process.
  * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, scaled down by any completed compactions that happened after it, or 0 if none found.
  */
-export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
+export function getLastApiReqTotalTokens(messages: BedrockCoderMessage[]): number {
 	let shrinkFraction: number | undefined
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i]

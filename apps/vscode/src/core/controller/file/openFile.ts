@@ -1,5 +1,5 @@
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, StringRequest } from "@shared/proto/bedrock_coder/common"
 import { Controller } from ".."
 
 export async function openFile(_controller: Controller, request: StringRequest): Promise<Empty> {

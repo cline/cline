@@ -3,7 +3,7 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
-import { HookOutput } from "../../../shared/proto/cline/hooks"
+import { HookOutput } from "../../../shared/proto/bedrock_coder/hooks"
 import { HookFactory } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
@@ -37,7 +37,7 @@ describe("UserPromptSubmit Hook", () => {
 
 	describe("Hook Input Format", () => {
 		it("should receive prompt text from user content", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasPrompt = input.userPromptSubmit && typeof input.userPromptSubmit.prompt === 'string' && input.userPromptSubmit.prompt.length > 0;
@@ -64,7 +64,7 @@ console.log(JSON.stringify({
 		}, 5000)
 
 		it("should handle multiline prompts", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lineCount = (input.userPromptSubmit.prompt.match(/\\n/g) || []).length + 1;
@@ -91,7 +91,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle large prompts", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const size = input.userPromptSubmit.prompt.length;
@@ -118,10 +118,10 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
+const hasAllFields = input.bedrockCoderVersion && input.hookName && input.timestamp &&
                      input.taskId && input.workspaceRoots !== undefined &&
                      input.model && input.model.provider && input.model.slug;
 console.log(JSON.stringify({
@@ -148,7 +148,7 @@ console.log(JSON.stringify({
 
 	describe("Prompt Content Serialization", () => {
 		it("should handle empty prompt", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const promptData = input.userPromptSubmit;
@@ -182,7 +182,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should preserve special characters in prompt", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const prompt = input.userPromptSubmit.prompt;
@@ -211,7 +211,7 @@ console.log(JSON.stringify({
 
 	describe("Error Handling", () => {
 		it("should handle malformed JSON output from hook", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -235,7 +235,7 @@ console.log("not valid json")`
 		})
 
 		it("should handle hook script errors", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 process.exit(1)`
 
@@ -267,7 +267,7 @@ process.exit(1)`
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
-			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
+			workspaceHooksDir = path.join(tempDir, ".bedrock-coder", "hooks")
 
 			// Use deterministic hook directories to avoid test flakiness from
 			// calling real directory discovery logic in CI.
@@ -285,7 +285,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -320,7 +320,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create blocking workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const workspaceHookPath = path.join(tempDir, ".bedrock-coder", "hooks", "UserPromptSubmit")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,

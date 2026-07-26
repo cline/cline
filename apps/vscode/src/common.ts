@@ -1,7 +1,7 @@
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
-import { setSdkLogger } from "@cline/core"
+import { setSdkLogger } from "@bedrock-coder/core"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
@@ -9,16 +9,16 @@ import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
-import { ClineTempManager } from "./services/temp"
+import { BedrockCoderTempManager } from "./services/temp"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { arePathsEqual } from "./utils/path"
 
 /**
- * Performs intialization for Cline that is common to all platforms.
+ * Performs intialization for BedrockCoder that is common to all platforms.
  *
  * @param context
  * @returns The webview provider
- * @throws ClineConfigurationError if endpoints.json exists but is invalid
+ * @throws BedrockCoderConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(storageContext: StorageContext): Promise<WebviewProvider> {
 	// Configure the shared Logging class to use HostProvider's output channels and debug logger
@@ -27,8 +27,8 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 
 	// Register the SDK early logger so diagnostic events from
 	// Bedrock settings, MCP OAuth, and local runtime state
-	// flow through Logger.debug → Cline output channel.
-	// These components operate before/outside of ClineCore sessions, so the
+	// flow through Logger.debug → BedrockCoder output channel.
+	// These components operate before/outside of BedrockCoderCore sessions, so the
 	// session-scoped logger can't reach them.
 	setSdkLogger({
 		debug: (message) => Logger.debug(message),
@@ -39,7 +39,7 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	try {
 		await StateManager.initialize(storageContext)
 	} catch (error) {
-		Logger.error("[Cline] CRITICAL: Failed to initialize StateManager:", error)
+		Logger.error("[Bedrock Coder] CRITICAL: Failed to initialize StateManager:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Failed to initialize storage. Please check logs for details or try restarting the client.",
@@ -58,14 +58,14 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	await checkWorktreeAutoOpen(stateManager)
 
 	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
-	ClineTempManager.startPeriodicCleanup()
+	BedrockCoderTempManager.startPeriodicCleanup()
 
 	return webview
 }
 
 /**
  * Checks if this workspace was opened from the worktree quick launch button.
- * If so, opens the Cline sidebar and clears the state.
+ * If so, opens the BedrockCoder sidebar and clears the state.
  */
 async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> {
 	try {
@@ -88,8 +88,8 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
 		if (arePathsEqual(currentPath, worktreeAutoOpenPath)) {
 			// Clear the state first to prevent re-triggering
 			stateManager.setGlobalState("worktreeAutoOpenPath", undefined)
-			// Open the Cline sidebar
-			await HostProvider.workspace.openClineSidebarPanel({})
+			// Open the BedrockCoder sidebar
+			await HostProvider.workspace.openBedrockCoderSidebarPanel({})
 		}
 	} catch (error) {
 		Logger.error("Error checking worktree auto-open", error)
@@ -97,7 +97,7 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
 }
 
 /**
- * Performs cleanup when Cline is deactivated that is common to all platforms.
+ * Performs cleanup when BedrockCoder is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
 	try {
@@ -110,12 +110,12 @@ export async function tearDown(): Promise<void> {
 		// Clean up hook discovery cache
 		HookDiscoveryCache.getInstance().dispose()
 		// Stop periodic temp file cleanup
-		ClineTempManager.stopPeriodicCleanup()
+		BedrockCoderTempManager.stopPeriodicCleanup()
 	} finally {
 		try {
 			await StateManager.get().flushPendingState()
 		} catch (error) {
-			Logger.error("[Cline] Failed to flush pending state during teardown:", error)
+			Logger.error("[Bedrock Coder] Failed to flush pending state during teardown:", error)
 		}
 	}
 }

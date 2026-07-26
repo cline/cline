@@ -2,24 +2,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveHubUrl } from "./connect";
 
 const envSnapshot = {
-	CLINE_HUB_DISCOVERY_PATH: process.env.CLINE_HUB_DISCOVERY_PATH,
-	CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
-	CLINE_BUILD_ENV: process.env.CLINE_BUILD_ENV,
+	BEDROCK_CODER_HUB_DISCOVERY_PATH: process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH,
+	BEDROCK_CODER_DATA_DIR: process.env.BEDROCK_CODER_DATA_DIR,
+	BEDROCK_CODER_BUILD_ENV: process.env.BEDROCK_CODER_BUILD_ENV,
 };
 
 beforeEach(() => {
 	// Pin to production so default port assertions are deterministic regardless
-	// of the ambient build env (e.g. when vitest sets CLINE_BUILD_ENV=development).
-	process.env.CLINE_BUILD_ENV = "production";
+	// of the ambient build env (e.g. when vitest sets BEDROCK_CODER_BUILD_ENV=development).
+	process.env.BEDROCK_CODER_BUILD_ENV = "production";
 });
 
 afterEach(() => {
-	process.env.CLINE_HUB_DISCOVERY_PATH = envSnapshot.CLINE_HUB_DISCOVERY_PATH;
-	process.env.CLINE_DATA_DIR = envSnapshot.CLINE_DATA_DIR;
-	if (envSnapshot.CLINE_BUILD_ENV === undefined) {
-		delete process.env.CLINE_BUILD_ENV;
+	process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH = envSnapshot.BEDROCK_CODER_HUB_DISCOVERY_PATH;
+	process.env.BEDROCK_CODER_DATA_DIR = envSnapshot.BEDROCK_CODER_DATA_DIR;
+	if (envSnapshot.BEDROCK_CODER_BUILD_ENV === undefined) {
+		delete process.env.BEDROCK_CODER_BUILD_ENV;
 	} else {
-		process.env.CLINE_BUILD_ENV = envSnapshot.CLINE_BUILD_ENV;
+		process.env.BEDROCK_CODER_BUILD_ENV = envSnapshot.BEDROCK_CODER_BUILD_ENV;
 	}
 	vi.useRealTimers();
 	vi.restoreAllMocks();
@@ -28,7 +28,7 @@ afterEach(() => {
 describe("resolveHubUrl", () => {
 	it("prefers discovered hub URL when no explicit endpoint is provided", async () => {
 		const discoveryPath = "/tmp/test-hub-discovery.json";
-		process.env.CLINE_HUB_DISCOVERY_PATH = discoveryPath;
+		process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH = discoveryPath;
 		vi.spyOn(
 			await import("../discovery"),
 			"readHubDiscovery",
@@ -47,9 +47,9 @@ describe("resolveHubUrl", () => {
 	});
 
 	it("uses the shared discovery owner in development builds", async () => {
-		delete process.env.CLINE_HUB_DISCOVERY_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-connect-test-data";
-		process.env.CLINE_BUILD_ENV = "development";
+		delete process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-connect-test-data";
+		process.env.BEDROCK_CODER_BUILD_ENV = "development";
 		const readHubDiscovery = vi
 			.spyOn(await import("../discovery"), "readHubDiscovery")
 			.mockResolvedValue({
@@ -71,12 +71,12 @@ describe("resolveHubUrl", () => {
 		);
 		expect(discoveryPath).toContain("/locks/hub/owners/");
 		expect(discoveryPath).not.toBe(
-			"/tmp/cline-connect-test-data/locks/hub/production.json",
+			"/tmp/bedrock-coder-connect-test-data/locks/hub/production.json",
 		);
 	});
 
 	it("falls back to the default endpoint when no discovery file exists", async () => {
-		process.env.CLINE_HUB_DISCOVERY_PATH = "/tmp/missing-hub-discovery.json";
+		process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH = "/tmp/missing-hub-discovery.json";
 		vi.spyOn(
 			await import("../discovery"),
 			"readHubDiscovery",

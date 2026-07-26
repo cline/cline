@@ -1,4 +1,4 @@
-import type { ClineCoreOptions } from "../../cline-core/types";
+import type { BedrockCoderCoreOptions } from "../../bedrock-coder-core/types";
 import {
 	ensureCompatibleLocalHubUrl,
 	resolveCompatibleLocalHubUrl,
@@ -13,15 +13,15 @@ import { LocalRuntimeHost } from "./local-runtime-host";
 import type { RuntimeHost, RuntimeHostMode } from "./runtime-host";
 
 function resolveConfiguredBackendMode(
-	options: ClineCoreOptions,
+	options: BedrockCoderCoreOptions,
 ): RuntimeHostMode {
 	if (options.backendMode) {
 		return options.backendMode;
 	}
-	if (process.env.CLINE_VCR?.trim()) {
+	if (process.env.BEDROCK_CODER_VCR?.trim()) {
 		return "local";
 	}
-	const raw = process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase();
+	const raw = process.env.BEDROCK_CODER_SESSION_BACKEND_MODE?.trim().toLowerCase();
 	if (raw === "local" || raw === "hub" || raw === "remote") {
 		return raw;
 	}
@@ -35,7 +35,7 @@ let backendInitPromise: Promise<SessionBackend> | undefined;
 
 function prewarmLocalHubIfNeeded(
 	configuredMode: RuntimeHostMode,
-	options: ClineCoreOptions,
+	options: BedrockCoderCoreOptions,
 ): void {
 	if (configuredMode !== "auto" && configuredMode !== "hub") {
 		return;
@@ -59,7 +59,7 @@ async function reconcileDeadSessionsIfSupported(
 	await service.reconcileDeadSessions?.().catch(() => {});
 }
 
-function createLocalBackend(options: ClineCoreOptions): SessionBackend {
+function createLocalBackend(options: BedrockCoderCoreOptions): SessionBackend {
 	try {
 		const store = new SqliteSessionStore();
 		store.init();
@@ -77,7 +77,7 @@ function createLocalBackend(options: ClineCoreOptions): SessionBackend {
 }
 
 function createLocalRuntimeHost(
-	options: ClineCoreOptions,
+	options: BedrockCoderCoreOptions,
 	backend?: SessionBackend,
 ): LocalRuntimeHost {
 	return new LocalRuntimeHost({
@@ -90,7 +90,7 @@ function createLocalRuntimeHost(
 }
 
 export async function resolveSessionBackend(
-	options: ClineCoreOptions,
+	options: BedrockCoderCoreOptions,
 ): Promise<SessionBackend> {
 	if (cachedBackend) {
 		return cachedBackend;
@@ -111,7 +111,7 @@ export async function resolveSessionBackend(
 }
 
 export async function createRuntimeHost(
-	options: ClineCoreOptions,
+	options: BedrockCoderCoreOptions,
 ): Promise<RuntimeHost> {
 	const configuredMode = resolveConfiguredBackendMode(options);
 	prewarmLocalHubIfNeeded(configuredMode, options);

@@ -11,34 +11,25 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendTeamsButtonClickedEvent } from "./core/controller/ui/subscribeToTeamsButtonClicked"
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
-import { createClineAPI } from "./exports"
+import { createBedrockCoderAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
-import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 import { createStorageContext } from "@/shared/storage/storage-context"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
-import { addToCline } from "./core/controller/commands/addToCline"
-import { explainWithCline } from "./core/controller/commands/explainWithCline"
-import { fixWithCline } from "./core/controller/commands/fixWithCline"
-import { improveWithCline } from "./core/controller/commands/improveWithCline"
+import { addToBedrockCoder } from "./core/controller/commands/addToBedrockCoder"
+import { explainWithBedrockCoder } from "./core/controller/commands/explainWithBedrockCoder"
+import { fixWithBedrockCoder } from "./core/controller/commands/fixWithBedrockCoder"
+import { improveWithBedrockCoder } from "./core/controller/commands/improveWithBedrockCoder"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
-import {
-	cleanupClineAccountState,
-	cleanupLegacyApprovalState,
-	migrateCustomInstructionsToGlobalRules,
-	migrateTaskHistoryToFile,
-	migrateWelcomeViewCompleted,
-	migrateWorkspaceToGlobalStorage,
-} from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
-import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
+import { registerBedrockCoderOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
@@ -46,7 +37,6 @@ import {
 import { DIFF_VIEW_URI_SCHEME, diffContentProvider } from "./hosts/vscode/VscodeDiffContentProvider"
 import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
-import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { LocalDiagnosticLogger } from "./services/diagnostics/local-diagnostic-logger"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
@@ -78,13 +68,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 2. Clean up legacy data patterns within VSCode's native storage.
 	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
 	// Must run BEFORE the file export so we copy clean state.
-	await cleanupLegacyVSCodeStorage(context)
 
 	// 3. One-time export of VSCode's native storage to shared file-backed stores.
-	// After this, all platforms (VSCode, CLI, JetBrains) read from ~/.cline/data/.
+	// After this, all platforms (VSCode, CLI, JetBrains) read from ~/.bedrock-coder/data/.
 	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 	const storageContext = createStorageContext({ workspacePath })
-	await exportVSCodeStorageToSharedFiles(context, storageContext)
 
 	// 4. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
@@ -153,18 +141,18 @@ export async function activate(context: vscode.ExtensionContext) {
 				...localContext,
 			})
 			await vscode.env.clipboard.writeText(summary)
-			void vscode.window.showInformationMessage("Sanitized Cline diagnostics copied.")
+			void vscode.window.showInformationMessage("Sanitized Bedrock Coder diagnostics copied.")
 		}),
 		vscode.commands.registerCommand(commands.ClearLocalLogs, async () => {
 			if (!localDiagnosticLogger) return
 			const selection = await vscode.window.showWarningMessage(
-				"Clear current and previous local Cline diagnostic logs?",
+				"Clear current and previous local Bedrock Coder diagnostic logs?",
 				{ modal: true },
 				"Clear Logs",
 			)
 			if (selection !== "Clear Logs") return
 			await localDiagnosticLogger.clear()
-			void vscode.window.showInformationMessage("Local Cline diagnostic logs cleared.")
+			void vscode.window.showInformationMessage("Local Bedrock Coder diagnostic logs cleared.")
 		}),
 	)
 
@@ -197,14 +185,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		const isTaskUri = uriPath === TASK_URI_PATH || uriPath === LG_TASK_URI_PATH
 
 		if (isTaskUri) {
-			await openClineSidebarForTaskUri()
+			await openBedrockCoderSidebarForTaskUri()
 		}
 
 		let success = await SharedUriHandler.handleUri(url)
 
 		// Task deeplinks can race with first-time sidebar initialization.
 		if (!success && isTaskUri) {
-			await openClineSidebarForTaskUri()
+			await openBedrockCoderSidebarForTaskUri()
 			success = await SharedUriHandler.handleUri(url)
 		}
 
@@ -218,23 +206,23 @@ export async function activate(context: vscode.ExtensionContext) {
 	// registered handler above, which the harness can't synthesize. When running
 	// under browser-capture (debug harness) mode, expose the same handler on
 	// globalThis so the harness can deliver simulated OAuth callbacks via
-	// `ext.evaluate`. Gated on CLINE_CAPTURE_BROWSER so it never ships in prod.
-	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
-		;(globalThis as Record<string, unknown>).__clineHandleUri = (url: string) => SharedUriHandler.handleUri(url)
+	// `ext.evaluate`. Gated on BEDROCK_CODER_CAPTURE_BROWSER so it never ships in prod.
+	if (process.env.BEDROCK_CODER_CAPTURE_BROWSER === "1" || process.env.BEDROCK_CODER_CAPTURE_BROWSER === "true") {
+		;(globalThis as Record<string, unknown>).__bedrockCoderHandleUri = (url: string) => SharedUriHandler.handleUri(url)
 	}
 
 	// Register size testing commands in development mode
 	if (IS_DEV) {
-		vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV)
+		vscode.commands.executeCommand("setContext", "bedrockCoder.isDevMode", IS_DEV)
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
 				const devTaskCommands = module.registerTaskCommands(webview.controller)
 				context.subscriptions.push(...devTaskCommands)
-				Logger.log("[Cline Dev] Dev mode activated & dev commands registered")
+				Logger.log("[Bedrock Coder Dev] Dev mode activated & dev commands registered")
 			})
 			.catch((error) => {
-				Logger.log(`[Cline Dev] Failed to register dev commands: ${error}`)
+				Logger.log(`[BedrockCoder Dev] Failed to register dev commands: ${error}`)
 			})
 	}
 
@@ -327,40 +315,46 @@ export async function activate(context: vscode.ExtensionContext) {
 						)
 					}
 
-					// Add to Cline (Always available)
-					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
+					// Add to BedrockCoder (Always available)
+					const addAction = new vscode.CodeAction("Add to Bedrock Coder", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
 						command: commands.AddToChat,
-						title: "Add to Cline",
+						title: "Add to Bedrock Coder",
 						arguments: [expandedRange, context.diagnostics],
 					}
 					actions.push(addAction)
 
-					// Explain with Cline (Always available)
-					const explainAction = new vscode.CodeAction("Explain with Cline", vscode.CodeActionKind.RefactorExtract) // Using a refactor kind
+					// Explain with BedrockCoder (Always available)
+					const explainAction = new vscode.CodeAction(
+						"Explain with Bedrock Coder",
+						vscode.CodeActionKind.RefactorExtract,
+					) // Using a refactor kind
 					explainAction.command = {
 						command: commands.ExplainCode,
-						title: "Explain with Cline",
+						title: "Explain with Bedrock Coder",
 						arguments: [expandedRange],
 					}
 					actions.push(explainAction)
 
-					// Improve with Cline (Always available)
-					const improveAction = new vscode.CodeAction("Improve with Cline", vscode.CodeActionKind.RefactorRewrite) // Using a refactor kind
+					// Improve with BedrockCoder (Always available)
+					const improveAction = new vscode.CodeAction(
+						"Improve with Bedrock Coder",
+						vscode.CodeActionKind.RefactorRewrite,
+					) // Using a refactor kind
 					improveAction.command = {
 						command: commands.ImproveCode,
-						title: "Improve with Cline",
+						title: "Improve with Bedrock Coder",
 						arguments: [expandedRange],
 					}
 					actions.push(improveAction)
 
-					// Fix with Cline (Only if diagnostics exist)
+					// Fix with BedrockCoder (Only if diagnostics exist)
 					if (context.diagnostics.length > 0) {
-						const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
+						const fixAction = new vscode.CodeAction("Fix with Bedrock Coder", vscode.CodeActionKind.QuickFix)
 						fixAction.isPreferred = true
 						fixAction.command = {
-							command: commands.FixWithCline,
-							title: "Fix with Cline",
+							command: commands.FixWithBedrockCoder,
+							title: "Fix with Bedrock Coder",
 							arguments: [expandedRange, context.diagnostics],
 						}
 						actions.push(fixAction)
@@ -385,17 +379,20 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!context) {
 				return
 			}
-			await addToCline(context.controller, context.commandContext)
+			await addToBedrockCoder(context.controller, context.commandContext)
 		}),
 	)
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FixWithCline, async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
-			const context = await getContextForCommand(range, diagnostics)
-			if (!context) {
-				return
-			}
-			await fixWithCline(context.controller, context.commandContext)
-		}),
+		vscode.commands.registerCommand(
+			commands.FixWithBedrockCoder,
+			async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
+				const context = await getContextForCommand(range, diagnostics)
+				if (!context) {
+					return
+				}
+				await fixWithBedrockCoder(context.controller, context.commandContext)
+			},
+		),
 	)
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.ExplainCode, async (range: vscode.Range) => {
@@ -403,7 +400,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!context) {
 				return
 			}
-			await explainWithCline(context.controller, context.commandContext)
+			await explainWithBedrockCoder(context.controller, context.commandContext)
 		}),
 	)
 	context.subscriptions.push(
@@ -412,7 +409,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!context) {
 				return
 			}
-			await improveWithCline(context.controller, context.commandContext)
+			await improveWithBedrockCoder(context.controller, context.commandContext)
 		}),
 	)
 
@@ -440,7 +437,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the openWalkthrough command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.Walkthrough, async () => {
-			await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#ClineWalkthrough`)
+			await vscode.commands.executeCommand(
+				"workbench.action.openWalkthrough",
+				`${context.extension.id}#BedrockCoderWalkthrough`,
+			)
 		}),
 	)
 
@@ -454,19 +454,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
+	Logger.log(`[BedrockCoder] extension activated in ${performance.now() - activationStartTime} ms`)
 	localDiagnosticLogger.record({
 		name: "activation-completed",
 		category: "extension",
 		durationMs: performance.now() - activationStartTime,
 	})
 
-	return createClineAPI(webview.controller)
+	return createBedrockCoderAPI(webview.controller)
 }
 
-function setupHostProvider(context: ExtensionContext) {
-	const outputChannel = registerClineOutputChannel(context)
-	outputChannel.appendLine("[Cline] Setting up VS Code host...")
+function setupHostProvider(context: vscode.ExtensionContext) {
+	const outputChannel = registerBedrockCoderOutputChannel(context)
+	outputChannel.appendLine("[Bedrock Coder] Setting up VS Code host...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createEditPreview = () => new VscodeEditPreview()
@@ -508,7 +508,7 @@ function getUriPath(url: string): string | undefined {
 	}
 }
 
-async function openClineSidebarForTaskUri(): Promise<void> {
+async function openBedrockCoderSidebarForTaskUri(): Promise<void> {
 	const sidebarWaitTimeoutMs = 3000
 	const sidebarWaitIntervalMs = 50
 
@@ -522,7 +522,7 @@ async function openClineSidebarForTaskUri(): Promise<void> {
 		await new Promise((resolve) => setTimeout(resolve, sidebarWaitIntervalMs))
 	}
 
-	Logger.warn("Task URI handling timed out waiting for Cline sidebar visibility")
+	Logger.warn("Task URI handling timed out waiting for Bedrock Coder sidebar visibility")
 }
 
 async function getBinaryLocation(name: string): Promise<string> {
@@ -594,37 +594,4 @@ if (IS_DEV) {
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})
-}
-
-// VSCode-specific storage migrations
-async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<void> {
-	try {
-		await cleanupClineAccountState(context)
-		await cleanupLegacyApprovalState(context)
-		const migrationKey = "phase4LegacyVSCodeStorageMigrationComplete"
-		const hasMigrated = context.globalState.get(migrationKey)
-		if (hasMigrated !== undefined) {
-			return
-		}
-
-		Logger.info("[VS Code Storage Migrations] Starting")
-
-		// Migrate custom instructions to global Cline rules (one-time cleanup)
-		await migrateCustomInstructionsToGlobalRules(context)
-
-		// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
-		await migrateWelcomeViewCompleted(context)
-
-		// Migrate workspace storage values back to global storage (reverting previous migration)
-		await migrateWorkspaceToGlobalStorage(context)
-
-		// Ensure taskHistory.json exists and migrate legacy state (runs once)
-		await migrateTaskHistoryToFile(context)
-
-		await context.globalState.update(migrationKey, true)
-
-		Logger.info("[VS Code Storage Migrations] Completed")
-	} catch (error) {
-		Logger.warn(`[VS Code Storage Migrations] Failed${error instanceof Error ? `: ${error.message}` : ""}`)
-	}
 }

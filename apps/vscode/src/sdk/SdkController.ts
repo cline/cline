@@ -2,7 +2,7 @@
 //
 // The SDK-backed Controller. It provides the same interface as the classic
 // Controller but delegates session lifecycle (initTask, askResponse,
-// cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
+// cancelTask, …) to the BedrockCoder SDK (@bedrock-coder/core) and bridges SDK events to
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
@@ -12,17 +12,22 @@ import {
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
 	type UserInstructionConfigService,
-} from "@cline/core"
-import type { CreateTeamTaskInput, TeamBoardSnapshot, TeamRunRecord, TeamTask, UpdateTeamTaskInput } from "@cline/shared"
-import { formatDisplayUserInput } from "@cline/shared"
+} from "@bedrock-coder/core"
+import type { CreateTeamTaskInput, TeamBoardSnapshot, TeamRunRecord, TeamTask, UpdateTeamTaskInput } from "@bedrock-coder/shared"
+import { formatDisplayUserInput } from "@bedrock-coder/shared"
 import type { ChatContent } from "@shared/ChatContent"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import {
+	DeleteAllTaskHistoryCount,
+	type GetTaskHistoryRequest,
+	TaskHistoryArray,
+	TaskResponse,
+} from "@shared/proto/bedrock_coder/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
-import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import type { BedrockCoderCheckpointRestore } from "@shared/WebviewMessage"
 import { sendTeamBoardUpdate } from "@/core/controller/team/subscribeToTeamBoard"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
@@ -34,11 +39,11 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { BedrockStartupController } from "@/services/bedrock/bedrock-startup-controller"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { McpHub } from "@/services/mcp/McpHub"
-import type { ClineExtensionContext } from "@/shared/cline"
+import type { BedrockCoderExtensionContext } from "@/shared/bedrock-coder"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
-import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { buildStartSessionInput, createHistoryItemFromSession } from "./bedrock-coder-session-factory"
 import { MessageTranslatorState } from "./message-translator"
 import { AgentRunLifecycle, sanitizeRunFailure } from "./run-lifecycle"
 import {
@@ -198,17 +203,17 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
-	constructor(readonly context: ClineExtensionContext) {
+	constructor(readonly context: BedrockCoderExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
 		this.statePostDebouncer = new StatePostDebouncer({
 			debounceMs: Controller.STATE_POST_DEBOUNCE_MS,
 			flush: () => this.flushStateToWebview(),
 		})
-		// IMPORTANT: Use ~/.cline/data/settings/ for the settings directory,
+		// IMPORTANT: Use ~/.bedrock-coder/data/settings/ for the settings directory,
 		// NOT ensureSettingsDirectoryExists() which returns the VSCode extension
 		// storage path (HostProvider.globalStorageFsPath/settings/). The MCP
-		// settings file lives at ~/.cline/data/settings/cline_mcp_settings.json
+		// settings file lives at ~/.bedrock-coder/data/settings/mcp_settings.json
 		// (shared across VSCode, CLI, and JetBrains clients).
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
@@ -347,7 +352,6 @@ export class Controller {
 		this.taskHistory = new SdkTaskHistory({
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
-			legacyExtensionStorageDir: this.context.globalStorageUri.fsPath,
 			// History rendering mints ids from the shared authority so regenerated history ids
 			// never overlap live-session ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
@@ -722,7 +726,7 @@ export class Controller {
 	// ---- Session event subscription ----
 
 	/**
-	 * Subscribe to session events translated to ClineMessages.
+	 * Subscribe to session events translated to BedrockCoderMessages.
 	 * Returns an unsubscribe function.
 	 */
 	onSessionEvent(listener: SessionEventListener): () => void {
@@ -983,20 +987,20 @@ export class Controller {
 			throw new Error("No active task to edit")
 		}
 
-		const clineMessages = currentTask.messageStateHandler.getClineMessages()
-		const targetIndex = clineMessages.findIndex((message) => message.ts === input.messageTs)
+		const bedrockCoderMessages = currentTask.messageStateHandler.getBedrockCoderMessages()
+		const targetIndex = bedrockCoderMessages.findIndex((message) => message.ts === input.messageTs)
 		if (targetIndex === -1) {
 			throw new Error("Message to edit was not found")
 		}
-		const targetMessage = clineMessages[targetIndex]
+		const targetMessage = bedrockCoderMessages[targetIndex]
 		if (targetMessage.type !== "say" || (targetMessage.say !== "task" && targetMessage.say !== "user_feedback")) {
 			throw new Error("Only user messages can be edited")
 		}
 
-		const userOrdinal = clineMessages
+		const userOrdinal = bedrockCoderMessages
 			.slice(0, targetIndex + 1)
 			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
-		const checkpointRunCount = getCheckpointRunCountForMessage(clineMessages, targetIndex)
+		const checkpointRunCount = getCheckpointRunCountForMessage(bedrockCoderMessages, targetIndex)
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
@@ -1017,7 +1021,7 @@ export class Controller {
 			const historyTitle =
 				userOrdinal === 1
 					? editedText
-					: extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
+					: extractSdkUserText(firstUserMessage ?? {}) || bedrockCoderMessages[0]?.text || editedText
 			const fallbackCwd = await this.getWorkspaceRoot()
 			const [sessionRecord, historyItem] = await Promise.all([
 				sessionHost.get(sourceSessionId).catch(() => undefined),
@@ -1086,7 +1090,7 @@ export class Controller {
 			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, historyTitle, config.modelId, cwd)
 			await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
 
-			const visibleMessages = clineMessages.slice(0, targetIndex)
+			const visibleMessages = bedrockCoderMessages.slice(0, targetIndex)
 			if (visibleMessages.length > 0) {
 				task.messageStateHandler.addMessages(visibleMessages)
 			}
@@ -1109,7 +1113,7 @@ export class Controller {
 		}
 	}
 
-	async restoreCheckpoint(input: { checkpointRunCount: number; restoreType: ClineCheckpointRestore }): Promise<void> {
+	async restoreCheckpoint(input: { checkpointRunCount: number; restoreType: BedrockCoderCheckpointRestore }): Promise<void> {
 		const restoreMessages = input.restoreType === "task" || input.restoreType === "taskAndWorkspace"
 		const restoreWorkspace = input.restoreType === "workspace" || input.restoreType === "taskAndWorkspace"
 		const checkpointRunCount = Number(input.checkpointRunCount)
@@ -1122,7 +1126,7 @@ export class Controller {
 		if (!activeSession || !currentTask) {
 			throw new Error("No active task to restore")
 		}
-		const currentMessages = currentTask.messageStateHandler.getClineMessages()
+		const currentMessages = currentTask.messageStateHandler.getBedrockCoderMessages()
 		const target = restoreMessages ? findVisibleCheckpointUserMessageByRun(currentMessages, checkpointRunCount) : undefined
 		if (restoreMessages && !target) {
 			throw new Error(`Could not find user message for checkpoint run ${checkpointRunCount}`)
@@ -1255,7 +1259,7 @@ export class Controller {
 	 * this.task = undefined and may trigger async operations (session stop/dispose)
 	 * that race with the new task proxy creation. If any of those async operations
 	 * trigger postStateToWebview() while this.task is undefined, the webview
-	 * receives a state with no currentTaskItem/clineMessages and flashes back
+	 * receives a state with no currentTaskItem/bedrockCoderMessages and flashes back
 	 * to the welcome screen (S6-6/S6-23 fix).
 	 *
 	 * Instead, we:
@@ -1365,15 +1369,13 @@ export class Controller {
 				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 				modelId: item.model || metadataString(metadata, "modelId") || "",
-				isLegacy:
-					metadataBoolean(metadata, "legacyTask") === true ||
-					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
+				isLegacy: false,
 			}
 		})
 
 		if (offset === 0 && !favoritesOnly && this.task?.taskId && !tasks.some((task) => task.id === this.task?.taskId)) {
 			const taskMessage = this.task.messageStateHandler
-				.getClineMessages()
+				.getBedrockCoderMessages()
 				.find((message) => message.type === "say" && message.say === "task" && message.text)
 			const matchesSearch = !searchQuery || taskMessage?.text?.toLowerCase().includes(searchQuery.toLowerCase())
 			if (taskMessage?.text && matchesSearch) {
@@ -1403,9 +1405,7 @@ export class Controller {
 			throw new Error(`Task not found in history: ${id}`)
 		}
 
-		const taskDirPath = historyItem.messagesPath
-			? path.dirname(historyItem.messagesPath)
-			: this.taskHistory.getLegacyTaskDirPath(id)
+		const taskDirPath = historyItem.messagesPath ? path.dirname(historyItem.messagesPath) : undefined
 		if (!taskDirPath) {
 			throw new Error(`Task history item has no artifact path: ${id}`)
 		}
@@ -1561,28 +1561,21 @@ export class Controller {
 				.map(sessionHistoryRecordToHistoryItem)
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
-			const legacyTaskHistory = state.taskHistory ?? []
-			const mergedTaskHistoryById = new Map<string, HistoryItem>()
-
-			// Keep the SDK records authoritative for migrated/new tasks, but append
-			// legacy persisted history so pre-migration tasks still appear in the UI.
-			for (const item of legacyTaskHistory) {
-				mergedTaskHistoryById.set(item.id, item)
-			}
+			const taskHistoryById = new Map<string, HistoryItem>()
 			for (const item of sdkTaskHistory) {
-				mergedTaskHistoryById.set(item.id, item)
+				taskHistoryById.set(item.id, item)
 			}
 
 			// A just-started task may not be visible in SDK persisted history yet (the
 			// history adapter can lag behind the active in-memory TaskProxy). Classic
 			// state included the current task immediately, and the testing platform
 			// asserts that taskHistory reflects newTask before the model turn completes.
-			if (this.task?.taskId && !mergedTaskHistoryById.has(this.task.taskId)) {
+			if (this.task?.taskId && !taskHistoryById.has(this.task.taskId)) {
 				const taskMessage = this.task.messageStateHandler
-					.getClineMessages()
+					.getBedrockCoderMessages()
 					.find((message) => message.type === "say" && message.say === "task" && message.text)
 				if (taskMessage?.text) {
-					mergedTaskHistoryById.set(this.task.taskId, {
+					taskHistoryById.set(this.task.taskId, {
 						id: this.task.taskId,
 						ts: taskMessage.ts || Date.now(),
 						task: taskMessage.text,
@@ -1597,7 +1590,7 @@ export class Controller {
 				}
 			}
 
-			const processedTaskHistory = Array.from(mergedTaskHistoryById.values())
+			const processedTaskHistory = Array.from(taskHistoryById.values())
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
 				.slice(0, 100)

@@ -12,7 +12,7 @@ describe("LocalDiagnosticLogger", () => {
 	})
 
 	it("redacts secrets and content before serialization and rotates bounded files", async () => {
-		directory = await mkdtemp(join(tmpdir(), "cline-local-diagnostics-"))
+		directory = await mkdtemp(join(tmpdir(), "bedrock-coder-local-diagnostics-"))
 		const logger = new LocalDiagnosticLogger(directory, 500)
 		await logger.initialize()
 		logger.record({

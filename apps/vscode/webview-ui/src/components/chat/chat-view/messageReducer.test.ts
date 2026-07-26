@@ -1,8 +1,8 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { applyMessage, applyStateSnapshot, applyTurnState, createReplicaState, type ReplicaState } from "./messageReducer"
 
-function msg(ts: number, seq: number, epoch: number, partial = false, text = `m${ts}`): ClineMessage {
+function msg(ts: number, seq: number, epoch: number, partial = false, text = `m${ts}`): BedrockCoderMessage {
 	return { ts, type: "say", say: "text", text, partial, seq, epoch }
 }
 
@@ -38,7 +38,7 @@ describe("messageReducer — deterministic", () => {
 		let s = createReplicaState()
 		s = applyMessage(s, msg(1, 1, 1, false, "task"))
 		s = applyMessage(s, msg(2, 2, 1, false, "text"))
-		const ask: ClineMessage = { ts: 3, type: "ask", ask: "completion_result", text: "", seq: 3, epoch: 1 }
+		const ask: BedrockCoderMessage = { ts: 3, type: "ask", ask: "completion_result", text: "", seq: 3, epoch: 1 }
 		s = applyMessage(s, ask)
 		expect(tsList(s)).toEqual([1, 2, 3])
 
@@ -74,8 +74,8 @@ describe("messageReducer — deterministic", () => {
 
 	it("unstamped (classic/legacy) messages merge at epoch 0 by ts", () => {
 		let s = createReplicaState()
-		const a: ClineMessage = { ts: 1, type: "say", say: "text", text: "a" }
-		const b: ClineMessage = { ts: 2, type: "say", say: "text", text: "b" }
+		const a: BedrockCoderMessage = { ts: 1, type: "say", say: "text", text: "a" }
+		const b: BedrockCoderMessage = { ts: 2, type: "say", say: "text", text: "b" }
 		s = applyMessage(s, a)
 		s = applyMessage(s, b)
 		expect(tsList(s)).toEqual([1, 2])
@@ -83,7 +83,7 @@ describe("messageReducer — deterministic", () => {
 
 	// Order independence (property-based via explicit permutations) -------------
 
-	function canonical(log: ClineMessage[]): ReplicaState {
+	function canonical(log: BedrockCoderMessage[]): ReplicaState {
 		let s = createReplicaState()
 		for (const m of log) {
 			s = applyMessage(s, m)
@@ -114,7 +114,7 @@ describe("messageReducer — deterministic", () => {
 	describe("messageReducer — order independence", () => {
 		// A causal log for one epoch: task, streamed text (partial then final, same ts), tool,
 		// and a trailing ask. seq reflects causal mint order.
-		const log: ClineMessage[] = [
+		const log: BedrockCoderMessage[] = [
 			msg(1, 1, 1, false, "task"),
 			msg(2, 2, 1, true, "Hel"),
 			msg(2, 3, 1, false, "Hello"),
@@ -148,7 +148,7 @@ describe("messageReducer — deterministic", () => {
 		})
 
 		it("dropping non-final copies still converges once finals arrive in any order", () => {
-			const finalsByTs = new Map<number, ClineMessage>()
+			const finalsByTs = new Map<number, BedrockCoderMessage>()
 			for (const m of log) {
 				const cur = finalsByTs.get(m.ts)
 				if (!cur || (m.seq ?? 0) >= (cur.seq ?? 0)) {
@@ -227,7 +227,7 @@ describe("messageReducer — deterministic", () => {
 			let s = createReplicaState()
 			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task"), msg(2, 2, 1, false, "answer")], 1, 5)
 			// A stray bookkeeping partial stamped at a higher epoch but with no real content.
-			const stray: ClineMessage = { ts: 99, type: "say", say: "api_req_started", text: "{}", seq: 1, epoch: 2 }
+			const stray: BedrockCoderMessage = { ts: 99, type: "say", say: "api_req_started", text: "{}", seq: 1, epoch: 2 }
 			s = applyMessage(s, stray)
 			// The transcript must still contain the real conversation, not just the stray row.
 			expect(tsList(s)).toContain(1)

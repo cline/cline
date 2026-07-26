@@ -1,4 +1,4 @@
-import type { ClineMessage, ClineSayTool, TurnState } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage, BedrockCoderSayTool, TurnState } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 
 /**
@@ -225,7 +225,7 @@ const errorTypes = ["api_req_failed", "mistake_limit_reached"]
  * Determines button configuration based on message type and state
  * This is the single source of truth used by both ActionButtons and useMessageHandlers
  */
-export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode = "act"): ButtonConfig {
+export function getButtonConfig(message: BedrockCoderMessage | undefined, _mode: Mode = "act"): ButtonConfig {
 	if (!message) {
 		return BUTTON_CONFIGS.default
 	}
@@ -258,7 +258,7 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 			case "tool": {
 				// Only parse JSON if we need to determine save vs approve
 				try {
-					const tool = JSON.parse(message.text || "{}") as ClineSayTool
+					const tool = JSON.parse(message.text || "{}") as BedrockCoderSayTool
 					if (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated" || tool.tool === "fileDeleted") {
 						return BUTTON_CONFIGS.tool_save
 					}
@@ -321,7 +321,7 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 	return BUTTON_CONFIGS.partial
 }
 
-function isInertStatusMessage(message: ClineMessage): boolean {
+function isInertStatusMessage(message: BedrockCoderMessage): boolean {
 	if (message.type !== "say") {
 		return false
 	}
@@ -353,7 +353,7 @@ function isInertStatusMessage(message: ClineMessage): boolean {
  * filtered out of the visible chat, but using the raw last message would hide
  * Approve/Reject and leave the user stuck. Prefer the last non-inert message.
  */
-export function getButtonConfigForMessages(messages: ClineMessage[], mode: Mode = "act"): ButtonConfig {
+export function getButtonConfigForMessages(messages: BedrockCoderMessage[], mode: Mode = "act"): ButtonConfig {
 	for (let index = messages.length - 1; index >= 0; index--) {
 		const message = messages[index]
 		if (!isInertStatusMessage(message)) {
@@ -374,7 +374,7 @@ export function getButtonConfigForMessages(messages: ClineMessage[], mode: Mode 
  */
 export function buttonsForPhase(
 	turnState: TurnState,
-	anchoredMessage: ClineMessage | undefined,
+	anchoredMessage: BedrockCoderMessage | undefined,
 	foregroundCommandRunning = false,
 ): ButtonConfig {
 	switch (turnState.phase) {
@@ -414,7 +414,7 @@ export function buttonsForPhase(
  * path); otherwise falls back to the legacy tail-walking heuristic (classic/older state).
  */
 export function getButtonConfigFromState(
-	messages: ClineMessage[],
+	messages: BedrockCoderMessage[],
 	turnState: TurnState | undefined,
 	mode: Mode = "act",
 	foregroundCommandRunning = false,

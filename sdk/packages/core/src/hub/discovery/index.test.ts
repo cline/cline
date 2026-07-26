@@ -10,20 +10,20 @@ import {
 } from ".";
 
 type EnvSnapshot = {
-	CLINE_DATA_DIR: string | undefined;
-	CLINE_HUB_DISCOVERY_PATH: string | undefined;
+	BEDROCK_CODER_DATA_DIR: string | undefined;
+	BEDROCK_CODER_HUB_DISCOVERY_PATH: string | undefined;
 };
 
 function captureEnv(): EnvSnapshot {
 	return {
-		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
-		CLINE_HUB_DISCOVERY_PATH: process.env.CLINE_HUB_DISCOVERY_PATH,
+		BEDROCK_CODER_DATA_DIR: process.env.BEDROCK_CODER_DATA_DIR,
+		BEDROCK_CODER_HUB_DISCOVERY_PATH: process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH,
 	};
 }
 
 function restoreEnv(snapshot: EnvSnapshot): void {
-	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
-	process.env.CLINE_HUB_DISCOVERY_PATH = snapshot.CLINE_HUB_DISCOVERY_PATH;
+	process.env.BEDROCK_CODER_DATA_DIR = snapshot.BEDROCK_CODER_DATA_DIR;
+	process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH = snapshot.BEDROCK_CODER_HUB_DISCOVERY_PATH;
 }
 
 describe("hub discovery", () => {
@@ -35,12 +35,12 @@ describe("hub discovery", () => {
 
 	it("stores shared hub discovery under the locks directory by default", () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_HUB_DISCOVERY_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		expect(resolveHubOwnerContext("shared").discoveryPath).toBe(
 			join(
-				"/tmp/cline-data",
+				"/tmp/bedrock-coder-data",
 				"locks",
 				"hub",
 				"owners",
@@ -51,7 +51,7 @@ describe("hub discovery", () => {
 
 	it("honors an explicit hub discovery path override", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_HUB_DISCOVERY_PATH = "/tmp/custom-hub-discovery.json";
+		process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH = "/tmp/custom-hub-discovery.json";
 
 		expect(resolveHubOwnerContext("shared").discoveryPath).toBe(
 			"/tmp/custom-hub-discovery.json",
@@ -60,8 +60,8 @@ describe("hub discovery", () => {
 
 	it("writes and clears discovery records at the resolved location", async () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_HUB_DISCOVERY_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		const discoveryPath = resolveHubOwnerContext("shared").discoveryPath;
 		const record = {
@@ -92,8 +92,8 @@ describe("hub discovery", () => {
 
 	it("rejects discovery records without an auth token", async () => {
 		snapshot = captureEnv();
-		delete process.env.CLINE_HUB_DISCOVERY_PATH;
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		delete process.env.BEDROCK_CODER_HUB_DISCOVERY_PATH;
+		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		const discoveryPath = resolveHubOwnerContext("missing-auth").discoveryPath;
 		await mkdir(dirname(discoveryPath), { recursive: true });

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-SESSION="cline-dev"
-WORKSPACE="${CLINE_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}"
-ENVIRONMENT="${CLINE_ENVIRONMENT:-production}"
+SESSION="bedrock-coder-dev"
+WORKSPACE="${BEDROCK_CODER_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}"
+ENVIRONMENT="${BEDROCK_CODER_ENVIRONMENT:-production}"
 
 cd "$WORKSPACE"
 
 # Export env vars -- tmux inherits them automatically
 export IS_DEV=true
 export DEV_WORKSPACE_FOLDER="$WORKSPACE"
-export CLINE_ENVIRONMENT="$ENVIRONMENT"
+export BEDROCK_CODER_ENVIRONMENT="$ENVIRONMENT"
 if [ -f .env ]; then
   set -a
   source .env
@@ -47,7 +47,7 @@ tmux bind-key -T root C-c kill-session
 tmux send-keys -t "$SESSION:0.0" "bun run watch:esbuild" Enter
 tmux send-keys -t "$SESSION:0.1" "bun run watch:tsc" Enter
 tmux send-keys -t "$SESSION:0.2" "bun run dev:webview" Enter
-tmux send-keys -t "$SESSION:0.3" "while [ ! -f '$WORKSPACE/dist/extension.js' ]; do sleep 0.5; done && echo 'Launching Extension Host...' && code --extensionDevelopmentPath='$WORKSPACE' --disable-workspace-trust --disable-extension saoudrizwan.claude-dev --disable-extension saoudrizwan.cline-nightly '$WORKSPACE' && echo 'Extension Host launched.'" Enter
+tmux send-keys -t "$SESSION:0.3" "while [ ! -f '$WORKSPACE/dist/extension.js' ]; do sleep 0.5; done && echo 'Launching Extension Host...' && code --extensionDevelopmentPath='$WORKSPACE' --disable-workspace-trust --disable-extension fffalexgo.bedrock-coder --disable-extension fffalexgo.bedrock-coder-nightly '$WORKSPACE' && echo 'Extension Host launched.'" Enter
 
 # Attach to the session
 tmux attach-session -t "$SESSION"

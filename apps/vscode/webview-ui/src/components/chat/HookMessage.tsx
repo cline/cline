@@ -1,5 +1,5 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { BedrockCoderMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
 import { memo, useMemo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
@@ -23,7 +23,7 @@ const completedColor = "var(--vscode-descriptionForeground)"
  * @param metadata The hook metadata containing status
  * @returns true if the hook output should be expanded by default
  */
-function shouldExpandHookByDefault(message: ClineMessage, metadata: HookMetadata): boolean {
+function shouldExpandHookByDefault(message: BedrockCoderMessage, metadata: HookMetadata): boolean {
 	// Always collapse historical messages (>5 seconds old) for better UX
 	const isHistorical = message.ts && Date.now() - message.ts > 5000
 	if (isHistorical) {
@@ -35,7 +35,7 @@ function shouldExpandHookByDefault(message: ClineMessage, metadata: HookMetadata
 }
 
 interface HookMessageProps {
-	message: ClineMessage
+	message: BedrockCoderMessage
 	// CommandOutput component - we'll import and use it here
 	CommandOutput: React.ComponentType<{
 		output: string
@@ -147,7 +147,8 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 					style={{
 						color: normalColor,
 						marginBottom: "-1.5px",
-					}}></span>
+					}}
+				/>
 				<span style={{ color: normalColor, fontWeight: "bold" }}>Hook:</span>
 				<span style={{ color: normalColor }}>{metadata.hookName}</span>
 				{metadata.toolName && (

@@ -1,5 +1,5 @@
 import { ensureAgentSkillsDirectoryExists } from "@core/storage/disk"
-import { CreateSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
+import { CreateSkillRequest, SkillsToggles } from "@shared/proto/bedrock_coder/file"
 import fs from "fs/promises"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"

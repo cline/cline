@@ -1,9 +1,9 @@
-import type { ModelInfo, ToolResultContent } from "@cline/llms";
+import type { ModelInfo, ToolResultContent } from "@bedrock-coder/llms";
 import {
 	CHARS_PER_TOKEN,
 	estimateTokens,
 	type MessageWithMetadata,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 
 export { CHARS_PER_TOKEN, estimateTokens };
 

@@ -7,8 +7,8 @@ import {
 	type EditFileInput,
 	type EditorExecutor,
 	PatchActionType,
-} from "@cline/core"
-import type { AgentToolContext } from "@cline/shared"
+} from "@bedrock-coder/core"
+import type { AgentToolContext } from "@bedrock-coder/shared"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
@@ -221,7 +221,7 @@ export class SdkDiffEditCoordinator {
 		const title =
 			content.editType === "create"
 				? `${fileName}: New File (Preview)`
-				: `${fileName}: Original ↔ Cline's Changes (Preview)`
+				: `${fileName}: Original ↔ Bedrock Coder's Changes (Preview)`
 		try {
 			await preview.open({
 				title,

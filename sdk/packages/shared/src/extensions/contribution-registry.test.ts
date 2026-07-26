@@ -32,7 +32,7 @@ describe("ContributionRegistry contributions", () => {
 		const registry = createContributionRegistry({
 			setupContext: {
 				session: { sessionId: "sess-1" },
-				client: { name: "cline-sdk", version: "1.0.0" },
+				client: { name: "bedrock-coder-sdk", version: "1.0.0" },
 				workspaceInfo: { rootPath: "/tmp/workspace" },
 				logger,
 			},
@@ -54,7 +54,7 @@ describe("ContributionRegistry contributions", () => {
 
 		expect(logger.log).toHaveBeenCalledWith("plugin setup", {
 			sessionId: "sess-1",
-			client: "cline-sdk",
+			client: "bedrock-coder-sdk",
 		});
 	});
 

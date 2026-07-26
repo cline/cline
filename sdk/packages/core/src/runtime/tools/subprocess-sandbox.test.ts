@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
-	CLINE_JS_RUNTIME_PATH_ENV,
+	BEDROCK_CODER_JS_RUNTIME_PATH_ENV,
 	resolveSubprocessRuntimeExecutable,
 } from "./subprocess-sandbox";
 
@@ -24,7 +24,7 @@ describe("SubprocessSandbox runtime resolution", () => {
 	it("does not reuse packaged CLI binaries as helper runtimes", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({
-				execPath: "/usr/local/bin/cline",
+				execPath: "/usr/local/bin/bedrockCoder",
 				env: {},
 			}),
 		).toBe("node");
@@ -33,8 +33,8 @@ describe("SubprocessSandbox runtime resolution", () => {
 	it("allows an explicit helper runtime override", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({
-				execPath: "/usr/local/bin/cline",
-				env: { [CLINE_JS_RUNTIME_PATH_ENV]: "/opt/runtime/js" },
+				execPath: "/usr/local/bin/bedrockCoder",
+				env: { [BEDROCK_CODER_JS_RUNTIME_PATH_ENV]: "/opt/runtime/js" },
 			}),
 		).toBe("/opt/runtime/js");
 	});
@@ -42,13 +42,13 @@ describe("SubprocessSandbox runtime resolution", () => {
 	it("uses known runtime env vars when execPath is not a runtime", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({
-				execPath: "/usr/local/bin/cline",
+				execPath: "/usr/local/bin/bedrockCoder",
 				env: { BUN_EXEC_PATH: "/Users/me/.bun/bin/bun" },
 			}),
 		).toBe("/Users/me/.bun/bin/bun");
 		expect(
 			resolveSubprocessRuntimeExecutable({
-				execPath: "/usr/local/bin/cline",
+				execPath: "/usr/local/bin/bedrockCoder",
 				env: { npm_node_execpath: "/opt/node/bin/node" },
 			}),
 		).toBe("/opt/node/bin/node");
@@ -57,8 +57,8 @@ describe("SubprocessSandbox runtime resolution", () => {
 	it("builds plugin sandbox commands with the resolved runtime", () => {
 		expect(
 			buildSubprocessSandboxCommand(["-e", "console.log('ok')"], {
-				execPath: "/usr/local/bin/cline",
-				env: { CLINE_BUILD_ENV: "production" },
+				execPath: "/usr/local/bin/bedrockCoder",
+				env: { BEDROCK_CODER_BUILD_ENV: "production" },
 				name: "plugin-sandbox",
 			}),
 		).toEqual(["node", "-e", "console.log('ok')"]);
@@ -67,8 +67,8 @@ describe("SubprocessSandbox runtime resolution", () => {
 	it("preserves development debugging flags for resolved runtimes", () => {
 		expect(
 			buildSubprocessSandboxCommand(["bootstrap.js"], {
-				execPath: "/usr/local/bin/cline",
-				env: { CLINE_BUILD_ENV: "development" },
+				execPath: "/usr/local/bin/bedrockCoder",
+				env: { BEDROCK_CODER_BUILD_ENV: "development" },
 				name: "plugin-sandbox",
 			}),
 		).toEqual([

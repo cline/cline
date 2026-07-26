@@ -1,4 +1,4 @@
-import type { ContentBlock, MessageWithMetadata } from "@cline/shared";
+import type { ContentBlock, MessageWithMetadata } from "@bedrock-coder/shared";
 
 export type BudgetPolicyIntent =
 	| "agentic_summary"

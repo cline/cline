@@ -1,4 +1,4 @@
-import type { SessionLineage, SessionRuntimeRecordShape } from "@cline/shared";
+import type { SessionLineage, SessionRuntimeRecordShape } from "@bedrock-coder/shared";
 import type { SessionSource, SessionStatus } from "./common";
 
 export const SESSION_HISTORY_SCHEMA_VERSION = 2;

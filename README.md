@@ -1,120 +1,70 @@
 <p align="center">
-  <img src="assets/icons/icon.png" width="80" alt="Cline" />
+  <img src="apps/vscode/assets/icons/icon.png" width="160" alt="Bedrock Coder" />
 </p>
 
-<h1 align="center">Cline</h1>
+<h1 align="center">Bedrock Coder</h1>
 
 <p align="center">
-The open source coding agent for VS Code.
+  A local-first VS Code coding agent powered exclusively by Amazon Bedrock.
 </p>
 
-<div align="center">
+Bedrock Coder can inspect and edit a workspace, run terminal commands, browse
+the web, use MCP servers, preserve checkpoints, and coordinate local agent
+teams. File changes and commands remain subject to the approval policy you
+choose in the extension.
 
-<div align="center">
-<table>
-<tbody>
-<td align="center">
-<a href="https://docs.cline.bot" target="_blank"><strong>Docs</strong></a>
-</td>
-<td align="center">
-<a href="https://discord.gg/cline" target="_blank"><strong>Discord</strong></a>
-</td>
-<td align="center">
-<a href="https://www.reddit.com/r/cline/" target="_blank"><strong>r/cline</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
-</td>
-<td align="center">
-<a href="https://cline.bot/join-us" target="_blank"><strong>Join us!</strong></a>
-</td>
-</tbody>
-</table>
-</div>
+## What makes this fork different
 
-</div>
+- Amazon Bedrock is the only model provider.
+- AWS credentials come from the standard AWS SDK credential chain and are not
+  stored by the extension.
+- Settings, history, sessions, rules, hooks, skills, and plugins live under the
+  independent `.bedrock-coder/` identity.
+- The extension ID is `fffalexgo.bedrock-coder`, so it can be installed
+  alongside official Cline without sharing commands or state.
+- No hosted account, subscription, telemetry, or Marketplace publishing flow
+  is required.
 
-## VS Code Extension
+## Repository layout
 
-Cline creates files, runs commands, browses the web, and uses tools with
-human-in-the-loop approval. The extension lives in [`apps/vscode`](apps/vscode)
-and uses the retained SDK packages under [`sdk/packages`](sdk/packages).
+| Area | Location |
+|---|---|
+| VS Code extension and webview | [`apps/vscode`](apps/vscode) |
+| Runtime SDK packages | [`sdk/packages`](sdk/packages) |
+| Implementation plans and results | [`plan`](plan) |
 
----
+## Development
 
-## Index
+Requirements: Bun 1.3.13 and Node.js 22 or newer.
 
-| Product | Description | Location | CHANGELOG |
-|---------|------------|--------------|--------------|
-| **SDK packages** | Shared types, provider integration, agent runtime, and stateful orchestration. | [`sdk/packages/`](sdk/packages) | [CHANGELOG.md](sdk/CHANGELOG.md) |
-| **VS Code Extension** | The extension host, webview, and testing platform. | [`apps/vscode/`](apps/vscode) | [CHANGELOG.md](CHANGELOG.md) |
-| **Docs site** | Public documentation pages. | [`docs/`](https://docs.cline.bot/) | - |
-
-## Edits Code Across Your Project
-
-Cline reads your project structure, understands the relationships between files, and makes coordinated changes across your codebase. It monitors linter and compiler errors as it works, fixing issues like missing imports, type mismatches, and syntax errors before you even see them. In VS Code, every edit shows up as a diff you can review, modify, or revert. All changes are tracked with checkpoints, so you can easily undo the agent's work.
-
-## Runs Bash Commands
-
-Cline executes commands directly in your terminal and watches the output in real time. Install packages, run build scripts, execute tests, deploy applications, manage databases. For long-running processes like dev servers, Cline continues working in the background and reacts to new output as it appears, catching compile errors, test failures, and server crashes as they happen.
-
-## Plan and Act
-
-Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. Every file edit and terminal command requires your approval, so you stay in control of what actually changes. Or toggle auto-approve and let Cline run autonomously.
-
-## Rules and Skills
-
-Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the VS Code extension. Use skills to let the model load specific rules when needed.
-
-## Works With Every Model
-
-Cline is not locked to a single AI provider. Use whichever model fits your workflow:
-
-| Provider | Models |
-|----------|--------|
-| Anthropic | Claude Opus, Sonnet, Haiku |
-| OpenAI | GPT series models |
-| Google | Gemini series models |
-| OpenRouter | 200+ models from any provider |
-| Vercel AI Gateway | Route to many providers through one gateway |
-| AWS Bedrock | Claude, Llama, and more |
-| Azure / GCP Vertex | All hosted models |
-| Cerebras / Groq | Fast inference models |
-| Ollama / LM Studio | Run local models on your machine |
-| Any OpenAI-compatible API | Self-hosted or third-party endpoints |
-
-## Extend With Plugins or MCP Servers
-
-Extend Cline's capabilities with plugins. Using the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below.
-
-```typescript
-import { Agent, createTool } from "@cline/core"
-
-const deployTool = createTool({
-  name: "deploy",
-  description: "Deploy the current branch to staging.",
-  inputSchema: { type: "object", properties: { env: { type: "string" } }, required: ["env"] },
-  execute: async (input) => {
-    // your deployment logic
-  },
-})
-
-const agent = new Agent({ tools: [deployTool], /* ... */ })
+```powershell
+bun install
+bun run build:sdk
+cd apps/vscode
+bun run check-types
+bun run package
 ```
-...or use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly.
 
-## Multi-Agent Teams
+The extension's AWS permissions and startup behavior are documented in
+[`apps/vscode/README.md`](apps/vscode/README.md).
 
-Coordinate multiple agents working together on complex tasks. A coordinator agent breaks the work into subtasks and delegates to specialist agents, each with their own tools and context. Team state persists across sessions so you can pick up where you left off.
+## Local data
 
-## Scheduled Agents
+The default home is `~/.bedrock-coder/`. Override it with
+`BEDROCK_CODER_DIR`; narrower data and settings paths use the
+`BEDROCK_CODER_` environment prefix. Workspace instructions use
+`.bedrock-coder/`.
 
-Run agents on cron schedules for recurring automations. Daily PR summaries, weekly dependency checks, codebase health reports. Schedules persist across restarts and run independently of any terminal session.
+## Contributing and security
 
-## Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report defects through
+[GitHub Issues](https://github.com/FFFalexgo/AWS_Bedrock_Coder/issues); report
+security vulnerabilities privately through the repository's GitHub Security
+Advisories.
 
-Start with the [Contributing Guide](CONTRIBUTING.md). Join our [Discord](https://discord.gg/cline) and head to the `#contributors` channel to connect with other contributors. Check our [careers page](https://cline.bot/join-us) for full-time roles.
+## License and attribution
 
-## License
-
-[Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+Bedrock Coder is licensed under Apache-2.0. It is an independently maintained
+derivative of [Cline](https://github.com/cline/cline) and is not affiliated
+with, sponsored by, or endorsed by Cline Bot Inc. or Amazon Web Services. See
+[NOTICE](NOTICE), [MODIFICATIONS.md](MODIFICATIONS.md), and [LICENSE](LICENSE).

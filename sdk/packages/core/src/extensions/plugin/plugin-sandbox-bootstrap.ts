@@ -14,7 +14,7 @@ import {
 	type AgentExtensionMcpServer,
 	normalizePluginManifest,
 	type PluginManifest,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { importPluginModule } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
@@ -42,7 +42,7 @@ interface PluginCommand {
 	) => Promise<PluginCommandResult> | PluginCommandResult;
 }
 
-// Keep this local mirror in sync with AgentExtensionCommandResult from @cline/shared.
+// Keep this local mirror in sync with AgentExtensionCommandResult from @bedrock-coder/shared.
 // The sandbox bootstrap runs in an isolated process and avoids host package imports.
 type PluginCommandResult =
 	| string
@@ -270,14 +270,14 @@ function emitEvent(name: string, payload?: unknown): void {
 }
 
 // Expose event emitter to plugins.
-(globalThis as Record<string, unknown>).__clinePluginHost = { emitEvent };
+(globalThis as Record<string, unknown>).__bedrockCoderPluginHost = { emitEvent };
 
 /**
  * Session workspace env — populated by `initialize()` and available to any
  * plugin code that executes before the setup hook, or cannot use hook context.
  * Prefer using PluginSetupCtx from the setup function when possible.
  */
-(globalThis as Record<string, unknown>).__clineSessionEnv = {
+(globalThis as Record<string, unknown>).__bedrockCoderSessionEnv = {
 	cwd: undefined as string | undefined,
 	workspaceInfo: undefined as unknown,
 };
@@ -529,7 +529,7 @@ async function initialize(args: {
 
 	// Keep the global escape-hatch in sync with the active session.
 	const sessionEnv = (globalThis as Record<string, unknown>)
-		.__clineSessionEnv as Record<string, unknown>;
+		.__bedrockCoderSessionEnv as Record<string, unknown>;
 	if (sessionEnv) {
 		sessionEnv.cwd = args.cwd;
 		sessionEnv.workspaceInfo = args.workspaceInfo;

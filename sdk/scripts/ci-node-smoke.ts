@@ -73,10 +73,10 @@ async function packWorkspace(
 }
 
 async function main(): Promise<void> {
-	const packDir = await mkdtemp(join(tmpdir(), "cline-node-smoke-packs-"));
-	const smokeDir = await mkdtemp(join(tmpdir(), "cline-node-smoke-"));
-	const sessionsDir = await mkdtemp(join(tmpdir(), "cline-node-sessions-"));
-	const npmCacheDir = await mkdtemp(join(tmpdir(), "cline-node-npm-cache-"));
+	const packDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-smoke-packs-"));
+	const smokeDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-smoke-"));
+	const sessionsDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-sessions-"));
+	const npmCacheDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-npm-cache-"));
 	const npmEnv = { npm_config_cache: npmCacheDir };
 
 	try {
@@ -92,14 +92,14 @@ async function main(): Promise<void> {
 			join(smokeDir, "package.json"),
 			`${JSON.stringify(
 				{
-					name: "cline-node-smoke",
+					name: "bedrock-coder-node-smoke",
 					private: true,
 					type: "module",
 					dependencies: {
-						"@cline/core": `file:${tarballs.core}`,
-						"@cline/agents": `file:${tarballs.agents}`,
-						"@cline/llms": `file:${tarballs.llms}`,
-						"@cline/shared": `file:${tarballs.shared}`,
+						"@bedrock-coder/core": `file:${tarballs.core}`,
+						"@bedrock-coder/agents": `file:${tarballs.agents}`,
+						"@bedrock-coder/llms": `file:${tarballs.llms}`,
+						"@bedrock-coder/shared": `file:${tarballs.shared}`,
 					},
 				},
 				null,
@@ -118,8 +118,8 @@ async function main(): Promise<void> {
 		const smokeSource =
 			nodeMajor >= 24
 				? `
-					const { SqliteSessionStore } = await import("@cline/core");
-					const store = new SqliteSessionStore({ sessionsDir: process.env.CLINE_DATA_DIR });
+					const { SqliteSessionStore } = await import("@bedrock-coder/core");
+					const store = new SqliteSessionStore({ sessionsDir: process.env.BEDROCK_CODER_DATA_DIR });
 					try {
 						store.init();
 						console.log("SQLite smoke test passed");
@@ -128,7 +128,7 @@ async function main(): Promise<void> {
 					}
 				`
 				: `
-					const { resolveSessionBackend } = await import("@cline/core");
+					const { resolveSessionBackend } = await import("@bedrock-coder/core");
 					await resolveSessionBackend({ backendMode: "local" });
 					console.log("Node compatibility smoke test passed");
 				`;
@@ -140,7 +140,7 @@ async function main(): Promise<void> {
 			cwd: smokeDir,
 			env: {
 				...npmEnv,
-				CLINE_DATA_DIR: sessionsDir,
+				BEDROCK_CODER_DATA_DIR: sessionsDir,
 			},
 			timeoutMs: 2 * 60_000,
 		});

@@ -1,6 +1,6 @@
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
-import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
+import { BedrockCoderMessage, BedrockCoderSayBrowserAction, BrowserAction, BrowserActionResult } from "@shared/ExtensionMessage"
+import { StringRequest } from "@shared/proto/bedrock_coder/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
@@ -15,10 +15,10 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 interface BrowserSessionRowProps {
-	messages: ClineMessage[]
+	messages: BedrockCoderMessage[]
 	expandedRows: Record<number, boolean>
 	onToggleExpand: (messageTs: number) => void
-	lastModifiedMessage?: ClineMessage
+	lastModifiedMessage?: BedrockCoderMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 	onSetQuote: (text: string) => void
@@ -145,15 +145,15 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				screenshot?: string
 				mousePosition?: string
 				consoleLogs?: string
-				messages: ClineMessage[] // messages up to and including the result
+				messages: BedrockCoderMessage[] // messages up to and including the result
 			}
 			nextAction?: {
-				messages: ClineMessage[] // messages leading to next result
+				messages: BedrockCoderMessage[] // messages leading to next result
 			}
 		}[] = []
 
-		let currentStateMessages: ClineMessage[] = []
-		let nextActionMessages: ClineMessage[] = []
+		let currentStateMessages: BedrockCoderMessage[] = []
+		let nextActionMessages: BedrockCoderMessage[] = []
 
 		messages.forEach((message) => {
 			if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
@@ -319,7 +319,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		for (let i = actions.length - 1; i >= 0; i--) {
 			const message = actions[i]
 			if (message.say === "browser_action") {
-				const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+				const browserAction = JSON.parse(message.text || "{}") as BedrockCoderSayBrowserAction
 				if (browserAction.action === "click" && browserAction.coordinate) {
 					return browserAction.coordinate
 				}
@@ -354,7 +354,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				) : (
 					<span className="codicon codicon-inspect" style={browserIconStyle} />
 				)}
-				<span style={approveTextStyle}>Cline wants to use the browser:</span>
+				<span style={approveTextStyle}>Bedrock Coder wants to use the browser:</span>
 			</div>
 			<div
 				style={{
@@ -484,7 +484,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 }, deepEqual)
 
 interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages" | "onHeightChange"> {
-	message: ClineMessage
+	message: BedrockCoderMessage
 	setMaxActionHeight: (height: number) => void
 	onSetQuote: (text: string) => void
 }
@@ -540,7 +540,7 @@ const BrowserSessionRowContent = memo(
 						)
 
 					case "browser_action":
-						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+						const browserAction = JSON.parse(message.text || "{}") as BedrockCoderSayBrowserAction
 						return (
 							<BrowserActionBox
 								action={browserAction.action}

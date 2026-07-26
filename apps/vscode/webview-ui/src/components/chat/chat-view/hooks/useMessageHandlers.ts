@@ -1,7 +1,7 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
-import { IntentEvent } from "@shared/proto/cline/ui"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest, StringRequest } from "@shared/proto/bedrock_coder/common"
+import { AskResponseRequest, NewTaskRequest } from "@shared/proto/bedrock_coder/task"
+import { IntentEvent } from "@shared/proto/bedrock_coder/ui"
 import { useCallback, useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -12,7 +12,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Custom hook for managing message handlers
  * Handles sending messages, button clicks, and task management
  */
-export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
+export function useMessageHandlers(messages: BedrockCoderMessage[], chatState: ChatState): MessageHandlers {
 	const { backgroundCommandRunning, turnState } = useExtensionState()
 	const {
 		setInputValue,
@@ -25,7 +25,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		enableButtons,
 		setEnableButtons,
 		setPendingUserMessage,
-		clineAsk,
+		bedrockCoderAsk,
 		lastMessage,
 	} = chatState
 	const cancelInFlightRef = useRef(false)
@@ -48,7 +48,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			// `/compact` (and its alias `/smol`) must run a real SDK manual
 			// compaction via the condense RPC — sending the literal text to the
 			// model would make it improvise a fake summary instead of compacting
-			// the context window (CLINE-2503). With no active task there is nothing
+			// the context window (BEDROCK_CODER-2503). With no active task there is nothing
 			// to compact, so fall through to normal new-task handling.
 			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
 				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
@@ -151,10 +151,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}),
 					)
 					messageSent = true
-				} else if (clineAsk) {
+				} else if (bedrockCoderAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
-					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+					if (bedrockCoderAsk === "resume_task" || bedrockCoderAsk === "resume_completed_task") {
 						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -166,7 +166,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						messageSent = true
 					} else {
 						// All other ask types use messageResponse
-						switch (clineAsk) {
+						switch (bedrockCoderAsk) {
 							case "followup":
 							case "plan_mode_respond":
 							case "tool":
@@ -188,7 +188,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								// option buttons, that resolver consumes the response before normal follow-up
 								// routing and immediately appends the real say:user_feedback row. If we also add
 								// an optimistic pending row here, the chat shows the same answer twice.
-								const showPendingMessage = clineAsk !== "followup" && turnState?.phase !== "streaming"
+								const showPendingMessage = bedrockCoderAsk !== "followup" && turnState?.phase !== "streaming"
 
 								await sendAskResponseWithPendingState(
 									AskResponseRequest.create({
@@ -205,13 +205,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}
 					}
 				} else if (messages.length > 0) {
-					// No clineAsk set, but there is an existing conversation. Route this to the
+					// No bedrockCoderAsk set, but there is an existing conversation. Route this to the
 					// active session as a follow-up when either:
 					//
 					//   1. The authoritative turnState says the conversation is continuable —
 					//      phases "completed" / "awaiting_followup" (the agent finished or is
 					//      waiting for the user) or "streaming" (interrupt with feedback). The SDK
-					//      does not emit a trailing ask:"completion_result", so clineAsk is
+					//      does not emit a trailing ask:"completion_result", so bedrockCoderAsk is
 					//      undefined even when the user can keep talking; turnState is the source
 					//      of truth.
 					//   2. Legacy fallback (no turnState): the task looks actively running from the
@@ -254,7 +254,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		},
 		[
 			messages,
-			clineAsk,
+			bedrockCoderAsk,
 			turnState,
 			activeQuote,
 			setInputValue,
@@ -377,7 +377,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "new_task":
-					if (clineAsk === "new_task") {
+					if (bedrockCoderAsk === "new_task") {
 						await TaskServiceClient.newTask(
 							NewTaskRequest.create({
 								text: lastMessage?.text,
@@ -414,7 +414,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				}
 
 				case "utility":
-					switch (clineAsk) {
+					switch (bedrockCoderAsk) {
 						case "condense":
 							await SlashServiceClient.condense(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
 								console.error(err),
@@ -434,7 +434,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 		},
 		[
-			clineAsk,
+			bedrockCoderAsk,
 			lastMessage,
 			messages,
 			clearInputState,

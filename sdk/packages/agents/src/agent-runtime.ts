@@ -1,7 +1,7 @@
 import {
 	createBedrockAgentModel,
 	type BedrockConnection,
-} from "@cline/llms";
+} from "@bedrock-coder/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -25,7 +25,7 @@ import type {
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
 	ToolApprovalResult,
 	ToolPolicy,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import {
 	estimateTokens,
 	getToolApprovalDecision,
@@ -33,17 +33,17 @@ import {
 	normalizeJsonLikeStringsForSchema,
 	omitUndefinedValues,
 	trimNonEmpty,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { nanoid } from "nanoid";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
-// Local `createUID` helper. The clinee source imports this from
-// `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
+// Local `createUID` helper. The bedrockCodere source imports this from
+// `@bedrock-coder/shared` (see `packages/shared/dist/identifier.ts`), but
 // sdk-re's shared package does not expose it yet. Inlining here keeps
 // PLAN.md Step 1 scoped to `packages/agents/src/` and matches the
-// exact clinee implementation (`${prefix}_${nanoid(length)}`).
+// exact bedrockCodere implementation (`${prefix}_${nanoid(length)}`).
 function createUID(prefix: string, length = 8): string {
 	return `${prefix}_${nanoid(length)}`;
 }
@@ -53,7 +53,7 @@ export type AgentEventListener = (event: AgentRuntimeEvent) => void;
 
 /**
  * Advanced form: caller supplies a pre-built `AgentModel`. Used by
- * `@cline/core`, which constructs models itself to share gateway state
+ * `@bedrock-coder/core`, which constructs models itself to share gateway state
  * wiring with the rest of the session runtime.
  */
 export interface AgentRuntimeConfigWithModel extends BaseAgentRuntimeConfig {
@@ -62,7 +62,7 @@ export interface AgentRuntimeConfigWithModel extends BaseAgentRuntimeConfig {
 
 /**
  * Friendly form: caller supplies provider/model IDs and credentials, and the
- * runtime builds an `AgentModel` internally via `@cline/llms`. This is the
+ * runtime builds an `AgentModel` internally via `@bedrock-coder/llms`. This is the
  * entry point most standalone users want.
  */
 export interface AgentRuntimeConfigWithBedrock
@@ -77,7 +77,7 @@ export interface AgentRuntimeConfigWithBedrock
  * Config accepted by `new AgentRuntime(...)` / `createAgentRuntime(...)` /
  * `new Agent(...)` / `createAgent(...)`. Either supply a pre-built `model`
  * (advanced) or `providerId` + `modelId` (+ credentials) and the runtime will
- * construct the model itself via `@cline/llms`.
+ * construct the model itself via `@bedrock-coder/llms`.
  */
 export type AgentRuntimeConfig =
 	| AgentRuntimeConfigWithModel
@@ -1457,10 +1457,10 @@ export class AgentRuntime {
 		const metadata = buildEventMetadata(event);
 		switch (event.type) {
 			case "run-started":
-				// Verbatim clinee calls `logger?.info?.(...)`. sdk-re's
+				// Verbatim bedrockCodere calls `logger?.info?.(...)`. sdk-re's
 				// `BasicLogger` does not declare `info` (it uses `log`), so
 				// we narrow to an optional-info shape at the call site to
-				// preserve the clinee runtime contract without mutating
+				// preserve the bedrockCodere runtime contract without mutating
 				// shared's `BasicLogger` interface.
 				(
 					this.config.logger as
@@ -1633,7 +1633,7 @@ export function createAgentRuntime(config: AgentRuntimeConfig): AgentRuntime {
  *     const agent = new Agent({ providerId: "bedrock", modelId, connection });
  *     await agent.run("hello");
  *
- * while `@cline/core` (which owns model construction) continues to use
+ * while `@bedrock-coder/core` (which owns model construction) continues to use
  * the `AgentRuntime` name with `{ model, ... }` configs.
  */
 export const Agent = AgentRuntime;

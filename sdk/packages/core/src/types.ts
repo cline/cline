@@ -3,15 +3,15 @@ export type {
 	AgentRunStatus,
 	WorkspaceInfo,
 	WorkspaceManifest,
-} from "@cline/shared";
-export { ClineCore } from "./ClineCore";
+} from "@bedrock-coder/shared";
+export { BedrockCoderCore } from "./BedrockCoderCore";
 export type {
-	ClineCoreListHistoryOptions,
-	ClineCoreOptions,
-	ClineCoreStartInput,
+	BedrockCoderCoreListHistoryOptions,
+	BedrockCoderCoreOptions,
+	BedrockCoderCoreStartInput,
 	HubOptions,
 	RemoteOptions,
-} from "./cline-core/types";
+} from "./bedrock-coder-core/types";
 export type {
 	LoadAgentPluginFromPathOptions,
 	ResolveAgentPluginPathsOptions,

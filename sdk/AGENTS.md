@@ -1,10 +1,10 @@
 ---
-description: Development reference for the Cline SDK workspace.
+description: Development reference for the BedrockCoder SDK workspace.
 globs: "*.ts,*.tsx,*.js,*.jsx,*.json,*.md"
 alwaysApply: true
 ---
 
-# Cline SDK — Development Reference
+# BedrockCoder SDK — Development Reference
 
 Quick-reference for active development. For onboarding, workspace setup, publishing, and detailed workflow see [CONTRIBUTING.md](./CONTRIBUTING.md). For architecture and runtime flows see [ARCHITECTURE.md](./ARCHITECTURE.md). For API details see [DOC.md](./DOC.md).
 
@@ -18,16 +18,16 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 
 ### Published SDK Packages
 
-- `@cline/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
-- `@cline/llms`: AWS Bedrock settings, model construction, and streaming
-- `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
-- `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
+- `@bedrock-coder/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
+- `@bedrock-coder/llms`: AWS Bedrock settings, model construction, and streaming
+- `@bedrock-coder/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
+- `@bedrock-coder/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@bedrock-coder/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@bedrock-coder/core/hub/daemon-entry` for launching the shared daemon
 
 ### Dependency Direction
 
 ```mermaid
 flowchart TD
-  shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"]
+  shared["@bedrock-coder/shared"] --> llms["@bedrock-coder/llms"] & agents["@bedrock-coder/agents"] & core["@bedrock-coder/core"]
   llms --> agents & core
   agents --> core
   core --> vscode["VS Code extension"]
@@ -42,9 +42,9 @@ Rules:
 
 Route changes to the package that owns the concern:
 
-- Bedrock model configuration or handler behavior: `@cline/llms`
-- stateless loop, tool orchestration, streaming, hook/extension runtime: `@cline/agents`
-- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, hub runtime services, hub discovery, hub daemon spawn, and session-oriented client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@cline/core` (hub pieces live under `src/hub/`)
+- Bedrock model configuration or handler behavior: `@bedrock-coder/llms`
+- stateless loop, tool orchestration, streaming, hook/extension runtime: `@bedrock-coder/agents`
+- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, hub runtime services, hub discovery, hub daemon spawn, and session-oriented client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@bedrock-coder/core` (hub pieces live under `src/hub/`)
 - host-specific UX or shell behavior: app package
 
 ## Verifying Changes
@@ -73,13 +73,13 @@ bun run check       # lint + build + typecheck + check-publish
 For focused verification, prefer workspace package scripts from the SDK root:
 
 ```sh
-bun -F @cline/shared test
-bun -F @cline/llms test
-bun -F @cline/agents test
-bun -F @cline/core test:unit
+bun -F @bedrock-coder/shared test
+bun -F @bedrock-coder/llms test
+bun -F @bedrock-coder/agents test
+bun -F @bedrock-coder/core test:unit
 ```
 
-If a focused test command fails with a missing `@cline/*` export or missing `dist/` file, build the relevant dependency package or run `bun run build:sdk`, then rerun the same test command. Treat that as a workspace setup issue, not as evidence of a source-code bug.
+If a focused test command fails with a missing `@bedrock-coder/*` export or missing `dist/` file, build the relevant dependency package or run `bun run build:sdk`, then rerun the same test command. Treat that as a workspace setup issue, not as evidence of a source-code bug.
 
 If you touch hub/bootstrap/session flows, please update `ARCHITECTURE.md`.
 
@@ -88,7 +88,7 @@ If you touch hub/bootstrap/session flows, please update `ARCHITECTURE.md`.
 ### Keep Boundaries Clean
 
 - Don't move stateful logic down into `agents`
-- For `@cline/llms` Bedrock behavior, follow [packages/llms/AGENTS.md](./packages/llms/AGENTS.md).
+- For `@bedrock-coder/llms` Bedrock behavior, follow [packages/llms/AGENTS.md](./packages/llms/AGENTS.md).
 - Don't put app-specific behavior into `core` unless it is truly shared host behavior
 
 ### Refactor Standard

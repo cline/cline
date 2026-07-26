@@ -5,7 +5,7 @@
  * extensions, and results.
  *
  * ProviderConfig is left as `unknown` here so that shared stays
- * dependency-free of @cline/llms. Consuming packages narrow it
+ * dependency-free of @bedrock-coder/llms. Consuming packages narrow it
  * via re-exports. ModelInfo lives in shared (../llms/model-info)
  * and is used directly.
  */
@@ -322,7 +322,7 @@ export interface SessionWorkspaceEnv {
 	/**
 	 * Structured workspace and git metadata for the session.
 	 *
-	 * Contains the same information as the `{{CLINE_METADATA}}` block in the
+	 * Contains the same information as the `{{BEDROCK_CODER_METADATA}}` block in the
 	 * system prompt but in structured form: `rootPath`, `hint`,
 	 * `associatedRemoteUrls`, `latestGitCommitHash`, `latestGitBranchName`.
 	 *

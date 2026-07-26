@@ -1,4 +1,4 @@
-import type * as LlmsProviders from "@cline/llms";
+import type * as LlmsProviders from "@bedrock-coder/llms";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
@@ -6,7 +6,7 @@ import type {
 	ChatTurnResult,
 	HubEventEnvelope,
 	TeamProgressProjectionEvent,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";

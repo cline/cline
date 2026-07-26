@@ -1,8 +1,8 @@
-import type * as LlmsProviders from "@cline/llms";
+import type * as LlmsProviders from "@bedrock-coder/llms";
 import {
 	estimateRequestInputTokens,
 	type MessageWithMetadata,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
@@ -25,7 +25,7 @@ type FakeChunk = Record<string, unknown>;
 
 const createHandlerMock = vi.fn();
 
-vi.mock("@cline/llms", () => ({
+vi.mock("@bedrock-coder/llms", () => ({
 	createBedrockClient: (config: unknown) => createHandlerMock(config),
 }));
 

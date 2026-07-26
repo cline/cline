@@ -1,5 +1,5 @@
 // Define available tool ids
-export enum ClineDefaultTool {
+export enum BedrockCoderDefaultTool {
 	ASK = "ask_followup_question",
 	ATTEMPT = "attempt_completion",
 	BASH = "execute_command",

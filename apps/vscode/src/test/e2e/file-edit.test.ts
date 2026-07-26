@@ -34,7 +34,7 @@ e2e.describe("File Edit Approval", () => {
 
 				// The ask row and manual approval controls must be shown before
 				// the SDK is allowed to apply the edit.
-				await sidebar.waitForSelector('span:has-text("Cline wants to edit this file:")')
+				await sidebar.waitForSelector('span:has-text("Bedrock Coder wants to edit this file:")')
 				await expect(sidebar.getByText("test.ts").first()).toBeVisible()
 				await expect(sidebar.getByRole("button", { name: "Reject" })).toBeVisible()
 				const saveButton = sidebar.getByRole("button", { name: "Save", exact: true })
@@ -47,7 +47,7 @@ e2e.describe("File Edit Approval", () => {
 				await expect(sidebar.getByText("I successfully replaced")).toBeVisible({ timeout: 30_000 })
 
 				// The edit was actually applied to the file on disk.
-				expect(readFileSync(editedFilePath, "utf-8")).toContain('export const name = "cline"')
+				expect(readFileSync(editedFilePath, "utf-8")).toContain('export const name = "bedrockCoder"')
 			} finally {
 				// Skip the restore when the initial read failed — there is
 				// nothing to restore and the read error is the real failure.

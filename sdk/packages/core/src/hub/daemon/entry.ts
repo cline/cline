@@ -1,5 +1,5 @@
-import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { AgentRuntimeAbortError } from "@bedrock-coder/agents";
+import { initVcr, resolveBedrockCoderBuildEnv } from "@bedrock-coder/shared";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
 	resolveProductionHubOwnerContext,
@@ -7,7 +7,7 @@ import {
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
 
-initVcr(process.env.CLINE_VCR);
+initVcr(process.env.BEDROCK_CODER_VCR);
 
 function parseArgs(argv: string[]): {
 	cwd: string;
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 			port: endpoint.port,
 			pathname: endpoint.pathname,
 			owner:
-				resolveClineBuildEnv() === "production"
+				resolveBedrockCoderBuildEnv() === "production"
 					? resolveProductionHubOwnerContext()
 					: resolveSharedHubOwnerContext(),
 		});

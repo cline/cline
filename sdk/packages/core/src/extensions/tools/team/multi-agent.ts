@@ -32,7 +32,7 @@ import {
 	type TeamTaskListItem,
 	type TeamTaskStatus,
 	type UpdateTeamTaskInput,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import { nanoid } from "nanoid";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
 
@@ -63,10 +63,10 @@ export {
 	type TeamTaskListItem,
 	type TeamTaskStatus,
 	type UpdateTeamTaskInput,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 
 // =============================================================================
-// Types that depend on @cline/agents (cannot live in shared)
+// Types that depend on @bedrock-coder/agents (cannot live in shared)
 // =============================================================================
 
 export interface TeamMemberConfig extends AgentConfig {

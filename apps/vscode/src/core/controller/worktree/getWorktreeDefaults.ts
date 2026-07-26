@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { WorktreeDefaults } from "@shared/proto/cline/worktree"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
+import { WorktreeDefaults } from "@shared/proto/bedrock_coder/worktree"
 import { getGitRootPath } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import { getManagedWorktreeRoot } from "@utils/worktree-safety"
@@ -29,7 +29,7 @@ export async function getWorktreeDefaults(_controller: Controller, _request: Emp
 	const suffix = generateRandomSuffix()
 
 	// Generate suggested branch name
-	const suggestedBranch = `worktree/cline-${suffix}`
+	const suggestedBranch = `worktree/bedrock-coder-${suffix}`
 
 	const cwd = await getWorkspacePath()
 	const repositoryRoot = cwd ? ((await getGitRootPath(cwd)) ?? cwd) : ""

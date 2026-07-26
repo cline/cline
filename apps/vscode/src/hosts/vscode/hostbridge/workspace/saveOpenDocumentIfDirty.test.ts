@@ -1,6 +1,6 @@
-import { after, before, beforeEach, describe, it } from "mocha"
 import { expect } from "chai"
 import * as fs from "fs/promises"
+import { after, before, beforeEach, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -14,7 +14,7 @@ describe("saveOpenDocumentIfDirty Integration Test", () => {
 
 	before(async () => {
 		// Use a temporary directory for tests
-		testWorkspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cline-test-"))
+		testWorkspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "bedrock-coder-test-"))
 
 		// Create a test file path
 		testFilePath = path.join(testWorkspaceRoot, "test-save-document.txt")

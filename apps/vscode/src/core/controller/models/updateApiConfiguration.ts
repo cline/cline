@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import type { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
+import { Empty } from "@shared/proto/bedrock_coder/common"
+import type { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.bedrock_coder"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"

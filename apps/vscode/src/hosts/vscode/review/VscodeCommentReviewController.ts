@@ -4,9 +4,9 @@ import { Logger } from "@/shared/services/Logger"
 import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffContentProvider"
 
 /**
- * Cline's GitHub avatar URL
+ * BedrockCoder's GitHub avatar URL
  */
-const CLINE_AVATAR_URL = "https://avatars.githubusercontent.com/u/184127137"
+const BEDROCK_CODER_AVATAR_URL = "https://avatars.githubusercontent.com/u/184127137"
 
 /**
  * VS Code implementation of CommentReviewController.
@@ -25,7 +25,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	constructor() {
 		super()
 		// Create the comment controller
-		this.commentController = vscode.comments.createCommentController("cline-ai-review", "Cline AI Review")
+		this.commentController = vscode.comments.createCommentController("bedrock-coder-ai-review", "Bedrock Coder AI Review")
 	}
 
 	/**
@@ -64,8 +64,8 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 			body: new vscode.MarkdownString(comment.comment),
 			mode: vscode.CommentMode.Preview,
 			author: {
-				name: "Cline",
-				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+				name: "Bedrock Coder",
+				iconPath: vscode.Uri.parse(BEDROCK_CODER_AVATAR_URL),
 			},
 		}
 
@@ -109,8 +109,8 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 			body: new vscode.MarkdownString("_Thinking..._"),
 			mode: vscode.CommentMode.Preview,
 			author: {
-				name: "Cline",
-				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+				name: "Bedrock Coder",
+				iconPath: vscode.Uri.parse(BEDROCK_CODER_AVATAR_URL),
 			},
 		}
 
@@ -179,8 +179,8 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 			body: new vscode.MarkdownString(this.streamingContent || "_Thinking..._"),
 			mode: vscode.CommentMode.Preview,
 			author: {
-				name: "Cline",
-				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+				name: "Bedrock Coder",
+				iconPath: vscode.Uri.parse(BEDROCK_CODER_AVATAR_URL),
 			},
 		}
 		// Create a new array to ensure VS Code detects the change
@@ -201,8 +201,8 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 			body: new vscode.MarkdownString(finalContent),
 			mode: vscode.CommentMode.Preview,
 			author: {
-				name: "Cline",
-				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+				name: "Bedrock Coder",
+				iconPath: vscode.Uri.parse(BEDROCK_CODER_AVATAR_URL),
 			},
 		}
 		this.streamingThread.comments = [commentObj]
@@ -257,7 +257,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	}
 
 	/**
-	 * Close all tabs that use the cline-diff URI scheme (both diff views and regular text documents)
+	 * Close all tabs that use the bedrock-coder-diff URI scheme (both diff views and regular text documents)
 	 */
 	async closeDiffViews(): Promise<void> {
 		const tabs = vscode.window.tabGroups.all
@@ -267,7 +267,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 				if (tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME) {
 					return true
 				}
-				// Check for regular text document tabs with cline-diff scheme (opened during comment reveal)
+				// Check for regular text document tabs with bedrock-coder-diff scheme (opened during comment reveal)
 				if (tab.input instanceof vscode.TabInputText && tab.input?.uri?.scheme === DIFF_VIEW_URI_SCHEME) {
 					return true
 				}

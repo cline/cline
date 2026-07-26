@@ -1,4 +1,4 @@
-import { ModelsApiConfiguration as ProtoApiConfiguration } from "@shared/proto/cline/models"
+import { ModelsApiConfiguration as ProtoApiConfiguration } from "@shared/proto/bedrock_coder/models"
 import { type ApiConfiguration, BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION } from "../../api"
 
 export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoApiConfiguration {

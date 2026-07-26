@@ -1,4 +1,4 @@
-import { CancelTeamRunRequest, TeamRun } from "@shared/proto/cline/team"
+import { CancelTeamRunRequest, TeamRun } from "@shared/proto/bedrock_coder/team"
 import { Controller } from ".."
 import { toTeamRunProto } from "./team-conversions"
 

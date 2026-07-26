@@ -1,14 +1,14 @@
-# Cline SDK Changelog
+# BedrockCoder SDK Changelog
 
 ## 0.0.65
 
 - Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size
-- Added Kimi K3 to the bundled ClinePass model fallback
+- Added Kimi K3 to the bundled BedrockCoderPass model fallback
 - Runs now retry once after refreshing expired OAuth credentials
 - Team runs: the spawn tool is no longer exposed to teammate agents
 - Team runs: errored teammate runs now report as failed instead of completed
 - Improved shell-command parsing to fix a Windows shell mismatch
-- New `@cline/ui` agent chat components with Storybook and npm packaging
+- New `@bedrock-coder/ui` agent chat components with Storybook and npm packaging
 - Updated the bundled model catalog
 
 ## 0.0.64
@@ -36,26 +36,26 @@
 - VS Code terminal reliability improvements (OSC 633 parsing, exit codes, timeout handling)
 - Provider-specific request headers are now centralized in the LLM layer
 - Telemetry now attaches organization context when identifying with cached credentials
-- Added a shared `@cline/ui` theme package
+- Added a shared `@bedrock-coder/ui` theme package
 
 ## 0.0.60
 
 - Fixed an issue where a transient network or server error during token refresh could log you out — transient failures no longer clear your credentials
-- Added the ClinePass usage-limit error so limit-reached responses are surfaced clearly
+- Added the BedrockCoderPass usage-limit error so limit-reached responses are surfaced clearly
 - Session id is now preserved when continuing within the same session
 - Fixed infinite loading when initializing a task with an image
 - Hardened compaction budget handling
-- Added telemetry for auth-refresh outcomes and Cline credential lifecycle debug logging
+- Added telemetry for auth-refresh outcomes and BedrockCoder credential lifecycle debug logging
 
 ## 0.0.59
 
-- You can now select Cline free models on the ClinePass provider
-- The SDK now recognizes ClinePass rate-limit responses and surfaces them as a typed `ClinePassLimitError` (with `isClinePassLimitMessage` / `extractClinePassLimitMessage` helpers)
-- Removed references to the retired ClinePass GLM 5.1 model
+- You can now select BedrockCoder free models on the BedrockCoderPass provider
+- The SDK now recognizes BedrockCoderPass rate-limit responses and surfaces them as a typed `BedrockCoderPassLimitError` (with `isBedrockCoderPassLimitMessage` / `extractBedrockCoderPassLimitMessage` helpers)
+- Removed references to the retired BedrockCoderPass GLM 5.1 model
 - Fixed OpenAI Codex model metadata under the GPT Subscription provider
 - The detached hub daemon process now emits telemetry
 - SDK/CLI telemetry identity attributes now include `user_id`
-- Cline provider requests now send versioned Cline client-identity headers
+- BedrockCoder provider requests now send versioned BedrockCoder client-identity headers
 - Fixed context compaction so canonical session history is preserved
 - `str_replace` edits now report accurate diffs
 - Fixed a performance issue where listing sessions could hang the extension host
@@ -68,7 +68,7 @@
 
 - Models in the live catalog that don't report a context window now default to a 128K input-token limit (up from 4,096), so under-specified models get a usable context budget
 - The default max input-token budget used for context compaction is now 128K
-- Added a shared prompt-format helper in `@cline/shared` and simplified runtime host support
+- Added a shared prompt-format helper in `@bedrock-coder/shared` and simplified runtime host support
 
 ## 0.0.56
 
@@ -91,12 +91,12 @@
 - Preserve error detail and fetch error cause information so failures surface clearer messages
 - Preserve failed run error messages instead of dropping them
 - Derive model info in the provider/model runtime path for more reliable provider/model handling
-- Add ClinePass subscription support to the account service
+- Add BedrockCoderPass subscription support to the account service
 
 ## 0.0.53
 
-- Show when request cost is covered by the user's Cline subscription
-- List ClinePass features in the not-subscribed message
+- Show when request cost is covered by the user's BedrockCoder subscription
+- List BedrockCoderPass features in the not-subscribed message
 - Added shared marketplace uninstall support
 - Shared marketplace install logic through core
 - Surfaced plugin-bundled skills
@@ -109,7 +109,7 @@
 - Added SAP AI Core provider support: stabilized provider setup, bundled provider auth, forwarded provider options to the gateway, aligned provider config, kept model filtering in clients, and added OCA legacy reasoning-effort handling
 - Routed LiteLLM model fetches through the SDK and stopped unrelated models from being injected into the LiteLLM model list
 - Preserved OpenRouter reasoning-disable semantics and included the session id for OpenRouter prompt caching
-- Updated the ClinePass model list live, restored ClinePass models in onboarding, fixed ClinePass error mapping, and scoped the ClinePass URL to the CLI
+- Updated the BedrockCoderPass model list live, restored BedrockCoderPass models in onboarding, fixed BedrockCoderPass error mapping, and scoped the BedrockCoderPass URL to the CLI
 - Threaded proxy/CA-aware fetch into the SDK inference path
 - Persisted Bedrock settings to providers.json
 - Repaired exposed provider auth routing and restored provider-request capture wiring lost in the SDK migration
@@ -123,25 +123,25 @@
 
 ## 0.0.51
 
-- Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the Cline provider; aliases now map to the right model metadata and user overrides are preserved
+- Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the BedrockCoder provider; aliases now map to the right model metadata and user overrides are preserved
 
 ## 0.0.50
 
-- Truncate every tool result by default (including MCP and custom tool output), with tightened `MessageBuilder` limits and tunable `CLINE_MESSAGE_BUILDER_*` env overrides, to keep provider requests within budget
+- Truncate every tool result by default (including MCP and custom tool output), with tightened `MessageBuilder` limits and tunable `BEDROCK_CODER_MESSAGE_BUILDER_*` env overrides, to keep provider requests within budget
 - Cap assistant text in provider messages and count `tool_use` input toward the request budget; protect binary carrier blocks (not just images) from truncation
 - Resolve tool names from `tool_result` when the paired `tool_use` is gone
-- Add ClinePass provider support (built-in provider, error handling, format compatibility)
+- Add BedrockCoderPass provider support (built-in provider, error handling, format compatibility)
 - Apply auto-approve toggles immediately in the agent runtime
 - Harden parallel tool-call guidance in the system prompt and tool definitions
 - Refresh the generated model catalog
 
 ## 0.0.49
 
-- Reverted ClinePass recommended-models support, removing the `clinePass` field from the recommended models data
+- Reverted BedrockCoderPass recommended-models support, removing the `bedrockCoderPass` field from the recommended models data
 
 ## 0.0.48
 
-- Added ClinePass support and ClinePass models
+- Added BedrockCoderPass support and BedrockCoderPass models
 - Added MCP server support to plugins
 - Updated the recommended/fixed model list
 - Encouraged parallel tool calls for faster task execution
@@ -154,12 +154,12 @@
 - Fixed search output cap and bash executor follow-up issues
 - Fixed disabled-reasoning handling for StepFun flash
 - Fixed the Hugging Face URL
-- Fixed Cline OAuth token formatting in provider config
+- Fixed BedrockCoder OAuth token formatting in provider config
 
 ## 0.0.47
 
 - Added support for overriding the API base URL
-- Enforced a production singleton Cline Hub so only one hub daemon runs, and a stale hub is respawned after an upgrade
+- Enforced a production singleton BedrockCoder Hub so only one hub daemon runs, and a stale hub is respawned after an upgrade
 - Allowed plugin chat commands to submit prompts to the agent
 - Fixed truncation of structured tool operation result strings so oversized tool output stays within limits
 - Stopped echoing the full command text in run_commands tool results
@@ -186,20 +186,20 @@
 
 ## 0.0.43
 
-- Added the Cline Hub web app for managing and monitoring agent sessions
+- Added the BedrockCoder Hub web app for managing and monitoring agent sessions
 - Added plugin uninstall support
 - Added skills bundled with plugins, including grouping plugin skills in settings and rule contributions from sandboxed plugins
 - Added support for global AGENTS rules
 - Added Slack socket mode support and bound Discord sessions to individual message authors
 - Synced the Fireworks AI model registry and updated the model catalog to current platform offerings
 - Routed custom registered handlers through the agent runtime
-- Added a CLINE_PLUGIN_IMPORT_TIMEOUT_MS environment override for plugin import timeouts
+- Added a BEDROCK_CODER_PLUGIN_IMPORT_TIMEOUT_MS environment override for plugin import timeouts
 - Allowed a baseUrl field for Anthropic vendor-type providers
 - Fixed SAP AI Core to use the AI SDK community provider
 - Fixed the hub daemon to stay alive on runtime abort
 - Fixed read-files tool input validation to use a union schema
 - Fixed discovery of symlinked SDK skill directories
-- Improved Cline provider migration
+- Improved BedrockCoder provider migration
 - Fixed OTEL variable bundling
 - Added telemetry for run_commands timeouts
 

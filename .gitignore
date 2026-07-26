@@ -12,10 +12,10 @@ tmp
 
 pnpm-lock.yaml
 
-.clineignore
-.cline/enterprise
-.cline/remote-config
-**/.cline/remote-config
+.bedrockCoderignore
+.bedrock-coder/enterprise
+.bedrock-coder/remote-config
+**/.bedrock-coder/remote-config
 .venv
 .actrc
 CLAUDE.local.md
@@ -77,13 +77,13 @@ apps/vscode/webview-ui/src/**/*.js.map
 
 
 # SDK Session files / User data
-.cline/data
-.cline/tmp
+.bedrock-coder/data
+.bedrock-coder/tmp
 *.db
 *.db-shm
 *.db-wal
-.cline/**/managed.json
-.cline/**/bundle.json
+.bedrock-coder/**/managed.json
+.bedrock-coder/**/bundle.json
 apps/vscode/tsconfig.test.generated.json
 .next/dev/static
 **/src-tauri/target/debug/.fingerprint

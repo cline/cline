@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { Controller } from "@core/controller"
-import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
+import { BooleanResponse, StringRequest } from "@shared/proto/bedrock_coder/common"
 import * as actualPathUtils from "@utils/path"
 import { expect } from "chai"
 import * as sinon from "sinon"

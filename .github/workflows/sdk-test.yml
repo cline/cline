@@ -44,7 +44,7 @@ jobs:
             - name: Typecheck
               run: |
                   bun run build:sdk
-                  bun run -F @cline/cli build
+                  bun run -F @bedrock-coder/cli build
                   bun run types
 
             - name: Lint & Format
@@ -88,7 +88,7 @@ jobs:
             - name: Build CLI
               id: build_cli_step
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
-              run: bun -F @cline/cli build
+              run: bun -F @bedrock-coder/cli build
 
             - name: Run Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os != 'windows-latest' }}
@@ -105,7 +105,7 @@ jobs:
 
             - name: Run TUI e2e tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
-              run: bun -F @cline/cli test:e2e:cli:tui
+              run: bun -F @bedrock-coder/cli test:e2e:cli:tui
 
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}

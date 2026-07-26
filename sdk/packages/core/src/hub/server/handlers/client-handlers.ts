@@ -2,8 +2,8 @@ import type {
 	HubClientRegistration,
 	HubCommandEnvelope,
 	HubReplyEnvelope,
-} from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+} from "@bedrock-coder/shared";
+import { createSessionId } from "@bedrock-coder/shared";
 import {
 	asPlainRecord,
 	errorReply,

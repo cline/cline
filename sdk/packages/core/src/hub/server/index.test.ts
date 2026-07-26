@@ -329,7 +329,7 @@ describe("hub server startup", () => {
 					"Host: 127.0.0.1",
 					"Connection: Upgrade",
 					"Upgrade: websocket",
-					`Sec-WebSocket-Protocol: cline-hub-auth.${authToken}`,
+					`Sec-WebSocket-Protocol: bedrock-coder-hub-auth.${authToken}`,
 					"Sec-WebSocket-Version: 13",
 					"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
 					"",

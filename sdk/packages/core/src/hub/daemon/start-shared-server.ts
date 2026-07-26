@@ -1,4 +1,4 @@
-import { resolveClineBuildEnv } from "@cline/shared";
+import { resolveBedrockCoderBuildEnv } from "@bedrock-coder/shared";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
 	resolveProductionHubOwnerContext,
@@ -23,13 +23,13 @@ export interface EnsureHubServerOptions
 	extends Omit<EnsureHubWebSocketServerOptions, "owner"> {}
 
 function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
+	return resolveBedrockCoderBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
 }
 
 function shouldAllowDefaultPortFallback(hasExplicitPort: boolean): boolean {
-	return resolveClineBuildEnv() !== "production" && !hasExplicitPort;
+	return resolveBedrockCoderBuildEnv() !== "production" && !hasExplicitPort;
 }
 
 /**
@@ -60,7 +60,7 @@ export async function ensureHubServer(
 	options: EnsureHubServerOptions,
 ): Promise<EnsureHubServerResult> {
 	const hasExplicitPort =
-		options.port !== undefined || !!process.env.CLINE_HUB_PORT?.trim();
+		options.port !== undefined || !!process.env.BEDROCK_CODER_HUB_PORT?.trim();
 	const endpoint = resolveHubEndpointOptions({
 		host: options.host,
 		port: options.port,

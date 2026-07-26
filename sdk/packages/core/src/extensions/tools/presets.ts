@@ -4,7 +4,7 @@
  * Pre-configured tool combinations for common use cases.
  */
 
-import type { AgentMode, AgentTool } from "@cline/shared";
+import type { AgentMode, AgentTool } from "@bedrock-coder/shared";
 import { createDefaultTools } from "./definitions";
 import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types";
 

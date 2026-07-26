@@ -1,9 +1,9 @@
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import type { TerminalProfile } from "@shared/proto/cline/state"
-import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import { EmptyRequest } from "@shared/proto/bedrock_coder/common"
+import type { TerminalProfile } from "@shared/proto/bedrock_coder/state"
+import { convertProtoToBedrockCoderMessage } from "@shared/proto-conversions/bedrock-coder-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
@@ -40,8 +40,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Setters
 	setMcpServers: (value: McpServer[]) => void
-	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
-	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
+	setGlobalBedrockCoderRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalBedrockCoderRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
@@ -183,7 +183,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
-		clineMessages: [],
+		bedrockCoderMessages: [],
 		queuedPrompts: [],
 		taskHistory: [],
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
@@ -194,8 +194,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
 		mcpDisplayMode: DEFAULT_MCP_DISPLAY_MODE,
-		globalClineRulesToggles: {},
-		localClineRulesToggles: {},
+		globalBedrockCoderRulesToggles: {},
+		localBedrockCoderRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
 		localAgentsRulesToggles: {},
@@ -266,7 +266,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
-	// Convergent-replica state for clineMessages. The partial-message stream and the full state
+	// Convergent-replica state for bedrockCoderMessages. The partial-message stream and the full state
 	// snapshots both feed this reducer so the transcript converges correctly regardless of
 	// arrival order, duplication, or loss. See messageReducer.ts.
 	const replicaRef = useRef<ReplicaState>(createReplicaState())
@@ -286,12 +286,12 @@ export const ExtensionStateContextProvider: React.FC<{
 							// state defaults to epoch 0 / version 0, which merges.
 							replicaRef.current = reducerApplyStateSnapshot(
 								replicaRef.current,
-								stateData.clineMessages ?? [],
+								stateData.bedrockCoderMessages ?? [],
 								stateData.epoch ?? 0,
 								stateData.stateVersion ?? 0,
 								stateData.turnState,
 							)
-							stateData.clineMessages = replicaRef.current.messages
+							stateData.bedrockCoderMessages = replicaRef.current.messages
 							// Use the seq-gated turnState from the replica, NOT the raw snapshot's, so a
 							// late/stale snapshot carrying an older phase (e.g. "idle") cannot revert a
 							// newer phase (e.g. "streaming") and hide the Cancel button. Falls back to
@@ -302,7 +302,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							if (
 								!didOpenBedrockStartupRef.current &&
 								newState.bedrockStartup?.phase !== "ready" &&
-								(newState.clineMessages?.length ?? 0) === 0
+								(newState.bedrockCoderMessages?.length ?? 0) === 0
 							) {
 								didOpenBedrockStartupRef.current = true
 								setSettingsTargetSection("api-config")
@@ -453,7 +453,7 @@ export const ExtensionStateContextProvider: React.FC<{
 						return
 					}
 
-					const partialMessage = convertProtoToClineMessage(protoMessage)
+					const partialMessage = convertProtoToBedrockCoderMessage(protoMessage)
 					setState((prevState) => {
 						// Route through the convergent-replica reducer: merge by ts keeping the
 						// higher seq, fence stale epochs, never let an out-of-order or duplicate
@@ -465,7 +465,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							// Stale/ignored — no change.
 							return prevState
 						}
-						return { ...prevState, clineMessages: replicaRef.current.messages }
+						return { ...prevState, bedrockCoderMessages: replicaRef.current.messages }
 					})
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
@@ -575,8 +575,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		showHistory,
 		showWorktrees,
 		showTeams,
-		globalClineRulesToggles: state.globalClineRulesToggles || {},
-		localClineRulesToggles: state.localClineRulesToggles || {},
+		globalBedrockCoderRulesToggles: state.globalBedrockCoderRulesToggles || {},
+		localBedrockCoderRulesToggles: state.localBedrockCoderRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
 		localAgentsRulesToggles: state.localAgentsRulesToggles || {},
@@ -602,15 +602,15 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpServers,
 		setShowMcp,
 		closeMcpView,
-		setGlobalClineRulesToggles: (toggles) =>
+		setGlobalBedrockCoderRulesToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
-				globalClineRulesToggles: toggles,
+				globalBedrockCoderRulesToggles: toggles,
 			})),
-		setLocalClineRulesToggles: (toggles) =>
+		setLocalBedrockCoderRulesToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
-				localClineRulesToggles: toggles,
+				localBedrockCoderRulesToggles: toggles,
 			})),
 		setLocalCursorRulesToggles: (toggles) =>
 			setState((prevState) => ({

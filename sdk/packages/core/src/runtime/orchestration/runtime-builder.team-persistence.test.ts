@@ -244,7 +244,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		);
 	});
 
-	it("forwards cline workspace metadata to teammate runtime bootstrap config", async () => {
+	it("forwards bedrockCoder workspace metadata to teammate runtime bootstrap config", async () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		bootstrapAgentTeamsMock.mockClear();
 
@@ -277,12 +277,12 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				}),
 			}),
 		);
-		const clineBootstrapCall = (
+		const bedrockCoderBootstrapCall = (
 			bootstrapAgentTeamsMock.mock.calls as unknown as Array<[BootstrapCall]>
 		)[0]?.[0];
-		expect(clineBootstrapCall).toBeDefined();
+		expect(bedrockCoderBootstrapCall).toBeDefined();
 		expect(
-			clineBootstrapCall?.teammateConfigProvider.getRuntimeConfig(),
+			bedrockCoderBootstrapCall?.teammateConfigProvider.getRuntimeConfig(),
 		).toEqual(
 			expect.objectContaining({
 				providerId: "bedrock",

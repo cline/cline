@@ -363,7 +363,7 @@ export class McpHub {
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
 			const client = new Client(
 				{
-					name: "Cline",
+					name: "Bedrock Coder",
 					version: this.clientVersion,
 				},
 				{
@@ -833,7 +833,7 @@ export class McpHub {
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
 				this.serverGainedOAuthTokens(currentConnection, config)
 			) {
-				// Existing server with changed connection config (excludes Cline-specific settings),
+				// Existing server with changed connection config (excludes BedrockCoder-specific settings),
 				// or an unauthenticated server whose OAuth tokens just appeared (e.g. CLI authorized it)
 				try {
 					if (config.type === "stdio") {
@@ -846,8 +846,8 @@ export class McpHub {
 					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			} else {
-				// Only Cline-specific settings changed - update in-memory state without restart
-				// Also update Cline-specific settings in the stored config.
+				// Only BedrockCoder-specific settings changed - update in-memory state without restart
+				// Also update BedrockCoder-specific settings in the stored config.
 				// This handles the case where someone manually edits the MCP settings file -
 				// the file watcher triggers this code path, and we need to sync the in-memory
 				// config with the file without restarting the server.
@@ -866,7 +866,7 @@ export class McpHub {
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
-		// Track if any connection-level changes occurred (excludes Cline-specific settings)
+		// Track if any connection-level changes occurred (excludes BedrockCoder-specific settings)
 		let connectionChangesOccurred = false
 
 		// Delete removed servers
@@ -898,7 +898,7 @@ export class McpHub {
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
 				this.serverGainedOAuthTokens(currentConnection, config)
 			) {
-				// Existing server with changed connection config (excludes Cline-specific settings),
+				// Existing server with changed connection config (excludes BedrockCoder-specific settings),
 				// or an unauthenticated server whose OAuth tokens just appeared in the settings
 				// file (e.g. the CLI or another window completed authorization for it)
 				try {
@@ -918,9 +918,9 @@ export class McpHub {
 					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			} else {
-				// Only Cline-specific settings changed - update in-memory state without restart
+				// Only BedrockCoder-specific settings changed - update in-memory state without restart
 				// Don't set connectionChangesOccurred since the RPC already returned the updated state
-				// Also update Cline-specific settings in the stored config
+				// Also update BedrockCoder-specific settings in the stored config
 				const currentConfig = JSON.parse(currentConnection.server.config)
 				currentConfig.timeout = config.timeout
 				currentConnection.server.config = JSON.stringify(currentConfig)
@@ -928,7 +928,7 @@ export class McpHub {
 		}
 
 		// Only notify webview if actual connection changes occurred.
-		// For Cline-specific settings changes, the RPC response already updated the webview,
+		// For BedrockCoder-specific settings changes, the RPC response already updated the webview,
 		// so we skip notification to avoid race conditions.
 		if (connectionChangesOccurred) {
 			await this.notifyWebviewOfServerChanges()
@@ -938,15 +938,15 @@ export class McpHub {
 
 	/**
 	 * Compares two MCP server configs to determine if a restart is required.
-	 * Excludes Cline-specific settings since they don't affect the MCP server transport connection.
+	 * Excludes BedrockCoder-specific settings since they don't affect the MCP server transport connection.
 	 *
-	 * ## Cline-specific settings (don't require restart):
+	 * ## BedrockCoder-specific settings (don't require restart):
 	 * - `timeout`: request timeout (read at request time, not connection time)
 	 *
 	 * ## MCP SDK connection settings (require restart):
 	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`
 	 *
-	 * ## Adding new Cline-specific settings:
+	 * ## Adding new BedrockCoder-specific settings:
 	 * When adding a new setting that doesn't require server restart:
 	 * 1. Add it to the destructuring below to exclude from comparison
 	 * 2. Add it to computeConnectionFingerprint() if a change to it should (or
@@ -955,7 +955,7 @@ export class McpHub {
 	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
 	 */
 	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
-		// Exclude Cline-specific settings from comparison (add new ones here).
+		// Exclude BedrockCoder-specific settings from comparison (add new ones here).
 		// `oauth` and `metadata` are also excluded: the server's oauth block is
 		// rewritten on every token save/refresh (by this process, the CLI, or
 		// another window), and restarting on each refresh would churn the
@@ -1019,7 +1019,7 @@ export class McpHub {
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
 		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
-			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
+			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or BedrockCoder (and we want to detect save events, not every file change)
 			const watcher = chokidar.watch(filePath, {
 				// persistent: true,
 				// ignoreInitial: true,

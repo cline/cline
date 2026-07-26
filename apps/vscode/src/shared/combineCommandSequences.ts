@@ -1,18 +1,18 @@
-import { ClineMessage } from "./ExtensionMessage"
+import { BedrockCoderMessage } from "./ExtensionMessage"
 
 /**
- * Combines sequences of command and command_output messages in an array of ClineMessages.
+ * Combines sequences of command and command_output messages in an array of BedrockCoderMessages.
  *
- * This function processes an array of ClineMessages objects, looking for sequences
+ * This function processes an array of BedrockCoderMessages objects, looking for sequences
  * where a 'command' message is followed by one or more 'command_output' messages.
  * When such a sequence is found, it combines them into a single message, merging
  * their text contents.
  *
- * @param messages - An array of ClineMessage objects to process.
- * @returns A new array of ClineMessage objects with command sequences combined.
+ * @param messages - An array of BedrockCoderMessage objects to process.
+ * @returns A new array of BedrockCoderMessage objects with command sequences combined.
  *
  * @example
- * const messages: ClineMessage[] = [
+ * const messages: BedrockCoderMessage[] = [
  *   { type: 'ask', ask: 'command', text: 'ls', ts: 1625097600000 },
  *   { type: 'ask', ask: 'command_output', text: 'file1.txt', ts: 1625097601000 },
  *   { type: 'ask', ask: 'command_output', text: 'file2.txt', ts: 1625097602000 }
@@ -20,8 +20,8 @@ import { ClineMessage } from "./ExtensionMessage"
  * const result = simpleCombineCommandSequences(messages);
  * // Result: [{ type: 'ask', ask: 'command', text: 'ls\nfile1.txt\nfile2.txt', ts: 1625097600000 }]
  */
-export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[] {
-	const combinedCommands: ClineMessage[] = []
+export function combineCommandSequences(messages: BedrockCoderMessage[]): BedrockCoderMessage[] {
+	const combinedCommands: BedrockCoderMessage[] = []
 
 	// First pass: combine commands with their outputs
 	for (let i = 0; i < messages.length; i++) {

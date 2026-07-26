@@ -1,7 +1,7 @@
-import type { CoreSessionConfig } from "@cline/core"
-import { type AgentTool, createTool } from "@cline/shared"
+import type { CoreSessionConfig } from "@bedrock-coder/core"
+import { type AgentTool, createTool } from "@bedrock-coder/shared"
 import type { StateManager } from "@/core/storage/StateManager"
-import { buildSessionConfig, type SessionConfigInput } from "./cline-session-factory"
+import { buildSessionConfig, type SessionConfigInput } from "./bedrock-coder-session-factory"
 import { buildAgentHooks, type HookMessageEmitter } from "./hooks-adapter"
 
 export interface SdkSessionConfigBuilderOptions {

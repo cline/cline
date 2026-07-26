@@ -1,4 +1,7 @@
-import { UpdateTerminalConnectionTimeoutRequest, UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/cline/state"
+import {
+	UpdateTerminalConnectionTimeoutRequest,
+	UpdateTerminalConnectionTimeoutResponse,
+} from "@shared/proto/bedrock_coder/state"
 import { Controller } from "../index"
 
 export async function updateTerminalConnectionTimeout(

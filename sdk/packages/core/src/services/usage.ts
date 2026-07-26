@@ -1,4 +1,4 @@
-import type * as LlmsProviders from "@cline/llms";
+import type * as LlmsProviders from "@bedrock-coder/llms";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 
 export function createInitialAccumulatedUsage(): SessionAccumulatedUsage {

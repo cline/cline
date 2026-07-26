@@ -16,7 +16,7 @@ describe("UTF-8 file readers", () => {
 	});
 
 	async function writeTempFile(content: string): Promise<string> {
-		const directory = await mkdtemp(join(tmpdir(), "cline-utf8-file-"));
+		const directory = await mkdtemp(join(tmpdir(), "bedrock-coder-utf8-file-"));
 		tempDirectories.push(directory);
 		const filePath = join(directory, "example.txt");
 		await writeFile(filePath, content, "utf8");

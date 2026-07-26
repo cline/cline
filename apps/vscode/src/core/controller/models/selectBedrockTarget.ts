@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import type { BedrockTargetSelectionRequest } from "@shared/proto/cline/models"
+import { Empty } from "@shared/proto/bedrock_coder/common"
+import type { BedrockTargetSelectionRequest } from "@shared/proto/bedrock_coder/models"
 import type { Controller } from "../index"
 
 export async function selectBedrockTarget(controller: Controller, request: BedrockTargetSelectionRequest): Promise<Empty> {

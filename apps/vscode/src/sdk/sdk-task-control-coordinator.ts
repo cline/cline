@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BedrockCoderMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -62,7 +62,7 @@ export class SdkTaskControlCoordinator {
 
 		this.options.sessions.setRunning(false)
 
-		const resumeMessage: ClineMessage = {
+		const resumeMessage: BedrockCoderMessage = {
 			ts: Date.now(),
 			type: "ask",
 			ask: "resume_task",
@@ -113,14 +113,9 @@ export class SdkTaskControlCoordinator {
 
 			// Load messages before installing the new task proxy so any concurrent
 			// postStateToWebview() caller never sees the new id with empty messages.
-			const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
-			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+			const rawMessages = await this.options.taskHistory.getBedrockCoderMessages(taskId)
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
-			const cleanedMessages = isLegacyTask
-				? this.appendLegacyTaskWarningAndResumeMessage(messages)
-				: messages.length > 0
-					? this.appendFreshResumeMessage(messages)
-					: []
+			const cleanedMessages = messages.length > 0 ? this.appendFreshResumeMessage(messages) : []
 
 			const task = createTaskProxy(
 				taskId,
@@ -138,7 +133,7 @@ export class SdkTaskControlCoordinator {
 				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
 			}
 
-			// The final state update below includes the loaded clineMessages. Avoid pushing
+			// The final state update below includes the loaded bedrockCoderMessages. Avoid pushing
 			// each historical message through the partial-message stream one-by-one; for
 			// long tasks that serial loop can dominate history-open latency.
 			await this.options.postStateToWebview()
@@ -148,7 +143,7 @@ export class SdkTaskControlCoordinator {
 		}
 	}
 
-	private appendFreshResumeMessage(messages: ClineMessage[]): ClineMessage[] {
+	private appendFreshResumeMessage(messages: BedrockCoderMessage[]): BedrockCoderMessage[] {
 		const lastRelevantMessage = [...messages]
 			.reverse()
 			.find((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
@@ -160,26 +155,6 @@ export class SdkTaskControlCoordinator {
 			ask: resumeAsk,
 			text: "",
 		})
-		return cleanedMessages
-	}
-
-	private appendLegacyTaskWarningAndResumeMessage(messages: ClineMessage[]): ClineMessage[] {
-		const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
-		const now = Date.now()
-		cleanedMessages.push(
-			{
-				ts: now,
-				type: "say",
-				say: "text",
-				text: "⚠️ This is a legacy task. It may not work as well because tool names may have changed.",
-			},
-			{
-				ts: now + 1,
-				type: "ask",
-				ask: "resume_task",
-				text: "",
-			},
-		)
 		return cleanedMessages
 	}
 }

@@ -2,7 +2,7 @@ import type {
 	ContentBlock,
 	MessageWithMetadata,
 	ToolResultContent,
-} from "@cline/shared";
+} from "@bedrock-coder/shared";
 import type {
 	BudgetAction,
 	BudgetMutationAction,
