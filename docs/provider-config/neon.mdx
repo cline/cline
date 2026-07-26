@@ -1,0 +1,61 @@
+---
+title: "Neon AI Gateway"
+description: "Learn how to use Neon AI Gateway with Cline to reach models from several providers using a single Neon credential."
+---
+
+Neon AI Gateway is an OpenAI-compatible inference gateway provided by Neon. One Neon credential gives you access to models from OpenAI, Google, Meta, Databricks, and Alibaba without creating separate provider accounts.
+
+**Website:** [https://neon.com/docs/ai-gateway/overview](https://neon.com/docs/ai-gateway/overview)
+
+Cline does not have a dedicated Neon provider. Configure Neon through the [OpenAI Compatible](/provider-config/openai-compatible) provider.
+
+<Note>
+	Neon AI Gateway is in beta. It requires a paid Neon plan and is only available in the AWS US East (Ohio) region
+	(`aws-us-east-2`), so your Neon project has to live in that region.
+</Note>
+
+### Get API Credentials
+
+1.  **Create a credential:** In the [Neon Console](https://console.neon.tech/), select your branch, click **Credentials** under **APP BACKEND**, then click **Create credential** and check **ai_gateway:invoke**.
+2.  **Copy the Key:** The credential starts with `nt_live_` and is shown only once, so copy it before closing the dialog.
+3.  **Find your branch host:** Each Neon branch has its own gateway host, shown in the Console on the AI Gateway page as `NEON_AI_GATEWAY_BASE_URL`. It looks like `https://<your-neon-branch-host>`.
+
+The branch host is not your database connection string. If you use the `neon` CLI, `neon env pull --file .env` writes both `NEON_AI_GATEWAY_TOKEN` and `NEON_AI_GATEWAY_BASE_URL` for the current branch.
+
+### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "OpenAI Compatible" from the "API Provider" dropdown.
+3.  **Enter Base URL:** Enter your branch host with `/v1` appended, for example `https://<your-neon-branch-host>/v1`. Cline appends `/chat/completions` to this value.
+4.  **Enter API Key:** Paste the Neon credential. Neon accepts it as a bearer token, and you do not need any provider API keys.
+5.  **Enter Model ID:** Use a short model ID from the Neon catalog, such as `gpt-5-mini`, `gpt-oss-120b`, or `qwen3-next-80b-a3b-instruct`.
+6.  **Model Configuration:** Set the context window and pricing fields to match the model you picked. The Neon [model catalog](https://neon.com/docs/ai-gateway/models) lists context size and per-million token prices for every model.
+
+### Finding model IDs
+
+`GET /v1/models` on your branch host returns the catalog your branch can reach:
+
+```bash
+curl "$NEON_AI_GATEWAY_BASE_URL/v1/models" \
+  -H "Authorization: Bearer $NEON_AI_GATEWAY_TOKEN"
+```
+
+The [Neon model catalog](https://neon.com/docs/ai-gateway/models) is the authoritative reference for IDs, context windows, and prices. [Models.dev](https://models.dev/providers/neon/) carries the same catalog in a browsable form.
+
+### Tips and Notes
+
+-   **Credentials are branch-scoped:** A credential works on the branch it was created on and on any branch descended from it. A credential created on `main` works in preview branches forked from `main`, but not in an unrelated branch such as `staging`.
+-   **Model availability:** Open-weight models are available to every project immediately. Frontier models from OpenAI and Google roll out gradually, so a model listed in the catalog may not yet appear in your project.
+-   **Codex models:** `gpt-5-3-codex`, `gpt-5-2-codex`, `gpt-5-1-codex-max`, and `gpt-5-1-codex-mini` require the OpenAI Responses API and do not work through the chat completions endpoint that the OpenAI Compatible provider uses.
+-   **Gemini models:** Cline asks for token usage in the stream. Neon translates its `gemini-` models into a Gemini request that has no `stream_options` field and rejects the request with `400 Unknown name "stream_options"`, so use a model from one of the other families here.
+-   **Rate limits:** The beta allows 200,000 tokens per minute per account, counting input and output together. Exceeding it returns `429 Too Many Requests`.
+-   **Pricing:** Inference is free during the beta. Neon plans to charge the same per-token rate as the model provider with no markup.
+
+### Troubleshooting
+
+-   **"401 Unauthorized":** The credential is missing or incomplete. Check that you pasted the full `nt_live_` token.
+-   **"403 Forbidden":** Either the credential lacks the `ai_gateway:invoke` scope, or the branch is outside the credential's lineage. In the second case Neon returns `credential not authorized for this branch`.
+-   **"Model Not Found":** Confirm the model ID against `GET /v1/models`. Frontier models that have not rolled out to your project yet will not appear there.
+-   **Connection Errors:** Verify the base URL is your branch host with `/v1` appended and no trailing path beyond that.
