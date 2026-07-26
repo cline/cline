@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
@@ -36,6 +37,17 @@ const hubClientInitialization = new WeakMap<
 	SidecarContext,
 	Promise<NodeHubClient>
 >();
+const SESSION_CHUNK_FLUSH_INTERVAL_MS = 25;
+const sessionChunkLogs = new Map<
+	string,
+	{
+		path: string;
+		lines: string[];
+		timer: ReturnType<typeof setTimeout> | null;
+		write: Promise<void>;
+		logger?: BasicLogger;
+	}
+>();
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -59,17 +71,58 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 	}
 }
 
+function flushSessionChunkLog(sessionId: string): void {
+	const log = sessionChunkLogs.get(sessionId);
+	if (!log || log.lines.length === 0) return;
+	if (log.timer) {
+		clearTimeout(log.timer);
+		log.timer = null;
+	}
+	const contents = log.lines.join("");
+	log.lines = [];
+	log.write = log.write
+		.then(async () => await appendFile(log.path, contents))
+		.catch((error) => {
+			log.logger?.error?.("Failed to persist desktop session stream", {
+				sessionId,
+				error,
+			});
+		});
+}
+
+async function flushSessionChunkLogs(): Promise<void> {
+	for (const sessionId of sessionChunkLogs.keys()) {
+		flushSessionChunkLog(sessionId);
+	}
+	await Promise.all([...sessionChunkLogs.values()].map((log) => log.write));
+	sessionChunkLogs.clear();
+}
+
 function appendSessionChunk(
+	ctx: SidecarContext,
 	sessionId: string,
 	stream: string,
 	chunk: string,
 	ts: number,
 ): void {
 	const path = sessionLogPath(sessionId);
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify({ ts, stream, chunk })}\n`, {
-		flag: "a",
-	});
+	let log = sessionChunkLogs.get(sessionId);
+	if (!log) {
+		mkdirSync(dirname(path), { recursive: true });
+		log = {
+			path,
+			lines: [],
+			timer: null,
+			write: Promise.resolve(),
+			logger: ctx.logger,
+		};
+		sessionChunkLogs.set(sessionId, log);
+	}
+	log.lines.push(`${JSON.stringify({ ts, stream, chunk })}\n`);
+	log.timer ??= setTimeout(
+		() => flushSessionChunkLog(sessionId),
+		SESSION_CHUNK_FLUSH_INTERVAL_MS,
+	);
 }
 
 function emitChunk(
@@ -79,7 +132,7 @@ function emitChunk(
 	chunk: string,
 ): void {
 	const ts = nowMs();
-	appendSessionChunk(sessionId, stream, chunk, ts);
+	appendSessionChunk(ctx, sessionId, stream, chunk, ts);
 	const nextIndex = (ctx.streamIndices.get(sessionId) ?? 0) + 1;
 	ctx.streamIndices.set(sessionId, nextIndex);
 	sendEvent(ctx, "chat_event", {
@@ -460,6 +513,7 @@ export async function disposeSidecarContext(
 
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
+	await flushSessionChunkLogs();
 
 	for (const [sessionId, session] of ctx.liveSessions) {
 		discardAllTrackedAttachments(sessionId, session);

@@ -36,7 +36,7 @@ import {
 	UndoIcon,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -120,6 +120,17 @@ function groupConsecutiveToolMessages(
 	return items;
 }
 
+function findLastMessage(
+	messages: ChatMessage[],
+	predicate: (message: ChatMessage) => boolean,
+): ChatMessage | undefined {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (message && predicate(message)) return message;
+	}
+	return undefined;
+}
+
 const IS_DEBUG = process.env.NODE_ENV === "test";
 
 function ChatMessagesImpl({
@@ -139,17 +150,23 @@ function ChatMessagesImpl({
 	onForkSession,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
-	const lastErrorMessage = [...messages]
-		.reverse()
-		.find((message) => message.role === "error");
+	const lastErrorMessage = findLastMessage(
+		messages,
+		(message) => message.role === "error",
+	);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
 	// Core reports "running" as soon as the turn is dispatched, well before the
 	// first streamed chunk arrives, so keep the thinking indicator up until the
 	// model produces output (or something else needs the user's attention).
-	const lastConversationMessage = [...messages]
-		.reverse()
-		.find((message) => message.role !== "status");
+	const lastConversationMessage = findLastMessage(
+		messages,
+		(message) => message.role !== "status",
+	);
+	const renderItems = useMemo(
+		() => groupConsecutiveToolMessages(messages),
+		[messages],
+	);
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
@@ -423,7 +440,7 @@ function ChatMessagesImpl({
 									requestErrors={askQuestionErrors}
 								/>
 							) : null}
-							{groupConsecutiveToolMessages(messages).map((item) => {
+							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
 										<ToolMessageBlock
@@ -747,7 +764,7 @@ function AskQuestionPanel({
 	);
 }
 
-function MessageBubble({
+function MessageBubbleImpl({
 	message,
 	isStreaming = false,
 	onCopyRawText,
@@ -916,6 +933,25 @@ function MessageBubble({
 		</AgentMessage>
 	);
 }
+
+const MessageBubble = memo(
+	MessageBubbleImpl,
+	(previous, next) =>
+		previous.message === next.message &&
+		previous.isStreaming === next.isStreaming &&
+		previous.restoreDisabled === next.restoreDisabled &&
+		previous.restorePending === next.restorePending &&
+		previous.restoreError === next.restoreError &&
+		previous.wasCopied === next.wasCopied &&
+		previous.forkPending === next.forkPending &&
+		previous.forkError === next.forkError &&
+		Boolean(previous.onCopyRawText) === Boolean(next.onCopyRawText) &&
+		Boolean(previous.onExpandImage) === Boolean(next.onExpandImage) &&
+		Boolean(previous.onRestoreCheckpoint) ===
+			Boolean(next.onRestoreCheckpoint) &&
+		Boolean(previous.onForkSession) === Boolean(next.onForkSession),
+);
+MessageBubble.displayName = "MessageBubble";
 
 function ReasoningBlock({
 	content,
@@ -1453,7 +1489,7 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 		.join(". ");
 }
 
-function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
+function ToolMessageBlockImpl({ messages }: { messages: ChatMessage[] }) {
 	const presentations = messages.map(buildToolPresentation);
 	const first = presentations[0];
 	if (!first) return null;
@@ -1550,3 +1586,13 @@ function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
 		</ToolActivity>
 	);
 }
+
+const ToolMessageBlock = memo(
+	ToolMessageBlockImpl,
+	(previous, next) =>
+		previous.messages.length === next.messages.length &&
+		previous.messages.every(
+			(message, index) => message === next.messages[index],
+		),
+);
+ToolMessageBlock.displayName = "ToolMessageBlock";

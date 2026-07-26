@@ -37,25 +37,10 @@ export interface SessionThread {
 	pinned?: boolean;
 }
 
-type SessionHookEvent = {
-	inputTokens?: number;
-	outputTokens?: number;
-	totalCost?: number;
-};
-
-type SessionMessageMeta = {
-	inputTokens?: number;
-	outputTokens?: number;
-	totalCost?: number;
-	providerId?: string;
-	modelId?: string;
-};
-
 type SessionMessage = {
 	id?: string;
 	role?: string;
 	content?: string;
-	meta?: SessionMessageMeta;
 };
 
 type SessionTitleUpdatedEvent = CustomEvent<{
@@ -92,8 +77,8 @@ export type UseSessionHistoryOptions = {
 	) => void;
 };
 
-const INITIAL_HISTORY_FETCH_LIMIT = 300;
-const HISTORY_REFRESH_INTERVAL_MS = 12_000;
+const INITIAL_HISTORY_FETCH_LIMIT = 50;
+const HISTORY_REFRESH_INTERVAL_MS = 60_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
 const HISTORY_FAST_REFRESH_DELAY_MS = 50;
@@ -232,6 +217,34 @@ function inferStatusFromMessages(
 	return status;
 }
 
+function getMetadataUsage(metadata?: SessionMetadata): {
+	inputTokens?: number;
+	outputTokens?: number;
+	totalCostUsd?: number;
+} {
+	if (!metadata) return {};
+	const usage =
+		metadata.aggregateUsage &&
+		typeof metadata.aggregateUsage === "object" &&
+		!Array.isArray(metadata.aggregateUsage)
+			? (metadata.aggregateUsage as Record<string, unknown>)
+			: metadata.usage &&
+					typeof metadata.usage === "object" &&
+					!Array.isArray(metadata.usage)
+				? (metadata.usage as Record<string, unknown>)
+				: null;
+	const numberValue = (value: unknown) =>
+		typeof value === "number" && Number.isFinite(value) ? value : undefined;
+	return {
+		inputTokens: numberValue(usage?.inputTokens),
+		outputTokens: numberValue(usage?.outputTokens),
+		totalCostUsd:
+			numberValue(usage?.totalCost) ??
+			numberValue(metadata.aggregatedAgentsCost) ??
+			numberValue(metadata.totalCost),
+	};
+}
+
 function toThread(session: SessionHistoryItem): SessionThread {
 	const workspacePath = (session.workspaceRoot || session.cwd).trim();
 	return {
@@ -244,6 +257,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		provider: session.provider || "",
 		model: session.model || "",
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
+		...getMetadataUsage(session.metadata),
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 	};
 }
@@ -288,41 +302,6 @@ export function formatCostUsd(value?: number): string | null {
 		return `$${value.toFixed(3)}`;
 	}
 	return `$${value.toFixed(2)}`;
-}
-
-function summarizeUsageFromMessages(messages: SessionMessage[]): {
-	inputTokens: number;
-	outputTokens: number;
-	totalCostUsd: number;
-} | null {
-	let inputTokens = 0;
-	let outputTokens = 0;
-	let totalCostUsd = 0;
-	let hasUsage = false;
-
-	for (const message of messages) {
-		const meta = message.meta;
-		if (!meta) {
-			continue;
-		}
-		if (typeof meta.inputTokens === "number") {
-			inputTokens += meta.inputTokens;
-			hasUsage = true;
-		}
-		if (typeof meta.outputTokens === "number") {
-			outputTokens += meta.outputTokens;
-			hasUsage = true;
-		}
-		if (typeof meta.totalCost === "number") {
-			totalCostUsd += meta.totalCost;
-			hasUsage = true;
-		}
-	}
-
-	if (!hasUsage) {
-		return null;
-	}
-	return { inputTokens, outputTokens, totalCostUsd };
 }
 
 function areSessionsEquivalent(
@@ -476,10 +455,6 @@ export function useSessionHistory({
 		() => new Set(),
 	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
-	const usageLoadingRef = useRef<Set<string>>(new Set());
-	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
-		new Map(),
-	);
 	const titleLoadingRef = useRef<Set<string>>(new Set());
 	const messageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -586,11 +561,14 @@ export function useSessionHistory({
 							Boolean(existing) &&
 							!incomingMetadataTitle &&
 							!(existing?.title.startsWith("Session ") ?? true);
+						const existingUsage = usageById.get(thread.id);
 						return {
 							...thread,
 							title:
 								keepExistingTitle && existing ? existing.title : thread.title,
-							...usageById.get(thread.id),
+							inputTokens: thread.inputTokens ?? existingUsage?.inputTokens,
+							outputTokens: thread.outputTokens ?? existingUsage?.outputTokens,
+							totalCostUsd: thread.totalCostUsd ?? existingUsage?.totalCostUsd,
 						};
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
@@ -672,118 +650,6 @@ export function useSessionHistory({
 	}, [scheduleRefresh]);
 
 	useEffect(() => {
-		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
-			.slice(0, 4);
-		let cancelled = false;
-		const timer = window.setTimeout(() => {
-			for (const session of recent) {
-				if (cancelled) {
-					return;
-				}
-				const sessionId = session.sessionId;
-				if (!sessionId) {
-					continue;
-				}
-				if (usageLoadingRef.current.has(sessionId)) {
-					continue;
-				}
-				const existing = threadsRef.current.find(
-					(item) => item.id === sessionId,
-				);
-				const hasUsage =
-					existing?.inputTokens !== undefined ||
-					existing?.outputTokens !== undefined;
-				const lastHydratedStatus =
-					usageHydratedStatusRef.current.get(sessionId);
-				const shouldFetch =
-					!hasUsage ||
-					session.status === "running" ||
-					lastHydratedStatus !== session.status;
-				if (!shouldFetch) {
-					continue;
-				}
-				usageLoadingRef.current.add(sessionId);
-				void desktopClient
-					.invoke<SessionMessage[]>("read_session_messages", {
-						sessionId,
-						maxMessages: 1200,
-					})
-					.then(async (sessionMessages) => {
-						const usage = summarizeUsageFromMessages(sessionMessages);
-						if (!usage) {
-							const events = await desktopClient.invoke<SessionHookEvent[]>(
-								"read_session_hooks",
-								{
-									sessionId,
-									limit: 1200,
-								},
-							);
-							return {
-								inputTokens: events.reduce(
-									(sum, event) => sum + (event.inputTokens ?? 0),
-									0,
-								),
-								outputTokens: events.reduce(
-									(sum, event) => sum + (event.outputTokens ?? 0),
-									0,
-								),
-								totalCostUsd: events.reduce(
-									(sum, event) => sum + (event.totalCost ?? 0),
-									0,
-								),
-							};
-						}
-						return usage;
-					})
-					.then(({ inputTokens, outputTokens, totalCostUsd }) => {
-						setThreads((current) =>
-							updateThreadById(current, sessionId, (thread) => {
-								if (
-									thread.inputTokens === inputTokens &&
-									thread.outputTokens === outputTokens &&
-									thread.totalCostUsd === totalCostUsd
-								) {
-									return thread;
-								}
-								return { ...thread, inputTokens, outputTokens, totalCostUsd };
-							}),
-						);
-					})
-					.catch(() => {
-						if (!hasUsage) {
-							setThreads((current) =>
-								updateThreadById(current, sessionId, (thread) => {
-									if (
-										thread.inputTokens === 0 &&
-										thread.outputTokens === 0 &&
-										(thread.totalCostUsd ?? 0) === 0
-									) {
-										return thread;
-									}
-									return {
-										...thread,
-										inputTokens: 0,
-										outputTokens: 0,
-										totalCostUsd: 0,
-									};
-								}),
-							);
-						}
-					})
-					.finally(() => {
-						usageHydratedStatusRef.current.set(sessionId, session.status);
-						usageLoadingRef.current.delete(sessionId);
-					});
-			}
-		}, 800);
-		return () => {
-			cancelled = true;
-			window.clearTimeout(timer);
-		};
-	}, [activeSessionId, sessions]);
-
-	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
 			const detail = (event as SessionTitleUpdatedEvent).detail;
 			const sessionId = detail?.sessionId?.trim();
@@ -814,9 +680,7 @@ export function useSessionHistory({
 			if (!sessionId) {
 				return;
 			}
-			usageLoadingRef.current.delete(sessionId);
 			titleLoadingRef.current.delete(sessionId);
-			usageHydratedStatusRef.current.delete(sessionId);
 			messageHydratedStatusRef.current.delete(sessionId);
 			setSessions((current) =>
 				current.filter((session) => session.sessionId !== sessionId),

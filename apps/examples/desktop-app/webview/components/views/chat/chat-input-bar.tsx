@@ -363,18 +363,14 @@ export function ChatInputBar({
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
+	const shouldFocusComposer =
+		variant === "conversation" ||
+		(variant === "welcome" && promptInput.trim().length > 0);
 	useEffect(() => {
+		if (!shouldFocusComposer) return;
 		const input = promptInputRef.current;
-		if (!input) return;
-		if (
-			variant === "conversation" ||
-			(variant === "welcome" &&
-				promptInput.trim().length > 0 &&
-				document.activeElement !== input)
-		) {
-			input.focus();
-		}
-	}, [promptInput, variant]);
+		if (input && document.activeElement !== input) input.focus();
+	}, [shouldFocusComposer]);
 
 	const startQueuedPromptEdit = useCallback((item: PromptInQueue) => {
 		setEditingQueuedPromptId(item.id);

@@ -805,4 +805,97 @@ describe("useChatSession", () => {
 		expect(current.config.workspaceRoot).toBe("");
 		expect(current.config.cwd).toBe("");
 	});
+
+	it("starts session attachment while persisted messages are still loading", async () => {
+		let resolveMessages: ((value: []) => void) | undefined;
+		const messagesResponse = new Promise<[]>((resolve) => {
+			resolveMessages = resolve;
+		});
+		let attachStarted = false;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") return await messagesResponse;
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						attachStarted = true;
+						return { sessionId: "history-1", status: "completed" };
+					}
+				}
+				return [];
+			},
+		);
+
+		let hydration: Promise<void> | undefined;
+		await act(async () => {
+			hydration = current.hydrateSession({
+				sessionId: "history-1",
+				status: "completed",
+				provider: "test",
+				model: "fast",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: new Date().toISOString(),
+			});
+			await Promise.resolve();
+		});
+
+		expect(attachStarted).toBe(true);
+		await act(async () => {
+			resolveMessages?.([]);
+			await hydration;
+		});
+	});
+
+	it("batches rapid text deltas without dropping content", async () => {
+		vi.useFakeTimers();
+		try {
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "get_process_context") {
+						return {
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (command === "chat_session_command") {
+						const request = args?.request as
+							| { action?: string; config?: { sessionId?: string } }
+							| undefined;
+						if (request?.action === "start") {
+							return { sessionId: request.config?.sessionId ?? "stream-1" };
+						}
+					}
+					return [];
+				},
+			);
+			await act(async () => current.start(current.config));
+			const chatEventHandler = subscribeMock.mock.calls.find(
+				([eventName]) => eventName === "chat_event",
+			)?.[1] as ((payload: unknown) => void) | undefined;
+
+			await act(async () => {
+				for (let index = 0; index < 100; index += 1) {
+					chatEventHandler?.({
+						sessionId: current.sessionId,
+						stream: "chat_text",
+						chunk: `${index},`,
+						ts: Date.now(),
+						index: index + 1,
+					});
+				}
+				await vi.advanceTimersByTimeAsync(16);
+			});
+
+			expect(
+				current.messages.findLast((message) => message.role === "assistant")
+					?.content,
+			).toBe(Array.from({ length: 100 }, (_, index) => `${index},`).join(""));
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

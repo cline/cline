@@ -15,6 +15,13 @@ export type ProviderModelCatalog = {
 	providerReasoningModels: Record<string, string[]>;
 };
 
+const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
+let providerCatalogCache: {
+	catalog: ProviderModelCatalog;
+	fetchedAt: number;
+} | null = null;
+let providerCatalogRequest: Promise<ProviderModelCatalog> | null = null;
+
 function toModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? []).map((model) => model.id);
 }
@@ -48,11 +55,46 @@ export function buildProviderModelCatalog(
 	};
 }
 
-export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
-	const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-		"list_provider_catalog",
-	);
-	return buildProviderModelCatalog(payload.providers ?? []);
+export function primeProviderModelCatalog(providers: Provider[]): void {
+	providerCatalogCache = {
+		catalog: buildProviderModelCatalog(providers),
+		fetchedAt: Date.now(),
+	};
+}
+
+export function clearProviderModelCatalogCache(): void {
+	providerCatalogCache = null;
+	providerCatalogRequest = null;
+}
+
+export async function loadProviderModelCatalog(options?: {
+	force?: boolean;
+}): Promise<ProviderModelCatalog> {
+	if (
+		!options?.force &&
+		providerCatalogCache &&
+		Date.now() - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+	) {
+		return providerCatalogCache.catalog;
+	}
+	if (!options?.force && providerCatalogRequest) {
+		return await providerCatalogRequest;
+	}
+
+	const request = desktopClient
+		.invoke<ProviderCatalogResponse>("list_provider_catalog")
+		.then((payload) => {
+			const catalog = buildProviderModelCatalog(payload.providers ?? []);
+			providerCatalogCache = { catalog, fetchedAt: Date.now() };
+			return catalog;
+		})
+		.finally(() => {
+			if (providerCatalogRequest === request) {
+				providerCatalogRequest = null;
+			}
+		});
+	providerCatalogRequest = request;
+	return await request;
 }
 
 export async function loadProviderModels(

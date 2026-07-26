@@ -206,6 +206,11 @@ function dispatchCoreLog(chunk: string): void {
 	(LOG_DISPATCH[level] ?? console.info)("[core]", message, parsed.metadata);
 }
 
+function mergeStreamChunk(existing: string, chunk: string): string {
+	if (!chunk || existing.endsWith(chunk)) return existing;
+	return chunk.startsWith(existing) ? chunk : `${existing}${chunk}`;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -252,6 +257,23 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const pendingStreamUpdatesRef = useRef(
+		new Map<
+			string,
+			{
+				sessionId: string;
+				content: string[];
+				reasoning: string[];
+				reasoningRedacted: boolean;
+			}
+		>(),
+	);
+	const pendingTranscriptRef = useRef<
+		Array<{ sessionId: string; chunk: string }>
+	>([]);
+	const streamFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -448,39 +470,91 @@ export function useChatSession() {
 		[],
 	);
 
-	const appendMessageContent = useCallback((id: string, chunk: string) => {
-		if (!chunk) return;
-		setMessages((prev) =>
-			updateMessageById(prev, id, (msg) => {
-				const existing = msg.content;
-				if (existing.endsWith(chunk)) return msg;
-				const content = chunk.startsWith(existing)
-					? chunk
-					: `${existing}${chunk}`;
-				return { ...msg, content };
-			}),
-		);
-	}, []);
+	const flushPendingStreamUpdates = useCallback(() => {
+		streamFlushTimerRef.current = null;
+		const activeSessionId = activeSessionIdRef.current;
+		const updates = pendingStreamUpdatesRef.current;
+		const transcriptChunks = pendingTranscriptRef.current;
+		pendingStreamUpdatesRef.current = new Map();
+		pendingTranscriptRef.current = [];
+		if (!activeSessionId) return;
 
-	const appendMessageReasoning = useCallback(
-		(id: string, chunk: string, redacted = false) => {
-			if (!chunk && !redacted) return;
-			setMessages((prev) =>
-				updateMessageById(prev, id, (msg) => {
-					const reasoningChunk = chunk || (redacted ? "[redacted]" : "");
-					const existing = msg.reasoning ?? "";
-					if (reasoningChunk && existing.endsWith(reasoningChunk)) {
-						return redacted && !msg.reasoningRedacted
-							? { ...msg, reasoningRedacted: true }
-							: msg;
+		setMessages((previous) => {
+			let next = previous;
+			for (const [messageId, update] of updates) {
+				if (update.sessionId !== activeSessionId) continue;
+				next = updateMessageById(next, messageId, (message) => {
+					let content = message.content;
+					for (const chunk of update.content) {
+						content = mergeStreamChunk(content, chunk);
+					}
+					let reasoning = message.reasoning ?? "";
+					for (const chunk of update.reasoning) {
+						reasoning = mergeStreamChunk(reasoning, chunk);
+					}
+					const reasoningRedacted =
+						message.reasoningRedacted || update.reasoningRedacted;
+					if (
+						content === message.content &&
+						reasoning === (message.reasoning ?? "") &&
+						reasoningRedacted === message.reasoningRedacted
+					) {
+						return message;
 					}
 					return {
-						...msg,
-						reasoning: `${existing}${reasoningChunk}`,
-						reasoningRedacted: msg.reasoningRedacted || redacted,
+						...message,
+						content,
+						reasoning,
+						reasoningRedacted,
 					};
-				}),
-			);
+				});
+			}
+			return next;
+		});
+
+		const transcript = transcriptChunks
+			.filter((item) => item.sessionId === activeSessionId)
+			.map((item) => item.chunk)
+			.join("");
+		if (transcript) {
+			setRawTranscript((previous) => `${previous}${transcript}`);
+		}
+	}, []);
+
+	const scheduleStreamFlush = useCallback(() => {
+		if (streamFlushTimerRef.current) return;
+		streamFlushTimerRef.current = setTimeout(flushPendingStreamUpdates, 16);
+	}, [flushPendingStreamUpdates]);
+
+	const queueStreamUpdate = useCallback(
+		(options: {
+			id: string;
+			sessionId: string;
+			content?: string;
+			reasoning?: string;
+			reasoningRedacted?: boolean;
+		}) => {
+			const current = pendingStreamUpdatesRef.current.get(options.id) ?? {
+				sessionId: options.sessionId,
+				content: [],
+				reasoning: [],
+				reasoningRedacted: false,
+			};
+			if (options.content) current.content.push(options.content);
+			if (options.reasoning) current.reasoning.push(options.reasoning);
+			current.reasoningRedacted =
+				current.reasoningRedacted || options.reasoningRedacted === true;
+			pendingStreamUpdatesRef.current.set(options.id, current);
+			scheduleStreamFlush();
+		},
+		[scheduleStreamFlush],
+	);
+
+	useEffect(
+		() => () => {
+			if (streamFlushTimerRef.current) {
+				clearTimeout(streamFlushTimerRef.current);
+			}
 		},
 		[],
 	);
@@ -768,8 +842,15 @@ export function useChatSession() {
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
 				}
-				appendMessageContent(assistantId, payload.chunk);
-				setRawTranscript((prev) => `${prev}${payload.chunk}`);
+				queueStreamUpdate({
+					id: assistantId,
+					sessionId: listeningSessionId,
+					content: payload.chunk,
+				});
+				pendingTranscriptRef.current.push({
+					sessionId: listeningSessionId,
+					chunk: payload.chunk,
+				});
 				return;
 			}
 
@@ -793,11 +874,12 @@ export function useChatSession() {
 				} catch {
 					parsed = { text: payload.chunk };
 				}
-				appendMessageReasoning(
-					assistantId,
-					parsed.text ?? "",
-					parsed.redacted === true,
-				);
+				queueStreamUpdate({
+					id: assistantId,
+					sessionId: listeningSessionId,
+					reasoning: parsed.text ?? "",
+					reasoningRedacted: parsed.redacted === true,
+				});
 				return;
 			}
 
@@ -814,6 +896,10 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				if (streamFlushTimerRef.current) {
+					clearTimeout(streamFlushTimerRef.current);
+					flushPendingStreamUpdates();
+				}
 				clearLiveToolRefs();
 				return;
 			}
@@ -891,9 +977,9 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
-			appendMessageContent,
-			appendMessageReasoning,
 			clearLiveToolRefs,
+			flushPendingStreamUpdates,
+			queueStreamUpdate,
 			shouldApplyStreamChunk,
 		],
 	);
@@ -1708,10 +1794,29 @@ export function useChatSession() {
 				setRawTranscript("");
 				resetCounters();
 				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
-				void refreshSessionDiffSummary(session.sessionId);
 			};
 
 			try {
+				const attachPromise = desktopClient.invoke<{
+					sessionId?: string;
+					status?: string;
+					provider?: string;
+					model?: string;
+					cwd?: string;
+					workspaceRoot?: string;
+					prompt?: string;
+				}>("chat_session_command", {
+					request: {
+						action: "attach",
+						sessionId: session.sessionId,
+						config: {
+							provider: session.provider,
+							model: session.model,
+							cwd: session.cwd,
+							workspaceRoot: session.workspaceRoot,
+						},
+					},
+				});
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
 					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
@@ -1723,34 +1828,13 @@ export function useChatSession() {
 					setIsHydratingSession(false);
 				}
 
-				const attached = await desktopClient
-					.invoke<{
-						sessionId?: string;
-						status?: string;
-						provider?: string;
-						model?: string;
-						cwd?: string;
-						workspaceRoot?: string;
-						prompt?: string;
-					}>("chat_session_command", {
-						request: {
-							action: "attach",
-							sessionId: session.sessionId,
-							config: {
-								provider: session.provider,
-								model: session.model,
-								cwd: session.cwd,
-								workspaceRoot: session.workspaceRoot,
-							},
-						},
-					})
-					.catch((err) => {
-						if (historyMessages.length === 0) {
-							throw err;
-						}
-						setError(errorMessage(err));
-						return undefined;
-					});
+				const attached = await attachPromise.catch((err) => {
+					if (historyMessages.length === 0) {
+						throw err;
+					}
+					setError(errorMessage(err));
+					return undefined;
+				});
 				if (hydrationRequestIdRef.current !== requestId) return;
 				setConfig((prev) => ({
 					...prev,
@@ -1810,7 +1894,6 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			refreshPromptsInQueue,
-			refreshSessionDiffSummary,
 			resetStreamDedupe,
 			resetCounters,
 		],

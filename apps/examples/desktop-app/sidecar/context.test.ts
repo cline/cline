@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
@@ -415,5 +415,42 @@ describe("disposeSidecarContext attachment cleanup", () => {
 
 		expect(existsSync(queuedFile)).toBe(false);
 		expect(ctx.liveSessions.size).toBe(0);
+	});
+});
+
+describe("desktop stream persistence", () => {
+	it("flushes buffered chunks in order during shutdown", async () => {
+		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
+		const testDataDir = join(
+			tmpdir(),
+			`cline-desktop-stream-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		);
+		process.env.CLINE_KANBAN_DATA_DIR = testDataDir;
+		try {
+			const { broadcastChunk, createSidecarContext, disposeSidecarContext } =
+				await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+
+			for (let index = 0; index < 100; index += 1) {
+				broadcastChunk(ctx, "stream-session", "chat_text", `${index}`);
+			}
+			await disposeSidecarContext(ctx, "test_shutdown");
+
+			const path = join(testDataDir, "sessions", "stream-session.jsonl");
+			const lines = readFileSync(path, "utf8")
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line) as { chunk: string });
+			expect(lines.map((line) => line.chunk)).toEqual(
+				Array.from({ length: 100 }, (_, index) => `${index}`),
+			);
+		} finally {
+			if (previousKanbanDataDir === undefined) {
+				delete process.env.CLINE_KANBAN_DATA_DIR;
+			} else {
+				process.env.CLINE_KANBAN_DATA_DIR = previousKanbanDataDir;
+			}
+			rmSync(testDataDir, { recursive: true, force: true });
+		}
 	});
 });

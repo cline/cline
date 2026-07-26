@@ -13,10 +13,13 @@ import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import type {
 	Provider,
-	ProviderCatalogResponse,
 	ProviderModelsResponse,
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
+import {
+	loadProviderModelCatalog,
+	primeProviderModelCatalog,
+} from "@/lib/provider-model-catalog";
 import {
 	type HubAccent,
 	type HubTheme,
@@ -71,13 +74,6 @@ type GlobalSettingsResponse = {
 	autoUpdateEnabled: boolean;
 };
 
-const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
-
-let providerCatalogCache: {
-	providers: Provider[];
-	fetchedAt: number;
-} | null = null;
-
 // -----------------------------------------------------------
 // Component
 // -----------------------------------------------------------
@@ -92,12 +88,8 @@ export function SettingsView({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
-	const [providers, setProviders] = useState<Provider[]>(
-		() => providerCatalogCache?.providers ?? [],
-	);
-	const [providersLoading, setProvidersLoading] = useState(
-		() => !providerCatalogCache,
-	);
+	const [providers, setProviders] = useState<Provider[]>([]);
+	const [providersLoading, setProvidersLoading] = useState(true);
 	const [providerCatalogError, setProviderCatalogError] = useState<
 		string | null
 	>(null);
@@ -129,10 +121,7 @@ export function SettingsView({
 					typeof next === "function"
 						? (next as (prev: Provider[]) => Provider[])(prev)
 						: next;
-				providerCatalogCache = {
-					providers: resolved,
-					fetchedAt: Date.now(),
-				};
+				primeProviderModelCatalog(resolved);
 				return resolved;
 			});
 		},
@@ -140,24 +129,11 @@ export function SettingsView({
 	);
 
 	const loadProviderCatalog = useCallback(async () => {
-		const now = Date.now();
-		if (
-			providerCatalogCache &&
-			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
-		) {
-			setProviders(providerCatalogCache.providers);
-			setProvidersLoading(false);
-			setProviderCatalogError(null);
-			return;
-		}
-
 		setProvidersLoading(true);
 		setProviderCatalogError(null);
 		try {
-			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-				"list_provider_catalog",
-			);
-			setProvidersWithCache(payload.providers);
+			const catalog = await loadProviderModelCatalog();
+			setProviders(catalog.providers);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -165,7 +141,7 @@ export function SettingsView({
 		} finally {
 			setProvidersLoading(false);
 		}
-	}, [setProvidersWithCache]);
+	}, []);
 
 	useEffect(() => {
 		if (activeNav !== "Models") {

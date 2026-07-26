@@ -65,6 +65,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { loadProviderModelCatalog } from "@/lib/provider-model-catalog";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -402,7 +403,6 @@ function ChatThreadPane({
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>({});
-	const [providersLoaded, setProvidersLoaded] = useState(false);
 	// History paths lead each merge: they are ordered by session recency, so
 	// stored or stale entries only append after them.
 	const [workspaces, setWorkspaces] = useState<string[]>(() =>
@@ -452,18 +452,12 @@ function ChatThreadPane({
 
 		async function loadProviderCredentials() {
 			try {
-				const payload = await desktopClient.invoke<{
-					providers?: Array<{
-						id?: string;
-						apiKey?: string;
-						baseUrl?: string;
-					}>;
-				}>("list_provider_catalog");
+				const payload = await loadProviderModelCatalog();
 				if (cancelled) {
 					return;
 				}
 				const next: Record<string, { apiKey: string }> = {};
-				for (const provider of payload.providers ?? []) {
+				for (const provider of payload.providers) {
 					const id = provider.id?.trim();
 					if (!id) {
 						continue;
@@ -475,8 +469,6 @@ function ChatThreadPane({
 				setProviderCredentials(next);
 			} catch {
 				// Keep current config if provider catalog cannot be read.
-			} finally {
-				if (!cancelled) setProvidersLoaded(true);
 			}
 		}
 
@@ -1092,8 +1084,7 @@ function ChatThreadPane({
 		],
 	);
 
-	const isAppReady =
-		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
+	const isAppReady = chatTransportState === "connected" && workspacesLoaded;
 
 	if (!isAppReady) {
 		return (
