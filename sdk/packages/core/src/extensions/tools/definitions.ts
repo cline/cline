@@ -4,7 +4,6 @@
  * Factory functions for creating the default tools.
  */
 
-import * as path from "node:path";
 import {
 	type AgentTool,
 	type AgentToolContext,
@@ -244,15 +243,14 @@ async function executeShellCommands(
  */
 export function createReadFilesTool(
 	executor: FileReadExecutor,
-	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs" | "cwd"> = {},
+	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
 ): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
-	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the content of text or image files at the provided absolute paths (relative paths are resolved against the working directory), or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
+			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
 			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
 			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
 			"Binary files that are not image and large files are not supported. " +
@@ -308,17 +306,9 @@ export function createReadFilesTool(
 						};
 					}
 
-					// Resolve relative paths against the session cwd here, not in the
-					// executor: the FileReadExecutor signature has no cwd parameter, and
-					// falling back to process.cwd() breaks hosts whose process does not
-					// run in the workspace (a VS Code extension host often has cwd "/").
-					const resolvedRequest = path.isAbsolute(request.path)
-						? request
-						: { ...request, path: path.resolve(cwd, request.path) };
-
 					try {
 						const content = await withTimeout(
-							executor(resolvedRequest, context),
+							executor(request, context),
 							timeoutMs,
 							`File read timed out after ${timeoutMs}ms`,
 						);

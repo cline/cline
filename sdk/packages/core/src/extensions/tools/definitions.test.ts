@@ -1398,36 +1398,6 @@ describe("default read_files tool", () => {
 		);
 	});
 
-	it("resolves relative paths against the configured cwd, not process.cwd()", async () => {
-		const execute = vi.fn(async () => "content");
-		const tool = createReadFilesTool(execute, { cwd: "/workspace/project" });
-
-		const result = await tool.execute(
-			{ files: ["src/app.ts", "/tmp/absolute.ts"] } as never,
-			{
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				iteration: 1,
-			},
-		);
-
-		expect(execute).toHaveBeenNthCalledWith(
-			1,
-			{ path: "/workspace/project/src/app.ts" },
-			expect.anything(),
-		);
-		expect(execute).toHaveBeenNthCalledWith(
-			2,
-			{ path: "/tmp/absolute.ts" },
-			expect.anything(),
-		);
-		// The result echoes the path the model asked for, not the resolved one.
-		expect(result.map((entry) => entry.query)).toEqual([
-			"src/app.ts",
-			"/tmp/absolute.ts",
-		]);
-	});
-
 	it("accepts string union inputs reading full file content", async () => {
 		const execute = vi.fn(async () => "full file");
 		const tool = createReadFilesTool(execute);
