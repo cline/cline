@@ -109,7 +109,7 @@ const primitiveCommands = {
 } satisfies Record<MarketplacePrimitiveType, string>;
 
 export type MarketplaceLocalInstalledItemRenderContext = {
-	matchedEntry?: MarketplaceEntry;
+	matchedEntries?: MarketplaceEntry[];
 };
 
 export type MarketplaceLocalInstalledItem = {
@@ -283,32 +283,41 @@ function EntryDetails({
 
 /**
  * Collapsible marketplace setup guidance (required env vars and install notes)
- * for locally installed items that were matched to a marketplace entry.
+ * for locally installed items that were matched to marketplace entries. When a
+ * local item matches several entries, each entry's guidance is shown under its
+ * own labeled trigger so no instructions are hidden or misattributed.
  */
 export function MarketplaceEntrySetupDetails({
-	entry,
+	entries,
 }: {
-	entry: MarketplaceEntry;
+	entries: MarketplaceEntry[];
 }) {
-	if (!entryHasSetupGuidance(entry)) {
+	const entriesWithGuidance = entries.filter(entryHasSetupGuidance);
+	if (entriesWithGuidance.length === 0) {
 		return null;
 	}
 
 	return (
-		<Collapsible className="grid gap-2">
-			<CollapsibleTrigger asChild>
-				<button
-					type="button"
-					className="group flex w-fit items-center gap-1 text-xs text-amber-700 transition-colors hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
-				>
-					<ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-					Marketplace setup instructions
-				</button>
-			</CollapsibleTrigger>
-			<CollapsibleContent className="grid gap-3">
-				<EntrySetupGuidance entry={entry} />
-			</CollapsibleContent>
-		</Collapsible>
+		<div className="grid gap-2">
+			{entriesWithGuidance.map((entry) => (
+				<Collapsible className="grid gap-2" key={entryKey(entry)}>
+					<CollapsibleTrigger asChild>
+						<button
+							type="button"
+							className="group flex w-fit items-center gap-1 text-xs text-amber-700 transition-colors hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+						>
+							<ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+							{entriesWithGuidance.length > 1
+								? `Marketplace setup instructions (${entry.name})`
+								: "Marketplace setup instructions"}
+						</button>
+					</CollapsibleTrigger>
+					<CollapsibleContent className="grid gap-3">
+						<EntrySetupGuidance entry={entry} />
+					</CollapsibleContent>
+				</Collapsible>
+			))}
+		</div>
 	);
 }
 
@@ -521,7 +530,7 @@ function TagButton({
 
 type MarketplaceLocalInstalledListItem = {
 	item: MarketplaceLocalInstalledItem;
-	matchedEntry?: MarketplaceEntry;
+	matchedEntries: MarketplaceEntry[];
 };
 
 function MarketplaceSection({
@@ -569,8 +578,8 @@ function MarketplaceSection({
 			{headerContent}
 			{totalCount > 0 ? (
 				<div className="grid min-w-0 gap-3">
-					{localInstalledItems.map(({ item, matchedEntry }) =>
-						item.render({ matchedEntry }),
+					{localInstalledItems.map(({ item, matchedEntries }) =>
+						item.render({ matchedEntries }),
 					)}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
@@ -715,17 +724,17 @@ export function MarketplaceView({
 		});
 	}, [primitiveEntries, query, tagLabels]);
 
-	const matchedEntryByLocalItemKey = useMemo(() => {
-		const matched = new Map<string, MarketplaceEntry>();
+	const matchedEntriesByLocalItemKey = useMemo(() => {
+		const matched = new Map<string, MarketplaceEntry[]>();
 		const installedMarketplaceEntries = primitiveEntries.filter((entry) =>
 			installedEntryKeys.has(entryKey(entry)),
 		);
 		for (const item of installedItems ?? []) {
-			const entry = installedMarketplaceEntries.find((candidate) =>
+			const entries = installedMarketplaceEntries.filter((candidate) =>
 				entryMatchesLocalItem(candidate, item),
 			);
-			if (entry) {
-				matched.set(item.key, entry);
+			if (entries.length > 0) {
+				matched.set(item.key, entries);
 			}
 		}
 		return matched;
@@ -734,11 +743,11 @@ export function MarketplaceView({
 	const matchedEntryKeys = useMemo(
 		() =>
 			new Set(
-				[...matchedEntryByLocalItemKey.values()].map((entry) =>
-					entryKey(entry),
+				[...matchedEntriesByLocalItemKey.values()].flatMap((entries) =>
+					entries.map((entry) => entryKey(entry)),
 				),
 			),
-		[matchedEntryByLocalItemKey],
+		[matchedEntriesByLocalItemKey],
 	);
 
 	// Installed marketplace entries that have a matching local item are rendered
@@ -792,10 +801,10 @@ export function MarketplaceView({
 			.map(
 				(item): MarketplaceLocalInstalledListItem => ({
 					item,
-					matchedEntry: matchedEntryByLocalItemKey.get(item.key),
+					matchedEntries: matchedEntriesByLocalItemKey.get(item.key) ?? [],
 				}),
 			)
-			.filter(({ item, matchedEntry }) => {
+			.filter(({ item, matchedEntries }) => {
 				if (normalizedQuery.length === 0) {
 					return true;
 				}
@@ -806,11 +815,11 @@ export function MarketplaceView({
 				) {
 					return true;
 				}
-				return matchedEntry
-					? entrySearchText(matchedEntry, tagLabels).includes(normalizedQuery)
-					: false;
+				return matchedEntries.some((entry) =>
+					entrySearchText(entry, tagLabels).includes(normalizedQuery),
+				);
 			});
-	}, [installedItems, matchedEntryByLocalItemKey, query, tagLabels]);
+	}, [installedItems, matchedEntriesByLocalItemKey, query, tagLabels]);
 
 	const installedStatusReady = installedStatusState === "ready";
 

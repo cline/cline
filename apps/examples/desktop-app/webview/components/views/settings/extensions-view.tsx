@@ -878,7 +878,7 @@ export function CustomizationSectionView({
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{item.type}
 					</Badge>
-					{context?.matchedEntry ? (
+					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
 						</Badge>
@@ -890,9 +890,9 @@ export function CustomizationSectionView({
 				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 					{item.path}
 				</p>
-				{context?.matchedEntry ? (
+				{context?.matchedEntries?.length ? (
 					<div className="mt-2 ml-7">
-						<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 					</div>
 				) : null}
 				<div className="mt-3">
@@ -930,7 +930,7 @@ export function CustomizationSectionView({
 						{plugin.name}
 					</h3>
 					<ScopeBadge scope={scope} />
-					{context?.matchedEntry ? (
+					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
 						</Badge>
@@ -991,9 +991,9 @@ export function CustomizationSectionView({
 						</p>
 					)}
 				</div>
-				{context?.matchedEntry ? (
+				{context?.matchedEntries?.length ? (
 					<div className="mt-2 ml-7">
-						<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 					</div>
 				) : null}
 				<div className="mt-3">
@@ -1028,7 +1028,7 @@ export function CustomizationSectionView({
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{server.transportType}
 					</Badge>
-					{context?.matchedEntry ? (
+					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
 						</Badge>
@@ -1049,9 +1049,9 @@ export function CustomizationSectionView({
 						{mcp.settingsPath}
 					</p>
 				) : null}
-				{context?.matchedEntry ? (
+				{context?.matchedEntries?.length ? (
 					<div className="mt-2 ml-7">
-						<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 					</div>
 				) : null}
 				<div className="mt-3">

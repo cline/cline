@@ -533,7 +533,7 @@ export function McpServersContent() {
 				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
 					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
 				</span>
-				{context?.matchedEntry ? (
+				{context?.matchedEntries?.length ? (
 					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
 						Marketplace
 					</span>
@@ -543,8 +543,8 @@ export function McpServersContent() {
 			</div>
 			<div className="mt-2.5 ml-5.5 grid gap-2">
 				{renderServerDetails(server)}
-				{context?.matchedEntry ? (
-					<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+				{context?.matchedEntries?.length ? (
+					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 				) : null}
 			</div>
 		</div>
