@@ -60,6 +60,23 @@ import type {
 	WebviewToolEvent,
 } from "../../webview-protocol";
 import { Composer } from "./components/Composer";
+import {
+	DriveCallStrip,
+	DriveHeaderControls,
+	DriveNarrationBanner,
+} from "./drive/DriveCallChrome";
+import {
+	DRIVE_DEMO_FIXTURE,
+	fixtureStageCards,
+} from "./drive/demoFixture";
+import { Stage } from "./drive/Stage";
+import { projectStageFromMessages } from "./drive/stageReducer";
+import {
+	DEFAULT_DRIVE_UI,
+	type DriveUiState,
+	drivePersonaSystemHint,
+	toNativeMode,
+} from "./drive/types";
 import { getVsCodeApi, postToHost } from "./vscode";
 
 type ChatMessage = WebviewChatMessage;
@@ -727,6 +744,20 @@ export default function Chat({
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [maxIterations, setMaxIterations] = useState("");
 	const [mode, setMode] = useState<"act" | "plan">("act");
+	const [drive, setDrive] = useState<DriveUiState>(() => {
+		try {
+			const state = getVsCodeApi()?.getState() as
+				| { driveUi?: DriveUiState }
+				| undefined;
+			if (state?.driveUi) {
+				return { ...DEFAULT_DRIVE_UI, ...state.driveUi };
+			}
+		} catch {
+			// ignore
+		}
+		return DEFAULT_DRIVE_UI;
+	});
+	const [driveJoinNote, setDriveJoinNote] = useState<string | null>(null);
 	const [reasonLevel, setReasonLevel] = useState<WebviewReasonLevel>("none");
 	const [enableTools, setEnableTools] = useState(true);
 	const [enableSpawn, setEnableSpawn] = useState(false);
@@ -1119,6 +1150,56 @@ export default function Chat({
 		});
 	};
 
+	useEffect(() => {
+		try {
+			const api = getVsCodeApi();
+			if (!api) {
+				return;
+			}
+			const state = (api.getState() as Record<string, unknown>) ?? {};
+			api.setState({ ...state, driveUi: drive });
+		} catch {
+			// ignore
+		}
+	}, [drive]);
+
+	const latestToolLabel = useMemo(() => {
+		for (let i = messages.length - 1; i >= 0; i -= 1) {
+			const events = messages[i]?.toolEvents;
+			if (events && events.length > 0) {
+				const last = events[events.length - 1];
+				return `${last.name} · ${last.state}`;
+			}
+		}
+		return drive.active ? "waiting for partner activity" : "idle";
+	}, [messages, drive.active]);
+
+	const liveStage = useMemo(
+		() =>
+			projectStageFromMessages(messages, {
+				sharer:
+					drive.stageSharer === "you"
+						? { kind: "human", participantId: "you" }
+						: {
+								kind: "agent",
+								participantId: drive.partnerName.toLowerCase(),
+							},
+			}),
+		[messages, drive.stageSharer, drive.partnerName],
+	);
+
+	/** Offline fixture when demo mode and the session has no stageable tools yet. */
+	const useStageFixture = drive.demo && liveStage.cards.length === 0;
+	const stageCards = useStageFixture
+		? fixtureStageCards()
+		: liveStage.cards;
+	const stageSharerLabel =
+		drive.stageSharer === "you"
+			? "You"
+			: useStageFixture
+				? `${DRIVE_DEMO_FIXTURE.room.partnerName} · ${DRIVE_DEMO_FIXTURE.room.name}`
+				: drive.partnerName;
+
 	const respondToApproval = (approvalId: string, approved: boolean) => {
 		setPendingApprovals((current) =>
 			current.map((item) =>
@@ -1206,6 +1287,48 @@ export default function Chat({
 						) : null}
 					</div>
 					<div className="flex items-center gap-2">
+						<DriveHeaderControls
+							disabled={isHydrating}
+							drive={drive}
+							onToggleDrive={() => {
+								setDrive((current) => {
+									const nextActive = !current.active;
+									if (nextActive) {
+										const partnerName = current.demo
+											? DRIVE_DEMO_FIXTURE.room.partnerName
+											: current.partnerName;
+										setDriveJoinNote(
+											current.demo
+												? DRIVE_DEMO_FIXTURE.narration
+												: `On the call. I am ${partnerName}. Share what you want to work on and I will drive.`,
+										);
+										setMode(toNativeMode(current.subMode));
+										return {
+											...current,
+											active: true,
+											partnerName,
+											stageLayout: current.demo
+												? true
+												: current.stageLayout,
+										};
+									}
+									setDriveJoinNote(null);
+									return {
+										...current,
+										active: false,
+										stageLayout: false,
+										handRaised: false,
+										stageSharer: "agent",
+									};
+								});
+							}}
+							onToggleStage={() => {
+								setDrive((current) => ({
+									...current,
+									stageLayout: !current.stageLayout,
+								}));
+							}}
+						/>
 						<Button
 							disabled={isHydrating}
 							onClick={() => {
@@ -1222,6 +1345,54 @@ export default function Chat({
 						</Button>
 					</div>
 				</div>
+				<DriveCallStrip
+					disabled={isHydrating}
+					drive={drive}
+					onHandToggle={() => {
+						setDrive((current) => {
+							const handRaised = !current.handRaised;
+							if (handRaised && sending) {
+								postToHost({ type: "abort" });
+								setStatus("Drive hand-raise: abort requested...");
+							}
+							return { ...current, handRaised };
+						});
+					}}
+					onMuteToggle={() => {
+						setDrive((current) => ({ ...current, muted: !current.muted }));
+					}}
+					onSubModeChange={(subMode) => {
+						setDrive((current) => ({ ...current, subMode }));
+						setMode(toNativeMode(subMode));
+					}}
+					onTakeStage={(who) => {
+						setDrive((current) => ({
+							...current,
+							stageSharer: who,
+							stageLayout: true,
+						}));
+					}}
+				/>
+				{driveJoinNote ? (
+					<DriveNarrationBanner
+						partnerName={drive.partnerName}
+						text={driveJoinNote}
+					/>
+				) : null}
+				<div
+					className={
+						drive.active && drive.stageLayout
+							? "flex min-h-0 flex-1"
+							: "flex min-h-0 flex-1 flex-col"
+					}
+				>
+				<div
+					className={
+						drive.active && drive.stageLayout
+							? "flex min-h-0 w-[42%] min-w-[280px] flex-col border-r"
+							: "flex min-h-0 flex-1 flex-col"
+					}
+				>
 				<Conversation className="min-h-0 flex-1">
 					<ConversationContent className="px-4 py-5">
 						{isHydrating ? (
@@ -1431,12 +1602,22 @@ export default function Chat({
 								enableTools,
 								maxIterations: parseMaxIterations(maxIterations),
 								model: model || undefined,
-								mode,
+								mode: drive.active ? toNativeMode(drive.subMode) : mode,
 								provider: provider || undefined,
 								reasonLevel: effectiveReasonLevel,
-								systemPrompt: systemPrompt.trim() || undefined,
+								systemPrompt: (() => {
+									const driveHint = drivePersonaSystemHint(drive);
+									const base = systemPrompt.trim();
+									if (driveHint && base) {
+										return `${driveHint}\n\n${base}`;
+									}
+									return driveHint || base || undefined;
+								})(),
 							},
 						});
+						if (driveJoinNote) {
+							setDriveJoinNote(null);
+						}
 					}}
 					onSystemPromptChange={setSystemPrompt}
 					onReasonLevelChange={setReasonLevel}
@@ -1448,6 +1629,43 @@ export default function Chat({
 					reasonLevel={effectiveReasonLevel}
 					workspaceRoot={defaults.workspaceRoot}
 				/>
+				</div>
+				{drive.active && drive.stageLayout ? (
+					<Stage
+						cards={stageCards}
+						demo={useStageFixture}
+						emptyHint={
+							useStageFixture
+								? "Demo fixture cards."
+								: "Waiting for partner tool activity on this session. Edit / command / test tools update this stage."
+						}
+						humanPin={
+							drive.stageSharer === "you"
+								? {
+										kind: "selection",
+										label: "Current selection (local stub)",
+									}
+								: null
+						}
+						nextLabel={
+							useStageFixture
+								? DRIVE_DEMO_FIXTURE.nextLabel
+								: "steer or approve next step"
+						}
+						nowLabel={
+							useStageFixture
+								? DRIVE_DEMO_FIXTURE.nowLabel
+								: sending
+									? latestToolLabel
+									: liveStage.cards.length > 0
+										? liveStage.cards[liveStage.cards.length - 1]?.title ??
+											"idle"
+										: "idle"
+						}
+						sharerLabel={stageSharerLabel}
+					/>
+				) : null}
+				</div>
 			</div>
 		</PromptInputProvider>
 	);

@@ -1,0 +1,36 @@
+{
+	"name": "@cline/drive",
+	"version": "0.0.65",
+	"description": "Pure Drive collaboration kernel — modes, narration, interrupt, room fold, host port",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/drive"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"browser": "./dist/index.js",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"dev": "bun build ./src/index.ts --outdir ./dist --target node --format esm --watch",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@cline/shared": "workspace:*"
+	},
+	"keywords": ["cline", "drive", "collaboration", "harness"],
+	"license": "Apache-2.0"
+}

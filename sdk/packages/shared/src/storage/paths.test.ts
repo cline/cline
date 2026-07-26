@@ -15,6 +15,9 @@ import {
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 	resolveDbDataDir,
+	resolveDriveConfigSearchPaths,
+	resolveDriveFacetsPath,
+	resolveDriveRegistryPath,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
@@ -276,5 +279,21 @@ describe("chat workspace paths", () => {
 		"/home/user/.cline/data/workspaces",
 	])("rejects non-chat workspace path %s", (path) => {
 		expect(isChatWorkspacePath(path)).toBe(false);
+	});
+
+	it("resolves Drive config paths workspace-over-user", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DIR = "/tmp/cline-home";
+
+		expect(resolveDriveRegistryPath("user")).toBe(
+			join("/tmp/cline-home", "drive", "registry.v1.json"),
+		);
+		expect(resolveDriveFacetsPath("workspace", "/proj")).toBe(
+			join("/proj", ".cline", "drive", "facets.v1.json"),
+		);
+		expect(resolveDriveConfigSearchPaths("/proj")).toEqual([
+			join("/proj", ".cline", "drive"),
+			join("/tmp/cline-home", "drive"),
+		]);
 	});
 });

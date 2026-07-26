@@ -20,6 +20,9 @@ interface SessionContextValue {
 	hasSubmitted: boolean;
 	uiMode: AgentMode;
 	autoApproveAll: boolean;
+	driveActive: boolean;
+	driveSubMode: "plan" | "agent" | "ask" | "debug";
+	drivePartnerName: string;
 	compactionMode: CliCompactionMode;
 	lastTotalTokens: number;
 	lastTotalCost: number;
@@ -41,6 +44,8 @@ interface SessionContextValue {
 	setUiMode: (mode: AgentMode) => void;
 	toggleMode: () => void;
 	toggleAutoApprove: () => void;
+	toggleDrive: () => void;
+	setDriveSubMode: (mode: "plan" | "agent" | "ask" | "debug") => void;
 	setCompactionMode: (mode: CliCompactionMode) => void;
 	requestExit: () => void;
 	clearEntries: () => void;
@@ -206,6 +211,22 @@ export function SessionProvider(props: {
 		_setAutoApproveAll(next);
 	}, [onAutoApproveChange]);
 
+	const [driveActive, setDriveActive] = useState(false);
+	const [driveSubMode, setDriveSubMode] = useState<
+		"plan" | "agent" | "ask" | "debug"
+	>("agent");
+	const drivePartnerName = "Adam";
+
+	const toggleDrive = useCallback(() => {
+		setDriveActive((prev) => {
+			const next = !prev;
+			if (next) {
+				setUiMode(driveSubMode === "plan" || driveSubMode === "ask" ? "plan" : "act");
+			}
+			return next;
+		});
+	}, [driveSubMode, setUiMode]);
+
 	const setCompactionMode = useCallback(
 		(mode: CliCompactionMode) => {
 			_setCompactionMode(mode);
@@ -256,6 +277,9 @@ export function SessionProvider(props: {
 		hasSubmitted,
 		uiMode,
 		autoApproveAll,
+		driveActive,
+		driveSubMode,
+		drivePartnerName,
 		compactionMode,
 		lastTotalTokens,
 		lastTotalCost,
@@ -275,6 +299,8 @@ export function SessionProvider(props: {
 		setUiMode,
 		toggleMode,
 		toggleAutoApprove,
+		toggleDrive,
+		setDriveSubMode,
 		setCompactionMode,
 		requestExit,
 		clearEntries,

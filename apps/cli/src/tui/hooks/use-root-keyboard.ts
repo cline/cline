@@ -252,6 +252,11 @@ export function useRootKeyboard(input: {
 			return;
 		}
 
+		if (key.ctrl && key.shift && key.name === "d") {
+			session.toggleDrive();
+			return;
+		}
+
 		if (key.ctrl && key.name === "d") {
 			if (!session.isRunning && !hasInputText) {
 				input.onExit();

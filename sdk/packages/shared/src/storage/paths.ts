@@ -34,6 +34,9 @@ export const RULES_CONFIG_DIRECTORY_NAME = "rules";
 export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
+export const DRIVE_CONFIG_DIRECTORY_NAME = "drive";
+export const DRIVE_REGISTRY_FILE_NAME = "registry.v1.json";
+export const DRIVE_FACETS_FILE_NAME = "facets.v1.json";
 
 /**
  * Shared workspace for all sessions started without a `cwd`/`workspaceRoot`.
@@ -362,6 +365,58 @@ export function resolveAgentConfigSearchPaths(
 			? join(workspacePath, CLINE_CONFIG_DIR, AGENT_CONFIG_DIRECTORY_NAME)
 			: "",
 		resolveAgentsConfigDirPath(),
+	]);
+}
+
+export type DriveConfigScope = "user" | "workspace";
+
+function resolveDriveConfigDir(
+	scope: DriveConfigScope,
+	workspaceRoot?: string,
+): string {
+	if (scope === "workspace") {
+		if (!workspaceRoot) {
+			throw new Error(
+				"resolveDriveConfigDir: workspace scope requires workspaceRoot",
+			);
+		}
+		return join(workspaceRoot, CLINE_CONFIG_DIR, DRIVE_CONFIG_DIRECTORY_NAME);
+	}
+	return join(resolveClineDir(), DRIVE_CONFIG_DIRECTORY_NAME);
+}
+
+/** Path to registry.v1.json for a given scope. */
+export function resolveDriveRegistryPath(
+	scope: DriveConfigScope,
+	workspaceRoot?: string,
+): string {
+	return join(
+		resolveDriveConfigDir(scope, workspaceRoot),
+		DRIVE_REGISTRY_FILE_NAME,
+	);
+}
+
+/** Path to facets.v1.json for a given scope. */
+export function resolveDriveFacetsPath(
+	scope: DriveConfigScope,
+	workspaceRoot?: string,
+): string {
+	return join(
+		resolveDriveConfigDir(scope, workspaceRoot),
+		DRIVE_FACETS_FILE_NAME,
+	);
+}
+
+/**
+ * Search / merge order for Drive durable config: workspace then user.
+ * Callers merge with workspace-over-user semantics.
+ */
+export function resolveDriveConfigSearchPaths(workspaceRoot?: string): string[] {
+	return dedupePaths([
+		workspaceRoot
+			? join(workspaceRoot, CLINE_CONFIG_DIR, DRIVE_CONFIG_DIRECTORY_NAME)
+			: "",
+		join(resolveClineDir(), DRIVE_CONFIG_DIRECTORY_NAME),
 	]);
 }
 

@@ -153,6 +153,10 @@ export function ChatView(props: {
 					maxInputTokens={maxInputTokens}
 					uiMode={session.uiMode}
 					autoApproveAll={session.autoApproveAll}
+					driveActive={session.driveActive}
+					driveSubMode={session.driveSubMode}
+					drivePartnerName={session.drivePartnerName}
+					onToggleDrive={session.toggleDrive}
 					workspaceName={
 						config.workspaceRoot
 							? (config.workspaceRoot.split("/").pop() ?? "")

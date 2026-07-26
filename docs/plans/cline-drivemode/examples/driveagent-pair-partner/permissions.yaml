@@ -1,0 +1,5 @@
+presetIntent: standard
+# Effective preset is still capPreset()'d at seat time
+approvalHooks:
+  - highImpact
+notes: Intent only. Hub policy owns enforcement.

@@ -162,7 +162,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
@@ -679,6 +679,13 @@
         "posthog-node",
       ],
     },
+    "sdk/packages/drive": {
+      "name": "@cline/drive",
+      "version": "0.0.65",
+      "dependencies": {
+        "@cline/shared": "workspace:*",
+      },
+    },
     "sdk/packages/llms": {
       "name": "@cline/llms",
       "version": "0.0.65",
@@ -1046,6 +1053,8 @@
     "@cline/code": ["@cline/code@workspace:apps/examples/desktop-app"],
 
     "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
+
+    "@cline/drive": ["@cline/drive@workspace:sdk/packages/drive"],
 
     "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
 

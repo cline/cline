@@ -37,6 +37,7 @@ export {
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type { AutomationEventEnvelope } from "./cron";
+export * from "./drive";
 export type {
 	ClientContext,
 	ClientName,

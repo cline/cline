@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Drivecode overview canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --brand-purple: #9F58FA;
+    --brand-purple-text: #B98AFF;
+    --bg: #0A0A0A;
+    --panel: #101013;
+    --raised: #12131A;
+    --text: #FFFFFF;
+    --text-2: #9CA3AF;
+    --text-3: #6B7280;
+    --line: rgba(255, 255, 255, 0.10);
+    --r: 9px;
+    --hair: 0.8px;
+    --ui: "Schibsted Grotesk", system-ui, sans-serif;
+    --display: "DM Sans", system-ui, sans-serif;
+    --grotesk: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1000px 500px at 10% -10%, color-mix(in srgb, var(--brand-purple) 22%, transparent), transparent 60%),
+      radial-gradient(800px 400px at 90% 0%, color-mix(in srgb, #5487C8 16%, transparent), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 14px/1.55 var(--ui);
+  }
+  .shell { max-width: 1100px; margin: 0 auto; padding: 28px 18px 48px; }
+  .brand {
+    font: 700 28px/1.1 var(--display);
+    letter-spacing: -0.02em;
+  }
+  .brand em { font-style: normal; color: var(--brand-purple-text); }
+  .lede { margin-top: 10px; color: var(--text-2); max-width: 62ch; }
+  .nav {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 22px 0 18px;
+  }
+  .nav button {
+    border: var(--hair) solid var(--line);
+    background: var(--raised);
+    color: var(--text-2);
+    border-radius: 7px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font: 500 12px/1 var(--ui);
+  }
+  .nav button.on {
+    color: #fff;
+    border-color: var(--brand-purple);
+    background: color-mix(in srgb, var(--brand-purple) 18%, transparent);
+  }
+  .page { display: none; animation: rise 280ms ease both; }
+  .page.on { display: block; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  h2 {
+    font: 700 20px/1.2 var(--display);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font: 500 10px/1 var(--grotesk);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r);
+    padding: 14px;
+  }
+  .card h3 { font: 600 14px/1.3 var(--ui); margin-bottom: 6px; }
+  .card p, .card li { color: var(--text-2); font-size: 13px; }
+  .card ul { padding-left: 16px; }
+  .card li { margin: 3px 0; }
+  code {
+    font: 400 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: #D1D5DB;
+  }
+  a { color: var(--brand-purple-text); }
+  .foot {
+    margin-top: 22px;
+    color: var(--text-3);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="eyebrow">In-repo overview · replaces cline-drivecode-overview.canvas.tsx</div>
+  <div class="brand">Drive<em>code</em></div>
+  <p class="lede">
+    Pair-call Drive inside Cline. Hub is the single room writer. <code>@cline/drive</code> is the portable kernel.
+    This page is the durable twin of the old out-of-repo Cursor overview canvas.
+  </p>
+
+  <div class="nav" id="nav">
+    <button data-page="architecture" class="on" type="button">Architecture</button>
+    <button data-page="workflows" type="button">Workflows</button>
+    <button data-page="platform" type="button">Platform / Config</button>
+    <button data-page="drive-tab" type="button">Drive tab</button>
+    <button data-page="sdk" type="button">SDK</button>
+    <button data-page="waves" type="button">Parallel waves</button>
+  </div>
+
+  <section class="page on" id="architecture">
+    <div class="eyebrow">Page 1</div>
+    <h2>Architecture</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Boundaries</h3>
+        <ul>
+          <li>Hub daemon <code>ws://127.0.0.1:25463</code> owns room writes</li>
+          <li>Webview / CLI project events; they do not open a second daemon</li>
+          <li>Stage is events-first; WebRTC comes later</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Domain</h3>
+        <ul>
+          <li>Room snapshot + Drive events in <code>@cline/shared</code></li>
+          <li><code>reduceRoom</code> / <code>projectStage</code> in <code>@cline/drive</code></li>
+          <li><code>RosterPack</code> is seating, not Cline Team</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Plans</h3>
+        <p><a href="../../plans/cline-drivemode/01-architecture.md">01-architecture.md</a> · <a href="../../plans/HANDOFF-drivecode.md">HANDOFF-drivecode.md</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="workflows">
+    <div class="eyebrow">Page 2</div>
+    <h2>Workflows</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Call loop</h3>
+        <ul>
+          <li>Join room → presence strip → sub-mode</li>
+          <li>Mute / raise hand (interrupt)</li>
+          <li>Address one / many / everyone / pack</li>
+          <li>Stage last-event-wins cards</li>
+          <li>Leave / handoff</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Source</h3>
+        <p>39 workflows in <a href="../../plans/cline-drivemode/05-workflows.md">05-workflows.md</a>. Task order in <a href="../../plans/cline-drivemode/TASK-GRAPH.md">TASK-GRAPH.md</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="platform">
+    <div class="eyebrow">Page 3</div>
+    <h2>Platform / Config</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Facets</h3>
+        <p>34-facet inventory, privacy-strict defaults, AgentProfile as appearance only. Prompts and tools stay in Cline agent config / <code>.driveagent/</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Source</h3>
+        <p><a href="../../plans/cline-drivemode/06-platform-config.md">06-platform-config.md</a> · Phase 0 facet merge in <code>sdk/packages/shared/src/drive/facets/</code></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="drive-tab">
+    <div class="eyebrow">Page 4</div>
+    <h2>Drive tab</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Locked IA</h3>
+        <p>Discord rooms + roster inside Slack-like single-workspace chrome. Chat Join is a shortcut into the active room.</p>
+      </div>
+      <div class="card">
+        <h3>Demo</h3>
+        <p>Open the interactive prototype: <a href="drive-tab-discord-slack.html">drive-tab-discord-slack.html</a>. Runbook: <a href="DEMO.md">DEMO.md</a>.</p>
+      </div>
+      <div class="card">
+        <h3>Hub scaffold</h3>
+        <p><code>DriveCallChrome.tsx</code> + demo fixture cards in Chat. Local UI only.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="sdk">
+    <div class="eyebrow">Page 5</div>
+    <h2>SDK</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>@cline/drive</h3>
+        <ul>
+          <li>Host port + capability descriptor</li>
+          <li>Narration / interrupt policies</li>
+          <li>Room fold, stage projection, facets</li>
+          <li>Parallel work waves (<code>DriveWaveRunner</code>)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Plans</h3>
+        <p><a href="../../plans/drivecode-sdk/02-architecture.md">drivecode-sdk/02-architecture.md</a> · package under <code>sdk/packages/drive/</code></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="waves">
+    <div class="eyebrow">Page 6</div>
+    <h2>Parallel waves</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Work items</h3>
+        <p><code>DriveWorkItem</code> with <code>dependsOn</code>. Ready work runs in parallel up to the adaptive concurrency window.</p>
+      </div>
+      <div class="card">
+        <h3>Review gates</h3>
+        <p>Pre / post / emergency: continue, pause, abort, inject, redirect. Lives in <code>@cline/drive</code> waves module.</p>
+      </div>
+      <div class="card">
+        <h3>Spec</h3>
+        <p><a href="../../plans/cline-drivemode/features/DRV-PARALLEL-WAVES.md">DRV-PARALLEL-WAVES.md</a></p>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    Brand tokens from <a href="CLINE-BRAND-TOKENS.md">CLINE-BRAND-TOKENS.md</a>.
+    Prefer the Cursor canvas <code>drivecode-overview.canvas.tsx</code> (Agents Window) or this HTML twin over any Windows absolute path.
+  </p>
+</div>
+<script>
+  const pages = [...document.querySelectorAll(".page")];
+  const buttons = [...document.querySelectorAll("#nav button")];
+  function show(id) {
+    pages.forEach((p) => p.classList.toggle("on", p.id === id));
+    buttons.forEach((b) => b.classList.toggle("on", b.dataset.page === id));
+    history.replaceState(null, "", "#" + id);
+  }
+  buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.page)));
+  const hash = location.hash.slice(1);
+  if (hash && document.getElementById(hash)) show(hash);
+</script>
+</body>
+</html>
