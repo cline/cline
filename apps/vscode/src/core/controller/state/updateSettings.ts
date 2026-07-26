@@ -188,12 +188,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			setCompactionStrategyGlobally(strategy)
 		}
 
-		// Update custom prompt choice
-		if (request.customPrompt !== undefined) {
-			const value = request.customPrompt === "compact" ? "compact" : undefined
-			controller.stateManager.setGlobalState("customPrompt", value)
-		}
-
 		// Update browser settings
 		if (request.browserSettings !== undefined) {
 			// Get current browser settings to preserve fields not in the request

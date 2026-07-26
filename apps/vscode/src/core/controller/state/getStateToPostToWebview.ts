@@ -63,7 +63,6 @@ export async function getStateToPostToWebview(controller: {
 	const isNewUser = stateManager.getGlobalStateKey("isNewUser")
 	const welcomeViewCompleted = !!stateManager.getGlobalStateKey("welcomeViewCompleted")
 
-	const customPrompt = stateManager.getGlobalSettingsKey("customPrompt")
 	const mcpResponsesCollapsed = stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 	const maxConsecutiveMistakes = stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
 	const favoritedModelIds = stateManager.getGlobalStateKey("favoritedModelIds")
@@ -152,7 +151,6 @@ export async function getStateToPostToWebview(controller: {
 		onboardingModels,
 		mcpResponsesCollapsed,
 		maxConsecutiveMistakes,
-		customPrompt,
 		taskHistory: processedTaskHistory,
 		shouldShowAnnouncement,
 		favoritedModelIds,

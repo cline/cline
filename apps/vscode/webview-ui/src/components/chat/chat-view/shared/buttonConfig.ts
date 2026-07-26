@@ -337,7 +337,6 @@ function isInertStatusMessage(message: ClineMessage): boolean {
 
 	return [
 		"api_req_finished",
-		"api_req_retried",
 		"deleted_api_reqs",
 		"mcp_server_request_started",
 		"subagent_usage",

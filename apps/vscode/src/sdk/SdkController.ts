@@ -42,6 +42,7 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
@@ -671,7 +672,14 @@ export class Controller {
 
 			const apiConfig = this.stateManager.getApiConfiguration()
 			const activeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			return activeProvider === event.providerId.toString()
+			if (activeProvider === undefined) {
+				return false
+			}
+			// Normalize both sides so stale SDK spellings in cached state
+			// (e.g. `openai-compatible`) still match the parse-normalized
+			// event id and model-only commits keep the lightweight
+			// in-session update path.
+			return toLegacyApiProvider(activeProvider) === toLegacyApiProvider(event.providerId.toString())
 		} catch {
 			return false
 		}

@@ -1,6 +1,5 @@
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
@@ -124,7 +123,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const slicedMessages = displayMessages.slice(1)
 		// Only combine hook sequences if hooks are enabled
 		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
-		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
+		return combineApiRequests(combineCommandSequences(withHooks))
 	}, [displayMessages, hooksEnabled])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])

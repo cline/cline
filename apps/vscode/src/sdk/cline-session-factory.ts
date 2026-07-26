@@ -29,6 +29,7 @@ import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
@@ -666,9 +667,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		const stateManager = StateManager.get()
 		apiConfig = stateManager.getApiConfiguration()
 
-		// Resolve the provider for the current mode
+		// Resolve the provider for the current mode. State written by older
+		// builds or other hosts may carry SDK catalog spellings (e.g.
+		// `openai-compatible`); fold them back to the legacy spelling the
+		// provider-keyed maps below are keyed by.
 		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		providerId = modeProvider
+		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
 
 		if (providerId) {
 			// Resolve API key
@@ -721,7 +725,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {
-				providerId = lastUsed.provider
+				// providers.json stores SDK provider ids (e.g. `openai-compatible`);
+				// normalize to the legacy spelling used across this factory.
+				providerId = toLegacyApiProvider(lastUsed.provider)
 				modelId = lastUsed.model
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
