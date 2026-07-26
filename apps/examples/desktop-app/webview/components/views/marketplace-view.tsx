@@ -323,6 +323,7 @@ export function MarketplaceEntrySetupDetails({
 }
 
 function MarketplaceEntryCard({
+	actionHidden = false,
 	actionState,
 	entry,
 	expanded,
@@ -336,6 +337,7 @@ function MarketplaceEntryCard({
 	sourceLabel,
 	tagLabels,
 }: {
+	actionHidden?: boolean;
 	actionState: EntryActionState | undefined;
 	entry: MarketplaceEntry;
 	expanded: boolean;
@@ -407,14 +409,21 @@ function MarketplaceEntryCard({
 	);
 	const content = (
 		<>
-			<div
-				className="absolute top-4 right-4"
-				data-marketplace-entry-interactive
-			>
-				{actionButton}
-			</div>
+			{!actionHidden ? (
+				<div
+					className="absolute top-4 right-4"
+					data-marketplace-entry-interactive
+				>
+					{actionButton}
+				</div>
+			) : null}
 			<div className="min-w-0">
-				<div className="flex min-w-0 items-center gap-2 pr-28">
+				<div
+					className={cn(
+						"flex min-w-0 items-center gap-2",
+						!actionHidden && "pr-28",
+					)}
+				>
 					<EntryIcon className="h-4 w-4 shrink-0 text-primary" />
 					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{entry.name}
@@ -535,6 +544,7 @@ type MarketplaceLocalInstalledListItem = {
 };
 
 function MarketplaceSection({
+	actionHiddenEntryKeys,
 	actionStates,
 	emptyMessage,
 	entries,
@@ -552,6 +562,7 @@ function MarketplaceSection({
 	tagLabels,
 	title,
 }: {
+	actionHiddenEntryKeys?: Set<string>;
 	actionStates: Map<string, EntryActionState>;
 	emptyMessage: string;
 	entries: MarketplaceEntry[];
@@ -586,6 +597,7 @@ function MarketplaceSection({
 						const key = entryKey(entry);
 						return (
 							<MarketplaceEntryCard
+								actionHidden={actionHiddenEntryKeys?.has(key) ?? false}
 								actionState={actionStates.get(key)}
 								entry={entry}
 								expanded={expandedEntryKey === key}
@@ -636,6 +648,10 @@ export function MarketplaceView({
 	>(() => new Map());
 	const [installedStatusState, setInstalledStatusState] =
 		useState<InstalledStatusState>("loading");
+	// Bumped on every optimistic installed-keys mutation so that recheck
+	// responses issued before the mutation are discarded instead of clobbering
+	// the newer optimistic state.
+	const installedStatusVersionRef = useRef(0);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -677,6 +693,7 @@ export function MarketplaceView({
 			return;
 		}
 		let cancelled = false;
+		const requestVersion = installedStatusVersionRef.current;
 		void (async () => {
 			try {
 				const response =
@@ -684,7 +701,10 @@ export function MarketplaceView({
 						"list_marketplace_installed_entries",
 						{ entries: catalog.entries },
 					);
-				if (!cancelled) {
+				if (
+					!cancelled &&
+					installedStatusVersionRef.current === requestVersion
+				) {
 					setInstalledEntryKeys(new Set(response.installedKeys));
 				}
 			} catch {
@@ -777,7 +797,9 @@ export function MarketplaceView({
 	);
 
 	// Installed entry keys that are corroborated by at least one local item,
-	// regardless of which single item the entry was assigned to above.
+	// regardless of which single item the entry was assigned to above. Used to
+	// reconcile removals and to hide the fallback card's uninstall button for
+	// ambiguous entries whose uninstall is already offered by local cards.
 	const locallyEvidencedEntryKeys = useMemo(() => {
 		const items = installedItems ?? [];
 		return new Set(
@@ -805,6 +827,7 @@ export function MarketplaceView({
 		if (orphanedKeys.length === 0) {
 			return;
 		}
+		installedStatusVersionRef.current += 1;
 		setInstalledEntryKeys((current) => {
 			const next = new Set(current);
 			for (const key of orphanedKeys) {
@@ -934,10 +957,12 @@ export function MarketplaceView({
 	};
 
 	const markEntryInstalled = (entry: MarketplaceEntry) => {
+		installedStatusVersionRef.current += 1;
 		setInstalledEntryKeys((current) => new Set(current).add(entryKey(entry)));
 	};
 
 	const markEntryUninstalled = (entry: MarketplaceEntry) => {
+		installedStatusVersionRef.current += 1;
 		setInstalledEntryKeys((current) => {
 			const next = new Set(current);
 			next.delete(entryKey(entry));
@@ -1073,6 +1098,7 @@ export function MarketplaceView({
 					</div>
 
 					<MarketplaceSection
+						actionHiddenEntryKeys={locallyEvidencedEntryKeys}
 						actionStates={actionStates}
 						emptyMessage={pageDetails.emptyInstalled}
 						entries={installedEntries}
