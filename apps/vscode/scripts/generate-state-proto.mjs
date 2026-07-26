@@ -312,6 +312,46 @@ function parseProtoMessageReservedStatements(protoContent, messageName) {
 }
 
 /**
+ * Extract the set of field numbers covered by `reserved` statements
+ * (single numbers, comma lists, and `N to M` ranges; name reservations are ignored).
+ */
+function parseReservedFieldNumbers(reservedStatements) {
+	const reservedNumbers = new Set()
+
+	for (const statement of reservedStatements) {
+		// Strip the keyword, trailing semicolon, and any comment
+		const body = statement
+			.replace(/^reserved\b/, "")
+			.replace(/;.*$/, "")
+			.trim()
+
+		// Name reservations (quoted) carry no numbers
+		if (body.includes('"') || body.includes("'")) {
+			continue
+		}
+
+		for (const part of body.split(",")) {
+			const rangeMatch = part.trim().match(/^(\d+)\s+to\s+(\d+|max)$/)
+			if (rangeMatch) {
+				const start = Number.parseInt(rangeMatch[1], 10)
+				// "to max" reserves everything upward; represent with Infinity
+				const end = rangeMatch[2] === "max" ? Number.POSITIVE_INFINITY : Number.parseInt(rangeMatch[2], 10)
+				if (end === Number.POSITIVE_INFINITY) {
+					throw new Error(`"reserved ${part.trim()}" leaves no field numbers available for new fields`)
+				}
+				for (let n = start; n <= end; n++) {
+					reservedNumbers.add(n)
+				}
+			} else if (/^\d+$/.test(part.trim())) {
+				reservedNumbers.add(Number.parseInt(part.trim(), 10))
+			}
+		}
+	}
+
+	return reservedNumbers
+}
+
+/**
  * Load field number mappings and reserved statements from existing proto file
  */
 async function loadFieldNumbersFromProto() {
@@ -333,9 +373,10 @@ async function loadFieldNumbersFromProto() {
 }
 
 /**
- * Assign field numbers, preserving existing assignments and adding new ones
+ * Assign field numbers, preserving existing assignments and adding new ones.
+ * Reserved numbers are never handed out to new fields.
  */
-function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
+function assignFieldNumbers(fields, existingNumbers, startNumber = 1, reservedNumbers = new Set()) {
 	const result = {}
 	let nextNumber = startNumber
 
@@ -364,13 +405,21 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 
 		const existingFieldNumber = normalizedFieldNumber ?? rawFieldNumber
 		if (existingFieldNumber !== undefined) {
+			if (reservedNumbers.has(existingFieldNumber)) {
+				throw new Error(
+					`Field "${field.name}" uses number ${existingFieldNumber}, which is also covered by a reserved statement. Remove the field or the reservation.`,
+				)
+			}
 			result[field.name] = existingFieldNumber
 		}
 	}
 
-	// Assign new numbers for new fields
+	// Assign new numbers for new fields, skipping reserved numbers
 	for (const field of fields) {
 		if (result[field.name] === undefined) {
+			while (reservedNumbers.has(nextNumber)) {
+				nextNumber++
+			}
 			result[field.name] = nextNumber++
 		}
 	}
@@ -452,13 +501,19 @@ async function main() {
 	// Load existing field numbers from proto file
 	const existingFieldNumbers = await loadFieldNumbersFromProto()
 
-	// Assign field numbers (preserving existing, adding new ones)
+	// Assign field numbers (preserving existing, adding new ones, never reusing reserved ones)
 	const secretsFieldNumbers = assignFieldNumbers(
 		secretsKeys.map((k) => ({ name: k })),
 		existingFieldNumbers.Secrets,
 		1,
+		parseReservedFieldNumbers(existingFieldNumbers.SecretsReserved),
 	)
-	const settingsFieldNumbers = assignFieldNumbers(settingsFields, existingFieldNumbers.Settings, 1)
+	const settingsFieldNumbers = assignFieldNumbers(
+		settingsFields,
+		existingFieldNumbers.Settings,
+		1,
+		parseReservedFieldNumbers(existingFieldNumbers.SettingsReserved),
+	)
 
 	// Generate messages
 	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers, existingFieldNumbers.SecretsReserved)
