@@ -18,5 +18,12 @@ const SDK_PROVIDER_ID_TO_LEGACY_API_PROVIDER: Partial<Record<string, ApiProvider
 } satisfies Partial<Record<string, ApiProvider>>
 
 export function toLegacyApiProvider(providerId: string): ApiProvider {
-	return SDK_PROVIDER_ID_TO_LEGACY_API_PROVIDER[providerId] ?? (providerId as ApiProvider)
+	// Alias lookup is case-insensitive (like `parseProviderId`) so ids that
+	// bypassed parse-time normalization still fold; unknown ids pass through
+	// with their original casing preserved.
+	return (
+		SDK_PROVIDER_ID_TO_LEGACY_API_PROVIDER[providerId] ??
+		SDK_PROVIDER_ID_TO_LEGACY_API_PROVIDER[providerId.toLowerCase()] ??
+		(providerId as ApiProvider)
+	)
 }
