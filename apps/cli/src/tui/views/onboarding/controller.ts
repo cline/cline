@@ -29,7 +29,7 @@ import {
 	loadIndividualSubscriptionPlansFromProviderSettings,
 } from "../../cline-account";
 import {
-	buildClineModelEntries,
+	buildFeaturedModelEntries,
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
@@ -58,6 +58,7 @@ import { useOnboardingKeyboard } from "./keyboard";
 import {
 	CLINE_PASS_SUBSCRIPTION_OPTIONS,
 	type ClinePassSubscriptionStatus,
+	DEFAULT_THINKING_LEVEL_INDEX,
 	getMainMenuOptions,
 	type ModelEntry,
 	type OnboardingResult,
@@ -205,11 +206,14 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
 
-	// Cline featured model picker
+	// Cline featured model picker (ClinePass gets Subscribed/Free sections)
 	const recommended = useClineRecommendedModels();
 	const clineEntries: ClineModelPickerEntry[] = useMemo(
-		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
-		[recommended.data],
+		() =>
+			recommended.data
+				? buildFeaturedModelEntries(activeProviderId, recommended.data)
+				: [],
+		[recommended.data, activeProviderId],
 	);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
@@ -220,24 +224,43 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	>(undefined);
 
 	useEffect(() => {
-		getLocalProviderModels("cline")
-			.then(({ models }) => {
-				const ids = new Set<string>();
-				for (const m of models) {
+		// The featured picker serves both cline and cline-pass, so pool reasoning
+		// support and display names from both catalogs
+		void Promise.allSettled(
+			["cline", "cline-pass"].map((providerId) =>
+				getLocalProviderModels(providerId),
+			),
+		).then((results) => {
+			const ids = new Set<string>();
+			for (const result of results) {
+				if (result.status !== "fulfilled") continue;
+				for (const m of result.value.models) {
 					if (m.supportsReasoning) ids.add(m.id);
 				}
-				setClineModelReasoningIds(ids);
-			})
-			.catch(() => {});
-		resolveProviderConfig("cline")
-			.then((resolved) => {
-				if (resolved?.knownModels) setClineKnownModels(resolved.knownModels);
-			})
-			.catch(() => {});
+			}
+			setClineModelReasoningIds(ids);
+		});
+		void Promise.allSettled(
+			["cline", "cline-pass"].map((providerId) =>
+				resolveProviderConfig(providerId),
+			),
+		).then((results) => {
+			const merged: Record<string, unknown> = {};
+			for (const result of results) {
+				if (result.status === "fulfilled" && result.value?.knownModels) {
+					Object.assign(merged, result.value.knownModels);
+				}
+			}
+			if (Object.keys(merged).length > 0) {
+				setClineKnownModels(merged);
+			}
+		});
 	}, []);
 
 	// Thinking level
-	const [thinkingSelected, setThinkingSelected] = useState(0);
+	const [thinkingSelected, setThinkingSelected] = useState(
+		DEFAULT_THINKING_LEVEL_INDEX,
+	);
 	const [selectedModelName, setSelectedModelName] = useState("");
 	const [selectedModelId, setSelectedModelId] = useState("");
 	const [selectedThinking, setSelectedThinking] = useState(false);
@@ -641,7 +664,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			const entry = modelEntries.find((m) => m.id === modelId);
 			if (entry?.supportsReasoning) {
 				setSelectedModelName(entry.name);
-				setThinkingSelected(0);
+				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
 				setStep("thinking_level");
 			} else {
 				setStep("done");
@@ -691,7 +714,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
-				setThinkingSelected(0);
+				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
 				setStep("thinking_level");
 			} else {
 				setStep("done");

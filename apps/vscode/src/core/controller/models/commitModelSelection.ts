@@ -24,7 +24,7 @@ export async function commitModelSelection(
 
 	if (hasProviderCatalogStateController(controller)) {
 		controller.stateManager.setGlobalStateBatch({
-			[`${mode}ModeApiProvider`]: providerId,
+			[`${mode}ModeApiProvider`]: toLegacyApiProvider(providerId.toString()),
 			[getProviderModelIdKey(toLegacyApiProvider(providerId.toString()), mode)]: selection.modelId,
 		})
 		await controller.stateManager.flushPendingState?.()
@@ -32,6 +32,11 @@ export async function commitModelSelection(
 		if (nextApiConfiguration) {
 			controller.handleApiConfigurationChanged?.(previousApiConfiguration ?? {}, nextApiConfiguration)
 		}
+		// A model-only commit changes state the chat view renders (the model
+		// label under the input reads `apiConfiguration` from pushed state),
+		// so push the updated state instead of waiting for an unrelated
+		// action (e.g. sending a message) to refresh it.
+		await controller.postStateToWebview?.()
 	}
 
 	return Empty.create()

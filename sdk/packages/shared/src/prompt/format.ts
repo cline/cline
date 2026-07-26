@@ -13,6 +13,24 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 	return `<user_command slash="${slash}">${input}</user_command>`;
 }
 
+// Mirrors exactly what formatUserInputBlock writes (lowercase tag, lowercase
+// mode values), but searches rather than anchors: persisted user content can
+// carry prepended <mode_notice> elements or trailing attachment blocks
+// around the wrapper.
+const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo)"/;
+
+/**
+ * Recovers the agent mode a persisted user message was sent in from its
+ * <user_input mode="..."> wrapper. Returns undefined when the input isn't
+ * wrapped (plain text, user_command envelopes, older transcripts).
+ */
+export function parseUserInputMode(
+	input?: string,
+): "act" | "plan" | "yolo" | undefined {
+	const match = USER_INPUT_MODE_RE.exec(input ?? "");
+	return match ? (match[1] as "act" | "plan" | "yolo") : undefined;
+}
+
 /**
  * Marks the exact point in the conversation where the user switched between
  * plan and act modes. Prepended to the first user message sent after the
@@ -26,6 +44,44 @@ export function formatModeSwitchNotice(
 ): string {
 	return `<mode_notice>The user switched from ${from} mode to ${to} mode before sending this message.</mode_notice>`;
 }
+
+export type ModeSwitchNotice = {
+	from: "act" | "plan";
+	to: "act" | "plan";
+};
+
+/**
+ * Tracks a user-initiated mode switch so the next user message can carry a
+ * <mode_notice> marking it. Only UI toggles should be recorded: the
+ * model-initiated switch_to_act_mode path already announces itself via the
+ * continuation prompt. A round trip (plan -> act -> plan before sending
+ * anything) cancels out, since the mode the model last saw never effectively
+ * changed.
+ */
+export function createModeSwitchNoticeTracker() {
+	let pending: ModeSwitchNotice | null = null;
+	return {
+		record(from: "act" | "plan", to: "act" | "plan"): void {
+			if (from === to) {
+				return;
+			}
+			if (pending) {
+				pending = pending.from === to ? null : { from: pending.from, to };
+				return;
+			}
+			pending = { from, to };
+		},
+		consume(): ModeSwitchNotice | null {
+			const notice = pending;
+			pending = null;
+			return notice;
+		},
+	};
+}
+
+export type ModeSwitchNoticeTracker = ReturnType<
+	typeof createModeSwitchNoticeTracker
+>;
 
 export type UserCommandEnvelope = {
 	slash: string;

@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { CommentReviewController, type ReviewComment } from "@/integrations/editor/CommentReviewController"
 import { Logger } from "@/shared/services/Logger"
-import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffContentProvider"
 
 /**
  * Cline's GitHub avatar URL
@@ -139,12 +139,17 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	 */
 	private async revealCommentInDocument(thread: vscode.CommentThread): Promise<void> {
 		try {
+			const range = thread.range
+			if (!range) {
+				return
+			}
+
 			// Open the document (works with virtual URIs)
 			const doc = await vscode.workspace.openTextDocument(thread.uri)
 
 			// Show the document and scroll to the comment
 			// Use the start of the range so the comment appears in center (not the code block)
-			const commentPosition = new vscode.Range(thread.range.start, thread.range.start)
+			const commentPosition = new vscode.Range(range.start, range.start)
 			const editor = await vscode.window.showTextDocument(doc, {
 				selection: commentPosition,
 				preserveFocus: false,

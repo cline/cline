@@ -209,7 +209,7 @@ describe("global-settings", () => {
 			const settingsPath = join(root, "global-settings.json");
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
-			expect(readCompactionStrategyGlobally()).toBe("basic");
+			expect(readCompactionStrategyGlobally()).toBe("agentic");
 			setCompactionStrategyGlobally("agentic");
 			expect(readCompactionStrategyGlobally()).toBe("agentic");
 		} finally {

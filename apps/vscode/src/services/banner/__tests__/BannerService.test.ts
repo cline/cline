@@ -248,48 +248,46 @@ describe("BannerService", () => {
 
 		it("should fall back to 24 hours when payload is invalid", async () => {
 			const clock = useBannerFakeTimers()
-			try {
-				flagPayloadStub.callsFake((flag: FeatureFlag) =>
-					flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? "invalid" : undefined,
-				)
+			flagPayloadStub.callsFake((flag: FeatureFlag) =>
+				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? "invalid" : undefined,
+			)
 
-				const mockResponse = {
-					data: {
-						items: [
-							{
-								id: "bnr_cached",
-								titleMd: "Cached Banner",
-								bodyMd: "Test",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: "{}",
-							},
-						],
-					},
-				}
-
-				mockFetch.resolves(createSuccessResponse(mockResponse))
-
-				await mockFetchForTesting(mockFetch, async () => {
-					const bannerService = BannerService.initialize(mockController)
-
-					bannerService.getActiveBanners()
-					await flushBannerServiceWork(clock, bannerService)
-					expect(mockFetch.callCount).to.equal(1)
-
-					await clock.tickAsync(23 * 60 * 60 * 1000)
-					bannerService.getActiveBanners()
-					await flushBannerServiceWork(clock, bannerService)
-					expect(mockFetch.callCount).to.equal(1)
-
-					await clock.tickAsync(2 * 60 * 60 * 1000)
-					bannerService.getActiveBanners()
-					await flushBannerServiceWork(clock, bannerService)
-					expect(mockFetch.callCount).to.equal(2)
-				})
-			} finally {
-				clock.restore()
+			const mockResponse = {
+				data: {
+					items: [
+						{
+							id: "bnr_cached",
+							titleMd: "Cached Banner",
+							bodyMd: "Test",
+							severity: "info" as const,
+							placement: "top" as const,
+							rulesJson: "{}",
+						},
+					],
+				},
 			}
+
+			mockFetch.resolves(createSuccessResponse(mockResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+
+				bannerService.getActiveBanners()
+				await flushBannerServiceWork(clock, bannerService)
+				expect(mockFetch.callCount).to.equal(1)
+
+				await clock.tickAsync(23 * 60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await flushBannerServiceWork(clock, bannerService)
+				expect(mockFetch.callCount).to.equal(1)
+
+				await clock.tickAsync(2 * 60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await flushBannerServiceWork(clock, bannerService)
+				expect(mockFetch.callCount).to.equal(2)
+			})
+
+			clock.restore()
 		})
 	})
 
@@ -1117,57 +1115,56 @@ describe("BannerService", () => {
 
 		it("should clear pending retry timeout on auth update", async () => {
 			const clock = useBannerFakeTimers()
-			try {
-				const successResponse = {
-					data: {
-						items: [
-							{
-								id: "bnr_test",
-								titleMd: "Test",
-								bodyMd: "Test",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: "{}",
-							},
-						],
-					},
-				}
 
-				mockFetch.resolves(createSuccessResponse(successResponse))
-
-				await mockFetchForTesting(mockFetch, async () => {
-					const bannerService = BannerService.initialize(mockController)
-					bannerService.getActiveBanners()
-
-					// Wait for background fetch to complete
-					await flushBannerServiceWork(clock, bannerService)
-					expect(mockFetch.callCount).to.equal(1)
-
-					// Expire cache and trigger a rate limit
-					await clock.tickAsync(25 * 60 * 60 * 1000)
-					mockFetch.resolves(createErrorResponse(429))
-					bannerService.getActiveBanners()
-					await flushBannerServiceWork(clock, bannerService)
-					expect(mockFetch.callCount).to.equal(2)
-
-					// Now update auth - should clear the retry timeout
-					// Note: onAuthUpdate has 1000ms debounce (AUTH_DEBOUNCE_MS), so we need to advance the clock
-					mockFetch.resolves(createSuccessResponse(successResponse))
-					const authPromise = BannerService.onAuthUpdate("user-id")
-					await clock.tickAsync(1000) // Advance past debounce
-					await authPromise
-					await flushBannerServiceWork(clock, bannerService)
-
-					expect(mockFetch.callCount).to.equal(3)
-
-					// The scheduled retry (1 hour later) should have been cancelled
-					// If we advance time, there shouldn't be another fetch from the old retry
-					await clock.tickAsync(2 * 60 * 60 * 1000) // 2 hours
-					expect(mockFetch.callCount).to.equal(3) // No additional fetch from old retry
-				})
-			} finally {
-				clock.restore()
+			const successResponse = {
+				data: {
+					items: [
+						{
+							id: "bnr_test",
+							titleMd: "Test",
+							bodyMd: "Test",
+							severity: "info" as const,
+							placement: "top" as const,
+							rulesJson: "{}",
+						},
+					],
+				},
 			}
+
+			mockFetch.resolves(createSuccessResponse(successResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await flushBannerServiceWork(clock, bannerService)
+				expect(mockFetch.callCount).to.equal(1)
+
+				// Expire cache and trigger a rate limit
+				await clock.tickAsync(25 * 60 * 60 * 1000)
+				mockFetch.resolves(createErrorResponse(429))
+				bannerService.getActiveBanners()
+				await flushBannerServiceWork(clock, bannerService)
+				expect(mockFetch.callCount).to.equal(2)
+
+				// Now update auth - should clear the retry timeout
+				// Note: onAuthUpdate has 1000ms debounce (AUTH_DEBOUNCE_MS), so we need to advance the clock
+				mockFetch.resolves(createSuccessResponse(successResponse))
+				const authPromise = BannerService.onAuthUpdate("user-id")
+				await clock.tickAsync(1000) // Advance past debounce
+				await authPromise
+				await flushBannerServiceWork(clock, bannerService)
+
+				expect(mockFetch.callCount).to.equal(3)
+
+				// The scheduled retry (1 hour later) should have been cancelled
+				// If we advance time, there shouldn't be another fetch from the old retry
+				await clock.tickAsync(2 * 60 * 60 * 1000) // 2 hours
+				expect(mockFetch.callCount).to.equal(3) // No additional fetch from old retry
+			})
+
+			clock.restore()
 		})
 
 		it("should handle auth update when service is not initialized", async () => {

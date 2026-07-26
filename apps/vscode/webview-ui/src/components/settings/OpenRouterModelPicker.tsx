@@ -77,7 +77,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			currentMode,
 		)
 
-		void commitSelection(currentMode, { providerId: "openrouter", modelId: newModelId, modelInfo }).catch((err) =>
+		void commitSelection(currentMode, { providerId: "openrouter", modelId: newModelId }).catch((err) =>
 			console.error("Failed to commit OpenRouter model selection:", err),
 		)
 	}
@@ -403,8 +403,10 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 	white-space: normal;
 
 	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+	color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionForeground, inherit)" : "inherit")};
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
+		color: var(--vscode-list-activeSelectionForeground, inherit);
 	}
 `

@@ -9,6 +9,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version as cliVersion } from "../../package.json";
 import { getCliBuildInfo } from "../utils/common";
 
 const {
@@ -172,6 +173,40 @@ describe("runDoctorCommand", () => {
 						staleSidecarPids: [],
 					},
 		);
+	});
+
+	it("reports CLI and running hub Core versions", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+			coreVersion: "0.0.63",
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+			coreVersion: "0.0.64",
+		});
+		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			cliVersion,
+			coreVersion: "0.0.64",
+		});
 	});
 
 	it("doctor --fix clears wedged hub startup artifacts when no server is actually running", async () => {

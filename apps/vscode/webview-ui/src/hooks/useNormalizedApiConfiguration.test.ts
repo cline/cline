@@ -130,6 +130,26 @@ describe("useNormalizedApiConfiguration", () => {
 		expect(mockResolveProviderModels).not.toHaveBeenCalled()
 	})
 
+	it("folds the SDK openai-compatible provider spelling to legacy openai and reads its model slot", async () => {
+		// State written by older builds (or other hosts) may still carry the
+		// SDK catalog spelling; the hook must read the OpenAI-specific model
+		// slot instead of the generic one and resolve under `openai`.
+		setApiConfiguration({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "stale-generic-model",
+			actModeOpenAiModelId: "my-custom-model",
+		})
+		mockResolveModelInfo.mockResolvedValue(
+			ResolveModelInfoResponse.create({ providerId: "openai", modelId: "my-custom-model", source: "unknown" }),
+		)
+
+		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
+
+		await waitFor(() => expect(result.current.selectedModelId).toBe("my-custom-model"))
+		expect(result.current.selectedProvider).toBe("openai")
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "openai", modelId: "my-custom-model" })
+	})
+
 	it("uses local provider-specific model fields instead of a stale generic id", async () => {
 		setApiConfiguration({
 			actModeApiProvider: "ollama",

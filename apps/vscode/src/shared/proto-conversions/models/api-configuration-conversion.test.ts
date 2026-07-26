@@ -3,6 +3,16 @@ import { describe, expect, it } from "vitest"
 import { convertApiConfigurationToProto, convertProtoToApiConfiguration } from "./api-configuration-conversion"
 
 describe("api configuration provider conversion", () => {
+	it("round-trips the LM Studio API key without using the generic provider key", () => {
+		const proto = convertApiConfigurationToProto({
+			apiKey: "anthropic-key-should-not-be-used",
+			lmStudioApiKey: "lmstudio-key",
+		})
+
+		expect(proto.lmStudioApiKey).toBe("lmstudio-key")
+		expect(convertProtoToApiConfiguration(proto).lmStudioApiKey).toBe("lmstudio-key")
+	})
+
 	it("round-trips SDK provider ids added after the legacy enum list", () => {
 		const providers: ApiProvider[] = ["poolside", "v0", "xiaomi", "tencent-tokenhub", "zai-coding-plan"]
 

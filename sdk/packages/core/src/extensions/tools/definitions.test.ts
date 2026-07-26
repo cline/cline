@@ -5,6 +5,7 @@ import {
 	getToolContextTelemetry,
 } from "../../services/telemetry/tool-context";
 import {
+	buildRunCommandsDescription,
 	createDefaultTools,
 	createReadFilesTool,
 	createSearchTool,
@@ -477,6 +478,71 @@ describe("default apply_patch tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+});
+
+describe("run_commands tool description", () => {
+	it("names PowerShell with ';' sequencing for PowerShell shells", () => {
+		const description = buildRunCommandsDescription("powershell", true);
+		expect(description).toContain("Commands run through PowerShell");
+		expect(description).toContain("use ';' to sequence commands");
+		expect(description).toContain("in Windows environment");
+	});
+
+	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
+		const description = buildRunCommandsDescription("cmd", true);
+		expect(description).toContain("Commands run through cmd.exe");
+		expect(description).toContain("use '&&' to sequence commands");
+		expect(description).not.toContain("PowerShell");
+	});
+
+	it("describes WSL bash with the /mnt working-directory mapping", () => {
+		const description = buildRunCommandsDescription("wsl", true);
+		expect(description).toContain("bash in WSL");
+		expect(description).toContain("/mnt/<drive>");
+		expect(description).not.toContain("PowerShell");
+	});
+
+	it("notes the Windows host for POSIX shells on Windows only", () => {
+		const onWindows = buildRunCommandsDescription("posix", true);
+		expect(onWindows).toContain("POSIX (bash-compatible) shell on Windows");
+		expect(onWindows).not.toContain("PowerShell");
+
+		const onUnix = buildRunCommandsDescription("posix", false);
+		expect(onUnix).not.toContain("Windows");
+		expect(onUnix).toContain("grep/head/tail");
+	});
+
+	it("derives the createShellTool description from config.shell", () => {
+		const posixTool = createShellTool(async () => "ok", {
+			shell: "/bin/bash",
+		});
+		expect(posixTool.description).toContain(
+			"Run non-interactive shell commands",
+		);
+		expect(posixTool.description).not.toContain("PowerShell");
+
+		const cmdTool = createShellTool(async () => "ok", {
+			shell: "C:\\Windows\\System32\\cmd.exe",
+		});
+		expect(cmdTool.description).toContain("Commands run through cmd.exe");
+	});
+
+	it("re-derives the description on each read when config.shell is a provider", () => {
+		let shell = "/bin/bash";
+		const tool = createShellTool(async () => "ok", {
+			shell: () => shell,
+		});
+		expect(tool.description).not.toContain("PowerShell");
+
+		shell = "powershell.exe";
+		expect(tool.description).toContain("Commands run through PowerShell");
+
+		// The property must survive the shallow copy the runtime performs when
+		// building AgentToolDefinitions for a model request.
+		shell = "cmd.exe";
+		const definition = { ...tool };
+		expect(definition.description).toContain("Commands run through cmd.exe");
 	});
 });
 
@@ -1428,6 +1494,89 @@ describe("default read_files tool", () => {
 		);
 	});
 
+	it("folds orphan range entries into the preceding file entry", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute(
+			{
+				files: [
+					{ path: "/tmp/example.ips" },
+					{ start_line: 45, end_line: 100 },
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		await tool.execute(
+			{ paths: ["/tmp/a.ts", { end_line: 4 }, "/tmp/b.ts"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+			},
+		);
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/example.ips", start_line: 45, end_line: 100 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/a.ts", end_line: 4 },
+			expect.objectContaining({ iteration: 2 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/b.ts" },
+			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
+	it("rejects orphan range entries that cannot be attached to a file entry", async () => {
+		const execute = vi.fn(async () => "should not run");
+		const tool = createReadFilesTool(execute);
+
+		// Leading orphan range: no preceding file entry to fold into.
+		await expect(
+			tool.execute(
+				{
+					files: [{ start_line: 1, end_line: 2 }, { path: "/tmp/a.ts" }],
+				} as never,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).rejects.toThrow();
+
+		// Preceding entry already has its own range: keep the conflict visible.
+		await expect(
+			tool.execute(
+				{
+					files: [
+						{ path: "/tmp/a.ts", start_line: 1 },
+						{ start_line: 4, end_line: 8 },
+					],
+				} as never,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 2,
+				},
+			),
+		).rejects.toThrow();
+
+		expect(execute).not.toHaveBeenCalled();
+	});
+
 	it("rejects invalid union inputs before calling the executor", async () => {
 		const execute = vi.fn(async () => "should not run");
 		const tool = createReadFilesTool(execute);
@@ -1593,7 +1742,7 @@ describe("zod schema conversion", () => {
 					path: {
 						type: "string",
 						description:
-							"The absolute file path of a text file to read content from",
+							"The absolute path of a text file to read content from",
 					},
 					start_line: {
 						anyOf: [{ type: "integer" }, { type: "null" }],
@@ -1609,7 +1758,7 @@ describe("zod schema conversion", () => {
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

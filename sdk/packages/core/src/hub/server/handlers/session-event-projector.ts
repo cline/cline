@@ -250,6 +250,38 @@ async function projectAgentEvent(
 		}
 		return;
 	}
+	if (agentEvent.type === "notice") {
+		ctx.publish(
+			ctx.buildEvent(
+				"session.notice",
+				{
+					sessionId,
+					message: agentEvent.message,
+					noticeType: agentEvent.noticeType,
+					...(agentEvent.displayRole
+						? { displayRole: agentEvent.displayRole }
+						: {}),
+					...(agentEvent.reason ? { reason: agentEvent.reason } : {}),
+					...(agentEvent.metadata ? { metadata: agentEvent.metadata } : {}),
+					agent: {
+						kind:
+							event.payload.teamRole === "teammate"
+								? "teammate"
+								: agentEvent.parentAgentId
+									? "subagent"
+									: "lead",
+						agentId: agentEvent.agentId,
+						conversationId: agentEvent.conversationId,
+						parentAgentId: agentEvent.parentAgentId,
+						teamAgentId: event.payload.teamAgentId,
+						teamRole: event.payload.teamRole,
+					},
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
 	if (agentEvent.type === "usage") {
 		let usageSummary: SessionUsageSummary | undefined;
 		try {

@@ -33,6 +33,10 @@ export {
 	registerModel,
 	registerProvider,
 	resetRegistry,
+	unregisterModel,
 	unregisterProvider,
 } from "./providers/model-registry";
-export { filterOpenAICodexModels } from "./providers/openai-codex-models";
+export {
+	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+	filterOpenAICodexModels,
+} from "./providers/openai-codex-models";

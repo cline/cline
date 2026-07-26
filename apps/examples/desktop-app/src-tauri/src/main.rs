@@ -9,6 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use tauri::{Manager, RunEvent, State};
+use tauri_plugin_updater::UpdaterExt;
+
+const UPDATE_INITIAL_DELAY: Duration = Duration::from_secs(10);
+const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
 
 #[derive(Clone)]
 struct AppContext {
@@ -16,6 +20,111 @@ struct AppContext {
     workspace_root: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateStatus {
+    state: String,
+    version: Option<String>,
+    error: Option<String>,
+}
+
+impl Default for UpdateStatus {
+    fn default() -> Self {
+        Self {
+            state: "idle".to_string(),
+            version: None,
+            error: None,
+        }
+    }
+}
+
+#[derive(Default)]
+struct UpdateState {
+    status: Mutex<UpdateStatus>,
+}
+
+impl UpdateState {
+    fn set(&self, state: &str, version: Option<String>, error: Option<String>) {
+        if let Ok(mut guard) = self.status.lock() {
+            *guard = UpdateStatus {
+                state: state.to_string(),
+                version,
+                error,
+            };
+        }
+    }
+
+    fn snapshot(&self) -> UpdateStatus {
+        self.status
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
+    fn ready_version(&self) -> Option<String> {
+        self.status.lock().ok().and_then(|guard| {
+            if guard.state == "ready" {
+                guard.version.clone()
+            } else {
+                None
+            }
+        })
+    }
+}
+
+async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
+    // An update that already finished downloading only needs a restart; keep
+    // reporting "ready" instead of flipping back to transient states unless a
+    // newer version shows up.
+    let ready_version = state.ready_version();
+    if ready_version.is_none() {
+        state.set("checking", None, None);
+    }
+
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(error) => {
+            state.set("error", None, Some(error.to_string()));
+            return;
+        }
+    };
+
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let version = update.version.clone();
+            if ready_version.as_deref() == Some(version.as_str()) {
+                return;
+            }
+            state.set("downloading", Some(version.clone()), None);
+            match update.download_and_install(|_, _| {}, || {}).await {
+                Ok(()) => state.set("ready", Some(version), None),
+                Err(error) => state.set("error", Some(version), Some(error.to_string())),
+            }
+        }
+        Ok(None) => {
+            if ready_version.is_none() {
+                state.set("idle", None, None);
+            }
+        }
+        Err(error) => {
+            if ready_version.is_none() {
+                state.set("error", None, Some(error.to_string()));
+            }
+        }
+    }
+}
+
+async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
+    tokio::time::sleep(UPDATE_INITIAL_DELAY).await;
+    loop {
+        check_and_install_update(&app, &state).await;
+        tokio::time::sleep(UPDATE_CHECK_INTERVAL).await;
+    }
+}
+
+/// Lock order: `process` may be held while acquiring `ws_endpoint`, never
+/// the reverse. Anything that touches both (including stop()) must either
+/// nest in that order or take them strictly sequentially.
 #[derive(Default)]
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
@@ -44,7 +153,11 @@ impl DesktopBackendState {
 
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
-                for _ in 0..30 {
+                // The sidecar bounds its own graceful shutdown with
+                // SHUTDOWN_TIMEOUT_MS (5s in sidecar/index.ts) and then exits
+                // itself; wait past that window before escalating to kill so
+                // an active session can finish persisting.
+                for _ in 0..70 {
                     match child.try_wait() {
                         Ok(Some(_)) => break,
                         Ok(None) => thread::sleep(Duration::from_millis(100)),
@@ -179,30 +292,37 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-fn desktop_backend_binary_name() -> String {
+fn desktop_backend_binary_names() -> Vec<String> {
+    let extension = if cfg!(windows) { ".exe" } else { "" };
+    let bundled_name = format!("code-sidecar{extension}");
     let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
     if target_triple.is_empty() {
-        return "code-sidecar".to_string();
+        return vec![bundled_name];
     }
 
-    let extension = if cfg!(windows) { ".exe" } else { "" };
-    format!("code-sidecar-{target_triple}{extension}")
+    vec![
+        bundled_name,
+        format!("code-sidecar-{target_triple}{extension}"),
+    ]
 }
 
 fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> {
     if cfg!(debug_assertions) {
         return None;
     }
-    let binary_name = desktop_backend_binary_name();
     let explicit = std::env::var("CLINE_CODE_SIDECAR_BIN")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
     let current_exe = std::env::current_exe().ok();
-    let candidates = [
-        explicit,
-        Some(
+    let mut candidates = Vec::new();
+    if let Some(path) = explicit {
+        candidates.push(path);
+    }
+
+    for binary_name in desktop_backend_binary_names() {
+        candidates.push(
             PathBuf::from(&context.workspace_root)
                 .join("apps")
                 .join("examples")
@@ -210,56 +330,26 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
                 .join("src-tauri")
                 .join("bin")
                 .join(&binary_name),
-        ),
-        current_exe
+        );
+        if let Some(path) = current_exe
             .as_ref()
-            .and_then(|path| path.parent().map(|parent| parent.join(&binary_name))),
-        current_exe.as_ref().and_then(|path| {
+            .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
+        {
+            candidates.push(path);
+        }
+        if let Some(path) = current_exe.as_ref().and_then(|path| {
             path.parent()
                 .and_then(|parent| parent.parent())
                 .map(|parent| parent.join("Resources").join(&binary_name))
-        }),
-    ];
-    candidates.into_iter().flatten().find(|path| path.exists())
-}
-
-fn ensure_desktop_backend_started(
-    state: &Arc<DesktopBackendState>,
-    context: &AppContext,
-) -> Result<(), String> {
-    if state.is_shutting_down() {
-        return Ok(());
-    }
-
-    {
-        let mut process_guard = state
-            .process
-            .lock()
-            .map_err(|_| "failed to lock desktop backend process state")?;
-        if let Some(existing) = process_guard.as_mut() {
-            match existing.try_wait() {
-                Ok(None) => {
-                    if state
-                        .ws_endpoint
-                        .lock()
-                        .ok()
-                        .and_then(|value| value.as_ref().cloned())
-                        .map(|value| !value.trim().is_empty())
-                        .unwrap_or(false)
-                    {
-                        return Ok(());
-                    }
-                }
-                Ok(Some(_)) | Err(_) => {
-                    *process_guard = None;
-                    if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
-                        *endpoint_guard = None;
-                    }
-                }
-            }
+        }) {
+            candidates.push(path);
         }
     }
 
+    candidates.into_iter().find(|path| path.exists())
+}
+
+fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         let mut command = Command::new(binary_path);
         command.current_dir(&context.workspace_root);
@@ -278,12 +368,54 @@ fn ensure_desktop_backend_started(
         ));
     };
 
-    let mut child = command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))?;
+        .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))
+}
+
+fn ensure_desktop_backend_started(
+    state: &Arc<DesktopBackendState>,
+    context: &AppContext,
+) -> Result<(), String> {
+    ensure_desktop_backend_started_with(state, || spawn_desktop_backend_process(context))
+}
+
+fn ensure_desktop_backend_started_with(
+    state: &Arc<DesktopBackendState>,
+    spawn_backend: impl FnOnce() -> Result<Child, String>,
+) -> Result<(), String> {
+    if state.is_shutting_down() {
+        return Ok(());
+    }
+
+    // Hold the process lock for the entire check-and-spawn so concurrent
+    // callers (setup, the health-check loop, endpoint fetches from the
+    // webview) serialize: the second caller blocks here, then sees the live
+    // child and returns instead of spawning a duplicate.
+    let mut process_guard = state
+        .process
+        .lock()
+        .map_err(|_| "failed to lock desktop backend process state")?;
+    if let Some(existing) = process_guard.as_mut() {
+        match existing.try_wait() {
+            // A live child owns startup even while its endpoint is still
+            // pending (login-shell PATH resolution plus session-manager init
+            // take a few seconds). Spawning again here would orphan it and
+            // race on the port.
+            Ok(None) => return Ok(()),
+            Ok(Some(_)) | Err(_) => {
+                *process_guard = None;
+                if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
+                    *endpoint_guard = None;
+                }
+            }
+        }
+    }
+
+    let mut child = spawn_backend()?;
 
     let stdout = child
         .stdout
@@ -294,6 +426,7 @@ fn ensure_desktop_backend_started(
         .take()
         .ok_or_else(|| "failed to capture desktop backend stderr".to_string())?;
 
+    let child_pid = child.id();
     let state_for_stdout = state.clone();
     thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
@@ -322,8 +455,19 @@ fn ensure_desktop_backend_started(
             }
             eprintln!("[desktop-backend] {trimmed}");
         }
-        if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
-            *endpoint_guard = None;
+        // Only clear the endpoint if this thread's child is still the one
+        // being tracked — a late EOF from a replaced child must not wipe the
+        // endpoint its successor already published.
+        let owns_tracked_child = state_for_stdout
+            .process
+            .lock()
+            .ok()
+            .map(|guard| guard.as_ref().map(|child| child.id()) == Some(child_pid))
+            .unwrap_or(false);
+        if owns_tracked_child {
+            if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
+                *endpoint_guard = None;
+            }
         }
     });
 
@@ -339,10 +483,6 @@ fn ensure_desktop_backend_started(
         }
     });
 
-    let mut process_guard = state
-        .process
-        .lock()
-        .map_err(|_| "failed to lock desktop backend process state")?;
     *process_guard = Some(child);
     Ok(())
 }
@@ -410,7 +550,13 @@ fn get_desktop_backend_endpoint(
     context: State<'_, AppContext>,
 ) -> Result<String, String> {
     ensure_desktop_backend_started(backend_state.inner(), context.inner())?;
-    for _ in 0..50 {
+    // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
+    // see sidecar/shell-path.ts) plus session-manager init, whose duration
+    // varies by machine. Poll well past that combined worst case; the loop
+    // returns as soon as the ready line arrives, so only failure waits long.
+    // While pending this only waits — respawning is ensure's job, and it
+    // refuses to start a second sidecar while the first one is still alive.
+    for _ in 0..150 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
             .lock()
@@ -419,6 +565,18 @@ fn get_desktop_backend_endpoint(
             .filter(|value| !value.trim().is_empty())
         {
             return Ok(endpoint);
+        }
+        let child_exited = backend_state
+            .process
+            .lock()
+            .ok()
+            .map(|mut guard| match guard.as_mut() {
+                Some(child) => !matches!(child.try_wait(), Ok(None)),
+                None => true,
+            })
+            .unwrap_or(false);
+        if child_exited {
+            return Err("desktop backend exited before publishing its endpoint".to_string());
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -437,6 +595,79 @@ fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
     dialog
         .pick_folder()
         .map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_update_status(update_state: State<'_, Arc<UpdateState>>) -> UpdateStatus {
+    update_state.snapshot()
+}
+
+#[tauri::command]
+fn restart_to_apply_update(
+    app: tauri::AppHandle,
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+) {
+    // restart() never returns, so the run-loop Exit handler does not get a
+    // chance to stop the sidecar; shut it down explicitly first.
+    backend_state.stop();
+    app.restart();
+}
+
+/// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
+/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
+/// resource at icons/dock/<id>.png.
+const APP_DOCK_ICONS: [&str; 4] = ["classic", "sunrise", "steel", "midnight"];
+
+#[tauri::command]
+fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
+    if !APP_DOCK_ICONS.contains(&icon.as_str()) {
+        return Err(format!("unknown app icon: {icon}"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // "classic" also ships as a dock resource, so every choice loads the
+        // same way; setApplicationIconImage's binding warns that passing nil
+        // to restore the bundled icon may not be allowed.
+        let icon_path = app
+            .path()
+            .resolve(
+                format!("icons/dock/{icon}.png"),
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|e| format!("failed resolving dock icon resource: {e}"))?;
+        if !icon_path.exists() {
+            return Err(format!(
+                "dock icon resource missing: {}",
+                icon_path.display()
+            ));
+        }
+        app.run_on_main_thread(move || {
+            use objc2::{AllocAnyThread, MainThreadMarker};
+            use objc2_app_kit::{NSApplication, NSImage};
+            use objc2_foundation::NSString;
+
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
+            let ns_app = NSApplication::sharedApplication(mtm);
+            let Some(image) = NSImage::initWithContentsOfFile(
+                NSImage::alloc(),
+                &NSString::from_str(&icon_path.to_string_lossy()),
+            ) else {
+                eprintln!("[dock-icon] failed loading image: {}", icon_path.display());
+                return;
+            };
+            // SAFETY: called on the main thread with a valid, non-nil image.
+            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+        })
+        .map_err(|e| format!("failed switching dock icon: {e}"))?;
+        Ok(true)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(false)
+    }
 }
 
 #[tauri::command]
@@ -472,13 +703,24 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
         .manage(app_context)
+        .manage(Arc::new(UpdateState::default()))
         .setup(|app| {
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
             if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
                 eprintln!("[desktop-backend] startup failed: {error}");
+            }
+            // Dev builds are not installed app bundles, so there is nothing the
+            // updater could meaningfully check or replace.
+            if !cfg!(debug_assertions) {
+                let update_state = app.state::<Arc<UpdateState>>().inner().clone();
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    run_update_loop(app_handle, update_state).await;
+                });
             }
             thread::spawn(move || loop {
                 thread::sleep(Duration::from_secs(5));
@@ -494,7 +736,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
             pick_workspace_directory,
-            open_mcp_settings_file
+            open_mcp_settings_file,
+            get_update_status,
+            restart_to_apply_update,
+            set_app_icon
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -507,4 +752,111 @@ fn main() {
             }
             _ => {}
         });
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A stand-in sidecar that stays alive without ever publishing a ready
+    /// line — the endpoint-pending startup window that used to trigger
+    /// duplicate spawns.
+    fn spawn_pending_sidecar() -> Result<Child, String> {
+        Command::new("sleep")
+            .arg("30")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn repeated_startup_checks_reuse_live_child_while_endpoint_pending() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = AtomicUsize::new(0);
+        for _ in 0..3 {
+            ensure_desktop_backend_started_with(&state, || {
+                spawn_count.fetch_add(1, Ordering::SeqCst);
+                spawn_pending_sidecar()
+            })
+            .expect("startup check should succeed");
+        }
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 1);
+        // Kill the fake sidecar directly so stop() doesn't wait out its
+        // graceful-exit window.
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn concurrent_startup_checks_spawn_exactly_one_child() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = Arc::new(AtomicUsize::new(0));
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let state = state.clone();
+                let spawn_count = spawn_count.clone();
+                thread::spawn(move || {
+                    ensure_desktop_backend_started_with(&state, || {
+                        spawn_count.fetch_add(1, Ordering::SeqCst);
+                        spawn_pending_sidecar()
+                    })
+                    .expect("startup check should succeed");
+                })
+            })
+            .collect();
+        for handle in handles {
+            handle.join().expect("startup thread should not panic");
+        }
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 1);
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn exited_child_is_replaced_on_next_startup_check() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = AtomicUsize::new(0);
+        let spawn_exiting = || {
+            spawn_count.fetch_add(1, Ordering::SeqCst);
+            Command::new("true")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| e.to_string())
+        };
+        ensure_desktop_backend_started_with(&state, || spawn_exiting())
+            .expect("startup check should succeed");
+        // Wait for the first child to exit so the next check sees a dead one.
+        for _ in 0..100 {
+            let exited = state
+                .process
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                })
+                .unwrap_or(false);
+            if exited {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        ensure_desktop_backend_started_with(&state, || spawn_exiting())
+            .expect("startup check should succeed");
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 2);
+        state.stop();
+    }
 }

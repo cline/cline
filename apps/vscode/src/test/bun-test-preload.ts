@@ -32,8 +32,9 @@
 // Importing the real package here is safe: the preload runs before any test
 // file, so this is the only point the real module is linked, and we only read
 // its export *names*, never its behavior (the mock shadows it everywhere tests look).
-import { vi as bunVi, mock } from "bun:test"
+import { beforeEach as bunBeforeEach, vi as bunVi, mock } from "bun:test"
 import * as realClineCore from "@cline/core"
+import * as LlmsModels from "@cline/llms"
 import * as clineCoreStub from "./cline-core-vitest-stub"
 import * as vscodeStub from "./vscode-vitest-stub"
 
@@ -42,6 +43,13 @@ for (const name of Object.keys(realClineCore)) {
 	clineCoreNamespace[name] = undefined
 }
 Object.assign(clineCoreNamespace, clineCoreStub)
+
+bunBeforeEach(() => {
+	clineCoreStub.resetModelsFileState()
+	// The stub's syncStoredProviderRegistration mutates the real shared
+	// @cline/llms registry; reset it so registrations never leak across tests.
+	LlmsModels.resetRegistry()
+})
 
 mock.module("@cline/core", () => clineCoreNamespace)
 

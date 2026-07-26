@@ -97,7 +97,6 @@ describe("GenericProviderSettings", () => {
 		expect(commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "deepseek",
 			modelId: "deepseek-reasoner",
-			modelInfo: { name: "DeepSeek Reasoner", supportsPromptCache: true, contextWindow: 128_000, supportsReasoning: true },
 		})
 		expect(useProviderModels).toHaveBeenCalledWith("deepseek")
 		expect(useProviderConfig).toHaveBeenCalledWith("deepseek")

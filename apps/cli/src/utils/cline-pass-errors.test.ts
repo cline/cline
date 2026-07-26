@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatCliErrorMessage,
+	getCliClinePassLimitMessage,
 	getCliNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
+	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
 } from "./cline-pass-errors";
 
@@ -45,5 +48,23 @@ describe("cline-pass-errors", () => {
 			),
 		).toBe(true);
 		expect(formatCliErrorMessage(new Error(raw))).toBe(formatted);
+	});
+
+	it("recognizes and formats ClinePass period limit errors with usage-billing guidance", () => {
+		const raw =
+			"Error: You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
+		const detail =
+			"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
+
+		expect(isClinePassLimitErrorMessage(raw)).toBe(true);
+		expect(isClinePassLimitErrorMessage(new Error(raw))).toBe(true);
+		expect(getClinePassLimitDetailMessage(raw)).toBe(detail);
+		expect(formatCliErrorMessage(new Error(raw))).toBe(
+			getCliClinePassLimitMessage(raw),
+		);
+		expect(formatCliErrorMessage(new Error(raw))).toContain(
+			"Switch to Cline usage-based billing",
+		);
+		expect(formatCliErrorMessage(new Error(raw))).toContain("--provider cline");
 	});
 });

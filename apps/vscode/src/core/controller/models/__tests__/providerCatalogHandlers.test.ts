@@ -5,7 +5,7 @@ import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } fr
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { fetch } from "@/shared/net"
-import { ApiFormat, OpenRouterModelInfo } from "@/shared/proto/cline/models"
+import { ApiFormat, ModelOverrides } from "@/shared/proto/cline/models"
 import type { Controller } from "../../index"
 import type { ProviderCatalogController } from "../providerCatalogShared"
 
@@ -160,6 +160,22 @@ describe("provider model catalog handlers", () => {
 			baseUrl: "https://api.example.com/v1",
 			auth: { accessToken: "SECRET_SENTINEL_ACCESS", refreshToken: "SECRET_SENTINEL_REFRESH", accountId: "acct-1" },
 		})
+		vi.mocked(store.readSelection).mockImplementation((_providerId, mode) =>
+			mode === "act"
+				? {
+						providerId,
+						modelId: "custom-model",
+						overrides: {
+							capabilities: ["tools", "custom-capability"],
+							inputPrice: 1.25,
+							supportsVision: false,
+							temperature: 0.3,
+							apiFormat: ApiFormat.OPENAI_RESPONSES,
+						},
+						modelInfo: { name: "Custom model", contextWindow: 64_000, supportsPromptCache: false },
+					}
+				: undefined,
+		)
 		const controller = makeController(store, makeCatalog())
 
 		const response = await readProviderConfig(controller, { value: "cline" })
@@ -172,10 +188,24 @@ describe("provider model catalog handlers", () => {
 			hasRefreshToken: true,
 			accountId: "acct-1",
 		})
-		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL")
+		expect(response.actSelection).toMatchObject({
+			providerId: "cline",
+			modelId: "custom-model",
+			modelInfo: { name: "Custom model", contextWindow: 64_000 },
+			overrides: {
+				capabilities: ["tools", "custom-capability"],
+				inputPrice: 1.25,
+				supportsVision: false,
+				temperature: 0.3,
+				apiFormat: ApiFormat.OPENAI_RESPONSES,
+			},
+		})
+		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL_API_KEY")
+		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL_ACCESS")
+		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL_REFRESH")
 	})
 
-	it("writeProviderConfig writes a patch and returns redacted updated config", async () => {
+	it("writeProviderConfig writes a patch and returns a redacted response", async () => {
 		const { writeProviderConfig } = await import("../writeProviderConfig")
 		const providerId = parseProviderId("ollama")
 		const updatedConfig: EffectiveProviderConfig = {
@@ -195,8 +225,10 @@ describe("provider model catalog handlers", () => {
 			apiKey: "SECRET_SENTINEL_OLLAMA",
 			baseUrl: "http://localhost:11434/v1",
 		})
-		expect(response.apiKeyLength).toBe("SECRET_SENTINEL_OLLAMA".length)
-		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL")
+		expect(response).toMatchObject({
+			apiKeyLength: "SECRET_SENTINEL_OLLAMA".length,
+		})
+		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL_OLLAMA")
 	})
 
 	it("writeProviderConfig can explicitly clear headers", async () => {
@@ -234,7 +266,21 @@ describe("provider model catalog handlers", () => {
 		expect(response.values).toEqual(['{"id":"model-1"}'])
 	})
 
-	it("commitModelSelection validates mode and commits the full selection envelope", async () => {
+	it("getLmStudioModels keeps unauthenticated local servers working", async () => {
+		const { getLmStudioModels } = await import("../getLmStudioModels")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId })
+		const controller = makeController(store, makeCatalog()) as unknown as Controller
+		vi.mocked(fetch).mockResolvedValue({
+			json: async () => ({ data: [] }),
+		} as Response)
+
+		await getLmStudioModels(controller, StringRequest.create({ value: "http://localhost:1234" }))
+
+		expect(fetch).toHaveBeenCalledWith("http://localhost:1234/api/v0/models")
+	})
+
+	it("commitModelSelection validates mode and commits model settings", async () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")
 		const store = makeStore({ providerId })
@@ -248,22 +294,20 @@ describe("provider model catalog handlers", () => {
 			providerId: "deepseek",
 			mode: "act",
 			modelId: "deepseek-v4-flash",
-			modelInfo: OpenRouterModelInfo.create({
+			overrides: ModelOverrides.create({
 				name: "DeepSeek V4 Flash",
 				contextWindow: 456,
-				supportsPromptCache: true,
-				apiFormat: ApiFormat.OPENAI_CHAT,
+				capabilities: ["prompt-cache"],
 			}),
 		})
 
 		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
 			providerId,
 			modelId: "deepseek-v4-flash",
-			modelInfo: expect.objectContaining({
+			overrides: expect.objectContaining({
 				name: "DeepSeek V4 Flash",
 				contextWindow: 456,
-				supportsPromptCache: true,
-				apiFormat: ApiFormat.OPENAI_CHAT,
+				capabilities: ["prompt-cache"],
 			}),
 		})
 		expect(stateManager.setGlobalStateBatch).toHaveBeenCalledWith({
@@ -271,6 +315,106 @@ describe("provider model catalog handlers", () => {
 			actModeApiModelId: "deepseek-v4-flash",
 		})
 		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
+	})
+
+	// The settings UI sources provider ids from the SDK catalog, whose OpenAI
+	// Compatible built-in is spelled `openai-compatible`. Committing under that
+	// spelling must land on the legacy `openai` state keys
+	// (`actModeApiProvider` / `actModeOpenAiModelId`), otherwise the chat view
+	// and session factory (both keyed by `openai`) read stale or default
+	// models (gpt-4o) instead of the user's selection.
+	it("commitModelSelection folds the SDK openai-compatible spelling to legacy openai state keys", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("openai-compatible")
+		expect(providerId).toBe("openai")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
+		const controller = makeController(store, makeCatalog(), stateManager)
+
+		await commitModelSelection(controller, {
+			providerId: "openai-compatible",
+			mode: "act",
+			modelId: "my-custom-model",
+		})
+
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "my-custom-model",
+			overrides: undefined,
+		})
+		expect(stateManager.setGlobalStateBatch).toHaveBeenCalledWith({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "my-custom-model",
+		})
+	})
+
+	// The model label under the chat input renders from pushed extension
+	// state; a model-only commit must push state itself instead of waiting
+	// for an unrelated action (e.g. sending a message) to refresh it.
+	it("commitModelSelection posts updated state to the webview when available", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("deepseek")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
+		const postStateToWebview = vi.fn(async () => undefined)
+		const controller = { ...makeController(store, makeCatalog(), stateManager), postStateToWebview }
+
+		await commitModelSelection(controller, {
+			providerId: "deepseek",
+			mode: "act",
+			modelId: "deepseek-v4-flash",
+		})
+
+		expect(postStateToWebview).toHaveBeenCalledTimes(1)
+	})
+
+	// The overrides field is tri-state: absent preserves the model's stored
+	// overrides, an explicitly empty message clears them, and a populated
+	// message replaces them. The two boundary cases are pinned here because
+	// the webview relies on both (see useProviderConfig.test.ts).
+	it("commitModelSelection maps an ABSENT overrides field to undefined (preserve stored overrides)", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("deepseek")
+		const store = makeStore({ providerId })
+		const controller = makeController(store, makeCatalog())
+
+		await commitModelSelection(controller, {
+			providerId: "deepseek",
+			mode: "act",
+			modelId: "deepseek-v4-flash",
+		})
+
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "deepseek-v4-flash",
+			overrides: undefined,
+		})
+	})
+
+	it("commitModelSelection maps an EMPTY overrides message to an empty object (clear stored overrides)", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("deepseek")
+		const store = makeStore({ providerId })
+		const controller = makeController(store, makeCatalog())
+
+		await commitModelSelection(controller, {
+			providerId: "deepseek",
+			mode: "act",
+			modelId: "deepseek-v4-flash",
+			overrides: ModelOverrides.create({}),
+		})
+
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "deepseek-v4-flash",
+			overrides: {},
+		})
 	})
 
 	it("commitModelSelection reports provider changes when config is initialized", async () => {
@@ -292,10 +436,7 @@ describe("provider model catalog handlers", () => {
 			providerId: "deepseek",
 			mode: "act",
 			modelId: "deepseek-v4-flash",
-			modelInfo: OpenRouterModelInfo.create({
-				name: "DeepSeek V4 Flash",
-				apiFormat: ApiFormat.OPENAI_CHAT,
-			}),
+			overrides: ModelOverrides.create({ name: "DeepSeek V4 Flash" }),
 		})
 
 		expect(handleApiConfigurationChanged).toHaveBeenCalledWith({}, { actModeApiProvider: "deepseek" })
@@ -313,7 +454,7 @@ describe("provider model catalog handlers", () => {
 				providerId: "deepseek",
 				mode: "invalid",
 				modelId: "deepseek-v4-flash",
-				modelInfo: OpenRouterModelInfo.create({ supportsPromptCache: true }),
+				overrides: ModelOverrides.create({ capabilities: ["prompt-cache"] }),
 			}),
 		).rejects.toThrow('mode must be "plan" or "act"')
 		expect(store.commitSelection).not.toHaveBeenCalled()

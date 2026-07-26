@@ -55,8 +55,39 @@ export interface CaptureAgentUnexpectedReasoningTokensInput {
 	reasoningTokenCount: number;
 }
 
+export const TASK_PROVIDER_REQUEST_STARTED_EVENT =
+	"task.provider_request_started";
+export const TASK_PROVIDER_STREAM_STARTED_EVENT =
+	"task.provider_stream_started";
+export const TASK_FIRST_CHUNK_RECEIVED_EVENT = "task.first_chunk_received";
+export const TASK_PROVIDER_STREAM_FAILED_EVENT = "task.provider_stream_failed";
+export const TASK_CANCELLED_EVENT = "task.cancelled";
+
+export interface CaptureTaskLifecycleEventInput {
+	event: string;
+	sessionId?: string;
+	ulid?: string;
+	agentId?: string;
+	conversationId?: string;
+	runId?: string;
+	iteration?: number;
+	providerId?: string;
+	modelId?: string;
+	phase?: string;
+	durationMs?: number;
+	eventType?: string;
+	error?: unknown;
+	messageLimit?: number;
+}
+
 export interface TelemetryMetadata {
 	extension_version: string;
+	/**
+	 * The version of the host-side Cline distribution package: the JetBrains plugin version
+	 * (e.g. 1.1.61) on JetBrains, the extension version on VSCode (where it matches
+	 * `extension_version`). Absent when the host does not report one.
+	 */
+	host_plugin_version?: string;
 	cline_type: string;
 	platform: string;
 	platform_version: string;
@@ -117,6 +148,36 @@ export function captureAgentUnexpectedReasoningTokens(
 			modelId: input.modelId,
 			requestedThinking: input.requestedThinking,
 			reasoningTokenCount: input.reasoningTokenCount,
+		}),
+	});
+}
+
+export function captureTaskLifecycleEvent(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureTaskLifecycleEventInput,
+): void {
+	if (!telemetry) {
+		return;
+	}
+	telemetry.capture({
+		event: input.event,
+		properties: stripUndefinedTelemetryProperties({
+			sessionId: input.sessionId,
+			ulid: input.ulid ?? input.sessionId,
+			agentId: input.agentId,
+			conversationId: input.conversationId,
+			runId: input.runId,
+			iteration: input.iteration,
+			provider: input.providerId,
+			providerId: input.providerId,
+			model: input.modelId,
+			modelId: input.modelId,
+			phase: input.phase,
+			durationMs: input.durationMs,
+			eventType: input.eventType,
+			...(input.error === undefined
+				? {}
+				: normalizeSdkError(input.error, input.messageLimit)),
 		}),
 	});
 }

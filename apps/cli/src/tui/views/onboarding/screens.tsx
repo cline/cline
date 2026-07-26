@@ -384,7 +384,7 @@ export function OnboardingCodexCliScreen(props: {
 						<text fg="yellow">Codex CLI was not found</text>
 						<text fg="gray">{props.status.reason}</text>
 						<text fg="gray">Install Codex CLI from:</text>
-						<text fg="cyan" selectable>
+						<text fg={palette.act} selectable>
 							{CODEX_CLI_INSTALL_URL}
 						</text>
 					</box>

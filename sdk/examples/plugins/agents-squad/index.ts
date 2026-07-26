@@ -5,7 +5,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	type AgentPlugin,
@@ -13,6 +13,7 @@ import {
 	type AgentToolContext,
 	ClineCore,
 	createTool,
+	stripUtf8Bom,
 } from "@cline/core";
 import YAML from "yaml";
 import { z } from "zod";
@@ -90,6 +91,8 @@ const GLOBAL_SKILLS_DIR = join(resolveClineDataDirPath(), "settings", "skills");
 
 /** Safe identifier pattern for conversation IDs used in filesystem paths. */
 const SAFE_ID_RE = /^[A-Za-z0-9_-]+$/;
+const HANDOFF_PATH_ALLOWED_RE = /^[A-Za-z0-9._/-]+$/;
+const HANDOFF_PATH_MAX_LENGTH = 240;
 
 const envOr = (key: string, fallback: string): string =>
 	process.env[key]?.trim() || fallback;
@@ -177,6 +180,9 @@ function parseFrontmatter(md: string): {
 	data: Record<string, unknown>;
 	body: string;
 } {
+	// stripUtf8Bom keeps the frontmatter match below working for files saved with a leading
+	// UTF-8 BOM (see cline/cline#12151).
+	md = stripUtf8Bom(md);
 	const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
 	if (!m) return { data: {}, body: md.trim() };
 	try {
@@ -298,12 +304,43 @@ function resolveHandoffPath(
 	ctx: AgentToolContext,
 	relativePath: string,
 ): string {
+	const handoffPath = validateHandoffRelativePath(relativePath);
 	const dir = handoffsDir(ctx);
-	const resolved = resolve(dir, relativePath);
-	if (!resolved.startsWith(`${dir}/`)) {
+	const resolved = resolve(dir, handoffPath);
+	const pathFromHandoffsDir = relative(dir, resolved);
+	if (
+		!pathFromHandoffsDir ||
+		pathFromHandoffsDir === ".." ||
+		pathFromHandoffsDir.startsWith(`..${sep}`) ||
+		isAbsolute(pathFromHandoffsDir)
+	) {
 		throw new Error(`Handoff path escapes directory: ${relativePath}`);
 	}
 	return resolved;
+}
+
+function validateHandoffRelativePath(relativePath: string): string {
+	const trimmed = relativePath.trim();
+	if (!trimmed) {
+		throw new Error("Handoff path must not be empty");
+	}
+	if (trimmed.length > HANDOFF_PATH_MAX_LENGTH) {
+		throw new Error(
+			`Handoff path must be ${HANDOFF_PATH_MAX_LENGTH} characters or fewer`,
+		);
+	}
+	if (trimmed.startsWith("/")) {
+		throw new Error(`Handoff path must be relative: ${relativePath}`);
+	}
+	if (!HANDOFF_PATH_ALLOWED_RE.test(trimmed)) {
+		throw new Error(
+			"Use a relative file path with letters, numbers, '.', '_', '-', or '/'.",
+		);
+	}
+	if (trimmed.split("/").includes("..")) {
+		throw new Error(`Handoff path must not contain '..': ${relativePath}`);
+	}
+	return trimmed;
 }
 
 function emitSteer(sessionId: string | undefined, prompt: string): void {
@@ -407,9 +444,8 @@ const HandoffPathInput = z
 	.trim()
 	.min(1)
 	.max(240)
-	.regex(
-		/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/,
-		"Use a relative file path with letters, numbers, '.', '_', '-', or '/'.",
+	.describe(
+		"Relative file path using letters, numbers, '.', '_', '-', or '/'. Must not be absolute or contain '..' segments.",
 	);
 
 const StartSubagentInput = z

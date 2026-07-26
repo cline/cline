@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitMessage,
 } from "./errors";
 import { extractErrorMessage } from "./format";
 
@@ -115,6 +117,39 @@ describe("ClineOrgIndividualInferenceSubscriptionError", () => {
 		).toBe(true);
 		expect(
 			isClineOrgIndividualInferenceSubscriptionMessage(
+				"the user is not subscribed to required model plan",
+			),
+		).toBe(false);
+	});
+});
+
+describe("ClinePassLimitError", () => {
+	it("preserves the dynamic backend limit message", () => {
+		const message =
+			"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.";
+		expect(new ClinePassLimitError(message, "cline-pass").message).toBe(
+			message,
+		);
+	});
+
+	it("detects ClinePass period limit messages with variable period and reset", () => {
+		expect(
+			isClinePassLimitMessage(
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
+			),
+		).toBe(true);
+		expect(
+			isClinePassLimitMessage(
+				"You have reached your monthly Clinepass limit. The limit resets in 12h, please try again later.",
+			),
+		).toBe(true);
+		expect(
+			isClinePassLimitMessage(
+				`You have reached your\t-\tClinepass limit.The limit resets in\t${"\t".repeat(10_000)}`,
+			),
+		).toBe(false);
+		expect(
+			isClinePassLimitMessage(
 				"the user is not subscribed to required model plan",
 			),
 		).toBe(false);

@@ -149,7 +149,7 @@ Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebas
 
 ## Rules and Skills
 
-Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed. 
+Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed.
 
 ## Works With Every Model
 
@@ -158,10 +158,10 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | Provider | Models |
 |----------|--------|
 | Anthropic | Claude Opus, Sonnet, Haiku |
-| OpenAI | GPT series model |
-| Google | Gemini series model |
+| OpenAI | GPT series models |
+| Google | Gemini series models |
 | OpenRouter | 200+ models from any provider |
-| Vercel AI Gateway | Models through Vercel AI Gateway |
+| Vercel AI Gateway | Route to many providers through one gateway |
 | AWS Bedrock | Claude, Llama, and more |
 | Azure / GCP Vertex | All hosted models |
 | Cerebras / Groq | Fast inference models |

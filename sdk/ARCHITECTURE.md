@@ -149,6 +149,18 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Workspace bootstrap is owned by the runtime that executes the session. Hub
+clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
+the hub-side execution host can place the session in the shared chat
+workspace on its own filesystem at
+`<cline-data-dir>/workspaces/chat` (by default
+`~/.cline/data/workspaces/chat`). The chat workspace is seeded with an
+`AGENTS.md` rules file that tells the agent to treat the session as a chat
+and to create a named project folder only when the user asks for one.
+The resolved paths are returned in the session snapshot and are the source of
+truth for client-side manifests; transport clients must not invent a local path
+for a remote runtime.
+
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI
 binary immediately before a command restarts the shared hub.
@@ -323,15 +335,20 @@ Context compaction is owned by `core`.
 
 - `@cline/agents` owns the generic turn-preparation seam:
   - run normal lifecycle hooks
-  - allow hosts to rewrite message history or system prompt before the provider call
+  - allow hosts to project message history or system prompt before the provider call
+  - keep its canonical runtime transcript append-only when a projection is returned
 - `@cline/core` owns compaction policy:
   - inject a prepare-turn pipeline for root sessions
   - choose between built-in strategies through a registry map
+  - persist the latest compacted working context as a session compaction artifact
   - keep compaction logic out of the low-level agent message builder
 
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
+- canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
+- resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
+- sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 

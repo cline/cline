@@ -66,11 +66,19 @@ export class Uri {
 		return new Uri(fsPath)
 	}
 	static parse(value: string): Uri {
-		return new Uri(value)
+		const schemeSeparator = value.indexOf(":")
+		return new Uri(value, schemeSeparator === -1 ? "" : value.slice(0, schemeSeparator))
 	}
-	constructor(public fsPath: string) {}
+	constructor(
+		public fsPath: string,
+		public scheme = "file",
+		public query = "",
+	) {}
+	with(change: { query?: string }): Uri {
+		return new Uri(this.fsPath, this.scheme, change.query ?? this.query)
+	}
 	toString(): string {
-		return this.fsPath
+		return this.query ? `${this.fsPath}?${this.query}` : this.fsPath
 	}
 }
 export class CancellationTokenSource {

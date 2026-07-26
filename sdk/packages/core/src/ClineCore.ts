@@ -39,17 +39,18 @@ import type {
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
+	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import {
 	FeatureFlagsService,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
+import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -69,10 +70,10 @@ export type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
-	HubOptions,
-	RemoteOptions,
 	CompareCheckpointInput,
 	CompareCheckpointResult,
+	HubOptions,
+	RemoteOptions,
 	RestoreInput,
 	RestoreOptions,
 	RestoreResult,
@@ -492,6 +493,18 @@ export class ClineCore {
 	update: RuntimeHost["updateSession"] = (...args) =>
 		this.host.updateSession(...args);
 	/**
+	 * Stores the compacted working-context state for an existing session.
+	 */
+	updateSessionCompactionState: RuntimeHost["updateSessionCompactionState"] = (
+		...args
+	) => this.host.updateSessionCompactionState(...args);
+	/**
+	 * Reads the compacted working-context sidecar for a session, if one exists.
+	 */
+	readSessionCompactionState: RuntimeHost["readSessionCompactionState"] = (
+		...args
+	) => this.host.readSessionCompactionState(...args);
+	/**
 	 * Reads message history for a session.
 	 *
 	 * Retrieves the full message transcript for a specific session, including all
@@ -608,4 +621,13 @@ export class ClineCore {
 		const service = this.host as RuntimeHostServiceExtensions;
 		return service.updateSessionModel?.(...args) ?? Promise.resolve();
 	};
+	/**
+	 * Updates provider/model/reasoning connection options for subsequent turns in
+	 * an active session.
+	 */
+	updateSessionConnection: SessionConnectionRuntimeService["updateSessionConnection"] =
+		(...args) => {
+			const service = this.host as RuntimeHostServiceExtensions;
+			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
+		};
 }

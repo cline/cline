@@ -67,6 +67,14 @@ export async function renderOpenTui(
 		unmountRoot();
 		// Let OpenTUI finish parsing the current stdin batch before teardown.
 		queueMicrotask(() => {
+			// Reset the title while the native renderer is still alive; the
+			// unmount cleanup in root.tsx skips it once the renderer is destroyed.
+			// Re-check here: OpenTUI's own signal handlers can destroy the
+			// renderer between destroy() queuing this microtask and it running
+			// (e.g. an idle SIGTERM dispatches to both our handler and OpenTUI's).
+			if (!renderer.isDestroyed) {
+				renderer.setTerminalTitle("");
+			}
 			renderer.destroy();
 		});
 	};

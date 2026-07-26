@@ -165,7 +165,7 @@
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
 	--color-muted: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
-	--color-muted-foreground: var(--muted-foreground);
+	--color-muted-foreground: var(--vscode-editor-foldPlaceholderForeground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);

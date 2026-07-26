@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { isClineProvider } from "@/shared/utils/cline"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import { resolveWorkspaceRootPath } from "./workspace-root"
 
-describe("isClineProvider", () => {
+describe("isClineManagedProvider", () => {
 	it("treats both Cline account providers as Cline providers", () => {
-		expect(isClineProvider("cline")).toBe(true)
-		expect(isClineProvider("cline-pass")).toBe(true)
-		expect(isClineProvider("anthropic")).toBe(false)
-		expect(isClineProvider(undefined)).toBe(false)
+		expect(isClineManagedProvider("cline")).toBe(true)
+		expect(isClineManagedProvider("cline-pass")).toBe(true)
+		expect(isClineManagedProvider("anthropic")).toBe(false)
+		expect(isClineManagedProvider(undefined)).toBe(false)
 	})
 })
 

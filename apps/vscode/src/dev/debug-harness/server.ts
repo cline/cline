@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /**
  * Debug Harness Server
@@ -10,7 +10,12 @@
  *   - UI automation (click, type, screenshot) via Playwright
  *
  * Usage:
- *   bun src/dev/debug-harness/server.ts [options]
+ *   node src/dev/debug-harness/server.ts [options]
+ *
+ * Run with node, not bun: Playwright's _electron.launch() never finishes
+ * attaching to the debugee under bun (the Electron process starts, but the
+ * launch times out), while the same launch works under node. Node >= 22.6
+ * runs this file directly via type stripping.
  *
  * Options:
  *   --skip-build        Skip building extension/webview
@@ -39,7 +44,6 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { _electron, type CDPSession, type ElectronApplication, type Frame, type Page } from "playwright"
-import WebSocket from "ws"
 
 const __script_dir = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 
@@ -201,19 +205,21 @@ class CdpClient {
 
 	async connect(wsUrl: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			// The runtime's built-in WebSocket (browser-style events), so the
+			// harness has no dependency on the `ws` package.
 			const ws = new WebSocket(wsUrl)
-			ws.on("open", () => {
+			ws.addEventListener("open", () => {
 				this.ws = ws
 				resolve()
 			})
-			ws.on("error", (e: Error) => {
-				if (!this.ws) reject(e)
+			ws.addEventListener("error", () => {
+				if (!this.ws) reject(new Error(`WebSocket connection failed: ${wsUrl}`))
 			})
-			ws.on("close", () => {
+			ws.addEventListener("close", () => {
 				this.ws = null
 			})
-			ws.on("message", (raw: WebSocket.Data) => {
-				const msg = JSON.parse(raw.toString())
+			ws.addEventListener("message", (event: MessageEvent) => {
+				const msg = JSON.parse(typeof event.data === "string" ? event.data : Buffer.from(event.data).toString())
 				if (msg.id !== undefined) {
 					const p = this.pending.get(msg.id)
 					if (p) {

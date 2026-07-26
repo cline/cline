@@ -155,7 +155,7 @@ export function ToolApprovalContent(
 		<box flexDirection="column" paddingX={1}>
 			<text fg="yellow">Approve tool call?</text>
 
-			<text fg="cyan" marginTop={1}>
+			<text fg={palette.act} marginTop={1}>
 				<strong>{props.request.toolName}</strong>
 			</text>
 

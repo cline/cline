@@ -137,6 +137,23 @@ Document rollout and rollback steps.`,
 		expect(workflow.disabled).toBe(true);
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
+	// from being recognized.
+	it("parses markdown frontmatter when the content starts with a UTF-8 BOM", () => {
+		const skill = parseSkillConfigFromMarkdown(
+			`\uFEFF---
+name: my-skill
+description: A test skill
+---
+This is a test skill.`,
+			"fallback",
+		);
+		expect(skill.name).toBe("my-skill");
+		expect(skill.description).toBe("A test skill");
+		expect(skill.instructions).toBe("This is a test skill.");
+	});
+
 	it("emits typed events for skills, rules, and workflows in one watcher", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-loader-"),

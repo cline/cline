@@ -5,7 +5,7 @@
  * It is only intended for CLI use, not browser environments.
  */
 
-import type { ITelemetryService } from "@cline/shared";
+import { decodeJwtPayload, type ITelemetryService } from "@cline/shared";
 import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
@@ -17,7 +17,6 @@ import {
 import { startLocalOAuthServer } from "./server";
 import type { OAuthCredentials, OAuthPrompt } from "./types";
 import {
-	decodeJwtPayload,
 	getProofKey,
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,

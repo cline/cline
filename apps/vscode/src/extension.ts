@@ -2,7 +2,6 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import assert from "node:assert"
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
@@ -45,16 +44,21 @@ import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
-import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
-import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME, diffContentProvider } from "./hosts/vscode/VscodeDiffContentProvider"
+import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService, LogoutReason } from "./sdk/auth-service"
 import { telemetryService } from "./services/telemetry"
+import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
+export async function reportRolloutActivation(input: RolloutBundleActivation): Promise<void> {
+	await telemetryService.captureRolloutBundleActivated(input)
+}
 
 // This method is called when the VS Code extension is activated.
 // NOTE: This is VS Code specific - services that should be registered
@@ -138,25 +142,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
 
-	/*
-	We use the text document content provider API to show the left side for diff view by creating a
-	virtual document for the original content. This makes it readonly so users know to edit the right
-	side if they want to keep their changes.
-
-	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by
-	claiming an uri-scheme for which your provider then returns text contents. The scheme must be
-	provided when registering a provider and cannot change afterwards.
-	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents
-	 given such an uri. In return, content providers are wired into the open document logic so that
-	 providers are always considered.
-	https://code.visualstudio.com/api/extension-guides/virtual-documents
-	*/
-	const diffContentProvider = new (class implements vscode.TextDocumentContentProvider {
-		provideTextDocumentContent(uri: vscode.Uri): string {
-			return Buffer.from(uri.query, "base64").toString("utf-8")
-		}
-	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
+
+	// Edit previews use a separate, mutable provider (content set programmatically and
+	// re-rendered via onDidChange) so the diff's right side can play the simulated
+	// streaming animation. See VscodeEditPreview.
+	context.subscriptions.push(
+		vscode.workspace.registerTextDocumentContentProvider(EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider),
+	)
 
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
@@ -602,9 +595,8 @@ function setupHostProvider(context: ExtensionContext) {
 	outputChannel.appendLine("[Cline] Setting up VS Code host...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
-	const createDiffView = () => new VscodeDiffViewProvider()
+	const createEditPreview = () => new VscodeEditPreview()
 	const createCommentReview = () => getVscodeCommentReviewController()
-	const createTerminalManager = () => new VscodeTerminalManager()
 
 	const getCallbackUrl = async (path: string, _preferredPort?: number) => {
 		const scheme = vscode.env.uriScheme || "vscode"
@@ -623,9 +615,8 @@ function setupHostProvider(context: ExtensionContext) {
 	}
 	HostProvider.initialize(
 		createWebview,
-		createDiffView,
+		createEditPreview,
 		createCommentReview,
-		createTerminalManager,
 		vscodeHostBridgeClient,
 		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,

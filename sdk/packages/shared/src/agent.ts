@@ -438,9 +438,11 @@ export interface AgentRuntimeConfig {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	/**
-	 * Optional host-owned context pipeline that can rewrite the transcript
-	 * before each model request. When it returns messages, the runtime replaces
-	 * its in-memory transcript so compaction persists into the final run result.
+	 * Optional host-owned request projection hook invoked before each model call.
+	 *
+	 * Returned messages affect only the provider request for the current call.
+	 * They do not replace the canonical runtime transcript, are not persisted as
+	 * session history, and are not reflected in AgentRunResult.messages.
 	 */
 	prepareTurn?: (
 		context: AgentRuntimePrepareTurnContext,

@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ImagePlus } from "lucide-react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import {
@@ -18,46 +26,60 @@ import {
 	SidebarInset,
 	SidebarProvider,
 	SidebarRail,
+	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
-import { SettingsView } from "@/components/views/settings/settings-view";
+import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
+import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
+import { SessionsView } from "@/components/views/sessions/sessions-view";
+import {
+	type SettingsSection,
+	SettingsView,
+} from "@/components/views/settings/settings-view";
+import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { syncAppIcon } from "@/lib/app-icon";
+import type { ChatSessionConfig } from "@/lib/chat-schema";
+import {
+	createDesktopAppState,
+	type DesktopAppLocation,
+	type DesktopAppView,
+	desktopAppReducer,
+} from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	hasCompletedOnboarding,
+	markOnboardingCompleted,
+	ONBOARDING_RESET_EVENT,
+} from "@/lib/onboarding";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	filterWorkspacePaths,
+	mergeWorkspacePaths,
+	normalizeWorkspacePath,
+	readWorkspaceSelectionFromWindow,
+	workspacePathsFromSessions,
+	writeWorkspaceSelectionToWindow,
+} from "@/lib/workspace-paths";
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-type Thread = {
-	id: string;
-	historySession?: SessionHistoryItem;
-};
-
-type WorkspaceSessionItem = {
-	cwd?: string;
-	workspaceRoot?: string;
-};
-
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
-}
+type AppLocation = DesktopAppLocation<SettingsSection>;
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
@@ -70,87 +92,91 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
-	const [view, setView] = useState<"chat" | "diff" | "settings">("chat");
-	const [threads, setThreads] = useState<Thread[]>(() => [
-		{ id: makeThreadId() },
-	]);
-	const [activeThreadId, setActiveThreadId] = useState<string>(
-		() => threads[0]?.id,
+	const [initialThreadId] = useState(makeThreadId);
+	const [appState, dispatchApp] = useReducer(
+		desktopAppReducer<SettingsSection>,
+		initialThreadId,
+		(threadId) => createDesktopAppState(threadId, "General"),
 	);
-	const handleNewThread = useCallback(() => {
-		const id = makeThreadId();
-		setThreads((prev) => [...prev, { id }]);
-		setActiveThreadId(id);
+	// Starts false on both server and first client render (hydration-safe);
+	// the effect below reads the persisted state right after mount.
+	const [showOnboarding, setShowOnboarding] = useState(false);
+	const { navigation, threads } = appState;
+	const { activeThreadId, settingsSection, view } = navigation.current;
+
+	const navigate = useCallback((destination: AppLocation) => {
+		dispatchApp({ type: "navigate", destination });
+	}, []);
+	const navigateWith = useCallback(
+		(destination: Partial<AppLocation>) => {
+			navigate({ ...navigation.current, ...destination });
+		},
+		[navigate, navigation.current],
+	);
+	const handleNavigateBack = useCallback(() => {
+		dispatchApp({ type: "back" });
+	}, []);
+	const handleNavigateForward = useCallback(() => {
+		dispatchApp({ type: "forward" });
 	}, []);
 
+	useAppUpdate();
+
+	useEffect(() => {
+		setShowOnboarding(!hasCompletedOnboarding());
+		const handleReset = () => setShowOnboarding(true);
+		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
+		return () =>
+			window.removeEventListener(ONBOARDING_RESET_EVENT, handleReset);
+	}, []);
+
+	useEffect(() => {
+		syncHubTheme();
+		syncHubAccent();
+		return watchSystemHubTheme();
+	}, []);
+
+	useEffect(() => {
+		// The dock reverts to the bundled icon every launch; re-apply the
+		// user's choice once the shell is up.
+		void syncAppIcon();
+	}, []);
+
+	useEffect(() => {
+		void syncDesktopWindowTitle();
+	}, []);
+
+	const handleNewThread = useCallback(() => {
+		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+	}, []);
+
+	const completeOnboarding = useCallback(() => {
+		markOnboardingCompleted();
+		setShowOnboarding(false);
+		// A fresh thread remounts the chat pane so it picks up credentials and
+		// the provider/model selection configured during onboarding.
+		handleNewThread();
+	}, [handleNewThread]);
+
 	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
-		const threadId = `session_${session.sessionId}`;
-		setThreads((prev) => {
-			const existingIdx = prev.findIndex((item) => item.id === threadId);
-			if (existingIdx >= 0) {
-				const next = [...prev];
-				next[existingIdx] = {
-					...next[existingIdx],
-					historySession: session,
-				};
-				return next;
-			}
-			return [...prev, { id: threadId, historySession: session }];
-		});
-		setActiveThreadId(threadId);
+		dispatchApp({ type: "open-session", session });
 	}, []);
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
-			const historyThreadId = `session_${deletedSessionId}`;
-			const deletedWasActive =
-				activeThreadId === deletedThreadId ||
-				activeThreadId === historyThreadId;
-			const fallback = deletedWasActive ? { id: makeThreadId() } : null;
-			let emptyFallbackId: string | null = null;
-			setThreads((prev) => {
-				const next = prev.filter(
-					(thread) =>
-						thread.id !== deletedThreadId &&
-						thread.id !== historyThreadId &&
-						thread.historySession?.sessionId !== deletedSessionId,
-				);
-				if (fallback) {
-					return [...next, fallback];
-				}
-				if (next.length === 0) {
-					emptyFallbackId = makeThreadId();
-					return [{ id: emptyFallbackId }];
-				}
-				return next;
+			dispatchApp({
+				type: "delete-session",
+				deletedSessionId,
+				deletedThreadId,
+				fallbackThreadId: makeThreadId(),
 			});
-			if (fallback) {
-				setActiveThreadId(fallback.id);
-				return;
-			}
-			if (emptyFallbackId) {
-				setActiveThreadId(emptyFallbackId);
-			}
 		},
-		[activeThreadId],
+		[],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
 		(sessionId: string, metadata: SessionMetadata) => {
-			setThreads((prev) =>
-				prev.map((thread) => {
-					if (thread.historySession?.sessionId !== sessionId) {
-						return thread;
-					}
-					return {
-						...thread,
-						historySession: {
-							...thread.historySession,
-							metadata,
-						},
-					};
-				}),
-			);
+			dispatchApp({ type: "update-session-metadata", sessionId, metadata });
 		},
 		[],
 	);
@@ -176,9 +202,69 @@ export default function Home() {
 			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	const handleHome = useCallback(() => {
+		if (activeThread?.historySession || activeThread?.hasStarted) {
+			handleNewThread();
+			return;
+		}
+		navigateWith({ view: "chat" });
+	}, [activeThread, handleNewThread, navigateWith]);
+	const handleViewChange = useCallback(
+		(nextView: DesktopAppView) => {
+			navigateWith({ view: nextView });
+		},
+		[navigateWith],
+	);
+	const handleSettingsSectionChange = useCallback(
+		(section: SettingsSection) => {
+			navigateWith({ settingsSection: section, view: "settings" });
+		},
+		[navigateWith],
+	);
+	const handleThreadStarted = useCallback((threadId: string) => {
+		dispatchApp({ type: "thread-started", threadId });
+	}, []);
+	const sessionHistory = useSessionHistory({
+		activeSessionId: activeHistorySessionId,
+		onDeleteSession: handleDeleteSession,
+		onOpenSession: handleOpenSession,
+		onUpdateSessionMetadata: handleUpdateSessionMetadata,
+	});
+	const handleOpenSessionById = useCallback(
+		async (sessionId: string) => {
+			const cachedSession = sessionHistory.sessions.find(
+				(session) => session.sessionId === sessionId,
+			);
+			if (cachedSession) {
+				handleOpenSession(cachedSession);
+				return;
+			}
+			try {
+				const session = await desktopClient.invoke<SessionHistoryItem | null>(
+					"get_discovered_session",
+					{ session_id: sessionId },
+				);
+				if (!session) {
+					throw new Error("The session for this run is no longer available.");
+				}
+				handleOpenSession(session);
+			} catch (error) {
+				toast({
+					title: "Unable to open run",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+			}
+		},
+		[handleOpenSession, sessionHistory.sessions],
+	);
+	const historyWorkspacePaths = useMemo(
+		() => workspacePathsFromSessions(sessionHistory.sessions),
+		[sessionHistory.sessions],
+	);
 
 	return (
-		<>
+		<AccountProvider>
 			<SidebarProvider>
 				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
 					<Sidebar
@@ -187,48 +273,80 @@ export default function Home() {
 					>
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
+							onHome={handleHome}
+							onNavigateBack={handleNavigateBack}
+							onNavigateForward={handleNavigateForward}
 							onNewThread={handleNewThread}
-							onOpenSession={handleOpenSession}
-							setView={setView}
+							onSettingsSectionChange={handleSettingsSectionChange}
+							sessionHistory={sessionHistory}
+							setView={handleViewChange}
+							settingsSection={settingsSection}
+							view={view}
+							canNavigateBack={navigation.back.length > 0}
+							canNavigateForward={navigation.forward.length > 0}
 						/>
 						<SidebarRail />
 					</Sidebar>
 					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						{activeThread ? (
-							<div className="flex min-h-0 flex-1 flex-col">
+						<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
+						{view === "sessions" ? (
+							<SessionsView
+								activeSessionId={activeHistorySessionId}
+								history={sessionHistory}
+							/>
+						) : activeThread ? (
+							<div
+								aria-hidden={view === "settings" ? true : undefined}
+								className="flex min-h-0 flex-1 flex-col"
+								inert={view === "settings" ? true : undefined}
+							>
 								<ChatThreadPane
 									key={activeThread.id}
 									historySession={activeThread.historySession}
+									knownWorkspacePaths={historyWorkspacePaths}
 									onUpdateSessionMetadata={handleUpdateSessionMetadata}
 									threadId={activeThread.id}
 									onDeleteSession={handleDeleteSession}
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
+									onThreadStarted={handleThreadStarted}
+								/>
+							</div>
+						) : null}
+						{view === "settings" ? (
+							<div className="absolute inset-0 z-30 bg-background text-foreground">
+								<SettingsView
+									onNavigateSection={handleSettingsSectionChange}
+									onOpenSession={handleOpenSessionById}
+									section={settingsSection}
 								/>
 							</div>
 						) : null}
 					</SidebarInset>
 				</div>
 			</SidebarProvider>
-			{view === "settings" ? (
-				<div className="fixed inset-0 z-50 bg-background text-foreground">
-					<SettingsView onClose={() => setView("chat")} />
+			{showOnboarding ? (
+				<div className="fixed inset-0 z-50">
+					<OnboardingView onComplete={completeOnboarding} />
 				</div>
 			) : null}
-		</>
+		</AccountProvider>
 	);
 }
 
 function ChatThreadPane({
 	threadId,
 	historySession,
+	knownWorkspacePaths,
 	onUpdateSessionMetadata,
 	onDeleteSession,
 	onNewThread,
 	onOpenSession,
+	onThreadStarted,
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
+	knownWorkspacePaths: string[];
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
@@ -236,11 +354,13 @@ function ChatThreadPane({
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (session: SessionHistoryItem) => void;
+	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
 		sessionId,
 		status,
 		chatTransportState,
+		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
 		config,
@@ -252,6 +372,7 @@ function ChatThreadPane({
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,
+		setWorkspacePath,
 		sendPrompt,
 		steerPromptInQueue,
 		updatePromptInQueue,
@@ -267,6 +388,8 @@ function ChatThreadPane({
 	} = useChatSession();
 	const [promptInput, setPromptInput] = useState("");
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+	const dragDepthRef = useRef(0);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -280,11 +403,21 @@ function ChatThreadPane({
 		Record<string, { apiKey: string }>
 	>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
-	const [workspaces, setWorkspaces] = useState<string[]>([]);
+	// History paths lead each merge: they are ordered by session recency, so
+	// stored or stale entries only append after them.
+	const [workspaces, setWorkspaces] = useState<string[]>(() =>
+		filterWorkspacePaths(
+			mergeWorkspacePaths(
+				knownWorkspacePaths,
+				readWorkspaceSelectionFromWindow().workspaces,
+			),
+		),
+	);
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
+	const workspaceSelectionRequestRef = useRef(0);
 	const workspaceRef = useRef({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
@@ -293,6 +426,26 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+
+	useEffect(() => {
+		setWorkspaces((current) => {
+			const merged = filterWorkspacePaths(
+				mergeWorkspacePaths(knownWorkspacePaths, current),
+			);
+			return current.length === merged.length &&
+				current.every((workspace, index) => workspace === merged[index])
+				? current
+				: merged;
+		});
+	}, [knownWorkspacePaths]);
+
+	useEffect(() => {
+		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace,
+			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
+		});
+	}, [config.cwd, config.workspaceRoot, workspaces]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -357,12 +510,15 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
+		const cwd = getWorkspaceCwd();
+		if (!cwd) {
+			setGitBranch("no-git");
+			return;
+		}
 		try {
 			const payload = await desktopClient.invoke<{ branch?: string }>(
 				"get_git_branch",
-				{
-					cwd: getWorkspaceCwd(),
-				},
+				{ cwd },
 			);
 			const branch = payload?.branch?.trim();
 			setGitBranch(branch && branch.length > 0 ? branch : "no-git");
@@ -375,13 +531,15 @@ function ChatThreadPane({
 		current: string;
 		branches: string[];
 	}> => {
+		const cwd = getWorkspaceCwd();
+		if (!cwd) {
+			return { current: "no-git", branches: [] };
+		}
 		try {
 			const payload = await desktopClient.invoke<{
 				current?: string;
 				branches?: string[];
-			}>("list_git_branches", {
-				cwd: getWorkspaceCwd(),
-			});
+			}>("list_git_branches", { cwd });
 			const current = payload?.current?.trim() || "no-git";
 			const branches = Array.isArray(payload?.branches)
 				? payload.branches.filter((item) => item.trim().length > 0)
@@ -394,13 +552,14 @@ function ChatThreadPane({
 
 	const switchGitBranch = useCallback(
 		async (nextBranch: string): Promise<boolean> => {
+			const cwd = getWorkspaceCwd();
+			if (!cwd) {
+				return false;
+			}
 			try {
 				const payload = await desktopClient.invoke<{ branch?: string }>(
 					"checkout_git_branch",
-					{
-						cwd: getWorkspaceCwd(),
-						branch: nextBranch,
-					},
+					{ cwd, branch: nextBranch },
 				);
 				const branch = payload?.branch?.trim();
 				setGitBranch(branch && branch.length > 0 ? branch : "no-git");
@@ -414,47 +573,33 @@ function ChatThreadPane({
 
 	const listWorkspaces = useCallback(
 		async (preferredWorkspace?: string): Promise<string[]> => {
-			const roots = new Set<string>();
 			const preferred = (preferredWorkspace || "").trim();
-			if (preferred) {
-				roots.add(preferred);
-			}
 			const current = (
 				workspaceRef.current.workspaceRoot ||
 				workspaceRef.current.cwd ||
 				""
 			).trim();
-			if (current) {
-				roots.add(current);
-			}
-
-			try {
-				const discovered = await desktopClient
-					.invoke<WorkspaceSessionItem[]>("list_discovered_sessions", {
-						limit: 20,
-					})
-					.catch(() => []);
-
-				for (const session of discovered) {
-					const candidate = (session.workspaceRoot || session.cwd || "").trim();
-					if (candidate) {
-						roots.add(candidate);
-					}
-				}
-			} catch {
-				// Keep fallback to current workspace when history is unavailable.
-			}
-
-			return [...roots].sort((a, b) => a.localeCompare(b));
+			// The active workspace can be an excluded path (restored session,
+			// process cwd fallback); it renders via its own registration in the
+			// selector and welcome screen instead of joining the catalog.
+			return filterWorkspacePaths(
+				mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]),
+			);
 		},
-		[],
+		[knownWorkspacePaths],
 	);
 
 	const refreshWorkspaces = useCallback(
 		async (preferredWorkspace?: string) => {
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
-				setWorkspaces(results);
+				setWorkspaces((current) => {
+					const merged = mergeWorkspacePaths(results, current);
+					return current.length === merged.length &&
+						current.every((workspace, index) => workspace === merged[index])
+						? current
+						: merged;
+				});
 			} finally {
 				setWorkspacesLoaded(true);
 			}
@@ -472,6 +617,7 @@ function ChatThreadPane({
 			if (!nextWorkspace) {
 				return false;
 			}
+			const requestId = ++workspaceSelectionRequestRef.current;
 			const normalizedNext = normalizeWorkspacePath(nextWorkspace);
 			const normalizedCurrent = normalizeWorkspacePath(
 				workspaceRef.current.workspaceRoot || workspaceRef.current.cwd || "",
@@ -479,17 +625,22 @@ function ChatThreadPane({
 			if (normalizedNext === normalizedCurrent) {
 				return true;
 			}
+			const validation = await desktopClient
+				.invoke<{ valid?: boolean }>("validate_workspace_directory", {
+					path: nextWorkspace,
+				})
+				.catch(() => ({ valid: false }));
+			if (validation.valid !== true) {
+				return false;
+			}
+			if (requestId !== workspaceSelectionRequestRef.current) {
+				return false;
+			}
 
-			setConfig((prev) => ({
-				...prev,
-				workspaceRoot: nextWorkspace,
-				cwd: nextWorkspace,
-			}));
-			setWorkspaces((prev) => {
-				const next = new Set(prev);
-				next.add(nextWorkspace);
-				return [...next].sort((a, b) => a.localeCompare(b));
-			});
+			setWorkspacePath(nextWorkspace);
+			setWorkspaces((prev) =>
+				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
+			);
 
 			// Fire git branch + workspace list refresh in the background
 			desktopClient
@@ -497,20 +648,32 @@ function ChatThreadPane({
 					cwd: nextWorkspace,
 				})
 				.then((payload) => {
+					if (requestId !== workspaceSelectionRequestRef.current) {
+						return;
+					}
 					const branch = payload?.branch?.trim();
 					setGitBranch(branch && branch.length > 0 ? branch : "no-git");
 				})
 				.catch(() => {
-					setGitBranch("no-git");
+					if (requestId === workspaceSelectionRequestRef.current) {
+						setGitBranch("no-git");
+					}
 				});
 
-			// Re-fetch workspace list so the new root appears
+			// Refresh the merged history, stored, and current workspace catalog.
 			void refreshWorkspaces(nextWorkspace);
 
 			return true;
 		},
-		[setConfig, refreshWorkspaces],
+		[refreshWorkspaces, setWorkspacePath],
 	);
+
+	const selectChat = useCallback(async (): Promise<boolean> => {
+		workspaceSelectionRequestRef.current += 1;
+		setWorkspacePath("");
+		setGitBranch("no-git");
+		return true;
+	}, [setWorkspacePath]);
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
@@ -589,11 +752,32 @@ function ChatThreadPane({
 		if (!trimmed && pendingAttachments.length === 0) {
 			return;
 		}
+		onThreadStarted?.(threadId);
 		setPromptInput("");
 		const toSend = [...pendingAttachments];
 		setPendingAttachments([]);
 		await sendPrompt(trimmed, toSend);
-	}, [pendingAttachments, promptInput, sendPrompt]);
+	}, [onThreadStarted, pendingAttachments, promptInput, sendPrompt, threadId]);
+
+	const handleReasoningChange = useCallback(
+		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
+			setConfig((prev) => {
+				if (
+					prev.thinking === next.thinking &&
+					prev.reasoningEffort === next.reasoningEffort
+				) {
+					return prev;
+				}
+				return {
+					...prev,
+					thinking: next.thinking,
+					reasoningEffort:
+						next.thinking === false ? undefined : next.reasoningEffort,
+				};
+			});
+		},
+		[setConfig],
+	);
 
 	const handleUndoQueuedPrompt = useCallback(
 		async (item: PromptInQueue) => {
@@ -748,6 +932,69 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	const handleAttachFiles = useCallback((files: File[]) => {
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of files) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
+
+	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
+	// Tauri window — otherwise the native shell swallows OS file drags and these
+	// HTML5 events never fire.
+	const handleDragEnter = useCallback((event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		event.preventDefault();
+		dragDepthRef.current += 1;
+		setIsDraggingFiles(true);
+	}, []);
+
+	const handleDragOver = useCallback((event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		event.preventDefault();
+		event.dataTransfer.dropEffect = "copy";
+	}, []);
+
+	const handleDragLeave = useCallback((event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+		if (dragDepthRef.current === 0) {
+			setIsDraggingFiles(false);
+		}
+	}, []);
+
+	const handleDrop = useCallback(
+		(event: React.DragEvent) => {
+			if (!event.dataTransfer.types.includes("Files")) {
+				return;
+			}
+			event.preventDefault();
+			dragDepthRef.current = 0;
+			setIsDraggingFiles(false);
+			const files = Array.from(event.dataTransfer.files);
+			if (files.length > 0) {
+				handleAttachFiles(files);
+			}
+		},
+		[handleAttachFiles],
+	);
+
 	const attachmentList = pendingAttachments.map((file, index) => ({
 		id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 		name: file.name,
@@ -777,6 +1024,8 @@ function ChatThreadPane({
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
+	const isWelcomeState =
+		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -827,11 +1076,10 @@ function ChatThreadPane({
 			workspaceRoot: resolvedWorkspaceRoot,
 			workspaces,
 			listWorkspaces,
-			refreshWorkspaces: async () => {
-				await refreshWorkspaces();
-			},
+			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
+			selectChat,
 		}),
 		[
 			resolvedWorkspaceRoot,
@@ -840,6 +1088,7 @@ function ChatThreadPane({
 			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
+			selectChat,
 		],
 	);
 
@@ -851,155 +1100,173 @@ function ChatThreadPane({
 			<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
 				<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 				<p className="text-sm text-muted-foreground">
-					{chatTransportState !== "connected" ? "Connecting..." : "Loading..."}
+					{chatTransportState === "unavailable"
+						? "Desktop backend unavailable"
+						: chatTransportState !== "connected"
+							? "Connecting..."
+							: "Loading..."}
 				</p>
+				{chatTransportError ? (
+					<p className="max-w-xl px-6 text-center text-xs text-muted-foreground">
+						{chatTransportError}
+					</p>
+				) : null}
 			</div>
 		);
 	}
 
+	const composer = (
+		<ChatInputBar
+			attachments={attachmentList}
+			onAbort={() => void abort()}
+			onAttachFiles={handleAttachFiles}
+			onListGitBranches={listGitBranches}
+			onRemoveAttachment={(id) => {
+				setPendingAttachments((prev) =>
+					prev.filter((file, index) => {
+						const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
+						return fileId !== id;
+					}),
+				);
+			}}
+			onSwitchGitBranch={switchGitBranch}
+			onModelChange={(nextModel) =>
+				setConfig((prev) =>
+					prev.model === nextModel ? prev : { ...prev, model: nextModel },
+				)
+			}
+			onModeToggle={() =>
+				setConfig((prev) => ({
+					...prev,
+					mode: prev.mode === "plan" ? "act" : "plan",
+				}))
+			}
+			onPromptInputChange={setPromptInput}
+			onReasoningChange={handleReasoningChange}
+			onSteerPromptInQueue={(promptId) => {
+				void steerPromptInQueue(promptId);
+			}}
+			onEditPromptInQueue={(promptId, prompt) => {
+				void updatePromptInQueue(promptId, prompt);
+			}}
+			onUndoPromptInQueue={(item) => {
+				void handleUndoQueuedPrompt(item);
+			}}
+			onProviderChange={(nextProvider) =>
+				setConfig((prev) => {
+					const selected = providerCredentials[nextProvider];
+					const nextApiKey = selected?.apiKey ?? "";
+					if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
+						return prev;
+					}
+					return {
+						...prev,
+						provider: nextProvider,
+						apiKey: nextApiKey,
+					};
+				})
+			}
+			onSend={() => void handleSend()}
+			gitBranch={gitBranch}
+			model={config.model}
+			mode={config.mode}
+			promptsInQueue={promptsInQueue}
+			promptInput={promptInput}
+			provider={config.provider}
+			reasoningEffort={config.reasoningEffort}
+			status={status}
+			summary={summary}
+			thinking={config.thinking}
+			variant={isWelcomeState ? "welcome" : "conversation"}
+		/>
+	);
+
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			<div className="grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
-				<div className="z-20">
-					<AgentHeader
-						canEditTitle={Boolean(activeSessionForTitle)}
-						canDeleteSession={Boolean(activeSessionToDelete)}
-						deletingSession={deletingSession}
-						diff={{
-							additions: summary.additions,
-							deletions: summary.deletions,
-						}}
-						onDeleteSession={requestDeleteSession}
-						onNewThread={onNewThread}
-						onOpenDiff={() => {
-							if (hasDiffChanges) {
-								setShowDiffView(true);
-							}
-						}}
-						onRenameTitle={handleRenameTitle}
-						renamingTitle={renamingSession}
-						status={status}
-						title={threadTitle}
-					/>
-				</div>
-				<div className="h-full min-h-0 overflow-hidden">
-					{showDiffView ? (
-						<DiffView
-							fileDiffs={fileDiffs}
-							onClose={() => setShowDiffView(false)}
-						/>
-					) : (
-						<ChatMessages
-							onAnswerAskQuestion={handleAnswerAskQuestion}
-							onApproveToolApproval={handleApproveToolApproval}
-							onRejectToolApproval={handleRejectToolApproval}
-							onStartChat={(prompt) => {
-								setPromptInput(prompt);
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
+			<div
+				className={
+					isWelcomeState
+						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+				}
+				onDragEnter={handleDragEnter}
+				onDragLeave={handleDragLeave}
+				onDragOver={handleDragOver}
+				onDrop={handleDrop}
+			>
+				{isDraggingFiles ? (
+					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
+							<ImagePlus className="h-8 w-8 text-primary" />
+							<p className="text-sm font-medium text-foreground">
+								Drop to attach
+							</p>
+							<p className="text-xs text-muted-foreground">
+								Screenshots and files will be added to your next message
+							</p>
+						</div>
+					</div>
+				) : null}
+				{!isWelcomeState ? (
+					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+						<AgentHeader
+							canEditTitle={Boolean(activeSessionForTitle)}
+							canDeleteSession={Boolean(activeSessionToDelete)}
+							deletingSession={deletingSession}
+							diff={{
+								additions: summary.additions,
+								deletions: summary.deletions,
 							}}
-							chatTransportState={chatTransportState}
-							error={displayedError}
-							messages={displayedMessages}
-							model={config.model}
-							onRestoreCheckpoint={(runCount) =>
-								void restoreCheckpoint(runCount)
-							}
-							onForkSession={handleForkSession}
-							pendingToolApprovals={pendingToolApprovals}
-							pendingAskQuestions={pendingAskQuestions}
-							provider={config.provider}
-							sessionId={displayedSessionId}
-							streamingMessageId={activeAssistantMessageId}
-							isSessionSwitching={displayedIsSwitching}
-							status={displayedStatus}
+							onDeleteSession={requestDeleteSession}
+							onNewThread={onNewThread}
+							onOpenDiff={() => {
+								if (hasDiffChanges) setShowDiffView(true);
+							}}
+							onRenameTitle={handleRenameTitle}
+							renamingTitle={renamingSession}
+							status={status}
+							title={threadTitle}
 						/>
-					)}
-				</div>
-				<div className="z-20 shrink-0">
-					<ChatInputBar
-						attachments={attachmentList}
-						onAbort={() => void abort()}
-						onAttachFiles={(files) => {
-							setPendingAttachments((prev) => {
-								const existing = new Set(
-									prev.map(
-										(file) => `${file.name}:${file.size}:${file.lastModified}`,
-									),
-								);
-								const next = [...prev];
-								for (const file of files) {
-									const key = `${file.name}:${file.size}:${file.lastModified}`;
-									if (!existing.has(key)) {
-										existing.add(key);
-										next.push(file);
-									}
+					</div>
+				) : null}
+				<WelcomeScreen
+					active={isWelcomeState}
+					body={
+						showDiffView ? (
+							<DiffView
+								cwd={config.cwd || config.workspaceRoot}
+								fileDiffs={fileDiffs}
+								onClose={() => setShowDiffView(false)}
+							/>
+						) : (
+							<ChatMessages
+								onAnswerAskQuestion={handleAnswerAskQuestion}
+								onApproveToolApproval={handleApproveToolApproval}
+								onRejectToolApproval={handleRejectToolApproval}
+								chatTransportState={chatTransportState}
+								error={displayedError}
+								messages={displayedMessages}
+								onRestoreCheckpoint={(runCount) =>
+									void restoreCheckpoint(runCount)
 								}
-								return next;
-							});
-						}}
-						onListGitBranches={listGitBranches}
-						onRemoveAttachment={(id) => {
-							setPendingAttachments((prev) =>
-								prev.filter((file, index) => {
-									const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
-									return fileId !== id;
-								}),
-							);
-						}}
-						onSwitchGitBranch={switchGitBranch}
-						onRefreshGitBranch={() => void refreshGitBranch()}
-						onModelChange={(nextModel) =>
-							setConfig((prev) =>
-								prev.model === nextModel ? prev : { ...prev, model: nextModel },
-							)
-						}
-						onModeToggle={() =>
-							setConfig((prev) => ({
-								...prev,
-								mode: prev.mode === "plan" ? "act" : "plan",
-							}))
-						}
-						onPromptInputChange={setPromptInput}
-						onSteerPromptInQueue={(promptId) => {
-							void steerPromptInQueue(promptId);
-						}}
-						onEditPromptInQueue={(promptId, prompt) => {
-							void updatePromptInQueue(promptId, prompt);
-						}}
-						onUndoPromptInQueue={(item) => {
-							void handleUndoQueuedPrompt(item);
-						}}
-						onProviderChange={(nextProvider) =>
-							setConfig((prev) => {
-								const selected = providerCredentials[nextProvider];
-								const nextApiKey = selected?.apiKey ?? "";
-								if (
-									prev.provider === nextProvider &&
-									prev.apiKey === nextApiKey
-								) {
-									return prev;
-								}
-								return {
-									...prev,
-									provider: nextProvider,
-									apiKey: nextApiKey,
-								};
-							})
-						}
-						onReset={() => {
-							setPendingAttachments([]);
-							void reset();
-						}}
-						onSend={() => void handleSend()}
-						gitBranch={gitBranch}
-						model={config.model}
-						mode={config.mode}
-						promptsInQueue={promptsInQueue}
-						promptInput={promptInput}
-						provider={config.provider}
-						status={status}
-						summary={summary}
-					/>
-				</div>
+								onForkSession={handleForkSession}
+								pendingToolApprovals={pendingToolApprovals}
+								pendingAskQuestions={pendingAskQuestions}
+								sessionId={displayedSessionId}
+								streamingMessageId={activeAssistantMessageId}
+								isSessionSwitching={displayedIsSwitching}
+								status={displayedStatus}
+							/>
+						)
+					}
+					composer={composer}
+					gitBranch={gitBranch}
+					onListGitBranches={listGitBranches}
+					onStartChat={setPromptInput}
+					onSwitchGitBranch={switchGitBranch}
+					quickActions={[]}
+				/>
 			</div>
 			<AlertDialog
 				open={deleteConfirmOpen}

@@ -139,6 +139,34 @@ Instructions here`)
 			expect(skills[0].source).to.equal("global")
 		})
 
+		// Regression test for https://github.com/cline/cline/issues/12151:
+		// SKILL.md files saved with a UTF-8 BOM (e.g. by Windows Notepad's "UTF-8 with BOM"
+		// encoding) were silently skipped because the frontmatter regex required "---" at the
+		// very start of the file and never accounted for the leading \uFEFF byte sequence.
+		it("should discover skills whose SKILL.md starts with a UTF-8 BOM", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "my-skill")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["my-skill"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`\uFEFF---
+name: my-skill
+description: A test skill
+---
+# my-skill
+This is a test skill.`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].name).to.equal("my-skill")
+			expect(skills[0].description).to.equal("A test skill")
+			expect(skills[0].source).to.equal("global")
+		})
+
 		it("should discover skills from project .clinerules/skills directory", async () => {
 			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
 			const skillDir = path.join(projectSkillsDir, "explaining-code")

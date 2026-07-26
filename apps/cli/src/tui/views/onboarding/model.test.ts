@@ -135,9 +135,9 @@ describe("onboarding model helpers", () => {
 		expect(getOAuthProviderLabel("oca")).toBe("oca");
 	});
 
-	it("uses the featured Cline model picker only for the Cline provider", () => {
+	it("uses the featured Cline model picker for the Cline and ClinePass providers", () => {
 		expect(shouldUseFeaturedClineModelPicker("cline")).toBe(true);
-		expect(shouldUseFeaturedClineModelPicker("cline-pass")).toBe(false);
+		expect(shouldUseFeaturedClineModelPicker("cline-pass")).toBe(true);
 		expect(shouldUseFeaturedClineModelPicker("anthropic")).toBe(false);
 	});
 });

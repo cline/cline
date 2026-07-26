@@ -27,12 +27,13 @@
 
 import type { CoreSessionEvent } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import type { AgentEvent } from "@cline/shared"
+import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
 	ClineApiReqInfo,
 	ClineAskUseMcpServer,
 	ClineAskUseSubagents,
+	ClineCompactionInfo,
 	ClineMessage,
 	ClineSay,
 	ClineSaySubagentStatus,
@@ -124,6 +125,14 @@ export class MessageTranslatorState {
 	private streamingToolName: string | undefined
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
+	/**
+	 * The in-flight compaction divider's ts, so the "completed"/"skipped" notice
+	 * (or a turn error/abort) updates the same row in place. Deliberately NOT
+	 * cleared by the per-iteration `reset()`: the started/completed notices both
+	 * fire inside prepareTurn, before the next `iteration_start`, but an error
+	 * or abort mid-compaction must still be able to finalize the open row.
+	 */
+	private openCompactionTs: number | undefined
 	/** Tool calls rejected by the user; they should not render as red tool failures. */
 	private deniedToolApprovalsByCallId = new Map<string, { toolName: string; reason: string }>()
 	/**
@@ -152,6 +161,19 @@ export class MessageTranslatorState {
 	/** Generate a unique message id (identity). Pure monotonic counter; never reads the clock. */
 	nextTs(): number {
 		return this.minter.nextId()
+	}
+
+	/** Mint and remember the ts of an in-flight compaction divider. */
+	beginCompaction(): number {
+		this.openCompactionTs = this.nextTs()
+		return this.openCompactionTs
+	}
+
+	/** Take (and clear) the in-flight compaction divider's ts, if any. */
+	takeOpenCompactionTs(): number | undefined {
+		const ts = this.openCompactionTs
+		this.openCompactionTs = undefined
+		return ts
 	}
 
 	/** Get and increment for streaming text */
@@ -452,10 +474,11 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 	switch (toolName) {
 		case "read_files":
 		case "read_file": {
-			const filePath = extractFirstFilePath(parsedInput)
+			const fileRead = extractFileReads(parsedInput)[0]
 			return {
 				tool: "readFile",
-				path: filePath,
+				path: fileRead?.path ?? "",
+				...readLineRangeFields(fileRead),
 			}
 		}
 
@@ -665,32 +688,53 @@ function getCompletionResultText(input: unknown): string {
 	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
 }
 
-/** Extract file paths from a read_files/read_file input */
-function extractFilePaths(input: Record<string, unknown> | undefined): string[] {
+/** A single file read request parsed from a read_files/read_file input */
+interface FileReadRequest {
+	path: string
+	startLine?: number
+	endLine?: number
+}
+
+/** Extract file read requests (path + optional one-based inclusive line range) from a read_files/read_file input */
+function extractFileReads(input: Record<string, unknown> | undefined): FileReadRequest[] {
 	if (!input) return []
 	const files = input.files
 	if (Array.isArray(files) && files.length > 0) {
-		const paths = files
-			.map((f) => {
-				if (typeof f === "string") return f
+		const reads = files
+			.map((f): FileReadRequest => {
+				if (typeof f === "string") return { path: f }
 				if (typeof f === "object" && f !== null) {
-					return ((f as Record<string, unknown>).path as string) ?? ""
+					const entry = f as Record<string, unknown>
+					return {
+						path: (entry.path as string) ?? "",
+						startLine: getNumberField(entry, "start_line"),
+						endLine: getNumberField(entry, "end_line"),
+					}
 				}
-				return ""
+				return { path: "" }
 			})
-			.filter(Boolean)
-		if (paths.length > 0) {
-			return paths
+			.filter((read) => read.path)
+		if (reads.length > 0) {
+			return reads
 		}
 	}
 	const singlePath =
 		(input.path as string) ?? (input.file_path as string) ?? (input.filePath as string) ?? (input.filename as string) ?? ""
-	return singlePath ? [singlePath] : []
+	return singlePath
+		? [{ path: singlePath, startLine: getNumberField(input, "start_line"), endLine: getNumberField(input, "end_line") }]
+		: []
 }
 
-/** Extract the first file path from a read_files input */
-function extractFirstFilePath(input: Record<string, unknown> | undefined): string {
-	return extractFilePaths(input)[0] ?? ""
+/**
+ * Map a read request's line range onto ClineSayTool fields. An omitted start_line with an
+ * explicit end_line means the read began at line 1; an omitted end_line stays undefined
+ * (open-ended read — the UI renders it as "start+").
+ */
+function readLineRangeFields(read: FileReadRequest | undefined): Pick<ClineSayTool, "readLineStart" | "readLineEnd"> {
+	if (!read || (read.startLine == null && read.endLine == null)) {
+		return {}
+	}
+	return { readLineStart: read.startLine ?? 1, readLineEnd: read.endLine }
 }
 
 /** Get a string field from a parsed input object */
@@ -698,6 +742,14 @@ function getStringField(input: Record<string, unknown> | undefined, field: strin
 	if (!input) return undefined
 	const value = input[field]
 	if (typeof value === "string") return value
+	return undefined
+}
+
+/** Get a finite number field from a parsed input object (null/non-number → undefined) */
+function getNumberField(input: Record<string, unknown> | undefined, field: string): number | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "number" && Number.isFinite(value)) return value
 	return undefined
 }
 
@@ -893,6 +945,83 @@ export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts
 /**
  * Translate an SDK AgentEvent into ClineMessage(s).
  */
+/**
+ * Extract a compaction divider payload from a status notice's metadata.
+ * Mirrors the CLI's parseCompactionNoticeMetadata
+ * (apps/cli/src/tui/utils/compaction-status.ts). Returns undefined for
+ * non-compaction status notices.
+ */
+export function parseCompactionNoticeMetadata(metadata: Record<string, unknown> | undefined): ClineCompactionInfo | undefined {
+	if (!metadata || (metadata.phase !== "started" && metadata.phase !== "completed" && metadata.phase !== "skipped")) {
+		return undefined
+	}
+	const kind = metadata.kind ?? metadata.reason
+	if (kind !== "auto_compaction" && kind !== "manual_compaction") {
+		return undefined
+	}
+	const mode = kind === "manual_compaction" ? "manual" : "auto"
+	if (metadata.phase === "started") {
+		return { status: "started", mode }
+	}
+	if (metadata.phase === "skipped") {
+		return { status: "skipped", mode }
+	}
+	return {
+		status: "completed",
+		mode,
+		tokensBefore: asFiniteNumber(metadata.tokensBefore),
+		tokensAfter: asFiniteNumber(metadata.tokensAfter),
+		messagesBefore: asFiniteNumber(metadata.messagesBefore),
+		messagesAfter: asFiniteNumber(metadata.messagesAfter),
+	}
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * Status notices that are internal diagnostics with no user-facing copy — their
+ * `message` is a slug, not prose. Only these are suppressed; an unlisted status
+ * notice renders as an info row so it doesn't vanish silently. Keep in sync
+ * with the `emitStatusNotice` call sites in
+ * sdk/packages/core/src/extensions/context/compaction.ts (the compaction phase
+ * slugs are handled above via parseCompactionNoticeMetadata instead).
+ */
+const INTERNAL_STATUS_NOTICES = new Set(["compaction-budget-adjusted"])
+
+/** Build the say:"compaction" divider message for a compaction status payload. */
+export function buildCompactionMessage(info: ClineCompactionInfo, ts: number): ClineMessage {
+	return {
+		ts,
+		type: "say",
+		say: "compaction",
+		text: JSON.stringify(info),
+		partial: false,
+	}
+}
+
+/**
+ * Finalize a dangling "started" compaction divider when the turn ends without
+ * the completed/skipped notice (mid-compaction abort or error).
+ *
+ * This covers auto compaction (driven by turn events). Manual compaction runs
+ * outside a turn, so SdkCompactionCoordinator.runCompaction finalizes its own
+ * dangling divider in its catch block — if the terminal-state rules change
+ * here, change them there too.
+ */
+function finalizeDanglingCompaction(
+	state: MessageTranslatorState,
+	messages: ClineMessage[],
+	status: "cancelled" | "failed",
+): void {
+	const ts = state.takeOpenCompactionTs()
+	if (ts === undefined) {
+		return
+	}
+	messages.push(buildCompactionMessage({ status, mode: "auto" }, ts))
+}
+
 function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
 	const messages: ClineMessage[] = []
 
@@ -1295,16 +1424,17 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// list reflect what was actually read.
 					if (toolName === "read_files" || toolName === "read_file") {
 						const parsedInput = parseToolInput(storedInput)
-						const filePaths = extractFilePaths(parsedInput)
-						if (filePaths.length > 1) {
-							filePaths.forEach((filePath, index) => {
+						const fileReads = extractFileReads(parsedInput)
+						if (fileReads.length > 1) {
+							fileReads.forEach((fileRead, index) => {
 								messages.push({
 									ts: index === 0 ? ts : state.nextTs(),
 									type: "say",
 									say: "tool",
 									text: JSON.stringify({
 										tool: "readFile",
-										path: filePath,
+										path: fileRead.path,
+										...readLineRangeFields(fileRead),
 									} satisfies ClineSayTool),
 									partial: false,
 								})
@@ -1370,7 +1500,28 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "notice": {
-			// Agent notices are informational
+			// Status notices carry structured runtime progress. Compaction ones
+			// become a live divider row that is updated in place from "started" to
+			// its terminal state; the known-internal ones are diagnostics with no
+			// user-facing copy, so drop them explicitly. Any other status notice
+			// falls through to the info row below so a future one surfaces (as its
+			// raw slug) instead of silently vanishing.
+			if (event.noticeType === "status") {
+				const compaction = parseCompactionNoticeMetadata(event.metadata)
+				if (compaction) {
+					const ts =
+						compaction.status === "started"
+							? state.beginCompaction()
+							: (state.takeOpenCompactionTs() ?? state.nextTs())
+					messages.push(buildCompactionMessage(compaction, ts))
+					break
+				}
+				if (INTERNAL_STATUS_NOTICES.has(event.message ?? "")) {
+					break
+				}
+			}
+
+			// Non-status agent notices (and unrecognized status notices) are informational
 			messages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -1409,10 +1560,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// session-event coordinator sets on turn end (completed when the completion tool was
 			// used this turn, otherwise awaiting_followup), and the green "Task Completed" box
 			// comes from the say:"completion_result" emitted at the completion tool's content_end.
+			// A compaction divider still open here means the turn was aborted mid-compaction.
+			finalizeDanglingCompaction(state, messages, "cancelled")
 			break
 		}
 
 		case "error": {
+			finalizeDanglingCompaction(state, messages, "failed")
 			if (state.isSuppressedToolApprovalDenial(event.error)) {
 				break
 			}
@@ -1599,7 +1753,11 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 		case "pending_prompt_submitted": {
 			const { prompt, userImages, userFiles } = event.payload
-			const hasPrompt = prompt.trim().length > 0
+			// Display boundary: formatDisplayUserInput strips runtime-generated
+			// notice elements (e.g. mode_notice) that normalizeUserInput must
+			// preserve, since the latter also sanitizes model-bound prompts.
+			const displayPrompt = formatDisplayUserInput(prompt)
+			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0
 			if (hasPrompt || hasImages || hasFiles) {
@@ -1607,7 +1765,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 					ts: state.nextTs(),
 					type: "say",
 					say: "user_feedback",
-					text: prompt,
+					text: displayPrompt,
 					images: userImages,
 					files: userFiles,
 					partial: false,

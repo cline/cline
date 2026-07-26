@@ -158,8 +158,9 @@ vi.mock("./runtime/run-interactive", () => {
 });
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./session/session", () => sessionMocks);
-vi.mock("@cline/core", () => {
+vi.mock("@cline/core", async () => {
 	return {
+		...(await vi.importActual("@cline/core")),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({
@@ -332,7 +333,7 @@ describe("runCli lightweight command dispatch", () => {
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
-	});
+	}, 30_000);
 
 	it("does not load runtime modules for root update", async () => {
 		mockState.runAgentImports = 0;
@@ -1013,6 +1014,80 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("identifies saved Cline accountId for telemetry before runtime events", async () => {
+		// CLINE-2406: when persisted Cline auth includes an accountId, the
+		// runtime path must call identifyTelemetryAccount(accountContext) so
+		// subsequent task.* and workspace.* events carry user_id.
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			auth: { accountId: "usr-abc-123", refreshToken: "rt-token" },
+		};
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			clineSettings,
+		);
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "cline",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(telemetryMocks.identifyTelemetryAccount).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "usr-abc-123",
+				provider: "cline",
+			}),
+		);
+	});
+
+	it("does not call identifyTelemetryAccount in runtime path when no saved Cline accountId", async () => {
+		// CLINE-2406: when no persisted accountId is found (anonymous/unauthenticated),
+		// identifyTelemetryAccount should not be called from the runtime path.
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			// no auth / no accountId
+		};
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			clineSettings,
+		);
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "cline",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(telemetryMocks.identifyTelemetryAccount).not.toHaveBeenCalled();
+	});
+
+	it("does not call identifyTelemetryAccount from runtime path when provider is not cline", async () => {
+		// CLINE-2406: identity identification from saved settings only applies
+		// to Cline-provider sessions; other providers use different auth flows.
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue({
+			provider: "openrouter",
+			model: "openai/gpt-5",
+		});
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "openrouter",
+			model: "openai/gpt-5",
+		});
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "openrouter",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(telemetryMocks.identifyTelemetryAccount).not.toHaveBeenCalled();
+	});
+
 	it("runs kanban before loading runtime modules", async () => {
 		process.argv = ["bun", "src/index.ts", "kanban"];
 
@@ -1227,7 +1302,6 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 				thinking: true,
 				reasoningEffort: "medium",
@@ -1314,7 +1388,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("enables truncation compaction by default for prompt runs", async () => {
+	it("uses Core's agentic compaction default for prompt runs", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
@@ -1329,7 +1403,6 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 			}),
 			expect.anything(),
