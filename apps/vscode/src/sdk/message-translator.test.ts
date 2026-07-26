@@ -2936,7 +2936,7 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(payload.arguments).toContain('"user_id"')
 	})
 
-	it("content_end for MCP tool emits finalized use_mcp_server + mcp_server_response", () => {
+	it("content_end for MCP tool emits a compact row and captures output for on-demand retention", () => {
 		const state = new MessageTranslatorState()
 		// content_start to set up state
 		translateSessionEvent(
@@ -2972,14 +2972,18 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 			},
 			state,
 		)
-		expect(result.messages).toHaveLength(2)
+		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].say).toBe("use_mcp_server")
 		expect(result.messages[0].partial).toBe(false)
-		expect(result.messages[1].say).toBe("mcp_server_response")
-		expect(result.messages[1].text).toBe("User: Max (self)")
+		expect(result.toolResult).toMatchObject({
+			toolCallId: "c1",
+			toolName: "notion__notion-get-users",
+			content: "User: Max (self)",
+			isError: false,
+		})
 	})
 
-	it("content_end for MCP tool with error shows error in response", () => {
+	it("content_end for MCP tool preserves errors in the retained result", () => {
 		const state = new MessageTranslatorState()
 		translateSessionEvent(
 			{
@@ -3013,9 +3017,12 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 			},
 			state,
 		)
-		expect(result.messages).toHaveLength(2)
-		expect(result.messages[1].say).toBe("mcp_server_response")
-		expect(result.messages[1].text).toBe("Error: Auth failed")
+		expect(result.messages).toHaveLength(1)
+		expect(result.toolResult).toMatchObject({
+			toolCallId: "c2",
+			content: "Error: Auth failed",
+			isError: true,
+		})
 	})
 
 	it("MCP tool with empty input omits arguments", () => {

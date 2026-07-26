@@ -43,6 +43,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
+import { compactToolResultPreview } from "./sdk-tool-result-store"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,13 @@ export interface TranslationResult {
 		cacheWrites?: number
 		cacheReads?: number
 		totalCost?: number
+	}
+	/** Full tool output captured once by the extension host and replaced in chat with a reference. */
+	toolResult?: {
+		toolCallId?: string
+		toolName: string
+		content: string
+		isError: boolean
 	}
 }
 
@@ -1356,7 +1364,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					if (toolName === "run_commands" || toolName === "execute_command") {
 						const storedInput = state.getStreamingToolInput()
 						const commandText = extractCommandText(storedInput)
-						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
+						const outputStr = compactToolResultPreview(
+							event.error ? `Error: ${event.error}` : extractToolOutputText(event.output),
+						)
 						const ts = state.clearStreamingTool()
 						messages.push({
 							ts,
@@ -1392,16 +1402,6 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						})
 
 						// Emit the MCP server response with the tool output
-						const mcpOutputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
-						if (mcpOutputStr) {
-							messages.push({
-								ts: state.nextTs(),
-								type: "say",
-								say: "mcp_server_response" as ClineSay,
-								text: mcpOutputStr,
-								partial: false,
-							})
-						}
 						break
 					}
 
@@ -1672,6 +1672,15 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			// A content_end event with contentType "tool" signals a completed
 			// tool call — if event.error is set, the tool failed.
 			if (agentEvent.type === "content_end" && agentEvent.contentType === "tool") {
+				const toolOutput = agentEvent.error ? `Error: ${agentEvent.error}` : extractToolOutputText(agentEvent.output)
+				if (toolOutput) {
+					result.toolResult = {
+						toolCallId: agentEvent.toolCallId,
+						toolName: agentEvent.toolName ?? state.getStreamingToolName() ?? "unknown",
+						content: toolOutput,
+						isError: Boolean(agentEvent.error),
+					}
+				}
 				if (
 					agentEvent.error &&
 					!isKnownToolApprovalDenial(agentEvent.error) &&

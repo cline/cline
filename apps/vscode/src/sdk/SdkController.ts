@@ -37,6 +37,7 @@ import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState } from "./message-translator"
+import { AgentRunLifecycle, sanitizeRunFailure } from "./run-lifecycle"
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
@@ -59,6 +60,7 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
+import { SdkToolResultStore, type StoredToolResult } from "./sdk-tool-result-store"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
@@ -127,6 +129,8 @@ export class Controller {
 	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
 	private turnStateTracker!: TurnStateTracker
+	private readonly runLifecycle = new AgentRunLifecycle()
+	private readonly toolResults = new SdkToolResultStore()
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
 	private sessionRebuilds: SdkSessionRebuildScheduler
@@ -242,6 +246,14 @@ export class Controller {
 			// asks, ask_question, user_feedback) never collide with translator-minted ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			onRunWaitingForApproval: (toolName) => {
+				const runId = this.runLifecycle.currentRunId
+				if (runId) this.runLifecycle.waitingForApproval(runId, toolName)
+			},
+			onRunResumed: () => {
+				const runId = this.runLifecycle.currentRunId
+				if (runId) this.runLifecycle.streaming(runId)
+			},
 			// Open the diff editor preview before the approval buttons render.
 			onToolApprovalAsk: (request) => this.diffEdits.openForApproval(request.toolCallId, request.toolName, request.input),
 			recordApprovedToolMessage: (toolCallId, messageTs) =>
@@ -287,15 +299,27 @@ export class Controller {
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
+				const runId = this.runLifecycle.currentRunId
+				if (runId) this.runLifecycle.complete(runId)
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
 				})
 			},
+			onRequestSent: (sessionId) => {
+				const runId = this.runLifecycle.currentRunId
+				if (runId) {
+					this.runLifecycle.bindSession(runId, sessionId)
+					this.runLifecycle.requestSent(runId)
+					void this.postStateToWebview()
+				}
+			},
 			onSendError: async (error, sessionId) => {
 				// A turn failed — surface the sanitized provider error and allow retry.
 				void this.diffEdits.discardAllPreviews("turn error")
 				this.turnStateTracker.set("error")
+				const runId = this.runLifecycle.currentRunId
+				if (runId) this.runLifecycle.fail(runId, sanitizeRunFailure(error, "stream"))
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				this.messages.emitSessionEvents(
 					[
@@ -433,6 +457,14 @@ export class Controller {
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			postStateToWebview: () => this.postStateToWebview(),
+			onSessionAssigned: (sessionId) => {
+				const runId = this.runLifecycle.currentRunId
+				if (runId) this.runLifecycle.bindSession(runId, sessionId)
+			},
+			onInitError: (error) => {
+				const runId = this.runLifecycle.currentRunId
+				if (runId) this.runLifecycle.fail(runId, sanitizeRunFailure(error, "persistence", { retrySafe: true }))
+			},
 		})
 		this.compaction = new SdkCompactionCoordinator({
 			stateManager: this.stateManager,
@@ -450,6 +482,16 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			runLifecycle: this.runLifecycle,
+			toolResults: this.toolResults,
+			onQueuedPromptSubmitted: (sessionId) => {
+				const runId = this.runLifecycle.begin({
+					sessionId,
+					invocationId: this.bedrockStartup.state.selectedTarget?.invocationId,
+				})
+				this.runLifecycle.requestSent(runId)
+				return runId
+			},
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -512,6 +554,8 @@ export class Controller {
 	async dispose(): Promise<void> {
 		this.isDisposed = true
 		this.bedrockStartup.dispose()
+		this.sessionEvents.dispose()
+		this.toolResults.clear()
 		// Tear down the debounced state-post machinery before downstream resources
 		// are disposed below — see StatePostDebouncer.dispose().
 		await this.statePostDebouncer.dispose()
@@ -693,6 +737,15 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
 		this.bedrockStartup.assertReady()
+		const hasPrompt = Boolean(prompt?.trim() || images?.length || files?.length)
+		if (hasPrompt) {
+			this.runLifecycle.begin({
+				invocationId: this.bedrockStartup.state.selectedTarget?.invocationId,
+			})
+			void this.postStateToWebview()
+		} else {
+			this.runLifecycle.reset()
+		}
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
@@ -702,17 +755,25 @@ export class Controller {
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
 		this.bedrockStartup.assertReady()
+		this.runLifecycle.reset()
 		this.turnStateTracker.set("streaming")
 		this.messageTranslatorState.clearTurnOutcome()
 		await this.taskStart.reinitExistingTaskFromId(taskId)
 	}
 
 	async cancelTask(): Promise<void> {
+		const runId = this.runLifecycle.currentRunId
+		if (runId) {
+			this.runLifecycle.requestCancellation(runId)
+			void this.postStateToWebview()
+		}
 		// Fence first: mark resumable before aborting so any straggler events from the aborted
 		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
 		// in S6; this sets the authoritative phase now.)
 		this.turnStateTracker.set("resumable")
 		await this.taskControl.cancelTask()
+		if (runId) this.runLifecycle.cancelled(runId)
+		await this.postStateToWebview()
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -769,6 +830,7 @@ export class Controller {
 	async clearTask(): Promise<void> {
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
+		this.runLifecycle.reset()
 		await this.taskControl.clearTask()
 		await this.postStateToWebview()
 	}
@@ -789,6 +851,14 @@ export class Controller {
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		this.bedrockStartup.assertReady()
 		const turnStateBefore = this.turnStateTracker.get()
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession?.isRunning) {
+			this.runLifecycle.begin({
+				sessionId: activeSession?.sessionId ?? this.task?.taskId,
+				invocationId: this.bedrockStartup.state.selectedTarget?.invocationId,
+			})
+			void this.postStateToWebview()
+		}
 
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
 		// new agent turn — move the authoritative phase to "streaming" so the footer shows
@@ -1404,6 +1474,7 @@ export class Controller {
 					: undefined,
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
+				runState: this.runLifecycle.get(),
 				queuedPrompts,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
@@ -1412,6 +1483,10 @@ export class Controller {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
 		}
+	}
+
+	getToolResult(id: string): StoredToolResult | undefined {
+		return this.toolResults.get(id)
 	}
 
 	// ---- Terminal settings ----

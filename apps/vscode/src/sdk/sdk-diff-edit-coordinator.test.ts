@@ -375,4 +375,36 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(result).toBe("patch applied")
 		expect(callOrder).toEqual(["close", "apply"])
 	})
+
+	it("previews every file before approval and reports a partial application failure precisely", async () => {
+		const aPath = await writeFile("a.ts", "old a\n")
+		await writeFile("b.ts", "old b\n")
+		const patch = [
+			"*** Begin Patch",
+			"*** Update File: a.ts",
+			"@@",
+			"-old a",
+			"+new a",
+			"*** Update File: b.ts",
+			"@@",
+			"-old b",
+			"+new b",
+			"*** End Patch",
+		].join("\n")
+
+		await coordinator.openForApproval("multi", "apply_patch", { input: patch })
+
+		expect(previews).toHaveLength(2)
+		expect(await fs.readFile(aPath, "utf-8")).toBe("old a\n")
+		expect(await fs.readFile(path.join(tempDir, "b.ts"), "utf-8")).toBe("old b\n")
+
+		fallbackApplyPatch.mockImplementationOnce(async () => {
+			await fs.writeFile(aPath, "new a\n")
+			throw new Error("simulated second-file write failure")
+		})
+
+		await expect(coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("multi"))).rejects.toThrow(
+			"Patch application failed after approval. Applied: a.ts. Unchanged: b.ts. Cause: simulated second-file write failure",
+		)
+	})
 })

@@ -60,6 +60,7 @@ import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
 import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
+import { ToolResultDisclosure } from "./ToolResultDisclosure"
 import UserMessage from "./UserMessage"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
@@ -106,6 +107,7 @@ const ChatRow = memo(
 		const [chatrow, { height }] = useSize(
 			<div className="relative pt-2.5 px-4">
 				<ChatRowContent {...props} />
+				<ToolResultDisclosure message={message} />
 			</div>,
 		)
 

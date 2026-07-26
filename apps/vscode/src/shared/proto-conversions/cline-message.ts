@@ -196,6 +196,10 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		// Convergent-replica fields (default 0 = unstamped, e.g. classic/legacy path).
 		seq: message.seq ?? 0,
 		epoch: message.epoch ?? 0,
+		toolResultId: message.toolResultId ?? "",
+		toolResultPreview: message.toolResultPreview ?? "",
+		toolResultTruncated: message.toolResultTruncated ?? false,
+		toolResultIsError: message.toolResultIsError ?? false,
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -290,6 +294,12 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 	}
 	if (protoMessage.epoch && protoMessage.epoch !== 0) {
 		message.epoch = protoMessage.epoch
+	}
+	if (protoMessage.toolResultId) {
+		message.toolResultId = protoMessage.toolResultId
+		message.toolResultPreview = protoMessage.toolResultPreview
+		message.toolResultTruncated = protoMessage.toolResultTruncated
+		message.toolResultIsError = protoMessage.toolResultIsError
 	}
 
 	return message

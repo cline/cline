@@ -26,10 +26,18 @@ export interface SdkDiffEditCoordinatorOptions {
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
 }
 
-interface DiffEditSession {
+interface DiffEditPreview {
 	/** Undefined once the preview has been displaced by a newer same-file preview. */
 	preview: EditPreview | undefined
 	absolutePath: string
+	displayPath: string
+	leftContent: string
+	rightContent: string
+	editType: "create" | "modify" | "delete"
+}
+
+interface DiffEditSession {
+	previews: DiffEditPreview[]
 }
 
 /**
@@ -96,9 +104,12 @@ export class SdkDiffEditCoordinator {
 	 */
 	async executeApplyPatchTool(input: ApplyPatchInput, cwd: string, context: AgentToolContext): Promise<string> {
 		const toolCallId = context.toolCallId ?? ""
+		const session = this.sessions.get(toolCallId)
 		try {
 			await this.discardPreview(toolCallId)
 			return await this.fallbackApplyPatchExecutor(input, cwd, context)
+		} catch (error) {
+			throw new Error(await this.describePatchFailure(session, error))
 		} finally {
 			await this.discardPreview(toolCallId)
 		}
@@ -108,13 +119,16 @@ export class SdkDiffEditCoordinator {
 	async discardPreview(toolCallId: string): Promise<void> {
 		const session = this.sessions.get(toolCallId)
 		this.sessions.delete(toolCallId)
-		if (!session?.preview) {
+		if (!session) {
 			return
 		}
-		try {
-			await session.preview.close()
-		} catch (error) {
-			Logger.warn(`[SdkDiffEditCoordinator] Failed to close diff preview: ${error}`)
+		for (const item of session.previews) {
+			if (!item.preview) continue
+			try {
+				await item.preview.close()
+			} catch (error) {
+				Logger.warn(`[SdkDiffEditCoordinator] Failed to close diff preview: ${error}`)
+			}
 		}
 	}
 
@@ -164,24 +178,16 @@ export class SdkDiffEditCoordinator {
 		}
 		const cwd = await this.options.getCwd()
 		const { changes } = await computePatchChanges(input.input, cwd)
-		// Preview the first file the patch creates or updates. Multi-file patches are
-		// uncommon; any remaining files apply without a preview.
-		const first = Object.entries(changes).find(
-			([, change]) =>
-				(change.type === PatchActionType.ADD || change.type === PatchActionType.UPDATE) &&
-				change.newContent !== undefined,
-		)
-		if (!first) {
-			return
+		for (const [filePath, change] of Object.entries(changes)) {
+			await this.openPreview(toolCallId, {
+				absolutePath: resolveEditPath(cwd, filePath),
+				displayPath: filePath,
+				editType:
+					change.type === PatchActionType.ADD ? "create" : change.type === PatchActionType.DELETE ? "delete" : "modify",
+				leftContent: change.oldContent ?? "",
+				rightContent: change.newContent ?? "",
+			})
 		}
-		const [filePath, change] = first
-		await this.openPreview(toolCallId, {
-			absolutePath: resolveEditPath(cwd, filePath),
-			displayPath: filePath,
-			editType: change.type === PatchActionType.ADD ? "create" : "modify",
-			leftContent: change.oldContent ?? "",
-			rightContent: change.newContent ?? "",
-		})
 	}
 
 	private async openPreview(
@@ -189,7 +195,7 @@ export class SdkDiffEditCoordinator {
 		content: {
 			absolutePath: string
 			displayPath: string
-			editType: "create" | "modify"
+			editType: "create" | "modify" | "delete"
 			leftContent: string
 			rightContent: string
 		},
@@ -198,13 +204,14 @@ export class SdkDiffEditCoordinator {
 		// resolve sequentially, so the older edit is already decided — its executor only
 		// needs the session entry, not the tab).
 		for (const [id, session] of this.sessions) {
-			if (session.preview && session.absolutePath === content.absolutePath) {
+			const existing = session.previews.find((item) => item.preview && item.absolutePath === content.absolutePath)
+			if (existing?.preview) {
 				try {
-					await session.preview.close()
+					await existing.preview.close()
 				} catch (error) {
 					Logger.warn(`[SdkDiffEditCoordinator] Failed to close superseded preview: ${error}`)
 				}
-				session.preview = undefined
+				existing.preview = undefined
 				Logger.log(`[SdkDiffEditCoordinator] Superseded pending preview ${id} for ${content.displayPath}`)
 			}
 		}
@@ -229,7 +236,42 @@ export class SdkDiffEditCoordinator {
 			await preview.close().catch(() => {})
 			throw error
 		}
-		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
+		const session = this.sessions.get(toolCallId) ?? { previews: [] }
+		session.previews.push({ preview, ...content })
+		this.sessions.set(toolCallId, session)
+	}
+
+	private async describePatchFailure(session: DiffEditSession | undefined, error: unknown): Promise<string> {
+		const cause = error instanceof Error ? error.message : String(error)
+		if (!session || session.previews.length === 0) {
+			return `Patch application failed: ${cause}`
+		}
+		const applied: string[] = []
+		const unchanged: string[] = []
+		const indeterminate: string[] = []
+		for (const item of session.previews) {
+			let current: string | undefined
+			try {
+				current = await fs.readFile(item.absolutePath, "utf-8")
+			} catch {
+				current = undefined
+			}
+			const matchesApplied =
+				item.editType === "delete" ? current === undefined : current !== undefined && current === item.rightContent
+			const matchesOriginal =
+				item.editType === "create" ? current === undefined : current !== undefined && current === item.leftContent
+			if (matchesApplied) applied.push(item.displayPath)
+			else if (matchesOriginal) unchanged.push(item.displayPath)
+			else indeterminate.push(item.displayPath)
+		}
+		const summary = [
+			applied.length ? `Applied: ${applied.join(", ")}` : undefined,
+			unchanged.length ? `Unchanged: ${unchanged.join(", ")}` : undefined,
+			indeterminate.length ? `Indeterminate: ${indeterminate.join(", ")}` : undefined,
+		]
+			.filter(Boolean)
+			.join(". ")
+		return `Patch application failed after approval. ${summary}. Cause: ${cause}`
 	}
 
 	private createPreview(): EditPreview {

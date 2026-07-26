@@ -36,6 +36,10 @@ export class SdkTaskControlCoordinator {
 			Logger.warn("[SdkController] cancelTask: No active session")
 			return
 		}
+		if (!activeSession.isRunning) {
+			Logger.debug(`[SdkController] cancelTask: Session is already idle/cancelled: ${activeSession.sessionId}`)
+			return
+		}
 
 		const { sdkHost, sessionId } = activeSession
 

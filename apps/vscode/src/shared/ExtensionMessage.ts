@@ -51,6 +51,8 @@ export interface ExtensionState {
 	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).
 	 */
 	turnState?: TurnState
+	/** One authoritative extension-host lifecycle for the current/most recent agent run. */
+	runState?: AgentRunState
 	/**
 	 * Follow-up prompts submitted while the active agent turn is still running.
 	 * These are owned by the SDK pending-prompt queue and are sent after the
@@ -139,6 +141,51 @@ export interface TurnState {
 	seq: number
 }
 
+export type AgentRunPhase =
+	| "idle"
+	| "submitting"
+	| "awaitingFirstEvent"
+	| "streaming"
+	| "waitingForApproval"
+	| "runningTool"
+	| "cancelling"
+	| "completed"
+	| "cancelled"
+	| "failed"
+
+export interface AgentRunFailure {
+	source: "stream" | "tool" | "approval" | "rendering" | "persistence"
+	category?: string
+	code?: string
+	httpStatus?: number
+	requestId?: string
+	message: string
+	details?: string
+	retrySafe: boolean
+}
+
+export interface AgentRunState {
+	phase: AgentRunPhase
+	seq: number
+	runId?: string
+	sessionId?: string
+	startedAt?: number
+	stageStartedAt: number
+	invocationId?: string
+	currentToolName?: string
+	failure?: AgentRunFailure
+	metrics?: {
+		requestSentAt?: number
+		firstEventAt?: number
+		firstRenderedAt?: number
+		cancellationRequestedAt?: number
+		terminalAt?: number
+		requestToFirstEventMs?: number
+		firstEventToFirstRenderedMs?: number
+		cancellationToTerminalMs?: number
+	}
+}
+
 export interface QueuedPrompt {
 	id: string
 	prompt: string
@@ -175,6 +222,11 @@ export interface ClineMessage {
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 	modelInfo?: ClineMessageModelInfo
+	/** Reference to extension-host retained output. Full content is fetched only on demand. */
+	toolResultId?: string
+	toolResultPreview?: string
+	toolResultTruncated?: boolean
+	toolResultIsError?: boolean
 }
 
 export type ClineAsk =

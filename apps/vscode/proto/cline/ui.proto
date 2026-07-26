@@ -232,6 +232,23 @@ message ClineMessage {
   // epoch = conversation/replica fence (older epoch is dropped by the webview)
   int64 seq = 24;
   int64 epoch = 25;
+  string tool_result_id = 26;
+  string tool_result_preview = 27;
+  bool tool_result_truncated = 28;
+  bool tool_result_is_error = 29;
+}
+
+message ToolResultRequest {
+  string id = 1;
+}
+
+message ToolResultResponse {
+  string id = 1;
+  string tool_name = 2;
+  string content = 3;
+  bool is_error = 4;
+  bool truncated = 5;
+  int64 created_at = 6;
 }
 
 message ShowWebviewEvent {
@@ -276,6 +293,9 @@ service UiService {
 
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
+
+  // Loads retained command/tool output only when the user explicitly expands it.
+  rpc getToolResult(ToolResultRequest) returns (ToolResultResponse);
 
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);

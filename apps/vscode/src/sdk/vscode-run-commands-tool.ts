@@ -338,6 +338,8 @@ export async function executeForeground(
 		const process = terminalManager.runCommand(terminalInfo, terminalCommand)
 		const outputLines: string[] = []
 		let droppedLines = 0
+		let detachedOutputSnapshot: string[] | undefined
+		let detachedDroppedLines = 0
 
 		// Accumulate output lines to return the full output once the command completes.
 		// The chat shows command output at completion, not incrementally.
@@ -359,6 +361,17 @@ export async function executeForeground(
 			}
 		}
 		process.on("line", bufferLine)
+		applyDetach = () => {
+			if (state.phase !== "started") {
+				return
+			}
+			state.phase = "detached"
+			detachedOutputSnapshot = [...outputLines]
+			detachedDroppedLines = droppedLines
+			detachedLog = createDetachedCommandLog(terminalCommand, detachedOutputSnapshot)
+			detachedLog.attach(process)
+			process.detach()
+		}
 
 		try {
 			applyAbort = () => process.continue()
@@ -369,10 +382,12 @@ export async function executeForeground(
 				throw new Error("Command execution aborted")
 			}
 
+			const resultLines = detachedOutputSnapshot ?? outputLines
+			const resultDroppedLines = detachedOutputSnapshot ? detachedDroppedLines : droppedLines
 			const bufferedOutput =
-				droppedLines > 0
-					? [...outputLines, `\n... (${droppedLines} earlier lines dropped) ...\n`].join("\n")
-					: outputLines.join("\n")
+				resultDroppedLines > 0
+					? [...resultLines, `\n... (${resultDroppedLines} earlier lines dropped) ...\n`].join("\n")
+					: resultLines.join("\n")
 			const output = truncateCommandOutput(bufferedOutput.trim(), {
 				maxChars: maxOutputChars,
 			})

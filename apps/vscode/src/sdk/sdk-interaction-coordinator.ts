@@ -30,6 +30,8 @@ export interface SdkInteractionCoordinatorOptions {
 	 * looking at the actual change. Must not throw; failures fall back to a plain ask.
 	 */
 	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<void>
+	onRunWaitingForApproval?: (toolName?: string) => void
+	onRunResumed?: () => void
 }
 
 export class SdkInteractionCoordinator {
@@ -72,6 +74,7 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
+		this.options.onRunWaitingForApproval?.(request.toolName)
 		// Open the edit diff preview before the Approve/Reject buttons render. This is the only
 		// pre-execution point where the adapter has the full tool input (the SDK emits the
 		// tool's content events only after approval resolves).
@@ -101,6 +104,7 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+		this.options.onRunWaitingForApproval?.("ask_question")
 		const askData: ClineAskQuestion = {
 			question,
 			options: options?.length ? options : undefined,
@@ -157,6 +161,7 @@ export class SdkInteractionCoordinator {
 		// Approved or rejected by approval controls, the agent resumes its turn and returns to streaming.
 		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
+		this.options.onRunResumed?.()
 		// The reason must state the operation did NOT happen (for edits: the file is
 		// unchanged) — raw feedback alone reads like iteration on an applied change.
 		const denialReason = buildToolApprovalDenialReason(pendingMessage?.toolName, prompt)
@@ -211,6 +216,7 @@ export class SdkInteractionCoordinator {
 
 		// User answered the follow-up — the agent resumes its turn.
 		this.options.setTurnPhase?.("streaming")
+		this.options.onRunResumed?.()
 		resolve(responseText)
 		return true
 	}
@@ -223,6 +229,7 @@ export class SdkInteractionCoordinator {
 		const resolve = this.pendingMistakeLimitResolve
 		this.pendingMistakeLimitResolve = undefined
 		this.options.setTurnPhase?.("streaming")
+		this.options.onRunResumed?.()
 
 		if (responseType === "noButtonClicked") {
 			resolve({ action: "stop", reason: "stopped after mistake_limit_reached prompt" })

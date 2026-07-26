@@ -27,6 +27,7 @@ export interface SdkSessionLifecycleOptions {
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
 	onSendStart?: (sessionId: string) => void
+	onRequestSent?: (sessionId: string) => void
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 	/**
@@ -354,14 +355,15 @@ export class SdkSessionLifecycle {
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
 		this.options.onSendStart?.(sessionId)
-		sdkHost
-			.send({
-				sessionId,
-				prompt: noticedPrompt,
-				userImages: images,
-				userFiles: files,
-				delivery,
-			})
+		const sendPromise = sdkHost.send({
+			sessionId,
+			prompt: noticedPrompt,
+			userImages: images,
+			userFiles: files,
+			delivery,
+		})
+		this.options.onRequestSent?.(sessionId)
+		sendPromise
 			.then(async () => {
 				if (delivery === "queue" || delivery === "steer") {
 					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)

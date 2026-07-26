@@ -46,6 +46,8 @@ export interface SdkTaskStartCoordinatorOptions {
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
 	postStateToWebview: () => Promise<void>
+	onSessionAssigned?: (sessionId: string) => void
+	onInitError?: (error: unknown) => void
 }
 
 export class SdkTaskStartCoordinator {
@@ -78,6 +80,7 @@ export class SdkTaskStartCoordinator {
 			Logger.log(`[SdkController] Session config: provider=bedrock, model=${config.modelId}`)
 
 			taskSessionId = config.sessionId?.trim() || createSessionId()
+			this.options.onSessionAssigned?.(taskSessionId)
 			const configWithSessionId = {
 				...config,
 				sessionId: taskSessionId,
@@ -103,6 +106,7 @@ export class SdkTaskStartCoordinator {
 				)
 				task.taskId = startResult.sessionId
 				taskSessionId = startResult.sessionId
+				this.options.onSessionAssigned?.(taskSessionId)
 			}
 
 			const newHistoryItem = this.options.createHistoryItemFromSession(
@@ -123,6 +127,7 @@ export class SdkTaskStartCoordinator {
 			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
 			return taskSessionId
 		} catch (error) {
+			this.options.onInitError?.(error)
 			this.handleInitError(error, taskSessionId)
 			await this.options.postStateToWebview().catch((postError) => {
 				Logger.error("[SdkController] Failed to post state after init error:", postError)

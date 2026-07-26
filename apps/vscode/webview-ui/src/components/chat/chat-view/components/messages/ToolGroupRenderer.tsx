@@ -1,6 +1,7 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useCallback, useMemo, useState } from "react"
+import { ToolResultDisclosure } from "@/components/chat/ToolResultDisclosure"
 import { TypewriterText } from "@/components/chat/TypewriterText"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { Button } from "@/components/ui/button"
@@ -231,6 +232,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 									{content}
 								</pre>
 							)}
+							<ToolResultDisclosure message={tool} />
 						</div>
 					)
 				})}
