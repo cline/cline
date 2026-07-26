@@ -200,7 +200,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Clearly describe what your changes do
     - Include steps to test the changes
     - List any breaking changes
-    - Add screenshots for UI changes
+    - **UI/UX changes require screenshots and/or a short video** in the PR template (before/after for visual changes; video for multi-step flows). PRs that change user-facing UI without media will be asked to add it before review continues.
 
 ## Contribution Agreement
 

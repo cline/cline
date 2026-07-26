@@ -53,6 +53,7 @@ We're not looking for exhaustive documentation - just evidence that you've thoug
 -   [ ] 💅 Cosmetic Changes
 -   [ ] 📚 Documentation update
 -   [ ] 🏃 Workflow Changes
+-   [ ] 🖼️ UI / UX change (visual, layout, interaction, or copy in a user-facing surface)
 
 ### Pre-flight Checklist
 
@@ -61,18 +62,50 @@ We're not looking for exhaustive documentation - just evidence that you've thoug
 -   [ ] Changes are limited to a single feature, bugfix or chore (split larger changes into separate PRs)
 -   [ ] Tests are passing (`bun test`) and code is formatted and linted (`bun run format && bun run lint`)
 -   [ ] I have reviewed [contributor guidelines](https://github.com/cline/cline/blob/main/CONTRIBUTING.md)
+-   [ ] **If this PR includes UI/UX changes:** I attached required screenshots and/or a video below (PRs without media will be sent back)
 
-### Screenshots
+### Screenshots / Videos (required for UI/UX)
 
-<!-- 
-Help reviewers quickly understand your changes:
+<!--
+REQUIRED when this PR changes any user-facing UI or UX, including but not limited to:
+- VS Code extension / webview
+- Cline Hub / Drive Mode dashboard
+- Desktop app
+- CLI TUI chrome that users see
+- Landing pages, settings screens, empty states, dialogs, toasts
 
-- **UI Changes**: Please include screenshots showing before/after states
-- **Complex Workflows**: Consider uploading a screen recording (video) if your changes involve multiple steps or state transitions
-- **Backend Changes**: Not required, but feel free to include terminal output or other evidence that demonstrates functionality
+Not required for pure backend, SDK-only, docs-only, or CI/workflow changes with no visible UI diff.
 
-This helps reviewers see what you've built without having to pull down and test your branch first.
+Must include:
+1. Before and after screenshots for visual/layout changes, OR a short screen recording for multi-step flows / state transitions
+2. Enough context that a reviewer can judge the change without checking out the branch
+
+Embed images/videos in this section (drag-and-drop into the GitHub PR description, or use markdown).
 -->
+
+**Does this PR change UI/UX?**
+
+-   [ ] No — skip the media below
+-   [ ] Yes — complete the checklist and attach media
+
+**UI/UX media checklist** (required if Yes):
+
+-   [ ] Before screenshot(s) attached *(or N/A for net-new UI)*
+-   [ ] After screenshot(s) attached
+-   [ ] Video attached for multi-step / interactive flows *(or N/A)*
+-   [ ] Captions briefly describe what changed in each asset
+
+#### Before
+
+<!-- Paste before screenshot(s) or write N/A -->
+
+#### After
+
+<!-- Paste after screenshot(s) or write N/A -->
+
+#### Video / walkthrough
+
+<!-- Paste a screen recording for flows with multiple steps or state changes, or write N/A -->
 
 ### Additional Notes
 
