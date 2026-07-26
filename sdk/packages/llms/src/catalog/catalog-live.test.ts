@@ -254,6 +254,36 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("labels a Cline free model when its name matches a ClinePass model", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [
+					{
+						id: "cline-pass/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+					},
+				],
+				free: [
+					{
+						id: "cline-free/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+					},
+				],
+			},
+			{},
+		);
+
+		expect(result["cline-pass"]?.["cline-pass/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash",
+		);
+		expect(result["cline-pass"]?.["cline-free/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash (free)",
+		);
+		expect(result.cline?.["cline-free/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash (free)",
+		);
+	});
+
 	it("resolves free-model capabilities by slug and preserves free-only Cline catalog payloads", () => {
 		const suffixed = normalizeClineRecommendedProviderModels(
 			{
