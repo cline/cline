@@ -248,7 +248,6 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  optional int32 max_consecutive_mistakes = 139;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
   optional string preferred_language = 145;
@@ -416,7 +415,7 @@ message UpdateSettingsRequest {
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
-  optional int32 max_consecutive_mistakes = 28;
+  reserved 28; // was max_consecutive_mistakes (removed; the SDK owns the mistake limit)
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
