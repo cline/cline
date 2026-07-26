@@ -18,9 +18,9 @@ export const CLINE_PASS_PROVIDER_ID = "cline-pass"
  */
 export function useClinePassPromo() {
 	const hasClinePassFeatureFlag = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
-	const { apiConfiguration, navigateToSettings, remoteConfigSettings } = useExtensionState()
+	const { apiConfiguration, navigateToSettings, remoteConfigSettings, mode } = useExtensionState()
 	const { clineUser } = useClineAuth()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
 	const isBlockedByRemoteConfig = remoteProviders.length > 0 && !remoteProviders.includes(CLINE_PASS_PROVIDER_ID)
@@ -45,21 +45,20 @@ export function useClinePassPromo() {
 		)
 	}, [manageSubscriptionUrl])
 
-	// Selects ClinePass for both modes without navigating (for surfaces that
-	// already show the provider settings inline). Returns whether the provider
-	// update actually succeeded.
+	// Selects ClinePass without navigating (for surfaces that already show the
+	// provider settings inline). Mirrors the provider dropdown: updates both
+	// modes, or only the current mode when plan/act use separate models, so the
+	// other mode's provider is never silently overwritten. Returns whether the
+	// provider update actually succeeded.
 	const selectClinePassProvider = useCallback(async (): Promise<boolean> => {
 		try {
-			await handleFieldsChange({
-				planModeApiProvider: CLINE_PASS_PROVIDER_ID,
-				actModeApiProvider: CLINE_PASS_PROVIDER_ID,
-			})
+			await handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, CLINE_PASS_PROVIDER_ID, mode)
 			return true
 		} catch (error) {
 			console.error("Failed to switch to ClinePass provider:", error)
 			return false
 		}
-	}, [handleFieldsChange])
+	}, [handleModeFieldChange, mode])
 
 	// Selects ClinePass for both modes and lands the user on the provider
 	// settings so they can pick a model / sign in. Only navigates when the

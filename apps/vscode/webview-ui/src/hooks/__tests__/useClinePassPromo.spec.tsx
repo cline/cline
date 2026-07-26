@@ -29,13 +29,14 @@ vi.mock("@/services/grpc-client", () => ({
 }))
 
 const mockNavigateToSettings = vi.fn()
-const mockHandleFieldsChange = vi.fn(() => Promise.resolve())
+const mockHandleModeFieldChange = vi.fn(() => Promise.resolve())
 
 const mockExtensionState = (overrides: Record<string, unknown> = {}) => {
 	vi.mocked(useExtensionState).mockReturnValue({
 		apiConfiguration: { planModeApiProvider: "anthropic", actModeApiProvider: "anthropic" },
 		navigateToSettings: mockNavigateToSettings,
 		remoteConfigSettings: undefined,
+		mode: "act",
 		...overrides,
 	} as any)
 }
@@ -46,7 +47,7 @@ describe("useClinePassPromo", () => {
 		vi.mocked(useHasFeatureFlag).mockReturnValue(true)
 		vi.mocked(useClineAuth).mockReturnValue({ clineUser: null } as any)
 		vi.mocked(useApiConfigurationHandlers).mockReturnValue({
-			handleFieldsChange: mockHandleFieldsChange,
+			handleModeFieldChange: mockHandleModeFieldChange,
 		} as any)
 		mockExtensionState()
 	})
@@ -82,18 +83,32 @@ describe("useClinePassPromo", () => {
 		expect(result.current.isUsingClinePass).toBe(true)
 	})
 
-	it("switches provider for both modes and navigates to API settings on success", async () => {
+	it("switches provider mode-aware and navigates to API settings on success", async () => {
 		const { result } = renderHook(() => useClinePassPromo())
 		await result.current.switchToClinePassProvider()
-		expect(mockHandleFieldsChange).toHaveBeenCalledWith({
-			planModeApiProvider: "cline-pass",
-			actModeApiProvider: "cline-pass",
-		})
+		// handleModeFieldChange only touches the current mode when plan/act use
+		// separate models, so the other mode's provider is never overwritten.
+		expect(mockHandleModeFieldChange).toHaveBeenCalledWith(
+			{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+			"cline-pass",
+			"act",
+		)
 		expect(mockNavigateToSettings).toHaveBeenCalledWith("api-config")
 	})
 
+	it("passes the current plan mode to the provider update", async () => {
+		mockExtensionState({ mode: "plan" })
+		const { result } = renderHook(() => useClinePassPromo())
+		await result.current.switchToClinePassProvider()
+		expect(mockHandleModeFieldChange).toHaveBeenCalledWith(
+			{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+			"cline-pass",
+			"plan",
+		)
+	})
+
 	it("does not navigate to settings when the provider update fails", async () => {
-		mockHandleFieldsChange.mockRejectedValueOnce(new Error("update failed"))
+		mockHandleModeFieldChange.mockRejectedValueOnce(new Error("update failed"))
 		const { result } = renderHook(() => useClinePassPromo())
 		await result.current.switchToClinePassProvider()
 		expect(mockNavigateToSettings).not.toHaveBeenCalled()
@@ -102,7 +117,7 @@ describe("useClinePassPromo", () => {
 	it("reports selection success and failure via the returned promise", async () => {
 		const { result } = renderHook(() => useClinePassPromo())
 		await expect(result.current.selectClinePassProvider()).resolves.toBe(true)
-		mockHandleFieldsChange.mockRejectedValueOnce(new Error("update failed"))
+		mockHandleModeFieldChange.mockRejectedValueOnce(new Error("update failed"))
 		await expect(result.current.selectClinePassProvider()).resolves.toBe(false)
 	})
 })
