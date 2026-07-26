@@ -21,7 +21,6 @@ import {
 	truncateCommandOutput,
 } from "@cline/core"
 import type { AgentTool } from "@cline/shared"
-import { TerminalUserInterventionAction, telemetryService } from "@services/telemetry"
 import { ClineTempManager } from "@services/temp"
 import * as fs from "fs"
 import { StateManager } from "@/core/storage/StateManager"
@@ -61,7 +60,7 @@ export interface VscodeRunCommandsToolOptions {
 	cwd: string
 	/** Lazy factory for the VscodeTerminalManager. Called once on first foreground use. */
 	getTerminalManager: () => VscodeTerminalManager
-	/** Timeout passed to the SDK shell tool wrapper and timeout telemetry. */
+	/** Timeout passed to the SDK shell tool wrapper. */
 	bashTimeoutMs?: number
 	/** Terminal execution mode captured when this session's tool set is built. */
 	vscodeTerminalExecutionMode?: VscodeTerminalExecutionMode
@@ -243,7 +242,6 @@ export async function executeForeground(
 			if (state.phase === "waiting") {
 				state.phase = "detached"
 				detachedLog = createDetachedCommandLog(terminalCommand, [])
-				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
 				resolvePreStartControl("detach")
 			} else if (state.phase === "started") {
 				applyDetach?.()
@@ -364,22 +362,6 @@ export async function executeForeground(
 
 		try {
 			applyAbort = () => process.continue()
-
-			applyDetach = () => {
-				if (detachedLog !== undefined) {
-					return
-				}
-				detachedLog = createDetachedCommandLog(terminalCommand, outputLines)
-				detachedLog.attach(process)
-				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
-				// detach() flushes any partial line (reaching both bufferLine and
-				// the log) before resolving the awaited promise. After that the
-				// partial output is final: stop buffering so the remaining
-				// (log-only) output doesn't mutate outputLines while it's read.
-				process.detach()
-				process.removeListener("line", bufferLine)
-			}
-
 			// Wait for completion (or detach, which also resolves the promise)
 			await process
 
@@ -536,16 +518,8 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 			// essential for judging the backgroundExec-by-default change.
 			try {
 				const result = await bgExecutor(command, commandCwd || cwd, context)
-				telemetryService.captureTerminalExecution(true, "vscode", "child_process", {
-					exitCode: 0,
-					terminalExecutionMode: "backgroundExec",
-				})
 				return result
 			} catch (error) {
-				telemetryService.captureTerminalExecution(false, "vscode", "child_process", {
-					...(error instanceof CommandExitError && { exitCode: error.exitCode }),
-					terminalExecutionMode: "backgroundExec",
-				})
 				throw error
 			}
 		}

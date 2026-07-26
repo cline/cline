@@ -20,7 +20,7 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 		throw new Error("Missing or invalid parameters for toggleWorkflow")
 	}
 
-	// Handle the three different scopes
+	// Handle local and global scopes.
 	let toggles: Record<string, boolean>
 
 	switch (scope) {
@@ -34,12 +34,6 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 			toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
 			toggles[workflowPath] = enabled
 			controller.stateManager.setWorkspaceState("workflowToggles", toggles)
-			break
-		}
-		case RuleScope.REMOTE: {
-			toggles = controller.stateManager.getGlobalStateKey("remoteWorkflowToggles")
-			toggles[workflowPath] = enabled
-			controller.stateManager.setGlobalState("remoteWorkflowToggles", toggles)
 			break
 		}
 		default:

@@ -1,5 +1,4 @@
 import type { BasicLogger } from "../logging/logger";
-import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
 import type {
 	AgentExtensionAutomationContext,
@@ -36,16 +35,6 @@ export interface ClientContext {
 }
 
 /**
- * Identity of the authenticated user.
- */
-export interface UserContext {
-	/** PostHog / analytics distinct ID */
-	distinctId?: string;
-	email?: string;
-	organizationId?: string;
-}
-
-/**
  * Everything needed to describe the workspace and build the system prompt.
  *
  * Extends WorkspaceInfo (rootPath + git fields) with the additional fields
@@ -65,7 +54,7 @@ export interface WorkspaceContext extends WorkspaceInfo {
 	 * in the system prompt template.
 	 */
 	metadata?: string;
-	/** Agent mode: "act" | "plan" | "yolo" */
+	/** Agent mode: "act" | "plan" */
 	mode?: string;
 	/** Additional rules/instructions injected into the system prompt */
 	rules?: string;
@@ -78,12 +67,10 @@ export interface WorkspaceContext extends WorkspaceInfo {
 /**
  * Ambient runtime context carried alongside ProviderConfig.
  *
- * Captures who is calling (user + client), where they are (workspace),
- * and which services to use for logging and telemetry. None of these
+ * Captures the client surface, workspace, and local services that do not
  * belong in the LLM provider credential config.
  */
 export interface ExtensionContext {
-	user?: UserContext;
 	client?: ClientContext;
 	workspace?: WorkspaceContext;
 	/** Core session metadata forwarded into plugin setup context. */
@@ -94,5 +81,4 @@ export interface ExtensionContext {
 	 */
 	automation?: AgentExtensionAutomationContext;
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 }

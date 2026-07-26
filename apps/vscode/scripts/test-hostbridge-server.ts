@@ -74,13 +74,6 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 						})
 						return
 
-					case "getTelemetrySettings":
-						callback(null, {
-							isEnabled: 2, // Setting.DISABLED
-							errorLevel: "all",
-						})
-						return
-
 					case "clipboardReadText":
 						callback(null, {
 							value: "",
@@ -131,12 +124,6 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 						callback(null, {
 							file_diagnostics: [],
 						})
-						return
-
-					// For streaming methods (like subscribeToTelemetrySettings)
-					case "subscribeToTelemetrySettings":
-						// Just end the stream immediately
-						call.end()
 						return
 				}
 

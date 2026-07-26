@@ -2,8 +2,7 @@ import type { Message } from "@cline/llms";
 import type {
 	AgentConfig,
 	AutomationEventEnvelope,
-	BasicLogger,
-	ITelemetryService,
+	BasicLogger
 } from "@cline/shared";
 import type { CronEventSuppression } from "../cron/events/cron-event-ingress";
 import type {
@@ -21,7 +20,6 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../runtime/host/runtime-host";
-import type { FeatureFlagsService } from "../services/feature-flags";
 import type { CheckpointWorkspaceCompareResult } from "../session/checkpoint-diff";
 import type { ClineCoreStartConfig } from "../types/config";
 import type { SessionMessagesArtifactUploader } from "../types/session";
@@ -178,15 +176,9 @@ export type CompareCheckpointResult = CheckpointWorkspaceCompareResult;
 export interface ClineCoreOptions {
 	/**
 	 * A human-readable name for this SDK client (e.g. `"my-app"`, `"acme-bot"`).
-	 * Used to identify the consumer in telemetry and logs.
+	 * Used to identify the consumer in local logs.
 	 */
 	clientName?: string;
-	/**
-	 * A stable identifier for this machine or user, used for telemetry attribution.
-	 * Defaults to the system machine ID, falling back to a generated `cl-<nanoid>` persisted
-	 * at `~/.cline/data/machine-id`.
-	 */
-	distinctId?: string;
 	/**
 	 * Controls how the runtime host is selected:
 	 * - `"auto"` (default) — prefers a compatible local hub when one is available and falls
@@ -210,16 +202,6 @@ export interface ClineCoreOptions {
 	 * selected runtime backend so apps implement interactive behavior once.
 	 */
 	capabilities?: RuntimeCapabilities;
-	/**
-	 * Telemetry service instance to use for capturing events and usage.
-	 * If omitted, telemetry is a no-op.
-	 */
-	telemetry?: ITelemetryService;
-	/**
-	 * Feature flags service for this ClineCore instance.
-	 * If omitted, Core uses a no-op provider with default flag values.
-	 */
-	featureFlags?: FeatureFlagsService;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.

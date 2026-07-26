@@ -4,7 +4,6 @@ import type {
 	HubEventEnvelope,
 	HubReplyEnvelope,
 	SessionRecord as HubSessionRecord,
-	ITelemetryService,
 	JsonValue,
 	SessionParticipant,
 } from "@cline/shared";
@@ -51,7 +50,6 @@ export interface HubTransportContext {
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
-	readonly telemetry?: ITelemetryService;
 	readonly sessionHost: RuntimeHost &
 		Partial<
 			PendingPromptsRuntimeService &

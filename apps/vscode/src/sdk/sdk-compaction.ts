@@ -26,11 +26,8 @@ const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000
 
 export interface CompactSessionMessagesInput {
 	/** Provider/model/compaction config for the active session. */
-	config: Pick<
-		CoreSessionConfig,
-		"providerConfig" | "providerId" | "modelId" | "knownModels" | "compaction" | "logger" | "telemetry"
-	>
-	/** The active session id (used for telemetry keying). */
+	config: Pick<CoreSessionConfig, "providerConfig" | "providerId" | "modelId" | "knownModels" | "compaction" | "logger">
+	/** The active session id. */
 	sessionId: string
 	/** The conversation transcript to compact (SDK message shape). */
 	messages: SdkMessage[]
@@ -81,10 +78,6 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 				enabled: true,
 			},
 			logger: input.config.logger,
-			// Forward telemetry + sessionId so manual compactions emit
-			// `task.compaction_executed` / `task.compaction_skipped` events,
-			// matching the CLI and auto-compaction.
-			telemetry: input.config.telemetry,
 			sessionId: input.sessionId,
 		},
 		{ mode: "manual" },

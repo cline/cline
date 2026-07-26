@@ -47,16 +47,6 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		outdir: "./dist/hub/daemon",
 		...buildConfig,
 	},
-	{
-		entrypoints: ["./src/services/telemetry/index.ts"],
-		outdir: "./dist/services/telemetry",
-		...buildConfig,
-	},
-	{
-		entrypoints: ["./src/services/feature-flags/posthog.ts"],
-		outdir: "./dist/services/feature-flags",
-		...buildConfig,
-	},
 	// The plugin sandbox bootstrap runs in an isolated child process via
 	// SubprocessSandbox and must be emitted as a separate executable entrypoint.
 	{

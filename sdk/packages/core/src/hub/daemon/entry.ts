@@ -7,8 +7,6 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
-import { createHubDaemonTelemetry } from "./telemetry";
-
 initVcr(process.env.CLINE_VCR);
 
 function parseArgs(argv: string[]): {
@@ -61,9 +59,6 @@ async function main(): Promise<void> {
 		port: options.port,
 		pathname: options.pathname,
 	});
-
-	const daemonTelemetry = createHubDaemonTelemetry();
-
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
@@ -74,22 +69,16 @@ async function main(): Promise<void> {
 				resolveClineBuildEnv() === "production"
 					? resolveProductionHubOwnerContext()
 					: resolveSharedHubOwnerContext(),
-			telemetry: daemonTelemetry.telemetry,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
-				telemetry: daemonTelemetry.telemetry,
-			}),
+}),
 			cronOptions: { workspaceRoot: options.cwd },
 		});
 	} catch (error) {
-		// Flush before the top-level catch exits so failed daemon starts are
-		// still visible in telemetry instead of dying silently.
-		await daemonTelemetry.dispose().catch(() => undefined);
 		throw error;
 	}
 
 	const shutdown = async (): Promise<void> => {
 		await server.close();
-		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
 
@@ -114,12 +103,7 @@ async function main(): Promise<void> {
 				);
 			})
 			.finally(() => {
-				void daemonTelemetry
-					.dispose()
-					.catch(() => undefined)
-					.finally(() => {
-						process.exit(1);
-					});
+				process.exit(1);
 			});
 	};
 

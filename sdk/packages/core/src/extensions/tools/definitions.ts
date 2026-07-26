@@ -14,8 +14,6 @@ import {
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
-import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import { CommandExitError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -31,7 +29,6 @@ import {
 	getEditorSizeError,
 	getReadFileRangeError,
 	normalizeRunCommandsInput,
-	TimeoutError,
 	withTimeout,
 } from "./helpers";
 import {
@@ -77,40 +74,6 @@ import type {
 // Helper Functions
 // =============================================================================
 
-function getStringMetadata(
-	context: AgentToolContext,
-	key: string,
-): string | undefined {
-	const value = context.metadata?.[key];
-	return typeof value === "string" ? value : undefined;
-}
-
-function captureRunCommandsTimeoutFromContext(
-	context: AgentToolContext,
-	properties: {
-		effectiveTimeoutMs: number;
-		timeoutSource: "default_setting" | "configured_setting";
-		commandCount: number;
-		durationMs: number;
-	},
-): void {
-	captureRunCommandsTimeout(getToolContextTelemetry(context.metadata), {
-		tool_name: "run_commands",
-		effective_timeout_ms: properties.effectiveTimeoutMs,
-		timeout_source: properties.timeoutSource,
-		command_count: properties.commandCount,
-		duration_ms: properties.durationMs,
-		ulid: context.sessionId,
-		mode: getStringMetadata(context, "mode"),
-		source: getStringMetadata(context, "source"),
-		session_id: context.sessionId,
-		agent_id: context.agentId,
-		conversation_id: context.conversationId,
-		run_id: context.runId,
-		iteration: context.iteration,
-		tool_call_id: context.toolCallId,
-	});
-}
 
 function getHeredocDelimiter(command: string): string | undefined {
 	const match = command.match(
@@ -183,14 +146,12 @@ async function executeShellCommands(
 		cwd: string;
 		context: AgentToolContext;
 		timeoutMs: number;
-		timeoutSource: "default_setting" | "configured_setting";
 	},
 ): Promise<ToolOperationResult[]> {
-	const { executor, cwd, context, timeoutMs, timeoutSource } = options;
+	const { executor, cwd, context, timeoutMs } = options;
 
 	return Promise.all(
 		commands.map(async (command): Promise<ToolOperationResult> => {
-			const startedAt = Date.now();
 			const query = formatRunCommandQueryPreview(command);
 			try {
 				const output = await withTimeout(
@@ -204,14 +165,6 @@ async function executeShellCommands(
 					success: true,
 				};
 			} catch (error) {
-				if (error instanceof TimeoutError) {
-					captureRunCommandsTimeoutFromContext(context, {
-						effectiveTimeoutMs: error.timeoutMs,
-						timeoutSource,
-						commandCount: commands.length,
-						durationMs: Date.now() - startedAt,
-					});
-				}
 				if (error instanceof CommandExitError) {
 					return {
 						query,
@@ -458,10 +411,6 @@ export function createShellTool(
 	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
-	const timeoutSource =
-		config.bashTimeoutMs === undefined
-			? "default_setting"
-			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 	const isWindows = process.platform === "win32";
 	const configShell = config.shell;
@@ -489,7 +438,6 @@ export function createShellTool(
 				cwd,
 				context,
 				timeoutMs,
-				timeoutSource,
 			});
 		},
 	});

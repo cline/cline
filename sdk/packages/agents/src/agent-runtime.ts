@@ -23,24 +23,14 @@ import type {
 	AgentToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
-	CaptureTaskLifecycleEventInput,
-	TelemetryProperties,
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
 import {
-	captureAgentUnexpectedReasoningTokens,
-	captureSdkError,
-	captureTaskLifecycleEvent,
 	estimateTokens,
 	mergeModelOptions,
 	normalizeJsonLikeStringsForSchema,
 	omitUndefinedValues,
-	TASK_CANCELLED_EVENT,
-	TASK_FIRST_CHUNK_RECEIVED_EVENT,
-	TASK_PROVIDER_REQUEST_STARTED_EVENT,
-	TASK_PROVIDER_STREAM_FAILED_EVENT,
-	TASK_PROVIDER_STREAM_STARTED_EVENT,
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
@@ -62,7 +52,7 @@ export type AgentEventListener = (event: AgentRuntimeEvent) => void;
 
 /**
  * Advanced form: caller supplies a pre-built `AgentModel`. Used by
- * `@cline/core`, which constructs models itself to share gateway/telemetry
+ * `@cline/core`, which constructs models itself to share gateway state
  * wiring with the rest of the session runtime.
  */
 export interface AgentRuntimeConfigWithModel extends BaseAgentRuntimeConfig {
@@ -110,7 +100,6 @@ function resolveRuntimeConfig(
 			providerId,
 			options: { connection, workspaceRoot },
 		}],
-		telemetry: rest.telemetry,
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });
 	// The prebuilt-model path preserves a caller-provided messageModelInfo;
@@ -131,6 +120,19 @@ function resolveToolPolicy(
 		...(policies?.["*"] ?? {}),
 		...(policies?.[toolName] ?? {}),
 	};
+}
+
+const READ_ONLY_TOOLS = new Set([
+	"read_files",
+	"read_file",
+	"list_files",
+	"list_code_definition_names",
+	"search_codebase",
+	"search_files",
+]);
+
+function requiresExplicitApproval(toolName: string): boolean {
+	return !READ_ONLY_TOOLS.has(toolName);
 }
 
 interface PendingToolAssembly {
@@ -343,10 +345,6 @@ function usageDelta(
 	};
 }
 
-function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
-	return request.options?.thinking === false;
-}
-
 function textFromMessage(message: AgentMessage | undefined): string {
 	if (!message) {
 		return "";
@@ -419,16 +417,7 @@ export class AgentRuntime {
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
-	private readonly telemetryProviderId?: string;
-	private readonly telemetryModelId?: string;
-
 	constructor(config: AgentRuntimeConfig) {
-		this.telemetryProviderId =
-			trimNonEmpty(config.messageModelInfo?.provider) ??
-			("providerId" in config ? trimNonEmpty(config.providerId) : undefined);
-		this.telemetryModelId =
-			trimNonEmpty(config.messageModelInfo?.id) ??
-			("modelId" in config ? trimNonEmpty(config.modelId) : undefined);
 		const resolved = resolveRuntimeConfig(config);
 		this.config = {
 			...resolved,
@@ -460,9 +449,6 @@ export class AgentRuntime {
 				? reason
 				: new AgentRuntimeAbortError(reason);
 		this.state.lastError = abortError.message;
-		this.captureTaskLifecycle(TASK_CANCELLED_EVENT, {
-			error: abortError,
-		});
 		this.abortController.abort(abortError);
 	}
 
@@ -831,10 +817,6 @@ export class AgentRuntime {
 			}),
 		};
 
-		const taskLifecycleStartedAt = Date.now();
-		const getTaskLifecycleDurationMs = () =>
-			Date.now() - taskLifecycleStartedAt;
-
 		if (this.state.iteration > 1) {
 			const pendingUserMessage = await this.consumePendingUserMessage();
 			if (pendingUserMessage) {
@@ -887,14 +869,7 @@ export class AgentRuntime {
 		});
 
 		this.throwIfAborted();
-		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
-			durationMs: getTaskLifecycleDurationMs(),
-			phase: "provider_request_started",
-		});
-		const stream = this.openTaskLifecycleStream(
-			request,
-			getTaskLifecycleDurationMs,
-		);
+		const stream = this.openTaskLifecycleStream(request);
 
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
@@ -1056,7 +1031,6 @@ export class AgentRuntime {
 		const metrics = usageDelta(usageBeforeModel, this.state.usage);
 		if (metrics) {
 			message.metrics = metrics;
-			this.captureUnexpectedReasoningTokens(request, metrics);
 		}
 		if (this.config.messageModelInfo) {
 			message.modelInfo = { ...this.config.messageModelInfo };
@@ -1075,131 +1049,12 @@ export class AgentRuntime {
 
 	private async *openTaskLifecycleStream(
 		request: AgentModelRequest,
-		getTaskLifecycleDurationMs: () => number | undefined,
 	): AsyncIterable<AgentModelEvent> {
-		let stream: AsyncIterable<AgentModelEvent>;
-		let phase = "provider_request_started";
-		try {
-			stream = await this.config.model.stream(request);
-			this.throwIfAborted();
-			phase = "provider_stream_started";
-			this.captureTaskLifecycle(TASK_PROVIDER_STREAM_STARTED_EVENT, {
-				durationMs: getTaskLifecycleDurationMs(),
-				phase,
-			});
-		} catch (error) {
-			if (!this.isAbortError(error)) {
-				this.captureTaskLifecycleFailure(
-					error,
-					phase,
-					getTaskLifecycleDurationMs(),
-				);
-			}
-			throw error;
+		const stream = await this.config.model.stream(request);
+		this.throwIfAborted();
+		for await (const event of stream) {
+			yield event;
 		}
-
-		let receivedFirstChunk = false;
-		try {
-			for await (const event of stream) {
-				if (!receivedFirstChunk) {
-					receivedFirstChunk = true;
-					phase = "first_chunk_received";
-					this.captureTaskLifecycle(TASK_FIRST_CHUNK_RECEIVED_EVENT, {
-						durationMs: getTaskLifecycleDurationMs(),
-						phase,
-						eventType: event.type,
-					});
-				}
-				yield event;
-			}
-		} catch (error) {
-			if (!this.isAbortError(error)) {
-				this.captureTaskLifecycleFailure(
-					error,
-					phase,
-					getTaskLifecycleDurationMs(),
-				);
-			}
-			throw error;
-		}
-	}
-
-	private captureTaskLifecycleFailure(
-		error: unknown,
-		phase: string,
-		durationMs: number | undefined,
-	): void {
-		this.captureTaskLifecycle(TASK_PROVIDER_STREAM_FAILED_EVENT, {
-			durationMs,
-			error,
-			phase,
-		});
-	}
-
-	private captureTaskLifecycle(
-		event: string,
-		input: Partial<Omit<CaptureTaskLifecycleEventInput, "event">> = {},
-	): void {
-		const sessionId = trimNonEmpty(this.config.sessionId);
-		captureTaskLifecycleEvent(this.config.telemetry, {
-			event,
-			sessionId,
-			ulid: sessionId,
-			agentId: this.state.agentId,
-			conversationId: trimNonEmpty(this.config.conversationId),
-			runId: this.state.runId,
-			iteration: this.state.iteration > 0 ? this.state.iteration : undefined,
-			providerId: this.getTelemetryProviderId(),
-			modelId: this.getTelemetryModelId(),
-			...input,
-		});
-	}
-
-	private getTelemetryProviderId(): string | undefined {
-		return (
-			trimNonEmpty(this.config.messageModelInfo?.provider) ??
-			this.telemetryProviderId
-		);
-	}
-
-	private getTelemetryModelId(): string | undefined {
-		return (
-			trimNonEmpty(this.config.messageModelInfo?.id) ?? this.telemetryModelId
-		);
-	}
-
-	private isAbortError(error: unknown): boolean {
-		return (
-			error instanceof AgentRuntimeAbortError ||
-			this.abortController?.signal.aborted === true
-		);
-	}
-
-	private captureUnexpectedReasoningTokens(
-		request: AgentModelRequest,
-		metrics: NonNullable<AgentMessage["metrics"]>,
-	): void {
-		if (
-			!reasoningWasRequestedOff(request) ||
-			(metrics.reasoningTokenCount ?? 0) <= 0
-		) {
-			return;
-		}
-		const reasoningTokenCount = metrics.reasoningTokenCount;
-		if (reasoningTokenCount === undefined) {
-			return;
-		}
-
-		captureAgentUnexpectedReasoningTokens(this.config.telemetry, {
-			sessionId: this.config.sessionId,
-			agentId: this.state.agentId,
-			runId: this.state.runId,
-			iteration: this.state.iteration,
-			providerId: this.config.messageModelInfo?.provider,
-			modelId: this.config.messageModelInfo?.id,
-			requestedThinking: false,
-			reasoningTokenCount,
-		});
 	}
 
 	private async prepareTurnForModelRequest(
@@ -1397,7 +1252,7 @@ export class AgentRuntime {
 			};
 			if (policy.enabled === false) {
 				skipReason = `Tool "${toolCall.toolName}" is disabled by policy`;
-			} else if (policy.autoApprove === false) {
+			} else if (requiresExplicitApproval(toolCall.toolName)) {
 				const approval = await this.requestToolApproval(
 					toolCall,
 					input,
@@ -1630,23 +1485,11 @@ export class AgentRuntime {
 					...metadata,
 					error: event.error,
 				});
-				captureSdkError(this.config.telemetry, {
-					component: "agents",
-					operation: "agent.run",
-					error: event.error,
-					severity: "error",
-					handled: false,
-					context: metadata as TelemetryProperties,
-				});
 				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
 		}
-		this.config.telemetry?.capture({
-			event: `agent.${event.type}`,
-			properties: metadata as TelemetryProperties,
-		});
 		for (const listener of this.listeners) {
 			listener(event);
 		}

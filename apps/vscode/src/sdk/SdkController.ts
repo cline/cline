@@ -10,7 +10,6 @@ import {
 	createUserInstructionConfigService,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
-	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
 import { formatDisplayUserInput } from "@cline/shared"
@@ -22,7 +21,6 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
-import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
@@ -32,21 +30,13 @@ import { HostProvider } from "@/hosts/host-provider"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
-import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
-import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState } from "./message-translator"
-import {
-	PROVIDER_FAILURE_ERROR_TYPE,
-	PROVIDER_FAILURE_PHASE,
-	type ProviderFailureTelemetry,
-	ProviderFailureTelemetryTurnGate,
-} from "./provider-failure-telemetry"
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
@@ -69,9 +59,7 @@ import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
-import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
-import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
@@ -80,7 +68,6 @@ import {
 } from "./sdk-user-message-mapping"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
-import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
@@ -158,8 +145,6 @@ export class Controller {
 	private compaction: SdkCompactionCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
-	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
-	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
 
 	// Debounces/coalesces postStateToWebview() calls — see StatePostDebouncer.
 	private static readonly STATE_POST_DEBOUNCE_MS = 50
@@ -195,8 +180,7 @@ export class Controller {
 	private backgroundCommandTaskId?: string
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 
-	// Watches user-instruction files (workflows/skills/rules), including those
-	// materialized by remote config under `.cline/remote-config/`. Used to expand
+	// Watches local user-instruction files (workflows/skills/rules). Used to expand
 	// `/workflow` and `/skill` slash commands into their instruction bodies before
 	// the prompt reaches the model — the same mechanism the CLI uses in
 	// `buildUserInputMessage`. The agent loop never auto-expands commands, so this
@@ -210,8 +194,6 @@ export class Controller {
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
-		syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
-		this.sdkTelemetry = createVscodeSdkTelemetryHandle()
 		this.statePostDebouncer = new StatePostDebouncer({
 			debounceMs: Controller.STATE_POST_DEBOUNCE_MS,
 			flush: () => this.flushStateToWebview(),
@@ -229,7 +211,6 @@ export class Controller {
 				return settingsDir
 			},
 			ExtensionRegistryInfo.version,
-			telemetryService,
 		)
 
 		// Initialize message translator state
@@ -273,14 +254,9 @@ export class Controller {
 				// manual Reject and clearPending (task cancel/abort) in one place.
 				void this.diffEdits.discardPreview(toolCallId)
 			},
-			shouldAutoApproveTool: (request) => {
-				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
-			},
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
-			telemetry: this.sdkTelemetry.telemetry,
 			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
 			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
 			editorExecutor: (input, cwd, context) => this.diffEdits.executeEditorTool(input, cwd, context),
@@ -307,9 +283,6 @@ export class Controller {
 				}
 				return this._terminalManager
 			},
-			onSendStart: () => {
-				this.beginProviderFailureTelemetryTurn()
-			},
 			// this.mode is assigned later in this constructor; the closure only
 			// runs at send time, long after construction completes.
 			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
@@ -326,14 +299,6 @@ export class Controller {
 				void this.diffEdits.discardAllPreviews("turn error")
 				this.turnStateTracker.set("error")
 				const errorMessage = error instanceof Error ? error.message : String(error)
-				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
-				this.captureProviderFailure({
-					sessionId,
-					error,
-					providerId,
-					errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
-					failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-				})
 				this.messages.emitSessionEvents(
 					[
 						{
@@ -354,7 +319,6 @@ export class Controller {
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
 			legacyExtensionStorageDir: this.context.globalStorageUri.fsPath,
-			telemetry: telemetryService,
 			// History rendering mints ids from the shared authority so regenerated history ids
 			// never overlap live-session ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
@@ -483,7 +447,6 @@ export class Controller {
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.compaction = new SdkCompactionCoordinator({
@@ -502,8 +465,6 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
-			captureProviderApiError: (event) => this.captureProviderFailure(event),
-			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -568,7 +529,6 @@ export class Controller {
 		await this.taskHistory.dispose()
 		this.mcpHub?.dispose?.()
 		this.messages.dispose()
-		await this.sdkTelemetry.dispose()
 		Logger.log("[SdkController] Disposed")
 	}
 
@@ -577,8 +537,7 @@ export class Controller {
 	/**
 	 * Lazily create (or rebuild on workspace-root change) the user-instruction
 	 * watcher. Pointed at the workspace root so it discovers both local config
-	 * (`.clinerules/workflows`, `.cline/workflows`, …) and remote-config files
-	 * materialized under `<root>/.cline/remote-config/{workflows,skills,rules}`.
+	 * from supported workspace and user configuration directories.
 	 *
 	 * `workspaceRoot` is resolved by the caller so the memoization check below runs
 	 * synchronously on entry — there is no `await` before the assignment, so
@@ -740,38 +699,6 @@ export class Controller {
 		}
 		const modelId = activeSession?.startResult?.manifest?.model?.trim() || activeSession?.startConfig?.modelId?.trim()
 		return modelId && modelId !== "unknown" ? modelId : undefined
-	}
-
-	private beginProviderFailureTelemetryTurn(): void {
-		this.providerFailureTelemetryTurnGate.beginTurn()
-	}
-
-	private captureProviderFailure(event: ProviderFailureTelemetry): void {
-		const ulid = event.sessionId ?? this.task?.taskId ?? this.sessions.getActiveSession()?.sessionId
-		if (!ulid) {
-			return
-		}
-		if (
-			event.failurePhase === PROVIDER_FAILURE_PHASE.STREAMING &&
-			!this.providerFailureTelemetryTurnGate.shouldCaptureStreamingFailure()
-		) {
-			return
-		}
-
-		const provider = event.providerId ?? this.getSessionProviderId(event.sessionId) ?? "unknown"
-		const model = event.modelId ?? this.getSessionModelId(event.sessionId) ?? this.getTaskModelId() ?? "unknown"
-		const clineError = ClineError.transform(event.error, model, provider)
-
-		telemetryService.captureProviderApiError({
-			ulid,
-			model,
-			provider,
-			errorMessage: clineError.message || String(event.error),
-			errorStatus: clineError.status,
-			requestId: clineError.requestId,
-			errorType: event.errorType,
-			failurePhase: event.failurePhase,
-		})
 	}
 
 	// ---- Task lifecycle ----
@@ -1141,21 +1068,8 @@ export class Controller {
 
 	// ---- Mode switching ----
 
-	async toggleActModeForYoloMode(): Promise<boolean> {
-		return this.mode.toggleActModeForYoloMode()
-	}
-
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		return this.mode.togglePlanActMode(modeToSwitchTo, chatContent)
-	}
-
-	// ---- Telemetry ----
-
-	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
-		setTelemetryOptOutGlobally(telemetrySetting === "disabled", { telemetry: this.sdkTelemetry.telemetry })
-		// Mirror to StateManager for existing VS Code services during the transition.
-		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
-		await this.postStateToWebview()
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
@@ -1427,7 +1341,6 @@ export class Controller {
 		// Build the base ExtensionState from StateManager, then layer the SDK's
 		// task history on top.
 		try {
-			syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
 			const { getStateToPostToWebview: buildBaseState } = await import("@core/controller/state/getStateToPostToWebview")
 			const state = await buildBaseState({
 				task: this.task,

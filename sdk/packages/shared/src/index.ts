@@ -55,7 +55,6 @@ export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,
-	UserContext,
 	WorkspaceContext,
 } from "./extensions/context";
 export type {
@@ -89,16 +88,6 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
-export {
-	FEATURE_FLAGS,
-	type FeatureFlag,
-	FeatureFlagDefaultValue,
-	type FeatureFlagPayload,
-	type FeatureFlagsAndPayloads,
-	type FeatureFlagsContext,
-	type FeatureFlagsSettings,
-	type IFeatureFlagsProvider,
-} from "./feature-flags";
 export type { HookControl } from "./hooks/contracts";
 export type {
 	AgentAbortHookPayload,
@@ -275,67 +264,6 @@ export {
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
-export { isClineProvider } from "./providers/utils";
-export {
-	buildRemoteConfigSessionBlobUploadMetadata,
-	clearRemoteConfigSessionBlobUpload,
-	createRemoteConfigSessionMessagesArtifactUploader,
-	prepareRemoteConfigRuntime,
-	REMOTE_CONFIG_SESSION_BLOB_UPLOAD_METADATA_KEY,
-	readRemoteConfigSessionBlobUploadMetadata,
-	registerRemoteConfigSessionBlobUpload,
-} from "./remote-config";
-export type {
-	PreparedRemoteConfigRuntime,
-	PrepareRemoteConfigRuntimeOptions,
-	RemoteConfigBundle,
-} from "./remote-config/bundle";
-export { REMOTE_URI_SCHEME } from "./remote-config/constants";
-export type {
-	AnthropicModel,
-	AnthropicSettings,
-	APIKeySettings,
-	AwsBedrockCustomModel,
-	AwsBedrockModel,
-	AwsBedrockSettings,
-	EnterpriseTelemetry,
-	GlobalInstructionsFile,
-	LiteLLMModel,
-	LiteLLMSettings,
-	MCPServer,
-	OpenAiCompatible,
-	OpenAiCompatibleModel,
-	PromptUploading,
-	ProviderSettings,
-	RemoteConfig,
-	RemoteMCPServer,
-	S3AccessKeySettings,
-	VertexModel,
-	VertexSettings,
-} from "./remote-config/schema";
-export {
-	AllowedMCPServerSchema,
-	AnthropicModelSchema,
-	AnthropicSchema,
-	APIKeySchema,
-	AwsBedrockCustomModelSchema,
-	AwsBedrockModelSchema,
-	AwsBedrockSettingsSchema,
-	ClineModelSchema,
-	ClineSettingsSchema,
-	EnterpriseTelemetrySchema,
-	GlobalInstructionsFileSchema,
-	LiteLLMModelSchema,
-	LiteLLMSchema,
-	OpenAiCompatibleModelSchema,
-	OpenAiCompatibleSchema,
-	PromptUploadingSchema,
-	RemoteConfigSchema,
-	RemoteMCPServerSchema,
-	S3AccessKeySettingsSchema,
-	VertexModelSchema,
-	VertexSettingsSchema,
-} from "./remote-config/schema";
 export {
 	CLINE_DEFAULT_RPC_ADDRESS,
 	CLINE_DEFAULT_RPC_PORT,
@@ -353,13 +281,6 @@ export type {
 	ChatStartSessionResponse,
 	ChatToolCallResult,
 	ChatTurnResult,
-	ClineAccountActionRequest,
-	EnterpriseAuthenticateRequest,
-	EnterpriseAuthenticateResponse,
-	EnterpriseStatusRequest,
-	EnterpriseStatusResponse,
-	EnterpriseSyncRequest,
-	EnterpriseSyncResponse,
 	GetProviderModelsActionRequest,
 	ListProvidersActionRequest,
 	ProviderActionRequest,
@@ -373,7 +294,6 @@ export type {
 	ProviderListItem,
 	ProviderModel,
 	ProviderModelsResponse,
-	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
@@ -413,57 +333,10 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
-export type {
-	ClineEnvironment,
-	ClineEnvironmentConfig,
-	ResolveClineEnvironmentOptions,
-} from "./runtime/cline-environment";
-export {
-	CLINE_ENVIRONMENT_ENV,
-	CLINE_ENVIRONMENT_OVERRIDE_ENV,
-	CLINE_ENVIRONMENTS,
-	DEFAULT_CLINE_ENVIRONMENT,
-	getClineEnvironmentConfig,
-	resolveClineEnvironment,
-} from "./runtime/cline-environment";
 export {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
 } from "./runtime/hub-daemon-env";
-export type {
-	CaptureAgentUnexpectedReasoningTokensInput,
-	CaptureSdkErrorInput,
-	CaptureTaskLifecycleEventInput,
-	ITelemetryService,
-	OpenTelemetryClientConfig,
-	SdkTelemetryErrorComponent,
-	SdkTelemetryErrorSeverity,
-	TelemetryArray,
-	TelemetryMetadata,
-	TelemetryObject,
-	TelemetryPrimitive,
-	TelemetryProperties,
-	TelemetryValue,
-} from "./services/telemetry";
-export {
-	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
-	buildSdkErrorProperties,
-	captureAgentUnexpectedReasoningTokens,
-	captureSdkError,
-	captureTaskLifecycleEvent,
-	normalizeSdkError,
-	SDK_ERROR_TELEMETRY_EVENT,
-	TASK_CANCELLED_EVENT,
-	TASK_FIRST_CHUNK_RECEIVED_EVENT,
-	TASK_PROVIDER_REQUEST_STARTED_EVENT,
-	TASK_PROVIDER_STREAM_FAILED_EVENT,
-	TASK_PROVIDER_STREAM_STARTED_EVENT,
-} from "./services/telemetry";
-export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
-export {
-	createClineTelemetryServiceConfig,
-	createClineTelemetryServiceMetadata,
-} from "./services/telemetry-config";
 export type {
 	HookSessionContext,
 	HookSessionContextLookup,

@@ -250,64 +250,6 @@ describe("SdkInteractionCoordinator", () => {
 		)
 	})
 
-	it("auto-approves without emitting UI when the live settings allow the tool", async () => {
-		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
-		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
-		const recordApprovedToolMessage = vi.fn()
-		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => task }),
-			getSessionId: () => "session-123",
-			postStateToWebview,
-			shouldAutoApproveTool: () => true,
-			recordApprovedToolMessage,
-		})
-
-		await expect(
-			coordinator.handleRequestToolApproval({
-				agentId: "agent",
-				conversationId: "conversation",
-				iteration: 1,
-				toolCallId: "tool-call",
-				toolName: "run_commands",
-				input: { command: "npm test" },
-				policy: { autoApprove: false },
-			}),
-		).resolves.toEqual({ approved: true })
-
-		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
-		expect(postStateToWebview).not.toHaveBeenCalled()
-		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
-	})
-
-	it("auto-approves without emitting UI when the SDK policy already allows the tool", async () => {
-		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
-		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
-		const recordApprovedToolMessage = vi.fn()
-		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => task }),
-			getSessionId: () => "session-123",
-			postStateToWebview,
-			shouldAutoApproveTool: () => false,
-			recordApprovedToolMessage,
-		})
-
-		await expect(
-			coordinator.handleRequestToolApproval({
-				agentId: "agent",
-				conversationId: "conversation",
-				iteration: 1,
-				toolCallId: "tool-call",
-				toolName: "run_commands",
-				input: { command: "npm test" },
-				policy: { autoApprove: true },
-			}),
-		).resolves.toEqual({ approved: true })
-
-		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
-		expect(postStateToWebview).not.toHaveBeenCalled()
-		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
-	})
-
 	it("emits an MCP approval ask with server, tool, and arguments", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({
@@ -512,30 +454,6 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
-	})
-
-	it("does not invoke onToolApprovalAsk for auto-approved tools", async () => {
-		const onToolApprovalAsk = vi.fn().mockResolvedValue(undefined)
-		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => createTaskProxy("session-123", vi.fn(), vi.fn()) }),
-			getSessionId: () => "session-123",
-			postStateToWebview: vi.fn().mockResolvedValue(undefined),
-			shouldAutoApproveTool: () => true,
-			onToolApprovalAsk,
-		})
-
-		await expect(
-			coordinator.handleRequestToolApproval({
-				agentId: "agent",
-				conversationId: "conversation",
-				iteration: 1,
-				toolCallId: "tool-call",
-				toolName: "editor",
-				input: { path: "a.ts", old_text: "a", new_text: "b" },
-				policy: { autoApprove: false },
-			}),
-		).resolves.toEqual({ approved: true })
-		expect(onToolApprovalAsk).not.toHaveBeenCalled()
 	})
 
 	it("still shows the approval ask when onToolApprovalAsk throws", async () => {

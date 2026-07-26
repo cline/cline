@@ -1,5 +1,4 @@
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
@@ -104,36 +103,6 @@ export async function synchronizeRuleToggles(
 }
 
 /**
- * Synchronizes remote rule toggles with current remote config
- * Removes toggles for rules that no longer exist, adds defaults for new rules
- */
-export function synchronizeRemoteRuleToggles(
-	remoteRules: GlobalInstructionsFile[],
-	currentToggles: ClineRulesToggles,
-): ClineRulesToggles {
-	const updatedToggles: ClineRulesToggles = {}
-
-	// Create set of current remote rule names
-	const existingRuleNames = new Set(remoteRules.map((rule) => rule.name))
-
-	// Keep toggles only for rules that still exist
-	for (const [ruleName, enabled] of Object.entries(currentToggles)) {
-		if (existingRuleNames.has(ruleName)) {
-			updatedToggles[ruleName] = enabled
-		}
-	}
-
-	// Add default toggles for new rules (default to enabled)
-	for (const rule of remoteRules) {
-		if (!(rule.name in updatedToggles)) {
-			updatedToggles[rule.name] = true
-		}
-	}
-
-	return updatedToggles
-}
-
-/**
  * Certain project rules have more than a single location where rules are allowed to be stored
  */
 export function combineRuleToggles(toggles1: ClineRulesToggles, toggles2: ClineRulesToggles): ClineRulesToggles {
@@ -186,7 +155,6 @@ type RuleFileController = {
 export const RULE_SOURCE_PREFIX = {
 	workspace: "workspace",
 	global: "global",
-	remote: "remote",
 } as const
 
 export type RuleLoadResult = {
@@ -256,44 +224,6 @@ export const getRuleFilesTotalContentWithMetadata = async (
 			.map((p) => p.activatedRule)
 			.filter((rule): rule is ActivatedConditionalRule => rule !== null),
 	}
-}
-
-function getRemoteRulesTotalContentWithMetadata(
-	remoteRules: GlobalInstructionsFile[],
-	remoteToggles: ClineRulesToggles,
-	opts?: { evaluationContext?: RuleEvaluationContext },
-): RuleLoadResult {
-	const activatedConditionalRules: ActivatedConditionalRule[] = []
-	const evaluationContext = opts?.evaluationContext ?? {}
-	let combinedContent = ""
-
-	for (const rule of remoteRules) {
-		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
-		if (!isEnabled) continue
-
-		const raw = (rule.contents || "").trim()
-		if (!raw) continue
-
-		const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
-		if (hadFrontmatter && parseError) {
-			// Fail open: include entire raw contents
-			if (combinedContent) combinedContent += "\n\n"
-			combinedContent += `${rule.name}\n${raw}`
-			continue
-		}
-
-		const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
-		if (!passed) continue
-
-		if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
-			activatedConditionalRules.push({ name: `${RULE_SOURCE_PREFIX.remote}:${rule.name}`, matchedConditions })
-		}
-
-		if (combinedContent) combinedContent += "\n\n"
-		combinedContent += `${rule.name}\n${body.trim()}`
-	}
-
-	return { content: combinedContent, activatedConditionalRules }
 }
 
 /**

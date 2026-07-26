@@ -2,7 +2,6 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { isDirectory } from "@/utils/fs"
-import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
 import { SdkTaskStartCoordinator, type SdkTaskStartCoordinatorOptions } from "./sdk-task-start-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -70,18 +69,6 @@ describe("SdkTaskStartCoordinator", () => {
 			["a.ts"],
 		)
 	})
-
-	it("emits a Cline auth error instead of starting when the cline provider has no token", async () => {
-		const { coordinator, options } = makeCoordinator({ config: { providerId: "cline", modelId: "model", apiKey: "" } })
-
-		const sessionId = await coordinator.initTask("needs auth")
-
-		expect(sessionId).toBeUndefined()
-		expect(options.emitClineAuthError).toHaveBeenCalledWith("needs auth")
-		expect(options.captureProviderApiError).not.toHaveBeenCalled()
-		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
-	})
-
 	it("emits a Cline auth error instead of starting when ClinePass has no token", async () => {
 		const { coordinator, options } = makeCoordinator({ config: { providerId: "cline-pass", modelId: "model", apiKey: "" } })
 
@@ -102,14 +89,6 @@ describe("SdkTaskStartCoordinator", () => {
 
 		expect(sessionId).toBeUndefined()
 		expect(options.emitClineAuthError).not.toHaveBeenCalled()
-		expect(options.captureProviderApiError).toHaveBeenCalledWith({
-			sessionId: state.task?.taskId,
-			error,
-			providerId: "anthropic",
-			modelId: "model",
-			errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
-			failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
-		})
 		expect(state.task?.taskId).toEqual(expect.any(String))
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[

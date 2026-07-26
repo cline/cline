@@ -411,7 +411,7 @@ describe("vscode-to-file-migration", () => {
 			})
 		})
 
-		it("preserves top-level URL for migrated remote-configured URL servers", async () => {
+		it("preserves top-level URL while dropping the legacy managed-server marker", async () => {
 			const mockCtx = createMockVSCodeContext()
 			const extensionStorage = path.join(tempDir, "vscode-global-storage")
 			mockCtx.globalStorageUri.fsPath = extensionStorage
@@ -437,7 +437,6 @@ describe("vscode-to-file-migration", () => {
 				transport: { type: "streamableHttp", url: "https://managed.example.com/mcp" },
 				disabled: true,
 				autoApprove: ["tool-a"],
-				remoteConfigured: true,
 				url: "https://managed.example.com/mcp",
 			})
 		})

@@ -120,7 +120,6 @@ export class SdkCompactionCoordinator {
 					knownModels: config.knownModels,
 					compaction: config.compaction,
 					logger: config.logger,
-					telemetry: config.telemetry,
 				},
 				sessionId,
 				messages,

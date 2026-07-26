@@ -5,7 +5,6 @@ import type {
 } from "../agent";
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
-import type { ITelemetryService } from "../services/telemetry";
 
 export type JsonValue =
 	| string
@@ -33,7 +32,7 @@ export type GatewayModelCapability =
 	| "structured-output";
 
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
-export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
+export const USAGE_COST_DISPLAYS = ["show", "hide"] as const;
 export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
 export type GatewayReasoningFormat =
@@ -147,7 +146,6 @@ export interface GatewayProviderContext {
 	config: GatewayResolvedProviderConfig;
 	signal?: AbortSignal;
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 }
 
 export interface GatewayStreamRequest {
@@ -213,5 +211,4 @@ export interface GatewayConfig {
 	providers?: readonly GatewayProviderRegistration[];
 	providerConfigs?: readonly GatewayProviderConfig[];
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 }

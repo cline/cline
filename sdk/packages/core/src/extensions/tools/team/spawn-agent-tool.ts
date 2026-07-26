@@ -12,7 +12,6 @@ import {
 	type BasicLogger,
 	createTool,
 	type HookErrorMode,
-	type ITelemetryService,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 	type ToolPolicy,
@@ -108,7 +107,6 @@ export interface SpawnAgentToolConfig {
 	 * Optional logger forwarded to spawned sub-agent runs.
 	 */
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 }
 
 /**

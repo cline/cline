@@ -15,7 +15,6 @@ import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getDistinctId } from "@/services/logging/distinctId"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory } from "./legacy-state-reader"
@@ -110,7 +109,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			workspaceRoot,
 			workspaceName: resolveWorkspaceName(workspaceRoot),
 			mode: mode === "plan" ? "plan" : "act",
-			providerId: "bedrock",
 			platform: process.platform,
 		})
 	} catch (error) {
@@ -153,7 +151,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {
-			user: getDistinctId() ? { distinctId: getDistinctId() } : undefined,
 			client: {
 				name: hostIdentity?.clineType || ClineClient.VSCode,
 				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,

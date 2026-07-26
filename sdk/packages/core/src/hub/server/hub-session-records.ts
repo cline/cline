@@ -80,7 +80,7 @@ export function toHubSessionRecord(
 			enableTeams: session.enableTeams,
 			mode:
 				typeof session.metadata?.mode === "string"
-					? (session.metadata.mode as "act" | "plan" | "yolo")
+					? (session.metadata.mode as "act" | "plan")
 					: undefined,
 			systemPrompt:
 				typeof session.metadata?.systemPrompt === "string"

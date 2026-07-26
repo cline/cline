@@ -53,7 +53,6 @@ export function isSessionNotFoundError(
 type LocalOnlyCoreSessionConfigKeys =
 	| "hooks"
 	| "logger"
-	| "telemetry"
 	| "extensionContext"
 	| "extraTools"
 	| "extensions"
@@ -92,7 +91,6 @@ export type LocalRuntimeBootstrapConfig = Pick<
 export interface LocalRuntimeStartOptions {
 	hooks?: LocalRuntimeBootstrapConfig["hooks"];
 	logger?: LocalRuntimeBootstrapConfig["logger"];
-	telemetry?: LocalRuntimeBootstrapConfig["telemetry"];
 	extensionContext?: LocalRuntimeBootstrapConfig["extensionContext"];
 	extraTools?: LocalRuntimeBootstrapConfig["extraTools"];
 	extensions?: LocalRuntimeBootstrapConfig["extensions"];
@@ -138,7 +136,6 @@ export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
 	const {
 		hooks,
 		logger,
-		telemetry,
 		extensionContext,
 		extraTools,
 		extensions,
@@ -152,7 +149,6 @@ export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
 	const localConfigOverrides: Partial<LocalRuntimeBootstrapConfig> = {};
 	if (hooks) localConfigOverrides.hooks = hooks;
 	if (logger) localConfigOverrides.logger = logger;
-	if (telemetry) localConfigOverrides.telemetry = telemetry;
 	if (extensionContext)
 		localConfigOverrides.extensionContext = extensionContext;
 	if (extraTools) localConfigOverrides.extraTools = extraTools;

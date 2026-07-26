@@ -84,7 +84,6 @@ function restoreHookDirsSpy(): void {
 }
 
 export async function createHookTestEnv(): Promise<HookTestEnv> {
-	// Hook execution emits telemetry, which lazily constructs TelemetryService
 	// via HostProvider.env.getHostVersion(). Under mocha's single-process run an
 	// earlier suite left HostProvider initialized; bun's per-file isolation does
 	// not, so initialize it here (idempotent) to keep the telemetry path from

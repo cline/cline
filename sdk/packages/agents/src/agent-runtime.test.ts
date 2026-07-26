@@ -648,7 +648,7 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("preserved");
 	});
 
-	it("requests approval when a tool policy disables auto-approval", async () => {
+	it("requests approval for state-changing tools", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
@@ -712,7 +712,7 @@ describe("AgentRuntime", () => {
 		});
 	});
 
-	it("applies beforeTool approval policy overrides before executing tools", async () => {
+	it("does not allow tool policies to bypass approval", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
@@ -756,9 +756,6 @@ describe("AgentRuntime", () => {
 				},
 			],
 			toolPolicies: { "*": { autoApprove: true } },
-			hooks: {
-				beforeTool: () => ({ policy: { autoApprove: false } }),
-			},
 			requestToolApproval,
 		});
 
@@ -775,7 +772,7 @@ describe("AgentRuntime", () => {
 			toolCallId: "call_live_policy",
 			toolName: "echo",
 			input: { text: "hi" },
-			policy: { autoApprove: false },
+			policy: { autoApprove: true },
 		});
 	});
 

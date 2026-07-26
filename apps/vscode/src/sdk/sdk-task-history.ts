@@ -6,7 +6,6 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
-import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages, taskDirPath } from "./legacy-state-reader"
 import {
@@ -40,7 +39,6 @@ export interface SdkTaskHistoryOptions {
 	 * it so regenerated history ids never overlap live-session ids. Optional for tests.
 	 */
 	getMinter?: () => MessageIdMinter
-	telemetry?: TelemetryService
 }
 
 type SdkTaskHistoryListOptions = ClineCoreListHistoryOptions & {
@@ -388,10 +386,6 @@ export class SdkTaskHistory {
 		const legacyHistory = this.readAllLegacyTaskHistory()
 			.filter(({ item }) => item.task && !sdkIds.has(item.id))
 			.map(({ item }) => historyItemToSessionHistoryRecord(item))
-		const migratedSdkTaskCount = visibleSdkHistory.filter(
-			(item) => metadataBoolean(item.metadata, "migratedFromLegacyTask") === true,
-		).length
-
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
 		if (useCache) {
 			this.metadataHistoryCache = {
@@ -400,17 +394,6 @@ export class SdkTaskHistory {
 				createdAt: Date.now(),
 			}
 		}
-
-		this.options.telemetry?.safeCapture(
-			() =>
-				this.options.telemetry?.captureLegacyTaskMigrationBacklog({
-					pendingLegacyTaskCount: legacyHistory.length,
-					migratedSdkTaskCount,
-					visibleSdkTaskCount: visibleSdkHistory.length,
-					visibleTaskCount: mergedHistory.length,
-				}),
-			"SdkTaskHistory.listHistory.legacyMigrationBacklog",
-		)
 
 		const result = mergedHistory.slice(offset, offset + limit)
 		return result

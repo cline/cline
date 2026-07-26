@@ -4,8 +4,7 @@
  * Pre-configured tool combinations for common use cases.
  */
 
-import type { AgentMode, AgentTool, ToolPolicy } from "@cline/shared";
-import { ALL_DEFAULT_TOOL_NAMES } from "./constants";
+import type { AgentMode, AgentTool } from "@cline/shared";
 import { createDefaultTools } from "./definitions";
 import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types";
 
@@ -89,23 +88,6 @@ export const ToolPresets = {
 		enableAgentTeams: false,
 	},
 
-	/**
-	 * YOLO mode (automation-focused tools + no approval required)
-	 * Good for trusted local automation workflows.
-	 */
-	yolo: {
-		enableReadFiles: true,
-		enableSearch: false,
-		enableBash: true,
-		enableWebFetch: false,
-		enableApplyPatch: false,
-		enableEditor: true,
-		enableSkills: false,
-		enableAskQuestion: false,
-		enableSubmitAndExit: true,
-		enableSpawnAgent: false,
-		enableAgentTeams: false,
-	},
 } as const satisfies Record<string, ToolPresetConfig>;
 
 /**
@@ -119,42 +101,7 @@ export function resolveToolPresetName(options: {
 	if (options.mode === "plan") {
 		return "plan";
 	}
-	if (options.mode === "yolo") {
-		return "yolo";
-	}
 	return "act";
-}
-
-/**
- * AgentTool policy preset names
- */
-export type ToolPolicyPresetName = "default" | "yolo";
-
-/**
- * Build tool policies for a preset.
- * `yolo` guarantees tool policies are enabled and auto-approved.
- */
-export function createToolPoliciesWithPreset(
-	presetName: ToolPolicyPresetName,
-): Record<string, ToolPolicy> {
-	if (presetName !== "yolo") {
-		return {};
-	}
-
-	const yoloPolicy: ToolPolicy = {
-		enabled: true,
-		autoApprove: true,
-	};
-
-	const policies: Record<string, ToolPolicy> = {
-		"*": yoloPolicy,
-	};
-
-	for (const toolName of ALL_DEFAULT_TOOL_NAMES) {
-		policies[toolName] = yoloPolicy;
-	}
-
-	return policies;
 }
 
 /**

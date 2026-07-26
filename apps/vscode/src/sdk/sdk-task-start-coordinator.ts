@@ -6,7 +6,6 @@ import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
-import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -46,7 +45,6 @@ export interface SdkTaskStartCoordinatorOptions {
 	createTempSessionHost: () => Promise<SdkSessionHost>
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
-	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
 }
 
@@ -62,8 +60,6 @@ export class SdkTaskStartCoordinator {
 	): Promise<string | undefined> {
 		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
 		let taskSessionId: string | undefined
-		let providerId: string | undefined
-		let modelId: string | undefined
 		try {
 			await this.options.clearTask()
 
@@ -79,9 +75,6 @@ export class SdkTaskStartCoordinator {
 				cwd,
 				mode,
 			})
-			providerId = config.providerId
-			modelId = config.modelId
-
 			Logger.log(`[SdkController] Session config: provider=bedrock, model=${config.modelId}`)
 
 			taskSessionId = config.sessionId?.trim() || createSessionId()
@@ -130,14 +123,6 @@ export class SdkTaskStartCoordinator {
 			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
 			return taskSessionId
 		} catch (error) {
-			this.options.captureProviderApiError?.({
-				sessionId: taskSessionId,
-				error,
-				providerId,
-				modelId,
-				errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
-				failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
-			})
 			this.handleInitError(error, taskSessionId)
 			await this.options.postStateToWebview().catch((postError) => {
 				Logger.error("[SdkController] Failed to post state after init error:", postError)

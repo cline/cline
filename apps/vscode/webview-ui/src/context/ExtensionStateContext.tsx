@@ -36,12 +36,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 	settingsInitialModelTab?: "recommended" | "free"
 	showHistory: boolean
 	showWorktrees: boolean
-	showAnnouncement: boolean
 	expandTaskHeader: boolean
 
 	// Setters
-	setShowAnnouncement: (value: boolean) => void
-	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -52,8 +49,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalSkillsToggles: (toggles: Record<string, boolean>) => void
 	setLocalSkillsToggles: (toggles: Record<string, boolean>) => void
-	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
-	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
@@ -74,7 +69,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideSettings: () => void
 	hideHistory: () => void
 	hideWorktrees: () => void
-	hideAnnouncement: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
@@ -94,7 +88,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [settingsInitialModelTab, setSettingsInitialModelTab] = useState<"recommended" | "free" | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showWorktrees, setShowWorktrees] = useState(false)
-	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -109,7 +102,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
-	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -176,15 +168,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		clineMessages: [],
 		queuedPrompts: [],
 		taskHistory: [],
-		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		preferredLanguage: "English",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
 		environment: Environment.production,
-		telemetrySetting: "unset",
-		distinctId: "",
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
 		mcpDisplayMode: DEFAULT_MCP_DISPLAY_MODE,
@@ -203,17 +192,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		isNewUser: false,
 		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
-		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
 		compactionStrategy: "basic",
 		subagentsEnabled: false,
-		worktreesEnabled: { user: true, featureFlag: false },
+		worktreesEnabled: false,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
-		optOutOfRemoteConfig: false,
-		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
 		foregroundCommandRunning: false,
@@ -227,7 +213,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		workspaceRoots: [],
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
-		multiRootSetting: { user: false, featureFlag: false },
+		multiRootSetting: false,
 		hooksEnabled: false,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
@@ -306,10 +292,14 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
-							// Update welcome screen state based on API configuration if welcome view not in progress
-							if (!newState.welcomeViewCompleted && !showWelcome) {
+							const hasBedrockConnection = Boolean(
+								newState.apiConfiguration?.awsRegion ||
+									newState.apiConfiguration?.awsProfile ||
+									newState.apiConfiguration?.awsBedrockEndpoint,
+							)
+							if (!newState.welcomeViewCompleted && !hasBedrockConnection && !showWelcome) {
 								setShowWelcome(true)
-							} else if (newState.welcomeViewCompleted) {
+							} else if (newState.welcomeViewCompleted || hasBedrockConnection) {
 								setShowWelcome(false)
 							}
 
@@ -557,7 +547,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		settingsInitialModelTab,
 		showHistory,
 		showWorktrees,
-		showAnnouncement,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -565,8 +554,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		localAgentsRulesToggles: state.localAgentsRulesToggles || {},
 		localWorkflowToggles: state.localWorkflowToggles || {},
 		globalWorkflowToggles: state.globalWorkflowToggles || {},
-		remoteRulesToggles: state.remoteRulesToggles || {},
-		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 
 		// Navigation functions
@@ -581,14 +568,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideSettings,
 		hideHistory,
 		hideWorktrees,
-		hideAnnouncement,
-		setShowAnnouncement,
 		setShowWelcome,
-		setShouldShowAnnouncement: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				shouldShowAnnouncement: value,
-			})),
 		setMcpServers,
 		setShowMcp,
 		closeMcpView,
@@ -636,16 +616,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				localSkillsToggles: toggles,
-			})),
-		setRemoteRulesToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				remoteRulesToggles: toggles,
-			})),
-		setRemoteWorkflowToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				remoteWorkflowToggles: toggles,
 			})),
 		setMcpTab,
 		setTotalTasksSize,

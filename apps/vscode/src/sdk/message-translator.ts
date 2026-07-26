@@ -1572,15 +1572,8 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			}
 
 			// Serialize the error message for the webview's ErrorRow to parse.
-			// The webview uses ClineError.parse() on the `api_req_failed` text to
-			// detect special error types (insufficient credits, spend limit, auth,
-			// quota exceeded) and render appropriate UI (e.g. "Add Credits" button).
-			//
-			// The error object from the SDK is a standard JS Error. Its `message`
-			// may contain JSON from the API (e.g. Cline provider's 402 response with
-			// `code: "insufficient_credits"`). We try to reshape it into the
-			// ClineError-serialized format the webview expects so that ErrorRow
-			// can render the correct UI (Buy Credits button, etc.).
+			// Preserve structured Bedrock details such as AWS request IDs for the
+			// local error row and diagnostic output.
 			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId())
 
 			// Emit an api_req_started with streamingFailedMessage so the
@@ -1597,8 +1590,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			})
 
 			// Emit ask:"api_req_failed" as the LAST message so the webview
-			// shows error recovery UI (Retry button, Add Credits button,
-			// Sign In button, etc.) instead of a stuck "Thinking..." spinner.
+			// shows error recovery UI instead of a stuck "Thinking..." spinner.
 			messages.push({
 				ts: state.nextTs(),
 				type: "ask",
@@ -2109,7 +2101,7 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
  */
 export function reshapeErrorForWebview(
 	error: { message?: string; status?: number; code?: string },
-	providerId = "cline",
+	providerId = "bedrock",
 ): string {
 	const rawMessage = error.message ?? "Unknown error"
 
@@ -2120,7 +2112,7 @@ export function reshapeErrorForWebview(
 		parsed = JSON.parse(rawMessage)
 	} catch {
 		// Not JSON — try to find JSON embedded in the message
-		// (e.g. "Error: {\"code\":\"insufficient_credits\",...}")
+		// (e.g. "Error: {\"code\":\"ValidationException\",...}")
 		const jsonMatch = rawMessage.match(/\{[\s\S]*"code"[\s\S]*\}/)
 		if (jsonMatch) {
 			try {
@@ -2132,44 +2124,6 @@ export function reshapeErrorForWebview(
 	}
 
 	if (!parsed) {
-		// Plain-text error — the SDK sometimes strips structured API error JSON
-		// and delivers only a human-readable string such as
-		// "Not enough credits available" or "Your daily spend limit of $20.00
-		// has been reached." Detect these by keyword and synthesize the
-		// ClineError-compatible JSON the webview expects.
-		const lower = rawMessage.toLowerCase()
-		if (
-			lower.includes("insufficient_credits") ||
-			lower.includes("insufficient credits") ||
-			lower.includes("insufficient balance") ||
-			lower.includes("not enough credits") ||
-			lower.includes("run out of credits") ||
-			lower.includes("out of credits")
-		) {
-			// Extract balance from text like "balance is $-0.14" if present
-			const balanceMatch = rawMessage.match(/\$(-?\d+(?:\.\d+)?)/)
-			const balance = balanceMatch ? Number.parseFloat(balanceMatch[1]) : 0
-			return JSON.stringify({
-				message: rawMessage,
-				code: "insufficient_credits",
-				providerId,
-				details: {
-					current_balance: balance,
-					message: rawMessage,
-				},
-			})
-		}
-		if (lower.includes("spend_limit_exceeded") || lower.includes("spend limit")) {
-			return JSON.stringify({
-				message: rawMessage,
-				code: "SPEND_LIMIT_EXCEEDED",
-				providerId,
-				details: {
-					code: "SPEND_LIMIT_EXCEEDED",
-					message: rawMessage,
-				},
-			})
-		}
 		const notFoundMessage = describeModelNotFoundError(rawMessage)
 		if (notFoundMessage) {
 			return notFoundMessage
@@ -2177,43 +2131,5 @@ export function reshapeErrorForWebview(
 		return rawMessage
 	}
 
-	// Detect insufficient credits (402) — needs code + current_balance for
-	// ClineError.getErrorType() to return ClineErrorType.Balance
-	const code = (parsed.code as string) ?? error.code
-	if (code === "insufficient_credits" && typeof parsed.current_balance === "number") {
-		return JSON.stringify({
-			message: (parsed.message as string) ?? rawMessage,
-			code: "insufficient_credits",
-			providerId,
-			details: {
-				current_balance: parsed.current_balance,
-				total_spent: parsed.total_spent,
-				total_promotions: parsed.total_promotions,
-				message: (parsed.message as string) ?? "You have run out of credits.",
-				buy_credits_url: parsed.buy_credits_url,
-			},
-		})
-	}
-
-	// Detect spend limit exceeded (429)
-	if (code === "SPEND_LIMIT_EXCEEDED") {
-		return JSON.stringify({
-			message: (parsed.message as string) ?? rawMessage,
-			code: "SPEND_LIMIT_EXCEEDED",
-			providerId,
-			details: {
-				code: "SPEND_LIMIT_EXCEEDED",
-				limit_scope: parsed.limit_scope,
-				budget_period: parsed.budget_period,
-				limit_usd: parsed.limit_usd,
-				spent_usd: parsed.spent_usd,
-				resets_at: parsed.resets_at,
-				message: parsed.message,
-			},
-		})
-	}
-
-	// For other structured errors, pass through the parsed JSON so
-	// ClineError.parse() can still extract what it can.
-	return JSON.stringify(parsed)
+	return JSON.stringify({ ...parsed, providerId: parsed.providerId ?? providerId })
 }

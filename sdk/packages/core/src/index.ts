@@ -24,26 +24,17 @@ export type {
 	AutomationEventEnvelope,
 	BasicLogger,
 	BasicLogger as Logger,
-	CaptureSdkErrorInput,
 	ChatRunTurnRequest,
 	ChatRuntimeConfig,
 	ChatStartSessionArtifacts,
 	ChatStartSessionRequest,
 	ChatTurnResult,
-	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
-	FeatureFlag,
-	FeatureFlagPayload,
-	FeatureFlagsAndPayloads,
-	FeatureFlagsContext,
-	FeatureFlagsSettings,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
-	IFeatureFlagsProvider,
 	ImageContent,
-	ITelemetryService,
 	ListProvidersActionRequest,
 	Message,
 	MessageWithMetadata,
@@ -51,21 +42,12 @@ export type {
 	ProviderCatalogResponse,
 	ProviderListItem,
 	ProviderModel,
-	ProviderOAuthLoginResponse,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
-	SdkTelemetryErrorComponent,
-	SdkTelemetryErrorSeverity,
 	SessionLineage,
 	TEAM_LIFECYCLE_EVENT_TYPE,
 	TEAM_PROGRESS_EVENT_TYPE,
 	TeamProgressProjectionEvent,
-	TelemetryArray,
-	TelemetryMetadata,
-	TelemetryObject,
-	TelemetryPrimitive,
-	TelemetryProperties,
-	TelemetryValue,
 	TextContent,
 	ThinkingContent,
 	ToolApprovalRequest,
@@ -80,50 +62,18 @@ export type {
 } from "@cline/shared";
 export {
 	buildClineSystemPrompt as getClineDefaultSystemPrompt,
-	buildSdkErrorProperties,
 	ContributionRegistry,
-	captureSdkError,
-	createClineTelemetryServiceConfig,
-	createClineTelemetryServiceMetadata,
 	createContributionRegistry,
 	createTool,
 	emptyWorkspaceManifest,
-	FEATURE_FLAGS,
-	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
-	normalizeSdkError,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 	registerDisposable,
-	SDK_ERROR_TELEMETRY_EVENT,
 	stripUtf8Bom,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
-export {
-	createOAuthClientCallbacks,
-	type OAuthClientCallbacksOptions,
-} from "./auth/client";
-export type {
-	LocalOAuthServer,
-	LocalOAuthServerOptions,
-	OAuthCallbackPayload,
-	OAuthServerCloseInfo,
-	OAuthServerListeningInfo,
-} from "./auth/server";
-export { startLocalOAuthServer } from "./auth/server";
-export type {
-	OAuthCredentials,
-	OAuthLoginCallbacks,
-	OAuthPrompt,
-	OAuthProviderInterface,
-	OcaClientMetadata,
-	OcaMode,
-	OcaOAuthConfig,
-	OcaOAuthEnvironmentConfig,
-	OcaOAuthProviderOptions,
-	OcaTokenResolution,
-} from "./auth/types";
 export { ClineCore } from "./ClineCore";
 export type {
 	ClineAutomationEventIngressResult,
@@ -337,16 +287,6 @@ export {
 	sdkDebug,
 	setSdkLogger,
 } from "./logging/early-logger";
-export {
-	buildRemoteConfigSessionBlobUploadMetadata,
-	createRemoteConfigSessionMessagesArtifactUploader,
-	type PreparedRemoteConfigCoreIntegration,
-	type PrepareRemoteConfigCoreIntegrationOptions,
-	prepareRemoteConfigCoreIntegration,
-	REMOTE_CONFIG_SESSION_BLOB_UPLOAD_METADATA_KEY,
-	readRemoteConfigSessionBlobUploadMetadata,
-	registerRemoteConfigSessionBlobUpload,
-} from "./remote-config/integration";
 export type { RuntimeCapabilities } from "./runtime/capabilities";
 export { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 export type {
@@ -412,11 +352,6 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
-export {
-	FeatureFlagsService,
-	type FeatureFlagsServiceOptions,
-	NoOpFeatureFlagsProvider,
-} from "./services/feature-flags";
 export type {
 	GlobalCompactionStrategy,
 	GlobalSettings,
@@ -428,7 +363,6 @@ export {
 	GlobalSettingsSchema,
 	isAutoUpdateEnabledGlobally,
 	isPluginDisabledGlobally,
-	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -438,30 +372,9 @@ export {
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
-	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type {
-	MarketplaceActionResult,
-	MarketplaceEntryInput,
-	MarketplacePrimitiveType,
-	MarketplaceSpawnCommand,
-	MarketplaceSpawnResult,
-	UninstallMarketplaceEntryOptions,
-} from "./services/marketplace";
-export {
-	findInstalledGlobalMarketplaceSkillName,
-	getGlobalMarketplaceSkillPaths,
-	getMarketplaceSkillCandidates,
-	isMarketplaceSkillInstalled,
-	marketplaceEntryKey,
-	resolveMarketplaceMcpServerName,
-	uninstallMarketplaceEntry,
-	uninstallMarketplaceMcpServerFromSettings,
-	uninstallMarketplacePlugin,
-	uninstallMarketplaceSkill,
-} from "./services/marketplace";
 export type {
 	McpInstallOptions,
 	McpInstallResult,
@@ -514,67 +427,6 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
-export { resolveCoreDistinctId } from "./services/telemetry";
-export type {
-	CaptureAgentUnexpectedReasoningTokensInput,
-	CaptureCompactionExecutedProperties,
-	CaptureCompactionSkippedProperties,
-	TelemetryAgentIdentityProperties,
-	TelemetryAgentKind,
-	TelemetryCompactionMode,
-	TelemetryCompactionStrategy,
-	WorkspaceInitErrorProperties,
-	WorkspaceInitializedProperties,
-	WorkspacePathResolvedProperties,
-} from "./services/telemetry/core-events";
-export {
-	CORE_TELEMETRY_EVENTS,
-	captureAgentCreated,
-	captureAgentTeamCreated,
-	captureAgentUnexpectedReasoningTokens,
-	captureAuthFailed,
-	captureAuthLoggedOut,
-	captureAuthStarted,
-	captureAuthSucceeded,
-	captureCompactionExecuted,
-	captureCompactionSkipped,
-	captureConversationTurnEvent,
-	captureDiffEditFailure,
-	captureExtensionActivated,
-	captureHookDiscovery,
-	captureMentionFailed,
-	captureMentionSearchResults,
-	captureMentionUsed,
-	captureMistakeLimitReached,
-	captureModeSwitch,
-	captureProviderApiError,
-	captureProviderConfigured,
-	captureSkillUsed,
-	captureSubagentExecution,
-	captureTaskCompleted,
-	captureTaskCreated,
-	captureTaskRestarted,
-	captureTokenUsage,
-	captureToolUsage,
-	captureWorkspaceInitError,
-	captureWorkspaceInitialized,
-	captureWorkspacePathResolved,
-	identifyAccount,
-} from "./services/telemetry/core-events";
-export type { ITelemetryAdapter } from "./services/telemetry/ITelemetryAdapter";
-export {
-	type ConfiguredTelemetryHandle,
-	type CreateOpenTelemetryTelemetryServiceOptions,
-	createConfiguredTelemetryHandle,
-	createConfiguredTelemetryService,
-	createOpenTelemetryTelemetryService,
-	OpenTelemetryProvider,
-	type OpenTelemetryProviderOptions,
-} from "./services/telemetry/OpenTelemetryProvider";
-export {
-	TelemetryLoggerSink,
-	type TelemetryLoggerSinkOptions,
-} from "./services/telemetry/TelemetryLoggerSink";
 export {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
@@ -678,9 +530,6 @@ export {
 } from "./types/chat-schema";
 export type { SessionMessagesArtifactUploader } from "./types/session";
 export { CORE_BUILD_VERSION } from "./version";
-export async function loadOpenTelemetryAdapter() {
-	return import("./services/telemetry/index.js");
-}
 export { Agent, createAgentRuntime } from "@cline/agents";
 export {
 	createCompactionStateAwarePrepareTurn,
@@ -705,7 +554,6 @@ export {
 	createEditorExecutor,
 	createShellExecutor,
 	createShellTool,
-	createToolPoliciesWithPreset,
 	type DefaultExecutorsOptions,
 	type DefaultToolName,
 	DefaultToolNames,
@@ -728,7 +576,6 @@ export {
 	TEAM_TOOL_NAMES,
 	type ToolCatalogEntry,
 	type ToolExecutors,
-	type ToolPolicyPresetName,
 	type ToolPresetName,
 	ToolPresets,
 	truncateCommandOutput,
@@ -771,10 +618,6 @@ export {
 	safeParseSettings,
 	toProviderConfig,
 } from "./services/llms/provider-settings";
-export {
-	TelemetryService,
-	type TelemetryServiceOptions,
-} from "./services/telemetry/TelemetryService";
 export {
 	createSessionCompactionState,
 	parseSessionCompactionState,

@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { handleCapabilityProgress } from "./handlers/capability-handlers";
 import type { HubTransportContext } from "./handlers/context";
 import {

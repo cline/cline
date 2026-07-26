@@ -27,8 +27,7 @@ import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import {
-	cleanupMcpMarketplaceCatalogFromGlobalState,
-	cleanupOldApiKey,
+	cleanupClineAccountState,
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
@@ -47,15 +46,9 @@ import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview 
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
-import { telemetryService } from "./services/telemetry"
-import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
-
-export async function reportRolloutActivation(input: RolloutBundleActivation): Promise<void> {
-	await telemetryService.captureRolloutBundleActivated(input)
-}
 
 // This method is called when the VS Code extension is activated.
 // NOTE: This is VS Code specific - services that should be registered
@@ -124,7 +117,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
 			const sidebarInstance = WebviewProvider.getInstance()
-			telemetryService.captureNewTaskClicked("activity_bar_plus", !!sidebarInstance.controller.task)
 			await sidebarInstance.controller.clearTask()
 			await sidebarInstance.controller.postStateToWebview()
 			await sendChatButtonClickedEvent()
@@ -387,7 +379,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// Send show webview event with preserveEditorFocus flag
 			sendShowWebviewEvent(preserveEditorFocus)
-			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
 		}),
 	)
 
@@ -395,7 +386,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.Walkthrough, async () => {
 			await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#ClineWalkthrough`)
-			telemetryService.captureButtonClick("command_openWalkthrough")
 		}),
 	)
 
@@ -543,9 +533,9 @@ if (IS_DEV) {
 // VSCode-specific storage migrations
 async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<void> {
 	try {
-		await cleanupOldApiKey(context)
-		// Migrate is not done if the new storage does not have the lastShownAnnouncementId flag
-		const hasMigrated = context.globalState.get("lastShownAnnouncementId")
+		await cleanupClineAccountState(context)
+		const migrationKey = "phase4LegacyVSCodeStorageMigrationComplete"
+		const hasMigrated = context.globalState.get(migrationKey)
 		if (hasMigrated !== undefined) {
 			return
 		}
@@ -564,11 +554,7 @@ async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<vo
 		// Ensure taskHistory.json exists and migrate legacy state (runs once)
 		await migrateTaskHistoryToFile(context)
 
-		// Clean up MCP marketplace catalog from global state (moved to disk cache)
-		await cleanupMcpMarketplaceCatalogFromGlobalState(context)
-
-		// lastShownAnnouncementId will be set when announcement is shown
-		// after activation so we don't need to set it here.
+		await context.globalState.update(migrationKey, true)
 
 		Logger.info("[VS Code Storage Migrations] Completed")
 	} catch (error) {

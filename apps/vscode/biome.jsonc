@@ -192,7 +192,6 @@
 				"!!src/core/storage/FileContextTracker.ts",
 				"!!src/core/context/context-tracking/FileContextTracker.ts",
 				"!!src/common.ts",
-				"!!src/services/logging/distinctId.ts",
 				"!!src/core/storage/utils/state-helpers.ts",
 				"!!src/extension.ts"
 			],

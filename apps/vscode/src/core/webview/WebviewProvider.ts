@@ -106,7 +106,7 @@ export abstract class WebviewProvider {
 				<meta name="theme-color" content="#000000">
 				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
-					connect-src https://*.posthog.com https://*.cline.bot; 
+					connect-src 'none';
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 

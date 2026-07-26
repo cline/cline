@@ -15,7 +15,7 @@ const tagsSchema = z.array(z.string()).optional();
 
 const metadataSchema = z.record(z.string(), z.unknown()).optional();
 
-const modeSchema = z.enum(["act", "plan", "yolo", "zen"]).optional();
+const modeSchema = z.enum(["act", "plan", "zen"]).optional();
 
 const modelSelectionSchema = z
 	.object({

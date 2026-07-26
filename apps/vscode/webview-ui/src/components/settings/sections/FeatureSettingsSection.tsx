@@ -3,7 +3,6 @@ import { memo, type ReactNode } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -15,9 +14,6 @@ interface FeatureCheckboxProps {
 	label: string
 	description: ReactNode
 	disabled?: boolean
-	isRemoteLocked?: boolean
-	remoteTooltip?: string
-	isVisible?: boolean
 }
 
 // Interface for feature toggle configuration
@@ -70,17 +66,6 @@ const editorFeatures: FeatureToggle[] = [
 	},
 ]
 
-const experimentalFeatures: FeatureToggle[] = [
-	{
-		id: "yolo",
-		label: "Yolo Mode",
-		description:
-			"Execute tasks without user's confirmation. Auto-switches from Plan to Act mode and disables the ask question tool. Use with extreme caution.",
-		stateKey: "yoloModeToggled",
-		settingKey: "yoloModeToggled",
-	},
-]
-
 const advancedFeatures: FeatureToggle[] = [
 	{
 		id: "hooks",
@@ -91,57 +76,30 @@ const advancedFeatures: FeatureToggle[] = [
 	},
 ]
 
-const FeatureRow = memo(
-	({
-		checked = false,
-		onChange,
-		label,
-		description,
-		disabled,
-		isRemoteLocked,
-		isVisible = true,
-		remoteTooltip,
-	}: FeatureCheckboxProps) => {
-		if (!isVisible) {
-			return null
-		}
-
-		const checkbox = (
-			<div className="flex items-center justify-between w-full">
-				<div>{label}</div>
-				<div>
-					<Switch
-						checked={checked}
-						className="shrink-0"
-						disabled={disabled || isRemoteLocked}
-						id={label}
-						onCheckedChange={onChange}
-						size="lg"
-					/>
-					{isRemoteLocked && <i className="codicon codicon-lock text-description text-sm" />}
-				</div>
+const FeatureRow = memo(({ checked = false, onChange, label, description, disabled }: FeatureCheckboxProps) => {
+	const checkbox = (
+		<div className="flex items-center justify-between w-full">
+			<div>{label}</div>
+			<div>
+				<Switch
+					checked={checked}
+					className="shrink-0"
+					disabled={disabled}
+					id={label}
+					onCheckedChange={onChange}
+					size="lg"
+				/>
 			</div>
-		)
+		</div>
+	)
 
-		return (
-			<div className="flex flex-col items-start justify-between gap-4 py-3 w-full">
-				<div className="space-y-0.5 flex-1 w-full">
-					{isRemoteLocked ? (
-						<Tooltip>
-							<TooltipTrigger asChild>{checkbox}</TooltipTrigger>
-							<TooltipContent className="max-w-xs" side="top">
-								{remoteTooltip}
-							</TooltipContent>
-						</Tooltip>
-					) : (
-						checkbox
-					)}
-				</div>
-				<div className="text-xs text-description">{description}</div>
-			</div>
-		)
-	},
-)
+	return (
+		<div className="flex flex-col items-start justify-between gap-4 py-3 w-full">
+			<div className="space-y-0.5 flex-1 w-full">{checkbox}</div>
+			<div className="text-xs text-description">{description}</div>
+		</div>
+	)
+})
 
 interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
@@ -152,17 +110,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableCheckpointsSetting,
 		hooksEnabled,
 		mcpDisplayMode,
-		yoloModeToggled,
 		useAutoCondense,
 		compactionStrategy,
 		subagentsEnabled,
 		worktreesEnabled,
-		remoteConfigSettings,
 		backgroundEditEnabled,
 		showFeatureTips,
 	} = useExtensionState()
-
-	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
 	// State lookup for mapped features
 	const featureState: Record<string, boolean | undefined> = {
@@ -171,14 +125,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		useAutoCondense,
 		subagentsEnabled,
-		worktreesEnabled: worktreesEnabled?.user,
+		worktreesEnabled,
 		backgroundEditEnabled,
-		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
-	}
-
-	// Visibility lookup for features with feature flags
-	const featureVisibility: Record<string, boolean | undefined> = {
-		worktreesEnabled: worktreesEnabled?.featureFlag,
 	}
 
 	return (
@@ -196,7 +144,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
 									onChange={(checked) => updateSetting(feature.settingKey, checked)}
@@ -231,32 +178,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
 									onChange={(checked) => updateSetting(feature.settingKey, checked)}
-								/>
-							))}
-						</div>
-					</div>
-
-					{/* Experimental features */}
-					<div>
-						<div className="text-xs font-medium uppercase tracking-wider mb-3 text-warning/80">Experimental</div>
-						<div
-							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50 w-full"
-							id="experimental-features">
-							{experimentalFeatures.map((feature) => (
-								<FeatureRow
-									checked={featureState[feature.stateKey]}
-									description={feature.description}
-									disabled={feature.id === "yolo" && isYoloRemoteLocked}
-									isRemoteLocked={feature.id === "yolo" && isYoloRemoteLocked}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
-									key={feature.id}
-									label={feature.label}
-									onChange={(checked) => updateSetting(feature.settingKey, checked)}
-									remoteTooltip="This setting is managed by your organization's remote configuration"
 								/>
 							))}
 						</div>
@@ -272,7 +196,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
 									onChange={(checked) => updateSetting(feature.settingKey, checked)}

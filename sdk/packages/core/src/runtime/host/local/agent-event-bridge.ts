@@ -7,11 +7,9 @@ import type {
 import type { TeamEvent } from "../../../extensions/tools/team";
 import {
 	type AgentEventContext,
-	buildTelemetryAgentIdentity,
 	extractAgentEventMetadata,
 	handleAgentEvent,
 } from "../../../services/agent-events";
-import { captureAgentCreated } from "../../../services/telemetry/core-events";
 import {
 	dispatchTeamEventToBackend,
 	emitTeamProgress,
@@ -98,26 +96,6 @@ export class AgentEventBridge {
 					teamAgentId: event.agentId,
 					isPrimaryAgentEvent: false,
 				});
-			}
-			if (event.type === "teammate_spawned") {
-				const agentIdentity = buildTelemetryAgentIdentity({
-					agentId: event.teammate.runtimeAgentId ?? event.agentId,
-					conversationId: event.teammate.conversationId,
-					parentAgentId: event.teammate.parentAgentId,
-					createdByAgentId: readAgentId(session.agent),
-					teamId: session.runtime.teamRuntime?.getTeamId(),
-					teamName: session.runtime.teamRuntime?.getTeamName(),
-					teamRole: "teammate",
-					teamAgentId: event.agentId,
-				});
-				if (agentIdentity) {
-					captureAgentCreated(session.config.telemetry, {
-						ulid: rootSessionId,
-						modelId: event.teammate.modelId ?? session.config.modelId,
-						provider: session.config.providerId,
-						...agentIdentity,
-					});
-				}
 			}
 		}
 

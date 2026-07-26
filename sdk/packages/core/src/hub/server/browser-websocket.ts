@@ -2,11 +2,9 @@ import type {
 	HubClientRegistration,
 	HubEventEnvelope,
 	HubReplyEnvelope,
-	HubTransportFrame,
-	ITelemetryService,
+	HubTransportFrame
 } from "@cline/shared";
 import {
-	captureSdkError,
 	HUB_COMMAND_SLOW_LOG_MS,
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
@@ -54,8 +52,7 @@ function commandErrorReply(
 
 export class BrowserWebSocketHubAdapter {
 	constructor(
-		private readonly transport: HubCommandTransport,
-		private readonly telemetry?: ITelemetryService,
+		private readonly transport: HubCommandTransport
 	) {}
 
 	attach(socket: BrowserHubSocketLike): () => void {
@@ -138,19 +135,6 @@ export class BrowserWebSocketHubAdapter {
 											new Promise<HubReplyEnvelope>((resolve) => {
 												timeoutTimer = setTimeout(() => {
 													timedOut = true;
-													captureSdkError(this.telemetry, {
-														component: "core",
-														operation: "hub.command_timeout",
-														error: new Error(
-															`Hub command ${frame.envelope.command} did not complete within ${timeoutMs}ms.`,
-														),
-														severity: "error",
-														handled: true,
-														context: {
-															...context,
-															timeoutMs,
-														},
-													});
 													resolve(
 														commandErrorReply(
 															frame,
@@ -246,14 +230,6 @@ export class BrowserWebSocketHubAdapter {
 				logHubMessage("error", "command.error", {
 					...commandLogContext(parsed),
 					error,
-				});
-				captureSdkError(this.telemetry, {
-					component: "core",
-					operation: "hub.websocket_command",
-					error,
-					severity: "error",
-					handled: true,
-					context: commandLogContext(parsed),
 				});
 				sendFrame({
 					kind: "reply",

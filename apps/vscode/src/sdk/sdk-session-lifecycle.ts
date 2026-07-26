@@ -1,13 +1,5 @@
-import type {
-	CoreSessionEvent,
-	ITelemetryService,
-	PreparedRemoteConfigCoreIntegration,
-	RestoreInput,
-	RestoreResult,
-	StartSessionResult,
-} from "@cline/core"
+import type { CoreSessionEvent, RestoreInput, RestoreResult, StartSessionResult } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
-import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -35,10 +27,6 @@ export interface SdkSessionLifecycleOptions {
 	getTerminalManager?: () => VscodeTerminalManager
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
-	/** Returns the latest prepared remote-config integration, if remote config is active. */
-	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
-	/** Shared SDK telemetry service owned by SdkController. */
-	telemetry?: ITelemetryService
 	onSendStart?: (sessionId: string) => void
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
@@ -139,14 +127,13 @@ export class SdkSessionLifecycle {
 			await pendingStop
 		}
 
-		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+		const toolPolicies = buildToolPolicies(this.options.mcpHub)
 
 		const sdkHost = await this.getOrCreateSharedHost()
 
 		const startResult = await sdkHost.start({
 			...startInput,
-			...(toolPolicies ? { toolPolicies } : {}),
+			toolPolicies,
 		})
 		this.activeSession = {
 			sessionId: startResult.sessionId,
@@ -326,8 +313,6 @@ export class SdkSessionLifecycle {
 				applyPatchExecutor: this.options.applyPatchExecutor,
 				getTerminalManager: this.options.getTerminalManager,
 				foregroundCommands: this.options.foregroundCommands,
-				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
-				telemetry: this.options.telemetry,
 			})
 				.then((sdkHost) => {
 					this.ensureSharedHostSubscription(sdkHost)

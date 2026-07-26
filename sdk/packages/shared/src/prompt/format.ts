@@ -4,7 +4,7 @@ export function formatFileContentBlock(path: string, content: string): string {
 
 export function formatUserInputBlock(
 	input: string,
-	mode: "act" | "plan" | "yolo" = "act",
+	mode: "act" | "plan" = "act",
 ): string {
 	return `<user_input mode="${mode}">${input}</user_input>`;
 }
@@ -17,7 +17,7 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 // mode values), but searches rather than anchors: persisted user content can
 // carry prepended <mode_notice> elements or trailing attachment blocks
 // around the wrapper.
-const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo)"/;
+const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan)"/;
 
 /**
  * Recovers the agent mode a persisted user message was sent in from its
@@ -26,9 +26,9 @@ const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo)"/;
  */
 export function parseUserInputMode(
 	input?: string,
-): "act" | "plan" | "yolo" | undefined {
+): "act" | "plan" | undefined {
 	const match = USER_INPUT_MODE_RE.exec(input ?? "");
-	return match ? (match[1] as "act" | "plan" | "yolo") : undefined;
+	return match ? (match[1] as "act" | "plan") : undefined;
 }
 
 /**

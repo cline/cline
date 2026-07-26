@@ -6,14 +6,9 @@ export function buildTeammateSystemPrompt(
 	config: DelegatedAgentRuntimeConfig,
 ): string {
 	const trimmedPrompt = prompt.trim();
-	if (config.providerId.toLowerCase() !== "cline") {
-		return trimmedPrompt;
-	}
-
 	return buildClineSystemPrompt({
 		ide: config.clineIdeName?.trim() || "Terminal",
 		workspaceRoot: config.cwd?.trim() || "/",
-		providerId: config.providerId,
 		rules: `# Team Teammate Role\n${trimmedPrompt}`,
 		platform: config.clinePlatform,
 		metadata: config.workspaceMetadata,
@@ -26,14 +21,9 @@ export function buildSubAgentSystemPrompt(
 	config: DelegatedAgentRuntimeConfig,
 ): string {
 	const trimmedPrompt = prompt.trim();
-	if (config.providerId.toLowerCase() !== "cline") {
-		return trimmedPrompt;
-	}
-
 	return buildClineSystemPrompt({
 		ide: config.clineIdeName || "Terminal",
 		workspaceRoot: config.cwd?.trim() || "/",
-		providerId: config.providerId,
 		overridePrompt: trimmedPrompt,
 		metadata: config.workspaceMetadata,
 		platform: config.clinePlatform,

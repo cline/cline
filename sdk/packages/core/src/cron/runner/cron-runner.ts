@@ -60,27 +60,20 @@ function cronExtensionEnabled(
 
 function buildToolPolicies(
 	spec: CronSpecRecord,
-	mode: "act" | "plan" | "yolo",
 ): NonNullable<ChatStartSessionRequest["toolPolicies"]> {
 	const policies: NonNullable<ChatStartSessionRequest["toolPolicies"]> =
 		spec.tools === undefined
-			? { "*": { autoApprove: true } }
-			: { "*": { enabled: false, autoApprove: true } };
+			? { "*": { autoApprove: false } }
+			: { "*": { enabled: false, autoApprove: false } };
 	for (const tool of spec.tools ?? []) {
-		policies[tool] = { enabled: true, autoApprove: true };
+		policies[tool] = { enabled: true, autoApprove: false };
 	}
 	// Scheduled runs are headless, so they cannot wait for a human response.
 	policies[DefaultToolNames.ASK] = {
 		...policies[DefaultToolNames.ASK],
 		enabled: false,
-		autoApprove: true,
+		autoApprove: false,
 	};
-	if (mode === "yolo") {
-		policies[DefaultToolNames.SUBMIT_AND_EXIT] = {
-			enabled: true,
-			autoApprove: true,
-		};
-	}
 	return policies;
 }
 
@@ -477,8 +470,7 @@ export class CronRunner {
 	private async buildSystemPrompt(
 		spec: CronSpecRecord,
 		workspaceRoot: string,
-		mode: "act" | "plan" | "yolo",
-		provider: string,
+		mode: "act" | "plan",
 	): Promise<string> {
 		const notes = buildNotesSystemPromptSection(spec.notesDirectory);
 		const additional = mergeRulesForSystemPrompt(undefined, notes);
@@ -490,7 +482,6 @@ export class CronRunner {
 			metadata,
 			rules: spec.systemPrompt ? undefined : additional,
 			mode,
-			providerId: provider,
 			overridePrompt: spec.systemPrompt,
 			platform:
 				(typeof process !== "undefined" && process?.platform) || "unknown",
@@ -525,8 +516,7 @@ export class CronRunner {
 		if (!workspaceRoot) {
 			throw new Error("cron spec requires workspaceRoot");
 		}
-		const mode =
-			spec.mode === "plan" ? "plan" : spec.mode === "act" ? "act" : "yolo";
+		const mode = spec.mode === "plan" ? "plan" : "act";
 		return {
 			workspaceRoot,
 			cwd,
@@ -538,14 +528,13 @@ export class CronRunner {
 				spec,
 				workspaceRoot,
 				mode,
-				provider,
 			),
 			maxIterations: spec.maxIterations,
 			enableTools: runtimeOptions?.enableTools ?? true,
 			enableSpawn: runtimeOptions?.enableSpawn ?? true,
 			enableTeams: runtimeOptions?.enableTeams ?? true,
-			autoApproveTools: runtimeOptions?.autoApproveTools ?? true,
-			toolPolicies: buildToolPolicies(spec, mode),
+			autoApproveTools: false,
+			toolPolicies: buildToolPolicies(spec),
 			configExtensions: DEFAULT_CRON_EXTENSIONS.filter((extension) =>
 				cronExtensionEnabled(spec, extension),
 			),

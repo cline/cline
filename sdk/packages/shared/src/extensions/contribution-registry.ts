@@ -1,9 +1,8 @@
 import type { AgentRuntimeHooks, AgentTool } from "../agent";
 import type { AutomationEventEnvelope } from "../cron";
 import type { BasicLogger } from "../logging/logger";
-import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
-import type { ClientContext, UserContext } from "./context";
+import type { ClientContext } from "./context";
 
 export interface AgentExtensionCommand {
 	name: string;
@@ -160,8 +159,6 @@ export interface PluginSetupContext {
 	session?: AgentExtensionSessionContext;
 	/** Host/client identity such as `cline-cli`, `cline-vscode`, or an SDK app. */
 	client?: ClientContext;
-	/** Authenticated user or organization identity when the host provides it. */
-	user?: UserContext;
 	/**
 	 * Structured workspace and git metadata for the session. Contains
 	 * `rootPath`, `hint`, `associatedRemoteUrls`, `latestGitCommitHash`, and
@@ -178,14 +175,6 @@ export interface PluginSetupContext {
 	automation?: AgentExtensionAutomationContext;
 	/** Host-provided logger scoped to this session/plugin setup. */
 	logger?: BasicLogger;
-	/**
-	 * Host-provided telemetry service when available in the current process.
-	 *
-	 * This service is intentionally not serialized across plugin sandbox process
-	 * boundaries; sandboxed plugins should feature-detect this property and expect
-	 * it to be undefined unless a future host adds an explicit telemetry bridge.
-	 */
-	telemetry?: ITelemetryService;
 }
 
 const ExtensionCapabilityOptions = [

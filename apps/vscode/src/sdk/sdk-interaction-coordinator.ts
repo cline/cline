@@ -21,7 +21,6 @@ export interface SdkInteractionCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
-	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
 	recordDeniedToolApproval?: (toolCallId: string, toolName: string, reason: string) => void
 	/**
@@ -37,8 +36,7 @@ export interface SdkInteractionCoordinatorOptions {
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	/**
-	 * Invoked for manually-approved tools after the auto-approve short-circuit, BEFORE the
-	 * ask message is emitted. Used to open the edit diff preview so the user decides while
+	 * Invoked before the ask message is emitted. Used to open the edit diff preview so the user decides while
 	 * looking at the actual change. Must not throw; failures fall back to a plain ask.
 	 */
 	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<void>
@@ -84,11 +82,6 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
-		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
-			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
-			return { approved: true }
-		}
-
 		// Open the edit diff preview before the Approve/Reject buttons render. This is the only
 		// pre-execution point where the adapter has the full tool input (the SDK emits the
 		// tool's content events only after approval resolves).

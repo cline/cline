@@ -7,11 +7,8 @@
 import { readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
-import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
-import { featureFlagsService } from "@/services/feature-flags"
-import { getDistinctId } from "@/services/logging/distinctId"
-import { getLatestAnnouncementId } from "@/utils/announcements"
+import { Environment } from "@/shared/config-types"
 
 /**
  * Builds the ExtensionState object to push to the webview.
@@ -31,27 +28,21 @@ export async function getStateToPostToWebview(controller: {
 
 	// Get API configuration from cache for immediate access
 	const apiConfiguration = stateManager.getApiConfiguration()
-	const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
 	const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
 	const browserSettings = stateManager.getGlobalSettingsKey("browserSettings")
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
 	const mode = stateManager.getGlobalSettingsKey("mode")
-	const yoloModeToggled = stateManager.getGlobalSettingsKey("yoloModeToggled")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
-	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 	const mcpDisplayMode = stateManager.getGlobalStateKey("mcpDisplayMode")
-	const telemetrySetting = stateManager.getGlobalSettingsKey("telemetrySetting")
 	const planActSeparateModelsSetting = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 	const enableCheckpointsSetting = stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 	const globalClineRulesToggles = stateManager.getGlobalStateKey("globalClineRulesToggles")
 	const globalWorkflowToggles = stateManager.getGlobalStateKey("globalWorkflowToggles")
 	const globalSkillsToggles = stateManager.getGlobalStateKey("globalSkillsToggles")
 	const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles")
-	const remoteRulesToggles = stateManager.getGlobalStateKey("remoteRulesToggles")
-	const remoteWorkflowToggles = stateManager.getGlobalStateKey("remoteWorkflowToggles")
 	const shellIntegrationTimeout = stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 	const terminalReuseEnabled = stateManager.getGlobalStateKey("terminalReuseEnabled")
 	const vscodeTerminalExecutionMode = stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
@@ -65,7 +56,6 @@ export async function getStateToPostToWebview(controller: {
 	const lastDismissedInfoBannerVersion = stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 	const lastDismissedModelBannerVersion = stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 	const lastDismissedCliBannerVersion = stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
-	const dismissedBanners = stateManager.getGlobalStateKey("dismissedBanners")
 	const showFeatureTips = stateManager.getGlobalSettingsKey("showFeatureTips")
 
 	const localClineRulesToggles = stateManager.getWorkspaceStateKey("localClineRulesToggles")
@@ -85,13 +75,9 @@ export async function getStateToPostToWebview(controller: {
 		.sort((a: any, b: any) => b.ts - a.ts)
 		.slice(0, 100)
 
-	const latestAnnouncementId = getLatestAnnouncementId()
-	const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 	const platform = process.platform as Platform
-	const distinctId = getDistinctId()
 	const version = ExtensionRegistryInfo.version
-	const clineConfig = ClineEnv.config()
-	const environment = clineConfig.environment
+	const environment = Environment.production
 
 	return {
 		version,
@@ -103,18 +89,14 @@ export async function getStateToPostToWebview(controller: {
 		browserSettings,
 		preferredLanguage,
 		mode,
-		yoloModeToggled,
 		useAutoCondense,
 		compactionStrategy,
 		subagentsEnabled,
-		mcpMarketplaceEnabled,
 		mcpDisplayMode,
-		telemetrySetting,
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 		platform,
 		environment,
-		distinctId,
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
@@ -124,8 +106,6 @@ export async function getStateToPostToWebview(controller: {
 		globalWorkflowToggles: globalWorkflowToggles || {},
 		globalSkillsToggles: globalSkillsToggles || {},
 		localSkillsToggles: localSkillsToggles || {},
-		remoteRulesToggles,
-		remoteWorkflowToggles,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
 		vscodeTerminalExecutionMode,
@@ -136,29 +116,19 @@ export async function getStateToPostToWebview(controller: {
 		maxConsecutiveMistakes,
 		customPrompt,
 		taskHistory: processedTaskHistory,
-		shouldShowAnnouncement,
 		backgroundCommandRunning: controller.backgroundCommandRunning ?? false,
 		backgroundCommandTaskId: controller.backgroundCommandTaskId,
 		foregroundCommandRunning: controller.foregroundCommandRunning ?? false,
 		workspaceRoots: controller.workspaceManager?.getRoots?.() ?? [],
 		primaryRootIndex: controller.workspaceManager?.getPrimaryIndex?.() ?? 0,
 		isMultiRootWorkspace: (controller.workspaceManager?.getRoots?.()?.length ?? 0) > 1,
-		multiRootSetting: {
-			user: stateManager.getGlobalStateKey("multiRootEnabled"),
-			featureFlag: true,
-		},
-		worktreesEnabled: {
-			user: stateManager.getGlobalSettingsKey("worktreesEnabled"),
-			featureFlag: featureFlagsService.getWorktreesEnabled(),
-		},
+		multiRootSetting: stateManager.getGlobalStateKey("multiRootEnabled"),
+		worktreesEnabled: stateManager.getGlobalSettingsKey("worktreesEnabled"),
 		hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 		lastDismissedInfoBannerVersion,
 		lastDismissedModelBannerVersion,
-		remoteConfigSettings: stateManager.getRemoteConfigSettings?.(),
 		lastDismissedCliBannerVersion,
-		dismissedBanners,
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
-		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		showFeatureTips,
 		favoritedModelIds: [],
 	} as ExtensionState

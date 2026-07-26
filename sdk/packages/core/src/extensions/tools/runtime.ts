@@ -113,7 +113,7 @@ const TOOL_NAME_TO_FLAG: Partial<
 function resolveContextMode(
 	mode?: BuiltinToolAvailabilityContext["mode"],
 ): CoreAgentMode {
-	return mode === "plan" || mode === "yolo" ? mode : "act";
+	return mode === "plan" ? mode : "act";
 }
 
 type ResolvedToolFlags = Pick<

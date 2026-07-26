@@ -92,7 +92,6 @@ interface PluginApi {
 interface PluginSetupCtx {
 	session?: unknown;
 	client?: unknown;
-	user?: unknown;
 	workspaceInfo?: unknown;
 	automation?: {
 		ingestEvent(event: AutomationEventEnvelope): void | Promise<void>;
@@ -255,9 +254,6 @@ function assertValidPluginSetupCtx(
 	}
 	if (ctx.client !== undefined && !isObject(ctx.client)) {
 		throw new Error("Plugin setup context client must be an object");
-	}
-	if (ctx.user !== undefined && !isObject(ctx.user)) {
-		throw new Error("Plugin setup context user must be an object");
 	}
 	if (ctx.workspaceInfo !== undefined && !isObject(ctx.workspaceInfo)) {
 		throw new Error("Plugin setup context workspaceInfo must be an object");
@@ -593,7 +589,6 @@ async function initialize(args: {
 	cwd?: string;
 	session?: unknown;
 	client?: unknown;
-	user?: unknown;
 	workspaceInfo?: unknown;
 	loggerEnabled?: boolean;
 }): Promise<InitializeResult> {
@@ -633,7 +628,6 @@ async function initialize(args: {
 	const setupCtxBase = {
 		session: args.session,
 		client: args.client,
-		user: args.user,
 		workspaceInfo: args.workspaceInfo,
 	};
 

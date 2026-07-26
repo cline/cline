@@ -287,7 +287,7 @@ export interface ScheduleRecord {
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: "act" | "plan";
 	systemPrompt?: string;
 	maxIterations?: number;
 	timeoutSeconds?: number;
@@ -329,7 +329,7 @@ export interface ScheduleExecutionRecord {
 export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
 export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
 
-export const HUB_SCHEDULE_MODES = ["act", "plan", "yolo"] as const;
+export const HUB_SCHEDULE_MODES = ["act", "plan"] as const;
 export type HubScheduleMode = (typeof HUB_SCHEDULE_MODES)[number];
 
 export function isHubScheduleMode(value: unknown): value is HubScheduleMode {
@@ -401,7 +401,6 @@ export type HubCommandName =
 	| "client.update"
 	| "client.unregister"
 	| "client.list"
-	| "cline.account.get_current"
 	| "prompt_commands.list"
 	| "prompt_commands.execute"
 	| "mention_files.search"
@@ -692,7 +691,7 @@ export type HubClientContribution =
 	| HubClientUserInstructionServiceContribution;
 
 export interface HubSessionRuntimeOptions {
-	mode?: "act" | "plan" | "yolo";
+	mode?: "act" | "plan";
 	systemPrompt?: string;
 	maxIterations?: number;
 	timeoutSeconds?: number;

@@ -256,9 +256,6 @@ service UiService {
   // Sets the terminal execution mode (vscodeTerminal or backgroundExec)
   rpc setTerminalExecutionMode(BooleanRequest) returns (KeyValuePair);
 
-  // Marks the current announcement as shown and returns whether an announcement should still be shown
-  rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
-
   // Subscribe to addToInput events (when user adds content via context menu)
   rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
 

@@ -291,7 +291,6 @@ function normalizeConfig(
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
 		| "disableMcpSettingsTools"
-		| "yolo"
 		| "missionLogIntervalSteps"
 		| "missionLogIntervalMs"
 		| "sessionId"
@@ -300,15 +299,13 @@ function normalizeConfig(
 	const preset = ToolPresets[resolveToolPresetName({ mode: config.mode })];
 	return {
 		sessionId: config.sessionId || "",
-		mode:
-			config.mode === "plan" ? "plan" : config.mode === "yolo" ? "yolo" : "act",
+		mode: config.mode === "plan" ? "plan" : "act",
 		enableTools: config.enableTools !== false,
 		enableSpawnAgent:
 			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
 		enableAgentTeams:
 			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
 		disableMcpSettingsTools: config.disableMcpSettingsTools === true,
-		yolo: config.yolo === true,
 		missionLogIntervalSteps:
 			typeof config.missionLogIntervalSteps === "number" &&
 			Number.isFinite(config.missionLogIntervalSteps)
@@ -339,7 +336,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			hooks,
 			extensions,
 			logger,
-			telemetry,
 			createSpawnTool,
 			onTeamRestored,
 			userInstructionService: sharedUserInstructionService,
@@ -493,7 +489,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			hooks,
 			extensions: runtimeExtensions,
 			logger: logger ?? config.logger,
-			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
 		});
 		if (normalized.enableSpawnAgent) {
@@ -709,7 +704,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		return {
 			tools: finalTools,
 			logger: logger ?? config.logger,
-			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
 			teamRestoredFromPersistence: Boolean(restoredTeamState),
 			delegatedAgentConfigProvider:

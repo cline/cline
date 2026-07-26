@@ -12,12 +12,10 @@ import {
 	type CoreSessionEvent,
 	type EditorExecutor,
 	type HookEventPayload,
-	type ITelemetryService,
 	type PendingPromptMutationResult,
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
-	type PreparedRemoteConfigCoreIntegration,
 	type RestoreInput,
 	type RestoreResult,
 	type SendSessionInput,
@@ -33,7 +31,6 @@ import {
 import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
-import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
@@ -66,10 +63,6 @@ export interface VscodeSessionHostOptions {
 	applyPatchExecutor?: ApplyPatchExecutor
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
-	/** Shared SDK telemetry service owned by SdkController. */
-	telemetry?: ITelemetryService
-	/** Returns the latest prepared remote-config integration, if remote config is active. */
-	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/**
 	 * Lazy factory for the VscodeTerminalManager.
 	 * When provided, the SDK's built-in `run_commands` is suppressed and replaced
@@ -123,28 +116,21 @@ export class VscodeSessionHost implements SdkSessionHost {
 				toolExecutors: Object.keys(toolExecutors).length > 0 ? toolExecutors : undefined,
 			},
 			toolPolicies: options.toolPolicies,
-			telemetry: options.telemetry,
-			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
-					const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
-					const inputWithRemoteConfig = remoteConfigIntegration
-						? await remoteConfigIntegration.applyToStartSessionInput(input)
-						: input
 					const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 					const extraTools = await createVscodeExtraTools(options.mcpHub, {
-						cwd: inputWithRemoteConfig.config.cwd,
+						cwd: input.config.cwd,
 						getTerminalManager: options.getTerminalManager,
 						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 						foregroundCommands: options.foregroundCommands,
 					})
 					return {
-						...inputWithRemoteConfig,
-						source: inputWithRemoteConfig.source ?? "vscode",
+						...input,
+						source: input.source ?? "vscode",
 						config: {
-							...inputWithRemoteConfig.config,
-							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+							...input.config,
+							extraTools: [...(input.config.extraTools ?? []), ...extraTools],
 						},
 					}
 				},

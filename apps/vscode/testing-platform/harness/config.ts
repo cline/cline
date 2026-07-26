@@ -3,8 +3,6 @@
 // how we prepare the testing-platform environment.
 export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.version",
-	"stateJson.distinctId",
-	"stateJson.shouldShowAnnouncement",
 	"stateJson.platform",
 	"stateJson.clineMessages.ts",
 	"paymentTransactions.paidAt",

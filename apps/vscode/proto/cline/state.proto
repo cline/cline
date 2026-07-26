@@ -21,7 +21,6 @@ service StateService {
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
   rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
-  rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
@@ -73,13 +72,11 @@ message Settings {
   optional string global_workflow_toggles = 130;
   optional string global_skills_toggles = 131;
   optional BrowserSettings browser_settings = 132;
-  optional string telemetry_setting = 133;
   optional bool plan_act_separate_models_setting = 134;
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
   optional int32 max_consecutive_mistakes = 139;
-  optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
@@ -88,23 +85,7 @@ message Settings {
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
   optional bool background_edit_enabled = 155;
-  optional bool opt_out_of_remote_config = 157;
-  optional bool open_telemetry_enabled = 158;
-  optional string open_telemetry_metrics_exporter = 159;
-  optional string open_telemetry_logs_exporter = 160;
-  optional string open_telemetry_otlp_protocol = 161;
-  optional string open_telemetry_otlp_endpoint = 162;
-  optional string open_telemetry_otlp_metrics_protocol = 163;
-  optional string open_telemetry_otlp_metrics_endpoint = 164;
-  optional string open_telemetry_otlp_logs_protocol = 165;
-  optional string open_telemetry_otlp_logs_endpoint = 166;
-  optional int32 open_telemetry_metric_export_interval = 167;
-  optional bool open_telemetry_otlp_insecure = 168;
-  optional int32 open_telemetry_log_batch_size = 169;
-  optional int32 open_telemetry_log_batch_timeout = 170;
-  optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
-  optional bool auto_approve_all_toggled = 174;
   optional bool show_feature_tips = 182;
   optional string aws_bedrock_ca_bundle_path = 187;
 }
@@ -172,17 +153,6 @@ message AutoApprovalSettingsRequest {
   bool enable_notifications = 4;
 }
 
-enum TelemetrySettingEnum {
-  UNSET = 0;
-  ENABLED = 1;
-  DISABLED = 2;
-}
-
-message TelemetrySettingRequest {
-  Metadata metadata = 1;
-  TelemetrySettingEnum setting = 2;
-}
-
 // Browser settings for UpdateSettingsRequest
 message BrowserSettingsUpdate {
   optional Viewport viewport = 1;
@@ -218,10 +188,10 @@ message UpdateSettingsRequest {
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
-  optional string telemetry_setting = 3;
+  reserved 3; // was telemetry_setting
   optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
-  optional bool mcp_marketplace_enabled = 6;
+  reserved 6; // was mcp_marketplace_enabled
   optional int32 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
@@ -234,18 +204,18 @@ message UpdateSettingsRequest {
   optional string custom_prompt = 19;
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
-  optional bool yolo_mode_toggled = 22;
+  reserved 22; // was yolo_mode_toggled
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
-  optional string cline_env = 31;
+  reserved 31; // was cline_env
   reserved 33; // was hosted onboarding models
   optional bool background_edit_enabled = 36;
-  optional string oca_reasoning_effort = 37;
-  optional bool opt_out_of_remote_config = 39;
+  reserved 37; // was oca_reasoning_effort
+  reserved 39; // was opt_out_of_remote_config
   optional bool worktrees_enabled = 40;
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;

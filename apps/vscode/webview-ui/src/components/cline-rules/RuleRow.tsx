@@ -1,7 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { DeleteSkillRequest, RuleFileRequest } from "@shared/proto/index.cline"
-import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
-import { EyeIcon, InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
+import { InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -34,16 +33,12 @@ const RuleRow: React.FC<{
 	isGlobal: boolean
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
-	isRemote?: boolean
-	alwaysEnabled?: boolean
 	onDeleteSkill?: () => void
-}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false, onDeleteSkill }) => {
+}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, onDeleteSkill }) => {
 	const displayName = getDisplayNameFromPath(rulePath)
 	const skillDisplayName = getSkillDisplayNameFromSkillMdPath(rulePath)
 
-	// For remote rules, the rulePath is already the display name
-	const finalDisplayName = isRemote ? rulePath : ruleType === "skill" ? skillDisplayName : displayName
-	const isDisabled = isRemote && alwaysEnabled
+	const finalDisplayName = ruleType === "skill" ? skillDisplayName : displayName
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
@@ -100,16 +95,8 @@ const RuleRow: React.FC<{
 		}
 	}
 
-	const getRemoteUriType = () => {
-		if (ruleType === "workflow") return "workflow"
-		if (ruleType === "skill") return "skill"
-		return "rule"
-	}
-
 	const handleEditClick = () => {
-		// For remote rules/workflows/skills, use the special remote:// URI format
-		const filePath = isRemote ? `${REMOTE_URI_SCHEME}${getRemoteUriType()}/${rulePath}` : rulePath
-		FileServiceClient.openFile(StringRequest.create({ value: filePath })).catch((err) =>
+		FileServiceClient.openFile(StringRequest.create({ value: rulePath })).catch((err) =>
 			console.error("Failed to open file:", err),
 		)
 	}
@@ -155,25 +142,17 @@ const RuleRow: React.FC<{
 
 				{/* Toggle Switch */}
 				<div className="flex items-center space-x-2 gap-2">
-					<Switch
-						checked={enabled}
-						className="mx-1"
-						disabled={isDisabled}
-						key={rulePath}
-						onClick={() => toggleRule(rulePath, !enabled)}
-						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
-					/>
+					<Switch checked={enabled} className="mx-1" key={rulePath} onClick={() => toggleRule(rulePath, !enabled)} />
 					<Button
-						aria-label={isRemote ? `View ${ruleType} file` : `Edit ${ruleType} file`}
+						aria-label={`Edit ${ruleType} file`}
 						onClick={handleEditClick}
 						size="xs"
-						title={isRemote ? `View ${ruleType} file (read-only)` : `Edit ${ruleType} file`}
+						title={`Edit ${ruleType} file`}
 						variant="icon">
-						{isRemote ? <EyeIcon /> : <PenIcon />}
+						<PenIcon />
 					</Button>
 					<Button
 						aria-label={`Delete ${ruleType} file`}
-						disabled={isRemote}
 						onClick={handleDeleteClick}
 						size="xs"
 						title={`Delete ${ruleType} file`}

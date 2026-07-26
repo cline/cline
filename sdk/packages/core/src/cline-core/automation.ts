@@ -6,8 +6,7 @@ import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
 	ChatTurnResult,
-	ExtensionContext,
-	ITelemetryService,
+	ExtensionContext
 } from "@cline/shared";
 import type { CronEventIngressResult } from "../cron/events/cron-event-ingress";
 import type { CronService } from "../cron/service/cron-service";
@@ -122,7 +121,7 @@ export function createClineCoreAutomationRuntimeHandlers(
 				},
 				toolPolicies: request.toolPolicies ?? {
 					"*": {
-						autoApprove: request.autoApproveTools !== false,
+						autoApprove: false,
 					},
 				},
 				localRuntime: {
@@ -168,9 +167,7 @@ export interface ClineCoreAutomationExtensionContextInput {
 	automation: ClineCoreAutomationApi;
 	context?: ExtensionContext;
 	clientName?: string;
-	distinctId?: string;
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 }
 
 export function createClineCoreAutomationExtensionContext(
@@ -183,20 +180,14 @@ export function createClineCoreAutomationExtensionContext(
 	const client =
 		input.context?.client ??
 		(input.clientName ? { name: input.clientName } : undefined);
-	const user =
-		input.context?.user ??
-		(input.distinctId ? { distinctId: input.distinctId } : undefined);
 	const logger = input.context?.logger ?? input.logger;
-	const telemetry = input.context?.telemetry ?? input.telemetry;
-	if (!automation && !client && !user && !logger && !telemetry) {
+	if (!automation && !client && !logger) {
 		return input.context;
 	}
 	return {
 		...(input.context ?? {}),
 		...(client ? { client } : {}),
-		...(user ? { user } : {}),
 		...(logger ? { logger } : {}),
-		...(telemetry ? { telemetry } : {}),
 		...(automation ? { automation } : {}),
 	};
 }
@@ -241,10 +232,6 @@ function toChatTurnResult(result: AgentResult): ChatTurnResult {
 
 function resolveMode(
 	request: ChatStartSessionRequest | ChatRunTurnRequest["config"],
-): "act" | "plan" | "yolo" {
-	return request.mode === "plan"
-		? "plan"
-		: request.mode === "yolo"
-			? "yolo"
-			: "act";
+): "act" | "plan" {
+	return request.mode === "plan" ? "plan" : "act";
 }

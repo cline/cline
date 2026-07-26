@@ -33,7 +33,6 @@ import type {
 } from "../llms/tools";
 import { ToolCallRecordSchema } from "../llms/tools";
 import type { BasicLogger } from "../logging/logger";
-import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
 
 // =============================================================================
@@ -792,11 +791,12 @@ export interface AgentConfig {
 	 */
 	schedule?: AgentHookScheduleContext;
 	/**
-	 * Per-tool execution policy. Tool names not listed here default to enabled + autoApprove.
+	 * Per-tool execution policy. Tool names not listed here default to enabled.
+	 * State-changing tools always require explicit approval; policy values cannot bypass it.
 	 */
 	toolPolicies?: Record<string, ToolPolicy>;
 	/**
-	 * Optional callback to request client approval when a tool policy disables auto-approval.
+	 * Optional callback to request client approval for state-changing tools.
 	 */
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
@@ -830,12 +830,8 @@ export interface AgentConfig {
 		| AgentPrepareTurnResult
 		| undefined;
 	/**
-	 * Optional Telemetry service for emitting structured events about agent execution to configured telemetry backends.
-	 */
-	telemetry?: ITelemetryService;
-	/**
-	 * Ambient runtime context: user identity, client surface, workspace, logger,
-	 * and telemetry. Threaded through to ProviderConfig so handlers can access it.
+	 * Ambient runtime context: client surface, workspace, and local logger.
+	 * Threaded through to ProviderConfig so handlers can access it.
 	 */
 	extensionContext?: ExtensionContext;
 

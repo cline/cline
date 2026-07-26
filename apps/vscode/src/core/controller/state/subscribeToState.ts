@@ -1,6 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
-import { telemetryService } from "@/services/telemetry"
 import { ExtensionState } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
@@ -39,8 +38,6 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
-	recordStateSizeTelemetry(Buffer.byteLength(initialStateJson, "utf8"))
-
 	try {
 		await responseStream(
 			{
@@ -67,8 +64,6 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 		return
 	}
 
-	recordStateSizeTelemetry(Buffer.byteLength(stateJson, "utf8"))
-
 	// FIRE-AND-FORGET: do not await delivery to the webview (it may be hidden/reloaded/closed
 	// and postMessage can hang or resolve false). The webview reconciles convergently from
 	// whatever state snapshots it receives, gated by stateVersion/epoch.
@@ -83,8 +78,4 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 			activeStateSubscriptions.delete(responseStream)
 		})
 	}
-}
-
-function recordStateSizeTelemetry(sizeBytes: number): void {
-	telemetryService.captureGrpcResponseSize(sizeBytes, "cline.StateService", "subscribeToState")
 }

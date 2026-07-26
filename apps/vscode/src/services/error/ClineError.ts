@@ -1,12 +1,5 @@
 import { serializeError } from "serialize-error"
 
-export enum ClineErrorType {
-	Auth = "auth",
-	RateLimit = "rateLimit",
-	Balance = "balance",
-	QuotaExceeded = "quotaExceeded",
-}
-
 interface ErrorDetails {
 	/**
 	 * The HTTP status code of the error, if applicable.
@@ -39,8 +32,6 @@ interface ErrorDetails {
 	// This can include things like current balance, error messages, etc.
 	details?: any
 }
-
-const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
 
 export class ClineError extends Error {
 	readonly title = "ClineError"
@@ -132,52 +123,5 @@ export class ClineError extends Error {
 		} catch {
 			return new ClineError(error, modelId, providerId)
 		}
-	}
-
-	public isErrorType(type: ClineErrorType): boolean {
-		return ClineError.getErrorType(this) === type
-	}
-
-	/**
-	 * Is known error type based on the error code, status, and details.
-	 * This is useful for determining how to handle the error in the UI or logic.
-	 */
-	static getErrorType(err: ClineError): ClineErrorType | undefined {
-		const { code, status, details } = err._error
-		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
-		const message = rawMessage?.toLowerCase()
-
-		// Check auth errors
-		const isAuthStatus = status !== undefined && status > 400 && status < 429
-		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
-			return ClineErrorType.Auth
-		}
-
-		if (code === "INFERENCE_CAP_ERROR") {
-			return ClineErrorType.QuotaExceeded
-		}
-
-		if (message) {
-			// Check for specific error codes/messages if applicable
-			const authErrorRegex = [/(?:in)?valid[-_ ]?(?:api )?(?:token|key)/i, /authentication[-_ ]?failed/i, /unauthorized/i]
-			if (authErrorRegex.some((regex) => regex.test(message))) {
-				return ClineErrorType.Auth
-			}
-
-			// Check rate limit patterns
-			const lowerMessage = message.toLowerCase()
-			if (RATE_LIMIT_PATTERNS.some((pattern) => pattern.test(lowerMessage))) {
-				return ClineErrorType.RateLimit
-			}
-		}
-
-		return undefined
-	}
-}
-
-class AuthInvalidTokenError extends Error {
-	constructor(message: string) {
-		super(message)
-		this.name = ClineErrorType.Auth
 	}
 }

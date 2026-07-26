@@ -10,7 +10,6 @@ import type {
 import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
-	captureSdkError,
 	formatMessagesForAiSdk,
 	parseJsonStream,
 	sanitizeSurrogates,
@@ -90,12 +89,6 @@ function shouldIncludeReasoningHistory(
 	_context: GatewayProviderContext,
 ): boolean {
 	return true;
-}
-
-async function ensureGatewayLangfuseTelemetry(
-	_providerId: string,
-): Promise<boolean> {
-	return false;
 }
 
 function toAiSdkMessages(
@@ -876,9 +869,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 					context,
 				);
-				const langfuse = await ensureGatewayLangfuseTelemetry(
-					config.providerId,
-				);
 				const tools = providerDisablesExternalToolExecution(context)
 					? undefined
 					: toAiSdkTools(request);
@@ -904,9 +894,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					tools: tools as never,
 					abortSignal: request.signal,
 					experimental_repairToolCall: repairMalformedToolCall as never,
-					experimental_telemetry: {
-						isEnabled: langfuse,
-					},
 					providerOptions,
 					...requestConfig,
 					onError: ({ error: streamError }) => {
@@ -924,21 +911,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								severity: "error",
 							});
 						}
-						captureSdkError(context.telemetry, {
-							component: "llms",
-							operation: "provider.stream",
-							error: streamError,
-							severity: "error",
-							handled: true,
-							context: {
-								providerId: request.providerId,
-								modelId: request.modelId,
-								providerKind: kind,
-							},
-						});
 					},
 				}) as unknown as AiSdkStreamResult;
-
 				// Suppress dangling promise rejections (finishReason, totalUsage, steps, etc.)
 				// BEFORE iterating. The AI SDK rejects these DelayedPromises inside the stream's
 				// flush callback, which runs during iteration, so we must attach .catch() handlers
@@ -969,18 +943,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						severity: "error",
 					});
 				}
-				captureSdkError(context.telemetry, {
-					component: "llms",
-					operation: "provider.create_or_stream",
-					error,
-					severity: "error",
-					handled: true,
-					context: {
-						providerId: request.providerId,
-						modelId: request.modelId,
-						providerKind: kind,
-					},
-				});
 				yield {
 					type: "finish",
 					reason: "error",

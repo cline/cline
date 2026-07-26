@@ -5,15 +5,6 @@ import type { CoreSessionEvent } from "../types/events";
 import type { ActiveSession } from "../types/session";
 import { serializeAgentEvent } from "./session-data";
 import {
-	captureConversationTurnEvent,
-	captureDiffEditFailure,
-	captureProviderApiError,
-	captureSkillUsed,
-	captureTokenUsage,
-	captureToolUsage,
-	type TelemetryAgentIdentityProperties,
-} from "./telemetry/core-events";
-import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
 	sumUsageTotals,
@@ -44,7 +35,7 @@ export interface AgentEventContext {
 	emit: (event: CoreSessionEvent) => void;
 }
 
-export interface AgentTelemetryContextOverrides {
+export interface AgentEventContextOverrides {
 	agentId?: string;
 	conversationId?: string;
 	parentAgentId?: string | null;
@@ -78,38 +69,6 @@ export function extractAgentEventMetadata(event: AgentEvent): {
 	};
 }
 
-export function buildTelemetryAgentIdentity(
-	context: AgentTelemetryContextOverrides,
-): TelemetryAgentIdentityProperties | undefined {
-	const agentId = context.agentId?.trim();
-	if (!agentId) {
-		return undefined;
-	}
-	const parentAgentId = context.parentAgentId?.trim() || undefined;
-	const teamRole = context.teamRole;
-	let agentKind: TelemetryAgentIdentityProperties["agentKind"] = "root";
-	if (teamRole === "teammate") {
-		agentKind = "team_teammate";
-	} else if (teamRole === "lead") {
-		agentKind = "team_lead";
-	} else if (parentAgentId) {
-		agentKind = "subagent";
-	}
-	return {
-		agentId,
-		agentKind,
-		conversationId: context.conversationId?.trim() || undefined,
-		parentAgentId,
-		createdByAgentId:
-			context.createdByAgentId?.trim() || parentAgentId || undefined,
-		isSubagent: Boolean(parentAgentId),
-		teamId: context.teamId?.trim() || undefined,
-		teamName: context.teamName?.trim() || undefined,
-		teamRole,
-		teamAgentId: context.teamAgentId?.trim() || undefined,
-	};
-}
-
 function usageDeltaFromEvent(event: Extract<AgentEvent, { type: "usage" }>) {
 	return {
 		inputTokens: event.inputTokens,
@@ -122,7 +81,7 @@ function usageDeltaFromEvent(event: Extract<AgentEvent, { type: "usage" }>) {
 
 function resolveUsageAgentKey(input: {
 	isPrimaryAgentEvent: boolean;
-	overrides?: AgentTelemetryContextOverrides;
+	overrides?: AgentEventContextOverrides;
 	eventMetadata: ReturnType<typeof extractAgentEventMetadata>;
 }): string {
 	const candidates = input.isPrimaryAgentEvent
@@ -147,86 +106,11 @@ function resolveUsageAgentKey(input: {
 export function handleAgentEvent(
 	ctx: AgentEventContext,
 	event: AgentEvent,
-	overrides?: AgentTelemetryContextOverrides,
+	overrides?: AgentEventContextOverrides,
 ): void {
-	const { sessionId, config, liveSession, emit } = ctx;
-	const telemetry = config.telemetry;
-	const teamRuntime = liveSession?.runtime.teamRuntime;
+	const { sessionId, liveSession, emit } = ctx;
 	const isPrimaryAgentEvent = overrides?.isPrimaryAgentEvent ?? true;
 	const eventMetadata = extractAgentEventMetadata(event);
-	const agentIdentity = buildTelemetryAgentIdentity({
-		agentId: overrides?.agentId ?? eventMetadata.agentId,
-		conversationId: overrides?.conversationId ?? eventMetadata.conversationId,
-		parentAgentId: overrides?.parentAgentId ?? eventMetadata.parentAgentId,
-		createdByAgentId: overrides?.createdByAgentId,
-		teamId: overrides?.teamId ?? teamRuntime?.getTeamId(),
-		teamName: overrides?.teamName ?? teamRuntime?.getTeamName(),
-		teamRole: overrides?.teamRole,
-		teamAgentId: overrides?.teamAgentId,
-	});
-
-	if (
-		event.type === "content_start" &&
-		event.contentType === "tool" &&
-		event.toolName === "skills"
-	) {
-		const skillName = extractSkillNameFromToolInput(event.input);
-		if (skillName) {
-			captureSkillUsed(telemetry, {
-				ulid: sessionId,
-				skillName,
-				skillSource: "project",
-				skillsAvailableGlobal: 0,
-				skillsAvailableProject: 0,
-				provider: config.providerId,
-				modelId: config.modelId,
-				...agentIdentity,
-			});
-		}
-	}
-
-	if (event.type === "content_end" && event.contentType === "tool") {
-		const toolName = event.toolName ?? "unknown";
-		const success = !event.error;
-		captureToolUsage(telemetry, {
-			ulid: sessionId,
-			tool: toolName,
-			autoApproved: undefined,
-			success,
-			modelId: config.modelId,
-			provider: config.providerId,
-			...agentIdentity,
-		});
-		if (!success && (toolName === "editor" || toolName === "apply_patch")) {
-			captureDiffEditFailure(telemetry, {
-				ulid: sessionId,
-				modelId: config.modelId,
-				provider: config.providerId,
-				errorType: event.error,
-				...agentIdentity,
-			});
-		}
-	}
-
-	if (event.type === "notice" && event.reason === "api_error") {
-		captureProviderApiError(telemetry, {
-			ulid: sessionId,
-			model: config.modelId,
-			provider: config.providerId,
-			errorMessage: event.message,
-			...agentIdentity,
-		});
-	}
-
-	if (event.type === "error") {
-		captureProviderApiError(telemetry, {
-			ulid: sessionId,
-			model: config.modelId,
-			provider: config.providerId,
-			errorMessage: event.error?.message ?? "unknown error",
-			...agentIdentity,
-		});
-	}
 
 	if (event.type === "usage" && liveSession?.turnUsageBaseline) {
 		const usageDelta = usageDeltaFromEvent(event);
@@ -240,24 +124,6 @@ export function handleAgentEvent(
 				liveSession.turnPrimaryUsage,
 			);
 			ctx.usageBySession.set(sessionId, mainUsage);
-			captureConversationTurnEvent(telemetry, {
-				ulid: sessionId,
-				provider: config.providerId,
-				model: config.modelId,
-				source: "assistant",
-				mode: config.mode,
-				...agentIdentity,
-			});
-			captureTokenUsage(telemetry, {
-				ulid: sessionId,
-				tokensIn: event.inputTokens,
-				tokensOut: event.outputTokens,
-				cacheWriteTokens: event.cacheWriteTokens,
-				cacheReadTokens: event.cacheReadTokens,
-				totalCost: event.cost,
-				model: config.modelId,
-				...agentIdentity,
-			});
 		} else {
 			const agentKey = resolveUsageAgentKey({
 				isPrimaryAgentEvent,

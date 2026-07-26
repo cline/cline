@@ -5,6 +5,7 @@ interface AboutSectionProps {
 	version: string
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
+
 const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 	return (
 		<div>
@@ -21,20 +22,19 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 					<h3 className="text-md font-semibold">Community & Support</h3>
 					<p>
 						<VSCodeLink href="https://x.com/cline">X</VSCodeLink>
-						{" • "}
+						{" · "}
 						<VSCodeLink href="https://discord.gg/cline">Discord</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://www.reddit.com/r/cline/"> r/cline</VSCodeLink>
+						{" · "}
+						<VSCodeLink href="https://www.reddit.com/r/cline/">r/cline</VSCodeLink>
 					</p>
 
 					<h3 className="text-md font-semibold">Development</h3>
 					<p>
 						<VSCodeLink href="https://github.com/cline/cline">GitHub</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://github.com/cline/cline/issues"> Issues</VSCodeLink>
-						{" • "}
+						{" · "}
+						<VSCodeLink href="https://github.com/cline/cline/issues">Issues</VSCodeLink>
+						{" · "}
 						<VSCodeLink href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop">
-							{" "}
 							Feature Requests
 						</VSCodeLink>
 					</p>
@@ -42,8 +42,6 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 					<h3 className="text-md font-semibold">Resources</h3>
 					<p>
 						<VSCodeLink href="https://docs.cline.bot/">Documentation</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://cline.bot/">https://cline.bot</VSCodeLink>
 					</p>
 				</div>
 			</Section>

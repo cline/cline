@@ -26,7 +26,6 @@ import {
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 } from "@cline/shared/storage";
-import { captureToolUsage } from "../../../services/telemetry/core-events";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
 type ConnectorSettingsEntry = {
@@ -383,31 +382,8 @@ function deleteConnectorConfig(payload: unknown): ConnectorChannelsResponse {
 	return connectorChannelsPayload();
 }
 
-function isStateMutatingConnectorCommand(
-	command: HubCommandEnvelope["command"],
-) {
-	return (
-		command === "connector.configure" || command === "connector.delete_config"
-	);
-}
-
-function captureConnectorCommandUsage(
-	ctx: HubTransportContext,
-	envelope: HubCommandEnvelope,
-	success: boolean,
-): void {
-	if (!isStateMutatingConnectorCommand(envelope.command)) {
-		return;
-	}
-	captureToolUsage(ctx.telemetry, {
-		ulid: envelope.sessionId ?? envelope.requestId ?? "hub",
-		tool: envelope.command,
-		success,
-	});
-}
-
 export async function handleConnectorCommand(
-	ctx: HubTransportContext,
+	_ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	try {
@@ -416,12 +392,10 @@ export async function handleConnectorCommand(
 		}
 		if (envelope.command === "connector.configure") {
 			const payload = configureConnector(envelope.payload);
-			captureConnectorCommandUsage(ctx, envelope, true);
 			return okReply(envelope, payload);
 		}
 		if (envelope.command === "connector.delete_config") {
 			const payload = deleteConnectorConfig(envelope.payload);
-			captureConnectorCommandUsage(ctx, envelope, true);
 			return okReply(envelope, payload);
 		}
 		return errorReply(
@@ -430,7 +404,6 @@ export async function handleConnectorCommand(
 			`unsupported connector command: ${envelope.command}`,
 		);
 	} catch (error) {
-		captureConnectorCommandUsage(ctx, envelope, false);
 		return errorReply(
 			envelope,
 			"connector_command_failed",

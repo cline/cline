@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
-import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
@@ -38,7 +37,6 @@ export const GlobalFileNames = {
 	windsurfRules: ".windsurfrules",
 	agentsRulesFile: "AGENTS.md",
 	taskMetadata: "task_metadata.json",
-	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
 }
 
 /**
@@ -233,42 +231,6 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 	} catch (error) {
 		Logger.error("[Disk] Failed to write task settings:", error)
 		throw error
-	}
-}
-
-export async function readRemoteConfigFromCache(organizationId: string): Promise<RemoteConfig | undefined> {
-	try {
-		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
-		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(remoteConfigFilePath, "utf8")
-			return JSON.parse(fileContents)
-		}
-		return undefined
-	} catch (error) {
-		Logger.error("Failed to read remote config from cache:", error)
-		return undefined
-	}
-}
-
-export async function writeRemoteConfigToCache(organizationId: string, config: RemoteConfig): Promise<void> {
-	try {
-		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
-		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))
-	} catch (error) {
-		Logger.error("Failed to write remote config to cache:", error)
-	}
-}
-
-export async function deleteRemoteConfigFromCache(organizationId: string): Promise<void> {
-	try {
-		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
-		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
-		if (fileExists) {
-			await fs.unlink(remoteConfigFilePath)
-		}
-	} catch (error) {
-		Logger.error("Failed to delete remote config from cache:", error)
 	}
 }
 

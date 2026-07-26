@@ -1,5 +1,4 @@
 import { Logger } from "@/shared/services/Logger"
-import { telemetryService } from "../../services/telemetry"
 import { getAllHooksDirs } from "../storage/disk"
 import { HookFactory, Hooks } from "./hook-factory"
 
@@ -107,12 +106,9 @@ export class HookDiscoveryCache {
 		this.log(`Getting hooks for ${hookName}`)
 
 		const cached = this.cache.get(hookName)
-		const cacheHit = cached !== undefined
-
 		let scripts: string[]
-		let initiatedScan = false // Track if this caller initiated the scan
 
-		if (cacheHit) {
+		if (cached !== undefined) {
 			this.log(`Cache hit for ${hookName}: ${cached.scriptPaths.length} scripts`)
 			scripts = cached.scriptPaths
 		} else {
@@ -125,20 +121,8 @@ export class HookDiscoveryCache {
 				this.log(`Reusing existing scan for ${hookName}`)
 				scripts = await existingPromise
 			} else {
-				// This caller initiates the scan
-				initiatedScan = true
 				scripts = await this.scan(hookName)
 			}
-		}
-
-		// Only report telemetry if:
-		// 1. It was a cache hit, OR
-		// 2. This caller initiated the scan (not reusing another caller's promise)
-		if (cacheHit || initiatedScan) {
-			telemetryService.safeCapture(
-				() => telemetryService.captureHookCacheAccess(hookName, cacheHit),
-				"HookDiscoveryCache.get",
-			)
 		}
 
 		return scripts

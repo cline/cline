@@ -26,7 +26,7 @@ e2e.describe("File Edit Auto-Approval", () => {
 
 				await helper.signin(sidebar)
 
-				// Submit a file edit request. The mock server responds with a
+				// Submit a file edit request.
 				// structured `editor` tool call (path: test.ts, old/new text).
 				const inputbox = sidebar.getByTestId("chat-input")
 				await expect(inputbox).toBeVisible()

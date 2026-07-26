@@ -92,7 +92,7 @@ function normalizeModelSelection(
 function normalizeMode(value: unknown): CronSpecMode | undefined {
 	if (typeof value !== "string") return undefined;
 	const lower = value.trim().toLowerCase();
-	if (lower === "act" || lower === "plan" || lower === "yolo") return lower;
+	if (lower === "act" || lower === "plan") return lower;
 	return undefined;
 }
 
@@ -386,7 +386,7 @@ export function parseCronSpecFile(
 			triggerKind,
 			body,
 			contentHash,
-			"mode must be one of: act, plan, yolo",
+			"mode must be one of: act, plan",
 		);
 	}
 
@@ -398,7 +398,7 @@ export function parseCronSpecFile(
 			filenameStem(relativePath),
 		prompt,
 		workspaceRoot,
-		mode: mode ?? "yolo",
+		mode: mode ?? "act",
 		systemPrompt: trimOrUndefined(frontmatterData.systemPrompt),
 		modelSelection: normalizeModelSelection(frontmatterData.modelSelection),
 		maxIterations: asPositiveInt(frontmatterData.maxIterations),

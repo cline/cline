@@ -139,7 +139,7 @@ function specToSchedule(spec: CronSpecRecord): ScheduleRecord {
 					}
 				: undefined,
 		enabled: spec.enabled && !spec.removed && spec.parseStatus === "valid",
-		mode: spec.mode === "plan" ? "plan" : spec.mode === "act" ? "act" : "yolo",
+		mode: spec.mode === "plan" ? "plan" : "act",
 		systemPrompt: spec.systemPrompt,
 		maxIterations: spec.maxIterations,
 		timeoutSeconds: spec.timeoutSeconds,

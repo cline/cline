@@ -3,7 +3,6 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
-import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -414,13 +413,11 @@ describe("SdkTaskHistory", () => {
 
 	it("identifies legacy tasks without migrating them", async () => {
 		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		const telemetry = makeTelemetry()
-		const { history, startSession } = makeHistory([], telemetry)
+		const { history, startSession } = makeHistory([])
 
 		await expect(history.isLegacyTask("legacy-task")).resolves.toBe(true)
 
 		expect(startSession).not.toHaveBeenCalled()
-		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
 	})
 
 	it("reads legacy task UI messages without migrating", async () => {
@@ -495,30 +492,6 @@ describe("SdkTaskHistory", () => {
 		])
 		expect(resumeMessages).toEqual(fallbackMessages)
 	})
-
-	it("emits backlog telemetry when legacy tasks are still pending migration", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		const telemetry = makeTelemetry()
-		const { history } = makeHistory(
-			[
-				makeSessionRecord("sdk-task"),
-				makeSessionRecord("migrated", {
-					metadata: { migratedFromLegacyTask: true },
-				}),
-			],
-			telemetry,
-		)
-
-		await history.listHistory({ hydrate: false })
-
-		expect(telemetry.captureLegacyTaskMigrationBacklog).toHaveBeenCalledWith({
-			pendingLegacyTaskCount: 1,
-			migratedSdkTaskCount: 1,
-			visibleSdkTaskCount: 2,
-			visibleTaskCount: 3,
-		})
-	})
-
 	it("includes legacy tasks from VS Code extension storage", async () => {
 		legacyStateReaderMock.taskHistory = [makeHistoryItem("cline-dir-task", { task: "~/.cline task" })]
 		legacyStateReaderMock.taskHistoryByDataDir.set("/legacy/globalStorage", [
@@ -526,7 +499,7 @@ describe("SdkTaskHistory", () => {
 				task: "extension storage task",
 			}),
 		])
-		const { history } = makeHistory([], undefined, "/legacy/globalStorage")
+		const { history } = makeHistory([], "/legacy/globalStorage")
 
 		const result = await history.listHistory({ hydrate: false })
 
@@ -542,7 +515,7 @@ describe("SdkTaskHistory", () => {
 				cwdOnTaskInitialization: "/legacy/repo",
 			}),
 		])
-		const { history, startSession } = makeHistory([], undefined, "/legacy/globalStorage")
+		const { history, startSession } = makeHistory([], "/legacy/globalStorage")
 
 		await expect(history.isLegacyTask("extension-storage-task")).resolves.toBe(true)
 
@@ -761,15 +734,7 @@ function makeSessionRecord(id: string, overrides: Partial<SessionHistoryRecord> 
 	}
 }
 
-function makeTelemetry(): TelemetryService {
-	return {
-		safeCapture: vi.fn((fn: () => void) => fn()),
-		captureLegacyTaskMigration: vi.fn(),
-		captureLegacyTaskMigrationBacklog: vi.fn(),
-	} as unknown as TelemetryService
-}
-
-function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryService, legacyExtensionStorageDir?: string) {
+function makeHistory(records: SessionHistoryRecord[], legacyExtensionStorageDir?: string) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -821,7 +786,6 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 	const history = new SdkTaskHistory({
 		mcpHub: {} as McpHub,
 		sessions,
-		telemetry,
 		legacyExtensionStorageDir,
 	})
 

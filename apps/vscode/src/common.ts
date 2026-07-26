@@ -9,17 +9,8 @@ import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
-import { ExtensionRegistryInfo } from "./registry"
-import { ErrorService } from "./services/error"
-import { featureFlagsService } from "./services/feature-flags"
-import { getDistinctId } from "./services/logging/distinctId"
-import { telemetryService } from "./services/telemetry"
-import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ClineTempManager } from "./services/temp"
 import { ShowMessageType } from "./shared/proto/host/window"
-import { syncWorker } from "./shared/services/worker/sync"
-import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
-import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
 
 /**
@@ -45,12 +36,6 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 		error: (message) => Logger.error(message),
 	})
 
-	// Initialize ClineEndpoint configuration (reads bundled and ~/.cline/endpoints.json if present)
-	// This must be done before any other code that calls ClineEnv.config()
-	// Throws ClineConfigurationError if config file exists but is invalid
-	const { ClineEndpoint } = await import("./config")
-	await ClineEndpoint.initialize(HostProvider.get().extensionFsPath)
-
 	try {
 		await StateManager.initialize(storageContext)
 	} catch (error) {
@@ -65,64 +50,17 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	// which depend on the `vscode` module and cannot live in the SDK package.
 	// Must run before any handler is built (standalone utilities or task loop).
 
-	// =============== External services ===============
-	await ErrorService.initialize()
-	// Initialize PostHog client provider (skip in self-hosted mode)
-	if (!ClineEndpoint.isSelfHosted()) {
-		PostHogClientProvider.getInstance()
-	}
-
 	// =============== Webview services ===============
 	const webview = HostProvider.get().createWebviewProvider()
 
 	const stateManager = StateManager.get()
-	// Non-blocking announcement check and display
-	showVersionUpdateAnnouncement(stateManager)
 	// Check if this workspace was opened from worktree quick launch
 	await checkWorktreeAutoOpen(stateManager)
 
-	// =============== Background sync and cleanup tasks ===============
-	// Use remote config blobStoreConfig if available, otherwise fall back to env vars
-	const blobStoreSettings = stateManager.getRemoteConfigSettings()?.blobStoreConfig ?? getBlobStoreSettingsFromEnv()
-	syncWorker().init({ ...blobStoreSettings, userDistinctId: getDistinctId() })
 	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
 	ClineTempManager.startPeriodicCleanup()
 
-	telemetryService.captureExtensionActivated()
-
 	return webview
-}
-
-async function showVersionUpdateAnnouncement(stateManager: StateManager) {
-	// Version checking for autoupdate notification
-	const currentVersion = ExtensionRegistryInfo.version
-	const previousVersion = stateManager.getGlobalStateKey("clineVersion")
-	// Perform post-update actions if necessary
-	try {
-		if (!previousVersion || currentVersion !== previousVersion) {
-			Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
-
-			// Check if there's a new announcement to show
-			const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
-			const latestAnnouncementId = getLatestAnnouncementId()
-
-			if (lastShownAnnouncementId !== latestAnnouncementId) {
-				// Show notification when there's a new announcement (major/minor updates or fresh installs)
-				const message = previousVersion
-					? `Cline has been updated to v${currentVersion}`
-					: `Welcome to Cline v${currentVersion}`
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message,
-				})
-			}
-			// Always update the main version tracker for the next launch.
-			stateManager.setGlobalState("clineVersion", currentVersion)
-		}
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
-		Logger.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
-	}
 }
 
 /**
@@ -164,13 +102,8 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
 export async function tearDown(): Promise<void> {
 	try {
 		AgentConfigLoader.getInstance()?.dispose()
-		PostHogClientProvider.getInstance().dispose()
-		telemetryService.dispose()
-		ErrorService.get().dispose()
-		featureFlagsService.dispose()
 		// Dispose all webview instances
 		await WebviewProvider.disposeAllInstances()
-		syncWorker().dispose()
 
 		// Kill any running hook processes to prevent zombies
 		await HookProcessRegistry.terminateAll()

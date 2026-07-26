@@ -26,11 +26,9 @@ export interface LoadAgentPluginFromPathOptions {
 	useCache?: boolean;
 	session?: PluginSetupContext["session"];
 	client?: PluginSetupContext["client"];
-	user?: PluginSetupContext["user"];
 	workspaceInfo?: PluginSetupContext["workspaceInfo"];
 	automation?: PluginSetupContext["automation"];
 	logger?: PluginSetupContext["logger"];
-	telemetry?: PluginSetupContext["telemetry"];
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -129,11 +127,9 @@ export async function loadAgentPluginFromPath(
 					..._ctx,
 					session: Object.keys(session).length > 0 ? session : undefined,
 					client: options.client ?? _ctx.client,
-					user: options.user ?? _ctx.user,
 					workspaceInfo: options.workspaceInfo ?? _ctx.workspaceInfo,
 					automation: options.automation ?? _ctx.automation,
-					logger: options.logger ?? _ctx.logger,
-					telemetry: options.telemetry ?? _ctx.telemetry,
+					logger: options.logger ?? _ctx.logger
 				};
 				return originalSetup(api, ctx);
 			}

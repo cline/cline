@@ -3,10 +3,8 @@ import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
-import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
@@ -51,11 +49,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.api = createTaskApiModelShim(modelId)
 			}
 			controller.handleApiConfigurationChanged(previousApiConfiguration, normalizedApiConfiguration)
-		}
-
-		// Update telemetry setting
-		if (request.telemetrySetting) {
-			await controller.updateTelemetrySetting(request.telemetrySetting as TelemetrySetting)
 		}
 
 		// Update plan/act separate models setting
@@ -127,21 +120,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.hooksEnabled !== undefined) {
-			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? true
 			const isEnabled = !!request.hooksEnabled
 			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
-			if (controller.task && wasEnabled !== isEnabled) {
-				telemetryService.captureFeatureToggle(controller.task.ulid, "hooks", isEnabled, controller.task.api.getModel().id)
-			}
 		}
-		// Update yolo mode setting
-		if (request.yoloModeToggled !== undefined) {
-			if (controller.task) {
-				telemetryService.captureYoloModeToggle(controller.task.ulid, request.yoloModeToggled)
-			}
-			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
-		}
-
 		// Update worktrees setting
 		if (request.worktreesEnabled !== undefined) {
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
@@ -149,25 +130,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update subagents setting
 		if (request.subagentsEnabled !== undefined) {
-			const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
 			const isEnabled = !!request.subagentsEnabled
 			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
-
-			// Capture telemetry when setting changes
-			if (wasEnabled !== isEnabled) {
-				telemetryService.captureSubagentToggle(isEnabled)
-			}
 		}
 
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
-			if (controller.task) {
-				telemetryService.captureAutoCondenseToggle(
-					controller.task.ulid,
-					request.useAutoCondense,
-					controller.task.api.getModel().id,
-				)
-			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
 		}
 

@@ -20,7 +20,7 @@ import type { PluginTargeting } from "./plugin-targeting";
 
 export type SandboxedPluginSetupContext = Pick<
 	PluginSetupContext,
-	"session" | "client" | "user" | "workspaceInfo" | "logger"
+	"session" | "client" | "workspaceInfo" | "logger"
 >;
 
 export interface PluginSandboxOptions extends PluginTargeting {
@@ -50,7 +50,6 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	workspaceInfo?: WorkspaceInfo;
 	session?: SandboxedPluginSetupContext["session"];
 	client?: SandboxedPluginSetupContext["client"];
-	user?: SandboxedPluginSetupContext["user"];
 	/** Enables a logger bridge that forwards sandbox log calls to the host. */
 	logger?: SandboxedPluginSetupContext["logger"];
 }
@@ -277,7 +276,6 @@ export async function loadSandboxedPlugins(
 		cwd: options.cwd,
 		session: options.session,
 		client: options.client,
-		user: options.user,
 		workspaceInfo: options.workspaceInfo,
 		loggerEnabled: Boolean(options.logger),
 	};

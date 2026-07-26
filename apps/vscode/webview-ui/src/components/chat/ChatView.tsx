@@ -12,7 +12,6 @@ import { useShowNavbar } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
-import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -34,8 +33,6 @@ import {
 
 interface ChatViewProps {
 	isHidden: boolean
-	showAnnouncement: boolean
-	hideAnnouncement: () => void
 	showHistoryView: () => void
 }
 
@@ -61,13 +58,12 @@ const sameUserMessage = (left: ClineMessage, right: ClineMessage) => {
 	)
 }
 
-const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
 		version,
 		clineMessages: messages,
 		taskHistory,
-		telemetrySetting,
 		mode,
 		hooksEnabled,
 		checkpointRestoreInput,
@@ -378,14 +374,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						task={task}
 					/>
 				) : (
-					<WelcomeSection
-						hideAnnouncement={hideAnnouncement}
-						showAnnouncement={showAnnouncement}
-						showHistoryView={showHistoryView}
-						taskHistory={taskHistory}
-						telemetrySetting={telemetrySetting}
-						version={version}
-					/>
+					<WelcomeSection showHistoryView={showHistoryView} taskHistory={taskHistory} />
 				)}
 				{task && (
 					<MessagesArea
@@ -399,7 +388,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
-				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

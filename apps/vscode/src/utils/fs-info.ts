@@ -80,7 +80,7 @@ const cache = new Map<string, FsInfo>()
 
 // Whole-operation budget covering realpath + mount/stat. The exec child has
 // its own 2s, but realpath has none — a stale network mount can hang it
-// indefinitely. Race the whole detection against this so callers (telemetry)
+// indefinitely. Race the whole detection against this so callers
 // never block forever.
 const DETECT_TIMEOUT_MS = 3000
 

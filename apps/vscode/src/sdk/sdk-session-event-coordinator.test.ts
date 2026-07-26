@@ -2,7 +2,6 @@ import type { CoreSessionEvent } from "@cline/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"
-import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
 import { SdkSessionEventCoordinator, type SdkSessionEventCoordinatorOptions } from "./sdk-session-event-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -262,72 +261,6 @@ describe("SdkSessionEventCoordinator", () => {
 
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
 		expect(options.sessions.setRunning).not.toHaveBeenCalled()
-	})
-
-	it("captures provider failure telemetry for SDK agent errors", async () => {
-		const error = new Error("provider failed")
-		const { coordinator, options } = makeCoordinator()
-		const event: CoreSessionEvent = {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-123",
-				event: {
-					type: "error",
-					error,
-				},
-			},
-		} as unknown as CoreSessionEvent
-
-		await coordinator.handleSessionEvent(event)
-
-		expect(options.captureProviderApiError).toHaveBeenCalledWith({
-			sessionId: "session-123",
-			error,
-			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
-			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-		})
-	})
-
-	it("does not capture provider failure telemetry for SDK agent errors without an error payload", async () => {
-		const { coordinator, options } = makeCoordinator()
-		const event: CoreSessionEvent = {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-123",
-				event: {
-					type: "error",
-				},
-			},
-		} as unknown as CoreSessionEvent
-
-		await coordinator.handleSessionEvent(event)
-
-		expect(options.captureProviderApiError).not.toHaveBeenCalled()
-	})
-
-	it("captures provider failure telemetry when the SDK finishes a turn with reason error", async () => {
-		const { coordinator, options } = makeCoordinator()
-		const event: CoreSessionEvent = {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-123",
-				event: {
-					type: "done",
-					reason: "error",
-					text: "stream failed before assistant output",
-					iterations: 1,
-				},
-			},
-		} as unknown as CoreSessionEvent
-
-		await coordinator.handleSessionEvent(event)
-
-		expect(options.captureProviderApiError).toHaveBeenCalledWith({
-			sessionId: "session-123",
-			error: "stream failed before assistant output",
-			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
-			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-		})
 	})
 })
 

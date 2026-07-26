@@ -15,7 +15,6 @@ const HOST_PROVIDED_SDK_SPECIFIERS = [
 	"@cline/core",
 	"@cline/core/hub",
 	"@cline/core/hub/daemon-entry",
-	"@cline/core/telemetry",
 	"@cline/llms",
 	"@cline/llms/browser",
 	"@cline/shared",

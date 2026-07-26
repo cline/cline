@@ -6,7 +6,6 @@ const ENV_DISPLAY_NAMES: Record<Environment, string> = {
 	production: "Production",
 	staging: "Staging",
 	local: "Local",
-	selfHosted: "Self-hosted",
 }
 
 type ViewHeaderProps = {
@@ -33,7 +32,7 @@ const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewH
 					</span>
 				)}
 			</div>
-			<Button size="header" onClick={onDone}>
+			<Button onClick={onDone} size="header">
 				Done
 			</Button>
 		</div>

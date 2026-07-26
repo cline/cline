@@ -5,7 +5,6 @@ import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { _electron } from "playwright"
-import { ClineApiServerMock } from "../fixtures/server"
 
 interface E2ETestDirectories {
 	workspaceDir: string
@@ -300,14 +299,13 @@ export class E2ETestHelper {
  * Extended Playwright test configuration for Cline E2E testing.
  *
  * This test configuration provides a comprehensive setup for end-to-end testing of the Cline VS Code extension,
- * including server mocking, temporary directories, VS Code instance management, and helper utilities.
+ * including temporary directories, VS Code instance management, and helper utilities.
  *
  * NOTE: Default to run in single-root workspace; use `e2eMultiRoot` for multi-root workspace tests.
  *
  * @extends test - Base Playwright test with multiple fixture extensions
  *
  * Fixtures provided:
- * - `server`: Shared ClineApiServerMock instance for API mocking (reused across all tests)
  * - `workspaceDir`: Path to the test workspace directory
  * - `userDataDir`: Temporary directory for VS Code user data
  * - `extensionsDir`: Temporary directory for VS Code extensions
@@ -318,7 +316,6 @@ export class E2ETestHelper {
  * - `sidebar`: Playwright Frame object representing the Cline extension's sidebar iframe
  *
  * @returns Extended test object with all fixtures available for E2E test scenarios:
- * - **server**: Automatically starts and manages a ClineApiServerMock instance
  * - **workspaceDir**: Sets up a test workspace directory from fixtures
  * - **userDataDir**: Creates a temporary directory for VS Code user data
  * - **extensionsDir**: Creates a temporary directory for VS Code extensions
@@ -343,15 +340,6 @@ export class E2ETestHelper {
  * - Configures VS Code with disabled updates, workspace trust, and welcome screens
  */
 export const e2e = test
-	.extend<{ server: ClineApiServerMock | null }>({
-		server: async ({}, use) => {
-			// Start server if it doesn't exist
-			if (!ClineApiServerMock.globalSharedServer) {
-				await ClineApiServerMock.startGlobalServer()
-			}
-			await use(ClineApiServerMock.globalSharedServer)
-		},
-	})
 	.extend<E2ETestDirectories>({
 		workspaceDir: async ({}, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
@@ -471,7 +459,7 @@ export const e2e = test
 		},
 	})
 	.extend<{ sidebar: Frame }>({
-		sidebar: async ({ page, helper, server }, use) => {
+		sidebar: async ({ page, helper }, use) => {
 			await E2ETestHelper.openClineSidebar(page)
 			const sidebar = await helper.getSidebar(page)
 			await use(sidebar)

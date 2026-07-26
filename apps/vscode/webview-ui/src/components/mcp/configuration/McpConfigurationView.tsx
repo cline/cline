@@ -16,19 +16,12 @@ type McpViewProps = {
 }
 
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
-	const { remoteConfigSettings, setMcpServers, environment } = useExtensionState()
-	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
+	const { setMcpServers, environment } = useExtensionState()
 	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || "configure")
 
 	const handleTabChange = (tab: McpViewTab) => {
 		setActiveTab(tab)
 	}
-
-	useEffect(() => {
-		if (!showRemoteServers && activeTab === "addRemote") {
-			setActiveTab("configure")
-		}
-	}, [showRemoteServers, activeTab])
 
 	useEffect(() => {
 		McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
@@ -65,11 +58,9 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 						padding: "0 20px 0 20px",
 						borderBottom: "1px solid var(--vscode-panel-border)",
 					}}>
-					{showRemoteServers && (
-						<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
-							Remote Servers
-						</TabButton>
-					)}
+					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
+						Remote Servers
+					</TabButton>
 					<TabButton isActive={activeTab === "configure"} onClick={() => handleTabChange("configure")}>
 						Configure
 					</TabButton>
@@ -77,9 +68,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
-					{showRemoteServers && activeTab === "addRemote" && (
-						<AddRemoteServerForm onServerAdded={() => handleTabChange("configure")} />
-					)}
+					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("configure")} />}
 					{activeTab === "configure" && <ConfigureServersView />}
 				</div>
 			</div>

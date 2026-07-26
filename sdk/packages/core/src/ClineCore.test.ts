@@ -19,7 +19,6 @@ vi.mock("./runtime/host/host", () => ({
 
 import type { AgentResult } from "@cline/shared";
 import { ClineCore } from "./ClineCore";
-import { NoOpFeatureFlagsProvider } from "./services/feature-flags";
 
 function createStartInput(): ClineCoreStartInput {
 	return {

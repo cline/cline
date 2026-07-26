@@ -432,7 +432,7 @@ export async function searchWorkspaceFilesMultiroot(
 
 		// Aggregate per-root results. The combined `source` is `host_index`
 		// only if every contributing root reported `host_index`; if any root
-		// fell back to ripgrep we report `ripgrep` so telemetry isn't misleading.
+		// fell back to ripgrep, report `ripgrep` as the source.
 		const allResults = await Promise.all(searchPromises)
 		let flatResults: SearchWorkspaceFilesResult["items"] = allResults.flatMap((r) => r.items)
 		const aggregateSource: FileSearchSource =

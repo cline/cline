@@ -1,29 +1,15 @@
 import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
-import {
-	McpServers,
-	ToggleMcpServerRequest,
-	ToggleToolAutoApproveRequest,
-	UpdateMcpTimeoutRequest,
-} from "@shared/proto/cline/mcp"
+import { McpServers, ToggleMcpServerRequest, UpdateMcpTimeoutRequest } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import {
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeOption,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeOption, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCcwIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { McpServiceClient } from "@/services/grpc-client"
-import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
@@ -46,36 +32,16 @@ const ServerRow = ({
 	server,
 	isExpandable = true,
 	hasTrashIcon = true,
-	marketplaceMetadata,
 }: {
 	server: McpServer
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
-	marketplaceMetadata?: MarketplaceMcpMetadata
 }) => {
-	const { autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
+	const { setMcpServers } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [isRestarting, setIsRestarting] = useState(false)
-
-	// Check if user is managed by remote config and if this server is remote-managed.
-	// Remote MCP servers from enterprise config are always URL-based (SSE/HTTP).
-	// stdio-based local servers are never in remoteMCPServers, so URL matching is sufficient.
-	const isRemoteManagedServer = (() => {
-		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers
-		if (!remoteMCPServers || remoteMCPServers.length === 0) {
-			return false
-		}
-		try {
-			const serverConfig = JSON.parse(server.config)
-			return remoteMCPServers.some(
-				(remoteServer: { url: string }) => serverConfig.url && serverConfig.url === remoteServer.url,
-			)
-		} catch {
-			return false
-		}
-	})()
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -148,27 +114,6 @@ const ServerRow = ({
 			})
 	}
 
-	const handleAutoApproveChange = () => {
-		if (!server.name) {
-			return
-		}
-
-		McpServiceClient.toggleToolAutoApprove(
-			ToggleToolAutoApproveRequest.create({
-				serverName: server.name,
-				toolNames: server.tools?.map((tool) => tool.name) || [],
-				autoApprove: !server.tools?.every((tool) => tool.autoApprove),
-			}),
-		)
-			.then((response) => {
-				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
-				setMcpServers(mcpServers)
-			})
-			.catch((error) => {
-				console.error("Error toggling all tools auto-approve", error)
-			})
-	}
-
 	const handleToggleMcpServer = () => {
 		McpServiceClient.toggleMcpServer(
 			ToggleMcpServerRequest.create({
@@ -184,26 +129,6 @@ const ServerRow = ({
 				console.error("Error toggling MCP server", error)
 			})
 	}
-
-	// Helper to extract server URL from config
-	const getServerUrl = (server: McpServer): string | null => {
-		try {
-			const config = JSON.parse(server.config)
-			return config.url || null
-		} catch {
-			return null
-		}
-	}
-
-	// Check if this server is always-enabled via remote config
-	const isAlwaysEnabled = (() => {
-		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers || []
-		const serverUrl = getServerUrl(server)
-		if (!serverUrl) return false
-
-		const remoteServer = remoteMCPServers.find((remote) => remote.url === serverUrl)
-		return remoteServer?.alwaysEnabled === true
-	})()
 
 	return (
 		<div className="mb-2.5">
@@ -221,10 +146,7 @@ const ServerRow = ({
 					/>
 				)}
 				<span className="flex-1 min-w-0 overflow-hidden break-words whitespace-normal">
-					<span className="block font-medium">{marketplaceMetadata?.name || server.name}</span>
-					{marketplaceMetadata?.description && (
-						<span className="block mt-0.5 text-xs text-description">{marketplaceMetadata.description}</span>
-					)}
+					<span className="block font-medium">{server.name}</span>
 				</span>
 				{/* Collapsed view controls */}
 				{!server.error && (
@@ -254,25 +176,14 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<div className="flex items-center gap-2">
-							<Switch
-								checked={!server.disabled}
-								disabled={isAlwaysEnabled}
-								key={server.name}
-								onClick={(e) => {
-									e.stopPropagation()
-									handleToggleMcpServer()
-								}}
-							/>
-							{isAlwaysEnabled && <i className="codicon codicon-lock text-description text-sm" />}
-						</div>
-					</TooltipTrigger>
-					<TooltipContent className="max-w-xs" hidden={!isAlwaysEnabled} side="top">
-						This server can't be disabled because it is enabled by your organization
-					</TooltipContent>
-				</Tooltip>
+				<Switch
+					checked={!server.disabled}
+					key={server.name}
+					onClick={(e) => {
+						e.stopPropagation()
+						handleToggleMcpServer()
+					}}
+				/>
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
@@ -305,15 +216,13 @@ const ServerRow = ({
 						</Button>
 					)}
 
-					{!isRemoteManagedServer && (
-						<Button
-							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
-							disabled={isDeleting}
-							onClick={handleDelete}
-							variant="danger">
-							{isDeleting ? "Deleting..." : "Delete Server"}
-						</Button>
-					)}
+					<Button
+						className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
+						disabled={isDeleting}
+						onClick={handleDelete}
+						variant="danger">
+						{isDeleting ? "Deleting..." : "Delete Server"}
+					</Button>
 				</div>
 			) : (
 				isExpanded && (
@@ -328,15 +237,6 @@ const ServerRow = ({
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
 									<div className="flex flex-col gap-2 w-full pt-2">
-										{server.name && autoApprovalSettings.actions.useMcp && (
-											<VSCodeCheckbox
-												checked={server.tools.every((tool) => tool.autoApprove)}
-												className="mb-1 text-xs"
-												data-tool="all-tools"
-												onChange={handleAutoApproveChange}>
-												Auto-approve all tools
-											</VSCodeCheckbox>
-										)}
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
 										))}
@@ -406,15 +306,13 @@ const ServerRow = ({
 									: "Restart Server"}
 						</Button>
 
-						{!isRemoteManagedServer && (
-							<Button
-								className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
-								disabled={isDeleting}
-								onClick={handleDelete}
-								variant="danger">
-								{isDeleting ? "Deleting..." : "Delete Server"}
-							</Button>
-						)}
+						<Button
+							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
+							disabled={isDeleting}
+							onClick={handleDelete}
+							variant="danger">
+							{isDeleting ? "Deleting..." : "Delete Server"}
+						</Button>
 					</div>
 				)
 			)}

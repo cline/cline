@@ -3,13 +3,6 @@ export const env = {
 	machineId: "test-machine-id",
 	appName: "VS Code",
 	remoteName: undefined as string | undefined,
-	isTelemetryEnabled: true,
-	onDidChangeTelemetryEnabled: (_callback: (enabled: boolean) => void) => {
-		// Return a disposable mock
-		return {
-			dispose: () => {},
-		}
-	},
 }
 
 export const version = "1.103.0"
@@ -19,12 +12,6 @@ export const workspace = {
 		return {
 			get: (key: string, defaultValue?: any) => {
 				// Return default values for common configuration keys
-				if (section === "cline" && key === "telemetrySetting") {
-					return "enabled"
-				}
-				if (section === "telemetry" && key === "telemetryLevel") {
-					return "all"
-				}
 				return defaultValue
 			},
 		}

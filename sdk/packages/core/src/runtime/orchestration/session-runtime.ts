@@ -5,7 +5,6 @@ import type {
 	AgentResult,
 	AgentTool,
 	BasicLogger,
-	ITelemetryService,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -39,7 +38,6 @@ export interface BuiltRuntime {
 	tools: AgentTool[];
 	hooks?: AgentHooks;
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 	teamRuntime?: AgentTeamsRuntime;
 	teamRestoredFromPersistence?: boolean;
 	delegatedAgentConfigProvider?: DelegatedAgentConfigProvider;
@@ -66,7 +64,6 @@ export interface RuntimeBuilderInput {
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;

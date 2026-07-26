@@ -1,10 +1,6 @@
 import type { WorkspaceContext } from "../extensions/context";
-import { isClineProvider } from "../providers/utils";
 import type { WorkspaceInfo } from "../session/workspace";
-import {
-	DEFAULT_CLINE_SYSTEM_PROMPT,
-	YOLO_CLINE_SYSTEM_PROMPT,
-} from "./system";
+import { DEFAULT_CLINE_SYSTEM_PROMPT } from "./system";
 
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 
@@ -20,7 +16,7 @@ const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
  */
 export const MODE_TAG_INSTRUCTIONS = `# Plan / Act Modes
 
-User messages arrive wrapped in a <user_input mode="..."> tag. The mode attribute is the interaction mode the user was in when they sent that message: "plan" means plan-mode constraints applied (explore, analyze, and align on a plan -- no edits or state-changing commands), while "act" (or "yolo") means implementation was allowed. If the mode attribute changes between messages, the user switched modes -- the newest message's mode is what governs right now, regardless of what earlier messages allowed. A <mode_notice> block inside a message marks exactly when such a switch happened.`;
+User messages arrive wrapped in a <user_input mode="..."> tag. The mode attribute is the interaction mode the user was in when they sent that message: "plan" means plan-mode constraints applied (explore, analyze, and align on a plan -- no edits or state-changing commands), while "act" means implementation was allowed. If the mode attribute changes between messages, the user switched modes -- the newest message's mode is what governs right now, regardless of what earlier messages allowed. A <mode_notice> block inside a message marks exactly when such a switch happened.`;
 
 /**
  * Plan-mode behavioral contract, appended when the session mode is "plan".
@@ -104,7 +100,6 @@ export interface ClineSystemPromptOptions
 	/** Per-request system prompt override */
 	overridePrompt?: string;
 	/** Provider ID — used to gate Cline-specific metadata injection */
-	providerId?: string;
 }
 
 export function buildClineSystemPrompt(
@@ -118,25 +113,18 @@ export function buildClineSystemPrompt(
 		metadata,
 		rules,
 		overridePrompt,
-		providerId,
 	} = options;
 	const workspaceRoot = options.workspaceRoot ?? options.rootPath ?? "";
-	const isCline = isClineProvider(providerId || "");
 
 	if (overridePrompt?.trim()) {
 		const trimmed = overridePrompt.trim();
-		if (
-			isCline &&
-			metadata?.trim() &&
-			!trimmed.includes(WORKSPACE_CONFIGURATION_MARKER)
-		) {
+		if (metadata?.trim() && !trimmed.includes(WORKSPACE_CONFIGURATION_MARKER)) {
 			return `${trimmed}\n\n${buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)}`.trim();
 		}
 		return trimmed;
 	}
 
-	const basePrompt =
-		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
+	const basePrompt = DEFAULT_CLINE_SYSTEM_PROMPT;
 
 	// Mode semantics ride in the rules slot so every host emits them without
 	// composing its own copy. Order matches what the CLI historically built by
@@ -157,9 +145,7 @@ export function buildClineSystemPrompt(
 		.replace("{{IDE_NAME}}", ide)
 		.replace(
 			"{{CLINE_METADATA}}",
-			isCline
-				? buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)
-				: "",
+			buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata),
 		)
 		.replace("{{CLINE_RULES}}", effectiveRules)
 		.trim();

@@ -218,8 +218,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			platform,
 			localWorkflowToggles,
 			globalWorkflowToggles,
-			remoteWorkflowToggles,
-			remoteConfigSettings,
 			navigateToSettingsModelPicker,
 			mcpServers,
 		} = useExtensionState()
@@ -484,8 +482,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								slashCommandsQuery,
 								localWorkflowToggles,
 								globalWorkflowToggles,
-								remoteWorkflowToggles,
-								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
 							)
 
@@ -509,8 +505,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							slashCommandsQuery,
 							localWorkflowToggles,
 							globalWorkflowToggles,
-							remoteWorkflowToggles,
-							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
 						)
 						if (commands.length > 0) {
@@ -976,13 +970,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// Extract just the command name (without the slash)
 				const commandName = command.substring(1)
-				const isValidCommand = validateSlashCommand(
-					commandName,
-					localWorkflowToggles,
-					globalWorkflowToggles,
-					remoteWorkflowToggles,
-					remoteConfigSettings?.remoteGlobalWorkflows,
-				)
+				const isValidCommand = validateSlashCommand(commandName, localWorkflowToggles, globalWorkflowToggles)
 
 				if (isValidCommand) {
 					hasHighlightedSlashCommand = true
@@ -995,7 +983,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
+		}, [localWorkflowToggles, globalWorkflowToggles])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1365,8 +1353,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
 								query={slashCommandsQuery}
-								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
-								remoteWorkflowToggles={remoteWorkflowToggles}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 							/>

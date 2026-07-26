@@ -16,7 +16,6 @@ describe("getAvailableSlashCommands", () => {
 		getWorkspaceStateKey: sinon.SinonStub
 		getGlobalSettingsKey: sinon.SinonStub
 		getGlobalStateKey: sinon.SinonStub
-		getRemoteConfigSettings: sinon.SinonStub
 	}
 
 	beforeEach(() => {
@@ -24,14 +23,12 @@ describe("getAvailableSlashCommands", () => {
 			getWorkspaceStateKey: sinon.stub(),
 			getGlobalSettingsKey: sinon.stub(),
 			getGlobalStateKey: sinon.stub(),
-			getRemoteConfigSettings: sinon.stub(),
 		}
 
 		// Default stubs return empty/null values
 		mockStateManager.getWorkspaceStateKey.returns(null)
 		mockStateManager.getGlobalSettingsKey.returns(null)
 		mockStateManager.getGlobalStateKey.returns(null)
-		mockStateManager.getRemoteConfigSettings.returns(null)
 
 		mockController = {
 			stateManager: mockStateManager as any,
@@ -191,67 +188,11 @@ describe("getAvailableSlashCommands", () => {
 		})
 	})
 
-	describe("Remote Workflows", () => {
-		it("should include alwaysEnabled remote workflows", async () => {
-			mockStateManager.getRemoteConfigSettings.returns({
-				remoteGlobalWorkflows: [{ name: "always-on-workflow", alwaysEnabled: true }],
-			})
-
-			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
-
-			const workflow = response.commands.find((cmd) => cmd.name === "always-on-workflow")
-			workflow!.should.not.be.undefined()
-			workflow!.section.should.equal("custom")
-		})
-
-		it("should include remote workflows enabled by toggle", async () => {
-			mockStateManager.getRemoteConfigSettings.returns({
-				remoteGlobalWorkflows: [{ name: "toggle-workflow", alwaysEnabled: false }],
-			})
-			mockStateManager.getGlobalStateKey.withArgs("remoteWorkflowToggles").returns({
-				"toggle-workflow": true, // not explicitly disabled
-			})
-
-			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
-
-			const workflow = response.commands.find((cmd) => cmd.name === "toggle-workflow")
-			workflow!.should.not.be.undefined()
-		})
-
-		it("should exclude remote workflows explicitly disabled by toggle", async () => {
-			mockStateManager.getRemoteConfigSettings.returns({
-				remoteGlobalWorkflows: [{ name: "disabled-remote", alwaysEnabled: false }],
-			})
-			mockStateManager.getGlobalStateKey.withArgs("remoteWorkflowToggles").returns({
-				"disabled-remote": false,
-			})
-
-			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
-
-			const workflow = response.commands.find((cmd) => cmd.name === "disabled-remote")
-			;(workflow === undefined).should.be.true()
-		})
-
-		it("should include remote workflows by default if not explicitly disabled", async () => {
-			mockStateManager.getRemoteConfigSettings.returns({
-				remoteGlobalWorkflows: [{ name: "default-enabled", alwaysEnabled: false }],
-			})
-			// No toggle entry for this workflow
-			mockStateManager.getGlobalStateKey.withArgs("remoteWorkflowToggles").returns({})
-
-			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
-
-			const workflow = response.commands.find((cmd) => cmd.name === "default-enabled")
-			workflow!.should.not.be.undefined()
-		})
-	})
-
 	describe("Edge Cases", () => {
 		it("should handle null/undefined state values gracefully", async () => {
 			mockStateManager.getWorkspaceStateKey.returns(null)
 			mockStateManager.getGlobalSettingsKey.returns(undefined)
 			mockStateManager.getGlobalStateKey.returns(null)
-			mockStateManager.getRemoteConfigSettings.returns(null)
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
@@ -262,24 +203,11 @@ describe("getAvailableSlashCommands", () => {
 		it("should handle empty workflow toggle objects", async () => {
 			mockStateManager.getWorkspaceStateKey.withArgs("workflowToggles").returns({})
 			mockStateManager.getGlobalSettingsKey.withArgs("globalWorkflowToggles").returns({})
-			mockStateManager.getGlobalStateKey.withArgs("remoteWorkflowToggles").returns({})
-			mockStateManager.getRemoteConfigSettings.returns({
-				remoteGlobalWorkflows: [],
-			})
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			// Should only have base commands
 			response.commands.length.should.equal(BASE_SLASH_COMMANDS.length)
-		})
-
-		it("should handle remote config with no remoteGlobalWorkflows property", async () => {
-			mockStateManager.getRemoteConfigSettings.returns({})
-
-			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
-
-			// Should not throw, just return base commands
-			response.commands.length.should.be.greaterThanOrEqual(BASE_SLASH_COMMANDS.length)
 		})
 	})
 })

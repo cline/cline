@@ -1,11 +1,5 @@
 import { estimateRequestInputTokens } from "@cline/shared";
 import {
-	captureCompactionBudgetEmergency,
-	captureCompactionExecuted,
-	captureCompactionSkipped,
-	type TelemetryCompactionStrategy,
-} from "../../services/telemetry/core-events";
-import {
 	createSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -234,16 +228,6 @@ function countUserAssistantPairs(
 /**
  * Build the `prepareTurn` callback used by the agent runtime to compact the
  * transcript before each model request.
- *
- * Telemetry: emits `task.compaction_executed` on a successful compaction and
- * `task.compaction_skipped` when the configured strategy returns `undefined`.
- * Telemetry is keyed by `config.sessionId` (falling back to the per-turn
- * `conversationId`) and tagged with `provider` / `modelId`.
- *
- * Known gap: compactions performed via plugin `registerMessageBuilder()` or
- * via the `beforeModel` runtime hook bypass this wrapper entirely, so they
- * do not emit compaction telemetry. If we want coverage there too, the
- * plugin/hook pipelines must be instrumented separately.
  */
 export function createContextCompactionPrepareTurn(
 	config: Pick<
@@ -253,7 +237,6 @@ export function createContextCompactionPrepareTurn(
 		| "modelId"
 		| "compaction"
 		| "logger"
-		| "telemetry"
 		| "sessionId"
 	>,
 	options: ContextCompactionPrepareTurnOptions = {},
@@ -277,9 +260,6 @@ export function createContextCompactionPrepareTurn(
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 	const mode = options.mode ?? "auto";
-	const telemetryStrategy: TelemetryCompactionStrategy = userCompaction?.compact
-		? "custom"
-		: strategy;
 
 	return async (context) => {
 		const apiMessageTokens = context.apiMessages.reduce(
@@ -399,8 +379,6 @@ export function createContextCompactionPrepareTurn(
 		);
 
 		const beforeMessageCount = context.messages.length;
-		const startedAt = Date.now();
-
 		const builtinOptions = {
 			context: compactionContext,
 			providerConfig: {
@@ -411,7 +389,8 @@ export function createContextCompactionPrepareTurn(
 			estimateMessageTokens,
 			logger: config.logger,
 		};
-		let executedStrategy = telemetryStrategy;
+		let executedStrategy: "custom" | CoreCompactionStrategy =
+			userCompaction?.compact ? "custom" : strategy;
 		let result: CoreCompactionResult | undefined;
 		if (userCompaction?.compact) {
 			result = await userCompaction.compact(compactionContext);
@@ -436,18 +415,6 @@ export function createContextCompactionPrepareTurn(
 				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
 			}
 		}
-
-		const durationMs = Date.now() - startedAt;
-		// Telemetry identity: surface the agent/conversation passed into the
-		// prepareTurn so multi-agent runs can attribute compactions correctly.
-		// `sessionId` is the host-owned session id (ulid). We fall back to the
-		// conversation id when no sessionId is supplied (e.g. ad-hoc callers).
-		const telemetryUlid = config.sessionId ?? context.conversationId;
-		const telemetryIdentity = {
-			agentId: context.agentId,
-			conversationId: context.conversationId,
-			parentAgentId: context.parentAgentId ?? undefined,
-		};
 
 		if (result?.messages) {
 			const afterMessageTokens = result.messages.reduce(
@@ -487,42 +454,10 @@ export function createContextCompactionPrepareTurn(
 					maxInputTokens,
 				},
 			);
-			captureCompactionExecuted(config.telemetry, {
-				ulid: telemetryUlid,
-				strategy: executedStrategy,
-				mode,
-				messagesBefore: beforeMessageCount,
-				messagesAfter: result.messages.length,
-				messagesRemoved: beforeMessageCount - result.messages.length,
-				tokensBefore: requestInputTokens,
-				tokensAfter: afterRequestTokens,
-				tokensSaved: requestInputTokens - afterRequestTokens,
-				triggerTokens: requestTriggerTokens,
-				maxInputTokens,
-				thresholdRatio: COMPACTION_TRIGGER_RATIO,
-				durationMs,
-				// Matches the field name used by other TASK telemetry helpers
-				// (e.g. captureTaskCompleted, captureToolUsage).
-				provider: config.providerId,
-				modelId: config.modelId,
-				...telemetryIdentity,
-			});
 			if (
 				result.budget &&
 				(result.budget.actionCount > 0 || result.budget.warningCount > 0)
 			) {
-				captureCompactionBudgetEmergency(config.telemetry, {
-					ulid: telemetryUlid,
-					strategy: executedStrategy,
-					mode,
-					policyIntent: result.budget.policyIntent,
-					actionCount: result.budget.actionCount,
-					warningCount: result.budget.warningCount,
-					liveTailHandling: result.budget.liveTailHandling,
-					provider: config.providerId,
-					modelId: config.modelId,
-					...telemetryIdentity,
-				});
 				context.emitStatusNotice?.("compaction-budget-adjusted", {
 					kind: "compaction_budget_emergency",
 					reason: "compaction_budget_emergency",
@@ -543,20 +478,6 @@ export function createContextCompactionPrepareTurn(
 					maxInputTokens,
 				},
 			);
-			captureCompactionSkipped(config.telemetry, {
-				ulid: telemetryUlid,
-				strategy: executedStrategy,
-				mode,
-				reason: "no_result",
-				tokensBefore: requestInputTokens,
-				triggerTokens: requestTriggerTokens,
-				maxInputTokens,
-				thresholdRatio: COMPACTION_TRIGGER_RATIO,
-				durationMs,
-				provider: config.providerId,
-				modelId: config.modelId,
-				...telemetryIdentity,
-			});
 		}
 
 		return result;

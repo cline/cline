@@ -314,9 +314,7 @@ export async function handleSessionCreate(
 					: ""),
 			mode:
 				sessionConfig?.mode ??
-				(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-					? runtimeOptions.mode
-					: "act"),
+				(runtimeOptions.mode === "plan" ? runtimeOptions.mode : "act"),
 			maxIterations:
 				sessionConfig?.maxIterations ??
 				(typeof runtimeOptions.maxIterations === "number"
@@ -567,9 +565,7 @@ export async function handleSessionRestore(
 								: ""),
 						mode:
 							sessionConfig?.mode ??
-							(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-								? runtimeOptions.mode
-								: "act"),
+							(runtimeOptions.mode === "plan" ? runtimeOptions.mode : "act"),
 						maxIterations:
 							sessionConfig?.maxIterations ??
 							(typeof runtimeOptions.maxIterations === "number"

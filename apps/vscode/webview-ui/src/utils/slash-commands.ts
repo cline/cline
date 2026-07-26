@@ -10,8 +10,6 @@ const DEFAULT_SLASH_COMMANDS: SlashCommand[] =
 function getWorkflowCommands(
 	localWorkflowToggles: Record<string, boolean>,
 	globalWorkflowToggles: Record<string, boolean>,
-	remoteWorkflowToggles?: Record<string, boolean>,
-	remoteWorkflows?: any[],
 ): SlashCommand[] {
 	const { workflows: localWorkflows, nameSet: localWorkflowNames } = Object.entries(localWorkflowToggles)
 		.filter(([_, enabled]) => enabled)
@@ -51,22 +49,7 @@ function getWorkflowCommands(
 			] as SlashCommand[]
 		})
 
-	// Add remote workflows that are enabled
-	const remoteWorkflowCommands: SlashCommand[] = []
-	if (remoteWorkflows && remoteWorkflowToggles) {
-		for (const workflow of remoteWorkflows) {
-			// Include if alwaysEnabled or if toggle is not explicitly false
-			const enabled = workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
-			if (enabled) {
-				remoteWorkflowCommands.push({
-					name: workflow.name,
-					section: "custom",
-				})
-			}
-		}
-	}
-
-	const workflows = [...localWorkflows, ...globalWorkflows, ...remoteWorkflowCommands]
+	const workflows = [...localWorkflows, ...globalWorkflows]
 	return workflows
 }
 
@@ -178,16 +161,9 @@ export function getMatchingSlashCommands(
 	query: string,
 	localWorkflowToggles: Record<string, boolean> = {},
 	globalWorkflowToggles: Record<string, boolean> = {},
-	remoteWorkflowToggles?: Record<string, boolean>,
-	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
 ): SlashCommand[] {
-	const workflowCommands = getWorkflowCommands(
-		localWorkflowToggles,
-		globalWorkflowToggles,
-		remoteWorkflowToggles,
-		remoteWorkflows,
-	)
+	const workflowCommands = getWorkflowCommands(localWorkflowToggles, globalWorkflowToggles)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
 
@@ -230,20 +206,13 @@ export function validateSlashCommand(
 	command: string,
 	localWorkflowToggles: Record<string, boolean> = {},
 	globalWorkflowToggles: Record<string, boolean> = {},
-	remoteWorkflowToggles?: Record<string, boolean>,
-	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
 ): "full" | "partial" | null {
 	if (!command) {
 		return null
 	}
 
-	const workflowCommands = getWorkflowCommands(
-		localWorkflowToggles,
-		globalWorkflowToggles,
-		remoteWorkflowToggles,
-		remoteWorkflows,
-	)
+	const workflowCommands = getWorkflowCommands(localWorkflowToggles, globalWorkflowToggles)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
 

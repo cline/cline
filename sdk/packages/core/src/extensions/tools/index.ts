@@ -55,9 +55,7 @@ export {
 // Presets
 export {
 	createDefaultToolsWithPreset,
-	createToolPoliciesWithPreset,
 	resolveToolPresetName,
-	type ToolPolicyPresetName,
 	type ToolPresetName,
 	ToolPresets,
 } from "./presets";

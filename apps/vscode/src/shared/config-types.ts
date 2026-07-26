@@ -7,12 +7,4 @@ export enum Environment {
 	production = "production",
 	staging = "staging",
 	local = "local",
-	selfHosted = "selfHosted",
-}
-
-export interface EnvironmentConfig {
-	environment: Environment
-	appBaseUrl: string
-	apiBaseUrl: string
-	mcpBaseUrl: string
 }

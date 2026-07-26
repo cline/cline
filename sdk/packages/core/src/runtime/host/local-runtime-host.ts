@@ -7,9 +7,7 @@ import {
 	type AgentEvent,
 	type AgentResult,
 	type BasicLogger,
-	captureSdkError,
 	createSessionId,
-	type ITelemetryService,
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
@@ -21,7 +19,6 @@ import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
-import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
@@ -29,19 +26,7 @@ import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "../../services/session-data";
-import {
-	emitMentionTelemetry,
-	emitSessionCreationTelemetry,
-} from "../../services/session-telemetry";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
-import {
-	captureAgentCreated,
-	captureAgentTeamCreated,
-	captureConversationTurnEvent,
-	captureModeSwitch,
-	captureTaskCompleted,
-} from "../../services/telemetry/core-events";
-import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
@@ -196,14 +181,12 @@ function isIncomingCompactionStateStale(
 }
 
 export interface LocalRuntimeHostOptions {
-	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
 	createAgent?: (config: AgentConfig) => SessionRuntime;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	providerSettingsManager?: ProviderSettingsManager;
-	telemetry?: ITelemetryService;
 	logger?: BasicLogger;
 	/**
 	 * Default custom `fetch` implementation threaded into every
@@ -223,7 +206,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultCapabilities?: RuntimeCapabilities;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
 	private readonly providerSettingsManager: ProviderSettingsManager;
-	private readonly defaultTelemetry?: ITelemetryService;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
@@ -243,7 +225,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
 		if (homeDir) setHomeDirIfUnset(homeDir);
-		const distinctId = resolveCoreDistinctId(options.distinctId);
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
@@ -255,9 +236,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultToolPolicies = options.toolPolicies;
 		this.providerSettingsManager =
 			options.providerSettingsManager ?? new ProviderSettingsManager();
-		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
-		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -441,7 +420,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			localRuntime: input.localRuntime,
 			sessionId,
 			providerSettingsManager: this.providerSettingsManager,
-			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
 			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
@@ -545,18 +523,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 								"Failed to persist session compaction state",
 								{ sessionId: activeSession.sessionId, error },
 							);
-							captureSdkError(configWithProvider.telemetry, {
-								component: "core",
-								operation: "session.persist_compaction_state",
-								severity: "warn",
-								handled: true,
-								error,
-								context: {
-									sessionId: activeSession.sessionId,
-									providerId: configWithProvider.providerId,
-									modelId: configWithProvider.modelId,
-								},
-							});
 						}
 					},
 				})
@@ -608,7 +574,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 						}
 					}
 				: undefined,
-			telemetry: configWithProvider.telemetry,
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionPolicy: runtime.completionPolicy,
@@ -650,18 +615,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 						"Failed to persist session messages after assistant response",
 						{ sessionId, error },
 					);
-					captureSdkError(configWithProvider.telemetry, {
-						component: "core",
-						operation: "session.persist_messages_after_assistant_response",
-						error,
-						severity: "warn",
-						handled: true,
-						context: {
-							sessionId,
-							providerId: configWithProvider.providerId,
-							modelId: configWithProvider.modelId,
-						},
-					});
 				}
 			},
 		};
@@ -670,38 +623,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			agent.subscribeEvents(agentConfig.onEvent);
 		}
 		runtime.registerLeadAgent?.(agent);
-		const rootAgentIdentity = buildTelemetryAgentIdentity({
-			agentId: agent.getAgentId(),
-			conversationId: agent.getConversationId(),
-			teamId: runtime.teamRuntime?.getTeamId(),
-			teamName: runtime.teamRuntime?.getTeamName(),
-			teamRole: runtime.teamRuntime ? "lead" : undefined,
-		});
-		emitSessionCreationTelemetry(
-			configWithProvider,
-			sessionId,
-			wasSessionIdRequested,
-			workspacePath,
-			rootAgentIdentity,
-		);
-		if (rootAgentIdentity) {
-			captureAgentCreated(configWithProvider.telemetry, {
-				ulid: sessionId,
-				modelId: configWithProvider.modelId,
-				provider: configWithProvider.providerId,
-				...rootAgentIdentity,
-			});
-		}
-		if (runtime.teamRuntime) {
-			captureAgentTeamCreated(configWithProvider.telemetry, {
-				ulid: sessionId,
-				teamId: runtime.teamRuntime.getTeamId(),
-				teamName: runtime.teamRuntime.getTeamName(),
-				leadAgentId: agent.getAgentId(),
-				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
-			});
-		}
-
 		const active: ActiveSession = {
 			sessionId,
 			config: configWithProvider,
@@ -795,18 +716,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			if (active.interactive && active.aborting) {
 				result = await this.completeAbortedInteractiveTurn(active);
 			} else {
-				captureSdkError(active.config.telemetry, {
-					component: "core",
-					operation: "session.start",
-					error,
-					severity: "error",
-					handled: false,
-					context: {
-						sessionId: active.sessionId,
-						providerId: active.config.providerId,
-						modelId: active.config.modelId,
-					},
-				});
 				try {
 					await this.failSession(active);
 				} catch (cleanupError) {
@@ -862,16 +771,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const delivery =
 			input.delivery ??
 			(session.interactive && !canStartRun ? ("queue" as const) : undefined);
-		session.config.telemetry?.capture({
-			event: "session.input_sent",
-			properties: {
-				sessionId: input.sessionId,
-				promptLength: input.prompt.length,
-				userImageCount: input.userImages?.length ?? 0,
-				userFileCount: input.userFiles?.length ?? 0,
-				delivery: delivery ?? "immediate",
-			},
-		});
 		if (delivery === "queue" || delivery === "steer") {
 			this.pendingPromptsController.enqueue(input.sessionId, {
 				prompt: input.prompt,
@@ -908,18 +807,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			if (session.interactive && session.aborting) {
 				return await this.completeAbortedInteractiveTurn(session);
 			}
-			captureSdkError(session.config.telemetry, {
-				component: "core",
-				operation: "session.submit",
-				error,
-				severity: "error",
-				handled: false,
-				context: {
-					sessionId: session.sessionId,
-					providerId: session.config.providerId,
-					modelId: session.config.modelId,
-				},
-			});
 			await this.failSession(session);
 			throw error;
 		}
@@ -938,10 +825,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
-		session.config.telemetry?.capture({
-			event: "session.aborted",
-			properties: { sessionId },
-		});
 		session.aborting = true;
 		this.pendingPromptsController.clearAborted(session);
 		session.agent.abort(reason);
@@ -950,10 +833,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async stopSession(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
-		session.config.telemetry?.capture({
-			event: "session.stopped",
-			properties: { sessionId },
-		});
 		if (session.interactive && !isNonTerminalSessionStatus(session.status)) {
 			await this.releaseSessionRuntime(session, "session_stop");
 			return;
@@ -1554,21 +1433,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.turnAggregateUsageBaseline = aggregateUsageBaseline;
 		session.turnPrimaryUsage = createInitialAccumulatedUsage();
 		session.turnUsageByAgent = new Map<string, SessionAccumulatedUsage>();
-
-		captureModeSwitch(
-			session.config.telemetry,
-			session.sessionId,
-			session.config.mode,
-		);
-		captureConversationTurnEvent(session.config.telemetry, {
-			ulid: session.sessionId,
-			provider: session.config.providerId,
-			model: session.config.modelId,
-			source: "user",
-			mode: session.config.mode,
-			...this.getSessionAgentTelemetryIdentity(session),
-		});
-
 		try {
 			const runFn = shouldContinue
 				? () => session.agent.continue(prompt, userImages, userFiles)
@@ -1615,18 +1479,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.observeTaskCompletionTool(session, result);
 			return result;
 		} catch (error) {
-			captureSdkError(session.config.telemetry, {
-				component: "core",
-				operation: "session.turn",
-				error,
-				severity: "error",
-				handled: false,
-				context: {
-					sessionId: session.sessionId,
-					providerId: session.config.providerId,
-					modelId: session.config.modelId,
-				},
-			});
 			await this.invoke<void>(
 				"persistSessionMessages",
 				session.sessionId,
@@ -1643,8 +1495,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	/**
-	 * Anchor `task.completed` telemetry to the assistant's explicit
-	 * completion declaration. We emit at most once per session, the moment
+	 * Detect the assistant's explicit completion declaration. This occurs
+	 * at most once per session, the moment
 	 * a successful `submit_and_exit` tool call is observed in the run
 	 * result. This is the SDK analog of original Cline's
 	 * `attempt_completion`-driven emission and works for both interactive
@@ -1652,7 +1504,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 *
 	 * `shutdownSession(...)` retains a fallback emission for completed
 	 * sessions that finish without an explicit completion-tool observation
-	 * (e.g., non-interactive runs not using the yolo preset). This helper
+	 * (e.g., non-interactive runs). This helper
 	 * sets `submitAndExitObserved` so the shutdown fallback can suppress a
 	 * duplicate emission for the same logical completion.
 	 */
@@ -1668,15 +1520,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		if (!completedWithSubmitAndExit) return;
 		session.submitAndExitObserved = true;
-		captureTaskCompleted(session.config.telemetry, {
-			ulid: session.sessionId,
-			provider: session.config.providerId,
-			modelId: session.config.modelId,
-			mode: session.config.mode,
-			durationMs: Date.now() - Date.parse(session.startedAt),
-			source: "submit_and_exit",
-			...this.getSessionAgentTelemetryIdentity(session),
-		});
 	}
 
 	private async prepareTurnInput(
@@ -1705,8 +1548,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			normalizedPrompt,
 			mentionBaseDir,
 		);
-		emitMentionTelemetry(session.config.telemetry, enriched);
-
 		const prompt = formatModePrompt(
 			enriched.prompt,
 			input.mode ?? session.config.mode,
@@ -1870,15 +1711,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// observer in `executeAgentTurn(...)` already emitted the event in
 		// that case, so we suppress here to avoid double-counting.
 		if (input.status === "completed" && !session.submitAndExitObserved) {
-			captureTaskCompleted(session.config.telemetry, {
-				ulid: session.sessionId,
-				provider: session.config.providerId,
-				modelId: session.config.modelId,
-				mode: session.config.mode,
-				durationMs: Date.now() - Date.parse(session.startedAt),
-				source: "shutdown",
-				...this.getSessionAgentTelemetryIdentity(session),
-			});
 		}
 		notifyTeamRunWaiters(session);
 
@@ -1890,21 +1722,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				stage,
 				error,
 				severity: "warn",
-			});
-			captureSdkError(session.config.telemetry, {
-				component: "core",
-				operation: "session.shutdown_cleanup",
-				error,
-				severity: "warn",
-				handled: true,
-				context: {
-					sessionId: session.sessionId,
-					stage,
-					status: input.status,
-					shutdownReason: input.shutdownReason,
-					providerId: session.config.providerId,
-					modelId: session.config.modelId,
-				},
 			});
 		};
 
@@ -1957,20 +1774,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				stage,
 				error,
 				severity: "warn",
-			});
-			captureSdkError(session.config.telemetry, {
-				component: "core",
-				operation: "session.runtime_cleanup",
-				error,
-				severity: "warn",
-				handled: true,
-				context: {
-					sessionId: session.sessionId,
-					stage,
-					reason,
-					providerId: session.config.providerId,
-					modelId: session.config.modelId,
-				},
 			});
 		};
 
@@ -2039,17 +1842,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
 			const error = new SessionNotFoundError(sessionId);
-			captureSdkError(this.defaultTelemetry, {
-				component: "core",
-				operation: "session.active_lookup",
-				error,
-				severity: "warn",
-				handled: true,
-				context: {
-					sessionId,
-					activeSessionCount: this.sessions.size,
-				},
-			});
 			throw error;
 		}
 		return session;
@@ -2062,16 +1854,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			.filter((p) => p.length > 0)
 			.map((p) => (isAbsolute(p) ? p : resolve(cwd, p)));
 		return Array.from(new Set(resolved));
-	}
-
-	private getSessionAgentTelemetryIdentity(session: ActiveSession) {
-		return buildTelemetryAgentIdentity({
-			agentId: session.agent.getAgentId(),
-			conversationId: session.agent.getConversationId(),
-			teamId: session.runtime.teamRuntime?.getTeamId(),
-			teamName: session.runtime.teamRuntime?.getTeamName(),
-			teamRole: session.runtime.teamRuntime ? "lead" : undefined,
-		});
 	}
 
 	private async seedAggregateUsageFromArtifacts(input: {

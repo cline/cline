@@ -9,7 +9,6 @@ import type {
 	GatewayModelSelection,
 	GatewayProviderRegistration,
 	GatewayStreamRequest,
-	ITelemetryService,
 } from "@cline/shared";
 import { estimateRequestInputTokens } from "@cline/shared";
 import { toAsyncIterable } from "./async";
@@ -183,12 +182,10 @@ export function resolveGatewayRequestMaxTokens(input: {
 export class DefaultGateway implements Gateway {
 	private readonly registry: GatewayRegistry;
 	private readonly logger: BasicLogger | undefined;
-	private readonly telemetry: ITelemetryService | undefined;
 
 	constructor(config: GatewayConfig = {}) {
 		this.registry = new GatewayRegistry();
 		this.logger = config.logger;
-		this.telemetry = config.telemetry;
 
 		if (config.builtins !== false) {
 			const builtins = new Set(
@@ -283,7 +280,6 @@ export class DefaultGateway implements Gateway {
 				config: providerRecord.config,
 				signal: request.signal,
 				logger: this.logger,
-				telemetry: this.telemetry,
 			},
 		);
 

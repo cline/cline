@@ -22,7 +22,6 @@ const webhookHooksMock = () => ({
 mock.module("@/services/lg-cns-integration/webhook-hooks", webhookHooksMock)
 mock.module("@services/lg-cns-integration/webhook-hooks", webhookHooksMock)
 
-import { ErrorService } from "../error"
 import { SharedUriHandler } from "./SharedUriHandler"
 
 describe("SharedUriHandler", () => {
@@ -37,21 +36,6 @@ describe("SharedUriHandler", () => {
 		// Mock Logger methods to avoid HostProvider dependency
 		sandbox.stub(Logger, "info").returns()
 		sandbox.stub(Logger, "error").returns()
-		// Mock ErrorService to avoid telemetry dependency
-		const mockErrorService = {
-			logMessage: sandbox.stub(),
-			logException: sandbox.stub(),
-			toClineError: sandbox.stub(),
-			isEnabled: sandbox.stub().returns(false),
-			getSettings: sandbox.stub().returns({ enabled: false, hostEnabled: false }),
-			getProvider: sandbox.stub(),
-			dispose: sandbox.stub().resolves(),
-		}
-		sandbox.stub(ErrorService, "initialize").resolves(mockErrorService as any)
-		sandbox.stub(ErrorService, "get").returns(mockErrorService as any)
-
-		await ErrorService.initialize()
-
 		handleOpenRouterCallbackStub = sandbox.stub().resolves()
 		handleAuthCallbackStub = sandbox.stub().resolves()
 		handleTaskCreationStub = sandbox.stub().resolves()
@@ -93,30 +77,6 @@ describe("SharedUriHandler", () => {
 				sinon.assert.calledOnceWithExactly(handleOpenRouterCallbackStub, "test+123+abc")
 			})
 		})
-
-		describe("Auth callback handling", () => {
-			it("should successfully handle auth callback with idToken", async () => {
-				const result = await SharedUriHandler.handleUri("vscode://cline.cline/auth?idToken=jwt123&provider=google")
-
-				expect(result).to.be.true
-				sinon.assert.calledOnceWithExactly(handleAuthCallbackStub, "jwt123", "google")
-			})
-
-			it("should successfully handle auth callback without provider", async () => {
-				const result = await SharedUriHandler.handleUri("vscode://cline.cline/auth?idToken=jwt123")
-
-				expect(result).to.be.true
-				sinon.assert.calledOnceWithExactly(handleAuthCallbackStub, "jwt123", null)
-			})
-
-			it("should return false when idToken is missing", async () => {
-				const result = await SharedUriHandler.handleUri("vscode://cline.cline/auth?provider=google")
-
-				expect(result).to.be.false
-				expect(handleAuthCallbackStub.called).to.be.false
-			})
-		})
-
 		describe("Unknown path handling", () => {
 			it("should return false for unknown paths", async () => {
 				const result = await SharedUriHandler.handleUri("vscode://cline.cline/unknown?param=value")

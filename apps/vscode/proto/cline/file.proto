@@ -201,17 +201,18 @@ message RuleFile {
   bool already_exists = 3; // For createRuleFile, indicates if file already existed
 }
 
-// Enum for rule scope (local, global, or remote)
+// Enum for local and global rule scope.
 enum RuleScope {
   LOCAL = 0;
   GLOBAL = 1;
-  REMOTE = 2;
+  reserved 2;
+  reserved "REMOTE";
 }
 
 // Request to toggle a Cline rule
 message ToggleClineRuleRequest {
   Metadata metadata = 1;
-  RuleScope scope = 2; // Scope of the rule (local, global, or remote)
+  RuleScope scope = 2; // Scope of the rule (local or global)
   string rule_path = 3; // Path to the rule file
   bool enabled = 4; // Whether to enable or disable the rule
 }
@@ -225,7 +226,7 @@ message ClineRulesToggles {
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
-  ClineRulesToggles remote_rules_toggles = 3;
+  reserved 3; // was remote_rules_toggles
 }
 
 // Request to toggle a Cursor rule
@@ -240,7 +241,7 @@ message ToggleWorkflowRequest {
   Metadata metadata = 1;
   string workflow_path = 2;
   bool enabled = 3;
-  RuleScope scope = 4; // Scope of the workflow (local, global, or remote)
+  RuleScope scope = 4; // Scope of the workflow (local or global)
 }
 
 // Maps from hook name to enabled/disabled status
@@ -305,9 +306,9 @@ message DeleteHookResponse {
 message SkillInfo {
   string name = 1; // Name of the skill (matches directory name)
   string description = 2; // Description from SKILL.md frontmatter
-  string path = 3; // Full path to SKILL.md file (or "remote:<name>" for remote skills)
+  string path = 3; // Full path to SKILL.md file
   bool enabled = 4; // Whether the skill is enabled
-  bool always_enabled = 5; // Whether the skill is always enabled (remote only, user cannot toggle off)
+  reserved 5; // was always_enabled
 }
 
 // Response for refreshSkills operation
@@ -320,7 +321,7 @@ message RefreshedSkills {
 message SkillsToggles {
   map<string, bool> global_skills_toggles = 1;
   map<string, bool> local_skills_toggles = 2;
-  map<string, bool> remote_skills_toggles = 3;
+  reserved 3; // was remote_skills_toggles
 }
 
 // Request to toggle a skill

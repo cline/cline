@@ -3,7 +3,6 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
-import { setDistinctId } from "@/services/logging/distinctId"
 import { HookFactory } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
@@ -22,7 +21,6 @@ describe("Hook System", () => {
 	beforeEach(async () => {
 		if (process.platform === "win32") {
 		}
-		setDistinctId("test-id")
 		hookTestEnv = await createHookTestEnv()
 		tempDir = hookTestEnv.tempDir
 		sandbox = hookTestEnv.sandbox

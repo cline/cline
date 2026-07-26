@@ -23,8 +23,7 @@
 // bun's ESM linker statically validates every named import against the names on
 // the mock namespace. The stub only implements the @cline/core exports these
 // tests exercise, but other modules in the import graph statically import
-// additional names (e.g. `prepareRemoteConfigCoreIntegration`, `ClineCore`,
-// `createMcpTools`); a missing name is a hard "Export named 'X' not found" link
+// additional names; a missing name is a hard "Export named 'X' not found" link
 // error. So we seed the mock namespace with every name the real @cline/core
 // exports (value `undefined`) and overlay the stub on top: stub names keep stub
 // behavior, every other valid import links as `undefined`.
@@ -34,7 +33,6 @@
 // its export *names*, never its behavior (the mock shadows it everywhere tests look).
 import { beforeEach as bunBeforeEach, vi as bunVi, mock } from "bun:test"
 import * as realClineCore from "@cline/core"
-import * as LlmsModels from "@cline/llms"
 import * as clineCoreStub from "./cline-core-vitest-stub"
 import * as vscodeStub from "./vscode-vitest-stub"
 
@@ -46,9 +44,6 @@ Object.assign(clineCoreNamespace, clineCoreStub)
 
 bunBeforeEach(() => {
 	clineCoreStub.resetModelsFileState()
-	// The stub's syncStoredProviderRegistration mutates the real shared
-	// @cline/llms registry; reset it so registrations never leak across tests.
-	LlmsModels.resetRegistry()
 })
 
 mock.module("@cline/core", () => clineCoreNamespace)

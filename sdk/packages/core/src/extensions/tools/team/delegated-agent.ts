@@ -5,7 +5,6 @@ import type {
 	AgentTool,
 	BasicLogger,
 	HookErrorMode,
-	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
@@ -44,7 +43,6 @@ export interface DelegatedAgentRuntimeConfig
 	hooks?: AgentHooks;
 	extensions?: AgentExtension[];
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 	workspaceMetadata?: string;
 }
 

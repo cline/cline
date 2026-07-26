@@ -7,7 +7,6 @@ import type {
 	AgentConfig,
 	AgentModel,
 	BasicLogger,
-	ITelemetryService,
 	ModelInfo,
 } from "@cline/shared";
 
@@ -21,7 +20,6 @@ export function resolveKnownModelsFromConfig(
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
-	_telemetry?: ITelemetryService,
 ): AgentModel {
 	const configured = config.providerConfig as ProviderConfig | undefined;
 	const providerConfig: ProviderConfig = {

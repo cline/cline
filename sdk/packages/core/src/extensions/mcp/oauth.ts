@@ -17,7 +17,7 @@ import {
 	type OAuthServerCloseInfo,
 	type OAuthServerListeningInfo,
 	startLocalOAuthServer,
-} from "../../auth/server";
+} from "./oauth-server";
 import {
 	getMcpServerOAuthState,
 	normalizeMcpServerOAuthState,

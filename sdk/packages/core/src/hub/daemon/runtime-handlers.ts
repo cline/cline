@@ -2,8 +2,7 @@ import { normalizeProviderId } from "@cline/llms";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
-	ChatTurnResult,
-	ITelemetryService,
+	ChatTurnResult
 } from "@cline/shared";
 import type {
 	HubScheduleRuntimeHandlers,
@@ -51,12 +50,8 @@ function toChatTurnResult(result: {
 
 function resolveMode(
 	request: ChatStartSessionRequest | ChatRunTurnRequest["config"],
-): "act" | "plan" | "yolo" {
-	return request.mode === "plan"
-		? "plan"
-		: request.mode === "yolo"
-			? "yolo"
-			: "act";
+): "act" | "plan" {
+	return request.mode === "plan" ? "plan" : "act";
 }
 
 export interface CreateLocalHubScheduleRuntimeHandlersOptions
@@ -67,7 +62,6 @@ export interface CreateLocalHubScheduleRuntimeHandlersOptions
 	 * scheduled session executed inside this hub process.
 	 */
 	fetch?: typeof fetch;
-	telemetry?: ITelemetryService;
 }
 
 export function createLocalHubScheduleRuntimeHandlers(
@@ -81,8 +75,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 				submit: submitScheduledRun,
 			},
 		},
-		fetch: options.fetch,
-		telemetry: options.telemetry,
+		fetch: options.fetch
 	});
 
 	return {
@@ -109,7 +102,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 				},
 				toolPolicies: request.toolPolicies ?? {
 					"*": {
-						autoApprove: request.autoApproveTools !== false,
+						autoApprove: false,
 					},
 				},
 				localRuntime: {

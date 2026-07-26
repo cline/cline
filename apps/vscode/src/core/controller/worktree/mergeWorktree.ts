@@ -2,7 +2,6 @@ import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/w
 import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import simpleGit from "simple-git"
-import { telemetryService } from "@/services/telemetry"
 import { Controller } from ".."
 
 /**
@@ -140,8 +139,6 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 					} catch {
 						// Ignore abort errors
 					}
-
-					telemetryService.captureWorktreeMergeAttempted(false, true, deleteAfterMerge)
 					return MergeWorktreeResult.create({
 						success: false,
 						message: `Merge conflict detected. ${conflictingFiles.length} file(s) have conflicts.`,
@@ -156,7 +153,6 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 			}
 
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			telemetryService.captureWorktreeMergeAttempted(false, false, deleteAfterMerge)
 			return MergeWorktreeResult.create({
 				success: false,
 				message: `Merge failed: ${errorMessage}`,
@@ -191,8 +187,6 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 				// Branch deletion is optional, don't fail if it doesn't work
 			}
 		}
-
-		telemetryService.captureWorktreeMergeAttempted(true, false, deleteAfterMerge)
 		return MergeWorktreeResult.create({
 			success: true,
 			message: deleteAfterMerge

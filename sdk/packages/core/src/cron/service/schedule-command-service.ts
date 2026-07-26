@@ -158,7 +158,7 @@ export class HubScheduleCommandService {
 	private toCreateInput(
 		payload: Record<string, unknown>,
 	): HubScheduleCreateInput {
-		const mode = readHubScheduleMode(payload, "yolo");
+		const mode = readHubScheduleMode(payload, "act");
 		const modelSelection =
 			payload.modelSelection &&
 			typeof payload.modelSelection === "object" &&

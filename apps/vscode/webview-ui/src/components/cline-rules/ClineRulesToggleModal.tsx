@@ -41,7 +41,6 @@ const ClineRulesToggleModal: React.FC = () => {
 		setGlobalWorkflowToggles,
 		setGlobalSkillsToggles,
 		setLocalSkillsToggles,
-		setRemoteRulesToggles,
 	} = useExtensionState()
 	const [globalHooks, setGlobalHooks] = useState<Array<{ name: string; enabled: boolean; absolutePath: string }>>([])
 	const [workspaceHooks, setWorkspaceHooks] = useState<
@@ -204,17 +203,6 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	const remoteRules: Array<{
-		name: string
-		enabled: boolean
-		locked: boolean
-		description?: string
-		toggle: (path: string, enabled: boolean) => void
-	}> = []
-	const remoteSkills: typeof remoteRules = []
-	const hasRemoteRules = remoteRules.length > 0
-	const hasRemoteSkills = remoteSkills.length > 0
-
 	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
 		FileServiceClient.toggleClineRule(
@@ -231,9 +219,6 @@ const ClineRulesToggleModal: React.FC = () => {
 				}
 				if (response.localClineRulesToggles?.toggles) {
 					setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
-				}
-				if (response.remoteRulesToggles?.toggles) {
-					setRemoteRulesToggles(response.remoteRulesToggles.toggles)
 				}
 			})
 			.catch((error) => {
@@ -408,18 +393,6 @@ const ClineRulesToggleModal: React.FC = () => {
 							</div>
 						</div>
 
-						{/* Remote config banner */}
-						{(currentView === "rules" && hasRemoteRules) || (currentView === "skills" && hasRemoteSkills) ? (
-							<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
-								<i className="codicon codicon-lock text-sm" />
-								<span className="text-base">
-									{currentView === "rules"
-										? "Your organization manages some rules"
-										: "Your organization manages some skills"}
-								</span>
-							</div>
-						) : null}
-
 						{/* Description text */}
 						<div className="text-xs text-description mb-4">
 							{currentView === "rules" ? (
@@ -452,30 +425,6 @@ const ClineRulesToggleModal: React.FC = () => {
 					<div className="flex-1 overflow-y-auto px-3 pb-3" style={{ minHeight: 0 }}>
 						{currentView === "rules" ? (
 							<>
-								{/* Remote Rules Section */}
-								{hasRemoteRules && (
-									<div className="mb-3">
-										<div className="text-sm font-normal mb-2">Enterprise Rules</div>
-										<div className="flex flex-col gap-0">
-											{remoteRules.map((rule) => {
-												const enabled = rule.locked || rule.enabled
-												return (
-													<RuleRow
-														alwaysEnabled={rule.locked}
-														enabled={enabled}
-														isGlobal={false}
-														isRemote={true}
-														key={rule.name}
-														rulePath={rule.name}
-														ruleType="cline"
-														toggleRule={rule.toggle}
-													/>
-												)
-											})}
-										</div>
-									</div>
-								)}
-
 								{/* Global Rules Section */}
 								<div className="mb-3">
 									<div className="text-sm font-normal mb-2">Global Rules</div>
@@ -636,32 +585,6 @@ const ClineRulesToggleModal: React.FC = () => {
 							</>
 						) : currentView === "skills" ? (
 							<>
-								{/* Enterprise Skills Section (remote) */}
-								{hasRemoteSkills && (
-									<div className="mb-3">
-										<div className="text-sm font-normal mb-2">Enterprise Skills</div>
-										<div className="flex flex-col gap-0">
-											{remoteSkills
-												.sort((a, b) => a.name.localeCompare(b.name))
-												.map((skill) => {
-													const enabled = skill.locked || skill.enabled
-													return (
-														<RuleRow
-															alwaysEnabled={skill.locked}
-															enabled={enabled}
-															isGlobal={true}
-															isRemote={true}
-															key={skill.name}
-															rulePath={skill.name}
-															ruleType="skill"
-															toggleRule={skill.toggle}
-														/>
-													)
-												})}
-										</div>
-									</div>
-								)}
-
 								{/* Global Skills Section */}
 								<div className="mb-3">
 									<div className="text-sm font-normal mb-2">Global Skills</div>

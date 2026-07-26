@@ -1,18 +1,15 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
-import { RemoteConfigFields } from "@shared/storage/state-keys"
-import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
-import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { ClineRulesToggles } from "./cline-rules"
+import type { Environment } from "./config-types"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
 import { Mode } from "./storage/types"
-import { TelemetrySetting } from "./TelemetrySetting"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -73,15 +70,12 @@ export interface ExtensionState {
 	 */
 	epoch?: number
 	currentTaskItem?: HistoryItem
-	mcpMarketplaceEnabled?: boolean
 	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
 	environment?: Environment
-	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
-	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
 	maxConsecutiveMistakes: number
@@ -96,39 +90,32 @@ export interface ExtensionState {
 	foregroundCommandRunning?: boolean
 	lastCompletedCommandTs?: number
 	version: string
-	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
 	localWorkflowToggles: ClineRulesToggles
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
-	remoteRulesToggles?: ClineRulesToggles
-	remoteWorkflowToggles?: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
-	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
 	subagentsEnabled?: boolean
-	worktreesEnabled?: ClineFeatureSetting
+	worktreesEnabled?: boolean
 	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number
 	isMultiRootWorkspace: boolean
-	multiRootSetting: ClineFeatureSetting
+	multiRootSetting: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
-	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
-	remoteConfigSettings?: Partial<RemoteConfigFields>
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	backgroundEditEnabled?: boolean
-	optOutOfRemoteConfig?: boolean
 	showFeatureTips?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }

@@ -12,11 +12,6 @@ import type {
 	ToolPolicy,
 } from "./llms/tools";
 import type { BasicLogger } from "./logging/logger";
-import type { ITelemetryService } from "./services/telemetry";
-
-// =============================================================================
-// Lightweight telemetry surface used by AgentRuntime
-// =============================================================================
 
 // =============================================================================
 // Message parts
@@ -408,7 +403,7 @@ export interface AgentRuntimeConfig {
 	/**
 	 * Agent conversation/transcript identifier.
 	 *
-	 * Used by the stateless agent loop, tools, hooks, telemetry, and model
+	 * Used by the stateless agent loop, tools, hooks, and model
 	 * history correlation. This id follows the current conversation store and
 	 * should not be used as the hub/session routing key.
 	 */
@@ -424,7 +419,6 @@ export interface AgentRuntimeConfig {
 	hooks?: Partial<AgentRuntimeHooks>;
 	plugins?: readonly AgentRuntimePlugin[];
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 	initialMessages?: readonly AgentMessage[];
 	maxIterations?: number;
 	completionPolicy?: {

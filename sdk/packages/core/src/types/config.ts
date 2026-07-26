@@ -9,7 +9,6 @@ import type {
 	ConsecutiveMistakeLimitDecision,
 	ExtensionContext,
 	HookErrorMode,
-	ITelemetryService,
 	MessageWithMetadata,
 	SessionExecutionConfig,
 	SessionPromptConfig,
@@ -56,7 +55,6 @@ export interface CoreRuntimeFeatures {
 	enableSpawnAgent: boolean;
 	enableAgentTeams: boolean;
 	disableMcpSettingsTools?: boolean;
-	yolo?: boolean;
 }
 
 export type CoreCompactionMode = "auto" | "manual";
@@ -261,7 +259,6 @@ export interface CoreSessionConfig
 	hooks?: AgentHooks;
 	hookErrorMode?: HookErrorMode;
 	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
 	extensionContext?: ExtensionContext;
 	extraTools?: AgentTool[];
 	pluginPaths?: string[];

@@ -1,6 +1,5 @@
 import { getFileMentionFromPath } from "@/core/mentions"
 import { HostProvider } from "@/hosts/host-provider"
-import { telemetryService } from "@/services/telemetry"
 import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
@@ -31,7 +30,5 @@ export async function explainWithCline(
 	}
 
 	await controller.initTask(prompt)
-	telemetryService.captureButtonClick("codeAction_explainCode", controller.task?.ulid)
-
 	return {}
 }

@@ -19,7 +19,7 @@ export interface CronSpecModelSelection {
 	modelId?: string;
 }
 
-export type CronSpecMode = "act" | "plan" | "yolo";
+export type CronSpecMode = "act" | "plan";
 export type CronSpecExtensionKind = "rules" | "skills" | "plugins";
 
 export interface CronSpecCommonFields {

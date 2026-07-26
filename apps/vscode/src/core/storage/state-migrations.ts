@@ -4,6 +4,86 @@ import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists } from "./disk"
 
+const ACCOUNT_CLEANUP_MIGRATION_KEY = "phase4AccountCleanupComplete"
+
+const CLINE_ACCOUNT_SECRET_KEYS = [
+	"accessToken",
+	"authToken",
+	"clineAccountId",
+	"clineApiKey",
+	"clineAuthToken",
+	"clinePassToken",
+	"clineRefreshToken",
+	"idToken",
+	"ocaAccessToken",
+	"ocaCredentials",
+	"ocaRefreshToken",
+	"refreshToken",
+] as const
+
+const CLINE_ACCOUNT_STATE_KEYS = [
+	"activeOrganizationId",
+	"billingState",
+	"clineAccountId",
+	"clinePassEnabled",
+	"clinePassState",
+	"creditBalance",
+	"credits",
+	"isLoggedIn",
+	"organizationId",
+	"organizationName",
+	"subscription",
+	"userInfo",
+] as const
+
+const ACCOUNT_TASK_DEFAULT_FIELDS = new Set([
+	"accountId",
+	"activeOrganizationId",
+	"billingState",
+	"clineAccountId",
+	"clinePassEnabled",
+	"creditBalance",
+	"organizationId",
+	"refreshToken",
+	"subscription",
+])
+
+function withoutAccountTaskDefaults(value: unknown): unknown {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return value
+	}
+
+	return Object.fromEntries(Object.entries(value).filter(([key]) => !ACCOUNT_TASK_DEFAULT_FIELDS.has(key)))
+}
+
+/**
+ * Removes legacy Cline-hosted account state without touching Bedrock settings,
+ * MCP OAuth, history, checkpoints, worktrees, or conversation data.
+ */
+export async function cleanupClineAccountState(context: vscode.ExtensionContext): Promise<void> {
+	if (context.globalState.get<boolean>(ACCOUNT_CLEANUP_MIGRATION_KEY)) {
+		return
+	}
+
+	try {
+		await Promise.all(CLINE_ACCOUNT_SECRET_KEYS.map((key) => context.secrets.delete(key)))
+		await Promise.all(CLINE_ACCOUNT_STATE_KEYS.map((key) => context.globalState.update(key, undefined)))
+
+		for (const key of ["taskDefaults", "defaultTaskSettings", "taskSettings"]) {
+			const current = context.globalState.get<unknown>(key)
+			const cleaned = withoutAccountTaskDefaults(current)
+			if (cleaned !== current) {
+				await context.globalState.update(key, cleaned)
+			}
+		}
+
+		await context.globalState.update(ACCOUNT_CLEANUP_MIGRATION_KEY, true)
+		Logger.info("[Storage Migration] Removed legacy Cline account state")
+	} catch (error) {
+		Logger.error("[Storage Migration] Failed to remove legacy Cline account state", error)
+	}
+}
+
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
 	const keysToMigrate = [
@@ -12,39 +92,19 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"apiModelId",
 		"thinkingBudgetTokens",
 		"reasoningEffort",
-		"vsCodeLmModelSelector",
 
-		// Provider-specific model keys
+		// Bedrock model keys
 		"awsBedrockCustomSelected",
 		"awsBedrockCustomModelBaseId",
-		"openRouterModelId",
-		"openRouterModelInfo",
-		"openAiModelId",
-		"openAiModelInfo",
-		"ollamaModelId",
-		"lmStudioModelId",
-		"liteLlmModelId",
-		"liteLlmModelInfo",
-		"requestyModelId",
-		"requestyModelInfo",
-		"togetherModelId",
-		"fireworksModelId",
-		"sapAiCoreModelId",
-		"groqModelId",
-		"groqModelInfo",
-		"huggingFaceModelId",
-		"huggingFaceModelInfo",
 
 		// Previous mode settings
 		"previousModeApiProvider",
 		"previousModeModelId",
 		"previousModeModelInfo",
-		"previousModeVsCodeLmModelSelector",
 		"previousModeThinkingBudgetTokens",
 		"previousModeReasoningEffort",
 		"previousModeAwsBedrockCustomSelected",
 		"previousModeAwsBedrockCustomModelBaseId",
-		"previousModeSapAiCoreModelId",
 	]
 
 	for (const key of keysToMigrate) {
@@ -117,117 +177,18 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 
 export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext) {
 	try {
-		// Check if welcomeViewCompleted is already set
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted")
 
 		if (welcomeViewCompleted === undefined) {
 			Logger.log("Migrating welcomeViewCompleted setting...")
-
-			// Fetch API keys directly from secrets
-			const apiKey = await context.secrets.get("apiKey")
-			const openRouterApiKey = await context.secrets.get("openRouterApiKey")
-			const clineAccountId = await context.secrets.get("clineAccountId")
-			const openAiApiKey = await context.secrets.get("openAiApiKey")
-			const ollamaApiKey = await context.secrets.get("ollamaApiKey")
-			const liteLlmApiKey = await context.secrets.get("liteLlmApiKey")
-			const geminiApiKey = await context.secrets.get("geminiApiKey")
-			const openAiNativeApiKey = await context.secrets.get("openAiNativeApiKey")
-			const deepSeekApiKey = await context.secrets.get("deepSeekApiKey")
-			const requestyApiKey = await context.secrets.get("requestyApiKey")
-			const togetherApiKey = await context.secrets.get("togetherApiKey")
-			const qwenApiKey = await context.secrets.get("qwenApiKey")
-			const doubaoApiKey = await context.secrets.get("doubaoApiKey")
-			const mistralApiKey = await context.secrets.get("mistralApiKey")
-			const asksageApiKey = await context.secrets.get("asksageApiKey")
-			const xaiApiKey = await context.secrets.get("xaiApiKey")
-			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
-			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
-			const difyApiKey = await context.secrets.get("difyApiKey")
-			const hicapApiKey = await context.secrets.get("hicapApiKey")
-			// OpenAI Codex OAuth credentials
-			const openAiCodexCredentials = await context.secrets.get("openai-codex-oauth-credentials")
-
-			// Fetch configuration values from global state
-			const awsRegion = context.globalState.get("awsRegion")
-			const vertexProjectId = context.globalState.get("vertexProjectId")
-			const planModeOllamaModelId = context.globalState.get("planModeOllamaModelId")
-			const planModeLmStudioModelId = context.globalState.get("planModeLmStudioModelId")
-			const actModeOllamaModelId = context.globalState.get("actModeOllamaModelId")
-			const actModeLmStudioModelId = context.globalState.get("actModeLmStudioModelId")
-			const planModeVsCodeLmModelSelector = context.globalState.get("planModeVsCodeLmModelSelector")
-			const actModeVsCodeLmModelSelector = context.globalState.get("actModeVsCodeLmModelSelector")
-
-			// This is the original logic used for checking if the welcome view should be shown
-			// It was located in the ExtensionStateContextProvider
-			const hasKey = [
-				apiKey,
-				openRouterApiKey,
-				awsRegion,
-				vertexProjectId,
-				openAiApiKey,
-				ollamaApiKey,
-				planModeOllamaModelId,
-				planModeLmStudioModelId,
-				actModeOllamaModelId,
-				actModeLmStudioModelId,
-				liteLlmApiKey,
-				geminiApiKey,
-				openAiNativeApiKey,
-				deepSeekApiKey,
-				requestyApiKey,
-				togetherApiKey,
-				qwenApiKey,
-				doubaoApiKey,
-				mistralApiKey,
-				planModeVsCodeLmModelSelector,
-				actModeVsCodeLmModelSelector,
-				clineAccountId,
-				asksageApiKey,
-				xaiApiKey,
-				sambanovaApiKey,
-				sapAiCoreClientId,
-				difyApiKey,
-				hicapApiKey,
-				openAiCodexCredentials,
-			].some((key) => key !== undefined)
-
-			// Set welcomeViewCompleted based on whether user has keys
-			await context.globalState.update("welcomeViewCompleted", hasKey)
-
-			Logger.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
+			const hasBedrockConnection = ["awsRegion", "awsProfile", "awsBedrockEndpoint"].some(
+				(key) => context.globalState.get(key) !== undefined,
+			)
+			await context.globalState.update("welcomeViewCompleted", hasBedrockConnection)
+			Logger.log(`Migration: Set welcomeViewCompleted to ${hasBedrockConnection} from Bedrock settings`)
 		}
 	} catch (error) {
 		Logger.error("Failed to migrate welcomeViewCompleted:", error)
 		// Continue execution - migration failure shouldn't break extension startup
-	}
-}
-
-export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscode.ExtensionContext) {
-	try {
-		// Check if mcpMarketplaceCatalog exists in global state
-		const mcpMarketplaceCatalog = await context.globalState.get("mcpMarketplaceCatalog")
-
-		if (mcpMarketplaceCatalog !== undefined) {
-			Logger.log("Cleaning up mcpMarketplaceCatalog from global state...")
-
-			// Delete it from global state
-			await context.globalState.update("mcpMarketplaceCatalog", undefined)
-
-			Logger.log("Successfully removed mcpMarketplaceCatalog from global state")
-		}
-	} catch (error) {
-		Logger.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
-		// Continue execution - cleanup failure shouldn't break extension startup
-	}
-}
-
-export async function cleanupOldApiKey(context: vscode.ExtensionContext) {
-	try {
-		// Old API Keys were introduced in March 2025 and later replaced with tokens
-		// Now that we have new API keys that are prefixed with `sk_`,
-		// we need to clean up the old ones to free the secret storage
-		await context.secrets.delete("clineApiKey")
-	} catch (error) {
-		Logger.error("Failed to cleanup old clineApiKey", error)
 	}
 }

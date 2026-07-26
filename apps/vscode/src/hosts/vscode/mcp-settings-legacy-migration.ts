@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { getDocumentsPath } from "@/core/storage/documents-path"
 import type * as vscode from "vscode"
+import { getDocumentsPath } from "@/core/storage/documents-path"
 import { updateMcpSettingsFile } from "@/services/mcp/settingsLock"
-import type { StorageContext } from "@/shared/storage/storage-context"
 import { Logger } from "@/shared/services/Logger"
+import type { StorageContext } from "@/shared/storage/storage-context"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { arePathsEqual } from "@/utils/path"
 
@@ -176,15 +176,6 @@ export function normalizeLegacyMcpServer(
 	}
 	if (typeof source.timeout === "number") {
 		normalized.timeout = source.timeout
-	}
-	if (typeof source.remoteConfigured === "boolean") {
-		normalized.remoteConfigured = source.remoteConfigured
-	}
-	// Remote-config sync historically keys URL-based remote servers by a top-level
-	// `url`. Keep that compatibility field on migrated remote-configured servers
-	// so the next sync does not delete/recreate them and lose user state.
-	if (source.remoteConfigured === true && typeof transport.url === "string") {
-		normalized.url = transport.url
 	}
 
 	const inlineOAuth = normalizeOauthState(source.oauth)

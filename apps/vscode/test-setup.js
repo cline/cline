@@ -41,22 +41,6 @@ Module.prototype.require = function (id) {
 	// extension host, so `require("@cline/core")` fails before tests start.
 	// Mock the small surface needed by legacy VS Code integration tests.
 	if (id === "@cline/core") {
-		const createNoopTelemetry = () => ({
-			setDistinctId() {},
-			setMetadata() {},
-			updateMetadata() {},
-			setCommonProperties() {},
-			updateCommonProperties() {},
-			isEnabled: () => false,
-			capture() {},
-			captureRequired() {},
-			recordCounter() {},
-			recordHistogram() {},
-			recordGauge() {},
-			flush: async () => {},
-			dispose: async () => {},
-		})
-
 		class ProviderSettingsManager {
 			constructor(_options) {
 				this.state = { providers: {}, lastUsedProvider: undefined }
@@ -77,57 +61,13 @@ Module.prototype.require = function (id) {
 			saveProviderSettings(_settings, _options) {}
 		}
 
-		const getProviderAuthStorageId = (providerId) => {
-			const normalized = String(providerId || "")
-				.trim()
-				.toLowerCase()
-			if (normalized === "cline" || normalized === "cline-pass") return "cline"
-			if (normalized === "oca" || normalized === "openai-codex") return normalized
-			return undefined
-		}
-		const formatClineApiKey = (token) => {
-			const trimmed = String(token || "").trim()
-			return trimmed.toLowerCase().startsWith("workos:") ? trimmed : `workos:${trimmed}`
-		}
-		const getProviderAuthHandler = (providerId) => {
-			const storageProviderId = getProviderAuthStorageId(providerId)
-			if (!storageProviderId) return undefined
-			return {
-				providerId,
-				storageProviderId,
-				getApiKey(settings) {
-					const accessToken = settings?.auth?.accessToken?.trim?.()
-					if (accessToken) return storageProviderId === "cline" ? formatClineApiKey(accessToken) : accessToken
-					return settings?.apiKey?.trim?.() || settings?.auth?.apiKey?.trim?.() || undefined
-				},
-			}
-		}
 		const resolveProviderApiKeyFromSettings = (manager, providerId) => {
-			const handler = getProviderAuthHandler(providerId)
-			const storageProviderId = handler?.storageProviderId ?? providerId
-			const settings = manager.getProviderSettings(storageProviderId)
-			return handler?.getApiKey(settings) ?? settings?.apiKey?.trim?.()
+			const settings = manager.getProviderSettings(providerId)
+			return settings?.apiKey?.trim?.()
 		}
 		const listLocalProviders = async (manager) => ({ providers: [], settingsPath: manager.getFilePath?.() ?? "" })
 
 		return {
-			createClineTelemetryServiceConfig: (config = {}) => ({
-				enabled: false,
-				metadata: {
-					extension_version: "test",
-					cline_type: "test",
-					platform: "test",
-					platform_version: "test",
-					os_type: "test",
-					os_version: "test",
-				},
-				...config,
-			}),
-			createConfiguredTelemetryHandle: () => ({
-				telemetry: createNoopTelemetry(),
-				flush: async () => {},
-				dispose: async () => {},
-			}),
 			ClineCore: class {
 				constructor() {
 					this.runtimeAddress = undefined
@@ -185,20 +125,11 @@ Module.prototype.require = function (id) {
 			listLocalProviders,
 			resolveProviderConfig: async () => undefined,
 			getProviderConfigFields: () => [],
-			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
-			readGlobalSettings: () => ({ telemetryOptOut: false }),
-			setTelemetryOptOutGlobally: () => undefined,
-			prepareRemoteConfigCoreIntegration: () => undefined,
+			readGlobalSettings: () => ({}),
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
-			getProviderAuthHandler,
-			getProviderAuthStorageId,
 			resolveProviderApiKeyFromSettings,
-			getValidClineCredentials: async () => undefined,
-			loginClineOAuth: async () => undefined,
-			loginOcaOAuth: async () => undefined,
-			loginOpenAICodex: async () => undefined,
 		}
 	}
 

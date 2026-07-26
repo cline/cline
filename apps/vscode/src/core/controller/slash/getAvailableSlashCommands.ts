@@ -24,9 +24,6 @@ export async function getAvailableSlashCommands(controller: Controller, _request
 	// Get workflow toggles from state
 	const localWorkflowToggles = controller.stateManager.getWorkspaceStateKey("workflowToggles") ?? {}
 	const globalWorkflowToggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles") ?? {}
-	const remoteWorkflowToggles = controller.stateManager.getGlobalStateKey("remoteWorkflowToggles") ?? {}
-	const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
-	const remoteWorkflows = remoteConfigSettings?.remoteGlobalWorkflows ?? []
 
 	// Track local workflow names to avoid duplicates from global
 	const localNames = new Set<string>()
@@ -61,21 +58,6 @@ export async function getAvailableSlashCommands(controller: Controller, _request
 					}),
 				)
 			}
-		}
-	}
-
-	// Add remote workflows that are enabled
-	for (const workflow of remoteWorkflows) {
-		const enabled = workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
-		if (enabled) {
-			commands.push(
-				SlashCommandInfo.create({
-					name: workflow.name,
-					description: `Remote workflow: ${workflow.name}`,
-					section: "custom",
-					cliCompatible: true,
-				}),
-			)
 		}
 	}
 

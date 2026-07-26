@@ -1,4 +1,3 @@
-import { captureSdkError } from "@cline/shared";
 import type { ClineCoreOptions } from "../../cline-core/types";
 import {
 	ensureCompatibleLocalHubUrl,
@@ -8,7 +7,6 @@ import { prewarmDetachedHubServer } from "../../hub/daemon";
 import { HubRuntimeHost } from "../../hub/runtime-host/hub-runtime-host";
 import { RemoteRuntimeHost } from "../../hub/runtime-host/remote-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
-import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { CoreSessionService } from "../../session/services/session-service";
 import { LocalRuntimeHost } from "./local-runtime-host";
@@ -71,24 +69,6 @@ function createLocalBackend(options: ClineCoreOptions): SessionBackend {
 		});
 	} catch (error) {
 		// Fallback to file-based session service if SQLite is unavailable.
-		options.telemetry?.capture({
-			event: "session_backend_fallback",
-			properties: {
-				requestedBackend: "sqlite",
-				fallbackBackend: "file",
-			},
-		});
-		captureSdkError(options.telemetry, {
-			component: "core",
-			operation: "session_backend.sqlite_init",
-			error,
-			severity: "warn",
-			handled: true,
-			context: {
-				requestedBackend: "sqlite",
-				fallbackBackend: "file",
-			},
-		});
 		return new FileSessionService(undefined, {
 			messagesArtifactUploader: options.messagesArtifactUploader,
 			logger: options.logger,
@@ -98,7 +78,6 @@ function createLocalBackend(options: ClineCoreOptions): SessionBackend {
 
 function createLocalRuntimeHost(
 	options: ClineCoreOptions,
-	distinctId: string,
 	backend?: SessionBackend,
 ): LocalRuntimeHost {
 	return new LocalRuntimeHost({
@@ -106,9 +85,7 @@ function createLocalRuntimeHost(
 			backend ?? options.sessionService ?? createLocalBackend(options),
 		capabilities: options.capabilities,
 		logger: options.logger,
-		telemetry: options.telemetry,
 		toolPolicies: options.toolPolicies,
-		distinctId,
 		fetch: options.fetch,
 	});
 }
@@ -137,8 +114,6 @@ export async function resolveSessionBackend(
 export async function createRuntimeHost(
 	options: ClineCoreOptions,
 ): Promise<RuntimeHost> {
-	const distinctId = resolveCoreDistinctId(options.distinctId);
-	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);
 	prewarmLocalHubIfNeeded(configuredMode, options);
 	if (configuredMode === "remote") {
@@ -183,8 +158,7 @@ export async function createRuntimeHost(
 				authToken: options.hub?.authToken,
 				clientType: options.hub?.clientType,
 				displayName: options.hub?.displayName,
-				capabilities: options.capabilities,
-				telemetry: options.telemetry,
+				capabilities: options.capabilities
 			},
 			{
 				workspaceRoot: options.hub?.workspaceRoot,
@@ -209,8 +183,7 @@ export async function createRuntimeHost(
 					authToken: options.hub?.authToken,
 					clientType: options.hub?.clientType,
 					displayName: options.hub?.displayName,
-					capabilities: options.capabilities,
-					telemetry: options.telemetry,
+					capabilities: options.capabilities
 				},
 				{
 					workspaceRoot: options.hub?.workspaceRoot,
@@ -226,24 +199,13 @@ export async function createRuntimeHost(
 					severity: "warn",
 					error,
 				});
-				captureSdkError(options.telemetry, {
-					component: "core",
-					operation: "runtime_host.hub_connect",
-					error,
-					severity: "warn",
-					handled: true,
-					context: {
-						backendMode: "auto",
-						fallbackBackend: "local",
-					},
-				});
 			}
 		}
 		options.logger?.log("Falling back to local runtime host", {
 			reason: "compatible_hub_unavailable",
 			severity: "warn",
 		});
-		return createLocalRuntimeHost(options, distinctId);
+		return createLocalRuntimeHost(options);
 	}
-	return createLocalRuntimeHost(options, distinctId);
+	return createLocalRuntimeHost(options);
 }

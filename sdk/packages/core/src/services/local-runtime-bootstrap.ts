@@ -5,7 +5,6 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ExtensionContext,
-	ITelemetryService,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -51,7 +50,6 @@ import type { ProviderSettingsManager } from "./storage/provider-settings-manage
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
-import { emitWorkspaceLifecycleTelemetry } from "./workspace/workspace-telemetry";
 
 function formatPluginFailure(failure: PluginInitializationFailure): string {
 	const label = failure.pluginName ?? failure.pluginPath;
@@ -171,7 +169,6 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
 	providerSettingsManager: ProviderSettingsManager;
-	defaultTelemetry?: ITelemetryService;
 	defaultLogger?: BasicLogger;
 	defaultCapabilities?: RuntimeCapabilities;
 	defaultToolPolicies?: AgentConfig["toolPolicies"];
@@ -219,7 +216,6 @@ export async function prepareLocalRuntimeBootstrap(
 		input,
 		sessionId,
 		providerSettingsManager,
-		defaultTelemetry,
 		defaultLogger,
 		defaultCapabilities,
 		defaultToolPolicies,
@@ -250,9 +246,6 @@ export async function prepareLocalRuntimeBootstrap(
 		workspaceInfo,
 		workspaceMetadata,
 		gitState,
-		durationMs,
-		vcsType,
-		initError,
 	} = await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
 	const extensionContext: ExtensionContext = {
@@ -268,23 +261,8 @@ export async function prepareLocalRuntimeBootstrap(
 		logger:
 			configuredExtensionContext?.logger ??
 			localConfig?.logger ??
-			defaultLogger,
-		telemetry:
-			configuredExtensionContext?.telemetry ??
-			localConfig?.telemetry ??
-			defaultTelemetry,
+			defaultLogger
 	};
-	emitWorkspaceLifecycleTelemetry({
-		telemetry: extensionContext.telemetry,
-		rootPath: workspaceInfo.rootPath,
-		workspaceInfo,
-		rootCount: 1,
-		vcsType,
-		durationMs,
-		initError,
-		featureFlagEnabled: true,
-	});
-
 	const fileHookExtension = createHookConfigFileExtension({
 		cwd: input.config.cwd,
 		workspacePath,
@@ -316,9 +294,7 @@ export async function prepareLocalRuntimeBootstrap(
 				workspaceInfo,
 				session: extensionContext.session,
 				client: extensionContext.client,
-				user: extensionContext.user,
 				logger: extensionContext.logger,
-				telemetry: extensionContext.telemetry,
 				automation: extensionContext.automation,
 			});
 			logPluginDiagnostics(
@@ -352,7 +328,6 @@ export async function prepareLocalRuntimeBootstrap(
 		hooks: baseHooks,
 		extensions,
 		extensionContext,
-		telemetry: extensionContext.telemetry,
 		logger: extensionContext.logger,
 	};
 	const providerConfig = buildProviderConfig(
@@ -426,7 +401,6 @@ export async function prepareLocalRuntimeBootstrap(
 			toolPolicies,
 			workspaceManager,
 			logger: config.logger,
-			telemetry: config.telemetry,
 			requestToolApproval,
 		},
 	};

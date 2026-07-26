@@ -1,23 +1,16 @@
 import { McpServer } from "@shared/mcp"
 import ServerRow from "./server-row/ServerRow"
 
-export type MarketplaceMcpMetadata = {
-	name: string
-	description?: string
-}
-
 const ServersToggleList = ({
 	servers,
 	isExpandable,
 	hasTrashIcon,
 	listGap = "medium",
-	marketplaceMetadataByServerName,
 }: {
 	servers: McpServer[]
 	isExpandable: boolean
 	hasTrashIcon: boolean
 	listGap?: "small" | "medium" | "large"
-	marketplaceMetadataByServerName?: Map<string, MarketplaceMcpMetadata>
 }) => {
 	const gapClasses = {
 		small: "gap-0",
@@ -30,13 +23,7 @@ const ServersToggleList = ({
 	return servers.length > 0 ? (
 		<div className={`flex flex-col ${gapClass}`}>
 			{servers.map((server) => (
-				<ServerRow
-					hasTrashIcon={hasTrashIcon}
-					isExpandable={isExpandable}
-					key={server.name}
-					marketplaceMetadata={marketplaceMetadataByServerName?.get(server.name)}
-					server={server}
-				/>
+				<ServerRow hasTrashIcon={hasTrashIcon} isExpandable={isExpandable} key={server.name} server={server} />
 			))}
 		</div>
 	) : (

@@ -1203,13 +1203,10 @@ class DebugHarness {
 		}
 		try {
 			const data = JSON.parse(fs.readFileSync(secretsFile, "utf-8"))
-			// Extract the Cline account ID and related auth info
-			const accountId = data["cline:clineAccountId"]
 			const mcpOAuth = data["mcpOAuthSecrets"]
 			return {
 				found: true,
 				path: secretsFile,
-				hasAccountId: !!accountId,
 				hasMcpOAuth: !!mcpOAuth,
 				// Don't return full token values for safety, just presence indicators
 				keys: Object.keys(data),
@@ -1225,24 +1222,12 @@ class DebugHarness {
 	 * browser entirely — use with oauth.captured_urls to get the redirect
 	 * parameters from the captured authorization URL.
 	 *
-	 * For Cline OAuth: the SDK's local callback server captures the code
-	 * automatically. Use this ONLY for provider-specific callbacks (OpenRouter,
-	 * MCP, etc.) that use the vscode:// URI scheme.
-	 *
 	 * Params:
-	 *   path     - URI path (e.g., "/auth", "/openrouter", "/mcp-auth/callback/HASH")
-	 *   code     - Authorization code from the OAuth provider
-	 *   state    - OAuth state parameter (for MCP/OCA)
-	 *   provider - Provider name for /auth path (e.g., "cline", "oca")
-	 *   token    - Direct token for /auth path (overrides code)
+	 *   path  - MCP callback URI path
+	 *   code  - Authorization code from the MCP authorization server
+	 *   state - OAuth state parameter
 	 */
-	async oauthSimulateCallback(params: {
-		path: string
-		code?: string
-		state?: string
-		provider?: string
-		token?: string
-	}): Promise<any> {
+	async oauthSimulateCallback(params: { path: string; code?: string; state?: string }): Promise<any> {
 		if (!this.app) throw new Error("VSCode not running")
 
 		// Build the URI
@@ -1251,11 +1236,6 @@ class DebugHarness {
 		const searchParams = new URLSearchParams()
 		if (params.code) searchParams.set("code", params.code)
 		if (params.state) searchParams.set("state", params.state)
-		if (params.provider) searchParams.set("provider", params.provider)
-		if (params.token) {
-			// For /auth path, the extension reads refreshToken, idToken, or code
-			searchParams.set("refreshToken", params.token)
-		}
 		const queryString = searchParams.toString()
 		const uri = `${scheme}://${extensionId}${params.path}${queryString ? "?" + queryString : ""}`
 
@@ -1295,9 +1275,7 @@ class DebugHarness {
 				note:
 					"URI constructed. For callbacks that use the vscode:// scheme, " +
 					"you need to trigger the extension's URI handler. Options:\n" +
-					"1. For Cline OAuth (SDK local callback): the SDK captures the code " +
-					"automatically from its local HTTP server — no simulation needed.\n" +
-					"2. For MCP/provider OAuth: use 'ext.evaluate' to call " +
+					"For MCP OAuth: use 'ext.evaluate' to call " +
 					"SharedUriHandler.handleUri() directly, or use the command palette.",
 			}
 		} catch (e: any) {
