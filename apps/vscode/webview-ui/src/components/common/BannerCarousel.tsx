@@ -86,6 +86,18 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	const [isTransitioning, setIsTransitioning] = useState(false)
 	const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+	// When the banners array changes (e.g. a banner earlier in the list is added or
+	// removed at runtime), remap currentIndex so the banner being viewed stays in view.
+	const [previousBanners, setPreviousBanners] = useState(banners)
+	if (previousBanners !== banners) {
+		setPreviousBanners(banners)
+		const shownBannerId = previousBanners[Math.min(currentIndex, previousBanners.length - 1)]?.id
+		const newIndex = banners.findIndex((banner) => banner.id === shownBannerId)
+		if (newIndex !== -1 && newIndex !== currentIndex) {
+			setCurrentIndex(newIndex)
+		}
+	}
+
 	// Compute a safe index that's always within bounds
 	const safeCurrentIndex = useMemo(
 		() => (banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)),
