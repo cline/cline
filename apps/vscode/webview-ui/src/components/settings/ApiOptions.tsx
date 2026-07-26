@@ -387,7 +387,7 @@ const ApiOptions = ({
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
 
-			{!isPopup && <ClinePassHint selectedProvider={selectedProvider} />}
+			{!isPopup && <ClinePassHint currentMode={currentMode} selectedProvider={selectedProvider} />}
 
 			{apiConfiguration && selectedProvider === "hicap" && (
 				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
