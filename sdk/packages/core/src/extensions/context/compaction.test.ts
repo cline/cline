@@ -26,7 +26,7 @@ type FakeChunk = Record<string, unknown>;
 const createHandlerMock = vi.fn();
 
 vi.mock("@cline/llms", () => ({
-	createHandlerAsync: (config: unknown) => createHandlerMock(config),
+	createBedrockClient: (config: unknown) => createHandlerMock(config),
 }));
 
 async function* streamChunks(chunks: FakeChunk[]): AsyncGenerator<FakeChunk> {

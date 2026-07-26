@@ -498,7 +498,7 @@ describe("SdkSessionLifecycle", () => {
 			config: {
 				sessionId: "source-session",
 				providerId: "bedrock",
-				modelId: "gpt-5",
+				modelId: "anthropic.claude-sonnet-4-6",
 			},
 		} as StartInput)
 		const result = await lifecycle.restoreActiveSession({
@@ -509,8 +509,8 @@ describe("SdkSessionLifecycle", () => {
 		expect(result).toBe(restored)
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("restored-session")
 		expect(lifecycle.getActiveSession()?.startConfig).toEqual({
-			providerId: "openai",
-			modelId: "gpt-5",
+			providerId: "bedrock",
+			modelId: "anthropic.claude-sonnet-4-6",
 		})
 		expect(sdkHost.stop).toHaveBeenCalledWith("source-session")
 	})
@@ -523,10 +523,10 @@ describe("SdkSessionLifecycle", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 
-		const didUpdate = await lifecycle.updateActiveSessionModel("deepseek-v4-flash")
+		const didUpdate = await lifecycle.updateActiveSessionModel("anthropic.claude-haiku-4-5-20251001-v1:0")
 
 		expect(didUpdate).toBe(true)
-		expect(updateSessionModel).toHaveBeenCalledWith("session-123", "deepseek-v4-flash")
+		expect(updateSessionModel).toHaveBeenCalledWith("session-123", "anthropic.claude-haiku-4-5-20251001-v1:0")
 	})
 
 	it("does not update active session model when no host capability is available", async () => {
@@ -536,7 +536,7 @@ describe("SdkSessionLifecycle", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 
-		const didUpdate = await lifecycle.updateActiveSessionModel("deepseek-v4-flash")
+		const didUpdate = await lifecycle.updateActiveSessionModel("anthropic.claude-haiku-4-5-20251001-v1:0")
 
 		expect(didUpdate).toBe(false)
 	})

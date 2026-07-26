@@ -14,10 +14,12 @@ vi.mock("@/shared/services/Logger", () => ({
 let compactSessionMessages: typeof import("./sdk-compaction").compactSessionMessages
 
 const baseConfig = {
-	providerConfig: { providerId: "anthropic", modelId: "claude" },
-	providerId: "anthropic",
-	modelId: "claude",
-	knownModels: { claude: { id: "claude", maxInputTokens: 200_000 } },
+	providerConfig: { providerId: "bedrock", modelId: "anthropic.claude-sonnet-4-6" },
+	providerId: "bedrock",
+	modelId: "anthropic.claude-sonnet-4-6",
+	knownModels: {
+		"anthropic.claude-sonnet-4-6": { id: "anthropic.claude-sonnet-4-6", maxInputTokens: 1_000_000 },
+	},
 	compaction: undefined,
 	logger: undefined,
 	telemetry: undefined,
@@ -54,8 +56,8 @@ describe("compactSessionMessages", () => {
 		// Manual mode + enabled compaction + telemetry keying.
 		expect(createContextCompactionPrepareTurn).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerId: "anthropic",
-				modelId: "claude",
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
 				compaction: expect.objectContaining({ enabled: true }),
 				sessionId: "s1",
 			}),
@@ -80,7 +82,12 @@ describe("compactSessionMessages", () => {
 		createContextCompactionPrepareTurn.mockReturnValueOnce(compact)
 		const contextOnlyConfig = {
 			...baseConfig,
-			knownModels: { claude: { id: "claude", contextWindow: 400_000 } },
+			knownModels: {
+				"anthropic.claude-sonnet-4-6": {
+					id: "anthropic.claude-sonnet-4-6",
+					contextWindow: 400_000,
+				},
+			},
 		} as unknown as Parameters<typeof compactSessionMessages>[0]["config"]
 
 		await compactSessionMessages({
@@ -92,7 +99,7 @@ describe("compactSessionMessages", () => {
 		expect(compact).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model: expect.objectContaining({
-					info: { id: "claude", contextWindow: 400_000 },
+					info: { id: "anthropic.claude-sonnet-4-6", contextWindow: 400_000 },
 				}),
 			}),
 		)

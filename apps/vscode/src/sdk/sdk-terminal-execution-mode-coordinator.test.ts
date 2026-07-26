@@ -53,7 +53,12 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 		options.sessionConfigBuilder.build.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
-					resolveBuild = () => resolve({ providerId: "anthropic", modelId: "claude", apiKey: "key" })
+					resolveBuild = () =>
+						resolve({
+							providerId: "bedrock",
+							modelId: "anthropic.claude-sonnet-4-6",
+							connection: { region: "us-east-1" },
+						})
 				}),
 		)
 
@@ -73,7 +78,12 @@ describe("SdkTerminalExecutionModeCoordinator", () => {
 		options.sessionConfigBuilder.build.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
-					resolveBuild = () => resolve({ providerId: "anthropic", modelId: "claude", apiKey: "key" })
+					resolveBuild = () =>
+						resolve({
+							providerId: "bedrock",
+							modelId: "anthropic.claude-sonnet-4-6",
+							connection: { region: "us-east-1" },
+						})
 				}),
 		)
 
@@ -117,9 +127,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const activeSession = input.activeSession
 	let initialRebuildScheduled = false
 	const config = {
-		providerId: "anthropic",
-		modelId: "claude",
-		apiKey: "key",
+		providerId: "bedrock",
+		modelId: "anthropic.claude-sonnet-4-6",
+		connection: { region: "us-east-1" },
 	}
 	const options = {
 		stateManager: {

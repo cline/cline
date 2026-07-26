@@ -222,9 +222,9 @@ interface MakeCoordinatorInput {
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const activeSession = "activeSession" in input ? input.activeSession : makeActiveSession()
 	const config = {
-		providerConfig: { providerId: "anthropic", modelId: "claude" },
-		providerId: "anthropic",
-		modelId: "claude",
+		providerConfig: { providerId: "bedrock", modelId: "anthropic.claude-sonnet-4-6" },
+		providerId: "bedrock",
+		modelId: "anthropic.claude-sonnet-4-6",
 		knownModels: undefined,
 		compaction: undefined,
 		logger: undefined,

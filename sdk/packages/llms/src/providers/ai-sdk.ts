@@ -17,10 +17,7 @@ import {
 import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { extractErrorMessage } from "./format";
-import {
-	isAnthropicCompatibleModel,
-	resolveModelFamily,
-} from "./model-facts";
+import { isAnthropicCompatibleModel, resolveModelFamily } from "./model-facts";
 import { sanitizeBedrockError } from "./bedrock-errors";
 import {
 	applyPromptCacheToLastTextPart,
@@ -788,7 +785,7 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "error") {
 					streamError =
-						capturedError?.current ?? extractErrorMessage(part.error);
+						capturedError?.current ?? sanitizeBedrockError(part.error);
 					break;
 				}
 
@@ -805,7 +802,7 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? extractErrorMessage(error);
+		streamError = capturedError?.current ?? sanitizeBedrockError(error);
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -820,7 +817,7 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? extractErrorMessage(error);
+				streamError = capturedError?.current ?? sanitizeBedrockError(error);
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -902,7 +899,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
 								providerId: request.providerId,
-								error: streamError,
+								error: msg,
 								severity: "error",
 							});
 						} else if (log) {
@@ -934,7 +931,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
-						error,
+						error: msg,
 						severity: "error",
 					});
 				} else if (log) {

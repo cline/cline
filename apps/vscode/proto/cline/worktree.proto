@@ -39,7 +39,6 @@ service WorktreeService {
 
   // Merges a worktree's branch into the target branch and optionally deletes the worktree
   rpc mergeWorktree(MergeWorktreeRequest) returns (MergeWorktreeResult);
-
 }
 
 // Represents a single git worktree

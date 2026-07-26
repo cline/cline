@@ -133,7 +133,6 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(clearTurnOutcome).toHaveBeenCalledOnce()
-		expect(options.beginProviderFailureTelemetryTurn).toHaveBeenCalledOnce()
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
 		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
@@ -207,45 +206,6 @@ describe("SdkSessionEventCoordinator", () => {
 		})
 	})
 
-	it("zeros usage and api request message cost for free Cline models", async () => {
-		const { coordinator, options, event } = makeCoordinator({
-			isClineFreeModel: vi.fn().mockResolvedValue(true),
-			task: { taskId: "task-1" },
-			translation: {
-				messages: [
-					{
-						ts: 1,
-						type: "say",
-						say: "api_req_started",
-						text: JSON.stringify({ tokensIn: 10, tokensOut: 5, cost: 0.0016 }),
-					},
-				],
-				sessionEnded: false,
-				turnComplete: false,
-				usage: { tokensIn: 10, tokensOut: 5, totalCost: 0.0016 },
-			},
-		})
-
-		await coordinator.handleSessionEvent(event)
-
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[
-				{
-					ts: 1,
-					type: "say",
-					say: "api_req_started",
-					text: JSON.stringify({ tokensIn: 10, tokensOut: 5, cost: 0 }),
-				},
-			],
-			event,
-		)
-		expect(options.taskHistory.updateTaskUsage).toHaveBeenCalledWith("task-1", {
-			tokensIn: 10,
-			tokensOut: 5,
-			totalCost: 0,
-		})
-	})
-
 	it("leaves mistake-limit recovery to the SDK callback instead of mutating tool-error events", async () => {
 		const message: ClineMessage = { ts: 1, type: "say", say: "tool", text: "{}", partial: false }
 		const { coordinator, options, event } = makeCoordinator({
@@ -288,10 +248,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTask: vi.fn(() => input.task),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		setTurnPhase: vi.fn(),
-		captureProviderApiError: vi.fn(),
-		beginProviderFailureTelemetryTurn: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
-		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
 		sessions: SdkSessionEventCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -300,8 +257,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
-		captureProviderApiError: ReturnType<typeof vi.fn>
-		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState
 	}
@@ -326,7 +281,6 @@ function makeActiveSession(input: Partial<{ isRunning: boolean }> = {}) {
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	task: { taskId: string }
-	isClineFreeModel: () => Promise<boolean>
 	translation: {
 		messages: ClineMessage[]
 		sessionEnded: boolean

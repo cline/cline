@@ -76,6 +76,10 @@ webview-ui/README.md
 webview-ui/package.json
 webview-ui/package-lock.json
 webview-ui/node_modules/**
+webview-ui/components.json
+webview-ui/tailwind.config.mjs
+webview-ui/tsconfig*.json
+webview-ui/.storybook/**
 **/.gitignore
 
 # Ignore docs

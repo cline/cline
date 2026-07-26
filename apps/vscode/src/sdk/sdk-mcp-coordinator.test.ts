@@ -100,9 +100,9 @@ describe("SdkMcpCoordinator", () => {
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const activeSession = input.activeSession
 	const config = {
-		providerId: "anthropic",
-		modelId: "claude",
-		apiKey: "key",
+		providerId: "bedrock",
+		modelId: "anthropic.claude-sonnet-4-6",
+		connection: { region: "us-east-1" },
 	}
 	const options = {
 		stateManager: {

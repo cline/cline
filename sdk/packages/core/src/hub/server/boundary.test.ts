@@ -159,7 +159,7 @@ describe("HubServerTransport boundaries", () => {
 			payload: {
 				sessionConfig: {
 					sessionId: "session-boundary",
-					providerId: "cline",
+					providerId: "bedrock",
 					modelId: "test-model",
 					systemPrompt: "system",
 				},
@@ -656,7 +656,7 @@ describe("HubServerTransport boundaries", () => {
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
-					providerId: "cline",
+					providerId: "bedrock",
 					modelId: "test-model",
 					cwd: "/tmp/project",
 					workspaceRoot: "/tmp/project",
@@ -788,7 +788,7 @@ describe("HubServerTransport boundaries", () => {
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
-					providerId: "cline",
+					providerId: "bedrock",
 					modelId: "test-model",
 					cwd: "/tmp/project",
 					workspaceRoot: "/tmp/project",

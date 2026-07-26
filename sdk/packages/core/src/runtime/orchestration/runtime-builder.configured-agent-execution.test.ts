@@ -127,8 +127,9 @@ name: reviewer
 description: Reviews code
 tools: Execute_Command, Read_File, Use_Skill
 skills: commit
+# Deliberately invalid: configured child agents must inherit the Bedrock provider.
 providerId: openai
-modelId: gpt-4.1
+modelId: anthropic.claude-haiku-4-5-20251001-v1:0
 maxIterations: 3
 ---
 You are a reviewer.`,
@@ -222,7 +223,7 @@ Write a concise commit message.`,
 		expect(delegatedConfig).toEqual(
 			expect.objectContaining({
 				providerId: "bedrock",
-				modelId: "gpt-4.1",
+				modelId: "anthropic.claude-haiku-4-5-20251001-v1:0",
 				maxIterations: 3,
 				parentAgentId: "parent-agent",
 				requestToolApproval,

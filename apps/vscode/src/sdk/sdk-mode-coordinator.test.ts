@@ -377,38 +377,6 @@ describe("SdkModeCoordinator", () => {
 		)
 	})
 
-	it("preserves composer content when the rebuild aborts on a cline auth error", async () => {
-		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
-		const { coordinator, options, state } = makeCoordinator({
-			activeSession,
-			task,
-			mode: "plan",
-			turnPhase: "awaiting_followup",
-			config: {
-				providerId: "cline",
-				modelId: "cline-model",
-				apiKey: undefined,
-			},
-		})
-
-		// The auth guard returns before the continuation is echoed or sent, so
-		// the webview must not clear the typed message or attachments.
-		await expect(
-			coordinator.togglePlanActMode("act", {
-				message: "go ahead but skip step 3",
-				images: ["data:image/png;base64,abc"],
-				files: [],
-			}),
-		).resolves.toBe(false)
-
-		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
-		// The old plan session is still active, so the mode setting rolls back.
-		expect(state.mode).toBe("plan")
-	})
-
 	it("rolls back the mode when the rebuild fails before the session is replaced", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session")
@@ -435,25 +403,6 @@ describe("SdkModeCoordinator", () => {
 			[expect.objectContaining({ say: "error" })],
 			expect.anything(),
 		)
-	})
-
-	it("emits an auth error and skips replacement when the target cline provider has no token", async () => {
-		const activeSession = makeActiveSession()
-		const { coordinator, options, state } = makeCoordinator({
-			activeSession,
-			config: {
-				providerId: "cline",
-				modelId: "cline-model",
-				apiKey: undefined,
-			},
-		})
-
-		await coordinator.rebuildSessionForMode("act")
-
-		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
-		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
-		expect(state.mode).toBe("plan")
 	})
 
 	it("cancels and finalizes a running turn before rebuilding for mode change", async () => {
@@ -571,10 +520,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const state = { mode: input.mode ?? "plan" }
 	const activeSession = input.activeSession
 	const config = {
-		providerId: "anthropic",
-		modelId: "claude",
-		apiKey: "key",
-		...input.config,
+		providerId: "bedrock",
+		modelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+		connection: { region: "us-east-1" },
 	}
 	const options = {
 		stateManager: {
@@ -608,7 +556,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
-		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		getTurnPhase: vi.fn(() => input.turnPhase ?? "idle"),
@@ -645,7 +592,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getWorkspaceRoot: ReturnType<typeof vi.fn>
 		loadInitialMessages: ReturnType<typeof vi.fn>
 		buildStartSessionInput: ReturnType<typeof vi.fn>
-		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		getTurnPhase: ReturnType<typeof vi.fn>
@@ -664,11 +610,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 interface MakeCoordinatorInput {
 	mode: "act" | "plan"
 	activeSession: ReturnType<typeof makeActiveSession>
-	config: {
-		providerId: string
-		modelId: string
-		apiKey: string | undefined
-	}
 	task: ReturnType<typeof makeTask>
 	turnPhase: string
 }

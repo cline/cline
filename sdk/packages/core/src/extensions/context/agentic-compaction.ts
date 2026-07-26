@@ -1,4 +1,4 @@
-import { createHandlerAsync } from "@cline/llms";
+import { createBedrockClient } from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
 import type {
 	CoreCompactionContext,
@@ -63,7 +63,7 @@ async function generateSummary(options: {
 	request: string;
 	logger?: BasicLogger;
 }): Promise<string> {
-	const handler = await createHandlerAsync(options.providerConfig);
+	const handler = createBedrockClient(options.providerConfig);
 	let text = "";
 	for await (const chunk of handler.createMessage(
 		"Summarize the provided coding session into a concise continuation note with detailed next steps.",

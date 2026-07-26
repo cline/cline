@@ -1,4 +1,4 @@
-import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
+import { type ApiHandler, createBedrockClient, type ProviderConfig } from "@cline/llms"
 import { type ApiConfiguration, BEDROCK_DEFAULT_MODEL_ID } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { buildBedrockProviderConfig } from "./bedrock-config"
@@ -39,5 +39,5 @@ export function buildSdkProviderConfig(
 }
 
 export function buildApiHandler(configuration: ApiConfiguration, mode: Mode, options?: BuildApiHandlerOptions): ApiHandler {
-	return createHandler(buildSdkProviderConfig(configuration, mode, options))
+	return createBedrockClient(buildSdkProviderConfig(configuration, mode, options))
 }

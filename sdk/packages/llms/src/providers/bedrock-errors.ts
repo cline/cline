@@ -32,6 +32,20 @@ function requestId(chain: ErrorRecord[]): string | undefined {
 	return undefined;
 }
 
+function errorCode(chain: ErrorRecord[]): string | undefined {
+	for (const item of chain) {
+		const value = readString(item, "code") ?? readString(item, "name");
+		if (
+			value &&
+			/^[A-Za-z][A-Za-z0-9_.-]{0,127}$/.test(value) &&
+			value !== "Error"
+		) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
 export type BedrockErrorCategory =
 	| "ca-bundle"
 	| "tls-certificate"
@@ -46,7 +60,11 @@ export type BedrockErrorCategory =
 export function sanitizeBedrockError(error: unknown): string {
 	const chain = errorChain(error);
 	const description = chain
-		.flatMap((item) => [readString(item, "name"), readString(item, "code"), readString(item, "message")])
+		.flatMap((item) => [
+			readString(item, "name"),
+			readString(item, "code"),
+			readString(item, "message"),
+		])
 		.filter(Boolean)
 		.join(" ")
 		.toLowerCase();
@@ -63,29 +81,43 @@ export function sanitizeBedrockError(error: unknown): string {
 		category = "tls-certificate";
 		message = "TLS certificate validation failed.";
 	} else if (
-		/(enotfound|eai_again|econnrefused|etimedout|socket|proxy|dns)/.test(description)
+		/(enotfound|eai_again|econnrefused|etimedout|socket|proxy|dns)/.test(
+			description,
+		)
 	) {
 		category = "network";
-		message = "AWS Bedrock could not be reached through DNS or the configured proxy.";
-	} else if (description.includes("bedrock_endpoint") || description.includes("invalid endpoint")) {
+		message =
+			"AWS Bedrock could not be reached through DNS or the configured proxy.";
+	} else if (
+		description.includes("bedrock_endpoint") ||
+		description.includes("invalid endpoint")
+	) {
 		category = "endpoint";
 		message = "The Bedrock endpoint is invalid.";
 	} else if (
-		/(credential|expiredtoken|unrecognizedclient|invalidclienttokenid|sso.*expired)/.test(description)
+		/(credential|expiredtoken|unrecognizedclient|invalidclienttokenid|sso.*expired)/.test(
+			description,
+		)
 	) {
 		category = "credentials";
 		message = "AWS credentials are missing or expired.";
 	} else if (/(accessdenied|unauthorized|forbidden)/.test(description)) {
 		category = "access-denied";
 		message = "AWS denied access to the requested Bedrock resource.";
-	} else if (description.includes("bedrock_region") || /invalid.*region/.test(description)) {
+	} else if (
+		description.includes("bedrock_region") ||
+		/invalid.*region/.test(description)
+	) {
 		category = "region";
 		message = "The AWS region is invalid.";
-	} else if (/(validationexception|validation error|bad request)/.test(description)) {
+	} else if (
+		/(validationexception|validation error|bad request)/.test(description)
+	) {
 		category = "validation";
 		message = "AWS Bedrock rejected the request as invalid.";
 	}
 
+	const code = errorCode(chain);
 	const id = requestId(chain);
-	return `Bedrock ${category}: ${message}${id ? ` Request ID: ${id}` : ""}`;
+	return `Bedrock ${category}: ${message}${code ? ` Error code: ${code}.` : ""}${id ? ` Request ID: ${id}` : ""}`;
 }

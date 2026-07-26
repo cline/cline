@@ -39,7 +39,7 @@ describe("SdkTaskStartCoordinator", () => {
 			mode: "act",
 		})
 		expect(options.buildStartSessionInput).toHaveBeenCalledWith(
-			expect.objectContaining({ providerId: "anthropic", modelId: "model", sessionId }),
+			expect.objectContaining({ providerId: "bedrock", modelId: "model", sessionId }),
 			expect.objectContaining({
 				prompt: "hello @file",
 				images: ["image.png"],
@@ -69,33 +69,21 @@ describe("SdkTaskStartCoordinator", () => {
 			["a.ts"],
 		)
 	})
-	it("emits a Cline auth error instead of starting when ClinePass has no token", async () => {
-		const { coordinator, options } = makeCoordinator({ config: { providerId: "cline-pass", modelId: "model", apiKey: "" } })
-
-		const sessionId = await coordinator.initTask("needs clinepass auth")
-
-		expect(sessionId).toBeUndefined()
-		expect(options.emitClineAuthError).toHaveBeenCalledWith("needs clinepass auth")
-		expect(options.captureProviderApiError).not.toHaveBeenCalled()
-		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
-	})
-
-	it("emits a plain chat error when session start fails (e.g. provider misconfigured)", async () => {
+	it("emits a plain chat error when Bedrock session start fails", async () => {
 		const { coordinator, options, state } = makeCoordinator()
-		const error = new Error("No model configured for provider openai")
+		const error = new Error("BEDROCK_REGION: Enter a valid AWS region.")
 		options.sessions.startNewSession.mockRejectedValue(error)
 
 		const sessionId = await coordinator.initTask("do something")
 
 		expect(sessionId).toBeUndefined()
-		expect(options.emitClineAuthError).not.toHaveBeenCalled()
 		expect(state.task?.taskId).toEqual(expect.any(String))
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[
 				expect.objectContaining({
 					type: "say",
 					say: "error",
-					text: expect.stringContaining("No model configured for provider openai"),
+					text: expect.stringContaining("BEDROCK_REGION"),
 				}),
 			],
 			{ type: "status", payload: { sessionId: state.task?.taskId, status: "error" } },
@@ -146,7 +134,7 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.loadInitialMessages).toHaveBeenCalledWith(tempHost, "task-1")
 		expect(tempHost.dispose).toHaveBeenCalledWith("readMessages")
 		expect(options.sessions.startNewSession).toHaveBeenCalledWith({
-			config: expect.objectContaining({ providerId: "anthropic", modelId: "model" }),
+			config: expect.objectContaining({ providerId: "bedrock", modelId: "model" }),
 			interactive: true,
 			initialMessages: [{ role: "user", content: "hello" }],
 			sessionMetadata: expect.objectContaining({
@@ -176,25 +164,14 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.getWorkspaceRoot).toHaveBeenCalledOnce()
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "act" })
 	})
-
-	it("emits Cline auth errors when reinitialization fails due auth", async () => {
-		const { coordinator, options } = makeCoordinator()
-		options.sessionConfigBuilder.build.mockRejectedValue(new Error("missing api key"))
-		options.isClineManagedProviderActive.mockReturnValue(true)
-
-		await coordinator.reinitExistingTaskFromId("task-1")
-
-		expect(options.emitClineAuthError).toHaveBeenCalledWith()
-		expect(options.messages.emitSessionEvents).not.toHaveBeenCalled()
-	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const state: { task?: { taskId: string } } = {}
 	const config = input.config ?? {
-		providerId: "anthropic",
+		providerId: "bedrock",
 		modelId: "model",
-		apiKey: "key",
+		connection: { region: "us-east-1" },
 	}
 	const historyItem = input.historyItem ?? {
 		id: "task-1",
@@ -259,9 +236,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		createTempSessionHost: vi.fn().mockResolvedValue(tempHost),
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		resolveContextMentions: vi.fn(async (text: string) => `resolved: ${text}`),
-		isClineManagedProviderActive: vi.fn(() => false),
-		emitClineAuthError: vi.fn(),
-		captureProviderApiError: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskStartCoordinatorOptions & {
 		sessions: SdkTaskStartCoordinatorOptions["sessions"] & {
@@ -284,9 +258,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		createTempSessionHost: ReturnType<typeof vi.fn>
 		loadInitialMessages: ReturnType<typeof vi.fn>
 		resolveContextMentions: ReturnType<typeof vi.fn>
-		isClineManagedProviderActive: ReturnType<typeof vi.fn>
-		emitClineAuthError: ReturnType<typeof vi.fn>
-		captureProviderApiError: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
 
@@ -303,7 +274,7 @@ interface MakeCoordinatorInput {
 	config: {
 		providerId: string
 		modelId: string
-		apiKey: string
+		connection: { region: string }
 	}
 	historyItem: HistoryItem
 	hasHistoryItem: boolean

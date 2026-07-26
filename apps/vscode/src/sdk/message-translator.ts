@@ -2070,7 +2070,7 @@ const MODEL_NOT_FOUND_GUIDANCE =
  * matches on text rather than a status code.
  */
 function describeModelNotFoundError(rawMessage: string): string | undefined {
-	// Anthropic's 404 body collapses to a bare "model: <id>" label.
+	// Some model-not-found responses collapse to a bare "model: <id>" label.
 	const bareModelLabel = rawMessage.match(/^\s*model:\s*(\S+)\s*$/i)
 	if (bareModelLabel) {
 		return `Model "${bareModelLabel[1]}" was not found. ${MODEL_NOT_FOUND_GUIDANCE}`
@@ -2078,7 +2078,9 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
 
 	// Keep the not-found signal in the same clause as "model" so errors that
 	// merely mention one (plan gating, deprecated features) are left untouched.
-	const modelNotFound = /\bmodel\b[^.,;:]*\b(not[ _]?found|does not exist|no such model|unknown model)\b/i
+	// Bedrock model IDs commonly contain periods and a version colon, so only
+	// line breaks delimit the search rather than model-ID punctuation.
+	const modelNotFound = /\bmodel\b[^\r\n]*\b(not[ _]?found|does not exist|no such model|unknown model)\b/i
 	if (modelNotFound.test(rawMessage)) {
 		return `${rawMessage} ${MODEL_NOT_FOUND_GUIDANCE}`
 	}

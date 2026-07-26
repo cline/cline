@@ -14,8 +14,6 @@ export {
 	BUILT_IN_PROVIDER_IDS,
 	createBedrockAgentModel,
 	createBedrockClient,
-	createHandler,
-	createHandlerAsync,
 	isBuiltInProviderId,
 	normalizeProviderId,
 } from "./providers";
