@@ -47,7 +47,6 @@ export interface SdkInteractionCoordinatorOptions {
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
-	private pendingMistakeLimitResolve: ((decision: ConsecutiveMistakeLimitDecision) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
 				toolCallId: string
@@ -58,29 +57,33 @@ export class SdkInteractionCoordinator {
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
 
+	/**
+	 * CLI-parity mistake-limit handling: show an error row and stop the run
+	 * immediately. The session stays resumable, so the user continues
+	 * whenever they want by sending a new message (which also resets the
+	 * SDK's mistake tracking). A blocking ask here would leave the agent
+	 * loop running against the provider while the prompt sits unanswered.
+	 */
 	async handleConsecutiveMistakeLimitReached(
 		context: ConsecutiveMistakeLimitContext,
 	): Promise<ConsecutiveMistakeLimitDecision> {
 		const detail = context.details?.trim()
 		const latest = detail ? `${context.reason}: ${detail}` : `${context.reason} at iteration ${context.iteration}`
-		const askMessage: ClineMessage = {
+		const errorMessage: ClineMessage = {
 			ts: this.nextMessageTs(),
-			type: "ask",
-			ask: "mistake_limit_reached",
-			text: `Cline ran into repeated tool errors (${context.consecutiveMistakes}/${context.maxConsecutiveMistakes}).\n\nLatest: ${latest}`,
+			type: "say",
+			say: "error",
+			text: `Cline ran into ${context.consecutiveMistakes} errors in a row and stopped the task.\n\nLatest: ${latest}\n\nSend a message to give Cline guidance and continue the task.`,
 			partial: false,
 		}
 
-		this.options.messages.appendAndEmit([askMessage], {
+		this.options.messages.appendAndEmit([errorMessage], {
 			type: "status",
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
-		this.options.setTurnPhase?.("error", askMessage.ts)
 		await this.options.postStateToWebview()
 
-		return new Promise<ConsecutiveMistakeLimitDecision>((resolve) => {
-			this.pendingMistakeLimitResolve = resolve
-		})
+		return { action: "stop", reason: `mistake_limit_reached: ${latest}` }
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
@@ -232,49 +235,8 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
-	resolvePendingMistakeLimit(prompt: string | undefined, responseType: ClineAskResponse | undefined): boolean {
-		if (!this.pendingMistakeLimitResolve) {
-			return false
-		}
-
-		const resolve = this.pendingMistakeLimitResolve
-		this.pendingMistakeLimitResolve = undefined
-		this.options.setTurnPhase?.("streaming")
-
-		if (responseType === "noButtonClicked") {
-			resolve({ action: "stop", reason: "stopped after mistake_limit_reached prompt" })
-			return true
-		}
-
-		const trimmedPrompt = prompt?.trim()
-		if (trimmedPrompt) {
-			const userMessage: ClineMessage = {
-				ts: this.nextMessageTs(),
-				type: "say",
-				say: "user_feedback",
-				text: trimmedPrompt,
-				partial: false,
-			}
-			this.options.messages.appendAndEmit([userMessage], {
-				type: "status",
-				payload: { sessionId: this.options.getSessionId(), status: "running" },
-			})
-		}
-
-		const guidance = trimmedPrompt
-			? `mistake_limit_reached: ${trimmedPrompt}`
-			: "mistake_limit_reached: retry with a different approach, validate tool parameters before calls, and avoid repeating failed steps."
-
-		resolve({ action: "continue", guidance })
-		return true
-	}
-
 	clearPending(reason: string): void {
 		this.pendingAskResolve = undefined
-		if (this.pendingMistakeLimitResolve) {
-			this.pendingMistakeLimitResolve({ action: "stop", reason })
-			this.pendingMistakeLimitResolve = undefined
-		}
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {
