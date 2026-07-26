@@ -85,7 +85,7 @@ async function generateExternalClientFile(hostServices) {
 	const imports = []
 	// Add imports for the interfaces
 	for (const [name, _def] of Object.entries(hostServices)) {
-		imports.push(`import { ${name}ClientInterface } from "@generated/hosts/host-bridge-client-types"`)
+		imports.push(`import { ${name}ClientInterface } from "../host-bridge-client-types"`)
 	}
 	const clientImplementations = []
 	for (const [name, def] of Object.entries(hostServices)) {

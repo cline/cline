@@ -124,6 +124,28 @@ As Cline works through a task, the extension takes a snapshot of your workspace 
 
 For example, when working with a local web server, you can use 'Restore Workspace Only' to quickly test different versions of your app, then use 'Restore Task and Workspace' when you find the version you want to continue building from. This lets you safely explore different approaches without losing progress.
 
+### Embedded Local MCP Server Host
+
+Cline features an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0. External AI agents and frameworks (such as Hermes Agent, OpenClaw, Python MCP SDK, or custom scripts) can seamlessly connect to inspect files, apply code diffs, and run terminal commands inside your active workspace.
+
+#### Quick Agent Setup:
+
+- **Hermes Agent**: Add to `mcp_servers.json`:
+  ```json
+  { "mcpServers": { "cline": { "url": "http://127.0.0.1:3000/mcp", "transport": "http" } } }
+  ```
+  Or run: `hermes run --mcp-url http://127.0.0.1:3000/mcp`
+
+- **OpenClaw**: Add to `openclaw.config.json`:
+  ```json
+  { "tools": [ { "name": "cline", "endpoint": "http://127.0.0.1:3000/mcp", "protocol": "mcp-http" } ] }
+  ```
+
+- **Health Check & Tools List**:
+  ```powershell
+  Invoke-RestMethod -Uri http://127.0.0.1:3000/mcp -Method POST -ContentType "application/json" -Body '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+  ```
+
 <!-- Transparent pixel to create line break after floating image -->
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>

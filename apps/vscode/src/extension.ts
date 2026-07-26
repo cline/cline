@@ -5,6 +5,7 @@ import assert from "node:assert"
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
+import { setActiveMcpServer } from "./mcp/mcpServerStateHolder"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
@@ -56,6 +57,7 @@ import type { RolloutBundleActivation } from "./services/telemetry/rollout-metad
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+import { ClineMcpServer } from "./mcp/cline-mcp-server"
 
 export async function reportRolloutActivation(input: RolloutBundleActivation): Promise<void> {
 	await telemetryService.captureRolloutBundleActivated(input)
@@ -85,6 +87,97 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 4. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
+
+	// Initialize and register Status Bar toggle button for embedded MCP Server
+	const mcpStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
+	mcpStatusBarItem.command = "cline.toggleMcpServer"
+	context.subscriptions.push(mcpStatusBarItem)
+
+	let mcpServer: ClineMcpServer | null = null
+
+	const updateMcpStatusBar = () => {
+		if (mcpServer && mcpServer.listening) {
+			mcpStatusBarItem.text = `$(plug) Cline MCP: ON (${mcpServer.getPort})`
+			mcpStatusBarItem.tooltip = "Click to disable Cline MCP Server for external agents"
+			mcpStatusBarItem.show()
+		} else {
+			mcpStatusBarItem.text = `$(plug) Cline MCP: OFF`
+			mcpStatusBarItem.tooltip = "Click to enable Cline MCP Server for external agents"
+			mcpStatusBarItem.show()
+		}
+	}
+
+	const startMcp = async () => {
+		try {
+			if (!mcpServer) {
+				mcpServer = new ClineMcpServer({
+					port: 3000,
+					handlerProvider: webview.controller,
+				})
+			}
+			await mcpServer.start()
+			setActiveMcpServer(mcpServer)
+			updateMcpStatusBar()
+			Logger.log(`[Extension] Cline MCP Server running on port ${mcpServer.getPort}`)
+		} catch (err) {
+			Logger.error("[Extension] Failed to start Cline MCP Server:", err)
+			updateMcpStatusBar()
+		}
+	}
+
+	const stopMcp = async () => {
+		if (mcpServer) {
+			await mcpServer.stop()
+			setActiveMcpServer(null)
+			updateMcpStatusBar()
+			Logger.log("[Extension] Cline MCP Server stopped.")
+		}
+	}
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.toggleMcpServer", async () => {
+			if (mcpServer && mcpServer.listening) {
+				await stopMcp()
+				vscode.window.showInformationMessage("Cline MCP Server disabled.")
+			} else {
+				await startMcp()
+				vscode.window.showInformationMessage(`Cline MCP Server enabled on port ${mcpServer?.getPort ?? 3000}.`)
+			}
+			await webview.controller.postStateToWebview()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.toggleNgrokTunnel", async () => {
+			if (!mcpServer || !mcpServer.listening) {
+				vscode.window.showWarningMessage("Please enable the Cline MCP Server first.")
+				return
+			}
+			if (mcpServer.getPublicUrl()) {
+				await mcpServer.stopNgrokTunnel()
+				vscode.window.showInformationMessage("Ngrok Public Tunnel stopped.")
+			} else {
+				try {
+					const url = await mcpServer.startNgrokTunnel()
+					vscode.window.showInformationMessage(`Ngrok Public Tunnel running at: ${url}`)
+				} catch (err: any) {
+					vscode.window.showErrorMessage(`Failed to start Ngrok tunnel: ${err?.message || err}`)
+				}
+			}
+			await webview.controller.postStateToWebview()
+		}),
+	)
+
+	context.subscriptions.push({
+		dispose: () => {
+			if (mcpServer) {
+				void mcpServer.stop()
+			}
+		},
+	})
+
+	// Start MCP Server by default
+	void startMcp()
 
 	// 5. Register services and commands specific to VS Code
 	// Initialize hook discovery cache for performance optimization

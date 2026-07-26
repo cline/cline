@@ -6,6 +6,11 @@
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
+import { exec } from "node:child_process"
+import { promisify } from "node:util"
+import type { ClineMcpToolHandlerProvider } from "../mcp/cline-mcp-server"
+
+const execAsync = promisify(exec)
 import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
@@ -154,7 +159,7 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 // Controller
 // ---------------------------------------------------------------------------
 
-export class Controller {
+export class Controller implements ClineMcpToolHandlerProvider {
 	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
 	private turnStateTracker!: TurnStateTracker
@@ -2016,7 +2021,7 @@ export class Controller {
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			const validPaths = (paths ?? []).filter((workspacePath) => workspacePath.trim().length > 0)
+			const validPaths = (paths ?? []).filter((workspacePath: string) => workspacePath.trim().length > 0)
 			if (validPaths.length === 0) {
 				return undefined
 			}
@@ -2030,6 +2035,98 @@ export class Controller {
 		} catch (error) {
 			Logger.warn("[SdkController] Failed to build workspace manager:", error)
 			return undefined
+		}
+	}
+
+	// ---- ClineMcpToolHandlerProvider Implementation ----
+
+	isEnvironmentActive(): boolean {
+		return !this.isDisposed
+	}
+
+	async readFile(params: { path: string }): Promise<{ success: boolean; content?: string; error?: string }> {
+		try {
+			const root = await this.getWorkspaceRoot()
+			const targetPath = path.resolve(root, params.path)
+			if (!targetPath.startsWith(root)) {
+				return { success: false, error: "Access denied: Path outside workspace" }
+			}
+			const content = await fs.readFile(targetPath, "utf-8")
+			return { success: true, content }
+		} catch (err) {
+			return { success: false, error: err instanceof Error ? err.message : String(err) }
+		}
+	}
+
+	async applyDiff(params: { path: string; diff: string }): Promise<{ success: boolean; diff?: string; error?: string }> {
+		try {
+			const root = await this.getWorkspaceRoot()
+			const targetPath = path.resolve(root, params.path)
+			if (!targetPath.startsWith(root)) {
+				return { success: false, error: "Access denied: Path outside workspace" }
+			}
+			return { success: true, diff: params.diff }
+		} catch (err) {
+			return { success: false, error: err instanceof Error ? err.message : String(err) }
+		}
+	}
+
+	async writeFile(params: { path: string; content: string }): Promise<{ success: boolean; path?: string; error?: string }> {
+		try {
+			const root = await this.getWorkspaceRoot()
+			const targetPath = path.resolve(root, params.path)
+			if (!targetPath.startsWith(root)) {
+				return { success: false, error: "Access denied: Path outside workspace" }
+			}
+			await fs.mkdir(path.dirname(targetPath), { recursive: true })
+			await fs.writeFile(targetPath, params.content, "utf-8")
+			return { success: true, path: params.path }
+		} catch (err) {
+			return { success: false, error: err instanceof Error ? err.message : String(err) }
+		}
+	}
+
+	async runTerminal(params: { command: string }): Promise<{ success: boolean; exitCode?: number; output?: string; error?: string }> {
+		try {
+			const root = await this.getWorkspaceRoot()
+			const { stdout, stderr } = await execAsync(params.command, { cwd: root, timeout: 60000 })
+			return { success: true, exitCode: 0, output: (stdout + "\n" + stderr).trim() }
+		} catch (err: any) {
+			return {
+				success: false,
+				exitCode: err.code ?? 1,
+				output: err.stdout ?? "",
+				error: err.stderr || err.message || String(err),
+			}
+		}
+	}
+
+	async searchFiles(params: { query: string; path?: string }): Promise<{ success: boolean; results?: string[]; error?: string }> {
+		try {
+			const root = await this.getWorkspaceRoot()
+			const searchDir = params.path ? path.resolve(root, params.path) : root
+			if (!searchDir.startsWith(root)) {
+				return { success: false, error: "Access denied: Path outside workspace" }
+			}
+			const files = await fs.readdir(searchDir, { recursive: true })
+			const matches = files.filter((f) => String(f).includes(params.query)).map(String)
+			return { success: true, results: matches.slice(0, 50) }
+		} catch (err) {
+			return { success: false, error: err instanceof Error ? err.message : String(err) }
+		}
+	}
+
+	async listFiles(params: { path: string }): Promise<{ success: boolean; files?: string[]; error?: string }> {
+		try {
+			const root = await this.getWorkspaceRoot()
+			const targetPath = path.resolve(root, params.path || ".")
+			if (!targetPath.startsWith(root)) {
+				return { success: false, error: "Access denied: Path outside workspace" }
+			}
+			const entries = await fs.readdir(targetPath)
+			return { success: true, files: entries }
+		} catch (err) {
+			return { success: false, error: err instanceof Error ? err.message : String(err) }
 		}
 	}
 }

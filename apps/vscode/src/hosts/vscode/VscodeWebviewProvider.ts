@@ -60,10 +60,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
 		}
 
-		webviewView.webview.html =
-			this.context.extensionMode === vscode.ExtensionMode.Development
-				? await this.getHMRHtmlContent()
-				: this.getHtmlContent()
+		webviewView.webview.html = this.getHtmlContent()
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is received
@@ -163,6 +160,14 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				if (message.grpc_request_cancel) {
 					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
 				}
+				break
+			}
+			case "toggleMcpServer" as any: {
+				await vscode.commands.executeCommand("cline.toggleMcpServer")
+				break
+			}
+			case "toggleNgrokTunnel" as any: {
+				await vscode.commands.executeCommand("cline.toggleNgrokTunnel")
 				break
 			}
 			default: {

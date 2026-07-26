@@ -148,10 +148,10 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	private initializeHostTelemetryState(): void {
 		HostProvider.env
 			.getTelemetrySettings({})
-			.then((settings) => {
+			.then((settings: any) => {
 				this.applyHostTelemetrySetting(settings.isEnabled)
 			})
-			.catch((error) => {
+			.catch((error: any) => {
 				Logger.warn("[SdkTelemetry] Failed to read host telemetry setting; keeping SDK telemetry disabled", error)
 			})
 

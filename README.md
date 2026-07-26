@@ -188,6 +188,100 @@ const agent = new Agent({ tools: [deployTool], /* ... */ })
 ```
 ...or use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`.
 
+## Embedded Local MCP Server Host
+
+Cline includes an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0. This allows external AI agents and frameworks (such as Hermes Agent, OpenClaw, Python scripts, cURL, or custom agents) to seamlessly inspect files, apply code diffs, and run terminal commands inside your active workspace.
+
+### Available Workspace Tools
+
+- `read_file`: Reads contents of workspace files.
+- `write_file`: Writes content to workspace files.
+- `apply_diff`: Applies line-by-line diffs/patches with VS Code preview.
+- `run_terminal`: Executes shell commands in the workspace terminal.
+- `search_files`: Searches workspace files by query string or regex.
+- `list_files`: Lists directory structures.
+- `list_code_definition_names`: Lists top-level source code definitions.
+
+---
+
+### Configuring External AI Agents
+
+#### 1. Hermes Agent Setup
+
+Add the Cline MCP server endpoint to your Hermes Agent configuration file (`mcp_servers.json` or `config.json`):
+
+```json
+{
+  "mcpServers": {
+    "cline-workspace": {
+      "url": "http://127.0.0.1:3000/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+Or pass the URL via Hermes CLI flag:
+
+```bash
+hermes run --mcp-url http://127.0.0.1:3000/mcp
+```
+
+#### 2. OpenClaw Setup
+
+Add Cline as an HTTP MCP tool provider in your OpenClaw configuration file (`openclaw.config.json`):
+
+```json
+{
+  "tools": [
+    {
+      "name": "cline-workspace",
+      "endpoint": "http://127.0.0.1:3000/mcp",
+      "protocol": "mcp-http"
+    }
+  ]
+}
+```
+
+#### 3. Python MCP SDK Integration
+
+You can connect custom Python agents using the official `mcp` library:
+
+```python
+import asyncio
+from mcp import ClientSession
+from mcp.client.http import http_client
+
+async def main():
+    async with http_client("http://127.0.0.1:3000/mcp") as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            
+            # List available workspace tools
+            tools = await session.list_tools()
+            print("Connected tools:", [t.name for t in tools.tools])
+            
+            # Run terminal command via agent
+            result = await session.call_tool("run_terminal", {"command": "git status"})
+            print(result)
+
+asyncio.run(main())
+```
+
+#### 4. Quick Verification (cURL & PowerShell)
+
+Verify your embedded MCP server directly from terminal:
+
+**Health Check (JSON-RPC):**
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:3000/mcp -Method POST -ContentType "application/json" -Body '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0"}}}'
+```
+
+**List Available Tools:**
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:3000/mcp -Method POST -ContentType "application/json" -Body '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+```
+
 ## Multi-Agent Teams
 
 Coordinate multiple agents working together on complex tasks. A coordinator agent breaks the work into subtasks and delegates to specialist agents, each with their own tools and context. Team state persists across sessions so you can pick up where you left off.

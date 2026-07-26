@@ -7,6 +7,7 @@
 import { readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
+import { getMcpServerState } from "@/mcp/mcpServerStateHolder"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
@@ -180,6 +181,7 @@ export async function getStateToPostToWebview(controller: {
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		showFeatureTips,
 		banners,
+		mcpServerState: getMcpServerState(),
 		welcomeBanners,
 		openAiCodexIsAuthenticated,
 	} as ExtensionState

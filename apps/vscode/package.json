@@ -1,8 +1,8 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "4.0.0",
+	"displayName": "Cline (MCP Server Host)",
+	"description": "Autonomous coding agent with embedded MCP server host for external agents.",
+	"version": "4.1.7",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.101.0"
@@ -40,9 +40,11 @@
 		"llama"
 	],
 	"activationEvents": [
+		"*",
 		"onLanguage",
 		"onUri",
-		"onStartupFinished"
+		"onStartupFinished",
+		"onView:claude-dev.SidebarProvider"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -156,6 +158,16 @@
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "cline.toggleMcpServer",
+				"title": "Toggle Embedded MCP Server (Port 3000)",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.toggleNgrokTunnel",
+				"title": "Toggle Public Tunnel (ngrok) for MCP Server",
+				"category": "Cline"
 			},
 			{
 				"command": "cline.dev.createTestTasks",

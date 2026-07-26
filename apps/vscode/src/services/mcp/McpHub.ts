@@ -209,7 +209,7 @@ export class McpHub {
 							items: ["Open Settings File"],
 						},
 					})
-					.then((response) => {
+					.then((response: any) => {
 						if (response.selectedOption === "Open Settings File") {
 							HostProvider.window.showTextDocument({
 								path: settingsPath,
@@ -256,7 +256,7 @@ export class McpHub {
 							items: ["Open Settings File"],
 						},
 					})
-					.then((response) => {
+					.then((response: any) => {
 						if (response.selectedOption === "Open Settings File") {
 							HostProvider.window.showTextDocument({
 								path: settingsPath,

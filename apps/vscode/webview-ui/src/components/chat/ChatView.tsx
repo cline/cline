@@ -11,8 +11,76 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
+
+const McpServerBar = () => {
+	const { mcpServerState, navigateToMcp } = useExtensionState()
+	const vscode = typeof window !== "undefined" ? (window as any).__clineVsCodeApi : null
+
+	const isLocalActive = mcpServerState?.active
+
+	return (
+		<div
+			style={{
+				margin: "6px 14px 2px 14px",
+				padding: "6px 10px",
+				background: "var(--vscode-sidebar-background)",
+				border: "1px solid var(--vscode-widget-border, rgba(255,255,255,0.15))",
+				borderRadius: "6px",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "space-between",
+			}}>
+			<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+				<span
+					className="codicon codicon-radio-tower"
+					style={{
+						fontSize: "14px",
+						color: isLocalActive ? "#4ec9b0" : "var(--vscode-descriptionForeground)",
+					}}
+				/>
+				<span style={{ fontWeight: 600, fontSize: "12px" }}>MCP Host:</span>
+				<span
+					style={{
+						fontSize: "10px",
+						padding: "1px 6px",
+						borderRadius: "10px",
+						background: isLocalActive ? "rgba(78, 201, 176, 0.2)" : "rgba(255,255,255,0.1)",
+						color: isLocalActive ? "#4ec9b0" : "var(--vscode-descriptionForeground)",
+						fontWeight: 600,
+					}}>
+					{isLocalActive ? `ON (:${mcpServerState?.port || 3000})` : "OFF"}
+				</span>
+			</div>
+			<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+				{isLocalActive && (
+					<VSCodeButton
+						appearance="icon"
+						style={{ height: "22px", width: "22px" }}
+						title="Copy Local Endpoint URL (http://127.0.0.1:3000/mcp)"
+						onClick={() => navigator.clipboard.writeText(`http://127.0.0.1:${mcpServerState?.port || 3000}/mcp`)}>
+						<span className="codicon codicon-copy" style={{ fontSize: "12px" }} />
+					</VSCodeButton>
+				)}
+				<VSCodeButton
+					appearance={isLocalActive ? "secondary" : "primary"}
+					style={{ height: "22px", fontSize: "11px", padding: "0 8px" }}
+					onClick={() => vscode?.postMessage({ type: "toggleMcpServer" })}>
+					{isLocalActive ? "Stop" : "Start"}
+				</VSCodeButton>
+				<VSCodeButton
+					appearance="icon"
+					style={{ height: "22px", width: "22px" }}
+					title="Configure MCP Server Settings"
+					onClick={() => navigateToMcp("configure")}>
+					<span className="codicon codicon-settings-gear" style={{ fontSize: "12px" }} />
+				</VSCodeButton>
+			</div>
+		</div>
+	)
+}
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -404,6 +472,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
+				<McpServerBar />
 				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}

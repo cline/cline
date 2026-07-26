@@ -27,7 +27,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 		return { images: [], files: [] }
 	}
 
-	const processFilesPromises = filePaths.map(async (filePath) => {
+	const processFilesPromises = filePaths.map(async (filePath: string) => {
 		const fileExtension = path.extname(filePath).toLowerCase().substring(1)
 
 		const isImage = IMAGE_EXTENSIONS.includes(fileExtension)
