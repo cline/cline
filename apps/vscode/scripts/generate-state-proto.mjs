@@ -517,7 +517,12 @@ async function main() {
 
 	// Generate messages
 	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers, existingFieldNumbers.SecretsReserved)
-	const settingsMessage = generateProtoMessage("Settings", settingsFields, settingsFieldNumbers, existingFieldNumbers.SettingsReserved)
+	const settingsMessage = generateProtoMessage(
+		"Settings",
+		settingsFields,
+		settingsFieldNumbers,
+		existingFieldNumbers.SettingsReserved,
+	)
 
 	// Read existing proto file
 	let protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")
