@@ -1,3 +1,4 @@
+import { Mode } from "@shared/storage/types"
 import { Sparkles, XIcon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -12,6 +13,7 @@ const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
 interface ClinePassHintProps {
 	selectedProvider: string
+	currentMode: Mode
 }
 
 /**
@@ -19,10 +21,10 @@ interface ClinePassHintProps {
  * of any provider discover ClinePass. Selecting it swaps the provider in place
  * so its settings render right below.
  */
-export const ClinePassHint = ({ selectedProvider }: ClinePassHintProps) => {
+export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintProps) => {
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const { dismissedBanners, remoteConfigSettings } = useExtensionState()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const [locallyDismissed, setLocallyDismissed] = useState(false)
 
 	const isDismissed =
@@ -42,10 +44,12 @@ export const ClinePassHint = ({ selectedProvider }: ClinePassHintProps) => {
 	}
 
 	const handleTryIt = () => {
-		handleFieldsChange({
-			planModeApiProvider: CLINE_PASS_PROVIDER_ID,
-			actModeApiProvider: CLINE_PASS_PROVIDER_ID,
-		}).catch((error) => console.error("Failed to switch to ClinePass provider:", error))
+		// Mirror the provider dropdown: only switch the mode being edited when plan/act use separate models.
+		handleModeFieldChange(
+			{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+			CLINE_PASS_PROVIDER_ID as any,
+			currentMode,
+		).catch((error) => console.error("Failed to switch to ClinePass provider:", error))
 	}
 
 	return (
