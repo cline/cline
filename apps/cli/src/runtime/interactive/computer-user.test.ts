@@ -4,12 +4,25 @@ import {
 	type Server,
 	type Socket,
 } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import type { AgentToolContext } from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
 import {
 	createInteractiveComputerUser,
 	resolveHelperModelId,
 } from "./computer-user";
+
+const createCliCoreMock = vi.hoisted(() => vi.fn());
+
+vi.mock("../../session/session", () => ({
+	createCliCore: createCliCoreMock,
+}));
+
+const toolContext: AgentToolContext = {
+	agentId: "driver-agent",
+	conversationId: "driver-conversation",
+	iteration: 1,
+};
 
 /**
  * Stub qbt backend answering get_display_info, which tool construction
@@ -81,6 +94,10 @@ describe("createInteractiveComputerUser", () => {
 	let server: Server | undefined;
 	let destroyConnections: (() => void) | undefined;
 
+	beforeEach(() => {
+		createCliCoreMock.mockReset();
+	});
+
 	afterEach(async () => {
 		destroyConnections?.();
 		destroyConnections = undefined;
@@ -141,9 +158,79 @@ describe("createInteractiveComputerUser", () => {
 			"computer_user_status",
 		]);
 		// The raw computer tool must not be among the driver's tools.
-		expect(
-			result?.driverTools.some((tool) => tool.name === "computer"),
-		).toBe(false);
+		expect(result?.driverTools.some((tool) => tool.name === "computer")).toBe(
+			false,
+		);
+		await result?.dispose();
+	});
+
+	it("starts the helper with one adaptive reasoning snapshot", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+		const start = vi.fn(
+			async (_input: {
+				config: Record<string, unknown>;
+				interactive: boolean;
+			}) => ({ sessionId: "helper-session" }),
+		);
+		const send = vi.fn(() => new Promise(() => {}));
+		createCliCoreMock.mockResolvedValue({
+			start,
+			send,
+			abort: vi.fn(async () => {}),
+			stop: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		});
+
+		const result = await createInteractiveComputerUser({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({
+				provider: "anthropic",
+				apiKey: "sk-ant-x",
+				model: "claude-sonnet-4-5",
+				client: "openai",
+				protocol: "openai-responses",
+				routingProviderId: "openai-native",
+				reasoning: {
+					enabled: true,
+					effort: "low",
+					budgetTokens: 8192,
+				},
+			}),
+			notifyDriver: () => {},
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+				CLINE_COMPUTER_USER_MODEL: "claude-opus-4-7",
+			} as NodeJS.ProcessEnv,
+		});
+		const startTool = result?.driverTools.find(
+			(tool) => tool.name === "computer_user_start",
+		);
+
+		await startTool?.execute({ task: "inspect the desktop" }, toolContext);
+
+		expect(start).toHaveBeenCalledWith({
+			interactive: true,
+			config: expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "claude-opus-4-7",
+				thinking: true,
+				reasoningEffort: "high",
+				providerConfig: expect.objectContaining({
+					providerId: "anthropic",
+					modelId: "claude-opus-4-7",
+					thinking: true,
+					reasoningEffort: "high",
+					clientType: undefined,
+					routingProviderId: undefined,
+					thinkingBudgetTokens: undefined,
+				}),
+			}),
+		});
+		expect(start.mock.calls[0]?.[0]?.config).not.toHaveProperty(
+			"thinkingBudgetTokens",
+		);
 		await result?.dispose();
 	});
 });
