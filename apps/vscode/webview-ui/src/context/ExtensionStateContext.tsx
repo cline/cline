@@ -292,7 +292,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		shellIntegrationTimeout: 4000,
 		terminalReuseEnabled: true,
 		vscodeTerminalExecutionMode: "backgroundExec",
-		maxConsecutiveMistakes: 3,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,

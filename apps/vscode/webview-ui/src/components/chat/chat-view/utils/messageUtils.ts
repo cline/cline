@@ -184,9 +184,14 @@ function isBrowserSessionMessage(message: ClineMessage): boolean {
 		return message.ask === "browser_action_launch"
 	}
 	if (message.type === "say") {
-		return ["browser_action_launch", "api_req_started", "text", "browser_action", "browser_action_result", "reasoning"].includes(
-			message.say ?? "",
-		)
+		return [
+			"browser_action_launch",
+			"api_req_started",
+			"text",
+			"browser_action",
+			"browser_action_result",
+			"reasoning",
+		].includes(message.say ?? "")
 	}
 	return false
 }

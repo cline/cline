@@ -130,11 +130,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.handleTerminalExecutionModeChanged(previousMode, nextMode)
 		}
 
-		// Update max consecutive mistakes
-		if (request.maxConsecutiveMistakes !== undefined) {
-			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
-		}
-
 		if (request.hooksEnabled !== undefined) {
 			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? true
 			const isEnabled = !!request.hooksEnabled
