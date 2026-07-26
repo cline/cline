@@ -50,6 +50,7 @@
 	},
 	"dependencies": {
 		"@cline/agents": "workspace:*",
+		"@cline/drive": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@modelcontextprotocol/sdk": "^1.29.0",

@@ -11,6 +11,7 @@ import {
 	DRIVE_SCHEMA_VERSION,
 	DriveSubModeSchema,
 	ParticipantSchema,
+	StagePinSchema,
 	StageSharerSchema,
 } from "./room";
 
@@ -62,6 +63,7 @@ export const ControlStageEventSchema = DriveEventBaseSchema.extend({
 	type: z.literal("control.stage"),
 	track: z.literal("control"),
 	sharer: StageSharerSchema.nullable(),
+	pin: StagePinSchema.nullable().optional(),
 }).strict();
 
 export const ControlModeEventSchema = DriveEventBaseSchema.extend({

@@ -65,6 +65,16 @@ export const StageSharerSchema = z
 	.strict();
 export type StageSharer = z.infer<typeof StageSharerSchema>;
 
+/** Structured human share pin (DRV-SHARE MVP). No WebRTC pixels. */
+export const StagePinSchema = z
+	.object({
+		kind: z.enum(["selection", "file", "terminal"]),
+		label: z.string().min(1),
+		ref: z.string().min(1).optional(),
+	})
+	.strict();
+export type StagePin = z.infer<typeof StagePinSchema>;
+
 export const StageCardSchema = z
 	.object({
 		id: z.string().min(1),
@@ -87,6 +97,7 @@ export type StageCard = z.infer<typeof StageCardSchema>;
 export const StageStateSchema = z
 	.object({
 		sharer: StageSharerSchema.nullable().default(null),
+		pin: StagePinSchema.nullable().default(null),
 		cards: z.array(StageCardSchema).default([]),
 	})
 	.strict();

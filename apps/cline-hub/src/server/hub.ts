@@ -213,6 +213,32 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				broadcastHubState(ctx);
 			}
 		},
+		onRoomSnapshot(payload) {
+			const roomId = asString(payload.roomId);
+			const snapshot = payload.snapshot;
+			if (!roomId || !snapshot || typeof snapshot !== "object") {
+				return;
+			}
+			ctx.broadcast({
+				type: "room_snapshot",
+				roomId,
+				snapshot,
+			});
+		},
+		onRoomEvent(payload) {
+			const roomId = asString(payload.roomId);
+			const snapshot = payload.snapshot;
+			const event = payload.event;
+			if (!roomId || !snapshot || typeof snapshot !== "object") {
+				return;
+			}
+			ctx.broadcast({
+				type: "drive_event",
+				roomId,
+				event,
+				snapshot,
+			});
+		},
 	});
 
 	ctx.cline.subscribe((event) => handleSessionEvent(ctx, event));

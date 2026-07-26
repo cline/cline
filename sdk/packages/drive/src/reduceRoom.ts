@@ -83,7 +83,7 @@ export function createEmptyRoomSnapshot(input: {
 		driveActive: false,
 		subMode: "plan",
 		participants: input.host ? [input.host] : [],
-		stage: { sharer: null, cards: [] },
+		stage: { sharer: null, pin: null, cards: [] },
 		addressSet: { mode: "everyone" },
 		muteByParticipantId: {},
 		raisedHandByParticipantId: {},
@@ -141,7 +141,16 @@ export function reduceRoom(
 		case "control.stage":
 			return {
 				...base,
-				stage: { ...base.stage, sharer: event.sharer },
+				stage: {
+					...base.stage,
+					sharer: event.sharer,
+					pin:
+						event.pin !== undefined
+							? event.pin
+							: event.sharer?.kind === "human"
+								? base.stage.pin
+								: null,
+				},
 			};
 		case "control.mode":
 			return {

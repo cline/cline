@@ -173,6 +173,7 @@ describe("Room / address schemas", () => {
 			],
 			stage: {
 				sharer: { kind: "agent", participantId: "agent_1" },
+				pin: null,
 				cards: [],
 			},
 			addressSet: EVERYONE_ADDRESS,

@@ -455,6 +455,11 @@ export type HubCommandName =
 	| "connector.channels"
 	| "connector.configure"
 	| "connector.delete_config"
+	| "call_join"
+	| "call_leave"
+	| "call_mute"
+	| "call_set_stage"
+	| "call_set_mode"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"
@@ -556,7 +561,9 @@ export type HubEventName =
 	| "settings.changed"
 	| "ui.notify"
 	| "ui.show_window"
-	| "hub.client.updated";
+	| "hub.client.updated"
+	| "room.snapshot"
+	| "room.event";
 
 export interface HubEventEnvelope {
 	version: HubProtocolVersion;

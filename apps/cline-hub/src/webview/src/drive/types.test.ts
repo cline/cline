@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_DRIVE_UI,
 	drivePersonaSystemHint,
+	fromSharedDriveSubMode,
 	toNativeMode,
+	toSharedDriveSubMode,
 } from "./types";
 
 describe("toNativeMode", () => {
@@ -11,6 +13,13 @@ describe("toNativeMode", () => {
 		expect(toNativeMode("ask")).toBe("plan");
 		expect(toNativeMode("agent")).toBe("act");
 		expect(toNativeMode("debug")).toBe("act");
+	});
+});
+
+describe("toSharedDriveSubMode", () => {
+	it("maps agent UI mode to shared act", () => {
+		expect(toSharedDriveSubMode("agent")).toBe("act");
+		expect(fromSharedDriveSubMode("act")).toBe("agent");
 	});
 });
 
