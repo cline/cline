@@ -272,26 +272,31 @@ export class SdkDiffEditCoordinator {
 			content.editType === "create"
 				? `${fileName}: New File (Preview)`
 				: `${fileName}: Original ↔ Cline's Changes (Preview)`
-		const openPromise = preview.open({
+		// The preview is cosmetic, so a vscode.diff call that rejects or stalls must never
+		// block the approval ask or fail the edit: race the open against a timer and let
+		// callers catch the failure and proceed without a preview.
+		const opened = preview.open({
 			title,
 			absolutePath: content.absolutePath,
 			displayPath: content.displayPath,
 			leftContent: content.leftContent,
 			rightContent: content.rightContent,
 		})
-		try {
-			await raceOpenTimeout(openPromise, this.previewOpenTimeoutMs)
-		} catch (error) {
-			if (error instanceof PreviewOpenTimeoutError) {
-				// The open is still pending; close once it settles so a tab that
-				// appears late doesn't linger as an orphan.
-				void openPromise.catch(() => {}).then(() => preview.close().catch(() => {}))
-			} else {
-				// open() can fail after partially opening (the session isn't registered yet,
-				// so discardPreview couldn't reach it) — close directly to avoid an orphaned tab.
-				await preview.close().catch(() => {})
-			}
-			throw error
+		const failure = await Promise.race([
+			opened.then(
+				() => undefined,
+				(error) => new Error(`diff preview failed to open: ${error}`),
+			),
+			delay(this.previewOpenTimeoutMs).then(
+				() => new Error(`diff preview did not open within ${this.previewOpenTimeoutMs}ms`),
+			),
+		])
+		if (failure) {
+			// Whenever the open settles — a failed open may have partially opened a tab, a
+			// stalled one may open late — close it so no orphaned tab lingers. (The session
+			// is never registered on failure, so discardPreview couldn't reach it.)
+			void opened.catch(() => {}).finally(() => preview.close().catch(() => {}))
+			throw failure
 		}
 		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
 	}
@@ -357,28 +362,8 @@ function resolveEditPath(cwd: string, inputPath: string): string {
 	return resolved
 }
 
-class PreviewOpenTimeoutError extends Error {
-	constructor(ms: number) {
-		super(`Diff preview did not open within ${ms}ms; proceeding without it`)
-		this.name = "PreviewOpenTimeoutError"
-	}
-}
-
-/** Rejects with PreviewOpenTimeoutError if `promise` doesn't settle within `ms`. */
-function raceOpenTimeout(promise: Promise<void>, ms: number): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const timer = setTimeout(() => reject(new PreviewOpenTimeoutError(ms)), ms)
-		promise.then(
-			() => {
-				clearTimeout(timer)
-				resolve()
-			},
-			(error) => {
-				clearTimeout(timer)
-				reject(error)
-			},
-		)
-	})
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** Waits `ms`, resolving early (never rejecting) if the signal aborts. */
