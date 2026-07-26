@@ -1,5 +1,6 @@
 "use client";
 
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import {
 	ArrowUp,
 	Brain,
@@ -13,14 +14,6 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	Combobox,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxInput,
-	ComboboxItem,
-	ComboboxList,
-} from "@/components/ui/combobox";
 import {
 	Select,
 	SelectContent,
@@ -42,6 +35,7 @@ import {
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
+import { SearchableSelect } from "./searchable-select";
 import { WorkspaceSelector } from "./workspace-selector";
 
 type ActiveMention = {
@@ -69,7 +63,7 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 ];
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
-	cline: ["anthropic/claude-sonnet-4.6"],
+	cline: [CLINE_DEFAULT_MODEL_ID],
 	anthropic: ["claude-sonnet-4-6"],
 	"openai-native": ["gpt-5.5"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
@@ -77,7 +71,7 @@ const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
-	cline: ["anthropic/claude-sonnet-4.6"],
+	cline: [CLINE_DEFAULT_MODEL_ID],
 	anthropic: ["claude-sonnet-4-6"],
 	"openai-native": ["gpt-5.5"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
@@ -1045,7 +1039,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="flex shrink-0 items-center rounded-md bg-muted p-0.5 max-[560px]:col-start-2 max-[560px]:row-start-1">
+					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5 max-[560px]:col-start-2 max-[560px]:row-start-1">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -1087,7 +1081,6 @@ export function ChatInputBar({
 							}
 							onProviderChange={onProviderChange}
 							provider={provider}
-							variant={variant}
 						/>
 					</div>
 					<Select
@@ -1097,7 +1090,7 @@ export function ChatInputBar({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="h-7 min-w-[5.75rem] gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-2"
+							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-2"
 							size="sm"
 							title={
 								modelSupportsReasoning === false
@@ -1128,7 +1121,7 @@ export function ChatInputBar({
 				</div>
 
 				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:contents">
-					<div className="max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
+					<div className="hidden max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
 						<WorkspaceSelector
 							currentBranch={gitBranch}
 							onListGitBranches={onListGitBranches}
@@ -1181,7 +1174,6 @@ function ModelSelector({
 	provider,
 	model,
 	isBusy,
-	variant,
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
@@ -1189,7 +1181,6 @@ function ModelSelector({
 	provider: string;
 	model: string;
 	isBusy: boolean;
-	variant: "conversation" | "welcome";
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
@@ -1416,13 +1407,13 @@ function ModelSelector({
 	]);
 
 	return (
-		<div className="flex min-w-0 shrink-0 items-center gap-1 text-[11px]">
-			<Combobox
+		<div className="flex min-w-0 shrink-0 items-center gap-0.5 text-[11px]">
+			<SearchableSelect
+				ariaLabel="Provider"
+				disabled={isBusy || providers.length === 0}
+				emptyLabel="No providers found."
 				items={providers}
-				onValueChange={(value) => {
-					if (!value) {
-						return;
-					}
+				onSelect={(value) => {
 					onProviderChange(value);
 					const rememberedModel = lastSelection.lastModelByProvider[value];
 					const providerModelIds = visibleProviderModels[value] ?? [];
@@ -1439,63 +1430,23 @@ function ModelSelector({
 						onModelChange(firstModel);
 					}
 				}}
+				placeholder="Provider"
+				searchPlaceholder="Search providers"
+				triggerClassName="max-w-28 text-[11px]"
 				value={resolvedProvider}
-			>
-				<ComboboxInput
-					aria-label="Provider"
-					className={cn(
-						"h-7 text-[11px] max-[560px]:w-20",
-						variant === "welcome" && "w-24 border-0 bg-transparent shadow-none",
-					)}
-					disabled={isBusy || providers.length === 0}
-					readOnly
-					showClear={false}
-					showTrigger
-				/>
-				<ComboboxContent>
-					<ComboboxEmpty>No providers found.</ComboboxEmpty>
-					<ComboboxList>
-						{(item) => (
-							<ComboboxItem className="text-[11px]" key={item} value={item}>
-								{item}
-							</ComboboxItem>
-						)}
-					</ComboboxList>
-				</ComboboxContent>
-			</Combobox>
-
-			<Combobox
+			/>
+			<span className="text-muted-foreground/50">/</span>
+			<SearchableSelect
+				ariaLabel="Model"
+				disabled={isBusy || modelsForProvider.length === 0}
+				emptyLabel="No models found."
 				items={modelsForProvider}
-				onValueChange={(value) => {
-					if (!value) {
-						return;
-					}
-					onModelChange(value);
-				}}
+				onSelect={(value) => onModelChange(value)}
+				placeholder="Model"
+				searchPlaceholder="Search models"
+				triggerClassName="max-w-52 text-[11px]"
 				value={resolvedModel}
-			>
-				<ComboboxInput
-					aria-label="Model"
-					className={cn(
-						"h-7 text-[11px] max-[560px]:w-32",
-						variant === "welcome" && "w-52 border-0 bg-transparent shadow-none",
-					)}
-					disabled={isBusy || modelsForProvider.length === 0}
-					readOnly
-					showClear={false}
-					showTrigger
-				/>
-				<ComboboxContent>
-					<ComboboxEmpty>No models found.</ComboboxEmpty>
-					<ComboboxList>
-						{(item) => (
-							<ComboboxItem className="text-[11px]" key={item} value={item}>
-								{item}
-							</ComboboxItem>
-						)}
-					</ComboboxList>
-				</ComboboxContent>
-			</Combobox>
+			/>
 		</div>
 	);
 }

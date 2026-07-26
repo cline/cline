@@ -64,13 +64,33 @@ function countOccurrences(content: string, needle: string): number {
 	return content.split(needle).length - 1;
 }
 
+/**
+ * Returns "\r\n" if "\r\n" appears anywhere in the content, otherwise "\n" —
+ * including for content with no line breaks at all. Files are uniformly CRLF
+ * or uniformly LF in practice; the mixed case that matters is a CRLF file
+ * with LF-only lines inserted by earlier releases of this tool, and any
+ * surviving "\r\n" — wherever it sits — should pull such a file back to
+ * CRLF, which is why this checks for "\r\n" anywhere rather than looking at
+ * the first line break. Reads produced via readline strip "\r", so models
+ * emit LF-only text even for CRLF files; edits must be normalized to the
+ * file's own EOL or they create mixed line endings and break subsequent
+ * exact-match replacements.
+ */
+function detectLineEnding(content: string): "\r\n" | "\n" {
+	return content.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function normalizeLineEndings(text: string, eol: "\r\n" | "\n"): string {
+	return text.split(/\r\n|\n/).join(eol);
+}
+
 function createLineDiff(
 	oldContent: string,
 	newContent: string,
 	maxLines: number,
 ): string {
-	const oldLines = oldContent.split("\n");
-	const newLines = newContent.split("\n");
+	const oldLines = oldContent.split(/\r\n|\n/);
+	const newLines = newContent.split(/\r\n|\n/);
 
 	// Trim the common prefix and suffix so only the changed region is emitted;
 	// a naive positional compare would mispair every line after an edit that
@@ -155,7 +175,10 @@ async function replaceInFile(
 	maxDiffLines: number,
 ): Promise<string> {
 	const content = await fs.readFile(filePath, encoding);
-	const occurrences = countOccurrences(content, oldStr);
+	const eol = detectLineEnding(content);
+	const normalizedOldStr = normalizeLineEndings(oldStr, eol);
+	const normalizedNewStr = normalizeLineEndings(newStr ?? "", eol);
+	const occurrences = countOccurrences(content, normalizedOldStr);
 
 	if (occurrences === 0) {
 		throw new Error(`No replacement performed: text not found in ${filePath}.`);
@@ -167,7 +190,9 @@ async function replaceInFile(
 		);
 	}
 
-	const updated = content.replace(oldStr, newStr ?? "");
+	// Replacer function so "$"-sequences in new_text ($&, $', $`, $$, $n)
+	// are inserted literally instead of being expanded by String.replace.
+	const updated = content.replace(normalizedOldStr, () => normalizedNewStr);
 	await fs.writeFile(filePath, updated, { encoding });
 
 	const diff = createLineDiff(content, updated, maxDiffLines);
@@ -181,7 +206,8 @@ async function insertInFile(
 	encoding: BufferEncoding,
 ): Promise<string> {
 	const content = await fs.readFile(filePath, encoding);
-	const lines = content.split("\n");
+	const eol = detectLineEnding(content);
+	const lines = content.split(/\r\n|\n/);
 	const maxBoundaryLine = lines.length + 1;
 
 	if (insertLineOneBased < 1 || insertLineOneBased > maxBoundaryLine) {
@@ -191,8 +217,8 @@ async function insertInFile(
 	}
 
 	const insertLine = insertLineOneBased - 1;
-	lines.splice(insertLine, 0, ...newStr.split("\n"));
-	await fs.writeFile(filePath, lines.join("\n"), { encoding });
+	lines.splice(insertLine, 0, ...newStr.split(/\r\n|\n/));
+	await fs.writeFile(filePath, lines.join(eol), { encoding });
 
 	return `Inserted content at line ${insertLineOneBased} in ${filePath}.`;
 }

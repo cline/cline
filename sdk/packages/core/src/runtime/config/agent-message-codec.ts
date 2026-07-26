@@ -58,14 +58,27 @@ export function messageToAgentMessages(
 		return out;
 	}
 
+	// A message that is already a single tool result needs no id
+	// disambiguation — the suffix only distinguishes the parts of a split
+	// message. Keeping the id verbatim makes restore/persist round-trips
+	// byte-stable; ids feed the compaction source-prefix hash, and a
+	// re-suffixed id silently invalidates saved compaction state (and grows
+	// without bound across restores).
+	const isPureToolResult =
+		blocks.length === 1 && blocks[0].type === "tool_result";
+
 	for (const block of blocks) {
 		if (block.type !== "tool_result") {
 			nonToolBlocks.push(block);
 			continue;
 		}
 		flushNonToolBlocks();
+		const toolIdSuffix = `_tool_${block.tool_use_id}`;
 		out.push({
-			id: `${baseId}_tool_${block.tool_use_id}`,
+			id:
+				isPureToolResult || baseId.endsWith(toolIdSuffix)
+					? baseId
+					: `${baseId}${toolIdSuffix}`,
 			role: "tool",
 			content: [toolResultContentToAgentPart(block)],
 			createdAt: message.ts ?? Date.now(),

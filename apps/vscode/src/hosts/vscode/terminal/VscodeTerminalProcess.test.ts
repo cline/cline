@@ -245,8 +245,10 @@ describe("TerminalProcess (Integration Tests)", () => {
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 
-		// This event should be emitted for terminals without shell integration
-		;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+		;(emitSpy as sinon.SinonSpy)
+			.calledWith("unobserved_command", { source: "sendText", ownership: "managed" })
+			.should.be.true()
+		process.getCompletionDetails().unobservedCommand?.should.eql({ source: "sendText", ownership: "managed" })
 	})
 
 	// The following tests require shell integration and controlled terminal output
@@ -530,7 +532,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			// The buffered pre-C output is emitted as fallback output
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "remote output").should.be.true()
 			// The terminal must be evicted from the reuse pool
-			;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+			;(emitSpy as sinon.SinonSpy)
+				.calledWith("unobserved_command", { source: "markerlessShellIntegration", ownership: "managed" })
+				.should.be.true()
 		})
 
 		it("should complete after the max quiet time even without a prompt", async () => {
@@ -549,7 +553,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			await runPromise
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
-			;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+			;(emitSpy as sinon.SinonSpy)
+				.calledWith("unobserved_command", { source: "markerlessShellIntegration", ownership: "managed" })
+				.should.be.true()
 		})
 
 		it("should complete when no data ever arrives", async () => {
@@ -604,7 +610,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "build finished").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			// Shell integration worked — the terminal stays reusable
-			;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.false()
+			;(emitSpy as sinon.SinonSpy).calledWith("unobserved_command").should.be.false()
 		})
 
 		it("should complete when the terminal closes mid-command", async () => {

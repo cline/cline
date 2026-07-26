@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -39,7 +40,7 @@ function resolveImportedModelSelection(parsed: Record<string, unknown>): {
 		modelSelection?.modelId ??
 			parsed.modelId ??
 			parsed.model ??
-			"openai/gpt-5.3-codex",
+			CLINE_DEFAULT_MODEL_ID,
 	).trim();
 	return { provider, model };
 }
@@ -165,7 +166,10 @@ export function registerScheduleImportCommand(
 					prompt: String(parsed.prompt ?? "").trim(),
 					provider,
 					model,
-					mode: parsed.mode === "plan" ? "plan" : "act",
+					mode:
+						parseMode(
+							typeof parsed.mode === "string" ? parsed.mode : undefined,
+						) ?? "yolo",
 					workspaceRoot,
 					cwd: String(parsed.cwd ?? "").trim() || undefined,
 					systemPrompt:
@@ -229,7 +233,7 @@ export function registerScheduleUpdateCommand(
 		.option("--enabled", "Enable the schedule")
 		.option("--max-parallel <n>", "New max parallel executions")
 		.option("--metadata-json <json>", "New metadata as JSON object")
-		.option("--mode <act|plan>", "New execution mode")
+		.option("--mode <act|plan|yolo>", "New execution mode")
 		.option("--model <model>", "New model")
 		.option("--name <name>", "New name")
 		.option("--pause", "Pause the schedule")

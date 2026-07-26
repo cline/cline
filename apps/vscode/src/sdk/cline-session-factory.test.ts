@@ -138,11 +138,15 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 
 describe("getDefaultModelIdForProvider", () => {
 	it("uses the SDK provider catalog for the Cline default model", () => {
-		expect(getDefaultModelIdForProvider("cline")).toBe("anthropic/claude-sonnet-4.6")
+		expect(getDefaultModelIdForProvider("cline")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline.provider.defaultModelId,
+		)
 	})
 
-	it("falls back to the first generated model when the SDK manifest default is not in the model catalog", () => {
-		expect(getDefaultModelIdForProvider("gemini")).toBe("gemini-3.5-flash")
+	it("uses the generated Gemini provider default", () => {
+		expect(getDefaultModelIdForProvider("gemini")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.gemini.provider.defaultModelId,
+		)
 	})
 
 	it("returns undefined for unknown providers", () => {
@@ -372,6 +376,60 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
 	})
 
+	it("resolves the OpenAI Compatible base URL when the provider is stored under its SDK spelling", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "openai/gpt-4o-mini",
+			openAiApiKey: "compat-key",
+			openAiBaseUrl: "http://127.0.0.1:4141/v1",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		// Without the base URL, ProviderConfig consumers that don't re-resolve
+		// settings (e.g. the compaction summarizer) would hit the provider
+		// default endpoint (api.openai.com) instead of the configured one.
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("falls back to the providers.json base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "compat-key",
+				baseUrl: "http://127.0.0.1:4141/v1",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "openai/gpt-4o-mini",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("exposes knownModels at the top level so manual compaction can budget against the model catalog", async () => {
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		const providerConfigKnownModels = (config.providerConfig as { knownModels?: Record<string, unknown> }).knownModels
+		expect(providerConfigKnownModels).toBeDefined()
+		expect(config.knownModels).toBe(providerConfigKnownModels)
+	})
+
 	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
 			provider: "openai-codex",
@@ -505,7 +563,9 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("openai-compatible")
 		expect(config.modelId).toBe("custom-reasoner")
-		expect(config.knownModels).toBeUndefined()
+		// knownModels is exposed both inside providerConfig (inference) and at
+		// the top level (manual compaction budgets).
+		expect(config.knownModels).toBeDefined()
 		expect((config.providerConfig as any).knownModels).toBeDefined()
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
@@ -766,27 +826,7 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
-	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
-		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
-			if (key === "useAutoCondense") {
-				return true
-			}
-			if (key === "subagentsEnabled") {
-				return false
-			}
-			return undefined
-		})
-
-		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-
-		expect(config.compaction).toEqual({
-			enabled: true,
-			strategy: "basic",
-		})
-	})
-
-	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "agentic" })
+	it("enables agentic SDK compaction when global useAutoCondense is true", async () => {
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -805,8 +845,8 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
-	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "basic" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -822,6 +862,26 @@ describe("buildSessionConfig", () => {
 		expect(config.compaction).toEqual({
 			enabled: true,
 			strategy: "basic",
+		})
+	})
+
+	it("falls back to agentic SDK compaction for an invalid stored strategy", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
 		})
 	})
 
@@ -859,7 +919,7 @@ describe("buildSessionConfig", () => {
 		expect(disabledConfig.compaction).toBeUndefined()
 		expect(enabledConfig.compaction).toEqual({
 			enabled: true,
-			strategy: "basic",
+			strategy: "agentic",
 		})
 	})
 

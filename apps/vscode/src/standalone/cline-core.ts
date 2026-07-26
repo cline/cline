@@ -5,7 +5,6 @@
 // work at module-eval time, or proxy support silently breaks on JetBrains/CLI.
 import "@/shared/net"
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
-import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalEditPreview } from "@hosts/external/ExternalEditPreview"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
@@ -16,7 +15,6 @@ import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { Logger } from "@/shared/services/Logger"
 import { createStorageContext } from "@/shared/storage/storage-context"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
@@ -116,9 +114,6 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	const createWebview = (): WebviewProvider => {
 		return new ExternalWebviewProvider(extensionContext)
 	}
-	const createDiffView = (): DiffViewProvider => {
-		return new ExternalDiffViewProvider()
-	}
 	const createEditPreview = () => new ExternalEditPreview()
 	const createCommentReview = () => new ExternalCommentReviewController()
 	const getCallbackUrl = (path: string, preferredPort?: number): Promise<string> => {
@@ -129,7 +124,6 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 
 	HostProvider.initialize(
 		createWebview,
-		createDiffView,
 		createEditPreview,
 		createCommentReview,
 		new ExternalHostBridgeClientManager(),

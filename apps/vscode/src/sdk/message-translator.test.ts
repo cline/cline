@@ -1643,6 +1643,125 @@ describe("translateSessionEvent — agent_event notice", () => {
 		expect(result.messages[0].text).toBe("Retrying API request...")
 		expect(result.messages[0].partial).toBe(false)
 	})
+
+	function noticeEvent(message: string, metadata?: Record<string, unknown>): CoreSessionEvent {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message,
+					metadata,
+				} as AgentEvent,
+			},
+		}
+	}
+
+	it("translates compaction status notices into a divider row updated in place", () => {
+		const state = new MessageTranslatorState()
+
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+		expect(started).toHaveLength(1)
+		expect(started[0].say).toBe("compaction")
+		expect(JSON.parse(started[0].text ?? "{}")).toMatchObject({ status: "started", mode: "auto" })
+
+		const completed = translateSessionEvent(
+			noticeEvent("auto-compacted", {
+				kind: "auto_compaction",
+				phase: "completed",
+				tokensBefore: 120_000,
+				tokensAfter: 40_000,
+				messagesBefore: 80,
+				messagesAfter: 12,
+			}),
+			state,
+		).messages
+		expect(completed).toHaveLength(1)
+		expect(completed[0].say).toBe("compaction")
+		// Same ts: the webview replaces the "started" spinner row in place.
+		expect(completed[0].ts).toBe(started[0].ts)
+		expect(JSON.parse(completed[0].text ?? "{}")).toMatchObject({
+			status: "completed",
+			mode: "auto",
+			tokensBefore: 120_000,
+			tokensAfter: 40_000,
+			messagesBefore: 80,
+			messagesAfter: 12,
+		})
+	})
+
+	it("suppresses known-internal status notices instead of rendering raw slugs", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			noticeEvent("compaction-budget-adjusted", { kind: "compaction_budget_emergency", actionCount: 1 }),
+			state,
+		)
+		expect(result.messages).toHaveLength(0)
+	})
+
+	it("renders an unrecognized status notice as an info row rather than dropping it", () => {
+		// Only the known-internal set is suppressed; a status notice added to the
+		// SDK later should surface (even as a raw slug) instead of vanishing.
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(noticeEvent("some-future-status", { kind: "something_new" }), state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("info")
+		expect(result.messages[0].text).toBe("some-future-status")
+	})
+
+	it("finalizes a dangling compaction divider as failed when the turn errors", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const errored = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "error", error: new Error("boom"), recoverable: false } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = errored.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "failed" })
+	})
+
+	it("finalizes a dangling compaction divider as cancelled when the turn ends", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const done = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "done", reason: "aborted" } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = done.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "cancelled" })
+	})
 })
 
 // ---------------------------------------------------------------------------

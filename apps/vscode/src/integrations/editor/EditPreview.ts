@@ -3,10 +3,9 @@ import { diffLines } from "diff"
 /**
  * A read-only, virtual-document diff preview of a proposed file edit.
  *
- * Unlike {@link DiffViewProvider}, which streams into the *real* (editable) file
- * document, an EditPreview never touches the file on disk: both sides of the diff
- * are virtual documents, so opening it has no side effects, discarding it needs no
- * revert, and multiple previews of the same file can't interfere with each other.
+ * An EditPreview never touches the file on disk: both sides of the diff are virtual
+ * documents, so opening it has no side effects, discarding it needs no revert, and
+ * multiple previews of the same file can't interfere with each other.
  * The actual write happens elsewhere (the SDK's disk-writing tool executor) after
  * the preview is closed.
  *

@@ -37,7 +37,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			planModeReasoningEffort,
 			actModeReasoningEffort,
 			mode,
-			customPrompt,
 			planModeApiProvider,
 			actModeApiProvider,
 			// Fields requiring special logic (telemetry, merging, etc.)
@@ -94,10 +93,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 		if (mode !== undefined) {
 			const converted = convertPlanActMode(mode)
 			controller.stateManager.setGlobalState("mode", converted)
-		}
-
-		if (customPrompt === "compact") {
-			controller.stateManager.setGlobalState("customPrompt", "compact")
 		}
 
 		if (planModeApiProvider !== undefined) {

@@ -42,6 +42,7 @@
 		"typecheck:smoke": "bun tsc -p tsconfig.smoke.json --noEmit",
 		"test": "bun run test:unit && bun run test:e2e",
 		"test:live": "vitest run --config vitest.config.ts src/extensions/context/compaction.live.test.ts",
+		"test:compaction": "bun --conditions=development run scripts/compact-session.ts",
 		"test:unit": "vitest run --config vitest.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
 		"verify:routines": "zsh -lc 'bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",

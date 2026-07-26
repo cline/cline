@@ -79,4 +79,58 @@ describe("WorkspaceSelector", () => {
 			expect(onSwitchGitBranch).toHaveBeenCalledWith("feature/review");
 		});
 	});
+
+	it("lists the active workspace even when the catalog excludes it", async () => {
+		await act(async () => {
+			root.render(
+				<WorkspaceSelector
+					currentBranch="main"
+					onListGitBranches={vi.fn(async () => ({
+						current: "main",
+						branches: ["main"],
+					}))}
+					onPickWorkspaceDirectory={vi.fn(async () => null)}
+					onRefreshWorkspaces={vi.fn(async () => undefined)}
+					onSwitchGitBranch={vi.fn(async () => true)}
+					onSwitchWorkspace={vi.fn(async () => true)}
+					workspaceRoot="/Users/beatrix/Desktop"
+					workspaces={["/workspace/one"]}
+				/>,
+			);
+		});
+
+		await click(container.querySelector("#git-branch-btn") as Element);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("~/Desktop");
+			expect(container.textContent).toContain("/workspace/one");
+		});
+	});
+
+	it("labels the SDK chat workspace as Chat without listing the raw path", async () => {
+		const temporaryWorkspace = "/home/host/.cline/data/workspaces/chat";
+		await act(async () => {
+			root.render(
+				<WorkspaceSelector
+					currentBranch="no-git"
+					onListGitBranches={vi.fn(async () => ({
+						current: "no-git",
+						branches: [],
+					}))}
+					onPickWorkspaceDirectory={vi.fn(async () => null)}
+					onRefreshWorkspaces={vi.fn(async () => undefined)}
+					onSwitchGitBranch={vi.fn(async () => false)}
+					onSwitchWorkspace={vi.fn(async () => true)}
+					workspaceRoot={temporaryWorkspace}
+					workspaces={["/workspace/one"]}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Chat");
+		await click(container.querySelector("#git-branch-btn") as Element);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("/workspace/one");
+		});
+		expect(container.textContent).not.toContain(temporaryWorkspace);
+	});
 });

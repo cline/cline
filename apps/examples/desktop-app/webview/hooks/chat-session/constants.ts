@@ -1,3 +1,4 @@
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -16,15 +17,12 @@ export const OAUTH_MANAGED_PROVIDERS = new Set([
 	"openai-codex",
 ]);
 
-// Default Cline model — keep in sync with @cline/llms CLINE_DEFAULT_MODEL
-const CLINE_DEFAULT_MODEL = "anthropic/claude-sonnet-4.6";
-
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
 	workspaceRoot: "",
 	cwd: "",
 	provider: "cline",
-	model: CLINE_DEFAULT_MODEL,
+	model: CLINE_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY || "",
 	mode: "act",
 	systemPrompt: undefined,
