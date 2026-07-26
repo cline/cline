@@ -152,7 +152,7 @@ export class PendingPromptService {
 				userFiles: userFiles ?? existing.userFiles,
 			};
 			if (delivery === "steer" || existing.delivery === "steer") {
-				insertSteer(state, { ...next, delivery: "steer" });
+				state.pendingPrompts.unshift({ ...next, delivery: "steer" });
 			} else {
 				state.pendingPrompts.push(next);
 			}
@@ -166,7 +166,7 @@ export class PendingPromptService {
 				userFiles,
 			};
 			if (delivery === "steer") {
-				insertSteer(state, newEntry);
+				state.pendingPrompts.unshift(newEntry);
 			} else {
 				state.pendingPrompts.push(newEntry);
 			}
@@ -369,36 +369,17 @@ function snapshotPrompts(
 	return state.pendingPrompts.map(snapshotPrompt);
 }
 
-// Steer entries jump ahead of queued turns but keep their order relative to
-// each other, so a burst of mid-turn messages reaches the agent in the order
-// the user sent them.
-function insertSteer(
-	state: PendingPromptQueueState,
-	entry: PendingPromptEntry,
-): void {
-	const firstQueued = state.pendingPrompts.findIndex(
-		(pending) => pending.delivery !== "steer",
-	);
-	state.pendingPrompts.splice(
-		firstQueued < 0 ? state.pendingPrompts.length : firstQueued,
-		0,
-		entry,
-	);
-}
-
 function insertUpdatedPrompt(
 	state: PendingPromptQueueState,
 	next: PendingPromptEntry,
 	previousIndex: number,
 	previousDelivery: PendingPromptDelivery,
 ): void {
-	// Rewording a prompt must not change when it reaches the agent; only a
-	// delivery change moves it.
-	if (next.delivery === previousDelivery) {
-		state.pendingPrompts.splice(previousIndex, 0, next);
-	} else if (next.delivery === "steer") {
-		insertSteer(state, next);
-	} else {
+	if (next.delivery === "steer") {
+		state.pendingPrompts.unshift(next);
+	} else if (previousDelivery === "steer") {
 		state.pendingPrompts.push(next);
+	} else {
+		state.pendingPrompts.splice(previousIndex, 0, next);
 	}
 }
