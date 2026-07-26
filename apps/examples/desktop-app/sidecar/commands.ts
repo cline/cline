@@ -1462,14 +1462,24 @@ export async function handleCommand(
 					);
 				});
 			},
-			{ owner: options?.connection },
+			{
+				owner: options?.connection,
+				attemptId:
+					typeof args?.attempt_id === "string" && args.attempt_id.trim()
+						? args.attempt_id.trim()
+						: undefined,
+			},
 		);
 	}
 	if (command === "cancel_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
+		const attemptId =
+			typeof args?.attempt_id === "string" && args.attempt_id.trim()
+				? args.attempt_id.trim()
+				: undefined;
 		return {
 			provider: providerId,
-			cancelled: cancelProviderOAuthLogin(providerId),
+			cancelled: cancelProviderOAuthLogin(providerId, attemptId),
 		};
 	}
 

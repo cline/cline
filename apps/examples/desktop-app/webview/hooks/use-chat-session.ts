@@ -341,10 +341,38 @@ export function useChatSession() {
 		}>("chat_session_command", { request: body });
 	}, []);
 
+	// True while the composer is held in "running" only because prompts are
+	// still waiting in the queue after a finished turn. If the queue then
+	// empties without another turn starting (e.g. the user undoes the queued
+	// prompts), no further chat_done will arrive, so the busy state must be
+	// released when the empty queue snapshot lands.
+	const pendingQueueCompletionRef = useRef(false);
+
+	// Canonical queue updates flow through here so the ref used by event
+	// handlers (which fire between renders) is updated synchronously instead
+	// of waiting for the post-render effect sync.
+	const applyQueueSnapshot = useCallback((items: PromptInQueue[]) => {
+		promptsInQueueRef.current = items;
+		setPromptsInQueue(items);
+		if (items.length === 0 && pendingQueueCompletionRef.current) {
+			pendingQueueCompletionRef.current = false;
+			setStatus("completed");
+		}
+	}, []);
+
+	// Queue reset for session-boundary paths (new session, hydration, stop):
+	// drops any deferred completion instead of finalizing it, because those
+	// paths set their own status.
+	const resetQueueState = useCallback(() => {
+		pendingQueueCompletionRef.current = false;
+		promptsInQueueRef.current = [];
+		setPromptsInQueue([]);
+	}, []);
+
 	const refreshPromptsInQueue = useCallback(
 		async (targetSessionId: string | null) => {
 			if (!targetSessionId) {
-				setPromptsInQueue([]);
+				resetQueueState();
 				return;
 			}
 			try {
@@ -352,22 +380,25 @@ export function useChatSession() {
 					action: "pending_prompts",
 					sessionId: targetSessionId,
 				});
-				setPromptsInQueue(
+				applyQueueSnapshot(
 					Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 				);
 			} catch {
 				// Ignore queue refresh failures and keep the last known state.
 			}
 		},
-		[postSession],
+		[applyQueueSnapshot, postSession, resetQueueState],
 	);
 
-	const applyPromptsInQueue = useCallback((value: unknown) => {
-		if (!Array.isArray(value)) {
-			return;
-		}
-		setPromptsInQueue(value as PromptInQueue[]);
-	}, []);
+	const applyPromptsInQueue = useCallback(
+		(value: unknown) => {
+			if (!Array.isArray(value)) {
+				return;
+			}
+			applyQueueSnapshot(value as PromptInQueue[]);
+		},
+		[applyQueueSnapshot],
+	);
 
 	const refreshSessionDiffSummary = useCallback(
 		async (targetSessionId: string) => {
@@ -547,12 +578,17 @@ export function useChatSession() {
 			setDiffSummary(EMPTY_DIFF_SUMMARY);
 			setPendingToolApprovals([]);
 			setPendingAskQuestions([]);
-			setPromptsInQueue([]);
+			resetQueueState();
 			return;
 		}
 		void refreshSessionDiffSummary(sessionId);
 		void refreshPromptsInQueue(sessionId);
-	}, [refreshPromptsInQueue, refreshSessionDiffSummary, sessionId]);
+	}, [
+		refreshPromptsInQueue,
+		refreshSessionDiffSummary,
+		resetQueueState,
+		sessionId,
+	]);
 
 	// Fallback for sessions with no tool events in the hook log (e.g. sessions
 	// recorded before tool_call/tool_result hook logging existed): rebuild the
@@ -674,9 +710,9 @@ export function useChatSession() {
 				items?: PromptInQueue[];
 			};
 			if (record.sessionId !== activeSessionIdRef.current) return;
-			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
+			applyQueueSnapshot(Array.isArray(record.items) ? record.items : []);
 		});
-	}, []);
+	}, [applyQueueSnapshot]);
 
 	// ---- Incoming chunk handler ----
 
@@ -731,6 +767,9 @@ export function useChatSession() {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				// A queued prompt is now actually running; its own chat_done
+				// will finalize the status, so no deferred completion remains.
+				pendingQueueCompletionRef.current = false;
 				setStatus("running");
 				if (userLabel || userImages.length > 0) {
 					setMessages((prev) => {
@@ -832,18 +871,20 @@ export function useChatSession() {
 				} catch {
 					// Missing reason still means the turn ended.
 				}
-				setStatus(
-					doneReason === "aborted"
-						? "cancelled"
-						: doneReason === "error"
-							? "failed"
-							: // Prompts still waiting in the queue mean the session is
-								// only between turns, not done: keep the composer in the
-								// busy state until the queue drains.
-								promptsInQueueRef.current.length > 0
-								? "running"
-								: "completed",
-				);
+				if (doneReason === "aborted" || doneReason === "error") {
+					pendingQueueCompletionRef.current = false;
+					setStatus(doneReason === "aborted" ? "cancelled" : "failed");
+				} else if (promptsInQueueRef.current.length > 0) {
+					// Prompts still waiting in the queue mean the session is only
+					// between turns, not done: keep the composer busy. Remember
+					// that completion is deferred so emptying the queue without
+					// running another turn (e.g. undo) releases the busy state.
+					pendingQueueCompletionRef.current = true;
+					setStatus("running");
+				} else {
+					pendingQueueCompletionRef.current = false;
+					setStatus("completed");
+				}
 				return;
 			}
 
@@ -1064,7 +1105,7 @@ export function useChatSession() {
 			resetCounters();
 			setConfig(parsed);
 			setHydratedHistorySessionId(null);
-			setPromptsInQueue([]);
+			resetQueueState();
 
 			try {
 				const id = await startSession(parsed);
@@ -1083,6 +1124,7 @@ export function useChatSession() {
 			addMessage,
 			clearAbortFallbackTimeout,
 			resetCounters,
+			resetQueueState,
 			setErrorState,
 			startSession,
 		],
@@ -1482,6 +1524,10 @@ export function useChatSession() {
 				} else if (result?.finishReason === "aborted") {
 					setStatus("cancelled");
 				} else if (hasQueuedFollowUps) {
+					// This turn is done but follow-ups are queued: stay busy and
+					// mark completion as deferred so the busy state is released
+					// if the queue is emptied without another turn running.
+					pendingQueueCompletionRef.current = true;
 					setStatus("running");
 				} else {
 					setStatus("completed");
@@ -1584,7 +1630,7 @@ export function useChatSession() {
 			setActiveAssistantMessageId(null);
 			setPendingToolApprovals([]);
 			setPendingAskQuestions([]);
-			setPromptsInQueue([]);
+			resetQueueState();
 			clearLiveToolRefs();
 
 			const payload = (await postSession({
@@ -1626,6 +1672,7 @@ export function useChatSession() {
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetCounters,
+			resetQueueState,
 			status,
 		],
 	);
@@ -1677,7 +1724,7 @@ export function useChatSession() {
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
-		setPromptsInQueue([]);
+		resetQueueState();
 		clearLiveToolRefs();
 		if (activeSessionId) {
 			try {
@@ -1691,6 +1738,7 @@ export function useChatSession() {
 		clearAbortFallbackTimeout,
 		postSession,
 		resetCounters,
+		resetQueueState,
 		clearLiveToolRefs,
 	]);
 
@@ -1720,7 +1768,7 @@ export function useChatSession() {
 			setHydratedHistorySessionId(session.sessionId);
 			setPendingToolApprovals([]);
 			setPendingAskQuestions([]);
-			setPromptsInQueue([]);
+			resetQueueState();
 			clearLiveToolRefs();
 
 			const applyHydratedMessages = (
@@ -1840,6 +1888,7 @@ export function useChatSession() {
 			clearLiveToolRefs,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
+			resetQueueState,
 			resetStreamDedupe,
 			resetCounters,
 		],
@@ -1895,11 +1944,11 @@ export function useChatSession() {
 				sessionId: activeSessionId,
 				promptId,
 			});
-			setPromptsInQueue(
+			applyQueueSnapshot(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[applyQueueSnapshot, postSession],
 	);
 
 	const updatePromptInQueue = useCallback(
@@ -1914,11 +1963,11 @@ export function useChatSession() {
 				promptId,
 				prompt,
 			});
-			setPromptsInQueue(
+			applyQueueSnapshot(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[applyQueueSnapshot, postSession],
 	);
 
 	const removePromptInQueue = useCallback(
@@ -1932,12 +1981,12 @@ export function useChatSession() {
 				sessionId: activeSessionId,
 				promptId,
 			});
-			setPromptsInQueue(
+			applyQueueSnapshot(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 			return payload.prompt;
 		},
-		[postSession],
+		[applyQueueSnapshot, postSession],
 	);
 
 	const summary = useMemo(

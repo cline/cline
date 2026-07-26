@@ -18,6 +18,8 @@ type PendingOAuthLogin = {
 	cancel: () => void;
 	/** Transport connection that initiated the login, when known. */
 	owner?: object;
+	/** Client-chosen identity of this attempt, used to scope cancellation. */
+	attemptId?: string;
 };
 
 // One pending browser round-trip per provider. Starting a new login for the
@@ -47,7 +49,7 @@ export async function runCancellableProviderOAuthLogin(
 	manager: ProviderSettingsManager,
 	providerId: string,
 	openUrl: (url: string) => void,
-	options: { owner?: object } = {},
+	options: { owner?: object; attemptId?: string } = {},
 	dependencies: OAuthLoginDependencies = defaultDependencies,
 ): Promise<{ provider: string; accessToken: string }> {
 	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
@@ -66,6 +68,7 @@ export async function runCancellableProviderOAuthLogin(
 			rejectOnCancel(new OAuthLoginCancelledError(providerId));
 		},
 		owner: options.owner,
+		attemptId: options.attemptId,
 	};
 	pendingOAuthLoginsByProvider.set(providerId, entry);
 
@@ -97,12 +100,22 @@ export async function runCancellableProviderOAuthLogin(
 
 /**
  * Cancels the pending OAuth login for a provider, if any. Returns whether a
- * pending login existed. The cancelled attempt's credentials are discarded
- * even if the user later completes the already-open browser flow.
+ * pending login was cancelled. The cancelled attempt's credentials are
+ * discarded even if the user later completes the already-open browser flow.
+ *
+ * When `attemptId` is provided, only a pending login started with the same
+ * attempt id is cancelled, so a delayed or retried cancel for an old attempt
+ * can never abort a sign-in the user started afterwards.
  */
-export function cancelProviderOAuthLogin(providerId: string): boolean {
+export function cancelProviderOAuthLogin(
+	providerId: string,
+	attemptId?: string,
+): boolean {
 	const entry = pendingOAuthLoginsByProvider.get(providerId);
 	if (!entry) {
+		return false;
+	}
+	if (attemptId !== undefined && entry.attemptId !== attemptId) {
 		return false;
 	}
 	entry.cancel();

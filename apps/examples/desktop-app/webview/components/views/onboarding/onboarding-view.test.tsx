@@ -233,10 +233,22 @@ describe("OnboardingView", () => {
 		expect(container.textContent).not.toContain("Waiting for browser...");
 		expect(buttonByText("Sign in")).toBeDefined();
 		// Cancelling must also stop the backend browser round-trip so a
-		// later-completed authorization can never persist credentials.
-		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
-			provider: "cline",
-		});
+		// later-completed authorization can never persist credentials, and it
+		// must be scoped to the attempt that was actually started.
+		const loginCall = invoke.mock.calls.find(
+			([command]) => command === "run_provider_oauth_login",
+		);
+		const cancelCall = invoke.mock.calls.find(
+			([command]) => command === "cancel_provider_oauth_login",
+		);
+		expect(loginCall?.[1]).toMatchObject({ provider: "cline" });
+		expect(cancelCall?.[1]).toMatchObject({ provider: "cline" });
+		const loginAttemptId = (loginCall?.[1] as { attempt_id?: string })
+			?.attempt_id;
+		expect(loginAttemptId).toBeTruthy();
+		expect((cancelCall?.[1] as { attempt_id?: string })?.attempt_id).toBe(
+			loginAttemptId,
+		);
 	});
 
 	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
@@ -276,10 +288,16 @@ describe("OnboardingView", () => {
 			buttonByText("Connect").click();
 		});
 
+		// The save clears any stale OAuth token alongside the key: account
+		// requests prefer the OAuth access token, so a leftover token would
+		// make verification pass without exercising the typed key.
 		expect(invoke).toHaveBeenCalledWith("save_provider_settings", {
 			provider: "cline",
 			enabled: true,
 			api_key: "cline_key_123",
+			settings: {
+				auth: { accessToken: "", refreshToken: "", accountId: "" },
+			},
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(container.textContent).toContain("Your Cline account is connected");
@@ -307,12 +325,12 @@ describe("OnboardingView", () => {
 			'input[aria-label="Cline API key"]',
 		);
 
-		const savedKeys: Array<string | undefined> = [];
+		const saveCalls: Array<Record<string, unknown> | undefined> = [];
 		invoke.mockClear();
 		invoke.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "save_provider_settings") {
-					savedKeys.push(args?.api_key as string | undefined);
+					saveCalls.push(args);
 					return { providerId: "cline", enabled: true };
 				}
 				if (command === "cline_account") {
@@ -339,7 +357,16 @@ describe("OnboardingView", () => {
 		expect(container.textContent).toContain("Failed to save API key");
 		expect(container.textContent).toContain("could not be verified");
 		// The rejected key was persisted for verification, then rolled back.
-		expect(savedKeys).toEqual(["bad_key", ""]);
+		// Onboarding enabled the provider itself (it was not enabled in the
+		// catalog), so the rollback disables it instead of leaving an enabled
+		// entry with no usable credential.
+		expect(saveCalls).toHaveLength(2);
+		expect(saveCalls[0]).toMatchObject({
+			provider: "cline",
+			enabled: true,
+			api_key: "bad_key",
+		});
+		expect(saveCalls[1]).toEqual({ provider: "cline", enabled: false });
 	});
 
 	it("saves an API key provider and remembers the selection", async () => {
@@ -371,9 +398,10 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
-			provider: "cline",
-		});
+		expect(invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			expect.objectContaining({ provider: "cline" }),
+		);
 		expect(container.textContent).toContain("You're all set");
 		expect(
 			parseModelSelectionStorage(

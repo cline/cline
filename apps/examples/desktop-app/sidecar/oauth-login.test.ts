@@ -130,6 +130,35 @@ describe("runCancellableProviderOAuthLogin", () => {
 		expect(secondSave).toHaveBeenCalledTimes(1);
 	});
 
+	it("scopes cancellation to the attempt id when one is provided", async () => {
+		let resolveLogin: (credentials: Credentials) => void = () => undefined;
+		const { dependencies, save } = makeDependencies({
+			login: () =>
+				new Promise<Credentials>((resolve) => {
+					resolveLogin = resolve;
+				}),
+		});
+
+		const pending = runCancellableProviderOAuthLogin(
+			makeManager(),
+			"cline",
+			() => undefined,
+			{ attemptId: "attempt-2" },
+			dependencies,
+		);
+
+		// A delayed cancel for an OLDER attempt must not abort this login.
+		expect(cancelProviderOAuthLogin("cline", "attempt-1")).toBe(false);
+
+		// The matching attempt id cancels it.
+		expect(cancelProviderOAuthLogin("cline", "attempt-2")).toBe(true);
+		await expect(pending).rejects.toBeInstanceOf(OAuthLoginCancelledError);
+
+		resolveLogin({ accessToken: "late-token" });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(save).not.toHaveBeenCalled();
+	});
+
 	it("cancels pending logins when their transport connection closes", async () => {
 		let resolveLogin: (credentials: Credentials) => void = () => undefined;
 		const { dependencies, save } = makeDependencies({

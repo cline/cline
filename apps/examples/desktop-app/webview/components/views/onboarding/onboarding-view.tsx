@@ -194,6 +194,10 @@ function ConnectStep({
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
 
+	// Whether the cline provider already had settings before this onboarding
+	// attempt; decides how far the API-key rollback should go on failure.
+	const clineEnabledBeforeConnectRef = useRef(false);
+
 	useEffect(() => {
 		let cancelled = false;
 		async function loadProviders() {
@@ -204,6 +208,10 @@ function ConnectStep({
 				if (cancelled) {
 					return;
 				}
+				clineEnabledBeforeConnectRef.current =
+					payload.providers?.some(
+						(provider) => provider.id === "cline" && provider.enabled,
+					) ?? false;
 				setProviders(sortProvidersForApiKeySetup(payload.providers ?? []));
 				setProvidersError(null);
 			} catch (error) {
@@ -229,15 +237,21 @@ function ConnectStep({
 	// stale OAuth round-trip (which can dangle until the transport timeout)
 	// cannot advance or error the UI after the user has moved on.
 	const signInAttemptRef = useRef(0);
+	// Backend identity of the current sign-in attempt; cancellation is scoped
+	// to it so a delayed cancel (or retry) can never abort a newer sign-in.
+	const signInAttemptIdRef = useRef<string | null>(null);
 
 	const signInWithCline = useCallback(async () => {
 		signInAttemptRef.current += 1;
 		const attempt = signInAttemptRef.current;
+		const attemptId = `signin_${Date.now()}_${attempt}`;
+		signInAttemptIdRef.current = attemptId;
 		setSigningIn(true);
 		setSignInError(null);
 		try {
 			await desktopClient.invoke("run_provider_oauth_login", {
 				provider: "cline",
+				attempt_id: attemptId,
 			});
 			if (signInAttemptRef.current !== attempt) {
 				// The sign-in completed after the user cancelled but before the
@@ -264,16 +278,24 @@ function ConnectStep({
 
 	const cancelSignInWithCline = useCallback(() => {
 		signInAttemptRef.current += 1;
+		const attemptId = signInAttemptIdRef.current;
+		signInAttemptIdRef.current = null;
 		setSigningIn(false);
+		if (!attemptId) {
+			return;
+		}
 		// Cancel the backend browser round-trip so a later-completed
 		// authorization in the abandoned tab can never persist credentials.
-		// Retry transient delivery failures; if the transport itself is gone,
-		// the sidecar cancels pending logins when the connection closes.
+		// The cancel is scoped to this attempt id, so a delayed delivery (or
+		// retry) cannot abort a sign-in the user starts afterwards. Retry
+		// transient delivery failures; if the transport itself is gone, the
+		// sidecar cancels pending logins when the connection closes.
 		void (async () => {
 			for (let attempt = 0; attempt < 3; attempt++) {
 				try {
 					await desktopClient.invoke("cancel_provider_oauth_login", {
 						provider: "cline",
+						attempt_id: attemptId,
 					});
 					return;
 				} catch {
@@ -293,10 +315,21 @@ function ConnectStep({
 		setClineKeySaving(true);
 		setClineKeyError(null);
 		try {
+			// The user explicitly chose API-key auth, so clear any stale OAuth
+			// token alongside saving the key. Account requests prefer the OAuth
+			// access token over the API key, so a leftover token would make the
+			// verification below pass without ever exercising the typed key.
 			await desktopClient.invoke("save_provider_settings", {
 				provider: "cline",
 				enabled: true,
 				api_key: key,
+				settings: {
+					auth: {
+						accessToken: "",
+						refreshToken: "",
+						accountId: "",
+					},
+				},
 			});
 			// Verify the key against the account API before advancing; the
 			// account context swallows errors, so an invalid key would
@@ -307,13 +340,17 @@ function ConnectStep({
 					operation: "fetchMe",
 				});
 			} catch (verifyError) {
-				// Roll back the persisted key so an unusable credential does
-				// not linger in provider settings.
+				// Roll back the rejected key so an unusable credential does not
+				// linger. When onboarding itself enabled the provider, disable
+				// it again instead of leaving an enabled entry with no
+				// credential.
 				await desktopClient
-					.invoke("save_provider_settings", {
-						provider: "cline",
-						api_key: "",
-					})
+					.invoke(
+						"save_provider_settings",
+						clineEnabledBeforeConnectRef.current
+							? { provider: "cline", api_key: "" }
+							: { provider: "cline", enabled: false },
+					)
 					.catch(() => undefined);
 				const message =
 					verifyError instanceof Error

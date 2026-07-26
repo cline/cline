@@ -615,6 +615,75 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("releases the busy state when queued prompts are removed after a turn", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const queueStateHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "prompts_in_queue_state",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// A turn finishes while another prompt is still queued: composer must
+		// stay busy for the queued follow-up.
+		await act(async () => {
+			queueStateHandler?.({
+				sessionId: current.sessionId,
+				items: [{ id: "queued-2", prompt: "Second prompt", steer: false }],
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("running");
+
+		// The user undoes the queued prompt: no further chat_done will arrive,
+		// so the empty queue snapshot must release the busy state itself.
+		await act(async () => {
+			queueStateHandler?.({
+				sessionId: current.sessionId,
+				items: [],
+			});
+		});
+		expect(current.status).toBe("completed");
+	});
+
 	it("marks a queued turn as failed when chat_done reports an error", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
