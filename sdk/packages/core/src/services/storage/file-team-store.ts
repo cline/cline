@@ -5,10 +5,15 @@ import {
 	readdirSync,
 	readFileSync,
 	renameSync,
+	unlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { TeamRuntimeState, TeamTeammateSpec } from "@cline/shared";
+import {
+	migrateTeamRuntimeState,
+	type TeamRuntimeState,
+	type TeamTeammateSpec,
+} from "@cline/shared";
 import { resolveTeamDataDir } from "@cline/shared/storage";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { TeamStore } from "../../types/storage";
@@ -27,23 +32,31 @@ function sanitizeTeamName(name: string): string {
 function reviveTeamRuntimeStateDates(
 	state: TeamRuntimeState,
 ): TeamRuntimeState {
+	const migrated = migrateTeamRuntimeState(state);
+	if (!migrated) {
+		throw new Error("Invalid persisted team state");
+	}
 	return {
-		...state,
-		tasks: state.tasks.map((task) => ({
+		...migrated,
+		members: migrated.members.map((member) => ({
+			...member,
+			lastActivityAt: new Date(member.lastActivityAt),
+		})),
+		tasks: migrated.tasks.map((task) => ({
 			...task,
 			createdAt: new Date(task.createdAt),
 			updatedAt: new Date(task.updatedAt),
 		})),
-		mailbox: state.mailbox.map((message) => ({
+		mailbox: migrated.mailbox.map((message) => ({
 			...message,
 			sentAt: new Date(message.sentAt),
 			readAt: message.readAt ? new Date(message.readAt) : undefined,
 		})),
-		missionLog: state.missionLog.map((entry) => ({
+		missionLog: migrated.missionLog.map((entry) => ({
 			...entry,
 			ts: new Date(entry.ts),
 		})),
-		runs: (state.runs ?? []).map((run) => ({
+		runs: (migrated.runs ?? []).map((run) => ({
 			...run,
 			startedAt: new Date(run.startedAt),
 			endedAt: run.endedAt ? new Date(run.endedAt) : undefined,
@@ -51,15 +64,18 @@ function reviveTeamRuntimeStateDates(
 				? new Date(run.nextAttemptAt)
 				: undefined,
 			heartbeatAt: run.heartbeatAt ? new Date(run.heartbeatAt) : undefined,
+			lastProgressAt: run.lastProgressAt
+				? new Date(run.lastProgressAt)
+				: undefined,
 		})),
-		outcomes: (state.outcomes ?? []).map((outcome) => ({
+		outcomes: (migrated.outcomes ?? []).map((outcome) => ({
 			...outcome,
 			createdAt: new Date(outcome.createdAt),
 			finalizedAt: outcome.finalizedAt
 				? new Date(outcome.finalizedAt)
 				: undefined,
 		})),
-		outcomeFragments: (state.outcomeFragments ?? []).map((fragment) => ({
+		outcomeFragments: (migrated.outcomeFragments ?? []).map((fragment) => ({
 			...fragment,
 			createdAt: new Date(fragment.createdAt),
 			reviewedAt: fragment.reviewedAt
@@ -70,7 +86,7 @@ function reviveTeamRuntimeStateDates(
 }
 
 interface PersistedTeamEnvelope {
-	version: 1;
+	version: 1 | 2;
 	updatedAt: string;
 	teamState: TeamRuntimeState;
 	teammates: TeamTeammateSpec[];
@@ -161,9 +177,16 @@ export class FileTeamStore implements TeamStore {
 		state: TeamRuntimeState,
 		teammates: TeamTeammateSpec[],
 	): void {
+		if (!this.hasPersistableState(state, teammates)) {
+			const existingPath = this.statePath(teamName);
+			if (existsSync(existingPath)) {
+				unlinkSync(existingPath);
+			}
+			return;
+		}
 		this.ensureTeamSubdir(teamName);
 		const envelope: PersistedTeamEnvelope = {
-			version: 1,
+			version: 2,
 			updatedAt: nowIso(),
 			teamState: state,
 			teammates,
@@ -172,6 +195,22 @@ export class FileTeamStore implements TeamStore {
 		const tempPath = `${path}.tmp`;
 		writeFileSync(tempPath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");
 		renameSync(tempPath, path);
+	}
+
+	private hasPersistableState(
+		state: TeamRuntimeState,
+		teammates: TeamTeammateSpec[],
+	): boolean {
+		return (
+			teammates.length > 0 ||
+			state.members.some((member) => member.role === "teammate") ||
+			state.tasks.length > 0 ||
+			state.mailbox.length > 0 ||
+			state.missionLog.length > 0 ||
+			(state.runs?.length ?? 0) > 0 ||
+			(state.outcomes?.length ?? 0) > 0 ||
+			(state.outcomeFragments?.length ?? 0) > 0
+		);
 	}
 
 	markInProgressRunsInterrupted(teamName: string, reason: string): string[] {
@@ -239,7 +278,10 @@ export class FileTeamStore implements TeamStore {
 			const parsed = JSON.parse(
 				readFileSync(path, "utf8"),
 			) as PersistedTeamEnvelope;
-			if (parsed?.version === 1 && parsed.teamState) {
+			if (
+				(parsed?.version === 1 || parsed?.version === 2) &&
+				parsed.teamState
+			) {
 				return parsed;
 			}
 		} catch {

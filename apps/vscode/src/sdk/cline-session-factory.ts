@@ -12,6 +12,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from 
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -132,6 +133,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const hostIdentity = await resolveHostIdentity()
 	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	const configuredTeamConcurrency = vscode.workspace.getConfiguration("cline").get<number>("maxConcurrentTeamRuns", 2)
+	const maxConcurrentTeamRuns = Math.max(1, Math.min(8, Math.floor(configuredTeamConcurrency)))
 
 	return {
 		providerId: "bedrock",
@@ -143,7 +146,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableTools: true,
 		checkpoint: { enabled: enableCheckpoints },
 		enableSpawnAgent: false,
-		enableAgentTeams: false,
+		enableAgentTeams: true,
+		maxConcurrentTeamRuns,
 		...(useAutoCondense ? { compaction: { enabled: true, strategy: readCompactionStrategyGlobally() } } : {}),
 		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",

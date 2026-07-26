@@ -21,10 +21,12 @@ const IsoTimestampSchema = z.preprocess(
 );
 
 const TeamTaskStatusSchema = z.enum([
-	"pending",
-	"in_progress",
+	"backlog",
+	"ready",
+	"in-progress",
 	"blocked",
-	"completed",
+	"review",
+	"done",
 ]);
 
 const TeamRunStatusSchema = z.enum([
@@ -40,9 +42,21 @@ const TeamOutcomeStatusSchema = z.enum(["draft", "in_review", "finalized"]);
 
 const TeamMemberSnapshotSchema = z.object({
 	agentId: z.string(),
+	displayLabel: z.string(),
 	role: z.enum(["lead", "teammate"]),
 	description: z.string().optional(),
 	status: z.enum(["idle", "running", "stopped"]),
+	parentAgentId: z.string().optional(),
+	parentTaskId: z.string().optional(),
+	currentTaskId: z.string().optional(),
+	runStatus: TeamRunStatusSchema.optional(),
+	sessionId: z.string().optional(),
+	worktreePath: z.string().optional(),
+	branch: z.string().optional(),
+	lastActivityAt: IsoTimestampSchema,
+	outcome: z
+		.enum(["completed", "failed", "cancelled", "interrupted"])
+		.optional(),
 });
 
 export const TeamTeammateSpecSchema = z.object({
@@ -79,7 +93,7 @@ export const TeamShutdownTeammateInputSchema = z.object({
 export const TeamStatusInputSchema = z.object({});
 
 const TEAM_TASK_REQUIRED_FIELDS_BY_ACTION = {
-	create: ["title", "description"],
+	create: ["title"],
 	list: [],
 	claim: ["taskId"],
 	complete: ["taskId", "summary"],
@@ -102,9 +116,21 @@ export const TeamTaskInputSchema = z
 		dependsOn: nullableOptional(
 			z.array(z.string().describe("Dependency task ID")),
 		).describe("Array of dependency task IDs"),
-		assignee: nullableOptional(z.string().min(1)).describe("Optional assignee"),
+		assignedAgentId: nullableOptional(z.string().min(1)).describe(
+			"Optional assigned local agent ID",
+		),
 		status: nullableOptional(
-			z.enum(["pending", "in_progress", "blocked", "completed"]),
+			z.enum([
+				"backlog",
+				"ready",
+				"in-progress",
+				"blocked",
+				"review",
+				"done",
+				"pending",
+				"in_progress",
+				"completed",
+			]),
 		).describe("Optional task status filter"),
 		taskId: nullableOptional(z.string()).describe("Task ID"),
 		summary: nullableOptional(z.string().min(1)).describe("Completion summary"),
@@ -287,9 +313,15 @@ export const TeamTaskListItemToolResultSchema = z.object({
 	createdAt: IsoTimestampSchema,
 	updatedAt: IsoTimestampSchema,
 	createdBy: z.string(),
-	assignee: z.string().optional(),
+	parentTaskId: z.string().optional(),
+	assignedAgentId: z.string().optional(),
+	sessionId: z.string().optional(),
+	worktreePath: z.string().optional(),
+	branch: z.string().optional(),
 	dependsOn: z.array(z.string()),
 	summary: z.string().optional(),
+	blocker: z.string().optional(),
+	revision: z.number().int().positive(),
 	isReady: z.boolean(),
 	blockedBy: z.array(z.string()),
 });

@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import { Logger } from "@/shared/services/Logger"
@@ -12,6 +13,8 @@ export interface Worktree {
 	isDetached: boolean
 	isLocked: boolean
 	lockReason?: string
+	isDirty: boolean
+	untrackedFiles: string[]
 }
 
 export interface WorktreeResult {
@@ -115,6 +118,8 @@ export async function listWorktrees(cwd: string): Promise<{ worktrees: Worktree[
 				isDetached: false,
 				isBare: false,
 				isCurrent: false,
+				isDirty: false,
+				untrackedFiles: [],
 			}
 
 			for (const line of lines) {
@@ -141,6 +146,11 @@ export async function listWorktrees(cwd: string): Promise<{ worktrees: Worktree[
 			}
 
 			if (worktree.path) {
+				const status = await simpleGit(worktree.path)
+					.status()
+					.catch(() => undefined)
+				worktree.isDirty = status ? !status.isClean() : false
+				worktree.untrackedFiles = status?.not_added ?? []
 				worktrees.push(worktree as Worktree)
 			}
 		}
@@ -179,6 +189,7 @@ export async function createWorktree(
 
 	try {
 		const git = simpleGit(cwd)
+		await mkdir(path.dirname(path.resolve(worktreePath)), { recursive: true })
 		const args: string[] = ["worktree", "add"]
 
 		if (options.createNewBranch && options.branch) {

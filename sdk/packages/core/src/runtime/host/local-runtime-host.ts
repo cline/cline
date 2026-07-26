@@ -7,9 +7,14 @@ import {
 	type AgentEvent,
 	type AgentResult,
 	type BasicLogger,
+	type CreateTeamTaskInput,
 	createSessionId,
 	getToolApprovalDecision,
 	normalizeUserInput,
+	type TeamBoardSnapshot,
+	type TeamRunRecord,
+	type TeamTask,
+	type UpdateTeamTaskInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import {
@@ -75,7 +80,10 @@ import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
 import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
-import type { RuntimeBuilder } from "../orchestration/session-runtime";
+import type {
+	RuntimeBuilder,
+	TeamRuntimeService,
+} from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
@@ -269,6 +277,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Public API ──────────────────────────────────────────────────────
+
+	getTeamBoard(sessionId: string): TeamBoardSnapshot | undefined {
+		return (
+			this.runtimeBuilder as RuntimeBuilder & Partial<TeamRuntimeService>
+		).getTeamBoard?.(sessionId);
+	}
+
+	createTeamTask(
+		sessionId: string,
+		input: Omit<CreateTeamTaskInput, "createdBy">,
+	): TeamTask {
+		const service = this.runtimeBuilder as RuntimeBuilder &
+			Partial<TeamRuntimeService>;
+		if (!service.createTeamTask) {
+			throw new Error("Local team task management is unavailable");
+		}
+		return service.createTeamTask(sessionId, input);
+	}
+
+	updateTeamTask(sessionId: string, input: UpdateTeamTaskInput): TeamTask {
+		const service = this.runtimeBuilder as RuntimeBuilder &
+			Partial<TeamRuntimeService>;
+		if (!service.updateTeamTask) {
+			throw new Error("Local team task management is unavailable");
+		}
+		return service.updateTeamTask(sessionId, input);
+	}
+
+	cancelTeamRun(
+		sessionId: string,
+		runId: string,
+		reason?: string,
+	): TeamRunRecord {
+		const service = this.runtimeBuilder as RuntimeBuilder &
+			Partial<TeamRuntimeService>;
+		if (!service.cancelTeamRun) {
+			throw new Error("Local team run management is unavailable");
+		}
+		return service.cancelTeamRun(sessionId, runId, reason);
+	}
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";

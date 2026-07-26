@@ -1,6 +1,7 @@
 import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { createWorktree as createWorktreeUtil } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
+import { inspectWorktreeMutation } from "@utils/worktree-safety"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -20,6 +21,30 @@ export async function createWorktree(_controller: Controller, request: CreateWor
 	}
 
 	try {
+		const inspection = await inspectWorktreeMutation(cwd, {
+			operation: "create",
+			worktreePath: request.path,
+			branch: request.branch,
+			baseBranch: request.baseBranch,
+			affectedTaskId: request.affectedTaskId,
+			affectedAgentId: request.affectedAgentId,
+			createNewBranch: request.createNewBranch,
+		})
+		const operationSummary = inspection.gitOperation.join(" ")
+		if (!request.approved) {
+			return WorktreeResult.create({
+				success: false,
+				message: "Explicit approval is required before creating a worktree",
+				operationSummary,
+			})
+		}
+		if (!inspection.allowed) {
+			return WorktreeResult.create({
+				success: false,
+				message: inspection.reason,
+				operationSummary,
+			})
+		}
 		const result = await createWorktreeUtil(cwd, request.path, {
 			branch: request.branch,
 			baseBranch: request.baseBranch,
@@ -29,6 +54,7 @@ export async function createWorktree(_controller: Controller, request: CreateWor
 		return WorktreeResult.create({
 			success: result.success,
 			message: result.message,
+			operationSummary,
 			worktree: result.worktree
 				? {
 						path: result.worktree.path,
@@ -39,6 +65,8 @@ export async function createWorktree(_controller: Controller, request: CreateWor
 						isDetached: result.worktree.isDetached,
 						isLocked: result.worktree.isLocked,
 						lockReason: result.worktree.lockReason,
+						isDirty: result.worktree.isDirty,
+						untrackedFiles: result.worktree.untrackedFiles,
 					}
 				: undefined,
 		})

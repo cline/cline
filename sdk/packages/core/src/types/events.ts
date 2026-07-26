@@ -36,6 +36,7 @@ export interface SessionTeamProgressEvent {
 	teamName: string;
 	lifecycle: import("@cline/shared").TeamProgressLifecycleEvent;
 	summary: import("@cline/shared").TeamProgressSummary;
+	changes?: import("@cline/shared").TeamProgressProjectionEvent["changes"];
 }
 
 export interface SessionPendingPrompt {

@@ -142,6 +142,19 @@ export function emitTeamProgress(
 ): void {
 	if (!session.runtime.teamRuntime) return;
 	const teamName = session.runtime.teamRuntime.getTeamName();
+	const state = session.runtime.teamRuntime.exportState();
+	const changes =
+		event.type === "team_task_updated"
+			? { task: event.task }
+			: event.type.startsWith("run_") && "run" in event
+				? { run: event.run }
+				: "agentId" in event
+					? {
+							agent: state.members.find(
+								(member) => member.agentId === event.agentId,
+							),
+						}
+					: {};
 	emit({
 		type: "team_progress",
 		payload: {
@@ -152,10 +165,8 @@ export function emitTeamProgress(
 				sessionId: rootSessionId,
 				event,
 			}),
-			summary: buildTeamProgressSummary(
-				teamName,
-				session.runtime.teamRuntime.exportState(),
-			),
+			summary: buildTeamProgressSummary(teamName, state),
+			changes,
 		},
 	});
 }
@@ -233,8 +244,5 @@ export function formatModePrompt(
 	prompt: string,
 	mode: AgentMode | undefined,
 ): string {
-	return formatUserInputBlock(
-		prompt,
-		mode === "plan" ? "plan" : "act",
-	);
+	return formatUserInputBlock(prompt, mode === "plan" ? "plan" : "act");
 }

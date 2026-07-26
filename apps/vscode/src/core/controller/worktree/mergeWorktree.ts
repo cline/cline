@@ -1,6 +1,7 @@
 import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
 import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
+import { inspectWorktreeMutation } from "@utils/worktree-safety"
 import simpleGit from "simple-git"
 import { Controller } from ".."
 
@@ -42,6 +43,32 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 	}
 
 	try {
+		const inspection = await inspectWorktreeMutation(cwd, {
+			operation: "merge",
+			worktreePath,
+			targetBranch,
+			affectedTaskId: request.affectedTaskId,
+			affectedAgentId: request.affectedAgentId,
+		})
+		const operationSummary = inspection.gitOperation.join(" ")
+		if (!request.approved) {
+			return MergeWorktreeResult.create({
+				success: false,
+				message: "Explicit approval is required before merging a worktree",
+				hasConflicts: false,
+				conflictingFiles: [],
+				operationSummary,
+			})
+		}
+		if (!inspection.allowed) {
+			return MergeWorktreeResult.create({
+				success: false,
+				message: inspection.reason,
+				hasConflicts: false,
+				conflictingFiles: [],
+				operationSummary,
+			})
+		}
 		// Find the worktree that has the target branch checked out
 		// This is where we need to perform the merge
 		const { worktrees } = await listWorktrees(cwd)
@@ -99,8 +126,15 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 					targetBranch,
 				})
 			}
-		} catch {
-			// If status check fails, continue anyway
+		} catch (error) {
+			return MergeWorktreeResult.create({
+				success: false,
+				message: `Failed to inspect source worktree state: ${error instanceof Error ? error.message : String(error)}`,
+				hasConflicts: false,
+				conflictingFiles: [],
+				sourceBranch,
+				targetBranch,
+			})
 		}
 
 		// Check for uncommitted changes in the target worktree
@@ -116,8 +150,15 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 					targetBranch,
 				})
 			}
-		} catch {
-			// If status check fails, continue anyway
+		} catch (error) {
+			return MergeWorktreeResult.create({
+				success: false,
+				message: `Failed to inspect target worktree state: ${error instanceof Error ? error.message : String(error)}`,
+				hasConflicts: false,
+				conflictingFiles: [],
+				sourceBranch,
+				targetBranch,
+			})
 		}
 
 		// Attempt the merge in the target worktree (which already has targetBranch checked out)
@@ -166,7 +207,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 		// Delete worktree if requested
 		if (deleteAfterMerge) {
 			try {
-				await git.raw(["worktree", "remove", worktreePath, "--force"])
+				await git.raw(["worktree", "remove", worktreePath])
 			} catch (error) {
 				// Merge succeeded but deletion failed - still return success
 				const errorMessage = error instanceof Error ? error.message : String(error)
@@ -196,6 +237,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 			conflictingFiles: [],
 			sourceBranch,
 			targetBranch,
+			operationSummary,
 		})
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)

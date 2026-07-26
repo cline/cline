@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+	migrateTeamRuntimeState,
 	safeJsonParse,
 	type TeamRuntimeState,
 	type TeamTeammateSpec,
@@ -82,23 +83,31 @@ function parseTeammatesJson(raw: string): TeamTeammateSpec[] {
 function reviveTeamRuntimeStateDates(
 	state: TeamRuntimeState,
 ): TeamRuntimeState {
+	const migrated = migrateTeamRuntimeState(state);
+	if (!migrated) {
+		throw new Error("Invalid persisted team state");
+	}
 	return {
-		...state,
-		tasks: state.tasks.map((task) => ({
+		...migrated,
+		members: migrated.members.map((member) => ({
+			...member,
+			lastActivityAt: new Date(member.lastActivityAt),
+		})),
+		tasks: migrated.tasks.map((task) => ({
 			...task,
 			createdAt: new Date(task.createdAt),
 			updatedAt: new Date(task.updatedAt),
 		})),
-		mailbox: state.mailbox.map((message) => ({
+		mailbox: migrated.mailbox.map((message) => ({
 			...message,
 			sentAt: new Date(message.sentAt),
 			readAt: message.readAt ? new Date(message.readAt) : undefined,
 		})),
-		missionLog: state.missionLog.map((entry) => ({
+		missionLog: migrated.missionLog.map((entry) => ({
 			...entry,
 			ts: new Date(entry.ts),
 		})),
-		runs: (state.runs ?? []).map((run) => ({
+		runs: (migrated.runs ?? []).map((run) => ({
 			...run,
 			startedAt: new Date(run.startedAt),
 			endedAt: run.endedAt ? new Date(run.endedAt) : undefined,
@@ -106,15 +115,18 @@ function reviveTeamRuntimeStateDates(
 				? new Date(run.nextAttemptAt)
 				: undefined,
 			heartbeatAt: run.heartbeatAt ? new Date(run.heartbeatAt) : undefined,
+			lastProgressAt: run.lastProgressAt
+				? new Date(run.lastProgressAt)
+				: undefined,
 		})),
-		outcomes: (state.outcomes ?? []).map((outcome) => ({
+		outcomes: (migrated.outcomes ?? []).map((outcome) => ({
 			...outcome,
 			createdAt: new Date(outcome.createdAt),
 			finalizedAt: outcome.finalizedAt
 				? new Date(outcome.finalizedAt)
 				: undefined,
 		})),
-		outcomeFragments: (state.outcomeFragments ?? []).map((fragment) => ({
+		outcomeFragments: (migrated.outcomeFragments ?? []).map((fragment) => ({
 			...fragment,
 			createdAt: new Date(fragment.createdAt),
 			reviewedAt: fragment.reviewedAt
@@ -209,11 +221,35 @@ export class SqliteTeamStore implements TeamStore {
 				assignee TEXT,
 				depends_on_json TEXT NOT NULL,
 				summary TEXT,
+				parent_task_id TEXT,
+				session_id TEXT,
+				worktree_path TEXT,
+				branch TEXT,
+				blocker TEXT,
 				version INTEGER NOT NULL DEFAULT 1,
 				updated_at TEXT NOT NULL,
 				PRIMARY KEY(team_name, task_id)
 			);
 		`);
+		const currentVersion = versionRow?.version ?? 1;
+		if (currentVersion < 2) {
+			for (const statement of [
+				"ALTER TABLE team_tasks ADD COLUMN parent_task_id TEXT",
+				"ALTER TABLE team_tasks ADD COLUMN session_id TEXT",
+				"ALTER TABLE team_tasks ADD COLUMN worktree_path TEXT",
+				"ALTER TABLE team_tasks ADD COLUMN branch TEXT",
+				"ALTER TABLE team_tasks ADD COLUMN blocker TEXT",
+			]) {
+				try {
+					db.exec(statement);
+				} catch {
+					// The column can already exist after a partially completed upgrade.
+				}
+			}
+			db.prepare(
+				"UPDATE team_store_schema_version SET version = 2 WHERE lock = 1",
+			).run();
+		}
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_runs (
 				team_name TEXT NOT NULL,
@@ -405,8 +441,8 @@ export class SqliteTeamStore implements TeamStore {
 
 			for (const task of state.tasks) {
 				this.run(
-					`INSERT INTO team_tasks (team_name, task_id, title, description, status, assignee, depends_on_json, summary, version, updated_at)
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+					`INSERT INTO team_tasks (team_name, task_id, title, description, status, assignee, depends_on_json, summary, parent_task_id, session_id, worktree_path, branch, blocker, version, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
 					 ON CONFLICT(team_name, task_id) DO UPDATE SET
 						title = excluded.title,
 						description = excluded.description,
@@ -414,17 +450,27 @@ export class SqliteTeamStore implements TeamStore {
 						assignee = excluded.assignee,
 						depends_on_json = excluded.depends_on_json,
 						summary = excluded.summary,
+						parent_task_id = excluded.parent_task_id,
+						session_id = excluded.session_id,
+						worktree_path = excluded.worktree_path,
+						branch = excluded.branch,
+						blocker = excluded.blocker,
 						version = team_tasks.version + 1,
 						updated_at = excluded.updated_at`,
 					[
 						safeTeamName,
 						task.id,
 						task.title,
-						task.description,
+						task.description ?? "",
 						task.status,
-						task.assignee ?? null,
+						task.assignedAgentId ?? null,
 						JSON.stringify(task.dependsOn ?? []),
 						task.summary ?? null,
+						task.parentTaskId ?? null,
+						task.sessionId ?? null,
+						task.worktreePath ?? null,
+						task.branch ?? null,
+						task.blocker ?? null,
 						task.updatedAt.toISOString(),
 					],
 				);

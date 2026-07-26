@@ -7,22 +7,30 @@
  */
 
 export type TeamTaskStatus =
-	| "pending"
-	| "in_progress"
+	| "backlog"
+	| "ready"
+	| "in-progress"
 	| "blocked"
-	| "completed";
+	| "review"
+	| "done";
 
 export interface TeamTask {
 	id: string;
 	title: string;
-	description: string;
 	status: TeamTaskStatus;
+	description?: string;
+	parentTaskId?: string;
+	assignedAgentId?: string;
+	sessionId?: string;
+	worktreePath?: string;
+	branch?: string;
+	summary?: string;
+	blocker?: string;
 	createdAt: Date;
 	updatedAt: Date;
+	revision: number;
 	createdBy: string;
-	assignee?: string;
 	dependsOn: string[];
-	summary?: string;
 }
 
 export interface TeamTaskListItem extends TeamTask {
@@ -64,9 +72,19 @@ export interface TeamMailboxMessage {
 
 export interface TeamMemberSnapshot {
 	agentId: string;
+	displayLabel: string;
 	role: "lead" | "teammate";
 	description?: string;
 	status: "idle" | "running" | "stopped";
+	parentAgentId?: string;
+	parentTaskId?: string;
+	currentTaskId?: string;
+	runStatus?: TeamRunStatus;
+	sessionId?: string;
+	worktreePath?: string;
+	branch?: string;
+	lastActivityAt: Date;
+	outcome?: "completed" | "failed" | "cancelled" | "interrupted";
 }
 
 export interface TeammateLifecycleSpec {
@@ -179,10 +197,40 @@ export interface AppendMissionLogInput {
 
 export interface CreateTeamTaskInput {
 	title: string;
-	description: string;
+	description?: string;
 	createdBy: string;
 	dependsOn?: string[];
-	assignee?: string;
+	parentTaskId?: string;
+	assignedAgentId?: string;
+	sessionId?: string;
+	worktreePath?: string;
+	branch?: string;
+}
+
+export interface UpdateTeamTaskInput {
+	taskId: string;
+	expectedRevision?: number;
+	title?: string;
+	description?: string | null;
+	status?: TeamTaskStatus;
+	parentTaskId?: string | null;
+	assignedAgentId?: string | null;
+	sessionId?: string | null;
+	worktreePath?: string | null;
+	branch?: string | null;
+	summary?: string | null;
+	blocker?: string | null;
+}
+
+export interface TeamBoardSnapshot {
+	version: 2;
+	teamId: string;
+	teamName: string;
+	revision: number;
+	updatedAt: string;
+	tasks: TeamTask[];
+	agents: TeamMemberSnapshot[];
+	runs: TeamRunRecord[];
 }
 
 export interface CreateTeamOutcomeInput {

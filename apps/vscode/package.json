@@ -90,6 +90,11 @@
 				"icon": "$(history)"
 			},
 			{
+				"command": "cline.teamsButtonClicked",
+				"title": "Local Teams",
+				"icon": "$(organization)"
+			},
+			{
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -184,6 +189,11 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
+					"command": "cline.teamsButtonClicked",
+					"group": "navigation@2",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
@@ -227,7 +237,15 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"cline.maxConcurrentTeamRuns": {
+					"type": "number",
+					"default": 2,
+					"minimum": 1,
+					"maximum": 8,
+					"description": "Maximum number of local teammate runs that may execute concurrently. Additional runs remain visible in the queue."
+				}
+			}
 		}
 	},
 	"scripts": {

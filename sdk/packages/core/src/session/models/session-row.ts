@@ -1,4 +1,4 @@
-import type { TeamTeammateSpec } from "@cline/shared";
+import { migrateTeamRuntimeState, type TeamTeammateSpec } from "@cline/shared";
 import type { AgentTeamsRuntime } from "../../extensions/tools/team";
 import type { SessionSource, SessionStatus } from "../../types/common";
 import type { SessionManifest } from "./session-manifest";
@@ -148,7 +148,7 @@ export function stringifyMetadata(
 export type TeamRuntimeState = ReturnType<AgentTeamsRuntime["exportState"]>;
 
 export interface PersistedTeamEnvelope {
-	version: 1;
+	version: 1 | 2;
 	updatedAt: string;
 	teamState: TeamRuntimeState;
 	teammates: TeamTeammateSpec[];
@@ -157,23 +157,31 @@ export interface PersistedTeamEnvelope {
 export function reviveTeamStateDates(
 	state: TeamRuntimeState,
 ): TeamRuntimeState {
+	const migrated = migrateTeamRuntimeState(state);
+	if (!migrated) {
+		throw new Error("Invalid persisted team state");
+	}
 	return {
-		...state,
-		tasks: state.tasks.map((task) => ({
+		...migrated,
+		members: migrated.members.map((member) => ({
+			...member,
+			lastActivityAt: new Date(member.lastActivityAt),
+		})),
+		tasks: migrated.tasks.map((task) => ({
 			...task,
 			createdAt: new Date(task.createdAt),
 			updatedAt: new Date(task.updatedAt),
 		})),
-		mailbox: state.mailbox.map((message) => ({
+		mailbox: migrated.mailbox.map((message) => ({
 			...message,
 			sentAt: new Date(message.sentAt),
 			readAt: message.readAt ? new Date(message.readAt) : undefined,
 		})),
-		missionLog: state.missionLog.map((entry) => ({
+		missionLog: migrated.missionLog.map((entry) => ({
 			...entry,
 			ts: new Date(entry.ts),
 		})),
-		runs: (state.runs ?? []).map((run) => ({
+		runs: (migrated.runs ?? []).map((run) => ({
 			...run,
 			startedAt: new Date(run.startedAt),
 			endedAt: run.endedAt ? new Date(run.endedAt) : undefined,
@@ -182,14 +190,14 @@ export function reviveTeamStateDates(
 				: undefined,
 			heartbeatAt: run.heartbeatAt ? new Date(run.heartbeatAt) : undefined,
 		})),
-		outcomes: (state.outcomes ?? []).map((outcome) => ({
+		outcomes: (migrated.outcomes ?? []).map((outcome) => ({
 			...outcome,
 			createdAt: new Date(outcome.createdAt),
 			finalizedAt: outcome.finalizedAt
 				? new Date(outcome.finalizedAt)
 				: undefined,
 		})),
-		outcomeFragments: (state.outcomeFragments ?? []).map((fragment) => ({
+		outcomeFragments: (migrated.outcomeFragments ?? []).map((fragment) => ({
 			...fragment,
 			createdAt: new Date(fragment.createdAt),
 			reviewedAt: fragment.reviewedAt

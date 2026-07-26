@@ -12,6 +12,7 @@ import {
 	type SessionHistoryRecord,
 	type UserInstructionConfigService,
 } from "@cline/core"
+import type { CreateTeamTaskInput, TeamBoardSnapshot, TeamRunRecord, TeamTask, UpdateTeamTaskInput } from "@cline/shared"
 import { formatDisplayUserInput } from "@cline/shared"
 import type { ChatContent } from "@shared/ChatContent"
 import { mentionRegexGlobal } from "@shared/context-mentions"
@@ -21,6 +22,7 @@ import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { sendTeamBoardUpdate } from "@/core/controller/team/subscribeToTeamBoard"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
@@ -275,6 +277,9 @@ export class Controller {
 				this.sessionEvents.handleSessionEvent(event).catch((err) => {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
+				if (event.type === "team_progress") {
+					sendTeamBoardUpdate(this)
+				}
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			foregroundCommands: this.foregroundCommands,
@@ -701,6 +706,41 @@ export class Controller {
 	 */
 	onSessionEvent(listener: SessionEventListener): () => void {
 		return this.messages.onSessionEvent(listener)
+	}
+
+	getActiveTeamBoard(): TeamBoardSnapshot | undefined {
+		const active = this.sessions.getActiveSession()
+		return active?.sdkHost.getTeamBoard?.(active.sessionId)
+	}
+
+	createActiveTeamTask(input: Omit<CreateTeamTaskInput, "createdBy">): TeamTask {
+		const active = this.sessions.getActiveSession()
+		if (!active?.sdkHost.createTeamTask) {
+			throw new Error("No active local team session")
+		}
+		const task = active.sdkHost.createTeamTask(active.sessionId, input)
+		sendTeamBoardUpdate(this)
+		return task
+	}
+
+	updateActiveTeamTask(input: UpdateTeamTaskInput): TeamTask {
+		const active = this.sessions.getActiveSession()
+		if (!active?.sdkHost.updateTeamTask) {
+			throw new Error("No active local team session")
+		}
+		const task = active.sdkHost.updateTeamTask(active.sessionId, input)
+		sendTeamBoardUpdate(this)
+		return task
+	}
+
+	cancelActiveTeamRun(runId: string, reason?: string): TeamRunRecord {
+		const active = this.sessions.getActiveSession()
+		if (!active?.sdkHost.cancelTeamRun) {
+			throw new Error("No active local team session")
+		}
+		const run = active.sdkHost.cancelTeamRun(active.sessionId, runId, reason)
+		sendTeamBoardUpdate(this)
+		return run
 	}
 
 	private getTaskModelId(): string | undefined {

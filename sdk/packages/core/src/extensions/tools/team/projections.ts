@@ -52,13 +52,15 @@ export function buildTeamProgressSummary(
 		stopped: 0,
 	};
 	const tasksByStatus: Record<
-		"pending" | "in_progress" | "blocked" | "completed",
+		"backlog" | "ready" | "in-progress" | "blocked" | "review" | "done",
 		number
 	> = {
-		pending: 0,
-		in_progress: 0,
+		backlog: 0,
+		ready: 0,
+		"in-progress": 0,
 		blocked: 0,
-		completed: 0,
+		review: 0,
+		done: 0,
 	};
 	const runsByStatus: Record<
 		"queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted",
@@ -97,7 +99,7 @@ export function buildTeamProgressSummary(
 	const blockedTaskIds: string[] = [];
 	const readyTaskIds: string[] = [];
 	const completedTaskCount = state.tasks.filter(
-		(task) => task.status === "completed",
+		(task) => task.status === "done",
 	).length;
 	const taskById = new Map(state.tasks.map((task) => [task.id, task] as const));
 	for (const task of state.tasks) {
@@ -106,12 +108,12 @@ export function buildTeamProgressSummary(
 			blockedTaskIds.push(task.id);
 			continue;
 		}
-		if (task.status !== "pending") {
+		if (task.status !== "ready") {
 			continue;
 		}
 		const depsSatisfied = task.dependsOn.every((depId) => {
 			const dependency = taskById.get(depId);
-			return dependency?.status === "completed";
+			return dependency?.status === "done";
 		});
 		if (depsSatisfied) {
 			readyTaskIds.push(task.id);
@@ -192,7 +194,7 @@ export function toTeamProgressLifecycleEvent(input: {
 				eventType: event.type,
 				ts: toIsoNow(),
 				taskId: event.task.id,
-				agentId: event.task.assignee ?? event.task.createdBy,
+				agentId: event.task.assignedAgentId ?? event.task.createdBy,
 			};
 		case "run_queued":
 		case "run_started":

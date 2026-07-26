@@ -1,9 +1,15 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { CreateWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/cline/worktree"
+import {
+	CreateWorktreeRequest,
+	InspectWorktreeMutationRequest,
+	SwitchWorktreeRequest,
+	type WorktreeMutationInspection,
+} from "@shared/proto/cline/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircle, AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
 import { WorktreeServiceClient } from "@/services/grpc-client"
+import WorktreeMutationPreview from "./WorktreeMutationPreview"
 
 interface CreateWorktreeModalProps {
 	open: boolean
@@ -21,6 +27,8 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 	const [createError, setCreateError] = useState<string | null>(null)
 	const [isLoadingDefaults, setIsLoadingDefaults] = useState(false)
 	const [hasWorktreeInclude, setHasWorktreeInclude] = useState<boolean | null>(null)
+	const [inspection, setInspection] = useState<WorktreeMutationInspection>()
+	const [isInspecting, setIsInspecting] = useState(false)
 
 	// Load defaults and check .worktreeinclude status when modal opens
 	const loadDefaults = useCallback(async () => {
@@ -56,6 +64,38 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 		}
 	}, [open])
 
+	useEffect(() => {
+		if (!open || !newWorktreePath || !newBranchName) {
+			setInspection(undefined)
+			return
+		}
+		let disposed = false
+		const timer = setTimeout(() => {
+			setIsInspecting(true)
+			void WorktreeServiceClient.inspectWorktreeMutation(
+				InspectWorktreeMutationRequest.create({
+					operation: "create",
+					worktreePath: newWorktreePath,
+					branch: newBranchName,
+					createNewBranch: true,
+				}),
+			)
+				.then((next) => {
+					if (!disposed) setInspection(next)
+				})
+				.catch((error) => {
+					if (!disposed) setCreateError(error instanceof Error ? error.message : String(error))
+				})
+				.finally(() => {
+					if (!disposed) setIsInspecting(false)
+				})
+		}, 200)
+		return () => {
+			disposed = true
+			clearTimeout(timer)
+		}
+	}, [newBranchName, newWorktreePath, open])
+
 	const handleCreateWorktree = useCallback(async () => {
 		if (!newWorktreePath || !newBranchName) {
 			return
@@ -69,6 +109,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 					path: newWorktreePath,
 					branch: newBranchName,
 					createNewBranch: true,
+					approved: true,
 				}),
 			)
 
@@ -200,9 +241,17 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 							<p className="text-sm text-[var(--vscode-errorForeground)] m-0">{createError}</p>
 						</div>
 					)}
+					<WorktreeMutationPreview inspection={inspection} loading={isInspecting} />
 					<div className="flex justify-end gap-2">
 						<VSCodeButton
-							disabled={!newWorktreePath || !newBranchName || isCreating || isLoadingDefaults}
+							disabled={
+								!newWorktreePath ||
+								!newBranchName ||
+								isCreating ||
+								isLoadingDefaults ||
+								isInspecting ||
+								!inspection?.allowed
+							}
 							onClick={handleCreateWorktree}>
 							{isLoadingDefaults ? (
 								<>

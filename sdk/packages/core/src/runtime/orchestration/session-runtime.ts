@@ -5,9 +5,14 @@ import type {
 	AgentResult,
 	AgentTool,
 	BasicLogger,
+	CreateTeamTaskInput,
 	RuntimeConfigExtensionKind,
+	TeamBoardSnapshot,
+	TeamRunRecord,
+	TeamTask,
 	ToolApprovalRequest,
 	ToolApprovalResult,
+	UpdateTeamTaskInput,
 } from "@cline/shared";
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type { ToolExecutors } from "../../extensions/tools";
@@ -71,6 +76,20 @@ export interface RuntimeBuilderInput {
 
 export interface RuntimeBuilder {
 	build(input: RuntimeBuilderInput): Promise<BuiltRuntime> | BuiltRuntime;
+}
+
+export interface TeamRuntimeService {
+	getTeamBoard(sessionId: string): TeamBoardSnapshot | undefined;
+	createTeamTask(
+		sessionId: string,
+		input: Omit<CreateTeamTaskInput, "createdBy">,
+	): TeamTask;
+	updateTeamTask(sessionId: string, input: UpdateTeamTaskInput): TeamTask;
+	cancelTeamRun(
+		sessionId: string,
+		runId: string,
+		reason?: string,
+	): TeamRunRecord;
 }
 
 export interface SessionRuntime {

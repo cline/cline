@@ -18,7 +18,14 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "@cline/core"
-import type { AgentResult } from "@cline/shared"
+import type {
+	AgentResult,
+	CreateTeamTaskInput,
+	TeamBoardSnapshot,
+	TeamRunRecord,
+	TeamTask,
+	UpdateTeamTaskInput,
+} from "@cline/shared"
 
 export interface SdkSessionHost {
 	readonly runtimeAddress: string | undefined
@@ -50,6 +57,10 @@ export interface SdkSessionHost {
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>
+	getTeamBoard?(sessionId: string): TeamBoardSnapshot | undefined
+	createTeamTask?(sessionId: string, input: Omit<CreateTeamTaskInput, "createdBy">): TeamTask
+	updateTeamTask?(sessionId: string, input: UpdateTeamTaskInput): TeamTask
+	cancelTeamRun?(sessionId: string, runId: string, reason?: string): TeamRunRecord
 }
 
 export type SdkInitialMessages = NonNullable<StartSessionInput["initialMessages"]>

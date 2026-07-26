@@ -1,69 +1,47 @@
-import {
-	appendFileSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
 import type { TeamTeammateSpec } from "@cline/shared";
-import { resolveTeamDataDir } from "@cline/shared/storage";
 import type { AgentTeamsRuntime, TeamEvent } from "../../extensions/tools/team";
 import {
-	type PersistedTeamEnvelope,
-	reviveTeamStateDates,
-	type TeamRuntimeState,
-} from "../models/session-row";
-
-function sanitizeTeamName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-}
+	FileTeamStore,
+	type FileTeamStoreOptions,
+} from "../../services/storage/file-team-store";
+import type { TeamRuntimeState } from "../models/session-row";
 
 export interface FileTeamPersistenceStoreOptions {
 	teamName: string;
 	baseDir?: string;
 }
 
+/**
+ * Compatibility adapter over the single local FileTeamStore implementation.
+ *
+ * New code should use createLocalTeamStore(); this class remains exported for
+ * older embedders that persist one named team at a time.
+ */
 export class FileTeamPersistenceStore {
-	private readonly dirPath: string;
-	private readonly statePath: string;
-	private readonly taskHistoryPath: string;
-	private readonly teammateSpecs: Map<string, TeamTeammateSpec> = new Map();
+	private readonly teamName: string;
+	private readonly store: FileTeamStore;
+	private readonly teammateSpecs = new Map<string, TeamTeammateSpec>();
 
 	constructor(options: FileTeamPersistenceStoreOptions) {
-		const safeTeamName = sanitizeTeamName(options.teamName);
-		const baseDir = options.baseDir?.trim() || resolveTeamDataDir();
-		this.dirPath = join(baseDir, safeTeamName);
-		this.statePath = join(this.dirPath, "state.json");
-		this.taskHistoryPath = join(this.dirPath, "task-history.jsonl");
+		this.teamName = options.teamName;
+		const storeOptions: FileTeamStoreOptions = options.baseDir
+			? { teamDir: options.baseDir }
+			: {};
+		this.store = new FileTeamStore(storeOptions);
+		this.store.init();
 	}
 
 	loadState(): TeamRuntimeState | undefined {
-		if (!existsSync(this.statePath)) {
-			return undefined;
+		const loaded = this.store.loadRuntime(this.teamName);
+		this.teammateSpecs.clear();
+		for (const spec of loaded.teammates) {
+			this.teammateSpecs.set(spec.agentId, spec);
 		}
-		try {
-			const raw = readFileSync(this.statePath, "utf8");
-			const parsed = JSON.parse(raw) as PersistedTeamEnvelope;
-			if (parsed.version !== 1 || !parsed.teamState) {
-				return undefined;
-			}
-			for (const spec of parsed.teammates ?? []) {
-				this.teammateSpecs.set(spec.agentId, spec);
-			}
-			return reviveTeamStateDates(parsed.teamState);
-		} catch {
-			return undefined;
-		}
+		return loaded.state;
 	}
 
 	getTeammateSpecs(): TeamTeammateSpec[] {
-		return Array.from(this.teammateSpecs.values());
+		return [...this.teammateSpecs.values()];
 	}
 
 	upsertTeammateSpec(spec: TeamTeammateSpec): void {
@@ -75,102 +53,14 @@ export class FileTeamPersistenceStore {
 	}
 
 	persist(runtime: AgentTeamsRuntime): void {
-		if (!this.hasPersistableState(runtime)) {
-			this.clearPersistedState();
-			return;
-		}
-		this.ensureDir();
-		const envelope: PersistedTeamEnvelope = {
-			version: 1,
-			updatedAt: new Date().toISOString(),
-			teamState: runtime.exportState(),
-			teammates: Array.from(this.teammateSpecs.values()),
-		};
-		const tmpPath = `${this.statePath}.tmp`;
-		writeFileSync(tmpPath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");
-		renameSync(tmpPath, this.statePath);
+		this.store.persistRuntime(
+			this.teamName,
+			runtime.exportState(),
+			this.getTeammateSpecs(),
+		);
 	}
 
 	appendTaskHistory(event: TeamEvent): void {
-		let task: Record<string, unknown> = {};
-		switch (event.type) {
-			case "team_task_updated":
-				task = event.task as unknown as Record<string, unknown>;
-				break;
-			case "team_message":
-				task = {
-					agentId: event.message.fromAgentId,
-					toAgentId: event.message.toAgentId,
-					subject: event.message.subject,
-					taskId: event.message.taskId,
-				};
-				break;
-			case "team_mission_log":
-				task = {
-					agentId: event.entry.agentId,
-					kind: event.entry.kind,
-					summary: event.entry.summary,
-					taskId: event.entry.taskId,
-				};
-				break;
-			case "teammate_spawned":
-			case "teammate_shutdown":
-			case "task_start":
-				task = {
-					agentId: event.agentId,
-					message: "message" in event ? event.message : undefined,
-				};
-				break;
-			case "task_end":
-				task = {
-					agentId: event.agentId,
-					finishReason: event.result?.finishReason,
-					error: event.error?.message,
-				};
-				break;
-			case "agent_event":
-				task = {
-					agentId: event.agentId,
-					eventType: event.event.type,
-				};
-				break;
-		}
-		this.ensureDir();
-		appendFileSync(
-			this.taskHistoryPath,
-			`${JSON.stringify({
-				ts: new Date().toISOString(),
-				type: event.type,
-				task,
-			})}\n`,
-			"utf8",
-		);
-	}
-
-	private ensureDir(): void {
-		if (!existsSync(this.dirPath)) {
-			mkdirSync(this.dirPath, { recursive: true });
-		}
-	}
-
-	private hasPersistableState(runtime: AgentTeamsRuntime): boolean {
-		const state = runtime.exportState();
-		if (this.teammateSpecs.size > 0) {
-			return true;
-		}
-		if (state.members.some((member) => member.role === "teammate")) {
-			return true;
-		}
-		return (
-			state.tasks.length > 0 ||
-			state.mailbox.length > 0 ||
-			state.missionLog.length > 0
-		);
-	}
-
-	private clearPersistedState(): void {
-		if (existsSync(this.statePath)) {
-			unlinkSync(this.statePath);
-		}
+		this.store.handleTeamEvent(this.teamName, event);
 	}
 }

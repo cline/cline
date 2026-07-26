@@ -1,12 +1,15 @@
+import { InspectWorktreeMutationRequest, type WorktreeMutationInspection } from "@shared/proto/cline/worktree"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle, Loader2, X } from "lucide-react"
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { WorktreeServiceClient } from "@/services/grpc-client"
+import WorktreeMutationPreview from "./WorktreeMutationPreview"
 
 interface DeleteWorktreeModalProps {
 	open: boolean
 	onClose: () => void
-	onConfirm: (deleteBranch: boolean) => Promise<void>
+	onConfirm: (deleteBranch: boolean, allowDirty: boolean) => Promise<void>
 	worktreePath: string
 	branchName: string
 }
@@ -14,17 +17,38 @@ interface DeleteWorktreeModalProps {
 const DeleteWorktreeModal = ({ open, onClose, onConfirm, worktreePath, branchName }: DeleteWorktreeModalProps) => {
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [deleteBranch, setDeleteBranch] = useState(false)
+	const [allowDirty, setAllowDirty] = useState(false)
+	const [inspection, setInspection] = useState<WorktreeMutationInspection>()
+	const [isInspecting, setIsInspecting] = useState(false)
+
+	useEffect(() => {
+		if (!open || !worktreePath) {
+			setInspection(undefined)
+			return
+		}
+		setIsInspecting(true)
+		void WorktreeServiceClient.inspectWorktreeMutation(
+			InspectWorktreeMutationRequest.create({
+				operation: "delete",
+				worktreePath,
+				allowDirty,
+			}),
+		)
+			.then(setInspection)
+			.finally(() => setIsInspecting(false))
+	}, [allowDirty, open, worktreePath])
 
 	const handleDelete = useCallback(async () => {
 		setIsDeleting(true)
 		try {
-			await onConfirm(deleteBranch)
+			await onConfirm(deleteBranch, allowDirty)
 			onClose()
 		} finally {
 			setIsDeleting(false)
 			setDeleteBranch(false)
+			setAllowDirty(false)
 		}
-	}, [onConfirm, onClose, deleteBranch])
+	}, [onConfirm, onClose, deleteBranch, allowDirty])
 
 	if (!open) {
 		return null
@@ -75,13 +99,28 @@ const DeleteWorktreeModal = ({ open, onClose, onConfirm, worktreePath, branchNam
 						Warning: Unpushed commits on this branch will be lost.
 					</p>
 				)}
+				{inspection?.dirty && (
+					<label className="mb-3 flex cursor-pointer items-start gap-2">
+						<VSCodeCheckbox
+							checked={allowDirty}
+							onChange={(event) => setAllowDirty((event.target as HTMLInputElement).checked)}
+						/>
+						<span className="text-sm text-[var(--vscode-inputValidation-warningForeground)]">
+							Separately approve removal of this dirty worktree and its untracked files.
+						</span>
+					</label>
+				)}
+				<WorktreeMutationPreview inspection={inspection} loading={isInspecting} />
+				{deleteBranch && (
+					<p className="mb-0 mt-2 break-all font-mono text-xs">Additional Git operation: git branch -d {branchName}</p>
+				)}
 
 				{/* Buttons */}
 				<div className="flex justify-end gap-2">
 					<VSCodeButton appearance="secondary" disabled={isDeleting} onClick={onClose}>
 						Cancel
 					</VSCodeButton>
-					<Button disabled={isDeleting} onClick={handleDelete} variant="danger">
+					<Button disabled={isDeleting || isInspecting || !inspection?.allowed} onClick={handleDelete} variant="danger">
 						{isDeleting ? (
 							<>
 								<Loader2 className="w-4 h-4 mr-1 animate-spin" />

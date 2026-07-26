@@ -54,6 +54,7 @@ export async function projectSessionEvent(
 				sessionId: event.payload.sessionId,
 				summary: event.payload.summary,
 				lastEvent: event.payload.lifecycle,
+				changes: event.payload.changes ?? {},
 			};
 			ctx.publish(
 				ctx.buildEvent(

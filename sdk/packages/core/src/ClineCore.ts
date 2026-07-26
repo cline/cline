@@ -1,3 +1,10 @@
+import type {
+	CreateTeamTaskInput,
+	TeamBoardSnapshot,
+	TeamRunRecord,
+	TeamTask,
+	UpdateTeamTaskInput,
+} from "@cline/shared";
 import {
 	createClineCorePendingPromptsApi,
 	createClineCoreSettingsApi,
@@ -18,7 +25,6 @@ import type {
 	RestoreResult,
 	StartSessionBootstrap,
 } from "./cline-core/types";
-
 import type { RuntimeCapabilities } from "./runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
@@ -33,6 +39,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
+import type { TeamRuntimeService } from "./runtime/orchestration/session-runtime";
 import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
@@ -215,6 +222,43 @@ export class ClineCore {
 	 * ```
 	 */
 	send: RuntimeHost["runTurn"] = (...args) => this.host.runTurn(...args);
+
+	getTeamBoard(sessionId: string): TeamBoardSnapshot | undefined {
+		return (
+			this.host as RuntimeHost & Partial<TeamRuntimeService>
+		).getTeamBoard?.(sessionId);
+	}
+
+	createTeamTask(
+		sessionId: string,
+		input: Omit<CreateTeamTaskInput, "createdBy">,
+	): TeamTask {
+		const service = this.host as RuntimeHost & Partial<TeamRuntimeService>;
+		if (!service.createTeamTask) {
+			throw new Error("Team task management requires the local runtime");
+		}
+		return service.createTeamTask(sessionId, input);
+	}
+
+	updateTeamTask(sessionId: string, input: UpdateTeamTaskInput): TeamTask {
+		const service = this.host as RuntimeHost & Partial<TeamRuntimeService>;
+		if (!service.updateTeamTask) {
+			throw new Error("Team task management requires the local runtime");
+		}
+		return service.updateTeamTask(sessionId, input);
+	}
+
+	cancelTeamRun(
+		sessionId: string,
+		runId: string,
+		reason?: string,
+	): TeamRunRecord {
+		const service = this.host as RuntimeHost & Partial<TeamRuntimeService>;
+		if (!service.cancelTeamRun) {
+			throw new Error("Team run management requires the local runtime");
+		}
+		return service.cancelTeamRun(sessionId, runId, reason);
+	}
 	/**
 	 * Retrieves accumulated token and cost usage for a session.
 	 *

@@ -64,6 +64,8 @@ export interface SessionExecutionConfig {
 	teamName?: string;
 	missionLogIntervalSteps?: number;
 	missionLogIntervalMs?: number;
+	/** Maximum child-team runs executing locally at once; additional runs stay queued. */
+	maxConcurrentTeamRuns?: number;
 	maxConsecutiveMistakes?: number;
 	toolPolicies?: Record<string, ToolPolicy>;
 }

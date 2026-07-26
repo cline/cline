@@ -3,11 +3,15 @@ export const TEAM_LIFECYCLE_EVENT_TYPE = "runtime.team.lifecycle.v1";
 
 export type TeamProgressMemberRole = "lead" | "teammate";
 export type TeamProgressMemberStatus = "idle" | "running" | "stopped";
-export type TeamProgressTaskStatus =
-	| "pending"
-	| "in_progress"
-	| "blocked"
-	| "completed";
+
+import type {
+	TeamMemberSnapshot,
+	TeamRunRecord,
+	TeamTask,
+	TeamTaskStatus,
+} from "../team/types";
+
+export type TeamProgressTaskStatus = TeamTaskStatus;
 export type TeamProgressRunStatus =
 	| "queued"
 	| "running"
@@ -68,4 +72,9 @@ export interface TeamProgressProjectionEvent {
 	sessionId: string;
 	summary: TeamProgressSummary;
 	lastEvent: TeamProgressLifecycleEvent;
+	changes: {
+		task?: TeamTask;
+		agent?: TeamMemberSnapshot;
+		run?: TeamRunRecord;
+	};
 }

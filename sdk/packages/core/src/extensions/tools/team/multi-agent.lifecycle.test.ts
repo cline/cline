@@ -646,6 +646,117 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("keeps excess teammate runs visible in the configured concurrency queue", async () => {
+		let releaseFirst: (() => void) | undefined;
+		const firstRun = vi.fn(
+			() =>
+				new Promise<{
+					text: string;
+					iterations: number;
+					finishReason: "end_turn";
+					durationMs: number;
+					usage: {
+						inputTokens: number;
+						outputTokens: number;
+						cacheReadTokens: number;
+						cacheWriteTokens: number;
+						totalCost: number;
+					};
+					messages: [];
+				}>((resolve) => {
+					releaseFirst = () =>
+						resolve({
+							text: "first complete",
+							iterations: 1,
+							finishReason: "end_turn",
+							durationMs: 10,
+							usage: {
+								inputTokens: 1,
+								outputTokens: 1,
+								cacheReadTokens: 0,
+								cacheWriteTokens: 0,
+								totalCost: 0,
+							},
+							messages: [],
+						});
+				}),
+		);
+		const secondRun = vi.fn(async () => ({
+			text: "second complete",
+			iterations: 1,
+			finishReason: "end_turn" as const,
+			durationMs: 10,
+			usage: {
+				inputTokens: 1,
+				outputTokens: 1,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0,
+			},
+			messages: [],
+		}));
+		createSessionRuntimeMock
+			// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+			.mockImplementationOnce(function () {
+				return {
+					abort: vi.fn(),
+					run: firstRun,
+					continue: vi.fn(),
+					canStartRun: vi.fn(() => true),
+					getAgentId: vi.fn(() => "alice"),
+					getConversationId: vi.fn(() => "conv-alice"),
+					getMessages: vi.fn(() => []),
+					subscribeEvents: vi.fn(() => () => {}),
+				};
+			})
+			// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+			.mockImplementationOnce(function () {
+				return {
+					abort: vi.fn(),
+					run: secondRun,
+					continue: vi.fn(),
+					canStartRun: vi.fn(() => true),
+					getAgentId: vi.fn(() => "bob"),
+					getConversationId: vi.fn(() => "conv-bob"),
+					getMessages: vi.fn(() => []),
+					subscribeEvents: vi.fn(() => () => {}),
+				};
+			});
+
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			maxConcurrentRuns: 1,
+		});
+		for (const agentId of ["alice", "bob"]) {
+			runtime.spawnTeammate({
+				agentId,
+				config: {
+					providerId: "bedrock",
+					modelId: "claude-sonnet-4-5-20250929",
+					systemPrompt: `Helper teammate ${agentId}`,
+					tools: [],
+				},
+			});
+		}
+
+		const first = runtime.startTeammateRun("alice", "first task");
+		const second = runtime.startTeammateRun("bob", "second task");
+		expect(runtime.getRun(first.id)?.status).toBe("running");
+		expect(runtime.getRun(second.id)?.status).toBe("queued");
+		expect(runtime.getBoardSnapshot().runs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: first.id, status: "running" }),
+				expect.objectContaining({ id: second.id, status: "queued" }),
+			]),
+		);
+
+		releaseFirst?.();
+		await runtime.awaitRun(first.id, 1);
+		const completedSecond = await runtime.awaitRun(second.id, 1);
+		expect(secondRun).toHaveBeenCalledTimes(1);
+		expect(completedSecond.status).toBe("completed");
+	});
 });
 
 describe("AgentTeamsRuntime run failure reporting", () => {

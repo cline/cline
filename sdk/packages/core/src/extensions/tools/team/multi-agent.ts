@@ -16,6 +16,7 @@ import {
 	type ReviewTeamOutcomeFragmentInput,
 	type RouteToTeammateOptions,
 	sanitizeFileName,
+	type TeamBoardSnapshot,
 	type TeamMailboxMessage,
 	type TeamMemberSnapshot,
 	TeamMessageType,
@@ -30,6 +31,7 @@ import {
 	type TeamTask,
 	type TeamTaskListItem,
 	type TeamTaskStatus,
+	type UpdateTeamTaskInput,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
@@ -44,6 +46,7 @@ export {
 	type MissionLogKind,
 	type ReviewTeamOutcomeFragmentInput,
 	type RouteToTeammateOptions,
+	type TeamBoardSnapshot,
 	type TeamMailboxMessage,
 	type TeamMemberSnapshot,
 	TeamMessageType,
@@ -59,6 +62,7 @@ export {
 	type TeamTask,
 	type TeamTaskListItem,
 	type TeamTaskStatus,
+	type UpdateTeamTaskInput,
 } from "@cline/shared";
 
 // =============================================================================
@@ -544,6 +548,7 @@ export class AgentTeamsRuntime {
 	private readonly missionLogIntervalSteps: number;
 	private readonly missionLogIntervalMs: number;
 	private readonly maxConcurrentRuns: number;
+	private boardRevision = 0;
 
 	constructor(options: AgentTeamsRuntimeOptions) {
 		this.teamName = options.teamName;
@@ -561,8 +566,10 @@ export class AgentTeamsRuntime {
 		const leadAgentId = options.leadAgentId ?? "lead";
 		this.members.set(leadAgentId, {
 			agentId: leadAgentId,
+			displayLabel: "Lead",
 			role: "lead",
 			status: "idle",
+			lastActivityAt: new Date(),
 			runningCount: 0,
 			lastMissionStep: 0,
 			lastMissionAt: Date.now(),
@@ -601,7 +608,7 @@ export class AgentTeamsRuntime {
 
 	listTaskItems(options?: {
 		status?: TeamTaskStatus;
-		assignee?: string;
+		assignedAgentId?: string;
 	}): TeamTaskListItem[] {
 		return Array.from(this.tasks.values())
 			.map((task) => {
@@ -610,8 +617,8 @@ export class AgentTeamsRuntime {
 					...task,
 					blockedBy,
 					isReady:
-						task.status === "pending" &&
-						!task.assignee &&
+						task.status === "ready" &&
+						!task.assignedAgentId &&
 						blockedBy.length === 0,
 				};
 			})
@@ -619,7 +626,10 @@ export class AgentTeamsRuntime {
 				if (options?.status && task.status !== options.status) {
 					return false;
 				}
-				if (options?.assignee && task.assignee !== options.assignee) {
+				if (
+					options?.assignedAgentId &&
+					task.assignedAgentId !== options.assignedAgentId
+				) {
 					return false;
 				}
 				return true;
@@ -661,10 +671,12 @@ export class AgentTeamsRuntime {
 
 	getSnapshot(): TeamRuntimeSnapshot {
 		const taskCounts: Record<TeamTaskStatus, number> = {
-			pending: 0,
-			in_progress: 0,
+			backlog: 0,
+			ready: 0,
+			"in-progress": 0,
 			blocked: 0,
-			completed: 0,
+			review: 0,
+			done: 0,
 		};
 		for (const task of this.tasks.values()) {
 			taskCounts[task.status]++;
@@ -682,9 +694,19 @@ export class AgentTeamsRuntime {
 			teamName: this.teamName,
 			members: Array.from(this.members.values()).map((member) => ({
 				agentId: member.agentId,
+				displayLabel: member.displayLabel,
 				role: member.role,
 				description: member.description,
 				status: member.status,
+				parentAgentId: member.parentAgentId,
+				parentTaskId: member.parentTaskId,
+				currentTaskId: member.currentTaskId,
+				runStatus: member.runStatus,
+				sessionId: member.sessionId,
+				worktreePath: member.worktreePath,
+				branch: member.branch,
+				lastActivityAt: member.lastActivityAt,
+				outcome: member.outcome,
 			})),
 			taskCounts,
 			unreadMessages: this.mailbox.filter((message) => !message.readAt).length,
@@ -705,9 +727,19 @@ export class AgentTeamsRuntime {
 			teamName: this.teamName,
 			members: Array.from(this.members.values()).map((member) => ({
 				agentId: member.agentId,
+				displayLabel: member.displayLabel,
 				role: member.role,
 				description: member.description,
 				status: member.status,
+				parentAgentId: member.parentAgentId,
+				parentTaskId: member.parentTaskId,
+				currentTaskId: member.currentTaskId,
+				runStatus: member.runStatus,
+				sessionId: member.sessionId,
+				worktreePath: member.worktreePath,
+				branch: member.branch,
+				lastActivityAt: member.lastActivityAt,
+				outcome: member.outcome,
 			})),
 			tasks: Array.from(this.tasks.values()).map((task) => ({ ...task })),
 			mailbox: this.mailbox.map((message) => ({ ...message })),
@@ -719,6 +751,25 @@ export class AgentTeamsRuntime {
 			outcomeFragments: Array.from(this.outcomeFragments.values()).map(
 				(fragment) => ({ ...fragment }),
 			),
+		};
+	}
+
+	getBoardSnapshot(): TeamBoardSnapshot {
+		const state = this.exportState();
+		const updatedAt =
+			[
+				...state.tasks.map((task) => task.updatedAt),
+				...state.members.map((member) => member.lastActivityAt),
+			].sort((a, b) => b.getTime() - a.getTime())[0] ?? new Date();
+		return {
+			version: 2,
+			teamId: this.teamId,
+			teamName: this.teamName,
+			revision: this.boardRevision,
+			updatedAt: updatedAt.toISOString(),
+			tasks: state.tasks,
+			agents: state.members,
+			runs: state.runs,
 		};
 	}
 
@@ -766,6 +817,7 @@ export class AgentTeamsRuntime {
 			this.members.set(lead.agentId, {
 				...lead,
 				status: "idle",
+				lastActivityAt: new Date(),
 				runningCount: 0,
 				lastMissionStep: this.missionStepCounter,
 				lastMissionAt: Date.now(),
@@ -777,9 +829,19 @@ export class AgentTeamsRuntime {
 			}
 			this.members.set(member.agentId, {
 				agentId: member.agentId,
+				displayLabel: member.displayLabel || member.agentId,
 				role: "teammate",
 				description: member.description,
 				status: "stopped",
+				parentAgentId: member.parentAgentId,
+				parentTaskId: member.parentTaskId,
+				currentTaskId: member.currentTaskId,
+				runStatus: member.runStatus,
+				sessionId: member.sessionId,
+				worktreePath: member.worktreePath,
+				branch: member.branch,
+				lastActivityAt: member.lastActivityAt ?? new Date(),
+				outcome: member.outcome,
 				agent: undefined,
 				runningCount: 0,
 				lastMissionStep: this.missionStepCounter,
@@ -793,6 +855,10 @@ export class AgentTeamsRuntime {
 				state.tasks.map((task) => task.id),
 				"task_",
 			),
+		);
+		this.boardRevision = Math.max(
+			this.boardRevision,
+			...state.tasks.map((task) => task.revision ?? 1),
 		);
 		this.messageCounter = Math.max(
 			this.messageCounter,
@@ -874,9 +940,12 @@ export class AgentTeamsRuntime {
 		}
 		const teammate: TeamMemberState = {
 			agentId,
+			displayLabel: config.role?.trim() || agentId,
 			role: "teammate",
 			description: config.role,
 			status: "idle",
+			parentAgentId: config.parentAgentId ?? undefined,
+			lastActivityAt: new Date(),
 			agent,
 			runningCount: 0,
 			lastMissionStep: 0,
@@ -898,9 +967,12 @@ export class AgentTeamsRuntime {
 		});
 		return {
 			agentId: teammate.agentId,
+			displayLabel: teammate.displayLabel,
 			role: teammate.role,
 			description: teammate.description,
 			status: teammate.status,
+			parentAgentId: teammate.parentAgentId,
+			lastActivityAt: teammate.lastActivityAt,
 		};
 	}
 
@@ -917,6 +989,8 @@ export class AgentTeamsRuntime {
 			}
 		}
 		member.status = "stopped";
+		member.lastActivityAt = new Date();
+		member.outcome = "cancelled";
 		this.emitEvent({ type: TeamMessageType.TeammateShutdown, agentId, reason });
 	}
 
@@ -927,14 +1001,60 @@ export class AgentTeamsRuntime {
 			id: taskId,
 			title: input.title,
 			description: input.description,
-			status: input.assignee ? "in_progress" : "pending",
+			status: input.assignedAgentId ? "in-progress" : "backlog",
+			parentTaskId: input.parentTaskId,
+			assignedAgentId: input.assignedAgentId,
+			sessionId: input.sessionId,
+			worktreePath: input.worktreePath,
+			branch: input.branch,
 			createdAt: now,
 			updatedAt: now,
+			revision: 1,
 			createdBy: input.createdBy,
-			assignee: input.assignee,
 			dependsOn: input.dependsOn ?? [],
 		};
 		this.tasks.set(taskId, task);
+		this.boardRevision += 1;
+		this.syncMemberAssignment(task);
+		this.emitEvent({
+			type: TeamMessageType.TeamTaskUpdated,
+			task: { ...task },
+		});
+		return { ...task };
+	}
+
+	updateTask(input: UpdateTeamTaskInput): TeamTask {
+		const task = this.requireTask(input.taskId);
+		if (
+			input.expectedRevision !== undefined &&
+			input.expectedRevision !== task.revision
+		) {
+			throw new Error(
+				`Task "${task.id}" changed since it was loaded (expected revision ${input.expectedRevision}, current ${task.revision})`,
+			);
+		}
+		if (input.title !== undefined) task.title = input.title;
+		if (input.description !== undefined)
+			task.description = input.description ?? undefined;
+		if (input.status !== undefined) task.status = input.status;
+		if (input.parentTaskId !== undefined)
+			task.parentTaskId = input.parentTaskId ?? undefined;
+		if (input.assignedAgentId !== undefined)
+			task.assignedAgentId = input.assignedAgentId ?? undefined;
+		if (input.sessionId !== undefined)
+			task.sessionId = input.sessionId ?? undefined;
+		if (input.worktreePath !== undefined)
+			task.worktreePath = input.worktreePath ?? undefined;
+		if (input.branch !== undefined) task.branch = input.branch ?? undefined;
+		if (input.summary !== undefined) task.summary = input.summary ?? undefined;
+		if (input.blocker !== undefined) task.blocker = input.blocker ?? undefined;
+		if (task.status !== "blocked" && input.status !== undefined) {
+			task.blocker = undefined;
+		}
+		task.updatedAt = new Date();
+		task.revision += 1;
+		this.boardRevision += 1;
+		this.syncMemberAssignment(task);
 		this.emitEvent({
 			type: TeamMessageType.TeamTaskUpdated,
 			task: { ...task },
@@ -945,12 +1065,10 @@ export class AgentTeamsRuntime {
 	claimTask(taskId: string, agentId: string): TeamTask {
 		const task = this.requireTask(taskId);
 		this.assertDependenciesResolved(task);
-		task.status = "in_progress";
-		task.assignee = agentId;
-		task.updatedAt = new Date();
-		this.emitEvent({
-			type: TeamMessageType.TeamTaskUpdated,
-			task: { ...task },
+		this.updateTask({
+			taskId,
+			status: "in-progress",
+			assignedAgentId: agentId,
 		});
 		this.appendMissionLog({
 			agentId,
@@ -962,13 +1080,11 @@ export class AgentTeamsRuntime {
 	}
 
 	blockTask(taskId: string, agentId: string, reason: string): TeamTask {
-		const task = this.requireTask(taskId);
-		task.status = "blocked";
-		task.updatedAt = new Date();
-		task.summary = reason;
-		this.emitEvent({
-			type: TeamMessageType.TeamTaskUpdated,
-			task: { ...task },
+		const task = this.updateTask({
+			taskId,
+			status: "blocked",
+			assignedAgentId: agentId,
+			blocker: reason,
 		});
 		this.appendMissionLog({
 			agentId,
@@ -980,16 +1096,12 @@ export class AgentTeamsRuntime {
 	}
 
 	completeTask(taskId: string, agentId: string, summary: string): TeamTask {
-		const task = this.requireTask(taskId);
-		task.status = "completed";
-		task.updatedAt = new Date();
-		task.summary = summary;
-		if (!task.assignee) {
-			task.assignee = agentId;
-		}
-		this.emitEvent({
-			type: TeamMessageType.TeamTaskUpdated,
-			task: { ...task },
+		const existing = this.requireTask(taskId);
+		const task = this.updateTask({
+			taskId,
+			status: "review",
+			summary,
+			assignedAgentId: existing.assignedAgentId ?? agentId,
 		});
 		this.appendMissionLog({
 			agentId,
@@ -1017,6 +1129,10 @@ export class AgentTeamsRuntime {
 
 		member.runningCount++;
 		member.status = "running";
+		member.currentTaskId = options?.taskId;
+		member.runStatus = "running";
+		member.lastActivityAt = new Date();
+		member.outcome = undefined;
 		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
 
 		try {
@@ -1032,6 +1148,9 @@ export class AgentTeamsRuntime {
 				? await member.agent.continue(enrichedMessage)
 				: await member.agent.run(enrichedMessage);
 			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
+			member.runStatus = "completed";
+			member.outcome = "completed";
+			member.lastActivityAt = new Date();
 			this.recordProgressStep(
 				agentId,
 				`Completed a delegated run (${result.iterations} iterations)`,
@@ -1047,6 +1166,13 @@ export class AgentTeamsRuntime {
 				error: err,
 				messages: member.agent.getMessages(),
 			});
+			member.runStatus = isIntentionalShutdownAbort(member, err)
+				? "cancelled"
+				: "failed";
+			member.outcome = isIntentionalShutdownAbort(member, err)
+				? "cancelled"
+				: "failed";
+			member.lastActivityAt = new Date();
 			if (!isIntentionalShutdownAbort(member, err)) {
 				this.appendMissionLog({
 					agentId,
@@ -1063,6 +1189,7 @@ export class AgentTeamsRuntime {
 				this.members.get(agentId)?.status !== "stopped"
 			) {
 				member.status = "idle";
+				member.currentTaskId = undefined;
 			}
 		}
 	}
@@ -1190,6 +1317,7 @@ export class AgentTeamsRuntime {
 		run.startedAt = new Date();
 		run.heartbeatAt = new Date();
 		run.currentActivity = "run_started";
+		this.updateMemberRunState(run, "running");
 		this.emitEvent({ type: TeamMessageType.RunStarted, run: { ...run } });
 
 		const heartbeatTimer = setInterval(() => {
@@ -1218,8 +1346,14 @@ export class AgentTeamsRuntime {
 			run.result = result;
 			run.endedAt = new Date();
 			run.currentActivity = "completed";
+			this.updateMemberRunState(run, "completed");
 			this.emitEvent({ type: TeamMessageType.RunCompleted, run: { ...run } });
 		} catch (error) {
+			if (
+				(["interrupted", "cancelled"] as TeamRunStatus[]).includes(run.status)
+			) {
+				return;
+			}
 			const message =
 				error instanceof Error
 					? error.message
@@ -1230,6 +1364,7 @@ export class AgentTeamsRuntime {
 			if (isIntentionalShutdownAbort(member, error)) {
 				run.status = "cancelled";
 				run.currentActivity = "cancelled";
+				this.updateMemberRunState(run, "cancelled");
 				this.emitEvent({
 					type: TeamMessageType.RunCancelled,
 					run: { ...run },
@@ -1246,6 +1381,7 @@ export class AgentTeamsRuntime {
 			} else {
 				run.status = "failed";
 				run.currentActivity = "failed";
+				this.updateMemberRunState(run, "failed");
 				this.emitEvent({ type: TeamMessageType.RunFailed, run: { ...run } });
 			}
 		} finally {
@@ -1315,6 +1451,7 @@ export class AgentTeamsRuntime {
 		run.error = reason;
 		run.endedAt = new Date();
 		run.currentActivity = "cancelled";
+		this.updateMemberRunState(run, "cancelled");
 		const queueIndex = this.runQueue.indexOf(runId);
 		if (queueIndex >= 0) {
 			this.runQueue.splice(queueIndex, 1);
@@ -1340,6 +1477,7 @@ export class AgentTeamsRuntime {
 				run.error = "teammate_unavailable_after_recovery";
 				run.endedAt = new Date();
 				run.currentActivity = "interrupted";
+				this.updateMemberRunState(run, "interrupted");
 				this.emitEvent({
 					type: TeamMessageType.RunInterrupted,
 					run: { ...run },
@@ -1376,6 +1514,7 @@ export class AgentTeamsRuntime {
 			run.error = reason;
 			run.endedAt = new Date();
 			run.currentActivity = "interrupted";
+			this.updateMemberRunState(run, "interrupted");
 			interrupted.push({ ...run });
 			this.emitEvent({
 				type: TeamMessageType.RunInterrupted,
@@ -1653,7 +1792,7 @@ export class AgentTeamsRuntime {
 	private getUnresolvedDependencies(task: TeamTask): string[] {
 		return task.dependsOn.filter((dependencyId) => {
 			const dependency = this.tasks.get(dependencyId);
-			return !dependency || dependency.status !== "completed";
+			return !dependency || dependency.status !== "done";
 		});
 	}
 
@@ -1751,6 +1890,11 @@ export class AgentTeamsRuntime {
 		run.lastProgressAt = now;
 		run.lastProgressMessage = message;
 		run.currentActivity = message;
+		const member = this.members.get(run.agentId);
+		if (member) {
+			member.lastActivityAt = now;
+			member.runStatus = run.status;
+		}
 		this.emitEvent({
 			type: TeamMessageType.RunProgress,
 			run: { ...run },
@@ -1811,6 +1955,48 @@ export class AgentTeamsRuntime {
 		}
 		lines.push("---");
 		return lines.join("\n");
+	}
+
+	private syncMemberAssignment(task: TeamTask): void {
+		for (const member of this.members.values()) {
+			if (
+				member.currentTaskId === task.id &&
+				member.agentId !== task.assignedAgentId
+			) {
+				member.currentTaskId = undefined;
+				member.worktreePath = undefined;
+				member.branch = undefined;
+				member.lastActivityAt = new Date();
+			}
+		}
+		if (!task.assignedAgentId) return;
+		const member = this.members.get(task.assignedAgentId);
+		if (!member) return;
+		member.currentTaskId = task.id;
+		member.parentTaskId = task.parentTaskId;
+		member.sessionId = task.sessionId;
+		member.worktreePath = task.worktreePath;
+		member.branch = task.branch;
+		member.lastActivityAt = new Date();
+	}
+
+	private updateMemberRunState(
+		run: TeamRunRecord,
+		status: TeamRunStatus,
+	): void {
+		const member = this.members.get(run.agentId);
+		if (!member) return;
+		member.currentTaskId = run.taskId;
+		member.runStatus = status;
+		member.lastActivityAt = new Date();
+		if (
+			status === "completed" ||
+			status === "failed" ||
+			status === "cancelled" ||
+			status === "interrupted"
+		) {
+			member.outcome = status;
+		}
 	}
 
 	private emitEvent(event: TeamEvent): void {

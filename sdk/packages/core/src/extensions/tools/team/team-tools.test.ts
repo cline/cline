@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { resolveTeamDataDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDelegatedAgentConfigProvider } from "./delegated-agent";
@@ -240,7 +240,7 @@ describe("createAgentTeamsTools schema surface", () => {
 			),
 		).resolves.toMatchObject({
 			action: "create",
-			status: "pending",
+			status: "backlog",
 			taskId: expect.stringMatching(/^task_/),
 		});
 	});
@@ -275,7 +275,7 @@ describe("createAgentTeamsTools schema surface", () => {
 			),
 		).resolves.toMatchObject({
 			action: "create",
-			status: "pending",
+			status: "backlog",
 			taskId: expect.stringMatching(/^task_/),
 			ignoredFields: ["status", "summary"],
 			note: "Ignored fields for action=create: status, summary",
@@ -466,8 +466,58 @@ describe("createAgentTeamsTools schema surface", () => {
 });
 
 describe("createAgentTeamsTools runtime behavior", () => {
+	it("binds teammate tools and prompt metadata to a recognized assigned worktree", async () => {
+		const repositoryRoot = resolve(process.cwd(), "../../..");
+		const spawnTeammate = vi.fn();
+		const createBaseTools = vi.fn(() => []);
+		const runtime = {
+			getMemberRole: vi.fn(() => "lead"),
+			isTeammateActive: vi.fn(() => false),
+			listTasks: vi.fn(() => [
+				{
+					id: "task_0001",
+					assignedAgentId: "investigator",
+					worktreePath: repositoryRoot,
+				},
+			]),
+			spawnTeammate,
+		} as unknown as AgentTeamsRuntime;
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider({
+				cwd: repositoryRoot,
+			}),
+			createBaseTools,
+			includeManagementTools: false,
+		});
+
+		await tools[0]?.execute(
+			{
+				agentId: "investigator",
+				rolePrompt: "Inspect the assigned worktree",
+			},
+			{
+				agentId: "lead",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(createBaseTools).toHaveBeenCalledWith(repositoryRoot);
+		expect(spawnTeammate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					systemPrompt: expect.stringContaining("Workspace Configuration"),
+				}),
+			}),
+		);
+	});
+
 	it("forwards Bedrock connection settings when spawning teammates", async () => {
 		const spawnTeammate = vi.fn();
+		const requestToolApproval = vi.fn(async () => ({ approved: true }));
+		const toolPolicies = { "*": {} };
 		const runtime = {
 			getMemberRole: vi.fn(() => "lead"),
 			isTeammateActive: vi.fn(() => false),
@@ -491,6 +541,8 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			}),
 			createBaseTools: () => [],
 			includeManagementTools: false,
+			toolPolicies,
+			requestToolApproval,
 		});
 		const spawnTool = tools.find((tool) => tool.name === "team_spawn_teammate");
 		expect(spawnTool).toBeDefined();
@@ -516,6 +568,8 @@ describe("createAgentTeamsTools runtime behavior", () => {
 							profile: "engineering-sso",
 						},
 					}),
+					toolPolicies,
+					requestToolApproval,
 				}),
 			}),
 		);
@@ -989,7 +1043,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 					id: first.taskId,
 					createdAt: expect.any(String),
 					updatedAt: expect.any(String),
-					isReady: true,
+					isReady: false,
 					blockedBy: [],
 				}),
 				expect.objectContaining({

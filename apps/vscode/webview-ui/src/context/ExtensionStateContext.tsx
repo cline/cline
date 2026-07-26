@@ -35,6 +35,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	settingsInitialModelTab?: "recommended" | "free"
 	showHistory: boolean
 	showWorktrees: boolean
+	showTeams: boolean
 	expandTaskHeader: boolean
 
 	// Setters
@@ -62,12 +63,14 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
 	navigateToHistory: () => void
 	navigateToWorktrees: () => void
+	navigateToTeams: () => void
 	navigateToChat: () => void
 
 	// Hide functions
 	hideSettings: () => void
 	hideHistory: () => void
 	hideWorktrees: () => void
+	hideTeams: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
@@ -87,20 +90,22 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [settingsInitialModelTab, setSettingsInitialModelTab] = useState<"recommended" | "free" | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showWorktrees, setShowWorktrees] = useState(false)
+	const [showTeams, setShowTeams] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
 		setShowMcp(false)
 		setMcpTab(undefined)
-	}, [setShowMcp, setMcpTab])
+	}, [])
 	// Hide functions
 	const hideSettings = useCallback(() => {
 		setShowSettings(false)
 		setSettingsTargetSection(undefined)
 		setSettingsInitialModelTab(undefined)
 	}, [])
-	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
-	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
+	const hideHistory = useCallback(() => setShowHistory(false), [])
+	const hideWorktrees = useCallback(() => setShowWorktrees(false), [])
+	const hideTeams = useCallback(() => setShowTeams(false), [])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -108,6 +113,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowSettings(false)
 			setShowHistory(false)
 			setShowWorktrees(false)
+			setShowTeams(false)
 			closeMcpView()
 			if (tab) {
 				setMcpTab(tab)
@@ -122,6 +128,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowHistory(false)
 			closeMcpView()
 			setShowWorktrees(false)
+			setShowTeams(false)
 			setSettingsTargetSection(targetSection)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
@@ -134,6 +141,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowHistory(false)
 			closeMcpView()
 			setShowWorktrees(false)
+			setShowTeams(false)
 			setSettingsTargetSection(opts.targetSection)
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
@@ -145,6 +153,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowSettings(false)
 		closeMcpView()
 		setShowWorktrees(false)
+		setShowTeams(false)
 		setShowHistory(true)
 	}, [closeMcpView])
 
@@ -152,7 +161,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowSettings(false)
 		closeMcpView()
 		setShowHistory(false)
+		setShowTeams(false)
 		setShowWorktrees(true)
+	}, [closeMcpView])
+
+	const navigateToTeams = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowWorktrees(false)
+		setShowTeams(true)
 	}, [closeMcpView])
 
 	const navigateToChat = useCallback(() => {
@@ -160,6 +178,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowHistory(false)
 		setShowWorktrees(false)
+		setShowTeams(false)
 	}, [closeMcpView])
 
 	const [state, setState] = useState<ExtensionState>({
@@ -231,6 +250,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const teamsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -417,6 +437,12 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
+		teamsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToTeamsButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => navigateToTeams(),
+			onError: (error: any) => console.error("Error in teams button subscription:", error),
+			onComplete: () => {},
+		})
+
 		// Subscribe to partial message events
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
 			onResponse: (protoMessage: any) => {
@@ -511,6 +537,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				worktreesButtonClickedSubscriptionRef.current()
 				worktreesButtonClickedSubscriptionRef.current = null
 			}
+			if (teamsButtonClickedSubscriptionRef.current) {
+				teamsButtonClickedSubscriptionRef.current()
+				teamsButtonClickedSubscriptionRef.current = null
+			}
 			if (partialMessageUnsubscribeRef.current) {
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
@@ -528,7 +558,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [])
+	}, [navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings, navigateToTeams, navigateToWorktrees, showWelcome])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -544,6 +574,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		settingsInitialModelTab,
 		showHistory,
 		showWorktrees,
+		showTeams,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -559,12 +590,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToSettingsModelPicker,
 		navigateToHistory,
 		navigateToWorktrees,
+		navigateToTeams,
 		navigateToChat,
 
 		// Hide functions
 		hideSettings,
 		hideHistory,
 		hideWorktrees,
+		hideTeams,
 		setShowWelcome,
 		setMcpServers,
 		setShowMcp,

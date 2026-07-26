@@ -68,6 +68,8 @@ export async function listWorktrees(_controller: Controller, _request: EmptyRequ
 				isDetached: wt.isDetached,
 				isLocked: wt.isLocked,
 				lockReason: wt.lockReason,
+				isDirty: wt.isDirty,
+				untrackedFiles: wt.untrackedFiles,
 			})),
 			isGitRepo: result.isGitRepo,
 			isMultiRoot: false,

@@ -1,6 +1,7 @@
 import { DeleteWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { deleteWorktree as deleteWorktreeUtil } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
+import { inspectWorktreeMutation } from "@utils/worktree-safety"
 import simpleGit from "simple-git"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -21,12 +22,36 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 	}
 
 	try {
-		const result = await deleteWorktreeUtil(cwd, request.path, request.force)
+		const inspection = await inspectWorktreeMutation(cwd, {
+			operation: "delete",
+			worktreePath: request.path,
+			branch: request.deleteBranch ? request.branchName : undefined,
+			allowDirty: request.allowDirty,
+			affectedTaskId: request.affectedTaskId,
+			affectedAgentId: request.affectedAgentId,
+		})
+		const operationSummary = inspection.gitOperation.join(" ")
+		if (!request.approved) {
+			return WorktreeResult.create({
+				success: false,
+				message: "Explicit approval is required before deleting a worktree",
+				operationSummary,
+			})
+		}
+		if (!inspection.allowed) {
+			return WorktreeResult.create({
+				success: false,
+				message: inspection.reason,
+				operationSummary,
+			})
+		}
+		const result = await deleteWorktreeUtil(cwd, request.path, request.allowDirty)
 
 		if (!result.success) {
 			return WorktreeResult.create({
 				success: result.success,
 				message: result.message,
+				operationSummary,
 			})
 		}
 
@@ -40,6 +65,7 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 				return WorktreeResult.create({
 					success: true,
 					message: `${result.message}, but failed to delete branch '${request.branchName}'`,
+					operationSummary,
 				})
 			}
 		}
@@ -47,6 +73,7 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 		return WorktreeResult.create({
 			success: result.success,
 			message: request.deleteBranch ? `${result.message} and deleted branch '${request.branchName}'` : result.message,
+			operationSummary,
 		})
 	} catch (error) {
 		Logger.error(`Error deleting worktree: ${JSON.stringify(error)}`)

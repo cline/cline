@@ -3,6 +3,7 @@ import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
+import TeamKanbanView from "./components/teams/TeamKanbanView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
@@ -17,11 +18,13 @@ const AppContent = () => {
 		settingsTargetSection,
 		showHistory,
 		showWorktrees,
+		showTeams,
 		closeMcpView,
 		navigateToHistory,
 		hideSettings,
 		hideHistory,
 		hideWorktrees,
+		hideTeams,
 	} = useExtensionState()
 
 	if (!didHydrateState) {
@@ -38,8 +41,12 @@ const AppContent = () => {
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
+			{showTeams && <TeamKanbanView onDone={hideTeams} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-			<ChatView isHidden={showSettings || showHistory || showMcp || showWorktrees} showHistoryView={navigateToHistory} />
+			<ChatView
+				isHidden={showSettings || showHistory || showMcp || showWorktrees || showTeams}
+				showHistoryView={navigateToHistory}
+			/>
 		</div>
 	)
 }

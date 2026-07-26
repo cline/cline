@@ -134,6 +134,29 @@ runs not using the yolo preset still produce a `task.completed` signal.
 Each session emits at most one `task.completed`. See `DOC.md` for the
 event payload and `source` field.
 
+### Local Teams and Task Boards
+
+Local team execution reuses the in-process runtime rather than introducing a
+second agent authority:
+
+1. `@cline/shared` owns the six-state `TeamTask`, agent, run, board, and
+   incremental progress contracts.
+2. `DefaultRuntimeBuilder` creates one `AgentTeamsRuntime` per active root
+   session and limits concurrent teammate runs with `maxConcurrentTeamRuns`.
+3. Teammates inherit the parent's provider/model configuration, tool policies,
+   approval callback, and extensions. An assigned worktree must be recognized
+   by the parent Git repository before teammate tools are bound to it.
+4. The local team store keys state by a hash of the workspace identity plus the
+   session/team ID. It writes versioned snapshots atomically and marks active
+   runs interrupted during runtime shutdown.
+5. Host applications consume `TeamBoardSnapshot` through the optional
+   `TeamRuntimeService` methods on the local runtime host. Task revisions provide
+   optimistic update checks; the UI does not maintain a second board database.
+
+Worktree creation, merge, and deletion remain host responsibilities because
+they require repository-aware validation and explicit UI approval. Core stores
+only the validated worktree assignment and uses it as the child tool boundary.
+
 ### Hub-Backed Runtime
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.

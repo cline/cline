@@ -1,5 +1,8 @@
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import type { AgentResult } from "@cline/shared";
 import {
+	type AgentConfig,
 	type AgentTool,
 	createTool,
 	TEAM_AWAIT_TIMEOUT_MS,
@@ -65,9 +68,12 @@ import {
 	TeamStatusToolResultSchema,
 	type TeamTaskInput,
 	TeamTaskInputSchema,
+	type TeamTaskStatus,
 	type TeamTaskToolResult,
 	TeamTaskToolResultSchema,
 	type TeamTeammateSpec,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
@@ -91,6 +97,15 @@ function requireInputField<T>(value: T | undefined, field: string): T {
 		throw new Error(`Missing required field: ${field}`);
 	}
 	return value;
+}
+
+function normalizeTaskStatus(
+	status: TeamTaskInput["status"],
+): TeamTaskStatus | undefined {
+	if (status === "pending") return "backlog";
+	if (status === "in_progress") return "in-progress";
+	if (status === "completed") return "done";
+	return status;
 }
 
 function summarizeRunResult(
@@ -167,23 +182,31 @@ export interface CreateAgentTeamsToolsOptions {
 	runtime: AgentTeamsRuntime;
 	requesterId: string;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
-	createBaseTools?: () => AgentTool[];
+	createBaseTools?: (cwd?: string) => AgentTool[];
 	allowSpawn?: boolean;
 	includeSpawnTool?: boolean;
 	includeManagementTools?: boolean;
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
+	toolPolicies?: AgentConfig["toolPolicies"];
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 }
 
 export interface BootstrapAgentTeamsOptions {
 	runtime: AgentTeamsRuntime;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
-	createBaseTools?: () => AgentTool[];
+	createBaseTools?: (cwd?: string) => AgentTool[];
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
 	restoredFromPersistence?: boolean;
 	includeLeadSpawnTool?: boolean;
 	includeLeadManagementTools?: boolean;
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
+	toolPolicies?: AgentConfig["toolPolicies"];
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 }
 
 export interface BootstrapAgentTeamsResult {
@@ -219,9 +242,18 @@ function spawnTeamTeammate(
 		spec: TeamTeammateSpec;
 	},
 ): void {
+	const assignedTasks = options.runtime.listTasks?.() ?? [];
+	const matchingTask = assignedTasks.find(
+		(task) => task.assignedAgentId === options.spec.agentId,
+	);
+	const rootCwd =
+		options.teammateConfigProvider.getRuntimeConfig().cwd ?? process.cwd();
+	const assignedCwd = matchingTask?.worktreePath
+		? resolveRecognizedWorktree(rootCwd, matchingTask.worktreePath)
+		: rootCwd;
 	const teammateTools: AgentTool[] = [];
 	if (options.createBaseTools) {
-		teammateTools.push(...options.createBaseTools());
+		teammateTools.push(...options.createBaseTools(assignedCwd));
 	}
 	teammateTools.push(
 		...createAgentTeamsTools({
@@ -234,6 +266,8 @@ function spawnTeamTeammate(
 			// makes them burn turns on "Only the lead agent can manage
 			// teammates." rejections.
 			includeSpawnTool: false,
+			toolPolicies: options.toolPolicies,
+			requestToolApproval: options.requestToolApproval,
 		}),
 	);
 	options.runtime.spawnTeammate({
@@ -245,9 +279,44 @@ function spawnTeamTeammate(
 			configProvider: options.teammateConfigProvider,
 			tools: teammateTools,
 			maxIterations: options.spec.maxIterations,
-			cwd: options.teammateConfigProvider.getRuntimeConfig().cwd,
+			cwd: assignedCwd,
+			toolPolicies: options.toolPolicies,
+			requestToolApproval: options.requestToolApproval,
 		}),
 	});
+}
+
+function resolveRecognizedWorktree(rootCwd: string, candidate: string): string {
+	const resolvedCandidate = path.resolve(candidate);
+	const normalize = (value: string) => {
+		const resolved = path.resolve(value);
+		return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+	};
+	let output: string;
+	try {
+		output = execFileSync(
+			"git",
+			["-C", rootCwd, "worktree", "list", "--porcelain"],
+			{ encoding: "utf8", windowsHide: true },
+		);
+	} catch (error) {
+		throw new Error(
+			`Cannot validate assigned worktree "${resolvedCandidate}": ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		);
+	}
+	const recognized = output
+		.split(/\r?\n/)
+		.filter((line) => line.startsWith("worktree "))
+		.map((line) => normalize(line.slice("worktree ".length)))
+		.includes(normalize(resolvedCandidate));
+	if (!recognized) {
+		throw new Error(
+			`Assigned worktree "${resolvedCandidate}" is not recognized by the parent repository`,
+		);
+	}
+	return resolvedCandidate;
 }
 
 export function bootstrapAgentTeams(
@@ -265,6 +334,8 @@ export function bootstrapAgentTeams(
 		includeSpawnTool: options.includeLeadSpawnTool,
 		includeManagementTools: options.includeLeadManagementTools,
 		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
+		toolPolicies: options.toolPolicies,
+		requestToolApproval: options.requestToolApproval,
 	});
 
 	const restoredTeammates: string[] = [];
@@ -277,6 +348,8 @@ export function bootstrapAgentTeams(
 			requesterId: leadAgentId,
 			teammateConfigProvider: options.teammateConfigProvider,
 			createBaseTools: options.createBaseTools,
+			toolPolicies: options.toolPolicies,
+			requestToolApproval: options.requestToolApproval,
 			spec,
 		});
 		restoredTeammates.push(spec.agentId);
@@ -323,6 +396,8 @@ export function createAgentTeamsTools(
 						requesterId: options.requesterId,
 						teammateConfigProvider: options.teammateConfigProvider,
 						createBaseTools: options.createBaseTools,
+						toolPolicies: options.toolPolicies,
+						requestToolApproval: options.requestToolApproval,
 						spec,
 					});
 					if (!includeManagementTools) {
@@ -394,8 +469,8 @@ export function createAgentTeamsTools(
 			name: "team_task",
 			description:
 				"Manage shared team tasks with action-specific payloads. " +
-				"create requires title and description, with optional dependsOn and assignee. " +
-				"list accepts optional status, assignee. " +
+				"create requires title, with optional description, dependsOn, and assignedAgentId. " +
+				"list accepts optional status and assignedAgentId. " +
 				"claim requires taskId. complete requires taskId and summary. block requires taskId and reason. " +
 				"Do not include fields from other actions.",
 			inputSchema: zodToJsonSchema(TeamTaskInputSchema),
@@ -415,12 +490,9 @@ export function createAgentTeamsTools(
 							.map(([field]) => field);
 						const task = options.runtime.createTask({
 							title: requireInputField(validatedInput.title, "title"),
-							description: requireInputField(
-								validatedInput.description,
-								"description",
-							),
+							description: validatedInput.description,
 							dependsOn: validatedInput.dependsOn,
-							assignee: validatedInput.assignee,
+							assignedAgentId: validatedInput.assignedAgentId,
 							createdBy: options.requesterId,
 						});
 						return validateWithZod(TeamTaskToolResultSchema, {
@@ -439,8 +511,8 @@ export function createAgentTeamsTools(
 						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "list",
 							tasks: options.runtime.listTaskItems({
-								status: validatedInput.status,
-								assignee: validatedInput.assignee,
+								status: normalizeTaskStatus(validatedInput.status),
+								assignedAgentId: validatedInput.assignedAgentId,
 							}),
 						});
 					case "claim": {
@@ -453,7 +525,7 @@ export function createAgentTeamsTools(
 							taskId: task.id,
 							status: task.status,
 							nextStep:
-								"Task is now in_progress. Execute the work using team_run_task or your own tools, then call team_task with action=complete when done.",
+								"Task is now in-progress. Execute the work using team_run_task or your own tools, then call team_task with action=complete to move it to Review.",
 						});
 					}
 					case "complete": {

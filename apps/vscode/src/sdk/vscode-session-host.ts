@@ -76,6 +76,18 @@ export class VscodeSessionHost implements SdkSessionHost {
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
 	}
+	getTeamBoard(sessionId: string) {
+		return this.inner.getTeamBoard(sessionId)
+	}
+	createTeamTask(sessionId: string, input: Parameters<ClineCore["createTeamTask"]>[1]) {
+		return this.inner.createTeamTask(sessionId, input)
+	}
+	updateTeamTask(sessionId: string, input: Parameters<ClineCore["updateTeamTask"]>[1]) {
+		return this.inner.updateTeamTask(sessionId, input)
+	}
+	cancelTeamRun(sessionId: string, runId: string, reason?: string) {
+		return this.inner.cancelTeamRun(sessionId, runId, reason)
+	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
 		// Build tool executor capabilities from options — only include keys that are provided.
