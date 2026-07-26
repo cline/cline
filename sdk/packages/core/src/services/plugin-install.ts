@@ -550,6 +550,13 @@ async function runCommand(
 			env: process.env,
 			// Prevent a console window from flashing on Windows.
 			windowsHide: true,
+			// On Windows `npm` is `npm.cmd`, and CreateProcess cannot execute a
+			// batch shim directly — under Node this throws `spawn npm ENOENT`
+			// (or EINVAL for an explicit .cmd path), so plugin installs fail in
+			// the VS Code extension host. Bun resolves it, which is why the
+			// bundled CLI is unaffected. Same platform guard as
+			// apps/cli/src/commands/{kanban,skill}.ts.
+			...(process.platform === "win32" ? { shell: true } : {}),
 		});
 		let stderr = "";
 		child.stderr.on("data", (chunk) => {
