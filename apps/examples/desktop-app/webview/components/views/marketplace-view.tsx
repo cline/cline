@@ -14,6 +14,7 @@ import {
 	type ReactNode,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -635,11 +636,6 @@ export function MarketplaceView({
 	>(() => new Map());
 	const [installedStatusState, setInstalledStatusState] =
 		useState<InstalledStatusState>("loading");
-	// True while the installed-status of catalog entries may be out of sync with
-	// the locally installed items (e.g. right after an item is added/removed and
-	// before list_marketplace_installed_entries responds).
-	const [installedStatusStale, setInstalledStatusStale] = useState(true);
-	const [recheckNonce, setRecheckNonce] = useState(0);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -681,7 +677,6 @@ export function MarketplaceView({
 			return;
 		}
 		let cancelled = false;
-		setInstalledStatusStale(true);
 		void (async () => {
 			try {
 				const response =
@@ -697,14 +692,13 @@ export function MarketplaceView({
 			} finally {
 				if (!cancelled) {
 					setInstalledStatusState("ready");
-					setInstalledStatusStale(false);
 				}
 			}
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [catalog, installedItemsSignature, recheckNonce]);
+	}, [catalog, installedItemsSignature]);
 
 	const pageDetails = primitivePageDetails[primitive];
 	const PageIcon = pageDetails.icon;
@@ -782,26 +776,55 @@ export function MarketplaceView({
 		[matchedEntriesByLocalItemKey],
 	);
 
+	// Installed entry keys that are corroborated by at least one local item,
+	// regardless of which single item the entry was assigned to above.
+	const locallyEvidencedEntryKeys = useMemo(() => {
+		const items = installedItems ?? [];
+		return new Set(
+			primitiveEntries
+				.filter(
+					(entry) =>
+						installedEntryKeys.has(entryKey(entry)) &&
+						items.some((item) => entryMatchesLocalItem(entry, item)),
+				)
+				.map((entry) => entryKey(entry)),
+		);
+	}, [installedEntryKeys, installedItems, primitiveEntries]);
+
+	// When an entry loses all local items backing it (e.g. the matching server
+	// was deleted through its own card controls), drop its installed key right
+	// away so the entry moves back to the Marketplace section without waiting
+	// for the async recheck above — which could be slow or fail and briefly
+	// resurrect the entry as an installed card.
+	const previouslyEvidencedEntryKeysRef = useRef<Set<string>>(new Set());
+	useEffect(() => {
+		const orphanedKeys = [...previouslyEvidencedEntryKeysRef.current].filter(
+			(key) => !locallyEvidencedEntryKeys.has(key),
+		);
+		previouslyEvidencedEntryKeysRef.current = locallyEvidencedEntryKeys;
+		if (orphanedKeys.length === 0) {
+			return;
+		}
+		setInstalledEntryKeys((current) => {
+			const next = new Set(current);
+			for (const key of orphanedKeys) {
+				next.delete(key);
+			}
+			return next;
+		});
+	}, [locallyEvidencedEntryKeys]);
+
 	// Installed marketplace entries that have a matching local item are rendered
 	// through that item's own card, so only unmatched entries fall back to the
-	// marketplace entry card here. While the installed status is being rechecked
-	// against a changed local inventory, unmatched entries are withheld so a
-	// just-removed entry does not briefly resurface as an installed card.
+	// marketplace entry card here.
 	const installedEntries = useMemo(
 		() =>
-			installedStatusStale
-				? []
-				: queryFilteredEntries.filter(
-						(entry) =>
-							installedEntryKeys.has(entryKey(entry)) &&
-							!matchedEntryKeys.has(entryKey(entry)),
-					),
-		[
-			queryFilteredEntries,
-			installedEntryKeys,
-			installedStatusStale,
-			matchedEntryKeys,
-		],
+			queryFilteredEntries.filter(
+				(entry) =>
+					installedEntryKeys.has(entryKey(entry)) &&
+					!matchedEntryKeys.has(entryKey(entry)),
+			),
+		[queryFilteredEntries, installedEntryKeys, matchedEntryKeys],
 	);
 
 	const marketplaceEntriesBeforeTag = useMemo(
@@ -948,13 +971,8 @@ export function MarketplaceView({
 				status: "installed",
 				message: result.message,
 			});
-			// Withhold the entry's fallback marketplace card until the local
-			// items are refreshed and the installed status is rechecked, so the
-			// entry lands directly on its matching local card.
-			setInstalledStatusStale(true);
 			markEntryInstalled(entry);
 			await onInstalledItemsChanged?.();
-			setRecheckNonce((nonce) => nonce + 1);
 		} catch (error) {
 			setEntryState(entry, {
 				status: "failed",
