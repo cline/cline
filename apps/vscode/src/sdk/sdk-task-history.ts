@@ -85,6 +85,7 @@ function compareSessionHistoryRecordsByRecencyDesc(a: SessionHistoryRecord, b: S
 
 export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?: string): Record<string, unknown> {
 	return {
+		schemaVersion: 2,
 		title: item.task,
 		isFavorited: item.isFavorited ?? false,
 		size: item.size ?? 0,
@@ -447,6 +448,10 @@ export class SdkTaskHistory {
 			return undefined
 		}
 		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
+	}
+
+	async getSessionRecord(taskId: string): Promise<SessionHistoryRecord | undefined> {
+		return this.getSdkRecord(taskId)
 	}
 
 	getLegacyTaskDirPath(taskId: string): string | undefined {

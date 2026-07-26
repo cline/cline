@@ -45,7 +45,8 @@ function isToolResultForId(block: GenericContentBlock, toolUseId: string): boole
 	return block.type === "tool_result" && block.tool_use_id === toolUseId
 }
 
-const MIGRATION_MISSING_TOOL_RESULT_TEXT = "[migration] Tool result missing in legacy conversation history."
+const MIGRATION_MISSING_TOOL_RESULT_TEXT =
+	"[interrupted] This tool call did not finish before the previous session ended. It was not replayed."
 
 function createMissingToolResult(toolUseId: string, toolName?: string): GenericContentBlock {
 	return {
@@ -53,6 +54,7 @@ function createMissingToolResult(toolUseId: string, toolName?: string): GenericC
 		tool_use_id: toolUseId,
 		...(toolName ? { name: toolName } : {}),
 		content: MIGRATION_MISSING_TOOL_RESULT_TEXT,
+		is_error: true,
 	}
 }
 

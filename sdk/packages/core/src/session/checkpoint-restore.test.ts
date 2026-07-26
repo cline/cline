@@ -56,11 +56,79 @@ describe("applyCheckpointToWorktree", () => {
 				createdAt: Date.now(),
 				runCount: 1,
 				kind: "stash",
-			}),
+			}, { approved: true }),
 		).rejects.toThrow();
 
 		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("dirty\n");
 		expect(readFileSync(join(dir, "untracked.txt"), "utf8")).toBe("keep me\n");
+	});
+
+	it("blocks dirty workspace restore until explicitly approved and then restores only checkpoint paths", async () => {
+		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+		writeFileSync(join(dir, "tracked.txt"), "dirty\n", "utf8");
+		writeFileSync(join(dir, "untracked.txt"), "remove me\n", "utf8");
+
+		await expect(
+			applyCheckpointToWorktree(dir, {
+				ref: checkpointRef,
+				createdAt: Date.now(),
+				runCount: 1,
+				kind: "commit",
+			}),
+		).rejects.toMatchObject({ code: "approval_required" });
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("dirty\n");
+
+		const result = await applyCheckpointToWorktree(
+			dir,
+			{
+				ref: checkpointRef,
+				createdAt: Date.now(),
+				runCount: 1,
+				kind: "commit",
+			},
+			{ approved: true },
+		);
+
+		expect(result.status).toBe("restored");
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
+		expect(() => readFileSync(join(dir, "untracked.txt"), "utf8")).toThrow();
+	});
+
+	it("reports a partial failure and rolls back files already written", async () => {
+		writeFileSync(join(dir, "a-first.txt"), "checkpoint\n", "utf8");
+		writeFileSync(join(dir, "z-link"), "target.txt", "utf8");
+		git(dir, ["add", "a-first.txt", "z-link"]);
+		const linkBlob = git(dir, ["hash-object", "-w", "z-link"]);
+		git(dir, ["update-index", "--cacheinfo", `120000,${linkBlob},z-link`]);
+		git(dir, ["commit", "-m", "checkpoint with symlink"]);
+		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+		writeFileSync(join(dir, "a-first.txt"), "current\n", "utf8");
+		writeFileSync(join(dir, "z-link"), "changed target\n", "utf8");
+
+		await expect(
+			applyCheckpointToWorktree(
+				dir,
+				{
+					ref: checkpointRef,
+					createdAt: Date.now(),
+					runCount: 1,
+					kind: "commit",
+				},
+				{ approved: true },
+			),
+		).rejects.toMatchObject({
+			code: "partial_failure",
+			result: {
+				status: "partial",
+				files: [
+					expect.objectContaining({
+						filePath: join(dir, "a-first.txt"),
+						status: "rolled-back",
+					}),
+				],
+			},
+		});
+		expect(readFileSync(join(dir, "a-first.txt"), "utf8")).toBe("current\n");
 	});
 
 	it("carries checkpoint metadata through the restored run", () => {

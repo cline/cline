@@ -139,6 +139,21 @@
 				"icon": "$(debug-stop)"
 			},
 			{
+				"command": "cline.openDiagnosticLog",
+				"title": "Open Diagnostic Log",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.copySanitizedDiagnostics",
+				"title": "Copy Sanitized Diagnostics",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.clearLocalLogs",
+				"title": "Clear Local Logs",
+				"category": "Cline"
+			},
+			{
 				"command": "cline.explainCode",
 				"title": "Explain with Cline",
 				"category": "Cline"

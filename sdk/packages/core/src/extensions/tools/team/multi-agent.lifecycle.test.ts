@@ -557,7 +557,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		);
 	});
 
-	it("honors pending retry backoff when recovering queued runs", async () => {
+	it("marks queued runs interrupted on recovery without replaying them", async () => {
 		vi.useFakeTimers();
 		try {
 			const runMock = vi.fn(async (_message: string) => ({
@@ -630,18 +630,14 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 			const recovered = recoveredRuntime.recoverActiveRuns("runtime_recovered");
 			expect(recovered).toHaveLength(1);
-			expect(recovered[0].nextAttemptAt).toEqual(retryAt);
+			expect(recovered[0]).toMatchObject({
+				status: "interrupted",
+				error: "runtime_recovered",
+			});
 			expect(runMock).not.toHaveBeenCalled();
 
-			await vi.advanceTimersByTimeAsync(4999);
+			await vi.advanceTimersByTimeAsync(10_000);
 			expect(runMock).not.toHaveBeenCalled();
-
-			await vi.advanceTimersByTimeAsync(1);
-			expect(runMock).toHaveBeenCalledTimes(1);
-			expect(runMock.mock.calls[0][0]).toContain(
-				"This is an automatic recovery of interrupted team run",
-			);
-			expect(runMock.mock.calls[0][0]).toContain("Complete work");
 		} finally {
 			vi.useRealTimers();
 		}

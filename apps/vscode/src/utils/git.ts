@@ -202,14 +202,14 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 		// `git diff --staged` is valid even before the first commit (it diffs the
 		// index against the empty tree), so it must NOT be gated on having a HEAD.
 		// This is the common case for the very first commit of a new repo.
-		let command = "git --no-pager diff --staged --diff-filter=d"
+		let command = "git --no-pager diff --staged"
 		const { stdout: staged } = await execAsync(command, { cwd })
 		diff = staged.trim()
 
 		// The unstaged fallback compares against HEAD, which only exists once the
 		// repo has at least one commit. Skip it in a commit-less repo.
 		if (!stagedOnly && !diff && (await checkGitRepoHasCommits(cwd))) {
-			command = "git --no-pager diff HEAD --diff-filter=d"
+			command = "git --no-pager diff HEAD"
 			const { stdout: unstaged } = await execAsync(command, { cwd })
 			diff = unstaged.trim()
 		}
@@ -221,6 +221,17 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 		return truncateOutput(`'${command}' Output:\n\n${diff}`.trim())
 	} catch (error) {
 		throw error
+	}
+}
+
+export async function getCommitMessageGitContext(cwd: string): Promise<{ branch: string; status: string }> {
+	const [{ stdout: branch }, { stdout: status }] = await Promise.all([
+		execAsync("git rev-parse --abbrev-ref HEAD", { cwd }),
+		execAsync("git status --short --branch", { cwd }),
+	])
+	return {
+		branch: branch.trim(),
+		status: status.trim(),
 	}
 }
 

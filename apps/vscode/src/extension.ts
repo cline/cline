@@ -48,9 +48,12 @@ import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview 
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
+import { LocalDiagnosticLogger } from "./services/diagnostics/local-diagnostic-logger"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
+let localDiagnosticLogger: LocalDiagnosticLogger | undefined
 
 // This method is called when the VS Code extension is activated.
 // NOTE: This is VS Code specific - services that should be registered
@@ -61,6 +64,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 1. Set up HostProvider for VSCode
 	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
+	localDiagnosticLogger = new LocalDiagnosticLogger(context.globalStorageUri.fsPath)
+	await localDiagnosticLogger.initialize()
+	localDiagnosticLogger.record({
+		name: "activation-started",
+		category: "extension",
+		details: {
+			version: ExtensionRegistryInfo.version,
+			platform: `${process.platform}-${process.arch}`,
+		},
+	})
 
 	// 2. Clean up legacy data patterns within VSCode's native storage.
 	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
@@ -113,8 +126,47 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// NOTE: Commands must be added to the internal registry before registering them with VSCode
+	// Commands must be added to the internal registry before registering them with VS Code.
 	const { commands } = ExtensionRegistryInfo
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.OpenDiagnosticLog, async () => {
+			if (!localDiagnosticLogger) return
+			await localDiagnosticLogger.flush()
+			await vscode.window.showTextDocument(vscode.Uri.file(localDiagnosticLogger.currentPath), {
+				preview: false,
+			})
+		}),
+		vscode.commands.registerCommand(commands.CopySanitizedDiagnostics, async () => {
+			if (!localDiagnosticLogger) return
+			const api = webview.controller.stateManager.getApiConfiguration()
+			const startup = webview.controller.bedrockStartup.state
+			const localContext = await webview.controller.getLocalDiagnosticContext()
+			const summary = await localDiagnosticLogger.sanitizedSummary({
+				extensionVersion: ExtensionRegistryInfo.version,
+				platform: `${process.platform}-${process.arch}`,
+				region: api.awsRegion,
+				endpoint: api.awsBedrockEndpoint,
+				profile: api.awsProfile,
+				targetId: startup.selectedTarget?.invocationId,
+				latestDoctorState: startup.phase,
+				...localContext,
+			})
+			await vscode.env.clipboard.writeText(summary)
+			void vscode.window.showInformationMessage("Sanitized Cline diagnostics copied.")
+		}),
+		vscode.commands.registerCommand(commands.ClearLocalLogs, async () => {
+			if (!localDiagnosticLogger) return
+			const selection = await vscode.window.showWarningMessage(
+				"Clear current and previous local Cline diagnostic logs?",
+				{ modal: true },
+				"Clear Logs",
+			)
+			if (selection !== "Clear Logs") return
+			await localDiagnosticLogger.clear()
+			void vscode.window.showInformationMessage("Local Cline diagnostic logs cleared.")
+		}),
+	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
@@ -403,6 +455,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
+	localDiagnosticLogger.record({
+		name: "activation-completed",
+		category: "extension",
+		durationMs: performance.now() - activationStartTime,
+	})
 
 	return createClineAPI(webview.controller)
 }
@@ -505,10 +562,16 @@ async function getBinaryLocation(name: string): Promise<string> {
 export async function deactivate() {
 	// Dispose Non-VSCode-specific services
 	try {
+		localDiagnosticLogger?.record({
+			name: "shutdown",
+			category: "extension",
+		})
 		await tearDown()
 	} finally {
 		// VSCode-specific services
 		disposeVscodeCommentReviewController()
+		await localDiagnosticLogger?.dispose()
+		localDiagnosticLogger = undefined
 	}
 }
 

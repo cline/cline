@@ -5,6 +5,7 @@ export const SESSION_STATUS_VALUES = [
 	"completed",
 	"failed",
 	"cancelled",
+	"interrupted",
 ] as const;
 
 export type SharedSessionStatus = (typeof SESSION_STATUS_VALUES)[number];

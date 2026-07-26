@@ -333,12 +333,30 @@ function normalizeHistoryRow(
 		asTrimmedString(overrides?.title) ?? asTrimmedString(metadata?.title);
 	const totalCost =
 		asFiniteNumber(overrides?.totalCost) ?? asFiniteNumber(metadata?.totalCost);
+	const outcome =
+		row.status === "completed" ||
+		row.status === "failed" ||
+		row.status === "cancelled" ||
+		row.status === "interrupted"
+			? row.status
+			: undefined;
 	const nextMetadata =
-		metadata || title !== undefined || totalCost !== undefined
+		metadata || title !== undefined || totalCost !== undefined || outcome
 			? {
 					...(metadata ?? {}),
+					schemaVersion: 2 as const,
 					...(title !== undefined ? { title } : {}),
 					...(totalCost !== undefined ? { totalCost } : {}),
+					...(outcome ? { outcome } : {}),
+					workspace: {
+						...(metadata?.workspace &&
+						typeof metadata.workspace === "object" &&
+						!Array.isArray(metadata.workspace)
+							? metadata.workspace
+							: {}),
+						root: row.workspaceRoot || row.cwd,
+						repositoryRoot: row.cwd || row.workspaceRoot,
+					},
 				}
 			: undefined;
 	return {
@@ -392,10 +410,37 @@ async function projectLegacyRunningRowsAsIdle(
 			if (row.status !== "running" || row.interactive !== true) {
 				return row;
 			}
-			const messages = await host.readSessionMessages(row.sessionId);
-			return shouldProjectLegacyRunningSessionAsIdle(row, messages)
-				? { ...row, status: "idle" }
-				: row;
+			try {
+				const messages = await host.readSessionMessages(row.sessionId);
+				return shouldProjectLegacyRunningSessionAsIdle(row, messages)
+					? { ...row, status: "idle" }
+					: row.pid === process.pid
+						? row
+						: {
+								...row,
+								status: "interrupted",
+								metadata: {
+									...(asHistoryMetadata(row.metadata) ?? {}),
+									recoveryIssue: {
+										category: "interrupted-run",
+										message:
+											"The previous extension process ended while this task was active",
+									},
+								},
+							};
+			} catch {
+				return {
+					...row,
+					status: "interrupted",
+					metadata: {
+						...(asHistoryMetadata(row.metadata) ?? {}),
+						recoveryIssue: {
+							category: "corrupt",
+							message: "Conversation messages could not be read",
+						},
+					},
+				};
+			}
 		}),
 	);
 }
@@ -415,7 +460,22 @@ export async function hydrateSessionHistory(
 			if (hasTitle && hasProvider && hasModel && hasCost) {
 				return initial;
 			}
-			const messages = await host.readSessionMessages(row.sessionId);
+			let messages: LlmsProviders.Message[];
+			try {
+				messages = await host.readSessionMessages(row.sessionId);
+			} catch {
+				return normalizeHistoryRow({
+					...row,
+					status: row.status === "running" ? "interrupted" : row.status,
+					metadata: {
+						...(asHistoryMetadata(row.metadata) ?? {}),
+						recoveryIssue: {
+							category: "corrupt",
+							message: "Conversation messages could not be hydrated",
+						},
+					},
+				});
+			}
 			if (messages.length === 0) {
 				return initial;
 			}

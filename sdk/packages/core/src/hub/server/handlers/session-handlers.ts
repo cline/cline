@@ -473,6 +473,7 @@ export async function handleSessionRestore(
 			restore: {
 				messages: restoreOptions.messages as boolean | undefined,
 				workspace: restoreOptions.workspace as boolean | undefined,
+				workspaceApproved: restoreOptions.workspaceApproved === true,
 				omitCheckpointMessageFromSession:
 					restoreOptions.omitCheckpointMessageFromSession === true,
 			},

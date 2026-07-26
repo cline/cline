@@ -57,18 +57,21 @@ describe("checkpoint workspace comparison", () => {
 		expect(
 			diffs.find((diff) => diff.filePath.endsWith("tracked.txt")),
 		).toMatchObject({
+			status: "modified",
 			leftContent: "base\n",
 			rightContent: "changed\n",
 		});
 		expect(
 			diffs.find((diff) => diff.filePath.endsWith("deleted.txt")),
 		).toMatchObject({
+			status: "deleted",
 			leftContent: "delete me\n",
 			rightContent: "",
 		});
 		expect(
 			diffs.find((diff) => diff.filePath.endsWith("untracked.txt")),
 		).toMatchObject({
+			status: "added",
 			leftContent: "",
 			rightContent: "new file\n",
 		});
@@ -161,6 +164,8 @@ describe("checkpoint workspace comparison", () => {
 		});
 
 		expect(result.checkpoint.ref).toBe(checkpointRef);
+		expect(result.diverged).toBe(true);
+		expect(result.restoreRequiresApproval).toBe(true);
 		expect(result.diffs).toHaveLength(1);
 		expect(result.diffs[0]).toMatchObject({
 			filePath: join(dir, "tracked.txt"),

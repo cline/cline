@@ -289,6 +289,7 @@ export interface RestoreSessionInput {
 	restore?: {
 		messages?: boolean;
 		workspace?: boolean;
+		workspaceApproved?: boolean;
 		omitCheckpointMessageFromSession?: boolean;
 	};
 	start?: StartSessionInput;

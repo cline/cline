@@ -1,4 +1,4 @@
-import { appendFile, mkdir, stat } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 import { isAbsolute, join, resolve } from "node:path"
 import type { BedrockConnection } from "@cline/llms"
 import { BEDROCK_DEFAULT_MODEL_ID } from "@shared/api"
@@ -11,6 +11,7 @@ import {
 } from "@shared/bedrock-startup"
 import type { StateManager } from "@/core/storage/StateManager"
 import { buildBedrockConnection } from "@/sdk/bedrock-config"
+import { LocalDiagnosticLogger } from "@/services/diagnostics/local-diagnostic-logger"
 import { Logger } from "@/shared/services/Logger"
 import type { BedrockDiscoveryResult } from "./bedrock-discovery"
 import { mapBedrockDoctorError, redactBedrockDiagnostics } from "./bedrock-errors"
@@ -102,7 +103,7 @@ export class BedrockStartupController {
 
 	constructor(private readonly options: BedrockStartupControllerOptions) {
 		this.doctor = options.doctor ?? new BedrockStartupDoctor()
-		this.logPath = join(options.logDirectory, "bedrock-startup.log")
+		this.logPath = join(options.logDirectory, "current.jsonl")
 		this.currentState = initialState(this.connection())
 	}
 
@@ -209,6 +210,7 @@ export class BedrockStartupController {
 	}
 
 	private async runDiscovery(run: number, abortController: AbortController, forceRefresh: boolean): Promise<void> {
+		const startedAt = Date.now()
 		const connection = this.connection()
 		const workspaceRoot = await this.options.workspaceRoot()
 		if (!this.isCurrent(run)) return
@@ -247,6 +249,7 @@ export class BedrockStartupController {
 				updatedAt: Date.now(),
 			}
 			await this.writeLog("discovery", {
+				durationMs: Date.now() - startedAt,
 				foundationModels: result.foundationModelCount,
 				inferenceProfiles: result.inferenceProfileCount,
 				inferenceProfilePages: result.inferenceProfilePages,
@@ -271,6 +274,7 @@ export class BedrockStartupController {
 	}
 
 	private async runProbe(run: number, abortController: AbortController, target: BedrockTarget): Promise<void> {
+		const startedAt = Date.now()
 		const key = bedrockTargetKey(target)
 		this.transition("probingSelection", {
 			selectedTarget: target,
@@ -303,7 +307,11 @@ export class BedrockStartupController {
 				},
 				notice: "The selected destination passed the production streaming compatibility probe.",
 			})
-			await this.writeLog("probe-succeeded", { target, usage })
+			await this.writeLog("probe-succeeded", {
+				target,
+				usage,
+				durationMs: Date.now() - startedAt,
+			})
 		} catch (error) {
 			if (!this.isCurrent(run)) return
 			const mapped = mapBedrockDoctorError(error, errorContext("probingSelection"))
@@ -327,7 +335,10 @@ export class BedrockStartupController {
 					notice: "This destination remains available so you can inspect the failure or choose another target.",
 				})
 			}
-			await this.writeLog("probe-failed", mapped)
+			await this.writeLog("probe-failed", {
+				...mapped,
+				durationMs: Date.now() - startedAt,
+			})
 		}
 	}
 
@@ -366,13 +377,18 @@ export class BedrockStartupController {
 
 	private async writeLog(event: string, details: unknown): Promise<void> {
 		try {
-			await mkdir(this.options.logDirectory, { recursive: true })
-			const line = redactBedrockDiagnostics({
+			const sanitized = redactBedrockDiagnostics({
 				ts: new Date().toISOString(),
 				event,
 				details,
 			})
-			await appendFile(this.logPath, `${line}\n`, "utf8")
+			LocalDiagnosticLogger.recordGlobal({
+				name: event,
+				category: event.startsWith("probe") ? "bedrock" : "doctor",
+				level: event.includes("failed") ? "error" : "info",
+				stage: this.currentState.phase,
+				details: { summary: sanitized },
+			})
 		} catch (error) {
 			Logger.warn("[BedrockStartup] Failed to write diagnostic log:", error)
 		}

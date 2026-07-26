@@ -56,6 +56,11 @@ export interface RestoreOptions {
 	 */
 	workspace?: boolean;
 	/**
+	 * Must be true when `workspace` is true. Hosts should set this only after
+	 * showing the compare plan and receiving an explicit user action.
+	 */
+	workspaceApproved?: boolean;
+	/**
 	 * Start the forked session with messages before the checkpoint user message
 	 * while still returning messages through that user message. This is for
 	 * clients that put the checkpoint message back into a compose box so it can

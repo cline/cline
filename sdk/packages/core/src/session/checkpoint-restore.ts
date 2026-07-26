@@ -1,4 +1,14 @@
 import { execFile as execFileCallback } from "node:child_process";
+import {
+	chmod,
+	lstat,
+	mkdir,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
+import * as path from "node:path";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
 import type {
@@ -8,6 +18,31 @@ import type {
 import type { SessionRecord } from "../types/sessions";
 
 const execFile = promisify(execFileCallback);
+
+export interface CheckpointRestoreFileResult {
+	filePath: string;
+	action: "write" | "delete";
+	status: "restored" | "rolled-back" | "failed";
+	error?: string;
+}
+
+export interface CheckpointWorkspaceRestoreResult {
+	status: "restored" | "partial";
+	checkpoint: CheckpointEntry;
+	cwd: string;
+	files: CheckpointRestoreFileResult[];
+}
+
+export class CheckpointWorkspaceRestoreError extends Error {
+	constructor(
+		readonly code: "approval_required" | "unsafe_path" | "partial_failure",
+		message: string,
+		readonly result?: CheckpointWorkspaceRestoreResult,
+	) {
+		super(message);
+		this.name = "CheckpointWorkspaceRestoreError";
+	}
+}
 
 export interface CheckpointRestorePlan {
 	checkpoint: CheckpointEntry;
@@ -46,7 +81,19 @@ export function readSessionCheckpointHistory(
 				entry.kind === "stash" || entry.kind === "commit"
 					? entry.kind
 					: undefined;
-			return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }];
+			return [{
+				ref,
+				createdAt,
+				runCount,
+				...(kind ? { kind } : {}),
+				...(entry.schemaVersion === 2 ? { schemaVersion: 2 as const } : {}),
+				...(typeof entry.checkpointId === "string" ? { checkpointId: entry.checkpointId } : {}),
+				...(typeof entry.sessionId === "string" ? { sessionId: entry.sessionId } : {}),
+				...(typeof entry.workspaceRoot === "string" ? { workspaceRoot: entry.workspaceRoot } : {}),
+				...(typeof entry.gitBase === "string" ? { gitBase: entry.gitBase } : {}),
+				...(typeof entry.gitHead === "string" ? { gitHead: entry.gitHead } : {}),
+				...(typeof entry.label === "string" ? { label: entry.label } : {}),
+			}];
 		});
 }
 
@@ -158,10 +205,88 @@ export function createCheckpointRestorePlan(input: {
 	};
 }
 
+function resolveWorkspacePath(cwd: string, relativePath: string): string {
+	const root = path.resolve(cwd);
+	const resolved = path.resolve(root, relativePath);
+	const relative = path.relative(root, resolved);
+	if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+		throw new CheckpointWorkspaceRestoreError(
+			"unsafe_path",
+			`Checkpoint path escapes the workspace: ${relativePath}`,
+		);
+	}
+	return resolved;
+}
+
+async function gitBuffer(cwd: string, args: string[]): Promise<Buffer> {
+	const result = await execFile("git", ["-C", cwd, ...args], {
+		windowsHide: true,
+		encoding: "buffer",
+		maxBuffer: 50 * 1024 * 1024,
+	});
+	return Buffer.from(result.stdout);
+}
+
+async function checkpointPaths(cwd: string, ref: string): Promise<string[]> {
+	const [tracked, untracked] = await Promise.all([
+		gitBuffer(cwd, ["diff", "--name-only", "-z", ref, "--"]),
+		gitBuffer(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
+	]);
+	return [...new Set(
+		Buffer.concat([tracked, untracked])
+			.toString("utf8")
+			.split("\0")
+			.filter(Boolean),
+	)].sort((left, right) => left.localeCompare(right));
+}
+
+async function readCheckpointBlob(
+	cwd: string,
+	ref: string,
+	relativePath: string,
+): Promise<{ content?: Buffer; executable: boolean }> {
+	const treeLine = await execFile(
+		"git",
+		["-C", cwd, "ls-tree", ref, "--", relativePath],
+		{ windowsHide: true, encoding: "utf8" },
+	).then((result) => result.stdout.trim());
+	if (!treeLine) {
+		return { executable: false };
+	}
+	const mode = treeLine.split(/\s+/, 1)[0];
+	if (mode === "120000" || mode === "160000") {
+		throw new CheckpointWorkspaceRestoreError(
+			"unsafe_path",
+			`Checkpoint restore does not overwrite symlinks or submodules: ${relativePath}`,
+		);
+	}
+	return {
+		content: await gitBuffer(cwd, ["show", `${ref}:${relativePath}`]),
+		executable: mode === "100755",
+	};
+}
+
+async function writeAtomically(filePath: string, content: Buffer): Promise<void> {
+	await mkdir(path.dirname(filePath), { recursive: true });
+	const temporaryPath = `${filePath}.cline-restore-${process.pid}-${Date.now()}`;
+	await writeFile(temporaryPath, content);
+	await rename(temporaryPath, filePath).catch(async (error) => {
+		await rm(temporaryPath, { force: true }).catch(() => {});
+		throw error;
+	});
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
-): Promise<void> {
+	options: { approved?: boolean } = {},
+): Promise<CheckpointWorkspaceRestoreResult> {
+	if (options.approved !== true) {
+		throw new CheckpointWorkspaceRestoreError(
+			"approval_required",
+			"Checkpoint workspace restore requires explicit approval",
+		);
+	}
 	const check = await execFile(
 		"git",
 		["-C", cwd, "rev-parse", "--is-inside-work-tree"],
@@ -175,15 +300,73 @@ export async function applyCheckpointToWorktree(
 		["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^{commit}`],
 		{ windowsHide: true },
 	);
-	await execFile("git", ["-C", cwd, "reset", "--hard"], { windowsHide: true });
-	await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
-	if (checkpoint.kind === "commit") {
-		await execFile("git", ["-C", cwd, "reset", "--hard", checkpoint.ref], {
-			windowsHide: true,
-		});
-		return;
+	const paths = await checkpointPaths(cwd, checkpoint.ref);
+	const snapshots = new Map<string, { existed: boolean; content?: Buffer; mode?: number }>();
+	const files: CheckpointRestoreFileResult[] = [];
+	const applied: string[] = [];
+
+	try {
+		for (const relativePath of paths) {
+			const filePath = resolveWorkspacePath(cwd, relativePath);
+			const stat = await lstat(filePath).catch(() => undefined);
+			if (stat?.isDirectory() || stat?.isSymbolicLink()) {
+				throw new CheckpointWorkspaceRestoreError(
+					"unsafe_path",
+					`Checkpoint restore cannot safely replace ${stat.isDirectory() ? "a directory" : "a symlink"}: ${relativePath}`,
+				);
+			}
+			snapshots.set(filePath, {
+				existed: Boolean(stat),
+				...(stat ? { content: await readFile(filePath), mode: stat.mode } : {}),
+			});
+			const checkpointBlob = await readCheckpointBlob(cwd, checkpoint.ref, relativePath);
+			if (checkpointBlob.content) {
+				await writeAtomically(filePath, checkpointBlob.content);
+				if (process.platform !== "win32") {
+					await chmod(filePath, checkpointBlob.executable ? 0o755 : 0o644);
+				}
+				files.push({ filePath, action: "write", status: "restored" });
+			} else {
+				await rm(filePath, { force: true });
+				files.push({ filePath, action: "delete", status: "restored" });
+			}
+			applied.push(filePath);
+		}
+		return { status: "restored", checkpoint, cwd, files };
+	} catch (error) {
+		let rollbackFailed = false;
+		for (const filePath of [...applied].reverse()) {
+			const snapshot = snapshots.get(filePath);
+			try {
+				if (snapshot?.existed && snapshot.content) {
+					await writeAtomically(filePath, snapshot.content);
+					if (process.platform !== "win32" && snapshot.mode !== undefined) {
+						await chmod(filePath, snapshot.mode);
+					}
+				} else {
+					await rm(filePath, { force: true });
+				}
+				const result = files.find((candidate) => candidate.filePath === filePath);
+				if (result) result.status = "rolled-back";
+			} catch (rollbackError) {
+				rollbackFailed = true;
+				const result = files.find((candidate) => candidate.filePath === filePath);
+				if (result) {
+					result.status = "failed";
+					result.error = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+				}
+			}
+		}
+		const result: CheckpointWorkspaceRestoreResult = {
+			status: "partial",
+			checkpoint,
+			cwd,
+			files,
+		};
+		throw new CheckpointWorkspaceRestoreError(
+			"partial_failure",
+			`${rollbackFailed ? "Checkpoint restore partially failed" : "Checkpoint restore failed and was rolled back"}: ${error instanceof Error ? error.message : String(error)}`,
+			result,
+		);
 	}
-	await execFile("git", ["-C", cwd, "stash", "apply", checkpoint.ref], {
-		windowsHide: true,
-	});
 }

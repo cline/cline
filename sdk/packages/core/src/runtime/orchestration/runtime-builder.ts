@@ -706,7 +706,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				});
 
 				if (restoredStateHydratedIntoRuntime) {
-					teamRuntime.recoverActiveRuns("runtime_recovered");
+					teamRuntime.markStaleRunsInterrupted(
+						"Extension restarted; resume this run explicitly after inspecting its worktree",
+					);
 				}
 
 				if (teamBootstrap.restoredFromPersistence) {

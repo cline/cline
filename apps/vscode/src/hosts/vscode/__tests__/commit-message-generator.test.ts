@@ -11,7 +11,7 @@ const gitUtilsMock = () => ({ ...actualGitUtils, getGitDiff: getGitDiffStub })
 mock.module("@/utils/git", gitUtilsMock)
 mock.module("@utils/git", gitUtilsMock)
 
-import { getGitDiffStagedFirst } from "../commit-message-generator"
+import { buildCommitMessageInput, getGitDiffStagedFirst } from "../commit-message-generator"
 
 describe("commit-message-generator", () => {
 	describe("getGitDiffStagedFirst", () => {
@@ -58,6 +58,38 @@ describe("commit-message-generator", () => {
 			}
 			;(error !== undefined).should.be.true()
 			error!.message.should.equal("No changes in workspace for commit message")
+		})
+	})
+
+	describe("buildCommitMessageInput", () => {
+		it("bounds the model input and excludes secret files and credential values", () => {
+			const diff = [
+				"diff --git a/src/app.ts b/src/app.ts",
+				"--- a/src/app.ts",
+				"+++ b/src/app.ts",
+				"@@ -1 +1 @@",
+				"-old",
+				`+${"safe change ".repeat(500)}`,
+				"diff --git a/.env b/.env",
+				"--- a/.env",
+				"+++ b/.env",
+				"@@ -1 +1 @@",
+				"-AWS_ACCESS_KEY_ID=old",
+				"+AWS_ACCESS_KEY_ID=AKIA1234567890ABCDEF",
+			].join("\n")
+
+			const result = buildCommitMessageInput({
+				diff,
+				status: " M src/app.ts\n M .env",
+				branch: "feature/recovery",
+				maxChars: 2_000,
+			})
+
+			result.should.containEql("feature/recovery")
+			result.should.containEql("src/app.ts")
+			result.should.not.containEql(".env")
+			result.should.not.containEql("AKIA1234567890ABCDEF")
+			;(result.length <= 2_060).should.be.true()
 		})
 	})
 })

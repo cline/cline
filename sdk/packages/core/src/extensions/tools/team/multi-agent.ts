@@ -171,12 +171,6 @@ function isIntentionalShutdownAbort(
 // =============================================================================
 
 const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-const RECOVERED_QUEUED_ACTIVITY = "recovered_queued";
-
-function buildRecoveredRunMessage(run: TeamRunRecord): string {
-	return `This is an automatic recovery of interrupted team run ${run.id}. The previous process stopped before completion. Continue the task safely, inspect the current workspace state before making changes, and avoid duplicating completed work.\n\n${run.message}`;
-}
-
 export class AgentTeam {
 	private agents: Map<string, SessionRuntime> = new Map();
 	private configs: Map<string, TeamMemberConfig> = new Map();
@@ -1311,7 +1305,6 @@ export class AgentTeamsRuntime {
 	private async executeQueuedRun(
 		run: TeamRunRecord & { result?: AgentResult },
 	): Promise<void> {
-		const recoveredRun = run.currentActivity === RECOVERED_QUEUED_ACTIVITY;
 		run.nextAttemptAt = undefined;
 		run.status = "running";
 		run.startedAt = new Date();
@@ -1328,10 +1321,7 @@ export class AgentTeamsRuntime {
 		}, 2000);
 
 		try {
-			const runMessage = recoveredRun
-				? buildRecoveredRunMessage(run)
-				: run.message;
-			const result = await this.routeToTeammate(run.agentId, runMessage, {
+			const result = await this.routeToTeammate(run.agentId, run.message, {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
@@ -1465,43 +1455,10 @@ export class AgentTeamsRuntime {
 	}
 
 	recoverActiveRuns(reason = "runtime_recovered"): TeamRunRecord[] {
-		const recovered: TeamRunRecord[] = [];
-		for (const run of this.runs.values()) {
-			if (!["queued", "running"].includes(run.status)) {
-				continue;
-			}
-
-			const member = this.members.get(run.agentId);
-			if (!member || member.role !== "teammate" || !member.agent) {
-				run.status = "interrupted";
-				run.error = "teammate_unavailable_after_recovery";
-				run.endedAt = new Date();
-				run.currentActivity = "interrupted";
-				this.updateMemberRunState(run, "interrupted");
-				this.emitEvent({
-					type: TeamMessageType.RunInterrupted,
-					run: { ...run },
-					reason: run.error,
-				});
-				continue;
-			}
-
-			const now = new Date();
-			run.status = "queued";
-			run.error = undefined;
-			run.endedAt = undefined;
-			run.heartbeatAt = now;
-			run.lastProgressAt = now;
-			run.lastProgressMessage = reason;
-			run.currentActivity = RECOVERED_QUEUED_ACTIVITY;
-			if (!this.runQueue.includes(run.id)) {
-				this.runQueue.push(run.id);
-			}
-			recovered.push({ ...run });
-			this.emitEvent({ type: TeamMessageType.RunQueued, run: { ...run } });
-		}
-		this.dispatchQueuedRuns();
-		return recovered;
+		// Compatibility entry point retained for callers from older hosts. Phase
+		// 11 recovery is deliberately non-executing: a user must explicitly
+		// resume an interrupted run after inspecting its worktree.
+		return this.markStaleRunsInterrupted(reason);
 	}
 
 	markStaleRunsInterrupted(reason = "runtime_recovered"): TeamRunRecord[] {

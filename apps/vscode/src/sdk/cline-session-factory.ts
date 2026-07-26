@@ -181,6 +181,25 @@ export function buildStartSessionInput(config: CoreSessionConfig, input: Session
 		config,
 		prompt: undefined,
 		interactive: true,
+		sessionMetadata: {
+			schemaVersion: 2,
+			mode: input.mode === "plan" ? "plan" : "act",
+			outcome: "interrupted",
+			workspace: {
+				root: input.workspaceRoot?.trim() || input.cwd,
+				repositoryRoot: input.cwd,
+			},
+			bedrockTarget: {
+				invocationId: config.modelId,
+				region:
+					config.providerConfig &&
+					typeof config.providerConfig === "object" &&
+					"region" in config.providerConfig &&
+					typeof config.providerConfig.region === "string"
+						? config.providerConfig.region
+						: undefined,
+			},
+		},
 		userImages: input.images,
 		userFiles: input.files,
 	}

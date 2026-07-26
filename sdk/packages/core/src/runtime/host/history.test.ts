@@ -326,7 +326,7 @@ describe("session history", () => {
 		]);
 	});
 
-	it("keeps legacy interactive running sessions running when the last turn is not complete", async () => {
+	it("marks running sessions from a previous process interrupted when the last turn is not complete", async () => {
 		const list = vi.fn().mockResolvedValue([
 			createRow({
 				sessionId: "sess_legacy_running",
@@ -348,7 +348,7 @@ describe("session history", () => {
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_legacy_running",
-				status: "running",
+				status: "interrupted",
 			}),
 		]);
 	});
@@ -447,6 +447,34 @@ describe("session history", () => {
 			"sess_empty",
 			"sess_unreadable",
 		]);
+	});
+
+	it("isolates one corrupt message record without hiding healthy history", async () => {
+		const rows = await listSessionHistory(
+			{
+				listSessions: vi.fn().mockResolvedValue([
+					createRow({ sessionId: "healthy" }),
+					createRow({ sessionId: "corrupt", status: "running" }),
+				]),
+				readSessionMessages: vi.fn(async (sessionId: string) => {
+					if (sessionId === "corrupt") {
+						throw new Error("invalid json")
+					}
+					return [{ role: "user", content: "healthy task" }]
+				}),
+			},
+			{ limit: 10, hydrate: true },
+		);
+
+		expect(rows.map((row) => row.sessionId)).toEqual(["healthy", "corrupt"]);
+		expect(rows.find((row) => row.sessionId === "corrupt")).toMatchObject({
+			status: "interrupted",
+			metadata: {
+				recoveryIssue: {
+					category: "corrupt",
+				},
+			},
+		});
 	});
 
 	it("lists directly from a session backend without a runtime host", async () => {

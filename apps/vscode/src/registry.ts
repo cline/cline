@@ -24,6 +24,9 @@ const ClineCommands = {
 	Walkthrough: prefix + ".openWalkthrough",
 	GenerateCommit: prefix + ".generateGitCommitMessage",
 	AbortCommit: prefix + ".abortGitCommitMessage",
+	OpenDiagnosticLog: prefix + ".openDiagnosticLog",
+	CopySanitizedDiagnostics: prefix + ".copySanitizedDiagnostics",
+	ClearLocalLogs: prefix + ".clearLocalLogs",
 }
 
 /**

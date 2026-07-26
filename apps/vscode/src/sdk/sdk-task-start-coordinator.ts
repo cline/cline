@@ -46,6 +46,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
 	postStateToWebview: () => Promise<void>
+	revalidateBedrockForResume?: (taskId: string) => Promise<void>
 	onSessionAssigned?: (sessionId: string) => void
 	onInitError?: (error: unknown) => void
 }
@@ -138,6 +139,7 @@ export class SdkTaskStartCoordinator {
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
 		try {
+			await this.options.revalidateBedrockForResume?.(taskId)
 			await this.options.clearTask()
 
 			const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
@@ -152,12 +154,15 @@ export class SdkTaskStartCoordinator {
 			// workspace root instead.
 			const storedCwd = historyItem.cwdOnTaskInitialization
 			const cwd = storedCwd && (await isDirectory(storedCwd)) ? storedCwd : await this.options.getWorkspaceRoot()
+			const tempManager = await this.options.createTempSessionHost()
+			const sourceRecord = await tempManager.get(taskId).catch(() => undefined)
+			const savedMode = sourceRecord?.metadata?.mode
+			const mode: Mode = savedMode === "plan" || savedMode === "act" ? savedMode : this.getCurrentMode()
 			const config = await this.options.sessionConfigBuilder.build({
 				cwd,
-				mode: "act",
+				mode,
 			})
 
-			const tempManager = await this.options.createTempSessionHost()
 			const initialMessages = await this.options.loadInitialMessages(tempManager, taskId)
 			await tempManager.dispose("readMessages")
 
@@ -165,7 +170,13 @@ export class SdkTaskStartCoordinator {
 				config,
 				interactive: true,
 				...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
-				sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId),
+				sessionMetadata: {
+					...(sourceRecord?.metadata ?? {}),
+					...historyItemToSessionMetadata(historyItem, config.modelId),
+					schemaVersion: 2,
+					mode,
+					outcome: "interrupted",
+				},
 			})
 
 			this.createAndSetTask(startResult.sessionId)

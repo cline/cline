@@ -7,6 +7,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
+	compareCheckpointToWorkspace,
 	createUserInstructionConfigService,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
@@ -69,6 +70,7 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
+import type { SdkSessionHost } from "./session-host"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { TurnStateTracker } from "./turn-state-tracker"
@@ -462,6 +464,25 @@ export class Controller {
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			postStateToWebview: () => this.postStateToWebview(),
+			revalidateBedrockForResume: async (taskId) => {
+				const sourceRecord = await this.taskHistory.getSessionRecord(taskId)
+				const savedTarget = sourceRecord?.metadata?.bedrockTarget
+				const targetRecord =
+					savedTarget && typeof savedTarget === "object" && !Array.isArray(savedTarget)
+						? (savedTarget as Record<string, unknown>)
+						: undefined
+				const invocationId =
+					(typeof targetRecord?.invocationId === "string" && targetRecord.invocationId.trim()) ||
+					sourceRecord?.model?.trim()
+				if (invocationId) {
+					this.stateManager.setGlobalStateBatch({
+						planModeApiModelId: invocationId,
+						actModeApiModelId: invocationId,
+					})
+				}
+				await this.bedrockStartup.start(true)
+				this.bedrockStartup.assertReady()
+			},
 			onSessionAssigned: (sessionId) => {
 				const runId = this.runLifecycle.currentRunId
 				if (runId) this.runLifecycle.bindSession(runId, sessionId)
@@ -516,7 +537,7 @@ export class Controller {
 		this.bedrockStartup = new BedrockStartupController({
 			stateManager: this.stateManager,
 			workspaceRoot: async () => this.getWorkspaceRoot(),
-			logDirectory: this.context.logUri.fsPath,
+			logDirectory: path.join(this.context.globalStorageUri.fsPath, "logs"),
 			onStateChanged: () => this.postStateToWebview(),
 		})
 		if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") {
@@ -748,6 +769,38 @@ export class Controller {
 		return modelId && modelId !== "unknown" ? modelId : undefined
 	}
 
+	async getLocalDiagnosticContext(): Promise<{
+		taskId?: string
+		teamTaskId?: string
+		worktreePath?: string
+		checkpointId?: string
+	}> {
+		const activeSession = this.sessions.getActiveSession()
+		const taskId = activeSession?.sessionId ?? this.task?.taskId
+		const record = activeSession && taskId ? await activeSession.sdkHost.get(taskId).catch(() => undefined) : undefined
+		const latestCheckpoint =
+			record?.metadata?.checkpoint &&
+			typeof record.metadata.checkpoint === "object" &&
+			!Array.isArray(record.metadata.checkpoint)
+				? (record.metadata.checkpoint as Record<string, unknown>).latest
+				: undefined
+		const checkpoint =
+			latestCheckpoint && typeof latestCheckpoint === "object" && !Array.isArray(latestCheckpoint)
+				? (latestCheckpoint as Record<string, unknown>)
+				: undefined
+		const board = activeSession?.sdkHost.getTeamBoard?.(activeSession.sessionId)
+		const linkedTask = board?.tasks.find((candidate) => candidate.sessionId === taskId)
+		return {
+			taskId,
+			teamTaskId: linkedTask?.id,
+			worktreePath: linkedTask?.worktreePath,
+			checkpointId:
+				(typeof checkpoint?.checkpointId === "string" && checkpoint.checkpointId) ||
+				(typeof checkpoint?.ref === "string" && checkpoint.ref) ||
+				undefined,
+		}
+	}
+
 	private getSessionProviderId(sessionId?: string): string | undefined {
 		const activeSession = this.sessions.getActiveSession()
 		if (sessionId && activeSession?.sessionId !== sessionId) {
@@ -794,7 +847,6 @@ export class Controller {
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
-		this.bedrockStartup.assertReady()
 		this.runLifecycle.reset()
 		this.turnStateTracker.set("streaming")
 		this.messageTranslatorState.clearTurnOutcome()
@@ -996,6 +1048,15 @@ export class Controller {
 				if (checkpointRunCount === undefined) {
 					throw new Error("Workspace restore is only available for messages that started an agent run")
 				}
+				const approved = await this.approveCheckpointWorkspaceRestore(
+					sessionHost,
+					sourceSessionId,
+					checkpointRunCount,
+					cwd,
+				)
+				if (!approved) {
+					return
+				}
 				await sessionHost.restore({
 					sessionId: sourceSessionId,
 					checkpointRunCount,
@@ -1003,6 +1064,7 @@ export class Controller {
 					restore: {
 						messages: false,
 						workspace: true,
+						workspaceApproved: true,
 						omitCheckpointMessageFromSession: true,
 					},
 				})
@@ -1060,10 +1122,6 @@ export class Controller {
 		if (!activeSession || !currentTask) {
 			throw new Error("No active task to restore")
 		}
-		if (activeSession.isRunning) {
-			await this.cancelTask()
-		}
-
 		const currentMessages = currentTask.messageStateHandler.getClineMessages()
 		const target = restoreMessages ? findVisibleCheckpointUserMessageByRun(currentMessages, checkpointRunCount) : undefined
 		if (restoreMessages && !target) {
@@ -1071,6 +1129,20 @@ export class Controller {
 		}
 
 		const cwd = await this.getWorkspaceRoot()
+		if (restoreWorkspace) {
+			const approved = await this.approveCheckpointWorkspaceRestore(
+				activeSession.sdkHost,
+				activeSession.sessionId,
+				checkpointRunCount,
+				cwd,
+			)
+			if (!approved) {
+				return
+			}
+		}
+		if (activeSession.isRunning) {
+			await this.cancelTask()
+		}
 		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 		const firstUserMessage = currentMessages.find(isVisibleCheckpointUserMessage)
 		const restoredText = target?.message.text ?? ""
@@ -1094,6 +1166,7 @@ export class Controller {
 			restore: {
 				messages: restoreMessages,
 				workspace: restoreWorkspace,
+				workspaceApproved: restoreWorkspace,
 				omitCheckpointMessageFromSession: true,
 			},
 			...(startInput ? { start: startInput } : {}),
@@ -1134,6 +1207,44 @@ export class Controller {
 			sessionId: restored.sessionId,
 		}
 		await this.postStateToWebview()
+	}
+
+	private async approveCheckpointWorkspaceRestore(
+		sessionHost: SdkSessionHost,
+		sessionId: string,
+		checkpointRunCount: number,
+		cwd: string,
+	): Promise<boolean> {
+		const session = await sessionHost.get(sessionId)
+		if (!session) {
+			throw new Error(`Session ${sessionId} was not found`)
+		}
+		const comparison = await compareCheckpointToWorkspace({
+			session,
+			checkpointRunCount,
+			cwd,
+		})
+		const unrestorable = comparison.diffs.filter((diff) => !diff.restorable)
+		if (unrestorable.length > 0) {
+			throw new Error(
+				`Checkpoint cannot be restored safely: ${unrestorable.map((diff) => path.basename(diff.filePath)).join(", ")}`,
+			)
+		}
+		const summary = comparison.diffs
+			.slice(0, 20)
+			.map((diff) => `${diff.status}: ${path.relative(cwd, diff.filePath)}`)
+			.join("\n")
+		const omitted = Math.max(0, comparison.diffs.length - 20)
+		const response = await HostProvider.window.showMessage({
+			type: ShowMessageType.WARNING,
+			message: `Restore ${comparison.diffs.length} workspace file${comparison.diffs.length === 1 ? "" : "s"} from checkpoint?`,
+			options: {
+				modal: true,
+				items: ["Restore Workspace"],
+				detail: `${summary || "The workspace already matches this checkpoint."}${omitted ? `\n…and ${omitted} more` : ""}\n\nThe checkpoint will be preserved. No git reset, clean, commit, or push will run.`,
+			},
+		})
+		return response.selectedOption === "Restore Workspace"
 	}
 
 	/**

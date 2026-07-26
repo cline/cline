@@ -121,6 +121,36 @@ describe("createCheckpointHooks", () => {
 		}
 	});
 
+	it("includes non-ignored untracked files in the checkpoint snapshot", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_untracked",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+			await writeFile(join(cwd, "untracked.txt"), "preserve me\n", "utf8");
+
+			await runCheckpointHooks(hooks);
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(
+				await runGit(cwd, "show", `${checkpoint.latest.ref}:untracked.txt`),
+			).toBe("preserve me");
+			expect(checkpoint.latest).toMatchObject({
+				schemaVersion: 2,
+				sessionId: "sess_untracked",
+				workspaceRoot: cwd,
+			});
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
 	it("does not append a checkpoint when the snapshot matches the latest checkpoint", async () => {
 		const cwd = await createGitRepo();
 		let metadata: Record<string, unknown> | undefined;

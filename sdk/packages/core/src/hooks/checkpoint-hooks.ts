@@ -1,14 +1,24 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger } from "@cline/shared";
 
 const execFile = promisify(execFileCallback);
 
 export interface CheckpointEntry {
+	schemaVersion?: 2;
+	checkpointId?: string;
 	ref: string;
 	createdAt: number;
 	runCount: number;
 	kind?: "stash" | "commit";
+	sessionId?: string;
+	workspaceRoot?: string;
+	gitBase?: string;
+	gitHead?: string;
+	label?: string;
 }
 
 export interface CheckpointMetadata {
@@ -83,9 +93,11 @@ function readCheckpointMetadata(
 async function runGit(
 	cwd: string,
 	args: string[],
+	env?: NodeJS.ProcessEnv,
 ): Promise<{ stdout: string; stderr: string }> {
 	const result = await execFile("git", ["-C", cwd, ...args], {
 		windowsHide: true,
+		...(env ? { env } : {}),
 	});
 	return {
 		stdout: result.stdout.trim(),
@@ -197,10 +209,17 @@ export function createCheckpointHooks(
 					return undefined;
 				}
 				return {
+					schemaVersion: 2,
+					checkpointId: `${options.sessionId}:${runCount}`,
 					ref,
 					createdAt: Date.now(),
 					runCount,
 					kind: "commit",
+					sessionId: options.sessionId,
+					workspaceRoot: options.cwd,
+					gitBase: ref,
+					gitHead: ref,
+					label: `Before run ${runCount}`,
 				};
 			} catch (error) {
 				warn(
@@ -214,8 +233,51 @@ export function createCheckpointHooks(
 		const message = `cline checkpoint session=${options.sessionId} run=${runCount}`;
 		let ref = "";
 		try {
-			const result = await runGit(options.cwd, ["stash", "create", message]);
-			ref = result.stdout.trim();
+			const untracked = await runGit(options.cwd, [
+				"ls-files",
+				"--others",
+				"--exclude-standard",
+			]);
+			if (!untracked.stdout.trim()) {
+				const result = await runGit(options.cwd, [
+					"stash",
+					"create",
+					message,
+				]);
+				ref = result.stdout.trim();
+			} else {
+				const temporaryDirectory = await mkdtemp(
+					join(tmpdir(), "cline-checkpoint-index-"),
+				);
+				try {
+					const env = {
+						...process.env,
+						GIT_INDEX_FILE: join(temporaryDirectory, "index"),
+					};
+					const head = await runGit(options.cwd, ["rev-parse", "HEAD"]);
+					await runGit(options.cwd, ["read-tree", head.stdout], env);
+					await runGit(options.cwd, ["add", "-A", "--", "."], env);
+					const tree = await runGit(options.cwd, ["write-tree"], env);
+					const commit = await runGit(
+						options.cwd,
+						[
+							"commit-tree",
+							tree.stdout,
+							"-p",
+							head.stdout,
+							"-m",
+							message,
+						],
+						env,
+					);
+					ref = commit.stdout.trim();
+				} finally {
+					await rm(temporaryDirectory, {
+						recursive: true,
+						force: true,
+					}).catch(() => {});
+				}
+			}
 		} catch (error) {
 			warn(
 				options.logger,
@@ -245,10 +307,21 @@ export function createCheckpointHooks(
 		}
 
 		return {
+			schemaVersion: 2,
+			checkpointId: `${options.sessionId}:${runCount}`,
 			ref,
 			createdAt: Date.now(),
 			runCount,
 			kind: "stash",
+			sessionId: options.sessionId,
+			workspaceRoot: options.cwd,
+			gitBase: await runGit(options.cwd, ["rev-parse", "HEAD"])
+				.then((result) => result.stdout)
+				.catch(() => undefined),
+			gitHead: await runGit(options.cwd, ["rev-parse", "HEAD"])
+				.then((result) => result.stdout)
+				.catch(() => undefined),
+			label: `Before run ${runCount}`,
 		};
 	};
 

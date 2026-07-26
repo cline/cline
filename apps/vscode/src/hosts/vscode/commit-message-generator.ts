@@ -5,7 +5,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { buildApiHandler } from "@/sdk/sdk-api-handler"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { getGitDiff } from "@/utils/git"
+import { getCommitMessageGitContext, getGitDiff } from "@/utils/git"
 
 /**
  * Git commit message generator module
@@ -59,6 +59,53 @@ The commit message should:
 2. The commit message should adhere to the conventional commit format
 3. Describe what was changed and why
 4. Be clear and informative`,
+}
+
+const MAX_COMMIT_INPUT_CHARS = 12_000
+const SECRET_PATH_PATTERN =
+	/(^|[/\\])(?:\.env(?:\.[^/\\]+)?|credentials?|secrets?|id_rsa|id_ed25519|aws_access_key|config\.json)$|(?:\.pem|\.key|\.p12|\.pfx)$/i
+
+function redactCommitText(value: string): string {
+	return value
+		.replace(/\b(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16}\b/g, "[REDACTED_AWS_ACCESS_KEY]")
+		.replace(/(aws_secret_access_key\s*[=:]\s*)\S+/gi, "$1[REDACTED]")
+		.replace(/(aws_session_token\s*[=:]\s*)\S+/gi, "$1[REDACTED]")
+		.replace(/(authorization:\s*(?:bearer|basic)\s+)\S+/gi, "$1[REDACTED]")
+}
+
+function diffChunkPath(chunk: string): string | undefined {
+	const header = /^diff --git (?:a\/)?(.+?) (?:b\/)?(.+)$/m.exec(chunk)
+	if (!header) return undefined
+	return header[2].replace(/^"|"$/g, "").replaceAll('\\"', '"')
+}
+
+export function buildCommitMessageInput(input: {
+	diff: string
+	status: string
+	branch: string
+	guidance?: string
+	maxChars?: number
+}): string {
+	const chunks = input.diff.split(/(?=^diff --git )/m)
+	const safeDiff = chunks
+		.filter((chunk) => {
+			const filePath = diffChunkPath(chunk)
+			return !filePath || !SECRET_PATH_PATTERN.test(filePath)
+		})
+		.join("")
+	const safeStatus = input.status
+		.split("\n")
+		.filter((line) => !SECRET_PATH_PATTERN.test(line.slice(3).trim()))
+		.join("\n")
+	const sections = [
+		PROMPT.instruction,
+		`Repository context:\nBranch: ${input.branch || "(detached)"}\nStatus:\n${safeStatus || "(clean)"}`,
+		input.guidance?.trim() ? PROMPT.user.replace("{{USER_CURRENT_INPUT}}", input.guidance.trim()) : "",
+		`Diff:\n${redactCommitText(safeDiff)}`,
+	].filter(Boolean)
+	const combined = redactCommitText(sections.join("\n\n"))
+	const maxChars = Math.max(1_000, input.maxChars ?? MAX_COMMIT_INPUT_CHARS)
+	return combined.length > maxChars ? `${combined.slice(0, maxChars)}\n\n[Diff truncated at ${maxChars} characters]` : combined
 }
 
 export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
@@ -186,29 +233,38 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 			title: `Generating commit message for ${repoPath.split(path.sep).pop() || "repository"}...`,
 			cancellable: true,
 		},
-		() => performCommitMsgGeneration(controller, gitDiff, inputBox),
+		async (_progress, token) => {
+			const onCancel = token.onCancellationRequested(() => commitGenerationAbortController?.abort())
+			try {
+				await performCommitMsgGeneration(controller, repoPath, gitDiff, inputBox)
+			} finally {
+				onCancel.dispose()
+			}
+		},
 	)
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
+async function performCommitMsgGeneration(
+	controller: Controller,
+	repoPath: string,
+	gitDiff: string,
+	inputBox: GitRepositoryInputBox,
+) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
-
-		const prompts = [PROMPT.instruction]
-
 		const currentInput = inputBox.value?.trim() || ""
-		if (currentInput) {
-			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput))
-		}
-
-		const truncatedDiff = gitDiff.length > 5000 ? `${gitDiff.substring(0, 5000)}\n\n[Diff truncated due to size]` : gitDiff
-		prompts.push(truncatedDiff)
-
-		const prompt = prompts.join("\n\n")
+		const gitContext = await getCommitMessageGitContext(repoPath)
+		const prompt = buildCommitMessageInput({
+			diff: gitDiff,
+			status: gitContext.status,
+			branch: gitContext.branch,
+			guidance: currentInput,
+		})
 
 		// Get the current API configuration
 		// Set to use Act mode for now by default
 		const apiConfiguration = controller.stateManager.getApiConfiguration()
+		controller.bedrockStartup.assertReady()
 		const currentMode = "act"
 
 		// Build the API handler. Commit message generation is a fast one-shot
@@ -232,7 +288,6 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 			commitGenerationAbortController.signal.throwIfAborted()
 			if (chunk.type === "text") {
 				response += chunk.text
-				inputBox.value = extractCommitMessage(response)
 			} else if (chunk.type === "done" && chunk.success === false) {
 				// The SDK stream finished with a provider/auth error. Capture it so
 				// we can surface the real reason instead of a generic empty response.
@@ -240,13 +295,24 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 			}
 		}
 
-		if (!inputBox.value) {
+		const generatedMessage = extractCommitMessage(response)
+		if (!generatedMessage) {
 			if (streamError) {
 				throw new Error(streamError)
 			}
 			throw new Error(
 				"The model returned an empty response. Check that the selected provider and model are configured correctly.",
 			)
+		}
+		const editedMessage = await vscode.window.showInputBox({
+			title: "Review Generated Commit Message",
+			prompt: "Edit the subject/body, then confirm to place it in Source Control. This does not commit or push.",
+			value: generatedMessage,
+			ignoreFocusOut: true,
+		})
+		if (editedMessage?.trim()) {
+			inputBox.value = editedMessage.trim()
+			Logger.log("[GitCommitMessage] Generated message placed in Source Control after user confirmation")
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
@@ -255,6 +321,7 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 			message: `Failed to generate commit message: ${errorMessage}`,
 		})
 	} finally {
+		commitGenerationAbortController = undefined
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 	}
 }

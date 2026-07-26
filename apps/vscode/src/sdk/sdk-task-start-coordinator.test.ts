@@ -2,6 +2,7 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { isDirectory } from "@/utils/fs"
+import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 import { SdkTaskStartCoordinator, type SdkTaskStartCoordinatorOptions } from "./sdk-task-start-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -146,6 +147,48 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("revalidates expired credentials and marks an interrupted state-changing tool without replaying it", async () => {
+		const { coordinator, options } = makeCoordinator()
+		options.loadInitialMessages.mockResolvedValue(
+			sanitizeInitialMessagesForSessionStart([
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool-edit-1",
+							name: "apply_patch",
+							input: { patch: "state-changing payload" },
+						},
+					],
+				},
+			]),
+		)
+
+		await coordinator.reinitExistingTaskFromId("task-1")
+
+		expect(options.revalidateBedrockForResume).toHaveBeenCalledWith("task-1")
+		expect(options.revalidateBedrockForResume.mock.invocationCallOrder[0]).toBeLessThan(
+			options.sessions.startNewSession.mock.invocationCallOrder[0],
+		)
+		const startInput = options.sessions.startNewSession.mock.calls[0][0]
+		expect(startInput.initialMessages).toEqual([
+			expect.objectContaining({ role: "assistant" }),
+			expect.objectContaining({
+				role: "user",
+				content: [
+					expect.objectContaining({
+						type: "tool_result",
+						tool_use_id: "tool-edit-1",
+						is_error: true,
+						content: expect.stringContaining("not replayed"),
+					}),
+				],
+			}),
+		])
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
 	it("falls back to the workspace root when a stored task cwd is unavailable", async () => {
 		const historyItem: HistoryItem = {
 			id: "task-1",
@@ -183,6 +226,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	}
 	const tempHost = {
 		readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
+		get: vi.fn().mockResolvedValue(undefined),
 		dispose: vi.fn().mockResolvedValue(undefined),
 	}
 	const sdkHost = {
@@ -237,6 +281,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		resolveContextMentions: vi.fn(async (text: string) => `resolved: ${text}`),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		revalidateBedrockForResume: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskStartCoordinatorOptions & {
 		sessions: SdkTaskStartCoordinatorOptions["sessions"] & {
 			startNewSession: ReturnType<typeof vi.fn>
@@ -259,6 +304,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: ReturnType<typeof vi.fn>
 		resolveContextMentions: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		revalidateBedrockForResume: ReturnType<typeof vi.fn>
 	}
 
 	return {

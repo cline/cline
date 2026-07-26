@@ -125,7 +125,11 @@ describe("SessionVersioningService", () => {
 		const result = await new SessionVersioningService().restoreCheckpoint({
 			sessionId: "source-session",
 			checkpointRunCount: 2,
-			restore: { messages: true, workspace: true },
+			restore: {
+				messages: true,
+				workspace: true,
+				workspaceApproved: true,
+			},
 			start: { marker: true },
 			getSession: async (sessionId) =>
 				sessionId === "source-session" ? sourceSession : restoredSession,
@@ -165,7 +169,11 @@ describe("SessionVersioningService", () => {
 		const result = await new SessionVersioningService().restoreCheckpoint({
 			sessionId: "source-session",
 			checkpointRunCount: 1,
-			restore: { messages: false, workspace: true },
+			restore: {
+				messages: false,
+				workspace: true,
+				workspaceApproved: true,
+			},
 			getSession: async () => makeSession(),
 			readMessages: async () => {
 				throw new Error("messages should not be read");

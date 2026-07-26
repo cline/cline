@@ -67,7 +67,15 @@ describe("sanitizeInitialMessagesForSessionStart", () => {
 		expect(result).toHaveLength(3)
 		expect(result[1]).toMatchObject({
 			role: "user",
-			content: [{ type: "tool_result", tool_use_id: "toolu_1", name: "read_file" }],
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "toolu_1",
+					name: "read_file",
+					is_error: true,
+					content: expect.stringContaining("not replayed"),
+				},
+			],
 		})
 	})
 
