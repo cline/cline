@@ -12,13 +12,15 @@ interface Star {
 	color: string;
 }
 
-// Big blurred gradient blobs that slowly drift/rotate to fake an aurora.
+// Big soft gradient blobs that slowly drift to fake an aurora. Softness is
+// baked into the gradient stops (no `filter: blur`) so the layers rasterize
+// once and every animation frame is compositor-only work.
 const BLOBS = [
 	{
 		id: "periwinkle-left",
 		position: "left-[-20%] bottom-[-40%] w-[70%] h-[80%]",
 		gradient:
-			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-periwinkle) 64%, transparent), transparent 70%)",
+			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-periwinkle) 64%, transparent), color-mix(in oklab, var(--brand-periwinkle) 30%, transparent) 42%, transparent 70%)",
 		duration: "11s",
 		delay: "0s",
 		reverse: false,
@@ -27,7 +29,7 @@ const BLOBS = [
 		id: "violet-right",
 		position: "right-[-15%] bottom-[-40%] w-[65%] h-[85%]",
 		gradient:
-			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-violet) 58%, transparent), transparent 70%)",
+			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-violet) 58%, transparent), color-mix(in oklab, var(--brand-violet) 27%, transparent) 42%, transparent 70%)",
 		duration: "12.5s",
 		delay: "-12s",
 		reverse: true,
@@ -46,14 +48,20 @@ function seededUnit(index: number, salt: number): number {
 }
 
 /**
- * A decorative aurora background built entirely from CSS: blurred gradient
+ * A decorative aurora background built entirely from CSS: soft gradient
  * blobs drifting on keyframe animations, plus twinkling star dots. No canvas,
  * no WebGL, no per-frame JS. Absolutely positioned to fill its nearest
  * positioned parent; pointer events pass through.
  *
+ * Performance contract: no `filter: blur` anywhere (soft edges come from
+ * gradient falloff + static masks) and animations only touch `opacity` and
+ * `transform`, so the whole effect stays on the compositor. Blurring these
+ * full-viewport layers used to force a main-thread re-raster every frame and
+ * dragged the entire app below 10fps on modest hardware.
+ *
  * Keyframes (`aurora-drift`, `aurora-twinkle`) live in app/globals.css.
  */
-export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
+export function AuroraBackground({ starCount = 32 }: { starCount?: number }) {
 	// The field is deterministic so server and browser markup always agree.
 	const stars = useMemo<Star[]>(
 		() =>
@@ -83,14 +91,14 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 			className="pointer-events-none absolute inset-0 overflow-hidden"
 		>
 			<div
-				className="aurora-horizon absolute inset-x-[-8%] bottom-[-3%] h-[40%] opacity-60 blur-[64px]"
+				className="aurora-horizon aurora-soft-band absolute inset-x-[-8%] bottom-[-3%] h-[40%] opacity-60"
 				style={{
 					background:
 						"linear-gradient(90deg, color-mix(in oklab, var(--brand-lilac) 58%, transparent), color-mix(in oklab, var(--brand-magenta) 62%, transparent) 42%, color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 78%, color-mix(in oklab, var(--brand-cyan) 58%, transparent))",
 				}}
 			/>
 			<div
-				className="aurora-current absolute bottom-[3%] left-[-45%] h-[30%] w-[125%] opacity-50 blur-[46px]"
+				className="aurora-current aurora-soft-band absolute bottom-[3%] left-[-45%] h-[30%] w-[125%] opacity-50"
 				style={{
 					animationDelay: "-2s",
 					animationDuration: "9s",
@@ -99,7 +107,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 				}}
 			/>
 			<div
-				className="aurora-current aurora-current-reverse absolute bottom-[-5%] right-[-42%] h-[34%] w-[120%] opacity-45 blur-[52px]"
+				className="aurora-current aurora-current-reverse aurora-soft-band absolute bottom-[-5%] right-[-42%] h-[34%] w-[120%] opacity-45"
 				style={{
 					animationDelay: "-6s",
 					animationDuration: "12s",
@@ -110,7 +118,7 @@ export function AuroraBackground({ starCount = 48 }: { starCount?: number }) {
 			{BLOBS.map((blob) => (
 				<div
 					key={blob.id}
-					className={`aurora-motion absolute blur-[64px] ${blob.reverse ? "aurora-motion-reverse" : ""} ${blob.position}`}
+					className={`aurora-motion absolute ${blob.reverse ? "aurora-motion-reverse" : ""} ${blob.position}`}
 					style={{
 						background: blob.gradient,
 						animationDuration: blob.duration,

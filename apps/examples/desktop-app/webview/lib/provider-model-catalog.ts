@@ -48,10 +48,47 @@ export function buildProviderModelCatalog(
 	};
 }
 
+// The provider catalog payload is large (hundreds of KB) and several
+// components request it at startup (composer, onboarding, credentials sync).
+// Deduplicate concurrent requests and keep the response briefly so the app
+// boot issues a single round-trip instead of one per consumer.
+const PROVIDER_CATALOG_CACHE_TTL_MS = 5_000;
+
+let providerCatalogCache: {
+	fetchedAt: number;
+	promise: Promise<ProviderCatalogResponse>;
+} | null = null;
+
+export function fetchProviderCatalog(options?: {
+	fresh?: boolean;
+}): Promise<ProviderCatalogResponse> {
+	const now = Date.now();
+	if (
+		!options?.fresh &&
+		providerCatalogCache &&
+		now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+	) {
+		return providerCatalogCache.promise;
+	}
+	const promise = desktopClient
+		.invoke<ProviderCatalogResponse>("list_provider_catalog")
+		.catch((error) => {
+			// Never cache failures.
+			if (providerCatalogCache?.promise === promise) {
+				providerCatalogCache = null;
+			}
+			throw error;
+		});
+	providerCatalogCache = { fetchedAt: now, promise };
+	return promise;
+}
+
+export function invalidateProviderCatalogCache(): void {
+	providerCatalogCache = null;
+}
+
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
-	const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-		"list_provider_catalog",
-	);
+	const payload = await fetchProviderCatalog();
 	return buildProviderModelCatalog(payload.providers ?? []);
 }
 

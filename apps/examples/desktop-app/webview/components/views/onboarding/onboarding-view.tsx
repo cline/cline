@@ -27,7 +27,8 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import type { Provider, ProviderCatalogResponse } from "@/lib/provider-schema";
+import { fetchProviderCatalog } from "@/lib/provider-model-catalog";
+import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
@@ -193,9 +194,7 @@ function ConnectStep({
 		let cancelled = false;
 		async function loadProviders() {
 			try {
-				const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-					"list_provider_catalog",
-				);
+				const payload = await fetchProviderCatalog();
 				if (cancelled) {
 					return;
 				}

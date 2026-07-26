@@ -20,20 +20,19 @@
 	}
 }
 
-/* Hero heading cycling verb (components/views/chat/welcome-chat.tsx) */
+/*
+ * Hero heading cycling verb (components/views/chat/welcome-chat.tsx).
+ * Opacity + transform only: animating `filter: blur` on text forces
+ * main-thread repaints for every character each cycle.
+ */
 @keyframes hero-word-in {
 	0% {
 		opacity: 0;
 		transform: translateY(0.42em);
-		filter: blur(6px);
-	}
-	60% {
-		filter: blur(0);
 	}
 	100% {
 		opacity: 1;
 		transform: translateY(0);
-		filter: blur(0);
 	}
 }
 
@@ -222,34 +221,42 @@
 	background: var(--card);
 }
 
-/* Aurora background (components/ui/aurora-bg.tsx) */
+/*
+ * Aurora background (components/ui/aurora-bg.tsx).
+ *
+ * Performance contract: no `filter: blur` and no animated properties beyond
+ * `opacity` + `transform`, so the layers rasterize once and every animation
+ * frame is compositor-only. Blurred full-viewport layers used to be
+ * re-rendered on every frame of their drift animations, which alone dropped
+ * the whole app below 10fps on modest hardware.
+ */
 @keyframes aurora-drift {
 	0% {
 		opacity: 0.55;
-		transform: translate3d(-8%, 5%, 0) rotate(-5deg) scale(0.94);
+		transform: translate3d(-8%, 5%, 0) scale(0.94);
 	}
 	50% {
 		opacity: 0.92;
-		transform: translate3d(13%, -10%, 0) rotate(6deg) scale(1.11);
+		transform: translate3d(13%, -10%, 0) scale(1.11);
 	}
 	100% {
 		opacity: 0.62;
-		transform: translate3d(-5%, -2%, 0) rotate(-3deg) scale(1.02);
+		transform: translate3d(-5%, -2%, 0) scale(1.02);
 	}
 }
 
 @keyframes aurora-drift-reverse {
 	0% {
 		opacity: 0.62;
-		transform: translate3d(10%, -6%, 0) rotate(5deg) scale(1.08);
+		transform: translate3d(10%, -6%, 0) scale(1.08);
 	}
 	50% {
 		opacity: 0.9;
-		transform: translate3d(-12%, -12%, 0) rotate(-6deg) scale(0.96);
+		transform: translate3d(-12%, -12%, 0) scale(0.96);
 	}
 	100% {
 		opacity: 0.58;
-		transform: translate3d(6%, 2%, 0) rotate(3deg) scale(1.04);
+		transform: translate3d(6%, 2%, 0) scale(1.04);
 	}
 }
 
@@ -271,15 +278,15 @@
 @keyframes aurora-current-sweep {
 	0% {
 		opacity: 0.28;
-		transform: translate3d(-16%, 8%, 0) rotate(-8deg) scaleX(0.84);
+		transform: translate3d(-16%, 8%, 0) scaleX(0.84);
 	}
 	50% {
 		opacity: 0.72;
-		transform: translate3d(17%, -8%, 0) rotate(4deg) scaleX(1.08);
+		transform: translate3d(17%, -8%, 0) scaleX(1.08);
 	}
 	100% {
 		opacity: 0.38;
-		transform: translate3d(28%, 4%, 0) rotate(-2deg) scaleX(0.94);
+		transform: translate3d(28%, 4%, 0) scaleX(0.94);
 	}
 }
 
@@ -287,13 +294,32 @@
 	0%,
 	100% {
 		opacity: 0.15;
-		transform: translate3d(0, 4px, 0) rotate(0deg) scale(0.78);
 	}
 	50% {
 		opacity: 0.78;
-		transform: translate3d(var(--aurora-star-x, 5px), -8px, 0) rotate(35deg)
-			scale(1.08);
 	}
+}
+
+/*
+ * Static vertical fade replacing the old `filter: blur(46-64px)` on the big
+ * gradient bands: the mask rasterizes once with the layer, so soft edges no
+ * longer cost anything per animation frame.
+ */
+.aurora-soft-band {
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 32%,
+		black 68%,
+		transparent
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 32%,
+		black 68%,
+		transparent
+	);
 }
 
 .aurora-horizon {
@@ -319,6 +345,7 @@
 	animation-timing-function: ease-in-out;
 	animation-iteration-count: infinite;
 	animation-direction: alternate;
+	will-change: opacity, transform;
 }
 
 .aurora-motion-reverse {
@@ -326,14 +353,9 @@
 }
 
 .aurora-star {
-	--aurora-star-x: 5px;
 	animation-name: aurora-twinkle;
 	animation-timing-function: ease-in-out;
 	animation-iteration-count: infinite;
-}
-
-.aurora-star:nth-of-type(2n) {
-	--aurora-star-x: -6px;
 }
 
 @media (prefers-reduced-motion: reduce) {
