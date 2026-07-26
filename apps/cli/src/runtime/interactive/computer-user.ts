@@ -6,6 +6,7 @@ import {
 	createComputerUserDriverTools,
 	createComputerUseToolFromEnv,
 	type ProviderSettingsManager,
+	toProviderConfig,
 } from "@cline/core";
 import type { AgentTool } from "@cline/shared";
 import { createCliCore } from "../../session/session";
@@ -21,14 +22,18 @@ import type { Config } from "../../utils/types";
  * `computer` tool; when the coordinator is active the driver deliberately
  * does NOT get the raw tool, so all GUI work flows through the helper.
  *
- * Helper consistency boundary: provider, credentials, tool inventory, and
- * prompt are resolved here, once, when the runtime starts. Changing them
- * requires a new CLI session.
+ * Helper consistency boundary: provider, credentials, reasoning, tool
+ * inventory, and prompt are resolved here, once, when the runtime starts.
+ * Changing them requires a new CLI session.
  */
 
 const HELPER_PROVIDER_ID = "anthropic";
 const HELPER_DEFAULT_MODEL_ID = "claude-sonnet-4-6";
 const HELPER_MODEL_ENV_VAR = "CLINE_COMPUTER_USER_MODEL";
+const HELPER_REASONING = {
+	thinking: true,
+	reasoningEffort: "high" as const,
+};
 
 /**
  * Resolves the helper's Anthropic model id. The helper's model is chosen
@@ -95,6 +100,27 @@ export async function createInteractiveComputerUser(input: {
 		helperSettings,
 		input.env ?? process.env,
 	);
+	// Helper model and reasoning settings become effective together when this
+	// session is created. Keep the provider config and session config derived
+	// from this snapshot so saved manual thinking budgets cannot conflict with
+	// adaptive thinking on current Claude models.
+	const helperProviderConfig = {
+		...toProviderConfig({
+			...helperSettings,
+			provider: HELPER_PROVIDER_ID,
+			model: helperModelId,
+			client: undefined,
+			protocol: undefined,
+			routingProviderId: undefined,
+			reasoning: {
+				enabled: HELPER_REASONING.thinking,
+				effort: HELPER_REASONING.reasoningEffort,
+			},
+		}),
+		clientType: undefined,
+		routingProviderId: undefined,
+		thinkingBudgetTokens: undefined,
+	};
 
 	// The helper config and the coordinator reference each other (the
 	// collaboration tools call back into the coordinator). Break the cycle
@@ -103,9 +129,14 @@ export async function createInteractiveComputerUser(input: {
 	// session can start.
 	const helperExtraTools: AgentTool[] = [computerTool];
 	const helperConfig = {
-		providerId: HELPER_PROVIDER_ID,
-		modelId: helperModelId,
-		apiKey: helperApiKey,
+		providerId: helperProviderConfig.providerId,
+		modelId: helperProviderConfig.modelId,
+		apiKey: helperProviderConfig.apiKey,
+		baseUrl: helperProviderConfig.baseUrl,
+		headers: helperProviderConfig.headers,
+		knownModels: helperProviderConfig.knownModels,
+		providerConfig: helperProviderConfig,
+		...HELPER_REASONING,
 		cwd: input.config.cwd,
 		workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
 		mode: "act" as const,
