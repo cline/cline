@@ -346,17 +346,24 @@
 }
 
 /*
+ * Two cases where the aurora would be animating for nobody.
+ *
  * A full-screen view (Settings) renders on top of the chat pane while leaving
- * it mounted and `inert` so its state survives. Without this the aurora keeps
- * animating underneath the overlay, so every view in the app inherits the
- * compositing cost of a screen nobody can see.
+ * it mounted and `inert` so its state survives, and a backgrounded window
+ * keeps animating at full rate. Either way the app pays the render cost of a
+ * screen nobody is looking at — on a machine without GPU compositing that is
+ * roughly two cores.
  */
 [inert] .aurora-root,
 [inert] .aurora-horizon,
 [inert] .aurora-current,
 [inert] .aurora-motion,
 [inert] .aurora-star,
-[inert] .hero-word-char {
+[inert] .hero-word-char,
+.aurora-root[data-paused] .aurora-horizon,
+.aurora-root[data-paused] .aurora-current,
+.aurora-root[data-paused] .aurora-motion,
+.aurora-root[data-paused] .aurora-star {
 	animation-play-state: paused;
 }
 

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { useWindowActive } from "@/hooks/use-window-active";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
@@ -36,31 +37,18 @@ const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
 function HeroHeading() {
 	const [verbIndex, setVerbIndex] = useState(0);
 
+	// Cycling the verb remounts a handful of nodes and restarts their entrance
+	// animation, which is wasted on a window the user is not looking at.
+	const windowActive = useWindowActive();
+
 	useEffect(() => {
 		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-		if (media.matches) return;
-		let interval: ReturnType<typeof setInterval> | undefined;
-		// Cycling the verb remounts a handful of nodes and restarts their
-		// entrance animation. Keeping that running in a background window burns
-		// frames for something nobody is looking at.
-		const sync = () => {
-			if (document.hidden) {
-				clearInterval(interval);
-				interval = undefined;
-				return;
-			}
-			if (interval) return;
-			interval = setInterval(() => {
-				setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
-			}, HERO_CYCLE_MS);
-		};
-		sync();
-		document.addEventListener("visibilitychange", sync);
-		return () => {
-			clearInterval(interval);
-			document.removeEventListener("visibilitychange", sync);
-		};
-	}, []);
+		if (media.matches || !windowActive) return;
+		const interval = setInterval(() => {
+			setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
+		}, HERO_CYCLE_MS);
+		return () => clearInterval(interval);
+	}, [windowActive]);
 
 	const verb = HERO_VERBS[verbIndex];
 

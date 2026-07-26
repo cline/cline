@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useWindowActive } from "@/hooks/use-window-active";
 
 interface Star {
 	left: string;
@@ -122,9 +123,12 @@ function seededUnit(index: number, salt: number): number {
  *
  * Keyframes (`aurora-drift`, `aurora-twinkle`) live in app/globals.css, which
  * also pauses them inside `[inert]` subtrees so a full-screen view on top of
- * the chat pane does not keep paying for animation it cannot show.
+ * the chat pane does not keep paying for animation it cannot show, and while
+ * the window is in the background.
  */
 export function AuroraBackground({ starCount = 28 }: { starCount?: number }) {
+	const windowActive = useWindowActive();
+
 	// The field is deterministic so server and browser markup always agree.
 	const stars = useMemo<Star[]>(
 		() =>
@@ -152,6 +156,7 @@ export function AuroraBackground({ starCount = 28 }: { starCount?: number }) {
 		<div
 			aria-hidden="true"
 			className="aurora-root pointer-events-none absolute inset-0 overflow-hidden"
+			data-paused={windowActive ? undefined : ""}
 		>
 			<div
 				className="aurora-horizon absolute inset-x-[-8%] bottom-[-34%] h-[84%] opacity-60"
