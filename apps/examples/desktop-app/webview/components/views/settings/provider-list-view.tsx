@@ -194,6 +194,12 @@ export function ProviderListContent({
 						<div
 							className={cn(
 								"flex min-h-11 items-center gap-4 border-b px-2 py-2 transition-colors hover:bg-accent/30",
+								// Cline ships ~175 providers, so the rows below the fold cost
+								// more in style and layout than the visible ones do. Skipping
+								// them keeps the list in the DOM (search, find-in-page and
+								// scrollbar geometry all still work) while the browser only
+								// lays out what is on screen.
+								"[contain-intrinsic-size:auto_44px] [content-visibility:auto]",
 								selectedProviderId === prov.id && "bg-accent/45",
 							)}
 							key={prov.id}
@@ -568,7 +574,7 @@ export function ProviderDetailContent({
 								<div className="max-h-125 overflow-y-scroll border-t">
 									{filteredModelList.map((model) => (
 										<div
-											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 transition-colors hover:bg-accent/30"
+											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 transition-colors [contain-intrinsic-size:auto_64px] [content-visibility:auto] hover:bg-accent/30"
 											key={model.id}
 										>
 											<div className="min-w-0 flex-1 font-mono">

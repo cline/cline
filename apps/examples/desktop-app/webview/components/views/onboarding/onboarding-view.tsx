@@ -400,9 +400,17 @@ function ConnectStep({
 											}
 										/>
 									</SelectTrigger>
-									<SelectContent>
+									<SelectContent className="w-(--radix-select-trigger-width)">
 										{providers.map((provider) => (
-											<SelectItem key={provider.id} value={provider.id}>
+											<SelectItem
+												// The catalog is ~165 API-key providers deep, and
+												// laying every row out on open cost more than the
+												// menu animation. Width is pinned to the trigger
+												// above so skipped rows cannot affect it.
+												className="[contain-intrinsic-size:auto_32px] [content-visibility:auto]"
+												key={provider.id}
+												value={provider.id}
+											>
 												{provider.name}
 											</SelectItem>
 										))}
