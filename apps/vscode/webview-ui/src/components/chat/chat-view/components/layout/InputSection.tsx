@@ -41,12 +41,12 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	} = chatState
 
 	const { isAtBottom, scrollToBottomAuto } = scrollBehavior
-	const { turnState } = useExtensionState()
+	const { turnState, bedrockStartup } = useExtensionState()
 	const legacyTaskRunning =
 		turnState === undefined &&
 		(lastMessage?.partial === true || (lastMessage?.type === "say" && lastMessage.say === "api_req_started"))
 	const allowQueuedSubmit = turnState?.phase === "streaming" || turnState?.phase === "awaiting_approval" || legacyTaskRunning
-	const submitDisabled = sendingDisabled && !allowQueuedSubmit
+	const submitDisabled = bedrockStartup?.phase !== "ready" || (sendingDisabled && !allowQueuedSubmit)
 
 	return (
 		<>

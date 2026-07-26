@@ -12,6 +12,7 @@ export function buildBedrockConnection(configuration: ApiConfiguration): Bedrock
 		profile: optionalString(configuration.awsProfile),
 		endpoint: optionalString(configuration.awsBedrockEndpoint),
 		caBundlePath: optionalString(configuration.awsBedrockCaBundlePath),
+		controlPlaneEndpoint: optionalString(configuration.awsBedrockControlPlaneEndpoint),
 	}
 }
 

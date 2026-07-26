@@ -332,6 +332,8 @@
 	},
 	"dependencies": {
 		"@bufbuild/protobuf": "^2.2.5",
+		"@aws-sdk/client-bedrock": "^3.922.0",
+		"@aws-sdk/client-sts": "^3.922.0",
 		"@cline/agents": "workspace:*",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",

@@ -37,6 +37,11 @@ type FieldDefinitions = Record<string, FieldDefinition<any>>
 const GLOBAL_STATE_FIELDS = {
 	clineVersion: { default: undefined as string | undefined },
 	bedrockInferenceMigrationVersion: { default: 0 as number },
+	bedrockSelectedTargetKind: {
+		default: undefined as "foundation-model" | "inference-profile" | undefined,
+	},
+	bedrockSelectedTargetArn: { default: undefined as string | undefined },
+	bedrockSelectedBaseModelId: { default: undefined as string | undefined },
 	taskHistory: { default: [] as HistoryItem[], isAsync: true },
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
@@ -65,6 +70,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	awsProfile: { default: undefined as string | undefined },
 	awsBedrockEndpoint: { default: undefined as string | undefined },
 	awsBedrockCaBundlePath: { default: undefined as string | undefined },
+	awsBedrockControlPlaneEndpoint: { default: undefined as string | undefined },
 	planModeApiModelId: { default: BEDROCK_DEFAULT_MODEL_ID as string },
 	planModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	planModeReasoningEffort: { default: undefined as string | undefined },

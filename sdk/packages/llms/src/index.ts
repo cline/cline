@@ -1,7 +1,3 @@
-export {
-	BEDROCK_DEFAULT_MODEL_ID,
-	BEDROCK_MODELS,
-} from "./models";
 export type {
 	ModelCollection,
 	ModelInfo,
@@ -10,13 +6,9 @@ export type {
 	ProviderProtocol,
 } from "./models";
 export {
-	BUILT_IN_PROVIDER,
-	BUILT_IN_PROVIDER_IDS,
-	createBedrockAgentModel,
-	createBedrockClient,
-	isBuiltInProviderId,
-	normalizeProviderId,
-} from "./providers";
+	BEDROCK_DEFAULT_MODEL_ID,
+	BEDROCK_MODELS,
+} from "./models";
 export type {
 	ApiHandler,
 	ApiStreamChunk,
@@ -38,4 +30,16 @@ export type {
 	ToolDefinition,
 	ToolResultContent,
 	ToolUseContent,
+} from "./providers";
+export {
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	createBedrockAgentModel,
+	createBedrockClient,
+	createBedrockCredentialProvider,
+	createBedrockTransport,
+	isBuiltInProviderId,
+	normalizeProviderId,
+	sanitizeBedrockError,
+	validateBedrockConnection,
 } from "./providers";

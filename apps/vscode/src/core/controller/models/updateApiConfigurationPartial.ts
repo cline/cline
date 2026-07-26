@@ -39,6 +39,15 @@ export async function updateApiConfigurationPartial(
 		for (const field of request.updateMask) {
 			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
 		}
+		const connectionChanged = request.updateMask.some((field) =>
+			[
+				"awsRegion",
+				"awsProfile",
+				"awsBedrockEndpoint",
+				"awsBedrockCaBundlePath",
+				"awsBedrockControlPlaneEndpoint",
+			].includes(field),
+		)
 		// Update storage and task API model shim
 		controller.stateManager.setApiConfiguration(updatedConfig)
 		if (controller.task) {
@@ -48,6 +57,7 @@ export async function updateApiConfigurationPartial(
 		}
 		// Notify webview
 		await controller.postStateToWebview()
+		if (connectionChanged) void controller.bedrockStartup.connectionChanged()
 
 		return Empty.create()
 	} catch (error) {

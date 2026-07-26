@@ -65,6 +65,7 @@ message Settings {
   optional bool worktrees_enabled = 172;
   optional bool show_feature_tips = 182;
   optional string aws_bedrock_ca_bundle_path = 187;
+  optional string aws_bedrock_control_plane_endpoint = 188;
 }
 
 message State {

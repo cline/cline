@@ -76,8 +76,8 @@ describe("Bedrock-only runtime", () => {
 		expect(mocks.fromNodeProviderChain).toHaveBeenCalledWith({
 			clientConfig: { region: "us-east-1" },
 		});
-		const credentialProvider = mocks.createAmazonBedrock.mock.calls[0][0]
-			.credentialProvider;
+		const credentialProvider =
+			mocks.createAmazonBedrock.mock.calls[0][0].credentialProvider;
 		await expect(credentialProvider()).resolves.toEqual({
 			accessKeyId: "temporary-access",
 			secretAccessKey: "temporary-secret",
@@ -106,8 +106,26 @@ describe("Bedrock-only runtime", () => {
 			ignoreCache: true,
 			clientConfig: { region: "ca-central-1" },
 		});
-		expect(JSON.stringify(mocks.createAmazonBedrock.mock.calls[0][0])).not.toContain(
-			"resolved-outside-settings",
-		);
+		expect(
+			JSON.stringify(mocks.createAmazonBedrock.mock.calls[0][0]),
+		).not.toContain("resolved-outside-settings");
+	});
+
+	it.each([
+		"us.anthropic.claude-sonnet-4-20250514-v1:0",
+		"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/application-profile",
+	])("passes the selected profile invocation value through unchanged: %s", async (invocationId) => {
+		mocks.fromNodeProviderChain.mockReturnValue(async () => ({
+			accessKeyId: "resolved-outside-settings",
+			secretAccessKey: "resolved-outside-settings",
+		}));
+		const provider = await createBedrockProviderModule({
+			providerId: "bedrock",
+			options: { connection: { region: "us-east-1" } },
+		});
+
+		provider.model(invocationId);
+
+		expect(mocks.model).toHaveBeenCalledWith(invocationId);
 	});
 });

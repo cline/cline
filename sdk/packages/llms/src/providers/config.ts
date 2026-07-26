@@ -31,6 +31,7 @@ export interface BedrockConnection {
 	profile?: string;
 	endpoint?: string;
 	caBundlePath?: string;
+	controlPlaneEndpoint?: string;
 }
 
 export interface ReasoningConfig {
@@ -64,9 +65,11 @@ export function hasCapability(
 	config: ProviderConfig,
 	capability: ProviderCapability,
 ): boolean {
-	return config.modelInfo?.capabilities?.includes(
-		capability === "vision" ? "images" : capability,
-	) ?? false;
+	return (
+		config.modelInfo?.capabilities?.includes(
+			capability === "vision" ? "images" : capability,
+		) ?? false
+	);
 }
 
 export function supportsReasoning(config: ProviderConfig): boolean {

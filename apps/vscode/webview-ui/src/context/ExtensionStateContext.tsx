@@ -224,6 +224,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	const didOpenBedrockStartupRef = useRef(false)
 
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
@@ -278,6 +279,15 @@ export const ExtensionStateContextProvider: React.FC<{
 							stateData.turnState = replicaRef.current.turnState
 
 							const newState = stateData
+							if (
+								!didOpenBedrockStartupRef.current &&
+								newState.bedrockStartup?.phase !== "ready" &&
+								(newState.clineMessages?.length ?? 0) === 0
+							) {
+								didOpenBedrockStartupRef.current = true
+								setSettingsTargetSection("api-config")
+								setShowSettings(true)
+							}
 
 							const hasBedrockConnection = Boolean(
 								newState.apiConfiguration?.awsRegion ||

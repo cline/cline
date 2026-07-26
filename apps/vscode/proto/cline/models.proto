@@ -13,6 +13,12 @@ service ModelsService {
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
   rpc updateApiConfiguration(UpdateApiConfigurationRequestNew) returns (Empty);
   rpc updateApiConfigurationPartial(UpdateApiConfigurationPartialRequest) returns (Empty);
+  rpc refreshBedrockDiscovery(EmptyRequest) returns (Empty);
+  rpc retryBedrockStartup(EmptyRequest) returns (Empty);
+  rpc cancelBedrockStartup(EmptyRequest) returns (Empty);
+  rpc selectBedrockTarget(BedrockTargetSelectionRequest) returns (Empty);
+  rpc copyBedrockDiagnostics(EmptyRequest) returns (Empty);
+  rpc openBedrockDiagnosticLog(EmptyRequest) returns (Empty);
 }
 
 message ModelsApiSecrets {
@@ -25,6 +31,7 @@ message ModelsApiOptions {
   optional string aws_profile = 11;
   optional string aws_bedrock_endpoint = 12;
   optional string aws_bedrock_ca_bundle_path = 45;
+  optional string aws_bedrock_control_plane_endpoint = 46;
   reserved 2 to 6, 8 to 10, 13 to 44;
 
   reserved 100; // was plan_mode_api_provider
@@ -46,6 +53,7 @@ message ModelsApiConfiguration {
   optional string aws_profile = 18;
   optional string aws_bedrock_endpoint = 19;
   optional string aws_bedrock_ca_bundle_path = 88;
+  optional string aws_bedrock_control_plane_endpoint = 89;
   reserved 1, 2, 4 to 13, 15 to 17, 20 to 87;
 
   reserved 100; // was plan_mode_api_provider
@@ -81,4 +89,9 @@ message UpdateApiConfigurationPartialRequest {
   Metadata metadata = 1;
   ModelsApiConfiguration api_configuration = 2;
   google.protobuf.FieldMask update_mask = 3;
+}
+
+message BedrockTargetSelectionRequest {
+  string kind = 1;
+  string invocation_id = 2;
 }

@@ -1,3 +1,9 @@
+export { sanitizeBedrockError } from "./providers/bedrock-errors";
+export {
+	createBedrockCredentialProvider,
+	createBedrockTransport,
+	validateBedrockConnection,
+} from "./providers/bedrock-transport";
 export {
 	createBedrockAgentModel,
 	createBedrockClient,

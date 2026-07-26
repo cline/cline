@@ -3,6 +3,7 @@
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
+import type { BedrockStartupState } from "./bedrock-startup"
 import { ClineRulesToggles } from "./cline-rules"
 import type { Environment } from "./config-types"
 import { HistoryItem } from "./HistoryItem"
@@ -32,6 +33,7 @@ export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
 	apiConfiguration?: ApiConfiguration
+	bedrockStartup?: BedrockStartupState
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string

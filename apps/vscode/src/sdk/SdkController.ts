@@ -28,6 +28,7 @@ import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { ExtensionRegistryInfo } from "@/registry"
+import { BedrockStartupController } from "@/services/bedrock/bedrock-startup-controller"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { McpHub } from "@/services/mcp/McpHub"
 import type { ClineExtensionContext } from "@/shared/cline"
@@ -156,6 +157,7 @@ export class Controller {
 
 	mcpHub: McpHub
 	readonly stateManager: StateManager
+	readonly bedrockStartup: BedrockStartupController
 
 	// Lazy terminal manager for foreground (VS Code terminal) command execution.
 	// Created on first use; shared across all sessions in this Controller's lifetime.
@@ -464,6 +466,20 @@ export class Controller {
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
 
+		this.bedrockStartup = new BedrockStartupController({
+			stateManager: this.stateManager,
+			workspaceRoot: async () => this.getWorkspaceRoot(),
+			logDirectory: this.context.logUri.fsPath,
+			onStateChanged: () => this.postStateToWebview(),
+		})
+		if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") {
+			queueMicrotask(() => {
+				void this.bedrockStartup.start().catch((error) => {
+					Logger.error("[SdkController] Bedrock startup doctor failed:", error)
+				})
+			})
+		}
+
 		Logger.log("[SdkController] Initialized with the Bedrock SDK adapter and gRPC bridge")
 	}
 
@@ -495,6 +511,7 @@ export class Controller {
 
 	async dispose(): Promise<void> {
 		this.isDisposed = true
+		this.bedrockStartup.dispose()
 		// Tear down the debounced state-post machinery before downstream resources
 		// are disposed below — see StatePostDebouncer.dispose().
 		await this.statePostDebouncer.dispose()
@@ -675,6 +692,7 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
+		this.bedrockStartup.assertReady()
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
@@ -683,6 +701,7 @@ export class Controller {
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		this.bedrockStartup.assertReady()
 		this.turnStateTracker.set("streaming")
 		this.messageTranslatorState.clearTurnOutcome()
 		await this.taskStart.reinitExistingTaskFromId(taskId)
@@ -768,6 +787,7 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		this.bedrockStartup.assertReady()
 		const turnStateBefore = this.turnStateTracker.get()
 
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
@@ -789,6 +809,7 @@ export class Controller {
 		files?: string[]
 		restoreWorkspace?: boolean
 	}): Promise<void> {
+		this.bedrockStartup.assertReady()
 		const editedText = input.text.trim()
 		if (!editedText && (input.images?.length ?? 0) === 0 && (input.files?.length ?? 0) === 0) {
 			throw new Error("Edited message cannot be empty")
@@ -1377,6 +1398,7 @@ export class Controller {
 			const minter = this.messageTranslatorState.getMinter()
 			return {
 				...state,
+				bedrockStartup: this.bedrockStartup.state,
 				currentTaskItem: this.task?.taskId
 					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
 					: undefined,

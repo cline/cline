@@ -15,6 +15,12 @@ describe("Bedrock transport", () => {
 				endpoint: "http://localhost:8080",
 			}),
 		).toThrow("BEDROCK_ENDPOINT");
+		expect(() =>
+			validateBedrockConnection({
+				region: "us-east-1",
+				controlPlaneEndpoint: "http://bedrock.us-east-1.amazonaws.com",
+			}),
+		).toThrow("BEDROCK_CONTROL_PLANE_ENDPOINT");
 	});
 
 	it("requires a workspace for relative CA paths", async () => {
