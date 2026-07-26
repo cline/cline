@@ -61,7 +61,23 @@ const KNOWN_API_PROVIDERS = {
 	"cline-pass": true,
 } satisfies Record<ApiProvider, true>
 
-const normalizeProviderId = (raw: string): string => raw.trim().toLowerCase()
+/**
+ * Spelling aliases folded into the canonical extension provider id at parse
+ * time. The SDK catalog (and therefore the settings UI's provider listings)
+ * uses `openai-compatible` for the OpenAI Compatible built-in, while the
+ * extension's config/storage layer has always used `openai`. Normalizing here
+ * keeps every gRPC entry point (commit selection, provider config reads and
+ * writes, model resolution) operating on the single spelling the rest of the
+ * extension is keyed by.
+ */
+const PROVIDER_ID_ALIASES: Readonly<Record<string, string>> = {
+	"openai-compatible": "openai",
+}
+
+const normalizeProviderId = (raw: string): string => {
+	const lowered = raw.trim().toLowerCase()
+	return PROVIDER_ID_ALIASES[lowered] ?? lowered
+}
 
 const knownProviderIds = new Set(Object.keys(KNOWN_API_PROVIDERS).map(normalizeProviderId))
 const warnedUnknownProviderIds = new Set<string>()
