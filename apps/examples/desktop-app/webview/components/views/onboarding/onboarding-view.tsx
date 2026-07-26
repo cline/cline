@@ -240,6 +240,11 @@ function ConnectStep({
 				provider: "cline",
 			});
 			if (signInAttemptRef.current !== attempt) {
+				// The sign-in completed after the user cancelled but before the
+				// backend processed the cancellation, so credentials were saved.
+				// Refresh the account so the card reflects the real signed-in
+				// state instead of silently diverging from disk.
+				void refreshAccount();
 				return;
 			}
 			rememberProviderSelection({ id: "cline" });
@@ -260,6 +265,13 @@ function ConnectStep({
 	const cancelSignInWithCline = useCallback(() => {
 		signInAttemptRef.current += 1;
 		setSigningIn(false);
+		// Cancel the backend browser round-trip so a later-completed
+		// authorization in the abandoned tab can never persist credentials.
+		desktopClient
+			.invoke("cancel_provider_oauth_login", { provider: "cline" })
+			.catch(() => {
+				// The attempt counter above already discards a stale completion.
+			});
 	}, []);
 
 	const connectWithClineApiKey = useCallback(async () => {
@@ -275,6 +287,29 @@ function ConnectStep({
 				enabled: true,
 				api_key: key,
 			});
+			// Verify the key against the account API before advancing; the
+			// account context swallows errors, so an invalid key would
+			// otherwise onboard the user into a broken signed-in state.
+			try {
+				await desktopClient.invoke("cline_account", {
+					action: "clineAccount",
+					operation: "fetchMe",
+				});
+			} catch (verifyError) {
+				// Roll back the persisted key so an unusable credential does
+				// not linger in provider settings.
+				await desktopClient
+					.invoke("save_provider_settings", {
+						provider: "cline",
+						api_key: "",
+					})
+					.catch(() => undefined);
+				const message =
+					verifyError instanceof Error
+						? verifyError.message
+						: String(verifyError);
+				throw new Error(`the key could not be verified (${message})`);
+			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
 			onConnected({ kind: "cline" });

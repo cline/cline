@@ -238,6 +238,7 @@ export function useChatSession() {
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
+	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
@@ -268,6 +269,9 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		promptsInQueueRef.current = promptsInQueue;
+	}, [promptsInQueue]);
 
 	const setWorkspacePath = useCallback((workspacePath: string): void => {
 		workspaceSelectionRequestRef.current += 1;
@@ -833,7 +837,12 @@ export function useChatSession() {
 						? "cancelled"
 						: doneReason === "error"
 							? "failed"
-							: "completed",
+							: // Prompts still waiting in the queue mean the session is
+								// only between turns, not done: keep the composer in the
+								// busy state until the queue drains.
+								promptsInQueueRef.current.length > 0
+								? "running"
+								: "completed",
 				);
 				return;
 			}

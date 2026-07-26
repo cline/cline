@@ -525,6 +525,96 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("stays running on chat_done while more prompts wait in the queue", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const queueStateHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "prompts_in_queue_state",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+		expect(queueStateHandler).toBeDefined();
+
+		// A second prompt is waiting in the queue when the first turn ends.
+		await act(async () => {
+			queueStateHandler?.({
+				sessionId: current.sessionId,
+				items: [{ id: "queued-2", prompt: "Second prompt", steer: false }],
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("running");
+
+		// Once the queue drains, the next chat_done releases the composer.
+		await act(async () => {
+			queueStateHandler?.({
+				sessionId: current.sessionId,
+				items: [],
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-2",
+					prompt: "Second prompt",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+		expect(current.status).toBe("completed");
+	});
+
 	it("marks a queued turn as failed when chat_done reports an error", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
