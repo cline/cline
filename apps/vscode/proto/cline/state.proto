@@ -114,6 +114,8 @@ message Secrets {
 message Settings {
   reserved 150; // was custom_prompt (removed - compact prompt setting no longer supported)
   reserved "custom_prompt";
+  reserved 139; // was max_consecutive_mistakes (removed; the SDK owns the mistake limit)
+  reserved "max_consecutive_mistakes";
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
