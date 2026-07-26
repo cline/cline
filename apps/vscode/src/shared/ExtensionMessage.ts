@@ -117,7 +117,6 @@ export interface ExtensionState {
 	compactionStrategy?: string
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
-	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
@@ -222,7 +221,6 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
-	| "error_retry"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
@@ -230,7 +228,6 @@ export type ClineSay =
 	| "completion_result"
 	| "user_feedback"
 	| "user_feedback_diff"
-	| "api_req_retried"
 	| "command"
 	| "command_output"
 	| "tool"
@@ -369,12 +366,6 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
-	retryStatus?: {
-		attempt: number
-		maxAttempts: number
-		delaySec: number
-		errorSnippet?: string
-	}
 }
 
 /**
