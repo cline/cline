@@ -63,7 +63,6 @@ export async function getStateToPostToWebview(controller: {
 	const isNewUser = stateManager.getGlobalStateKey("isNewUser")
 	const welcomeViewCompleted = !!stateManager.getGlobalStateKey("welcomeViewCompleted")
 
-	const customPrompt = stateManager.getGlobalSettingsKey("customPrompt")
 	const mcpResponsesCollapsed = stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 	const favoritedModelIds = stateManager.getGlobalStateKey("favoritedModelIds")
 	const lastDismissedInfoBannerVersion = stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
@@ -150,7 +149,6 @@ export async function getStateToPostToWebview(controller: {
 		welcomeViewCompleted,
 		onboardingModels,
 		mcpResponsesCollapsed,
-		customPrompt,
 		taskHistory: processedTaskHistory,
 		shouldShowAnnouncement,
 		favoritedModelIds,
