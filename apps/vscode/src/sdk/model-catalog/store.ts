@@ -62,6 +62,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 		asksage: "asksageApiKey",
 		xai: "xaiApiKey",
 		moonshot: "moonshotApiKey",
+		"kimi-for-coding": "kimiForCodingApiKey",
 		zai: "zaiApiKey",
 		huggingface: "huggingFaceApiKey",
 		nebius: "nebiusApiKey",

@@ -113,6 +113,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "kimi-for-coding":
+				if (!apiConfiguration.kimiForCodingApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "nebius":
 				if (!apiConfiguration.nebiusApiKey) {
 					return "You must provide a valid API key or choose a different provider."

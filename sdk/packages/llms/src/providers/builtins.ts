@@ -40,6 +40,7 @@ import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	ANTHROPIC_ROUTING_METADATA,
+	KIMI_FOR_CODING_ROUTING_METADATA,
 	QWEN_CACHE_ROUTING_METADATA,
 } from "./routing/anthropic-compatible";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
@@ -416,6 +417,59 @@ function buildClineModels(): Record<string, ModelInfo> {
 			...vercelAliasModels,
 		},
 		VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+	);
+}
+
+// Curated layer over the models.dev catalog: plan-tier descriptions and
+// display names from Kimi's docs, restricted to the documented model IDs.
+const KIMI_FOR_CODING_MODEL_OVERRIDES: Record<string, Partial<ModelInfo>> = {
+	k3: {
+		description:
+			"Kimi's flagship coding model with low/high/max reasoning effort (defaults to high). Up to 1M context on Allegretto plans and above; 256K on Moderato. Requires a Moderato plan or above.",
+	},
+	"k3-256k": {
+		name: "Kimi K3 (256K)",
+		description:
+			"256K-context version of Kimi K3 at roughly half the quota of k3. Requires a Moderato plan or above.",
+	},
+	"kimi-for-coding": {
+		description:
+			"Kimi K2.7 Code with a 256K context, available to all Kimi For Coding members.",
+	},
+	"kimi-for-coding-highspeed": {
+		name: "Kimi K2.7 Code HighSpeed",
+		description:
+			"High-speed variant of Kimi K2.7 Code. Roughly 5–6× faster output than Standard with the same coding ability; consumes ~3× the quota. Requires an Allegretto plan or above.",
+	},
+};
+
+export function buildKimiForCodingModels(
+	models = generatedModels("kimi-for-coding"),
+): Record<string, ModelInfo> {
+	// K3 and K2.7 Code require thinking; Kimi silently routes requests with
+	// thinking disabled to K2.6.
+	return Object.fromEntries(
+		Object.entries(KIMI_FOR_CODING_MODEL_OVERRIDES).flatMap(
+			([id, override]) => {
+				const model = models[id];
+				if (!model) {
+					return [];
+				}
+				return [
+					[
+						id,
+						{
+							...model,
+							...override,
+							metadata: {
+								...model.metadata,
+								reasoningDefaultOn: true,
+							},
+						},
+					],
+				];
+			},
+		),
 	);
 }
 
@@ -1090,6 +1144,16 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 			international: "https://api.minimax.io/anthropic/v1",
 		},
 		metadata: MINIMAX_THINKING_ROUTING_METADATA,
+	},
+	{
+		id: "kimi-for-coding",
+		description: "Kimi coding models via Anthropic-compatible API",
+		defaultModelId: "kimi-for-coding",
+		modelsFactory: buildKimiForCodingModels,
+		metadata: {
+			...KIMI_FOR_CODING_ROUTING_METADATA,
+			modelSelection: { mode: "curated" },
+		},
 	},
 	{
 		id: "opencode",

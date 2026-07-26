@@ -33,6 +33,7 @@ const KNOWN_API_PROVIDERS = {
 	cline: true,
 	litellm: true,
 	moonshot: true,
+	"kimi-for-coding": true,
 	nebius: true,
 	fireworks: true,
 	asksage: true,

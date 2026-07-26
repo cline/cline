@@ -4,6 +4,7 @@ import type {
 	ModelReasoningOption,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { KIMI_FOR_CODING_ROUTING_METADATA } from "./anthropic-compatible";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
 import {
@@ -212,6 +213,75 @@ describe("mergeProviderOptionPatches", () => {
 				{ foo: { c: 3 } },
 			]),
 		).toEqual({ foo: { a: 1, b: 2, c: 3 } });
+	});
+});
+
+describe("Kimi For Coding reasoning", () => {
+	it("enables Anthropic thinking with a default budget when K2.7 defaults it on", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "kimi-for-coding",
+				modelId: "kimi-for-coding-highspeed",
+				maxTokens: 32768,
+			}),
+			makeContext({
+				providerId: "kimi-for-coding",
+				modelId: "kimi-for-coding-highspeed",
+				family: "kimi-k2",
+				modelMetadata: { reasoningDefaultOn: true },
+				capabilities: ["text", "reasoning"],
+				metadata: KIMI_FOR_CODING_ROUTING_METADATA,
+			}),
+		);
+
+		expect(result.anthropic).toMatchObject({
+			thinking: { type: "enabled", budgetTokens: 1024 },
+		});
+	});
+
+	it("enables Anthropic thinking for K3 models via the kimi-k3 family route", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "kimi-for-coding",
+				modelId: "k3-256k",
+				maxTokens: 131072,
+			}),
+			makeContext({
+				providerId: "kimi-for-coding",
+				modelId: "k3-256k",
+				family: "kimi-k3",
+				modelMetadata: { reasoningDefaultOn: true },
+				capabilities: ["text", "reasoning"],
+				metadata: KIMI_FOR_CODING_ROUTING_METADATA,
+			}),
+		);
+
+		expect(result.anthropic).toMatchObject({
+			thinking: { type: "enabled", budgetTokens: 1024 },
+		});
+	});
+
+	it("sends disabled Anthropic thinking when it is explicitly disabled", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "kimi-for-coding",
+				modelId: "kimi-for-coding",
+				maxTokens: 32768,
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "kimi-for-coding",
+				modelId: "kimi-for-coding",
+				family: "kimi-k2",
+				modelMetadata: { reasoningDefaultOn: true },
+				capabilities: ["text", "reasoning"],
+				metadata: KIMI_FOR_CODING_ROUTING_METADATA,
+			}),
+		);
+
+		expect(result.anthropic).toMatchObject({
+			thinking: { type: "disabled" },
+		});
 	});
 });
 

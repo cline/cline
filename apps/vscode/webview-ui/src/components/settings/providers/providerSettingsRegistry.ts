@@ -101,6 +101,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://cloud.tencent.com/document/product/1823/130050",
 	},
 	"zai-coding-plan": {},
+	"kimi-for-coding": {
+		signupUrl: "https://www.kimi.com/code/console",
+	},
 }
 
 const GENERIC_PROVIDER_PROTOCOLS = new Set(["anthropic", "gemini", "openai-chat", "openai-responses"])
@@ -162,6 +165,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",
 	"zai-coding-plan": "Z.AI Coding Plan",
+	"kimi-for-coding": "Kimi For Coding",
 } as const
 
 export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {
