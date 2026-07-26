@@ -47,8 +47,13 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 				// Use handleRequest with streaming callbacks
 				const requestId = uuidv4()
 
-				// We need to await the promise and then return the cancel function
-				return (async () => {
+				// handleRequest is async, but the client contract (GrpcClientType and the
+				// generated host-bridge-client-types) requires the cancel function to be
+				// returned synchronously. Returning the async IIFE directly would hand
+				// callers a Promise, and invoking it (e.g. `unsubscribe()`) throws
+				// "... is not a function". Resolve the real cancel function in the
+				// background and return a stable wrapper immediately.
+				const cancelPromise: Promise<() => void> = (async () => {
 					try {
 						const result = await grpcHandler.handleRequest<InstanceType<typeof method.responseType>>(
 							service.fullName,
@@ -74,6 +79,10 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						return () => {}
 					}
 				})()
+
+				return () => {
+					cancelPromise.then((cancel) => cancel()).catch((error) => Logger.error(`Error cancelling stream: ${error}`))
+				}
 			}) as any
 		} else {
 			// Unary method implementation
