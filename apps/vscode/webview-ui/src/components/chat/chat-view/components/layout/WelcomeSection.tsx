@@ -19,6 +19,7 @@ import { useClinePassPromo } from "@/hooks/useClinePassPromo"
 import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
+import { getSessionDismissedBannerIds, markBannerDismissedForSession } from "@/utils/sessionBannerDismissals"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 // Shares the legacy extension's banner id so a dismissal there carries over here.
@@ -74,7 +75,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { isClinePassEnabled, isUsingClinePass, openSubscribePage, switchToClinePassProvider } = useClinePassPromo()
-	const [dismissedLocalBanners, setDismissedLocalBanners] = useState<Set<string>>(() => new Set())
+	// Seeded from the session-scoped record so dismissals survive unmounts.
+	const [dismissedLocalBanners, setDismissedLocalBanners] = useState<Set<string>>(() => getSessionDismissedBannerIds())
 
 	// Open modal once we have welcome banners
 	useEffect(() => {
@@ -218,7 +220,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 */
 	const handleBannerDismiss = useCallback((bannerId: string) => {
 		// Hide immediately, without waiting for the persisted state round-trip.
-		setDismissedLocalBanners((previous) => new Set(previous).add(bannerId))
+		markBannerDismissedForSession(bannerId)
+		setDismissedLocalBanners(getSessionDismissedBannerIds())
 
 		// !! Do not continue use these version numbers or add new banners that don't have unique IDs. !!
 		// Banner versions are **deprecated**. Going forward, we are tracking which banners have

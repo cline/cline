@@ -6,6 +6,7 @@ import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { StateServiceClient } from "@/services/grpc-client"
+import { isBannerDismissedForSession, markBannerDismissedForSession } from "@/utils/sessionBannerDismissals"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 const CLINE_PASS_SETTINGS_HINT_ID = "cline-pass-settings-hint-v1"
@@ -25,7 +26,8 @@ export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintPr
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const { dismissedBanners, remoteConfigSettings } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-	const [locallyDismissed, setLocallyDismissed] = useState(false)
+	// Seeded from the session-scoped record so the dismissal survives unmounts.
+	const [locallyDismissed, setLocallyDismissed] = useState(() => isBannerDismissedForSession(CLINE_PASS_SETTINGS_HINT_ID))
 
 	const isDismissed =
 		locallyDismissed || (dismissedBanners ?? []).some((dismissed) => dismissed.bannerId === CLINE_PASS_SETTINGS_HINT_ID)
@@ -39,6 +41,7 @@ export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintPr
 	}
 
 	const handleDismiss = () => {
+		markBannerDismissedForSession(CLINE_PASS_SETTINGS_HINT_ID)
 		setLocallyDismissed(true)
 		StateServiceClient.dismissBanner({ value: CLINE_PASS_SETTINGS_HINT_ID }).catch(console.error)
 	}

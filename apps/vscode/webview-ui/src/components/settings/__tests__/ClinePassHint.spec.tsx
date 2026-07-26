@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { StateServiceClient } from "@/services/grpc-client"
+import { clearSessionBannerDismissalsForTesting } from "@/utils/sessionBannerDismissals"
 import { ClinePassHint } from "../ClinePassHint"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -37,6 +38,7 @@ const mockExtensionState = (overrides: Record<string, unknown> = {}) => {
 describe("ClinePassHint", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		clearSessionBannerDismissalsForTesting()
 		vi.mocked(useHasFeatureFlag).mockReturnValue(true)
 		vi.mocked(useApiConfigurationHandlers).mockReturnValue({
 			handleModeFieldChange: mockHandleModeFieldChange,
@@ -75,6 +77,15 @@ describe("ClinePassHint", () => {
 		fireEvent.click(screen.getByLabelText("Dismiss ClinePass hint"))
 		expect(screen.queryByTestId("cline-pass-settings-hint")).not.toBeInTheDocument()
 		expect(StateServiceClient.dismissBanner).toHaveBeenCalledWith({ value: "cline-pass-settings-hint-v1" })
+	})
+
+	it("stays hidden after a remount within the same session", () => {
+		const { unmount } = render(<ClinePassHint currentMode="plan" selectedProvider="anthropic" />)
+		fireEvent.click(screen.getByLabelText("Dismiss ClinePass hint"))
+		unmount()
+		// Remount before the persisted dismissal has synced back from the host
+		render(<ClinePassHint currentMode="plan" selectedProvider="anthropic" />)
+		expect(screen.queryByTestId("cline-pass-settings-hint")).not.toBeInTheDocument()
 	})
 
 	it("stays hidden when a previous dismissal is in extension state", () => {
