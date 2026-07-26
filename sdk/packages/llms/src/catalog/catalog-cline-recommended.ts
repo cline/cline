@@ -91,14 +91,14 @@ export function normalizeClineRecommendedProviderModels(
 		const capabilities =
 			openRouterModels?.[entry.id] ??
 			findORModelCapabilities(entry, openRouterModelsByName);
-		const entryName = entry.name?.trim();
-		const name = entry.id.includes("cline-free/")
+		const entryName = capabilities.name?.trim() || entry.name?.trim();
+		const name = entry.id.startsWith("cline-free/")
 			? `${entryName} (free)`
 			: entry.name;
 
 		const modelInfo = {
-			name,
 			...capabilities,
+			name,
 			id: entry.id,
 			description: entry.description,
 		};
