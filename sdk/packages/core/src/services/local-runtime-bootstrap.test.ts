@@ -117,6 +117,65 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it("keeps an explicit session provider snapshot authoritative over stored routing and reasoning", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const input = createStartInput();
+		input.config.providerId = "anthropic";
+		input.config.modelId = "claude-opus-4-7";
+		Object.assign(input.config, {
+			thinking: true,
+			reasoningEffort: "high",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "claude-opus-4-7",
+				apiKey: "session-key",
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: undefined,
+				clientType: undefined,
+				routingProviderId: undefined,
+			},
+		});
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "helper-session",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				apiKey: "stored-key",
+				client: "openai",
+				protocol: "openai-responses",
+				routingProviderId: "openai-native",
+				reasoning: {
+					enabled: true,
+					effort: "low",
+					budgetTokens: 8192,
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig).toMatchObject({
+			providerId: "anthropic",
+			modelId: "claude-opus-4-7",
+			apiKey: "session-key",
+			thinking: true,
+			reasoningEffort: "high",
+		});
+		expect(bootstrap.providerConfig.clientType).toBeUndefined();
+		expect(bootstrap.providerConfig.routingProviderId).toBeUndefined();
+		expect(bootstrap.providerConfig.thinkingBudgetTokens).toBeUndefined();
+	});
+
 	it("filters globally disabled plugin tools before extension setup", async () => {
 		vi.resetModules();
 		resetModulesAfterEach = true;
