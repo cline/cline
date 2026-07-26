@@ -12,13 +12,19 @@ export const CLINE_PASS_PROVIDER_ID = "cline-pass"
 /**
  * Shared state + actions for the ClinePass promotional surfaces (home banner,
  * account page card, settings provider hint). Everything is gated behind the
- * ext-cline-pass feature flag, matching the provider dropdown exposure.
+ * ext-cline-pass feature flag and org-managed provider allowlists, matching
+ * the provider dropdown exposure.
  */
 export function useClinePassPromo() {
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
-	const { apiConfiguration, navigateToSettings } = useExtensionState()
+	const hasClinePassFeatureFlag = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
+	const { apiConfiguration, navigateToSettings, remoteConfigSettings } = useExtensionState()
 	const { clineUser } = useClineAuth()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
+
+	// Respect org-managed provider allowlists.
+	const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
+	const isBlockedByRemoteConfig = remoteProviders.length > 0 && !remoteProviders.includes(CLINE_PASS_PROVIDER_ID)
+	const isClinePassEnabled = hasClinePassFeatureFlag && !isBlockedByRemoteConfig
 
 	const isUsingClinePass =
 		apiConfiguration?.planModeApiProvider === CLINE_PASS_PROVIDER_ID ||
@@ -40,23 +46,28 @@ export function useClinePassPromo() {
 	}, [manageSubscriptionUrl])
 
 	// Selects ClinePass for both modes without navigating (for surfaces that
-	// already show the provider settings inline).
+	// already show the provider settings inline). Resolves to whether the
+	// provider change was persisted.
 	const selectClinePassProvider = useCallback(async () => {
 		try {
 			await handleFieldsChange({
 				planModeApiProvider: CLINE_PASS_PROVIDER_ID,
 				actModeApiProvider: CLINE_PASS_PROVIDER_ID,
 			})
+			return true
 		} catch (error) {
 			console.error("Failed to switch to ClinePass provider:", error)
+			return false
 		}
 	}, [handleFieldsChange])
 
 	// Selects ClinePass for both modes and lands the user on the provider
-	// settings so they can pick a model / sign in.
+	// settings so they can pick a model / sign in. Skips navigation when the
+	// provider change failed to persist.
 	const switchToClinePassProvider = useCallback(async () => {
-		await selectClinePassProvider()
-		navigateToSettings("api-config")
+		if (await selectClinePassProvider()) {
+			navigateToSettings("api-config")
+		}
 	}, [selectClinePassProvider, navigateToSettings])
 
 	return {
