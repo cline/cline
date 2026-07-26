@@ -65,7 +65,8 @@ let catalogInFlight: Promise<Provider[]> | null = null;
 
 export function readCachedProviderCatalog(): Provider[] | null {
 	if (!catalogCache) return null;
-	if (Date.now() - catalogCache.fetchedAt > PROVIDER_CATALOG_TTL_MS) return null;
+	if (Date.now() - catalogCache.fetchedAt > PROVIDER_CATALOG_TTL_MS)
+		return null;
 	return catalogCache.providers;
 }
 

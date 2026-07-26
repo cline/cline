@@ -55,12 +55,12 @@ import {
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
-import { loadProviderCatalog } from "@/lib/provider-model-catalog";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { loadProviderCatalog } from "@/lib/provider-model-catalog";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,

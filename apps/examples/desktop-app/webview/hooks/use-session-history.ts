@@ -232,6 +232,36 @@ function inferStatusFromMessages(
 	return status;
 }
 
+/**
+ * `chat_event` fires for every streamed chunk, and each one used to allocate a
+ * fresh Set even when the session was already flagged — a new identity on every
+ * chunk re-rendered the shell, the sidebar and the chat pane for no change.
+ */
+function withSessionMarkedUnread(
+	current: Set<string>,
+	sessionId: string,
+): Set<string> {
+	if (current.has(sessionId)) {
+		return current;
+	}
+	const next = new Set(current);
+	next.add(sessionId);
+	return next;
+}
+
+/**
+ * Identifies a session's on-disk state for the sidebar's hydration guards.
+ *
+ * Deliberately excludes `status`: hydrating a session re-infers its status and
+ * writes it back, while the next discovery poll restores the value from disk.
+ * Keying on status therefore made the two disagree forever, and the sidebar
+ * re-read the same four sessions every poll to settle an argument with itself.
+ * `startedAt`/`endedAt` only change when the session really does.
+ */
+function sessionHydrationKey(session: SessionHistoryItem): string {
+	return `${session.startedAt}\u0000${session.endedAt ?? ""}`;
+}
+
 function toThread(session: SessionHistoryItem): SessionThread {
 	const workspacePath = (session.workspaceRoot || session.cwd).trim();
 	return {
@@ -477,13 +507,9 @@ export function useSessionHistory({
 	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
-	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
-		new Map(),
-	);
+	const usageHydratedKeyRef = useRef<Map<string, string>>(new Map());
 	const titleLoadingRef = useRef<Set<string>>(new Set());
-	const messageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
-		new Map(),
-	);
+	const messageHydratedKeyRef = useRef<Map<string, string>>(new Map());
 	const sessionsRef = useRef<SessionHistoryItem[]>([]);
 	const threadsRef = useRef<SessionThread[]>([]);
 	const refreshTimeoutRef = useRef<number | null>(null);
@@ -521,7 +547,12 @@ export function useSessionHistory({
 		const refreshPromise = (async () => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
-			setIsLoadingHistory(true);
+			// The flag only drives the empty-state spinner, so a background poll
+			// has nothing to announce; toggling it re-rendered the whole shell
+			// twice every 12 seconds for a list that usually has not changed.
+			if (sessionsRef.current.length === 0) {
+				setIsLoadingHistory(true);
+			}
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
@@ -694,12 +725,11 @@ export function useSessionHistory({
 				const hasUsage =
 					existing?.inputTokens !== undefined ||
 					existing?.outputTokens !== undefined;
-				const lastHydratedStatus =
-					usageHydratedStatusRef.current.get(sessionId);
+				const hydrationKey = sessionHydrationKey(session);
 				const shouldFetch =
 					!hasUsage ||
 					session.status === "running" ||
-					lastHydratedStatus !== session.status;
+					usageHydratedKeyRef.current.get(sessionId) !== hydrationKey;
 				if (!shouldFetch) {
 					continue;
 				}
@@ -772,7 +802,7 @@ export function useSessionHistory({
 						}
 					})
 					.finally(() => {
-						usageHydratedStatusRef.current.set(sessionId, session.status);
+						usageHydratedKeyRef.current.set(sessionId, hydrationKey);
 						usageLoadingRef.current.delete(sessionId);
 					});
 			}
@@ -816,8 +846,8 @@ export function useSessionHistory({
 			}
 			usageLoadingRef.current.delete(sessionId);
 			titleLoadingRef.current.delete(sessionId);
-			usageHydratedStatusRef.current.delete(sessionId);
-			messageHydratedStatusRef.current.delete(sessionId);
+			usageHydratedKeyRef.current.delete(sessionId);
+			messageHydratedKeyRef.current.delete(sessionId);
 			setSessions((current) =>
 				current.filter((session) => session.sessionId !== sessionId),
 			);
@@ -878,11 +908,9 @@ export function useSessionHistory({
 					});
 				}
 				if (sessionId !== activeSessionId) {
-					setUnreadSessionIds((current) => {
-						const next = new Set(current);
-						next.add(sessionId);
-						return next;
-					});
+					setUnreadSessionIds((current) =>
+						withSessionMarkedUnread(current, sessionId),
+					);
 				}
 			},
 		);
@@ -899,11 +927,9 @@ export function useSessionHistory({
 					});
 					const sessionId = record.sessionId.trim();
 					if (sessionId !== activeSessionId) {
-						setUnreadSessionIds((current) => {
-							const next = new Set(current);
-							next.add(sessionId);
-							return next;
-						});
+						setUnreadSessionIds((current) =>
+							withSessionMarkedUnread(current, sessionId),
+						);
 					}
 				}
 			},
@@ -926,11 +952,9 @@ export function useSessionHistory({
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				}
 				if (sessionId !== activeSessionId) {
-					setUnreadSessionIds((current) => {
-						const next = new Set(current);
-						next.add(sessionId);
-						return next;
-					});
+					setUnreadSessionIds((current) =>
+						withSessionMarkedUnread(current, sessionId),
+					);
 				}
 			},
 		);
@@ -973,18 +997,17 @@ export function useSessionHistory({
 				if (!existing) {
 					continue;
 				}
-				const lastHydratedStatus =
-					messageHydratedStatusRef.current.get(sessionId);
-				const shouldHydrateTitle = existing.title.startsWith("Session ");
 				const hasManualTitle = Boolean(
 					getSessionMetadataTitle(session.metadata),
 				);
-				const shouldHydrateStatus =
-					existing.status === "failed" ||
-					existing.status === "completed" ||
-					existing.status === "idle" ||
-					lastHydratedStatus !== session.status;
-				if ((!shouldHydrateTitle || hasManualTitle) && !shouldHydrateStatus) {
+				const hydrationKey = sessionHydrationKey(session);
+				// A live session keeps producing messages, so its title and inferred
+				// status stay worth re-reading. A finished one is settled: read it
+				// once per on-disk revision and leave it alone after that.
+				const shouldHydrate =
+					session.status === "running" ||
+					messageHydratedKeyRef.current.get(sessionId) !== hydrationKey;
+				if (!shouldHydrate) {
 					continue;
 				}
 				titleLoadingRef.current.add(sessionId);
@@ -1027,7 +1050,7 @@ export function useSessionHistory({
 						// Ignore sessions that cannot be hydrated.
 					})
 					.finally(() => {
-						messageHydratedStatusRef.current.set(sessionId, session.status);
+						messageHydratedKeyRef.current.set(sessionId, hydrationKey);
 						titleLoadingRef.current.delete(sessionId);
 					});
 			}
@@ -1252,24 +1275,47 @@ export function useSessionHistory({
 		[sessions],
 	);
 
-	return {
-		getSessionByThreadId,
-		isLoadingHistory,
-		isLoadingMore,
-		loadOlderSessions,
-		loadMoreSessions,
-		mayHaveMoreSessions,
-		openThread,
-		pendingAction,
-		refreshSessions,
-		renameThread,
-		deleteThread,
-		forkThread,
-		sessionById,
-		sessions,
-		threads,
-		unreadSessionIds,
-	};
+	// The shell passes this straight into the sidebar and the sessions view, so
+	// a fresh object on every render of the shell would defeat any memoisation
+	// downstream even when nothing about the history actually moved.
+	return useMemo(
+		() => ({
+			getSessionByThreadId,
+			isLoadingHistory,
+			isLoadingMore,
+			loadOlderSessions,
+			loadMoreSessions,
+			mayHaveMoreSessions,
+			openThread,
+			pendingAction,
+			refreshSessions,
+			renameThread,
+			deleteThread,
+			forkThread,
+			sessionById,
+			sessions,
+			threads,
+			unreadSessionIds,
+		}),
+		[
+			getSessionByThreadId,
+			isLoadingHistory,
+			isLoadingMore,
+			loadOlderSessions,
+			loadMoreSessions,
+			mayHaveMoreSessions,
+			openThread,
+			pendingAction,
+			refreshSessions,
+			renameThread,
+			deleteThread,
+			forkThread,
+			sessionById,
+			sessions,
+			threads,
+			unreadSessionIds,
+		],
+	);
 }
 
 export type UseSessionHistoryResult = ReturnType<typeof useSessionHistory>;
