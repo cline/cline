@@ -30,14 +30,13 @@
 		"claude",
 		"dev",
 		"mcp",
-		"openrouter",
 		"coding",
 		"agent",
 		"autonomous",
-		"chatgpt",
 		"sonnet",
 		"ai",
-		"llama"
+		"bedrock",
+		"aws"
 	],
 	"activationEvents": [
 		"onLanguage",
@@ -79,8 +78,8 @@
 					},
 					{
 						"id": "advanced-features",
-						"title": "Always Use the Best AI Models",
-						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"title": "Connect to AWS Bedrock",
+						"description": "Use your AWS environment or named profile to run supported Bedrock models.",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
@@ -138,19 +137,9 @@
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.marketplaceButtonClicked",
-				"title": "Customize",
-				"icon": "$(wrench)"
-			},
-			{
 				"command": "cline.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
-			},
-			{
-				"command": "cline.accountButtonClicked",
-				"title": "Account",
-				"icon": "$(account)"
 			},
 			{
 				"command": "cline.settingsButtonClicked",
@@ -207,24 +196,6 @@
 				"category": "Cline"
 			},
 			{
-				"command": "cline.jupyterGenerateCell",
-				"title": "Generate Jupyter Cell with Cline",
-				"category": "Cline",
-				"icon": "$(sparkle)"
-			},
-			{
-				"command": "cline.jupyterExplainCell",
-				"title": "Explain Jupyter Cell with Cline",
-				"category": "Cline",
-				"icon": "$(question)"
-			},
-			{
-				"command": "cline.jupyterImproveCell",
-				"title": "Improve Jupyter Cell with Cline",
-				"category": "Cline",
-				"icon": "$(lightbulb)"
-			},
-			{
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
@@ -265,18 +236,8 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.marketplaceButtonClicked",
-					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
 					"command": "cline.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
@@ -308,25 +269,6 @@
 					"command": "cline.abortGitCommitMessage",
 					"group": "navigation",
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
-				}
-			],
-			"notebook/toolbar": [
-				{
-					"command": "cline.jupyterGenerateCell",
-					"group": "navigation/add@1",
-					"when": "notebookType == 'jupyter-notebook'"
-				}
-			],
-			"notebook/cell/title": [
-				{
-					"command": "cline.jupyterExplainCell",
-					"group": "inline@1",
-					"when": "notebookType == 'jupyter-notebook'"
-				},
-				{
-					"command": "cline.jupyterImproveCell",
-					"group": "inline@2",
-					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"commandPalette": [
@@ -367,7 +309,7 @@
 		"check-types": "bun run protos && bunx tsc --noEmit && bun run check-types:compat && cd webview-ui && bunx tsc --noEmit",
 		"check-types:compat": "bunx tsc --project tsconfig.vscode-compat.json --noEmit",
 		"lint": "biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && bun run lint:proto",
-		"lint:proto": "bash ./scripts/proto-lint.sh",
+		"lint:proto": "node ./scripts/proto-lint.mjs",
 		"analyze:unused": "bunx --yes knip --config knip.json --include files,exports,types,enumMembers,duplicates",
 		"analyze:unused:prod": "bunx --yes knip --config knip.json --production --include files,exports,types,enumMembers,dependencies",
 		"analyze:unused:fix-exports": "node scripts/remove-unused-exports.mjs --apply",
@@ -463,13 +405,11 @@
 		"vitest": "^4.0.17"
 	},
 	"dependencies": {
-		"@anthropic-ai/sdk": "^0.37.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cline/agents": "workspace:*",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
-		"@google/genai": "^1.30.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/proto-loader": "^0.7.13",
 		"@grpc/reflection": "^1.0.4",
@@ -500,7 +440,6 @@
 		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
-		"aws4fetch": "^1.0.20",
 		"axios": "1.18.0",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
@@ -531,7 +470,6 @@
 		"node-machine-id": "^1.1.12",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^6.21.0",
 		"os-name": "^6.0.0",
 		"p-mutex": "^1.0.0",
 		"p-timeout": "^6.1.4",

@@ -20,21 +20,14 @@ import { nanoid } from "nanoid";
 import { extractErrorMessage } from "./format";
 import {
 	isAnthropicCompatibleModel,
-	isCerebrasProvider,
 	resolveModelFamily,
 } from "./model-facts";
-import {
-	recordProviderRequestCapture,
-	wrapFetchForProviderRequestCapture,
-} from "./provider-request-capture";
+import { sanitizeBedrockError } from "./bedrock-errors";
 import {
 	applyPromptCacheToLastTextPart,
+	buildAnthropicProviderOptions,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
-import {
-	type AiSdkProviderOptionsTarget,
-	composeAiSdkProviderOptions,
-} from "./routing/provider-options";
 import type {
 	AiSdkStreamPart,
 	AiSdkStreamResult,
@@ -51,7 +44,7 @@ interface GatewayNormalizedUsage {
 	reasoningTokenCount?: number;
 	totalCost?: number;
 }
-type ProviderModuleKind = AiSdkProviderOptionsTarget;
+type ProviderModuleKind = "bedrock";
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
@@ -92,181 +85,17 @@ function buildCachedAiSdkMessages(
 	return aiMessages;
 }
 
-function resolveStickySession(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-):
-	| {
-			transport: "json-body" | "header";
-			field: string;
-			value: string;
-	  }
-	| undefined {
-	const stickySession = context.provider.metadata?.stickySession;
-	if (!stickySession) {
-		return undefined;
-	}
-	const metadata = request.metadata;
-	const value =
-		metadata && typeof metadata === "object"
-			? metadata[stickySession.metadataKey]
-			: undefined;
-	if (typeof value !== "string") {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	if (!trimmed) {
-		return undefined;
-	}
-	return {
-		transport: stickySession.transport,
-		field: stickySession.field,
-		value: trimmed,
-	};
-}
-
-type FetchBodyText =
-	| { source: "init-body"; text: string }
-	| { request: Request; source: "request"; text: string };
-
-async function bodyTextFromFetchInput(
-	input: Parameters<typeof fetch>[0],
-	init: Parameters<typeof fetch>[1],
-): Promise<FetchBodyText | undefined> {
-	const body = init?.body;
-	if (body === null) {
-		return undefined;
-	}
-	if (typeof body === "string") {
-		return { source: "init-body", text: body };
-	}
-	if (body instanceof URLSearchParams) {
-		return { source: "init-body", text: body.toString() };
-	}
-	if (body instanceof ArrayBuffer) {
-		return { source: "init-body", text: Buffer.from(body).toString("utf8") };
-	}
-	if (ArrayBuffer.isView(body)) {
-		return {
-			source: "init-body",
-			text: Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString(
-				"utf8",
-			),
-		};
-	}
-	if (body !== undefined) {
-		return undefined;
-	}
-	if (input instanceof Request) {
-		try {
-			return {
-				request: input,
-				source: "request",
-				text: await input.clone().text(),
-			};
-		} catch {
-			return undefined;
-		}
-	}
-	return undefined;
-}
-
-async function injectJsonBodyStickySession(
-	input: Parameters<typeof fetch>[0],
-	init: Parameters<typeof fetch>[1],
-	stickySession: { field: string; value: string },
-): Promise<Parameters<typeof fetch>> {
-	const bodyText = await bodyTextFromFetchInput(input, init);
-	if (!bodyText?.text.trim().startsWith("{")) {
-		return [input, init];
-	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(bodyText.text);
-	} catch {
-		return [input, init];
-	}
-	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-		return [input, init];
-	}
-	const body = parsed as Record<string, unknown>;
-	const existingValue = body[stickySession.field];
-	if (typeof existingValue !== "string" || !existingValue.trim()) {
-		body[stickySession.field] = stickySession.value;
-	}
-	const nextBody = JSON.stringify(body);
-	if (bodyText.source === "init-body") {
-		return [input, { ...init, body: nextBody }];
-	}
-	return [new Request(bodyText.request, { body: nextBody }), init];
-}
-
-function injectHeaderStickySession(
-	input: Parameters<typeof fetch>[0],
-	init: Parameters<typeof fetch>[1],
-	stickySession: { field: string; value: string },
-): Parameters<typeof fetch> {
-	const headers = new Headers(
-		input instanceof Request ? input.headers : undefined,
-	);
-	new Headers(init?.headers).forEach((value, key) => {
-		headers.set(key, value);
-	});
-	if (!headers.get(stickySession.field)?.trim()) {
-		headers.set(stickySession.field, stickySession.value);
-	}
-	return [input, { ...init, headers }];
-}
-
-function wrapFetchForStickySession(
-	baseFetch: typeof fetch | undefined,
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-): typeof fetch | undefined {
-	const stickySession = resolveStickySession(request, context);
-	if (!stickySession) {
-		return baseFetch;
-	}
-	const delegate = baseFetch ?? globalThis.fetch;
-	if (!delegate) {
-		return baseFetch;
-	}
-	const sessionFetch = (async (input, init) => {
-		const [nextInput, nextInit] =
-			stickySession.transport === "json-body"
-				? await injectJsonBodyStickySession(input, init, stickySession)
-				: injectHeaderStickySession(input, init, stickySession);
-		return delegate(nextInput, nextInit);
-	}) as typeof fetch;
-	const delegateWithPreconnect = delegate as typeof fetch & {
-		preconnect?: (...args: unknown[]) => unknown;
-	};
-	if (typeof delegateWithPreconnect.preconnect === "function") {
-		(
-			sessionFetch as typeof fetch & {
-				preconnect?: (...args: unknown[]) => unknown;
-			}
-		).preconnect = delegateWithPreconnect.preconnect.bind(delegate);
-	}
-	return sessionFetch;
-}
-
 function shouldIncludeReasoningHistory(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
+	_request: GatewayStreamRequest,
+	_context: GatewayProviderContext,
 ): boolean {
-	return !isCerebrasProvider(request, context);
+	return true;
 }
 
 async function ensureGatewayLangfuseTelemetry(
-	providerId: string,
+	_providerId: string,
 ): Promise<boolean> {
-	try {
-		const runtime = await import("../services/langfuse-telemetry");
-		return runtime.ensureLangfuseTelemetry(providerId);
-	} catch {
-		return false;
-	}
+	return false;
 }
 
 function toAiSdkMessages(
@@ -332,23 +161,11 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "tool-call") {
-				const metadata = part.metadata as Record<string, unknown> | undefined;
-				const thoughtSignature =
-					metadata?.thoughtSignature ??
-					metadata?.signature ??
-					metadata?.thought_signature;
 				content.push({
 					type: "tool-call",
 					toolCallId: part.toolCallId,
 					toolName: part.toolName,
 					input: part.input,
-					...(typeof thoughtSignature === "string"
-						? {
-								providerOptions: {
-									google: { thoughtSignature },
-								},
-							}
-						: {}),
 				});
 				continue;
 			}
@@ -505,10 +322,10 @@ function buildRecoverableToolErrorMetadata(input: {
 	toolName: string;
 }): Record<string, unknown> {
 	return buildToolCallMetadata({
-		metadata: mergeToolCallMetadata(extractGoogleThoughtMetadata(input.part), {
+		metadata: {
 			inputParseError: `Tool call ${input.toolName} was rejected before execution: ${input.errorMessage}`,
 			aiSdkToolError: input.errorMessage,
-		}),
+		},
 		request: input.request,
 		context: input.context,
 	});
@@ -517,9 +334,7 @@ function buildRecoverableToolErrorMetadata(input: {
 function resolveAiSdkSystemPrompt(
 	request: GatewayStreamRequest,
 ): string | undefined {
-	return request.providerId === "openai-codex"
-		? undefined
-		: request.systemPrompt;
+	return request.systemPrompt;
 }
 
 function mapFinishReason(
@@ -861,50 +676,6 @@ function suppressDanglingStreamPromises(
 	}
 }
 
-function extractGoogleThoughtMetadata(
-	part: AiSdkStreamPart,
-): Record<string, unknown> | undefined {
-	const metadata: Record<string, unknown> = {};
-
-	if (typeof part.thoughtSignature === "string") {
-		metadata.thoughtSignature = part.thoughtSignature;
-	}
-	if (typeof part.thought_signature === "string") {
-		metadata.thought_signature = part.thought_signature;
-	}
-
-	const providerMetadata =
-		part.providerMetadata && typeof part.providerMetadata === "object"
-			? (part.providerMetadata as Record<string, unknown>)
-			: undefined;
-	const googleMetadata =
-		providerMetadata?.google && typeof providerMetadata.google === "object"
-			? (providerMetadata.google as Record<string, unknown>)
-			: undefined;
-	const vertexMetadata =
-		providerMetadata?.vertex && typeof providerMetadata.vertex === "object"
-			? (providerMetadata.vertex as Record<string, unknown>)
-			: undefined;
-
-	if (
-		typeof metadata.thoughtSignature !== "string" &&
-		typeof (
-			googleMetadata?.thoughtSignature ?? vertexMetadata?.thoughtSignature
-		) === "string"
-	) {
-		metadata.thoughtSignature =
-			googleMetadata?.thoughtSignature ?? vertexMetadata?.thoughtSignature;
-	}
-	if (
-		typeof metadata.thought_signature !== "string" &&
-		typeof googleMetadata?.thought_signature === "string"
-	) {
-		metadata.thought_signature = googleMetadata.thought_signature;
-	}
-
-	return Object.keys(metadata).length > 0 ? metadata : undefined;
-}
-
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
 	request: GatewayStreamRequest,
@@ -942,7 +713,6 @@ async function* emitAiSdkEvents(
 						yield {
 							type: "reasoning-delta",
 							text,
-							metadata: extractGoogleThoughtMetadata(part),
 						};
 					}
 					continue;
@@ -968,7 +738,7 @@ async function* emitAiSdkEvents(
 						input: typeof input === "string" ? undefined : input,
 						inputText,
 						metadata: buildToolCallMetadata({
-							metadata: extractGoogleThoughtMetadata(part),
+							metadata: undefined,
 							request,
 							context,
 						}),
@@ -1082,76 +852,12 @@ async function* emitAiSdkEvents(
 }
 
 async function createProviderModule(
-	kind: ProviderModuleKind,
+	_kind: ProviderModuleKind,
 	config: GatewayResolvedProviderConfig,
-	context: GatewayProviderContext,
+	_context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
-	switch (kind) {
-		case "openai": {
-			const { createOpenAIProviderModule } = await import("./vendors/openai");
-			return createOpenAIProviderModule(config, context);
-		}
-		case "openai-compatible": {
-			const { createOpenAICompatibleProviderModule } = await import(
-				"./vendors/openai-compatible"
-			);
-			return createOpenAICompatibleProviderModule(config, context);
-		}
-		case "anthropic": {
-			const { createAnthropicProviderModule } = await import(
-				"./vendors/anthropic"
-			);
-			return createAnthropicProviderModule(config, context);
-		}
-		case "google": {
-			const { createGoogleProviderModule } = await import("./vendors/google");
-			return createGoogleProviderModule(config, context);
-		}
-		case "vertex": {
-			const { createVertexProviderModule } = await import("./vendors/vertex");
-			return createVertexProviderModule(config, context);
-		}
-		case "bedrock": {
-			const { createBedrockProviderModule } = await import("./vendors/bedrock");
-			return createBedrockProviderModule(config);
-		}
-		case "mistral": {
-			const { createMistralProviderModule } = await import("./vendors/mistral");
-			return createMistralProviderModule(config);
-		}
-		case "claude-code": {
-			const { createClaudeCodeProviderModule } = await import(
-				"./vendors/community"
-			);
-			return createClaudeCodeProviderModule(config);
-		}
-		case "openai-codex": {
-			const { createOpenAICodexProviderModule } = await import(
-				"./vendors/community"
-			);
-			return createOpenAICodexProviderModule(config);
-		}
-		case "opencode": {
-			const { createOpenCodeProviderModule } = await import(
-				"./vendors/community"
-			);
-			return createOpenCodeProviderModule(config);
-		}
-		case "dify": {
-			const { createDifyProviderModule } = await import("./vendors/community");
-			return createDifyProviderModule(config);
-		}
-		case "ollama": {
-			const { createOllamaProviderModule } = await import("./vendors/ollama");
-			return createOllamaProviderModule(config, context);
-		}
-		case "sapaicore": {
-			const { createSapAiCoreProviderModule } = await import(
-				"./vendors/community"
-			);
-			return createSapAiCoreProviderModule(config);
-		}
-	}
+	const { createBedrockProviderModule } = await import("./vendors/bedrock");
+	return createBedrockProviderModule(config);
 }
 
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
@@ -1167,11 +873,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
-						),
 					},
 					context,
 				);
@@ -1190,25 +891,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
 						});
-				const providerOptions = composeAiSdkProviderOptions(
-					request,
-					context,
-					kind,
-				) as never;
+				const providerOptions = {
+					anthropic: buildAnthropicProviderOptions(request, context),
+				} as never;
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
-				recordProviderRequestCapture({
-					stage: "ai_sdk_prompt",
-					request,
-					payload: {
-						messages,
-						...(useSystemOption ? { system: systemPrompt } : {}),
-						tools,
-						providerOptions,
-						...requestConfig,
-					},
-				});
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: messages as never,
@@ -1222,7 +910,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					providerOptions,
 					...requestConfig,
 					onError: ({ error: streamError }) => {
-						const msg = extractErrorMessage(streamError);
+						const msg = sanitizeBedrockError(streamError);
 						capturedError.current = msg;
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
@@ -1268,7 +956,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const msg = capturedError.current ?? extractErrorMessage(error);
+				const msg = capturedError.current ?? sanitizeBedrockError(error);
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
@@ -1303,17 +991,4 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	});
 }
 
-export const createOpenAIProvider = createAiSdkProvider("openai");
-export const createOpenAICompatibleProvider =
-	createAiSdkProvider("openai-compatible");
-export const createAnthropicProvider = createAiSdkProvider("anthropic");
-export const createGoogleProvider = createAiSdkProvider("google");
-export const createVertexProvider = createAiSdkProvider("vertex");
 export const createBedrockProvider = createAiSdkProvider("bedrock");
-export const createMistralProvider = createAiSdkProvider("mistral");
-export const createClaudeCodeProvider = createAiSdkProvider("claude-code");
-export const createOpenAICodexProvider = createAiSdkProvider("openai-codex");
-export const createOpenCodeProvider = createAiSdkProvider("opencode");
-export const createDifyProvider = createAiSdkProvider("dify");
-export const createOllamaProvider = createAiSdkProvider("ollama");
-export const createSapAiCoreProvider = createAiSdkProvider("sapaicore");

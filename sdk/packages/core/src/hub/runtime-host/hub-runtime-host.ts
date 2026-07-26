@@ -1,4 +1,3 @@
-import { resolveProviderRequestHeaders } from "@cline/llms";
 import type {
 	AgentEvent,
 	AgentFinishReason,
@@ -24,7 +23,6 @@ import {
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isHubToolExecutorName,
 } from "@cline/shared";
-import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -130,34 +128,9 @@ function buildCommandSessionConfig(
 ): Record<string, unknown> {
 	const sessionConfig: Record<string, unknown> = {
 		...(input.config as Record<string, unknown>),
+		providerId: "bedrock",
 		sessionId,
 	};
-	const headers = resolveProviderRequestHeaders({
-		providerId: input.config.providerId,
-		sessionId,
-		source: input.source,
-		defaultSource: SessionSource.CORE,
-		client: {
-			name: input.localRuntime?.extensionContext?.client?.name,
-			version: input.localRuntime?.extensionContext?.client?.version,
-			versionHeaderFallback: input.config.headers?.["X-CLIENT-VERSION"],
-			platform: input.localRuntime?.extensionContext?.client?.platform,
-			platformVersion:
-				input.localRuntime?.extensionContext?.client?.platformVersion,
-			isMultiRoot: input.localRuntime?.extensionContext?.client?.isMultiRoot,
-		},
-		coreVersion: corePackageVersion,
-		openAiCodex: {
-			accessToken: input.config.apiKey,
-			userAgentVersion: process.env.npm_package_version,
-		},
-		headers: {
-			config: input.config.headers,
-		},
-	});
-	if (headers) {
-		sessionConfig.headers = headers;
-	}
 	return sessionConfig;
 }
 

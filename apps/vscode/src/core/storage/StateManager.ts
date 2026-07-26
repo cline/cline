@@ -1,7 +1,11 @@
+import path from "node:path"
+import { ProviderSettingsManager } from "@cline/core"
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import { BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
 	type GlobalState,
+	GlobalStateAndSettingKeys,
 	type GlobalStateAndSettings,
 	type GlobalStateAndSettingsKey,
 	isSecretKey,
@@ -24,6 +28,55 @@ import { readTaskSettingsFromStorage, writeTaskSettingsToStorage } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
 import { readGlobalStateFromStorage, readSecretsFromStorage, readWorkspaceStateFromStorage } from "./utils/state-helpers"
+
+const BEDROCK_INFERENCE_MIGRATION_VERSION = 1
+
+async function migrateBedrockInferenceState(storage: StorageContext): Promise<void> {
+	if (storage.globalState.get<number>("bedrockInferenceMigrationVersion", 0) >= BEDROCK_INFERENCE_MIGRATION_VERSION) {
+		return
+	}
+
+	const providerSettings = new ProviderSettingsManager({
+		filePath: path.join(storage.dataDir, "settings", "providers.json"),
+		dataDir: storage.dataDir,
+	}).getProviderSettings("bedrock")
+	const planWasBedrock = storage.globalState.get<string>("planModeApiProvider") === "bedrock"
+	const actWasBedrock = storage.globalState.get<string>("actModeApiProvider") === "bedrock"
+	const currentKeys = new Set<string>(GlobalStateAndSettingKeys)
+	const inferenceKeyPattern =
+		/(api|model|provider|anthropic|claude|openrouter|openai|ollama|lmstudio|litellm|gemini|vertex|requesty|fireworks|qwen|moonshot|asksage|sapAi|dify|oca|zai|minimax|aihubmix|hicap|nousResearch|azure|groq|baseten|hugging|mistral|accessKey|secretKey|sessionToken)/i
+	const removals = Object.fromEntries(
+		storage.globalState
+			.keys()
+			.filter((key) => !currentKeys.has(key) && inferenceKeyPattern.test(key))
+			.map((key) => [key, undefined]),
+	)
+	await storage.globalState.setBatch({
+		...removals,
+		awsRegion: storage.globalState.get<string>("awsRegion") || providerSettings?.connection.region || BEDROCK_DEFAULT_REGION,
+		awsProfile: storage.globalState.get<string>("awsProfile") || providerSettings?.connection.profile,
+		awsBedrockEndpoint: storage.globalState.get<string>("awsBedrockEndpoint") || providerSettings?.connection.endpoint,
+		awsBedrockCaBundlePath:
+			storage.globalState.get<string>("awsBedrockCaBundlePath") || providerSettings?.connection.caBundlePath,
+		planModeApiProvider: "bedrock",
+		actModeApiProvider: "bedrock",
+		planModeApiModelId: planWasBedrock
+			? storage.globalState.get<string>("planModeApiModelId") || BEDROCK_DEFAULT_MODEL_ID
+			: BEDROCK_DEFAULT_MODEL_ID,
+		actModeApiModelId: actWasBedrock
+			? storage.globalState.get<string>("actModeApiModelId") || BEDROCK_DEFAULT_MODEL_ID
+			: BEDROCK_DEFAULT_MODEL_ID,
+		bedrockInferenceMigrationVersion: BEDROCK_INFERENCE_MIGRATION_VERSION,
+	})
+
+	const secretRemovals = Object.fromEntries(
+		storage.secrets
+			.keys()
+			.filter((key) => key !== "mcpOAuthSecrets")
+			.map((key) => [key, undefined]),
+	)
+	await storage.secrets.setBatch(secretRemovals)
+}
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -128,6 +181,7 @@ export class StateManager {
 
 		try {
 			await initializeDistinctId(storage)
+			await migrateBedrockInferenceState(storage)
 
 			// Load all extension state from file-backed stores
 			const globalState = await readGlobalStateFromStorage(storage.globalState)
@@ -859,14 +913,6 @@ export class StateManager {
 	private constructApiConfigurationFromCache(): ApiConfiguration {
 		// Build secrets object
 		const secrets = Object.fromEntries(SecretKeys.map((key) => [key, this.getSecret(key)])) as Secrets
-
-		// Preserve legacy fallback behavior for LiteLLM API key:
-		// if a remoteLiteLlmApiKey is set (via remote config), it should
-		// take precedence over the local liteLlmApiKey.
-		const remoteLiteLlmApiKey = this.secretsCache.remoteLiteLlmApiKey
-		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
-			secrets.liteLlmApiKey = remoteLiteLlmApiKey
-		}
 
 		// Build API handler settings object with task override support
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))

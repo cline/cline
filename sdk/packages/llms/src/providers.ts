@@ -1,59 +1,12 @@
-export { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "./providers/builtins";
 export {
-	type ApiHandler,
-	BUILT_IN_PROVIDER,
-	BUILT_IN_PROVIDER_IDS,
-	type BuiltInProviderId,
-	type HandlerFactory,
-	isBuiltInProviderId,
-	type LazyHandlerFactory,
-	normalizeProviderId,
-	type ProviderCapability,
-	type ProviderConfig,
-	type ProviderId,
-} from "./providers/types";
-
-import {
-	createGatewayApiHandler,
-	createGatewayApiHandlerAsync,
+	createBedrockAgentModel,
+	createBedrockClient,
 } from "./providers/compat";
-import {
-	getRegisteredHandler,
-	getRegisteredHandlerAsync,
-	hasRegisteredHandler,
-	isRegisteredHandlerAsync,
-} from "./providers/factory-registry";
-import {
-	type ApiHandler,
-	normalizeProviderId,
-	type ProviderConfig,
-} from "./providers/types";
-
-export {
-	ClineNotSubscribedError,
-	ClineOrgIndividualInferenceSubscriptionError,
-	ClinePassLimitError,
-	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClineNotSubscribedMessage,
-	getClinePassSubscriptionUrl,
-	isClineNotSubscribedError,
-	isClineNotSubscribedMessage,
-	isClineOrgIndividualInferenceSubscriptionError,
-	isClineOrgIndividualInferenceSubscriptionMessage,
-	isClinePassLimitError,
-	isClinePassLimitMessage,
-} from "./providers/errors";
-export {
-	getRegisteredHandler,
-	getRegisteredHandlerAsync,
-	hasRegisteredHandler,
-	isRegisteredHandlerAsync,
-	registerAsyncHandler,
-	registerHandler,
-} from "./providers/factory-registry";
 export type {
+	ApiHandler,
 	ApiStreamChunk,
+	BedrockConnection,
+	BuiltInProviderId,
 	ContentBlock,
 	FileContent,
 	HandlerModelInfo,
@@ -61,6 +14,9 @@ export type {
 	Message,
 	MessageRole,
 	MessageWithMetadata,
+	ProviderCapability,
+	ProviderConfig,
+	ProviderId,
 	RedactedThinkingContent,
 	TextContent,
 	ThinkingContent,
@@ -68,55 +24,24 @@ export type {
 	ToolResultContent,
 	ToolUseContent,
 } from "./providers/types";
+export {
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	isBuiltInProviderId,
+	normalizeProviderId,
+} from "./providers/types";
 
-function withNormalizedProviderId(config: ProviderConfig): ProviderConfig {
-	const providerId = normalizeProviderId(config.providerId);
-	const routingProviderId = config.routingProviderId
-		? normalizeProviderId(config.routingProviderId)
-		: undefined;
-	if (
-		providerId === config.providerId &&
-		routingProviderId === config.routingProviderId
-	) {
-		return config;
-	}
-	return { ...config, providerId, routingProviderId };
-}
+import {
+	createBedrockClient,
+} from "./providers/compat";
+import type { ApiHandler, ProviderConfig } from "./providers/types";
 
 export function createHandler(config: ProviderConfig): ApiHandler {
-	const normalizedConfig = withNormalizedProviderId(config);
-	const { providerId } = normalizedConfig;
-
-	if (hasRegisteredHandler(providerId)) {
-		if (isRegisteredHandlerAsync(providerId)) {
-			throw new Error(
-				`Handler for "${providerId}" is registered as async. Use createHandlerAsync() instead.`,
-			);
-		}
-		const handler = getRegisteredHandler(providerId, normalizedConfig);
-		if (handler) {
-			return handler;
-		}
-	}
-
-	return createGatewayApiHandler(normalizedConfig);
+	return createBedrockClient(config);
 }
 
 export async function createHandlerAsync(
 	config: ProviderConfig,
 ): Promise<ApiHandler> {
-	const normalizedConfig = withNormalizedProviderId(config);
-	const { providerId } = normalizedConfig;
-
-	if (hasRegisteredHandler(providerId)) {
-		const handler = await getRegisteredHandlerAsync(
-			providerId,
-			normalizedConfig,
-		);
-		if (handler) {
-			return handler;
-		}
-	}
-
-	return createGatewayApiHandlerAsync(normalizedConfig);
+	return createBedrockClient(config);
 }

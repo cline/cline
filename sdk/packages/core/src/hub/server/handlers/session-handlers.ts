@@ -272,10 +272,6 @@ export async function handleSessionCreate(
 			: undefined,
 		initialCompactionState,
 		localRuntime: {
-			modelCatalogDefaults: {
-				loadLatestOnInit: true,
-				loadPrivateOnAuth: true,
-			},
 			configExtensions,
 			...clientContributionRuntime.localRuntime,
 		},
@@ -537,10 +533,6 @@ export async function handleSessionRestore(
 					initialMessages: context.initialMessages,
 					initialCompactionState,
 					localRuntime: {
-						modelCatalogDefaults: {
-							loadLatestOnInit: true,
-							loadPrivateOnAuth: true,
-						},
 						configExtensions,
 						...clientContributionRuntime.localRuntime,
 					},

@@ -8,19 +8,16 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
 	createUserInstructionConfigService,
-	getProviderAuthStorageId,
-	type PreparedRemoteConfigCoreIntegration,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
-import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
-import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import { formatDisplayUserInput } from "@cline/shared"
+import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import type { ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
@@ -29,14 +26,11 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
-import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
-import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { ExtensionRegistryInfo } from "@/registry"
-import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -44,16 +38,9 @@ import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
-import { ClineAccountService } from "./account-service"
-import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
-import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
-import { createProviderCatalog } from "./model-catalog/catalog"
-import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
-import { parseProviderId } from "./model-catalog/provider-id"
-import { createProviderConfigStore } from "./model-catalog/store"
+import { MessageTranslatorState } from "./message-translator"
 import {
 	PROVIDER_FAILURE_ERROR_TYPE,
 	PROVIDER_FAILURE_PHASE,
@@ -110,10 +97,6 @@ function stubWarn(name: string): void {
 function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
 	const value = metadata?.[key]
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
-}
-
-function usesClineAccountAuth(providerId: string): boolean {
-	return getProviderAuthStorageId(providerId) === "cline"
 }
 
 function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): boolean | undefined {
@@ -177,10 +160,6 @@ export class Controller {
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
-	private readonly providerConfigStore: ProviderConfigStore
-	private readonly providerCatalog: ProviderCatalog
-	private readonly providerConfigStoreSubscription: Disposable
-	private providerConfigStatePostScheduled = false
 
 	// Debounces/coalesces postStateToWebview() calls — see StatePostDebouncer.
 	private static readonly STATE_POST_DEBOUNCE_MS = 50
@@ -194,9 +173,6 @@ export class Controller {
 	task?: TaskProxy
 
 	mcpHub: McpHub
-	accountService: ClineAccountService
-	authService: AuthService
-	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
 	// Lazy terminal manager for foreground (VS Code terminal) command execution.
@@ -217,12 +193,7 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
-	private pendingClineAuthRetryPrompt?: string
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
-
-	// Timer for periodic remote config fetching (enterprise policy enforcement)
-	private remoteConfigTimer?: NodeJS.Timeout
-	private remoteConfigCoreIntegration?: PreparedRemoteConfigCoreIntegration
 
 	// Watches user-instruction files (workflows/skills/rules), including those
 	// materialized by remote config under `.cline/remote-config/`. Used to expand
@@ -236,14 +207,6 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
-	get remoteConfig(): RemoteConfig | undefined {
-		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
-	}
-
-	get remoteConfigBundle(): RemoteConfigBundle | undefined {
-		return this.remoteConfigCoreIntegration?.prepared.bundle
-	}
-
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
@@ -253,12 +216,6 @@ export class Controller {
 			debounceMs: Controller.STATE_POST_DEBOUNCE_MS,
 			flush: () => this.flushStateToWebview(),
 		})
-		this.providerConfigStore = createProviderConfigStore()
-		this.providerCatalog = createProviderCatalog(this.providerConfigStore)
-		this.providerConfigStoreSubscription = this.providerConfigStore.subscribe((event) => {
-			this.handleProviderConfigChange(event)
-		})
-
 		// IMPORTANT: Use ~/.cline/data/settings/ for the settings directory,
 		// NOT ensureSettingsDirectoryExists() which returns the VSCode extension
 		// storage path (HostProvider.globalStorageFsPath/settings/). The MCP
@@ -274,11 +231,6 @@ export class Controller {
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
-
-		// Initialize SDK-backed auth and account services.
-		this.authService = AuthService.getInstance(this, this.sdkTelemetry.telemetry)
-		this.ocaAuthService = OcaAuthService.initialize(this)
-		this.accountService = ClineAccountService.getInstance()
 
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState(undefined, () => this.getActiveProviderId())
@@ -339,7 +291,6 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
-			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
 				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
@@ -371,56 +322,30 @@ export class Controller {
 				})
 			},
 			onSendError: async (error, sessionId) => {
-				// A turn failed — the UI shows error recovery (Retry / Sign In / Add Credits).
+				// A turn failed — surface the sanitized provider error and allow retry.
 				void this.diffEdits.discardAllPreviews("turn error")
 				this.turnStateTracker.set("error")
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
-				const isClineAuthError =
-					isClineManagedProvider(providerId) &&
-					(errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
-						errorMessage.toLowerCase().includes("missing api key") ||
-						errorMessage.toLowerCase().includes("unauthorized"))
-
-				if (isClineAuthError) {
-					this.captureProviderFailure({
-						sessionId,
-						error,
-						providerId,
-						errorType: PROVIDER_FAILURE_ERROR_TYPE.AUTH,
-						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
-					})
-					this.emitClineAuthError()
-				} else if (isClineManagedProvider(providerId) && this.isClineBalanceError(errorMessage)) {
-					this.captureProviderFailure({
-						sessionId,
-						error,
-						providerId,
-						errorType: PROVIDER_FAILURE_ERROR_TYPE.BALANCE,
-						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
-					})
-					this.emitClineBalanceError(errorMessage)
-				} else {
-					this.captureProviderFailure({
-						sessionId,
-						error,
-						providerId,
-						errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
-						failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-					})
-					this.messages.emitSessionEvents(
-						[
-							{
-								ts: Date.now(),
-								type: "say",
-								say: "error",
-								text: `Agent error: ${errorMessage}`,
-								partial: false,
-							},
-						],
-						{ type: "status", payload: { sessionId, status: "error" } },
-					)
-				}
+				this.captureProviderFailure({
+					sessionId,
+					error,
+					providerId,
+					errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
+					failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+				})
+				this.messages.emitSessionEvents(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Agent error: ${errorMessage}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId, status: "error" } },
+				)
 				this.postStateToWebview().catch(() => {})
 			},
 		})
@@ -445,7 +370,6 @@ export class Controller {
 			loadInitialMessages: async (sdkHost, sessionId) =>
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
-			emitClineAuthError: () => this.emitClineAuthErrorWithTelemetry(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
@@ -513,8 +437,6 @@ export class Controller {
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
-			emitClineAuthError: () => this.emitClineAuthErrorWithTelemetry(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 			onResumeFailed: () => {
@@ -550,7 +472,6 @@ export class Controller {
 			buildStartSessionInput,
 			createHistoryItemFromSession,
 			clearTask: async () => {
-				this.pendingClineAuthRetryPrompt = undefined
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -562,8 +483,6 @@ export class Controller {
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
-			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -580,7 +499,6 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			taskHistory: this.taskHistory,
-			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
@@ -602,42 +520,7 @@ export class Controller {
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
 
-		// Restore auth state from secrets on startup, then start the remote
-		// config polling timer (enterprise policy enforcement). The timer must
-		// start after auth is restored so remote config can identify the user's
-		// organization and apply org-level policies.
-		this.authService
-			.restoreRefreshTokenAndRetrieveAuthInfo()
-			.then(() => {
-				this.startRemoteConfigTimer()
-			})
-			.catch((err) => {
-				Logger.error("[SdkController] Failed to restore auth state:", err)
-			})
-
-		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge + auth services")
-	}
-
-	getProviderConfigStore(): ProviderConfigStore {
-		return this.providerConfigStore
-	}
-
-	getProviderCatalog(): ProviderCatalog {
-		return this.providerCatalog
-	}
-
-	invalidateProviderListings(): void {
-		this.providerCatalog.invalidateProviderListings()
-	}
-
-	private handleProviderConfigChange(event: ProviderConfigChange): void {
-		this.scheduleProviderConfigStatePost()
-
-		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
-			this.sessions
-				?.updateActiveSessionModel(event.selection.modelId)
-				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
-		}
+		Logger.log("[SdkController] Initialized with the Bedrock SDK adapter and gRPC bridge")
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
@@ -661,72 +544,6 @@ export class Controller {
 		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
-	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
-		try {
-			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
-			const mode = modeValue === "plan" ? "plan" : "act"
-			if (event.mode !== mode) {
-				return false
-			}
-
-			const apiConfig = this.stateManager.getApiConfiguration()
-			const activeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			return activeProvider === event.providerId.toString()
-		} catch {
-			return false
-		}
-	}
-
-	private scheduleProviderConfigStatePost(): void {
-		if (this.providerConfigStatePostScheduled) {
-			return
-		}
-
-		this.providerConfigStatePostScheduled = true
-		queueMicrotask(() => {
-			this.providerConfigStatePostScheduled = false
-			this.postStateToWebview().catch((error) => {
-				Logger.error("[SdkController] Failed to post state after provider config change:", error)
-			})
-		})
-	}
-
-	/**
-	 * Starts the periodic remote config fetching timer. Fetches immediately
-	 * and then every hour, to enforce enterprise policy (provider lockdown,
-	 * MCP server management, OpenTelemetry, etc.).
-	 */
-	private startRemoteConfigTimer(): void {
-		// Initial fetch
-		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Initial remote config refresh failed:", err))
-		// Set up 1-hour interval
-		this.remoteConfigTimer = setInterval(() => {
-			this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config timer failed:", err))
-		}, 3600000) // 1 hour
-	}
-
-	private async refreshRemoteConfig(): Promise<void> {
-		await refreshSdkRemoteConfig(this, {
-			workspacePath: await this.getRemoteConfigWorkspacePath(),
-		})
-		// Remote config may have materialized new workflows/skills/rules under
-		// `.cline/remote-config/`. Refresh the watcher so slash-command expansion
-		// sees them without waiting on filesystem events.
-		await this.refreshUserInstructionWatchers()
-	}
-
-	async setRemoteConfigCoreIntegration(integration: PreparedRemoteConfigCoreIntegration | undefined): Promise<void> {
-		const previous = this.remoteConfigCoreIntegration
-		this.remoteConfigCoreIntegration = integration
-		if (previous && previous !== integration) {
-			try {
-				await previous.dispose()
-			} catch (error) {
-				Logger.error("[SdkController] Failed to dispose previous remote config integration:", error)
-			}
-		}
-	}
-
 	async invalidateUserInstructionService(): Promise<void> {
 		const userInstructionServicePromise = this.userInstructionService
 		this.userInstructionService = undefined
@@ -737,13 +554,6 @@ export class Controller {
 	}
 
 	async dispose(): Promise<void> {
-		this.providerConfigStoreSubscription.dispose()
-		// Clear the remote config timer to prevent stale fetches
-		if (this.remoteConfigTimer) {
-			clearInterval(this.remoteConfigTimer)
-			this.remoteConfigTimer = undefined
-		}
-		await this.setRemoteConfigCoreIntegration(undefined)
 		this.isDisposed = true
 		// Tear down the debounced state-post machinery before downstream resources
 		// are disposed below — see StatePostDebouncer.dispose().
@@ -829,24 +639,6 @@ export class Controller {
 	}
 
 	/**
-	 * Refresh the user-instruction watcher after remote config is (re)materialized
-	 * so newly written workflows/skills/rules are picked up immediately rather than
-	 * waiting on filesystem watch events.
-	 */
-	private async refreshUserInstructionWatchers(): Promise<void> {
-		const servicePromise = this.userInstructionService
-		if (!servicePromise) {
-			return
-		}
-		try {
-			const service = await servicePromise
-			await Promise.all([service.refreshType("workflow"), service.refreshType("skill"), service.refreshType("rule")])
-		} catch (error) {
-			Logger.warn("[SdkController] Failed to refresh user instruction watchers:", error)
-		}
-	}
-
-	/**
 	 * Expand slash commands, then resolve `@` context mentions in user text
 	 * before sending to the SDK.
 	 *
@@ -902,19 +694,6 @@ export class Controller {
 		return noWorkspaceFallback
 	}
 
-	private async getRemoteConfigWorkspacePath(): Promise<string | undefined> {
-		try {
-			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			if (!paths.length) {
-				return undefined
-			}
-			return resolveWorkspaceRootPath(paths, paths[0])
-		} catch (error) {
-			Logger.warn("[SdkController] Failed to get workspace paths for remote config, using global fallback:", error)
-			return undefined
-		}
-	}
-
 	// ---- Session event subscription ----
 
 	/**
@@ -967,13 +746,6 @@ export class Controller {
 		this.providerFailureTelemetryTurnGate.beginTurn()
 	}
 
-	/**
-	 * Check if the active API provider uses Cline account auth for the current mode.
-	 */
-	private isClineManagedProviderActive(): boolean {
-		return isClineManagedProvider(this.getActiveProviderId())
-	}
-
 	private captureProviderFailure(event: ProviderFailureTelemetry): void {
 		const ulid = event.sessionId ?? this.task?.taskId ?? this.sessions.getActiveSession()?.sessionId
 		if (!ulid) {
@@ -1002,151 +774,6 @@ export class Controller {
 		})
 	}
 
-	private emitClineAuthErrorWithTelemetry(task?: string, sessionId?: string): void {
-		this.emitClineAuthError(task)
-		this.captureProviderFailure({
-			sessionId: sessionId ?? this.task?.taskId,
-			error: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE,
-			providerId: this.getActiveProviderId(),
-			errorType: PROVIDER_FAILURE_ERROR_TYPE.AUTH,
-			failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
-		})
-	}
-
-	/**
-	 * Emit a proper auth error for the 'cline' provider when the user is not
-	 * logged in. The message sequence drives ErrorRow to render the
-	 * "Sign in to Cline" button.
-	 *
-	 * Message sequence:
-	 *   1. say:'task'           – the user's message text
-	 *   2. say:'api_req_started' – opens the API request row
-	 *   3. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders auth UI
-	 */
-	private emitClineAuthError(task?: string): void {
-		const ts = Date.now()
-		this.pendingClineAuthRetryPrompt = task
-
-		if (!this.task) {
-			this.task = createTaskProxy(
-				`auth-error-${ts}`,
-				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
-				() => this.cancelTask(),
-			)
-		}
-
-		const clineError = new ClineError(
-			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
-			undefined, // modelId
-			"cline",
-		)
-		const serializedError = clineError.serialize()
-
-		const failedAskTs = ts + 2
-		const messages: ClineMessage[] = [
-			{
-				ts,
-				type: "say",
-				say: "task",
-				text: task ?? "",
-				partial: false,
-			},
-			{
-				ts: ts + 1,
-				type: "say",
-				say: "api_req_started",
-				text: JSON.stringify({
-					streamingFailedMessage: serializedError,
-				} satisfies ClineApiReqInfo),
-				partial: false,
-			},
-			{
-				ts: failedAskTs,
-				type: "ask",
-				ask: "api_req_failed",
-				text: serializedError,
-				partial: false,
-			},
-		]
-
-		this.turnStateTracker.set("error", failedAskTs)
-
-		this.messages.appendAndEmit(messages, {
-			type: "status",
-			payload: {
-				sessionId: this.sessions.getActiveSession()?.sessionId ?? "",
-				status: "error",
-			},
-		})
-
-		this.postStateToWebview().catch(() => {})
-	}
-
-	/**
-	 * Check if an error message indicates an insufficient credits / balance error
-	 * by reshaping it into ClineError format and inspecting the result.
-	 */
-	private isClineBalanceError(errorMessage: string): boolean {
-		try {
-			const shaped = JSON.parse(reshapeErrorForWebview({ message: errorMessage }))
-			return shaped.code === "insufficient_credits"
-		} catch {
-			return false
-		}
-	}
-
-	/**
-	 * Emit a balance error for the 'cline' provider when the user has insufficient
-	 * credits. Produces the same message sequence as emitClineAuthError so the
-	 * webview renders the "Buy Credits" button via CreditLimitError.
-	 *
-	 * Message sequence:
-	 *   1. say:'api_req_started' – streamingFailedMessage holds the ClineError JSON
-	 *   2. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders balance UI
-	 */
-	private emitClineBalanceError(rawErrorMessage: string): void {
-		const ts = Date.now()
-
-		// reshapeErrorForWebview extracts structured fields from the SDK error
-		// message (which may be plain text or embedded JSON) and produces the
-		// ClineError-serialized JSON that the webview's ErrorRow expects.
-		const serializedError = reshapeErrorForWebview({
-			message: rawErrorMessage,
-		})
-
-		const failedAskTs = ts + 1
-		const messages: ClineMessage[] = [
-			{
-				ts,
-				type: "say",
-				say: "api_req_started",
-				text: JSON.stringify({
-					streamingFailedMessage: serializedError,
-				} satisfies ClineApiReqInfo),
-				partial: false,
-			},
-			{
-				ts: failedAskTs,
-				type: "ask",
-				ask: "api_req_failed",
-				text: serializedError,
-				partial: false,
-			},
-		]
-
-		this.turnStateTracker.set("error", failedAskTs)
-
-		this.messages.appendAndEmit(messages, {
-			type: "status",
-			payload: {
-				sessionId: this.sessions.getActiveSession()?.sessionId ?? "",
-				status: "error",
-			},
-		})
-
-		this.postStateToWebview().catch(() => {})
-	}
-
 	// ---- Task lifecycle ----
 
 	async initTask(
@@ -1156,10 +783,6 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
-		// Fire-and-forget: ensure we have the latest remote config (enterprise
-		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
-		// blocking the UI.
-		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
@@ -1233,7 +856,6 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		this.pendingClineAuthRetryPrompt = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
@@ -1254,13 +876,6 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
-		if (this.pendingClineAuthRetryPrompt !== undefined && this.task?.taskState?.askResponse === "yesButtonClicked") {
-			const retryPrompt = this.pendingClineAuthRetryPrompt
-			this.pendingClineAuthRetryPrompt = undefined
-			await this.initTask(retryPrompt, images, files)
-			return
-		}
-
 		const turnStateBefore = this.turnStateTracker.get()
 
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
@@ -1340,10 +955,6 @@ export class Controller {
 				fallbackCwd
 			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 			const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
-			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
-				this.emitClineAuthErrorWithTelemetry(editedText)
-				return
-			}
 
 			const resolvedPrompt = await this.resolveContextMentions(editedText)
 			const startInput = {
@@ -1442,10 +1053,6 @@ export class Controller {
 		const restoredText = target?.message.text ?? ""
 		const historyTitle = checkpointRunCount === 1 ? restoredText : firstUserMessage?.text || restoredText
 		const config = restoreMessages ? await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle }) : undefined
-		if (config && usesClineAccountAuth(config.providerId) && !config.apiKey) {
-			this.emitClineAuthErrorWithTelemetry(restoredText)
-			return
-		}
 
 		const startInput = config
 			? {
@@ -1549,70 +1156,6 @@ export class Controller {
 		// Mirror to StateManager for existing VS Code services during the transition.
 		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		await this.postStateToWebview()
-	}
-
-	// ---- Auth callbacks ----
-
-	async handleSignOut(): Promise<void> {
-		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
-		clearRemoteConfig()
-		await this.setRemoteConfigCoreIntegration(undefined)
-		await this.postStateToWebview()
-	}
-
-	async handleOcaSignOut(): Promise<void> {
-		await this.ocaAuthService.handleDeauth(LogoutReason.USER_INITIATED)
-		await this.postStateToWebview()
-	}
-
-	async handleAuthCallback(customToken: string, provider: string | null = null): Promise<void> {
-		await this.authService.handleAuthCallback(customToken, provider ?? "cline")
-		// Fetch remote config immediately after login so enterprise policies
-		// (provider lockdown, MCP servers, OTel, etc.) are applied right away.
-		await this.refreshRemoteConfig()
-		await this.postStateToWebview()
-	}
-
-	async handleOcaAuthCallback(code: string, state: string): Promise<void> {
-		await this.ocaAuthService.handleAuthCallback(code, state)
-		await this.postStateToWebview()
-	}
-
-	// ---- Provider auth callbacks ----
-
-	private persistProviderApiKeyFromState(provider: string): void {
-		const providerId = parseProviderId(provider)
-		const apiKey = this.providerConfigStore.read(providerId).apiKey
-
-		if (!apiKey) {
-			Logger.warn(`[SdkController] No API key found after ${provider} auth callback`)
-			return
-		}
-
-		this.providerConfigStore.write(providerId, { apiKey })
-	}
-
-	async handleOpenRouterCallback(code: string): Promise<void> {
-		await this.authService.handleOpenRouterCallback(code)
-		this.persistProviderApiKeyFromState("openrouter")
-		await this.postStateToWebview()
-	}
-
-	async handleRequestyCallback(code: string): Promise<void> {
-		await this.authService.handleRequestyCallback(code)
-		this.persistProviderApiKeyFromState("requesty")
-		await this.postStateToWebview()
-	}
-
-	async handleHicapCallback(code: string): Promise<void> {
-		await this.authService.handleHicapCallback(code)
-		this.persistProviderApiKeyFromState("hicap")
-		await this.postStateToWebview()
-	}
-
-	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
-		stubWarn("readOpenRouterModels")
-		return undefined
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {

@@ -1,5 +1,4 @@
 import React from "react"
-import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 import { ProgressIndicator } from "./ChatRow"
 
 interface ErrorBlockTitleProps {
@@ -56,16 +55,7 @@ export const ErrorBlockTitle = ({
 			details.title = "API Request"
 			details.classNames.push("text-(--vscode-foreground)")
 		} else if (apiRequestFailedMessage) {
-			// Handle failed request
-			const clineError = ClineError.parse(apiRequestFailedMessage)
-			const titleText = clineError?.isErrorType(ClineErrorType.Entitlement)
-				? "ClinePass Required"
-				: clineError?.isErrorType(ClineErrorType.Balance)
-					? "Credit Limit Reached"
-					: clineError?.isErrorType(ClineErrorType.SpendLimit)
-						? "Spend Limit Reached"
-						: "API Request Failed"
-			details.title = titleText
+			details.title = "Bedrock Request Failed"
 			details.classNames.push("font-bold text-(--vscode-errorForeground)")
 		} else if (retryStatus) {
 			// Handle retry state

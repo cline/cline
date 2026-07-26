@@ -10,11 +10,9 @@ import {
 	captureSdkError,
 	createSessionId,
 	type ITelemetryService,
-	isLikelyAuthError,
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
-import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
@@ -91,11 +89,6 @@ import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
 import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
-import {
-	OAuthReauthRequiredError,
-	type RuntimeOAuthResolution,
-	RuntimeOAuthTokenManager,
-} from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
@@ -210,7 +203,6 @@ export interface LocalRuntimeHostOptions {
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	providerSettingsManager?: ProviderSettingsManager;
-	oauthTokenManager?: RuntimeOAuthTokenManager;
 	telemetry?: ITelemetryService;
 	logger?: BasicLogger;
 	/**
@@ -231,7 +223,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultCapabilities?: RuntimeCapabilities;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
 	private readonly providerSettingsManager: ProviderSettingsManager;
-	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
@@ -264,12 +255,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultToolPolicies = options.toolPolicies;
 		this.providerSettingsManager =
 			options.providerSettingsManager ?? new ProviderSettingsManager();
-		this.oauthTokenManager =
-			options.oauthTokenManager ??
-			new RuntimeOAuthTokenManager({
-				providerSettingsManager: this.providerSettingsManager,
-				telemetry: options.telemetry,
-			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
 		this.defaultTelemetry?.setDistinctId(distinctId);
@@ -304,29 +289,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method, ...args) =>
 				this.invokeOptional(method, ...args),
 		});
-	}
-
-	private async applyInitialOAuthCredentials(
-		input: ResolvedStartSessionInput,
-	): Promise<ResolvedStartSessionInput> {
-		if (input.config.apiKey?.trim()) {
-			return input;
-		}
-
-		const resolved = await this.oauthTokenManager.resolveProviderApiKey({
-			providerId: input.config.providerId,
-		});
-		if (!resolved?.apiKey) {
-			return input;
-		}
-
-		return {
-			...input,
-			config: {
-				...input.config,
-				apiKey: resolved.apiKey,
-			},
-		};
 	}
 
 	// ── Public API ──────────────────────────────────────────────────────
@@ -371,8 +333,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<StartSessionResult> {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
-		const startInput: ResolvedStartSessionInput =
-			await this.applyInitialOAuthCredentials(input);
+		const startInput: ResolvedStartSessionInput = input;
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
 			initialMessages.length > 0
@@ -539,27 +500,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			configWithProvider.teamName = runtime.teamRuntime.getTeamName();
 		}
 
-		// Auth-retry hook for every agent in the session (lead, teammates,
-		// subagents): refresh OAuth credentials and propagate the new key to
-		// all connections, then let the runtime retry the failed run. Without
-		// this, a token that expires while the lead is blocked (e.g. in
-		// team_await_runs) kills teammate runs with a raw provider 401.
-		const onAuthError = async (): Promise<boolean> => {
-			const liveSession = this.sessions.get(sessionId);
-			if (!liveSession || !isOAuthProvider(liveSession.config.providerId)) {
-				return false;
-			}
-			try {
-				await this.syncOAuthCredentials(liveSession, { forceRefresh: true });
-				return true;
-			} catch {
-				return false;
-			}
-		};
-		runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			onAuthError,
-		});
-
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
@@ -626,10 +566,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,
-			apiKey: providerConfig.apiKey,
-			baseUrl: providerConfig.baseUrl,
-			headers: providerConfig.headers,
-			onAuthError,
 			knownModels: providerConfig.knownModels,
 			providerConfig,
 			thinking: configWithProvider.thinking,
@@ -1507,7 +1443,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		await this.ensureSessionPersisted(session);
 		await this.refreshActiveSessionGitMetadata(session);
-		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
 
 		try {
@@ -1638,11 +1573,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			const runFn = shouldContinue
 				? () => session.agent.continue(prompt, userImages, userFiles)
 				: () => session.agent.run(prompt, userImages, userFiles);
-			const result = await this.runWithAuthRetry(
-				session,
-				runFn,
-				baselineMessages,
-			);
+			const result = await runFn();
 
 			session.started = true;
 			const persistedMessages = withLatestAssistantTurnMetadata(
@@ -2101,53 +2032,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── OAuth & auth ────────────────────────────────────────────────────
-
-	private async runWithAuthRetry(
-		session: ActiveSession,
-		run: () => Promise<AgentResult>,
-		baselineMessages: LlmsProviders.Message[],
-	): Promise<AgentResult> {
-		try {
-			return await run();
-		} catch (error) {
-			if (
-				!isOAuthProvider(session.config.providerId) ||
-				!isLikelyAuthError(error)
-			) {
-				throw error;
-			}
-			await this.syncOAuthCredentials(session, { forceRefresh: true });
-			session.agent.restore(baselineMessages);
-			return run();
-		}
-	}
-
-	private async syncOAuthCredentials(
-		session: ActiveSession,
-		options?: { forceRefresh?: boolean },
-	): Promise<void> {
-		let resolved: RuntimeOAuthResolution | null = null;
-		try {
-			resolved = await this.oauthTokenManager.resolveProviderApiKey({
-				providerId: session.config.providerId,
-				forceRefresh: options?.forceRefresh,
-			});
-		} catch (error) {
-			if (error instanceof OAuthReauthRequiredError) {
-				throw new Error(`${error.providerId} requires re-authentication.`);
-			}
-			throw error;
-		}
-		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
-		session.config.apiKey = resolved.apiKey;
-		session.agent.updateConnection({ apiKey: resolved.apiKey });
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			apiKey: resolved.apiKey,
-		});
-		session.runtime.teamRuntime?.updateTeammateConnections({
-			apiKey: resolved.apiKey,
-		});
-	}
 
 	// ── Utility methods ─────────────────────────────────────────────────
 

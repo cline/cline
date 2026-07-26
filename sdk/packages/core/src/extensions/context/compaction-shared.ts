@@ -682,15 +682,9 @@ export function resolveSummarizerConfig(options: {
 }): ProviderConfig {
 	const summarizer = options.summarizer;
 	const withSummarizerDefaults = (config: ProviderConfig): ProviderConfig => {
-		if (config.providerId === "openai-codex") {
-			const { maxOutputTokens: _maxOutputTokens, ...rest } = config;
-			return {
-				...rest,
-				thinking: false,
-			};
-		}
 		return {
 			...config,
+			providerId: "bedrock",
 			maxOutputTokens:
 				config.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
 			thinking: false,
@@ -699,17 +693,12 @@ export function resolveSummarizerConfig(options: {
 	if (!summarizer) {
 		return withSummarizerDefaults(options.activeProviderConfig);
 	}
-	const baseProviderConfig =
-		summarizer.providerConfig?.providerId === summarizer.providerId
-			? summarizer.providerConfig
-			: undefined;
+	const baseProviderConfig = summarizer.providerConfig;
 	return withSummarizerDefaults({
-		...(baseProviderConfig ?? {}),
-		providerId: summarizer.providerId,
+		...options.activeProviderConfig,
+		...baseProviderConfig,
+		providerId: "bedrock",
 		modelId: summarizer.modelId,
-		apiKey: summarizer.apiKey ?? baseProviderConfig?.apiKey,
-		baseUrl: summarizer.baseUrl ?? baseProviderConfig?.baseUrl,
-		headers: summarizer.headers ?? baseProviderConfig?.headers,
 		modelInfo: summarizer.modelInfo ?? baseProviderConfig?.modelInfo,
 		knownModels: summarizer.knownModels ?? baseProviderConfig?.knownModels,
 		maxOutputTokens:

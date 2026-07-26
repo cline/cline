@@ -1,21 +1,10 @@
-import {
-	getClineOrgIndividualInferenceSubscriptionMessage,
-	isClineNotSubscribedMessage,
-	isClineOrgIndividualInferenceSubscriptionMessage,
-	isClinePassLimitMessage,
-} from "@cline/llms"
 import { serializeError } from "serialize-error"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",
 	RateLimit = "rateLimit",
 	Balance = "balance",
-	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
-	Entitlement = "entitlement",
-	OrgClinePassRestriction = "orgClinePassRestriction",
-	ClinePassLimit = "clinePassLimit",
 }
 
 interface ErrorDetails {
@@ -157,40 +146,6 @@ export class ClineError extends Error {
 		const { code, status, details } = err._error
 		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
 		const message = rawMessage?.toLowerCase()
-		const detailMessage = typeof details?.message === "string" ? details.message : undefined
-
-		// Check balance error first (most specific)
-		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
-			return ClineErrorType.Balance
-		}
-
-		// Check spend limit exceeded (org-enforced budget cap, 429 SPEND_LIMIT_EXCEEDED)
-		// Must be checked before the generic rate-limit check since both use 429
-		if (code === "SPEND_LIMIT_EXCEEDED" || details?.code === "SPEND_LIMIT_EXCEEDED") {
-			return ClineErrorType.SpendLimit
-		}
-
-		if (
-			rawMessage === getClineOrgIndividualInferenceSubscriptionMessage() ||
-			(detailMessage ? isClineOrgIndividualInferenceSubscriptionMessage(detailMessage) : false) ||
-			(rawMessage ? isClineOrgIndividualInferenceSubscriptionMessage(rawMessage) : false)
-		) {
-			return ClineErrorType.OrgClinePassRestriction
-		}
-
-		if (
-			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
-			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
-		) {
-			return ClineErrorType.Entitlement
-		}
-
-		if (
-			(detailMessage ? isClinePassLimitMessage(detailMessage) : false) ||
-			(rawMessage ? isClinePassLimitMessage(rawMessage) : false)
-		) {
-			return ClineErrorType.ClinePassLimit
-		}
 
 		// Check auth errors
 		const isAuthStatus = status !== undefined && status > 400 && status < 429
@@ -205,7 +160,7 @@ export class ClineError extends Error {
 		if (message) {
 			// Check for specific error codes/messages if applicable
 			const authErrorRegex = [/(?:in)?valid[-_ ]?(?:api )?(?:token|key)/i, /authentication[-_ ]?failed/i, /unauthorized/i]
-			if (message?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) || authErrorRegex.some((regex) => regex.test(message))) {
+			if (authErrorRegex.some((regex) => regex.test(message))) {
 				return ClineErrorType.Auth
 			}
 

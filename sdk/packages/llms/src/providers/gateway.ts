@@ -186,7 +186,7 @@ export class DefaultGateway implements Gateway {
 	private readonly telemetry: ITelemetryService | undefined;
 
 	constructor(config: GatewayConfig = {}) {
-		this.registry = new GatewayRegistry(config.fetch);
+		this.registry = new GatewayRegistry();
 		this.logger = config.logger;
 		this.telemetry = config.telemetry;
 

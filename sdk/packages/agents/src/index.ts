@@ -45,8 +45,8 @@ export type {
 	AgentEventListener,
 	AgentRunInput,
 	AgentRuntimeConfig,
+	AgentRuntimeConfigWithBedrock,
 	AgentRuntimeConfigWithModel,
-	AgentRuntimeConfigWithProvider,
 } from "./agent-runtime";
 export {
 	Agent,

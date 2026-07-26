@@ -4,13 +4,12 @@ import { ApiFormat, apiFormatToJSON } from "@shared/proto/cline/models"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
-import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
-import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
+import type { ITelemetryProvider, TelemetryProperties, TelemetryUserInfo } from "./providers/ITelemetryProvider"
 import {
 	getRolloutErrorProperties,
 	getRolloutTelemetryMetadata,
@@ -715,7 +714,7 @@ export class TelemetryService {
 	 * Identifies the accounts user
 	 * @param userInfo The user's information
 	 */
-	public identifyAccount(userInfo: ClineAccountUserInfo) {
+	public identifyAccount(userInfo: TelemetryUserInfo) {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...this.telemetryMetadata,
 		}

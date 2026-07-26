@@ -110,20 +110,12 @@ export interface GatewayProviderManifest {
 	models: readonly GatewayModelDefinition[];
 	capabilities?: readonly ProviderCapability[];
 	env?: readonly ("browser" | "node")[];
-	api?: string;
-	apiKeyEnv?: readonly string[];
 	docsUrl?: string;
 	metadata?: GatewayProviderMetadata;
 }
 
 export interface GatewayProviderSettings {
-	apiKey?: string;
-	apiKeyResolver?: () => string | undefined | Promise<string | undefined>;
-	apiKeyEnv?: readonly string[];
-	baseUrl?: string;
-	headers?: Record<string, string>;
 	timeoutMs?: number;
-	fetch?: typeof fetch;
 	options?: Record<string, unknown>;
 	metadata?: GatewayProviderMetadata;
 }
@@ -220,7 +212,6 @@ export interface GatewayConfig {
 	builtins?: false | readonly string[];
 	providers?: readonly GatewayProviderRegistration[];
 	providerConfigs?: readonly GatewayProviderConfig[];
-	fetch?: typeof fetch;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 }

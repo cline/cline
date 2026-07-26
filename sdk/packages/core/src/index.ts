@@ -5,21 +5,6 @@
  */
 
 export * as Llms from "@cline/llms";
-export {
-	ClineNotSubscribedError,
-	ClineOrgIndividualInferenceSubscriptionError,
-	ClinePassLimitError,
-	extractClinePassLimitMessage,
-	getClineNotSubscribedMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClinePassSubscriptionUrl,
-	isClineNotSubscribedError,
-	isClineNotSubscribedMessage,
-	isClineOrgIndividualInferenceSubscriptionError,
-	isClineOrgIndividualInferenceSubscriptionMessage,
-	isClinePassLimitError,
-	isClinePassLimitMessage,
-} from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AddProviderActionRequest,
@@ -116,64 +101,9 @@ export {
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {
-	type ClineAccountBalance,
-	type ClineAccountOperations,
-	type ClineAccountOrganization,
-	type ClineAccountOrganizationBalance,
-	type ClineAccountOrganizationUsageTransaction,
-	type ClineAccountPaymentTransaction,
-	ClineAccountService,
-	type ClineAccountServiceOptions,
-	type ClineAccountUsageTransaction,
-	type ClineAccountUser,
-	type ClineOrganization,
-	type ClineSubscriptionPlan,
-	executeClineAccountAction,
-	type FeaturebaseTokenResponse,
-	isClineAccountActionRequest,
-	type ProviderActionExecutor,
-	RpcClineAccountService,
-	type UserCurrentPlan,
-	type UserRemoteConfigOrganization,
-	type UserRemoteConfigResponse,
-} from "./account";
-export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,
 } from "./auth/client";
-export {
-	completeClineDeviceAuth,
-	getValidClineCredentials,
-	loginClineOAuth,
-	refreshClineToken,
-	startClineDeviceAuth,
-} from "./auth/cline";
-export {
-	getValidOpenAICodexCredentials,
-	loginOpenAICodex,
-	refreshOpenAICodexToken,
-} from "./auth/codex";
-export {
-	getValidOcaCredentials,
-	loginOcaOAuth,
-	refreshOcaToken,
-} from "./auth/oca";
-export {
-	formatProviderOAuthApiKey,
-	getPersistedProviderApiKey,
-	getProviderAuthHandler,
-	getProviderAuthStorageId,
-	getProviderOAuthCredentialsFromSettings,
-	isOAuthProvider,
-	loginAndSaveProviderOAuthCredentials,
-	type ProviderAuthHandler,
-	type ProviderAuthLoginInput,
-	type ProviderAuthRefreshInput,
-	type ProviderAuthSaveCredentialsInput,
-	type ProviderOAuthCredentials,
-	resolveProviderApiKeyFromSettings,
-	saveProviderOAuthCredentials,
-} from "./auth/provider-auth-registry";
 export type {
 	LocalOAuthServer,
 	LocalOAuthServerOptions,
@@ -462,11 +392,6 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
-export {
-	OAuthReauthRequiredError,
-	type RuntimeOAuthResolution,
-	RuntimeOAuthTokenManager,
-} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
@@ -583,44 +508,6 @@ export type {
 	PluginUninstallResult,
 } from "./services/plugin-uninstall";
 export { uninstallPlugin } from "./services/plugin-uninstall";
-export {
-	ensureCustomProvidersLoadedSync,
-	readModelsFileSync,
-	resolveModelsRegistryPath,
-	type StoredModelEntry,
-	type StoredProviderEntry,
-	syncStoredProviderRegistration,
-	writeModelsFileSync,
-} from "./services/providers/local-provider-registry";
-export {
-	addLocalProvider,
-	type DeleteLocalProviderRequest,
-	deleteLocalProvider,
-	ensureCustomProvidersLoaded,
-	getLocalProviderModels,
-	listLocalProviders,
-	loginAndSaveLocalProviderOAuthCredentials,
-	loginLocalProvider,
-	markLocalProviderEnabled,
-	normalizeOAuthProvider,
-	refreshProviderModelsFromSource,
-	resolveLocalClineAuthToken,
-	saveLocalProviderOAuthCredentials,
-	saveLocalProviderSettings,
-	type UpdateLocalProviderRequest,
-	updateLocalProvider,
-} from "./services/providers/local-provider-service";
-export {
-	getProviderConfigFields,
-	type ProviderConfigFieldKey,
-	type ProviderConfigFieldRequirement,
-	type ProviderConfigFields,
-} from "./services/providers/provider-config-fields";
-export {
-	type MigrateLegacyProviderSettingsOptions,
-	type MigrateLegacyProviderSettingsResult,
-	migrateLegacyProviderSettings,
-} from "./services/storage/provider-settings-legacy-migration";
 export { ProviderSettingsManager } from "./services/storage/provider-settings-manager";
 export { SqliteSessionStore } from "./services/storage/sqlite-session-store";
 export {
@@ -847,30 +734,16 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export {
-	type ClineRecommendedModel,
-	type ClineRecommendedModelsData,
-	FALLBACK_CLINE_RECOMMENDED_MODELS,
-	type FetchClineRecommendedModelsOptions,
-	fetchClineRecommendedModels,
-} from "./services/llms/cline-recommended-models";
-export {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
 	DEFAULT_MODELS_CATALOG_URL,
 	getLiveModelsCatalog,
 	getProviderConfig,
-	OPENAI_COMPATIBLE_PROVIDERS,
 	resolveProviderConfig,
 } from "./services/llms/provider-defaults";
 export type {
-	AuthSettings,
-	AwsSettings,
-	AzureSettings,
+	BedrockConnectionSettings,
 	BuiltInProviderId,
-	GcpSettings,
-	ModelCatalogConfig,
-	ModelCatalogSettings,
-	OcaSettings,
 	ProviderCapability,
 	ProviderClient,
 	ProviderConfig,
@@ -879,52 +752,25 @@ export type {
 	ProviderProtocol,
 	ProviderSettings,
 	ReasoningSettings,
-	SapSettings,
 	ToProviderConfigOptions,
 } from "./services/llms/provider-settings";
 export {
-	AuthSettingsSchema,
-	AwsSettingsSchema,
-	AzureSettingsSchema,
+	BedrockConnectionSchema,
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
 	createProviderConfig,
-	GcpSettingsSchema,
 	isBuiltInProviderId,
-	ModelCatalogSettingsSchema,
 	normalizeProviderId,
-	OcaSettingsSchema,
 	ProviderClientSchema,
 	ProviderIdSchema,
 	ProviderProtocolSchema,
 	ProviderSettingsSchema,
 	parseSettings,
 	ReasoningSettingsSchema,
-	SapSettingsSchema,
 	safeCreateProviderConfig,
 	safeParseSettings,
 	toProviderConfig,
 } from "./services/llms/provider-settings";
-export {
-	defineLlmsConfig,
-	loadLlmsConfigFromFile,
-} from "./services/llms/runtime-config";
-export {
-	createLlmsSdk,
-	DefaultLlmsSdk,
-} from "./services/llms/runtime-registry";
-export type {
-	BuiltInProviderSummary,
-	CreateHandlerInput,
-	LlmsConfig,
-	LlmsSdk,
-	ProviderConfigDefaults,
-	ProviderSelectionConfig,
-	RegisterBuiltinProviderInput,
-	RegisteredProviderSummary,
-	RegisterModelInput,
-	RegisterProviderInput,
-} from "./services/llms/runtime-types";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

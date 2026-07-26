@@ -1,18 +1,7 @@
 export {
-	getGeneratedModelsForProvider,
-	getGeneratedProviderModels,
-} from "./catalog/catalog.generated-access";
-export {
-	fetchLiveProviderModels,
-	fetchModelsDevProviderModels,
-	sortModelsByReleaseDate,
-} from "./catalog/catalog-live";
-export type { ModelIdAliasRule } from "./catalog/model-id-aliases";
-export {
-	isCanonicalModelIdForAliasRules,
-	preferCanonicalModelIds,
-	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
-} from "./catalog/model-id-aliases";
+	BEDROCK_DEFAULT_MODEL_ID,
+	BEDROCK_MODELS,
+} from "./catalog/bedrock";
 export type {
 	ModelCollection,
 	ModelInfo,
@@ -30,13 +19,4 @@ export {
 	getProviderIds,
 	hasProvider,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
-	registerModel,
-	registerProvider,
-	resetRegistry,
-	unregisterModel,
-	unregisterProvider,
 } from "./providers/model-registry";
-export {
-	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
-	filterOpenAICodexModels,
-} from "./providers/openai-codex-models";

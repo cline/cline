@@ -1,6 +1,4 @@
-import { getProviderAuthStorageId } from "@cline/core"
 import { createSessionId } from "@cline/shared"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Settings } from "@shared/storage/state-keys"
@@ -20,10 +18,6 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
-
-function usesClineAccountAuth(providerId: string): boolean {
-	return getProviderAuthStorageId(providerId) === "cline"
-}
 
 export interface SdkTaskStartCoordinatorOptions {
 	stateManager: StateManager
@@ -52,8 +46,6 @@ export interface SdkTaskStartCoordinatorOptions {
 	createTempSessionHost: () => Promise<SdkSessionHost>
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
-	isClineManagedProviderActive: () => boolean
-	emitClineAuthError: (task?: string) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
 }
@@ -90,19 +82,7 @@ export class SdkTaskStartCoordinator {
 			providerId = config.providerId
 			modelId = config.modelId
 
-			Logger.log(
-				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
-			)
-
-			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
-				Logger.warn(
-					`[SdkController] ${config.providerId} provider selected but no Cline auth token — emitting auth error`,
-				)
-				// No task/session id exists yet, so this preflight auth UI path is
-				// intentionally not recorded as task-joinable provider error telemetry.
-				this.options.emitClineAuthError(prompt)
-				return undefined
-			}
+			Logger.log(`[SdkController] Session config: provider=bedrock, model=${config.modelId}`)
 
 			taskSessionId = config.sessionId?.trim() || createSessionId()
 			const configWithSessionId = {
@@ -260,16 +240,6 @@ export class SdkTaskStartCoordinator {
 		Logger.error("[SdkController] Failed to reinit task:", error)
 
 		const reinitErrorMsg = error instanceof Error ? error.message : String(error)
-		const isClineAuthReinit =
-			this.options.isClineManagedProviderActive() &&
-			(reinitErrorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
-				reinitErrorMsg.toLowerCase().includes("missing api key") ||
-				reinitErrorMsg.toLowerCase().includes("unauthorized"))
-
-		if (isClineAuthReinit) {
-			this.options.emitClineAuthError()
-			return
-		}
 
 		this.options.messages.emitSessionEvents(
 			[

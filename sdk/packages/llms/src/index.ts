@@ -1,49 +1,41 @@
-export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
-export type {
-	ModelCollection,
-	ModelIdAliasRule,
-	ModelInfo,
-	ModelInfo as CatalogModelInfo,
-	ProviderCapability as CatalogProviderCapability,
-	ProviderClient,
-	ProviderInfo,
-	ProviderProtocol,
-} from "./models";
 export {
-	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
-	fetchLiveProviderModels,
-	fetchModelsDevProviderModels,
-	filterOpenAICodexModels,
+	BEDROCK_DEFAULT_MODEL_ID,
+	BEDROCK_MODELS,
 	getAllProviders,
-	getGeneratedModelsForProvider,
-	getGeneratedProviderModels,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,
 	getProviderCollectionSync,
 	getProviderIds,
 	hasProvider,
-	isCanonicalModelIdForAliasRules,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
-	preferCanonicalModelIds,
-	registerModel,
-	registerProvider,
-	resetRegistry,
-	sortModelsByReleaseDate,
-	unregisterModel,
-	unregisterProvider,
-	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
+export type {
+	ModelCollection,
+	ModelInfo,
+	ProviderClient,
+	ProviderInfo,
+	ProviderProtocol,
+} from "./models";
+export {
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	createBedrockAgentModel,
+	createBedrockClient,
+	createHandler,
+	createHandlerAsync,
+	isBuiltInProviderId,
+	normalizeProviderId,
+} from "./providers";
 export type {
 	ApiHandler,
 	ApiStreamChunk,
+	BedrockConnection,
 	BuiltInProviderId,
 	ContentBlock,
 	FileContent,
-	HandlerFactory,
 	HandlerModelInfo,
 	ImageContent,
-	LazyHandlerFactory,
 	Message,
 	MessageRole,
 	MessageWithMetadata,
@@ -57,47 +49,5 @@ export type {
 	ToolResultContent,
 	ToolUseContent,
 } from "./providers";
-export {
-	BUILT_IN_PROVIDER,
-	BUILT_IN_PROVIDER_IDS,
-	ClineNotSubscribedError,
-	ClineOrgIndividualInferenceSubscriptionError,
-	ClinePassLimitError,
-	createHandler,
-	createHandlerAsync,
-	extractClinePassLimitMessage,
-	getClineNotSubscribedMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClinePassSubscriptionUrl,
-	getRegisteredHandler,
-	getRegisteredHandlerAsync,
-	hasRegisteredHandler,
-	isBuiltInProviderId,
-	isClineNotSubscribedError,
-	isClineNotSubscribedMessage,
-	isClineOrgIndividualInferenceSubscriptionError,
-	isClineOrgIndividualInferenceSubscriptionMessage,
-	isClinePassLimitError,
-	isClinePassLimitMessage,
-	isRegisteredHandlerAsync,
-	normalizeProviderId,
-	OLLAMA_DEFAULT_CONTEXT_WINDOW,
-	registerAsyncHandler,
-	registerHandler,
-} from "./providers";
-export {
-	type ProviderUsageCostDisplay,
-	resolveProviderUsageCostDisplay,
-	shouldShowProviderUsageCost,
-} from "./providers/billing";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
-export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
-export {
-	type OpenAICodexRequestHeaderContext,
-	type ProviderRequestHeaderClientContext,
-	type ProviderRequestHeaderLayers,
-	type ResolveProviderRequestHeadersInput,
-	resolveProviderRequestHeaders,
-} from "./providers/request-headers";
-export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";

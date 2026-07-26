@@ -7,15 +7,12 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
-import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
-import { UserInfo } from "./UserInfo"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -38,7 +35,6 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
-	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -99,7 +95,6 @@ export interface ExtensionState {
 	 */
 	foregroundCommandRunning?: boolean
 	lastCompletedCommandTs?: number
-	userInfo?: UserInfo
 	version: string
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
@@ -135,8 +130,6 @@ export interface ExtensionState {
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
 	showFeatureTips?: boolean
-	banners?: BannerCardData[]
-	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
 }
 

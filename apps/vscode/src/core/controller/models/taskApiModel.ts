@@ -1,5 +1,4 @@
-import type { ApiConfiguration, ApiProvider } from "@/shared/api"
-import { getProviderDefaultModelId, getProviderModelIdKey } from "@/shared/storage/provider-keys"
+import { type ApiConfiguration, BEDROCK_DEFAULT_MODEL_ID } from "@/shared/api"
 import type { Mode } from "@/shared/storage/types"
 
 type TaskApiModel = {
@@ -12,20 +11,8 @@ function readString(config: ApiConfiguration, key: keyof ApiConfiguration): stri
 }
 
 export function resolveActiveModelIdFromApiConfiguration(config: ApiConfiguration, mode: Mode): string {
-	const provider = mode === "plan" ? config.planModeApiProvider : config.actModeApiProvider
 	const genericModelKey = mode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
-
-	if (provider) {
-		const providerModelKey = getProviderModelIdKey(provider as ApiProvider, mode) as keyof ApiConfiguration
-		return (
-			readString(config, providerModelKey) ??
-			readString(config, genericModelKey) ??
-			getProviderDefaultModelId(provider as ApiProvider) ??
-			"unknown"
-		)
-	}
-
-	return readString(config, genericModelKey) ?? "unknown"
+	return readString(config, genericModelKey) ?? BEDROCK_DEFAULT_MODEL_ID
 }
 
 export function createTaskApiModelShim(modelId: string): TaskApiModel {

@@ -22,17 +22,17 @@ export interface AiSdkStreamPart {
  * This is the intermediate representation available before stream completion.
  * All token counts use camelCase naming convention.
  *
- * @property inputTokens - Total input/prompt tokens (all providers)
+ * @property inputTokens - Total input/prompt tokens
  * @property inputTokenDetails - Breakdown of input tokens:
- *   - noCacheTokens: Fresh (non-cached) input tokens (Anthropic, OpenRouter, Gemini)
- *   - cacheReadTokens: Tokens read from cache (Anthropic, OpenRouter)
- *   - cacheWriteTokens: Tokens written to cache (Anthropic, OpenRouter)
- * @property outputTokens - Total output/completion tokens (all providers)
+ *   - noCacheTokens: Fresh (non-cached) input tokens
+ *   - cacheReadTokens: Tokens read from cache
+ *   - cacheWriteTokens: Tokens written to cache
+ * @property outputTokens - Total output/completion tokens
  * @property outputTokenDetails - Breakdown of output tokens:
- *   - textTokens: Regular text tokens (OpenAI, OpenRouter, Gemini)
- *   - reasoningTokens: Tokens used for reasoning (OpenAI with o1, OpenRouter, Anthropic with extended thinking)
- * @property totalTokens - Sum of input and output tokens (all providers)
- * @property reasoningTokens - Total reasoning tokens (OpenAI, OpenRouter)
+ *   - textTokens: Regular text tokens
+ *   - reasoningTokens: Tokens used for extended thinking
+ * @property totalTokens - Sum of input and output tokens
+ * @property reasoningTokens - Total reasoning tokens
  * @property cachedInputTokens - Alias for cache-read tokens (convenience field)
  */
 export interface AiSdkStreamTotalUsage {
@@ -57,15 +57,7 @@ export interface AiSdkStreamTotalUsage {
  * Extends AiSdkStreamTotalUsage and adds the raw provider-specific response.
  * The raw field contains unmodified provider responses, enabling cost extraction and detailed billing info.
  *
- * @property raw - Provider-specific raw response fields:
- *   **Anthropic**: input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
- *     cache_creation.ephemeral_5m_input_tokens, cache_creation.ephemeral_1h_input_tokens,
- *     output_tokens, service_tier, inference_geo
- *   **Gemini**: promptTokenCount, candidatesTokenCount, totalTokenCount, promptTokensDetails
- *   **OpenAI/Vercel**: input_tokens, input_tokens_details.cached_tokens, output_tokens,
- *     output_tokens_details.reasoning_tokens
- *   **OpenRouter**: prompt_tokens, completion_tokens, total_tokens, prompt_tokens_details.cached_tokens,
- *     completion_tokens_details.reasoning_tokens, cost, is_byok, cost_details, market_cost
+ * @property raw - Raw Bedrock model usage fields.
  */
 export interface AiSdkStreamUsage extends AiSdkStreamTotalUsage {
 	raw?: {
@@ -86,31 +78,6 @@ export interface AiSdkStreamUsage extends AiSdkStreamTotalUsage {
 		};
 		service_tier?: string;
 		inference_geo?: string;
-		promptTokenCount?: number;
-		candidatesTokenCount?: number;
-		totalTokenCount?: number;
-		promptTokensDetails?: {
-			cached_tokens?: number;
-			cache_write_tokens?: number;
-		};
-		prompt_tokens?: number;
-		completion_tokens?: number;
-		total_tokens?: number;
-		prompt_tokens_details?: {
-			cached_tokens?: number;
-			cache_write_tokens?: number;
-		};
-		completion_tokens_details?: {
-			reasoning_tokens?: number;
-		};
-		cost?: number;
-		is_byok?: boolean;
-		cost_details?: {
-			upstream_inference_cost?: number | null;
-			upstream_inference_prompt_cost?: number;
-			upstream_inference_completions_cost?: number;
-		};
-		market_cost?: number;
 	};
 	reasoningTokens?: number;
 	cachedInputTokens?: number;

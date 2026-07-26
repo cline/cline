@@ -4,16 +4,11 @@ import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsReque
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineEnv } from "@/config"
-import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
-import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
-import { accountLogoutClicked } from "../account/accountLogoutClicked"
-import { normalizeProviderSwitchModel } from "../models/providerSwitchNormalization"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
 
 /**
@@ -24,11 +19,6 @@ import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
-		if (request.clineEnv !== undefined && request.clineEnv !== "") {
-			ClineEnv.setEnvironment(request.clineEnv)
-			await accountLogoutClicked(controller, Empty.create())
-		}
-
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 
@@ -46,11 +36,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 
 			const previousApiConfiguration = controller.stateManager.getApiConfiguration()
-			const normalizedApiConfiguration = normalizeProviderSwitchModel(
-				controller.getProviderConfigStore(),
-				previousApiConfiguration,
-				convertedApiConfigurationFromProto,
-			)
+			const normalizedApiConfiguration = {
+				...previousApiConfiguration,
+				...convertedApiConfigurationFromProto,
+				planModeApiProvider: "bedrock" as const,
+				actModeApiProvider: "bedrock" as const,
+			}
 
 			controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
 
@@ -252,25 +243,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
-		}
-
-		if (request.optOutOfRemoteConfig !== undefined) {
-			const hadOptedOut = controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
-			const isOptingOut = !!request.optOutOfRemoteConfig
-			const isReenablingRemoteConfig = !isOptingOut && hadOptedOut
-
-			// Update now so any subsequent function can access the updated value
-			controller.stateManager.setGlobalState("optOutOfRemoteConfig", isOptingOut)
-
-			if (isOptingOut && !hadOptedOut) {
-				clearRemoteConfig()
-			} else if (isReenablingRemoteConfig) {
-				// Fire-and-forget: We don't need to await here
-				// The function catches any errors and posts the updated state to the webview
-				// The immediate state update below shows the user's intent (opted-in),
-				// and we apply the actual config afterwards without blocking the settings update
-				fetchRemoteConfig(controller)
-			}
 		}
 
 		if (request.showFeatureTips !== undefined) {

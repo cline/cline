@@ -8,11 +8,10 @@ import type {
 } from "@cline/shared";
 import {
 	isAnthropicCompatibleModel,
-	isQwenModel,
 	modelRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
-import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
+import { createEphemeralCacheControl } from "./utils";
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
@@ -35,14 +34,6 @@ export type AnthropicReasoningRequestPolicy =
 
 const ANTHROPIC_COMPATIBLE_ROUTE: GatewayModelRoute = {
 	matcher: "anthropic-compatible",
-};
-
-// Qwen cache support is model-specific; direct Dashscope/OpenRouter catalogs
-// only match this route once their model metadata includes prompt-cache support.
-const QWEN_PROMPT_CACHE_ROUTE: GatewayModelRoute = {
-	matcher: "model-family",
-	family: "qwen",
-	requiredCapability: "prompt-cache",
 };
 
 function createAnthropicRoutingMetadata(options?: {
@@ -79,29 +70,14 @@ function createAnthropicRoutingMetadata(options?: {
 
 export const ANTHROPIC_ROUTING_METADATA = createAnthropicRoutingMetadata();
 
-export const QWEN_CACHE_ROUTING_METADATA = createAnthropicRoutingMetadata({
-	promptCacheRoutes: [QWEN_PROMPT_CACHE_ROUTE],
-	reasoningRoutes: [],
-});
-
-export const ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA =
-	createAnthropicRoutingMetadata({
-		promptCacheRoutes: [ANTHROPIC_COMPATIBLE_ROUTE, QWEN_PROMPT_CACHE_ROUTE],
-	});
-
 export function createPromptCacheProviderOptions(
 	providerId: string,
 	includeAnthropic: boolean,
 ) {
 	const providerOptions: Record<string, unknown> = {
-		openaiCompatible: createEphemeralCacheControl(),
 		[providerId]: createEphemeralCacheControl(),
 	};
 
-	const providerOptionsKey = toProviderOptionsKey(providerId);
-	if (providerOptionsKey !== providerId) {
-		providerOptions[providerOptionsKey] = createEphemeralCacheControl();
-	}
 	if (includeAnthropic) {
 		providerOptions.anthropic = createEphemeralCacheControl();
 	}
@@ -130,12 +106,6 @@ export function applyPromptCacheToLastTextPart(
 				),
 			},
 		];
-		if (!includeAnthropic) {
-			// Keep non-Anthropic OpenAI-compatible requests multipart so
-			// cache_control remains on the content part instead of being collapsed
-			// to message metadata. Anthropic rejects whitespace-only text blocks.
-			cachedContent.push({ type: "text", text: " " });
-		}
 		message.content = cachedContent;
 		return;
 	}
@@ -144,13 +114,6 @@ export function applyPromptCacheToLastTextPart(
 		return;
 	}
 
-	const textPartCount = content.filter(
-		(part) =>
-			part &&
-			typeof part === "object" &&
-			(part as { type?: unknown }).type === "text",
-	).length;
-
 	for (let i = content.length - 1; i >= 0; i--) {
 		const part = content[i];
 		if (
@@ -158,7 +121,6 @@ export function applyPromptCacheToLastTextPart(
 			typeof part === "object" &&
 			(part as { type?: unknown }).type === "text"
 		) {
-			const needsFiller = textPartCount === 1 && !includeAnthropic;
 			content[i] = {
 				...(part as Record<string, unknown>),
 				providerOptions: createPromptCacheProviderOptions(
@@ -166,9 +128,6 @@ export function applyPromptCacheToLastTextPart(
 					includeAnthropic,
 				),
 			};
-			if (needsFiller) {
-				content.push({ type: "text", text: " " });
-			}
 			return;
 		}
 	}
@@ -217,16 +176,6 @@ function resolveLegacyPromptCacheRoute(
 		})
 	) {
 		return { matcher: "anthropic-compatible" };
-	}
-
-	// `promptCacheStrategy` predates explicit routing and historically treated
-	// Qwen ids as Anthropic-compatible. Preserve that opt-in custom-provider
-	// behavior, but keep the returned route non-Anthropic so Qwen still gets the
-	// OpenAI-compatible cache_control shape used by the new routing path.
-	if (isQwenModel({ modelId: request.modelId, family })) {
-		return family
-			? { matcher: "model-family", family }
-			: { matcher: "model-id", modelId: request.modelId };
 	}
 
 	return undefined;
@@ -556,10 +505,6 @@ export function buildGatewayReasoningOptions(
 		policy.kind === "none" &&
 		reasoningRoute === undefined &&
 		(shouldApplyPromptCache(request, context) ||
-			isQwenModel({
-				modelId: request.modelId,
-				family,
-			}) ||
 			isAnthropicCompatibleModel({
 				modelId: request.modelId,
 				family,

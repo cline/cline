@@ -6,7 +6,6 @@ import type {
 } from "@cline/shared";
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
-import type { ProviderSettings } from "../../services/llms/provider-settings";
 import type { SessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
@@ -101,7 +100,6 @@ export interface LocalRuntimeStartOptions {
 	onConsecutiveMistakeLimitReached?: LocalRuntimeBootstrapConfig["onConsecutiveMistakeLimitReached"];
 	checkpoint?: LocalRuntimeBootstrapConfig["checkpoint"];
 	compaction?: LocalRuntimeBootstrapConfig["compaction"];
-	modelCatalogDefaults?: Partial<NonNullable<ProviderSettings["modelCatalog"]>>;
 	userInstructionService?: import("../../extensions/config").UserInstructionConfigService;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	onTeamRestored?: () => void;

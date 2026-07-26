@@ -1,4 +1,3 @@
-import { ApiProvider } from "@shared/api"
 import type { ClineFileStorage } from "@shared/storage/ClineFileStorage"
 import {
 	applyTransform,
@@ -89,10 +88,8 @@ export async function readGlobalStateFromStorage(store: ClineMemento): Promise<G
  * Handle properties that require computed logic
  */
 async function handleComputedProperties(result: any, stateValues: Map<string, any>): Promise<void> {
-	// 1. API Provider logic - set defaults based on existing values
-	const defaultApiProvider: ApiProvider = "openrouter"
-	result.planModeApiProvider = result.planModeApiProvider || defaultApiProvider
-	result.actModeApiProvider = result.actModeApiProvider || defaultApiProvider
+	result.planModeApiProvider = "bedrock"
+	result.actModeApiProvider = "bedrock"
 
 	// 2. Plan/Act separate models setting with special logic
 	const planActSeparateModelsSettingRaw = stateValues.get("planActSeparateModelsSetting")

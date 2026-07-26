@@ -1,4 +1,7 @@
-import { createGateway, type GatewayProviderSettings } from "@cline/llms";
+import {
+	createGateway,
+	type BedrockConnection,
+} from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -71,20 +74,12 @@ export interface AgentRuntimeConfigWithModel extends BaseAgentRuntimeConfig {
  * runtime builds an `AgentModel` internally via `@cline/llms`. This is the
  * entry point most standalone users want.
  */
-export interface AgentRuntimeConfigWithProvider
+export interface AgentRuntimeConfigWithBedrock
 	extends Omit<BaseAgentRuntimeConfig, "model"> {
-	/** Provider ID (e.g., "anthropic", "openai") */
-	providerId: string;
-	/** Model ID to use */
+	providerId: "bedrock";
 	modelId: string;
-	/** API key for the provider */
-	apiKey?: string;
-	/** Custom base URL for the API */
-	baseUrl?: string;
-	/** Additional headers for API requests */
-	headers?: Record<string, string>;
-	/** Provider-specific gateway options */
-	options?: GatewayProviderSettings["options"];
+	connection: BedrockConnection;
+	workspaceRoot?: string;
 }
 
 /**
@@ -95,7 +90,7 @@ export interface AgentRuntimeConfigWithProvider
  */
 export type AgentRuntimeConfig =
 	| AgentRuntimeConfigWithModel
-	| AgentRuntimeConfigWithProvider;
+	| AgentRuntimeConfigWithBedrock;
 
 function hasPrebuiltModel(
 	config: AgentRuntimeConfig,
@@ -109,10 +104,12 @@ function resolveRuntimeConfig(
 	if (hasPrebuiltModel(config)) {
 		return config;
 	}
-	const { providerId, modelId, apiKey, baseUrl, headers, options, ...rest } =
-		config;
+	const { providerId, modelId, connection, workspaceRoot, ...rest } = config;
 	const gateway = createGateway({
-		providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
+		providerConfigs: [{
+			providerId,
+			options: { connection, workspaceRoot },
+		}],
 		telemetry: rest.telemetry,
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });
@@ -1791,7 +1788,7 @@ export function createAgentRuntime(config: AgentRuntimeConfig): AgentRuntime {
  * `Agent` is the user-friendly name for `AgentRuntime`. They are the same
  * class; this alias exists so standalone callers can write:
  *
- *     const agent = new Agent({ providerId, modelId, apiKey });
+ *     const agent = new Agent({ providerId: "bedrock", modelId, connection });
  *     await agent.run("hello");
  *
  * while `@cline/core` (which owns model construction) continues to use

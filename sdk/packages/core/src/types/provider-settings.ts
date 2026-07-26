@@ -20,7 +20,7 @@ export const ProviderSettingsSchemaTyped: z.ZodType<ProviderSettings> =
 	ProviderSettingsSchema;
 export { toProviderConfig };
 
-export type ProviderTokenSource = "manual" | "oauth" | "migration";
+export type ProviderTokenSource = "manual" | "migration";
 
 export interface StoredProviderSettingsEntry {
 	settings: ProviderSettings;
@@ -29,8 +29,8 @@ export interface StoredProviderSettingsEntry {
 }
 
 export interface StoredProviderSettings {
-	version: 1;
-	lastUsedProvider?: string;
+	version: 2;
+	lastUsedProvider: "bedrock";
 	providers: Record<string, StoredProviderSettingsEntry>;
 }
 
@@ -38,19 +38,20 @@ export const StoredProviderSettingsEntrySchema: z.ZodType<StoredProviderSettings
 	z.object({
 		settings: ProviderSettingsSchema,
 		updatedAt: z.string().datetime(),
-		tokenSource: z.enum(["manual", "oauth", "migration"]).default("manual"),
+		tokenSource: z.enum(["manual", "migration"]).default("manual"),
 	});
 
 export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 	z.object({
-		version: z.literal(1),
-		lastUsedProvider: z.string().min(1).optional(),
+		version: z.literal(2),
+		lastUsedProvider: z.literal("bedrock").default("bedrock"),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
 	});
 
 export function emptyStoredProviderSettings(): StoredProviderSettings {
 	return {
-		version: 1,
+		version: 2,
+		lastUsedProvider: "bedrock",
 		providers: {},
 	};
 }

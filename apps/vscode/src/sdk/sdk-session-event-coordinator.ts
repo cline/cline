@@ -1,10 +1,6 @@
 import type { AgentEvent, CoreSessionEvent } from "@cline/core"
-import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
-import type { StateManager } from "@/core/storage/StateManager"
-import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
+import type { TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
-import { isClineManagedProvider } from "@/shared/utils/cline"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
@@ -12,10 +8,6 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import type { TaskProxy } from "./task-proxy"
-
-function normalizeModelId(modelId: string): string {
-	return modelId.trim().toLowerCase()
-}
 
 type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType"> | undefined
 
@@ -26,9 +18,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
-	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
-	isClineFreeModel?: () => Promise<boolean>
 	/**
 	 * Set the authoritative UI turn phase. Called as the agent streams (streaming), on a
 	 * completed turn (completed if attempt_completion was used, else awaiting_followup), and on
@@ -79,11 +69,6 @@ export class SdkSessionEventCoordinator {
 			this.options.sessions.setRunning(true)
 			this.options.setTurnPhase?.(PROVIDER_FAILURE_PHASE.STREAMING)
 		}
-		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
-		if (zeroCostPromise) {
-			await zeroCostPromise
-		}
-
 		if (!activeSession.isRunning && result.messages.length > 0) {
 			result.messages = result.messages.filter(
 				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
@@ -171,108 +156,6 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 		return undefined
-	}
-
-	private zeroCostForFreeClineModel(result: TranslationResult): Promise<void> | undefined {
-		const hasUsageCost = typeof result.usage?.totalCost === "number" && result.usage.totalCost !== 0
-		const hasMessageCost = result.messages.some((message) => {
-			if (message.type !== "say" || message.say !== "api_req_started" || !message.text) {
-				return false
-			}
-			try {
-				const info = JSON.parse(message.text) as ClineApiReqInfo
-				return typeof info.cost === "number" && info.cost !== 0
-			} catch {
-				return false
-			}
-		})
-
-		if (!hasUsageCost && !hasMessageCost) {
-			return undefined
-		}
-
-		return (async () => {
-			if (!(await this.isCurrentClineModelFree())) {
-				return
-			}
-
-			if (result.usage) {
-				result.usage = { ...result.usage, totalCost: 0 }
-			}
-
-			result.messages = result.messages.map((message) => {
-				if (message.type !== "say" || message.say !== "api_req_started" || !message.text) {
-					return message
-				}
-				try {
-					const info = JSON.parse(message.text) as ClineApiReqInfo
-					if (typeof info.cost !== "number") {
-						return message
-					}
-					return {
-						...message,
-						text: JSON.stringify({ ...info, cost: 0 } satisfies ClineApiReqInfo),
-					}
-				} catch {
-					return message
-				}
-			})
-		})()
-	}
-
-	private async isCurrentClineModelFree(): Promise<boolean> {
-		if (this.options.isClineFreeModel) {
-			return this.options.isClineFreeModel()
-		}
-
-		const stateManager = this.options.stateManager
-		if (!stateManager) {
-			return false
-		}
-
-		try {
-			const apiConfig = stateManager.getApiConfiguration()
-			const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-			const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			// Free models are also selectable on ClinePass — they ride usage billing at $0
-			if (!isClineManagedProvider(provider)) {
-				return false
-			}
-
-			const modelId = this.getCurrentClineModelId()
-			if (!modelId) {
-				return false
-			}
-
-			const normalizedModelId = normalizeModelId(modelId)
-			const models = await refreshClineRecommendedModels()
-			const freeIds = models.free.map((model) => normalizeModelId(model.id)).filter(Boolean)
-			const resolvedFreeIds =
-				freeIds.length > 0 ? freeIds : CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id))
-			return resolvedFreeIds.includes(normalizedModelId)
-		} catch (error) {
-			Logger.error("[SdkController] Failed to check Cline free model list:", error)
-			const modelId = this.getCurrentClineModelId()
-			if (!modelId) {
-				return false
-			}
-			const fallbackFreeIds = CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id))
-			return fallbackFreeIds.includes(normalizeModelId(modelId))
-		}
-	}
-
-	private getCurrentClineModelId(): string | undefined {
-		const stateManager = this.options.stateManager
-		if (!stateManager) {
-			return undefined
-		}
-		const apiConfig = stateManager.getApiConfiguration()
-		const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-		const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		if (provider === "cline-pass") {
-			return mode === "plan" ? apiConfig.planModeClinePassModelId : apiConfig.actModeClinePassModelId
-		}
-		return mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
 	}
 
 	private logQueueEvents(event: CoreSessionEvent): void {

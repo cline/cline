@@ -29,7 +29,7 @@ export interface ApiStreamTextChunk {
 	text: string;
 	/** Response ID associated with this chunk */
 	id: string;
-	/** Thought signature (used by Gemini) */
+	/** Optional provider reasoning signature */
 	signature?: string;
 }
 
@@ -42,7 +42,7 @@ export interface ApiStreamReasoningChunk {
 	reasoning: string;
 	/** Additional reasoning details (provider-specific) */
 	details?: unknown;
-	/** Signature for the thinking block (Anthropic, Gemini) */
+	/** Signature for the thinking block */
 	signature?: string;
 	/** Redacted reasoning data */
 	redacted_data?: string;
@@ -80,7 +80,7 @@ export interface ApiStreamToolCallsChunk {
 	tool_call: ApiStreamToolCall;
 	/** Response ID */
 	id: string;
-	/** Thought signature (Gemini) */
+	/** Optional provider reasoning signature */
 	signature?: string;
 }
 

@@ -12,10 +12,8 @@ const prefix = name === "claude-dev" ? "cline" : name
 const ClineCommands = {
 	PlusButton: prefix + ".plusButtonClicked",
 	McpButton: prefix + ".mcpButtonClicked",
-	MarketplaceButton: prefix + ".marketplaceButtonClicked",
 	SettingsButton: prefix + ".settingsButtonClicked",
 	HistoryButton: prefix + ".historyButtonClicked",
-	AccountButton: prefix + ".accountButtonClicked",
 	WorktreesButton: prefix + ".worktreesButtonClicked",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
 	AddToChat: prefix + ".addToChat",
@@ -27,10 +25,6 @@ const ClineCommands = {
 	GenerateCommit: prefix + ".generateGitCommitMessage",
 	AbortCommit: prefix + ".abortGitCommitMessage",
 	ReconstructTaskHistory: prefix + ".reconstructTaskHistory",
-	// Jupyter Notebook commands
-	JupyterGenerateCell: prefix + ".jupyterGenerateCell",
-	JupyterExplainCell: prefix + ".jupyterExplainCell",
-	JupyterImproveCell: prefix + ".jupyterImproveCell",
 }
 
 /**

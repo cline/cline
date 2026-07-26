@@ -69,7 +69,6 @@ function coreConfigFromLocalRuntime(
 		return {};
 	}
 	const {
-		modelCatalogDefaults: _modelCatalogDefaults,
 		userInstructionService: _userInstructionService,
 		configExtensions: _configExtensions,
 		onTeamRestored: _onTeamRestored,

@@ -9,11 +9,9 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
-import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getLatestAnnouncementId } from "@/utils/announcements"
-import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
 
 /**
  * Builds the ExtensionState object to push to the webview.
@@ -32,7 +30,6 @@ export async function getStateToPostToWebview(controller: {
 	const stateManager = controller.stateManager
 
 	// Get API configuration from cache for immediate access
-	const onboardingModels = getClineOnboardingModels()
 	const apiConfiguration = stateManager.getApiConfiguration()
 	const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
@@ -44,7 +41,6 @@ export async function getStateToPostToWebview(controller: {
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
-	const userInfo = stateManager.getGlobalStateKey("userInfo")
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 	const mcpDisplayMode = stateManager.getGlobalStateKey("mcpDisplayMode")
 	const telemetrySetting = stateManager.getGlobalSettingsKey("telemetrySetting")
@@ -66,7 +62,6 @@ export async function getStateToPostToWebview(controller: {
 	const customPrompt = stateManager.getGlobalSettingsKey("customPrompt")
 	const mcpResponsesCollapsed = stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 	const maxConsecutiveMistakes = stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
-	const favoritedModelIds = stateManager.getGlobalStateKey("favoritedModelIds")
 	const lastDismissedInfoBannerVersion = stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 	const lastDismissedModelBannerVersion = stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 	const lastDismissedCliBannerVersion = stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
@@ -97,17 +92,6 @@ export async function getStateToPostToWebview(controller: {
 	const version = ExtensionRegistryInfo.version
 	const clineConfig = ClineEnv.config()
 	const environment = clineConfig.environment
-	const banners = BannerService.get().getActiveBanners() ?? []
-	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
-
-	// Check OpenAI Codex authentication status
-	let openAiCodexIsAuthenticated = false
-	try {
-		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
-		openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
-	} catch {
-		// Codex OAuth not available
-	}
 
 	return {
 		version,
@@ -123,7 +107,6 @@ export async function getStateToPostToWebview(controller: {
 		useAutoCondense,
 		compactionStrategy,
 		subagentsEnabled,
-		userInfo,
 		mcpMarketplaceEnabled,
 		mcpDisplayMode,
 		telemetrySetting,
@@ -149,13 +132,11 @@ export async function getStateToPostToWebview(controller: {
 		defaultTerminalProfile,
 		isNewUser,
 		welcomeViewCompleted,
-		onboardingModels,
 		mcpResponsesCollapsed,
 		maxConsecutiveMistakes,
 		customPrompt,
 		taskHistory: processedTaskHistory,
 		shouldShowAnnouncement,
-		favoritedModelIds,
 		backgroundCommandRunning: controller.backgroundCommandRunning ?? false,
 		backgroundCommandTaskId: controller.backgroundCommandTaskId,
 		foregroundCommandRunning: controller.foregroundCommandRunning ?? false,
@@ -179,8 +160,6 @@ export async function getStateToPostToWebview(controller: {
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		showFeatureTips,
-		banners,
-		welcomeBanners,
-		openAiCodexIsAuthenticated,
+		favoritedModelIds: [],
 	} as ExtensionState
 }

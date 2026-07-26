@@ -42,50 +42,6 @@ export class SharedUriHandler {
 
 		try {
 			switch (path) {
-				case "/openrouter": {
-					const code = query.get("code")
-					if (code) {
-						await visibleWebview.controller.handleOpenRouterCallback(code)
-						return true
-					}
-					Logger.warn("SharedUriHandler: Missing code parameter for OpenRouter callback")
-					return false
-				}
-				case "/requesty": {
-					const code = query.get("code")
-					if (code) {
-						await visibleWebview.controller.handleRequestyCallback(code)
-						return true
-					}
-					Logger.warn("SharedUriHandler: Missing code parameter for Requesty callback")
-					return false
-				}
-				case "/auth": {
-					const provider = query.get("provider")
-
-					Logger.info(`SharedUriHandler - Auth callback received for ${provider} - ${path}`)
-
-					const token = query.get("refreshToken") || query.get("idToken") || query.get("code")
-					if (token) {
-						await visibleWebview.controller.handleAuthCallback(token, provider)
-						return true
-					}
-					Logger.warn("SharedUriHandler: Missing idToken parameter for auth callback")
-					return false
-				}
-				case "/auth/oca": {
-					Logger.log("SharedUriHandler: Oca Auth callback received:", { path: path })
-
-					const code = query.get("code")
-					const state = query.get("state")
-
-					if (code && state) {
-						await visibleWebview.controller.handleOcaAuthCallback(code, state)
-						return true
-					}
-					Logger.warn("SharedUriHandler: Missing code parameter for auth callback")
-					return false
-				}
 				case TASK_URI_PATH: {
 					const prompt = query.get("prompt")
 					if (prompt) {
@@ -119,15 +75,6 @@ export class SharedUriHandler {
 					await writeLgWebhookHooks()
 					await visibleWebview.controller.handleTaskCreation(prompt)
 					return true
-				}
-				case "/hicap": {
-					const code = query.get("code")
-					if (code) {
-						await visibleWebview.controller.handleHicapCallback(code)
-						return true
-					}
-					Logger.warn("SharedUriHandler: Missing code parameter for Hicap callback")
-					return false
 				}
 				default:
 					Logger.warn(`SharedUriHandler: Unknown path: ${path}`)

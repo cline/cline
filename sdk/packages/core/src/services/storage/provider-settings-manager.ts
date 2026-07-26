@@ -7,11 +7,9 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { basename, dirname } from "node:path";
+import { dirname } from "node:path";
+import { BEDROCK_DEFAULT_MODEL_ID } from "@cline/llms";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
-import { getLiveModelsCatalog } from "../..";
-import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
-import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	emptyStoredProviderSettings,
 	type ProviderConfig,
@@ -23,14 +21,63 @@ import {
 	type ToProviderConfigOptions,
 	toProviderConfig,
 } from "../../types/provider-settings";
-import {
-	ensureCustomProvidersLoadedSync,
-	registerConfiguredProvidersFromSettings,
-} from "../providers/local-provider-registry";
-import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {
 	return new Date().toISOString();
+}
+
+function record(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+}
+
+function optionalString(...values: unknown[]): string | undefined {
+	for (const value of values) {
+		if (typeof value === "string" && value.trim()) return value.trim();
+	}
+	return undefined;
+}
+
+function migrateLegacyState(input: unknown): StoredProviderSettings {
+	const root = record(input);
+	const providers = record(root.providers);
+	const bedrockEntry = record(providers.bedrock);
+	const legacy = record(bedrockEntry.settings ?? bedrockEntry);
+	const connection = record(legacy.connection);
+	const aws = record(legacy.aws);
+	const region =
+		optionalString(connection.region, legacy.region, aws.region) ?? "us-east-1";
+	const settings: ProviderSettings = ProviderSettingsSchema.parse({
+		provider: "bedrock",
+		model:
+			optionalString(legacy.model, legacy.modelId) ??
+			BEDROCK_DEFAULT_MODEL_ID,
+		connection: {
+			region,
+			profile: optionalString(connection.profile, aws.profile),
+			endpoint: optionalString(connection.endpoint, aws.endpoint),
+			caBundlePath: optionalString(
+				connection.caBundlePath,
+				aws.caBundlePath,
+				legacy.caBundlePath,
+			),
+		},
+		reasoning: legacy.reasoning,
+		maxTokens: legacy.maxTokens,
+		contextWindow: legacy.contextWindow,
+	});
+	return {
+		version: 2,
+		lastUsedProvider: "bedrock",
+		providers: {
+			bedrock: {
+				settings,
+				updatedAt: nowIso(),
+				tokenSource: "migration",
+			},
+		},
+	};
 }
 
 export interface ProviderSettingsManagerOptions {
@@ -43,46 +90,22 @@ export interface SaveProviderSettingsOptions {
 	tokenSource?: ProviderTokenSource;
 }
 
-export interface ResolveLastUsedProviderSettingsOptions {
-	isClinePassEnabled?: boolean;
-}
-
-const CLINE_PROVIDER_ID = "cline";
-const CLINE_PASS_PROVIDER_ID = "cline-pass";
-
-function inferLegacyDataDir(filePath: string): string | undefined {
-	if (basename(filePath) !== "providers.json") {
-		return undefined;
-	}
-	const settingsDir = dirname(filePath);
-	if (basename(settingsDir) !== "settings") {
-		return undefined;
-	}
-	return dirname(settingsDir);
-}
+export interface ResolveLastUsedProviderSettingsOptions {}
 
 export class ProviderSettingsManager {
 	private readonly filePath: string;
-	private readonly dataDir?: string;
 
 	constructor(options: ProviderSettingsManagerOptions = {}) {
 		this.filePath = options.filePath ?? resolveProviderSettingsPath();
-		this.dataDir = options.dataDir ?? inferLegacyDataDir(this.filePath);
-		if (this.dataDir || !options.filePath) {
-			migrateLegacyProviderSettings({
-				providerSettingsManager: this,
-				dataDir: this.dataDir,
-			});
-		}
-		ensureCustomProvidersLoadedSync(this);
-		registerConfiguredProvidersFromSettings(this.read());
-		// Harden permissions on any existing file at startup so that
-		// pre-existing installations are also protected (best-effort; no-op on Windows).
 		if (existsSync(this.filePath)) {
 			try {
+				const parsed = JSON.parse(readFileSync(this.filePath, "utf8"));
+				if (!StoredProviderSettingsSchema.safeParse(parsed).success) {
+					this.write(migrateLegacyState(parsed));
+				}
 				chmodSync(this.filePath, 0o600);
 			} catch {
-				// Ignore — Windows does not support POSIX chmod.
+				// Invalid legacy content is ignored; a clean Bedrock state is used.
 			}
 		}
 	}
@@ -92,152 +115,79 @@ export class ProviderSettingsManager {
 	}
 
 	read(): StoredProviderSettings {
-		if (!existsSync(this.filePath)) {
+		if (!existsSync(this.filePath)) return emptyStoredProviderSettings();
+		try {
+			const result = StoredProviderSettingsSchema.safeParse(
+				JSON.parse(readFileSync(this.filePath, "utf8")),
+			);
+			return result.success ? result.data : emptyStoredProviderSettings();
+		} catch {
 			return emptyStoredProviderSettings();
 		}
-
-		try {
-			const raw = readFileSync(this.filePath, "utf8");
-			const parsed = JSON.parse(raw) as unknown;
-			const result = StoredProviderSettingsSchema.safeParse(parsed);
-			if (result.success) {
-				registerConfiguredProvidersFromSettings(result.data);
-				const clineAuth = result.data.providers["cline"]?.settings?.auth;
-				sdkDebug(
-					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
-				);
-				return result.data;
-			}
-		} catch {
-			// Invalid content falls back to a clean state.
-		}
-
-		return emptyStoredProviderSettings();
 	}
 
 	write(state: StoredProviderSettings): void {
-		const normalized = StoredProviderSettingsSchema.parse(state);
-		const dir = dirname(this.filePath);
-		if (!existsSync(dir)) {
-			mkdirSync(dir, { recursive: true, mode: 0o700 });
-		}
-		// Stage to a pid-unique temp file and rename into place. Concurrent
-		// Cline processes (CLI, extension, hub) share this file; a bare
-		// writeFileSync lets readers catch a partial file, which read() treats
-		// as empty settings — indistinguishable from being logged out.
-		const tempPath = `${this.filePath}.${process.pid}.tmp`;
+		const normalized = StoredProviderSettingsSchema.parse({
+			...state,
+			version: 2,
+			lastUsedProvider: "bedrock",
+			providers: state.providers.bedrock
+				? { bedrock: state.providers.bedrock }
+				: {},
+		});
+		const directory = dirname(this.filePath);
+		if (!existsSync(directory)) mkdirSync(directory, { recursive: true, mode: 0o700 });
+		const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
 		try {
-			writeFileSync(tempPath, `${JSON.stringify(normalized, null, 2)}\n`, {
-				encoding: "utf8",
-				mode: 0o600,
-			});
-			renameSync(tempPath, this.filePath);
+			writeFileSync(
+				temporaryPath,
+				`${JSON.stringify(normalized, null, 2)}\n`,
+				{ encoding: "utf8", mode: 0o600 },
+			);
+			renameSync(temporaryPath, this.filePath);
+			try {
+				chmodSync(this.filePath, 0o600);
+			} catch {}
 		} catch (error) {
-			rmSync(tempPath, { force: true });
+			rmSync(temporaryPath, { force: true });
 			throw error;
 		}
-		// Restrict file to owner-only read/write (best-effort; no-op on Windows).
-		try {
-			chmodSync(this.filePath, 0o600);
-		} catch {
-			// Ignore — Windows does not support POSIX chmod.
-		}
-		registerConfiguredProvidersFromSettings(normalized);
 	}
 
 	saveProviderSettings(
 		settings: unknown,
 		options: SaveProviderSettingsOptions = {},
 	): StoredProviderSettings {
-		const validatedSettings = ProviderSettingsSchema.parse(settings);
+		const validated = ProviderSettingsSchema.parse(settings);
 		const previous = this.read();
-		const providerId = validatedSettings.provider;
-		const shouldSetLastUsed = options.setLastUsed !== false;
-		const previousEntry = previous.providers[providerId];
-		const tokenSource =
-			options.tokenSource ?? previousEntry?.tokenSource ?? "manual";
 		const next: StoredProviderSettings = {
-			...previous,
+			version: 2,
+			lastUsedProvider: "bedrock",
 			providers: {
-				...previous.providers,
-				[providerId]: {
-					settings: validatedSettings,
+				bedrock: {
+					settings: validated,
 					updatedAt: nowIso(),
-					tokenSource,
+					tokenSource:
+						options.tokenSource ??
+						previous.providers.bedrock?.tokenSource ??
+						"manual",
 				},
 			},
-			lastUsedProvider: shouldSetLastUsed
-				? providerId
-				: previous.lastUsedProvider,
 		};
 		this.write(next);
-		const prevClineAuth = previous.providers["cline"]?.settings?.auth;
-		const nextClineAuth =
-			validatedSettings.provider === "cline"
-				? validatedSettings.auth
-				: next.providers["cline"]?.settings?.auth;
-		const authDropped =
-			!!prevClineAuth?.accessToken && !nextClineAuth?.accessToken;
-		sdkDebug(
-			`providers.save providerId=${providerId} tokenSource=${tokenSource} clineAuthWasPresent=${!!prevClineAuth?.accessToken} clineAuthIsPresent=${!!nextClineAuth?.accessToken} authDropped=${authDropped}`,
-		);
 		return next;
 	}
 
-	private resolveProviderSettings(
-		state: StoredProviderSettings,
-		providerId: string,
-	): ProviderSettings | undefined {
-		const directSettings = state.providers[providerId]?.settings;
-		const authHandler = getProviderAuthHandler(providerId);
-		const storageProviderId = authHandler?.storageProviderId;
-		if (!storageProviderId || storageProviderId === providerId) {
-			return directSettings;
-		}
-
-		const authSettings = state.providers[storageProviderId]?.settings;
-		if (!authSettings) {
-			return directSettings;
-		}
-
-		return ProviderSettingsSchema.parse({
-			...(authSettings.auth ? { auth: authSettings.auth } : {}),
-			...(authSettings.apiKey ? { apiKey: authSettings.apiKey } : {}),
-			...(authSettings.baseUrl ? { baseUrl: authSettings.baseUrl } : {}),
-			...(directSettings ?? {}),
-			provider: providerId,
-		});
-	}
-
 	getProviderSettings(providerId: string): ProviderSettings | undefined {
-		const state = this.read();
-		return this.resolveProviderSettings(state, providerId);
-	}
-
-	private resolveLastUsedProviderId(
-		state: StoredProviderSettings,
-		options: ResolveLastUsedProviderSettingsOptions,
-	): string | undefined {
-		const providerId = state.lastUsedProvider;
-		if (
-			providerId === CLINE_PASS_PROVIDER_ID &&
-			options.isClinePassEnabled === false
-		) {
-			return CLINE_PROVIDER_ID;
-		}
-
-		return providerId;
+		return providerId === "bedrock"
+			? this.read().providers.bedrock?.settings
+			: undefined;
 	}
 
 	getLastUsedProviderSettings(
-		options: ResolveLastUsedProviderSettingsOptions = {},
+		_options: ResolveLastUsedProviderSettingsOptions = {},
 	): ProviderSettings | undefined {
-		const state = this.read();
-		const providerId = this.resolveLastUsedProviderId(state, options);
-		if (!providerId) {
-			return undefined;
-		}
-		return this.resolveProviderSettings(state, providerId);
+		return this.getProviderSettings("bedrock");
 	}
 
 	getProviderConfig(
@@ -245,28 +195,15 @@ export class ProviderSettingsManager {
 		options?: ToProviderConfigOptions,
 	): ProviderConfig | undefined {
 		const settings = this.getProviderSettings(providerId);
-		if (!settings) {
-			return undefined;
-		}
-		return toProviderConfig(settings, options);
+		return settings ? toProviderConfig(settings, options) : undefined;
 	}
 
 	getLastUsedProviderConfig(
-		options: ToProviderConfigOptions &
-			ResolveLastUsedProviderSettingsOptions = {},
+		options: ToProviderConfigOptions = {},
 	): ProviderConfig | undefined {
-		const settings = this.getLastUsedProviderSettings(options);
-		if (!settings) {
-			return undefined;
-		}
-		return toProviderConfig(settings, options);
+		const settings = this.getLastUsedProviderSettings();
+		return settings ? toProviderConfig(settings, options) : undefined;
 	}
 
-	async refreshCatalog(): Promise<void> {
-		try {
-			await getLiveModelsCatalog({});
-		} catch {
-			// Ignore errors
-		}
-	}
+	async refreshCatalog(): Promise<void> {}
 }

@@ -1,4 +1,3 @@
-import { resolveProviderRequestHeaders } from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentEvent,
@@ -13,7 +12,6 @@ import type {
 	WorkspaceInfo,
 } from "@cline/shared";
 import { hasRuntimeConfigExtension } from "@cline/shared";
-import { version as corePackageVersion } from "../../package.json";
 import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -40,7 +38,6 @@ import type {
 	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
-import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
 	type ProviderConfig,
@@ -135,82 +132,36 @@ function countSeededRootRuns(
 
 function buildProviderConfig(
 	config: CoreSessionConfig,
-	sessionId: string,
-	source: ResolvedStartSessionInput["source"],
+	_sessionId: string,
+	_source: ResolvedStartSessionInput["source"],
 	providerSettingsManager: ProviderSettingsManager,
-	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
-	defaultFetch?: typeof fetch,
 ): ProviderConfig {
-	const stored = providerSettingsManager.getProviderSettings(config.providerId);
-	const modelCatalog =
-		modelCatalogDefaults || stored?.modelCatalog
-			? {
-					...(modelCatalogDefaults ?? {}),
-					...(stored?.modelCatalog ?? {}),
-				}
-			: undefined;
+	const stored = providerSettingsManager.getProviderSettings("bedrock");
 	const sessionProviderConfig =
-		config.providerConfig?.providerId === config.providerId
+		config.providerConfig?.providerId === "bedrock"
 			? config.providerConfig
 			: undefined;
-	const resolvedHeaders = resolveProviderRequestHeaders({
-		providerId: config.providerId,
-		sessionId,
-		source,
-		defaultSource: SessionSource.CLI,
-		client: {
-			name: config.extensionContext?.client?.name,
-			version: config.extensionContext?.client?.version,
-			versionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
-			platform: config.extensionContext?.client?.platform,
-			platformVersion: config.extensionContext?.client?.platformVersion,
-			isMultiRoot: config.extensionContext?.client?.isMultiRoot,
-		},
-		coreVersion: corePackageVersion,
-		openAiCodex: {
-			accountId: sessionProviderConfig?.accountId ?? stored?.auth?.accountId,
-			accessToken:
-				sessionProviderConfig?.accessToken ??
-				config.apiKey ??
-				stored?.auth?.accessToken ??
-				stored?.apiKey,
-			userAgentVersion: process.env.npm_package_version,
-		},
-		headers: {
-			stored: stored?.headers,
-			config: config.headers,
-			session: sessionProviderConfig?.headers,
-		},
-	});
 	const settings: ProviderSettings = {
-		...(stored ?? {}),
-		provider: config.providerId,
+		provider: "bedrock",
 		model: config.modelId,
-		apiKey: config.apiKey ?? stored?.apiKey,
-		baseUrl: config.baseUrl ?? stored?.baseUrl,
-		headers: undefined,
+		connection:
+			sessionProviderConfig?.connection ??
+			stored?.connection ??
+			{ region: "us-east-1" },
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
-		modelCatalog,
 	};
 	const providerConfig: ProviderConfig = {
 		...toProviderConfig(settings),
 		...(sessionProviderConfig ?? {}),
+		providerId: "bedrock",
+		modelId: config.modelId,
+		workspaceRoot: config.cwd,
 	};
-	if (resolvedHeaders) {
-		providerConfig.headers = resolvedHeaders;
-	}
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
 	}
 	if (config.extensionContext) {
 		providerConfig.extensionContext = config.extensionContext;
-	}
-	// Thread a host-provided custom fetch through to the AI gateway providers.
-	// Precedence: explicit per-session config > stored provider settings > host default.
-	const sessionFetch = (config as { fetch?: typeof fetch }).fetch;
-	const resolvedFetch = sessionFetch ?? providerConfig.fetch ?? defaultFetch;
-	if (resolvedFetch) {
-		providerConfig.fetch = resolvedFetch;
 	}
 	return providerConfig;
 }
@@ -272,7 +223,6 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultLogger,
 		defaultCapabilities,
 		defaultToolPolicies,
-		defaultFetch,
 		onPluginEvent,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
@@ -283,7 +233,6 @@ export async function prepareLocalRuntimeBootstrap(
 	} = options;
 	const workspacePath = resolveWorkspacePath(input.config);
 	const {
-		modelCatalogDefaults,
 		userInstructionService,
 		configExtensions,
 		onTeamRestored,
@@ -411,8 +360,6 @@ export async function prepareLocalRuntimeBootstrap(
 		sessionId,
 		input.source,
 		providerSettingsManager,
-		modelCatalogDefaults,
-		defaultFetch,
 	);
 	const hooks = mergeAgentHooks([
 		baseConfig.hooks,

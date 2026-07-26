@@ -4,10 +4,8 @@
 import assert from "node:assert"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
-import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
-import { sendMarketplaceButtonClickedEvent } from "./core/controller/ui/subscribeToMarketplaceButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
@@ -37,7 +35,7 @@ import {
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
-import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
+import { getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
@@ -49,7 +47,6 @@ import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview 
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
-import { AuthService, LogoutReason } from "./sdk/auth-service"
 import { telemetryService } from "./services/telemetry"
 import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
@@ -134,12 +131,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.MarketplaceButton, () => sendMarketplaceButtonClickedEvent()),
-	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.SettingsButton, () => sendSettingsButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.HistoryButton, () => sendHistoryButtonClickedEvent()))
-	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
 
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
@@ -398,107 +391,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Register Jupyter Notebook command handlers
-	const NOTEBOOK_EDIT_INSTRUCTIONS = `Special considerations for using replace_in_file on *.ipynb files:
-* Jupyter notebook files are JSON format with specific structure for source code cells
-* Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
-* Always match the exact JSON format including quotes, commas, and escaped newlines.`
-
-	// Helper to get notebook context for Jupyter commands
-	async function getNotebookCommandContext(range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) {
-		const activeNotebook = vscode.window.activeNotebookEditor
-		if (!activeNotebook) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: "No active Jupyter notebook found. Please open a .ipynb file first.",
-			})
-			return null
-		}
-
-		const ctx = await getContextForCommand(range, diagnostics)
-		if (!ctx) {
-			return null
-		}
-
-		const filePath = ctx.commandContext.filePath || ""
-		let cellJson: string | null = null
-		if (activeNotebook.notebook.cellCount > 0) {
-			const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
-			cellJson = await findMatchingNotebookCell(filePath, cellIndex)
-		}
-
-		return { ...ctx, cellJson }
-	}
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(
-			commands.JupyterGenerateCell,
-			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-				const userPrompt = await showJupyterPromptInput(
-					"Generate Notebook Cell",
-					"Enter your prompt for generating notebook cell (press Enter to confirm & Esc to cancel)",
-				)
-				if (!userPrompt) return
-
-				const ctx = await getNotebookCommandContext(range, diagnostics)
-				if (!ctx) return
-
-				const notebookContext = `User prompt: ${userPrompt}
-Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
-${NOTEBOOK_EDIT_INSTRUCTIONS}
-
-Current Notebook Cell Context (JSON, sanitized of image data):
-\`\`\`json
-${ctx.cellJson || "{}"}
-\`\`\``
-
-				await addToCline(ctx.controller, ctx.commandContext, notebookContext)
-			},
-		),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(
-			commands.JupyterExplainCell,
-			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-				const ctx = await getNotebookCommandContext(range, diagnostics)
-				if (!ctx) return
-
-				const notebookContext = ctx.cellJson
-					? `\n\nCurrent Notebook Cell Context (JSON, sanitized of image data):\n\`\`\`json\n${ctx.cellJson}\n\`\`\``
-					: undefined
-
-				await explainWithCline(ctx.controller, ctx.commandContext, notebookContext)
-			},
-		),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(
-			commands.JupyterImproveCell,
-			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-				const userPrompt = await showJupyterPromptInput(
-					"Improve Notebook Cell",
-					"Enter your prompt for improving the current notebook cell (press Enter to confirm & Esc to cancel)",
-				)
-				if (!userPrompt) return
-
-				const ctx = await getNotebookCommandContext(range, diagnostics)
-				if (!ctx) return
-
-				const notebookContext = `User prompt: ${userPrompt}
-${NOTEBOOK_EDIT_INSTRUCTIONS}
-
-Current Notebook Cell Context (JSON, sanitized of image data):
-\`\`\`json
-${ctx.cellJson || "{}"}
-\`\`\``
-
-				await improveWithCline(ctx.controller, ctx.commandContext, notebookContext)
-			},
-		),
-	)
-
 	// Register the openWalkthrough command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.Walkthrough, async () => {
@@ -517,77 +409,9 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	// Listen for secrets changes (cross-window login/logout sync).
-	// NOTE: Credentials now live in providers.json (single source of truth).
-	// This listener catches legacy secrets.json writes from older windows and
-	// triggers a re-read from providers.json via restoreRefreshTokenAndRetrieveAuthInfo().
-	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
-		if (event.key === "cline:clineAccountId") {
-			const secretValue = storageContext.secrets.get<string>(event.key)
-			const activeWebview = WebviewProvider.getVisibleInstance()
-			const controller = activeWebview?.controller
-
-			const authService = AuthService.getInstance(controller)
-			if (secretValue) {
-				// Secret was added or updated - restore auth info (login from another window)
-				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
-			} else {
-				// Secret was removed - handle logout for all windows
-				authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
-			}
-		}
-	})
-	context.subscriptions.push({ dispose: unsubSecrets })
-
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
 	return createClineAPI(webview.controller)
-}
-
-async function showJupyterPromptInput(title: string, placeholder: string): Promise<string | undefined> {
-	return new Promise((resolve) => {
-		const quickPick = vscode.window.createQuickPick()
-		quickPick.title = title
-		quickPick.placeholder = placeholder
-		quickPick.ignoreFocusOut = true
-
-		// Allow free text input
-		quickPick.canSelectMany = false
-
-		let userInput = ""
-
-		quickPick.onDidChangeValue((value) => {
-			userInput = value
-			// Update items to show the current input
-			if (value) {
-				quickPick.items = [
-					{
-						label: "$(check) Use this prompt",
-						detail: value,
-						alwaysShow: true,
-					},
-				]
-			} else {
-				quickPick.items = []
-			}
-		})
-
-		quickPick.onDidAccept(() => {
-			if (userInput) {
-				resolve(userInput)
-				quickPick.hide()
-			}
-		})
-
-		quickPick.onDidHide(() => {
-			if (!userInput) {
-				resolve(undefined)
-			}
-			quickPick.dispose()
-		})
-
-		quickPick.show()
-	})
 }
 
 function setupHostProvider(context: ExtensionContext) {

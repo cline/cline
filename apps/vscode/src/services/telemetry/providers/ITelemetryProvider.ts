@@ -3,7 +3,17 @@
  * Allows switching between different analytics providers (PostHog, etc.)
  */
 
-import type { ClineAccountUserInfo } from "../../auth/AuthService"
+export interface TelemetryUserInfo {
+	id: string
+	displayName?: string
+	organizations?: Array<{
+		active: boolean
+		organizationId: string
+		name: string
+		memberId: string
+		roles: string[]
+	}>
+}
 
 /**
  * JSON-serializable primitive types for telemetry properties
@@ -66,7 +76,7 @@ export interface ITelemetryProvider {
 	 * @param userInfo The user's information
 	 * @param properties Optional additional JSON-serializable properties
 	 */
-	identifyUser(userInfo: ClineAccountUserInfo, properties?: TelemetryProperties): void
+	identifyUser(userInfo: TelemetryUserInfo, properties?: TelemetryProperties): void
 
 	/**
 	 * Check if telemetry is currently enabled

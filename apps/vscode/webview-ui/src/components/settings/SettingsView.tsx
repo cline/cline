@@ -1,25 +1,12 @@
 import type { ExtensionMessage } from "@shared/ExtensionMessage"
-import { isClineInternalTester } from "@shared/internal/account"
 import { ResetStateRequest } from "@shared/proto/cline/state"
-import type { UserOrganization } from "@shared/proto/index.cline"
-import {
-	CheckCheck,
-	FlaskConical,
-	HardDriveDownload,
-	Info,
-	type LucideIcon,
-	SlidersHorizontal,
-	SquareTerminal,
-	Wrench,
-} from "lucide-react"
+import { CheckCheck, FlaskConical, Info, type LucideIcon, SlidersHorizontal, SquareTerminal, Wrench } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { type ClineUser, useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
-import { isAdminOrOwner } from "../account/helpers"
 import { Tab, TabContent, TabList, TabTrigger } from "../common/Tab"
 import ViewHeader from "../common/ViewHeader"
 import SectionHeader from "./SectionHeader"
@@ -28,20 +15,19 @@ import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
-import { RemoteConfigSection } from "./sections/RemoteConfigSection"
 import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "api-config" | "features" | "terminal" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID = "api-config" | "features" | "terminal" | "general" | "about" | "debug"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
 	tooltipText: string
 	headerText: string
 	icon: LucideIcon
-	hidden?: (params?: { user: ClineUser | null; activeOrganization: UserOrganization | null }) => boolean
+	hidden?: () => boolean
 }
 
 const SETTINGS_TABS: SettingsTab[] = [
@@ -74,15 +60,6 @@ const SETTINGS_TABS: SettingsTab[] = [
 		icon: Wrench,
 	},
 	{
-		id: "remote-config",
-		name: "Remote Config",
-		tooltipText: "Remotely configured fields",
-		headerText: "Remote Config",
-		icon: HardDriveDownload,
-		hidden: ({ activeOrganization } = { user: null, activeOrganization: null }) =>
-			!activeOrganization || !isAdminOrOwner(activeOrganization),
-	},
-	{
 		id: "about",
 		name: "About",
 		tooltipText: "About Cline",
@@ -96,7 +73,7 @@ const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "Debug Tools",
 		headerText: "Debug",
 		icon: FlaskConical,
-		hidden: ({ user } = { user: null, activeOrganization: null }) => !IS_DEV && !isClineInternalTester(user?.email || ""),
+		hidden: () => !IS_DEV,
 	},
 ]
 
@@ -130,7 +107,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
 			terminal: TerminalSettingsSection,
-			"remote-config": RemoteConfigSection,
 			about: AboutSection,
 			debug: DebugSection,
 		}),
@@ -138,8 +114,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	) // Empty deps - these imports never change
 
 	const { version, environment, settingsInitialModelTab } = useExtensionState()
-	const { activeOrganization, clineUser } = useClineAuth()
-
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
 	// Optimized message handler with early returns
@@ -256,7 +230,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
 					onValueChange={setActiveTab}
 					value={activeTab}>
-					{SETTINGS_TABS.filter((tab) => !tab.hidden?.({ user: clineUser, activeOrganization })).map(renderTabItem)}
+					{SETTINGS_TABS.filter((tab) => !tab.hidden?.()).map(renderTabItem)}
 				</TabList>
 
 				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>

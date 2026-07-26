@@ -33,8 +33,6 @@ function cloneManifest(
 			? [...manifest.capabilities]
 			: undefined,
 		env: manifest.env ? [...manifest.env] : undefined,
-		api: manifest.api,
-		apiKeyEnv: manifest.apiKeyEnv ? [...manifest.apiKeyEnv] : undefined,
 		docsUrl: manifest.docsUrl,
 		metadata: manifest.metadata ? { ...manifest.metadata } : undefined,
 	};
@@ -97,11 +95,8 @@ function createUnregisteredModel(
 export class GatewayRegistry {
 	private readonly providers = new Map<string, ProviderRecord>();
 	private readonly providerConfigs = new Map<string, ProviderConfigRecord>();
-	private readonly fallbackFetch?: typeof fetch;
 
-	constructor(fetchImpl?: typeof fetch) {
-		this.fallbackFetch = fetchImpl;
-	}
+	constructor() {}
 
 	registerProvider(registration: GatewayProviderRegistration): void {
 		if (!registration.createProvider && !registration.loadProvider) {
@@ -115,15 +110,7 @@ export class GatewayRegistry {
 			defaults: registration.defaults
 				? {
 						providerId: registration.manifest.id,
-						apiKey: registration.defaults.apiKey,
-						apiKeyResolver: registration.defaults.apiKeyResolver,
-						apiKeyEnv: registration.defaults.apiKeyEnv,
-						baseUrl: registration.defaults.baseUrl,
-						headers: registration.defaults.headers
-							? { ...registration.defaults.headers }
-							: undefined,
 						timeoutMs: registration.defaults.timeoutMs,
-						fetch: registration.defaults.fetch,
 						options: registration.defaults.options
 							? { ...registration.defaults.options }
 							: undefined,
@@ -140,13 +127,7 @@ export class GatewayRegistry {
 	configureProvider(config: GatewayProviderConfig): void {
 		this.providerConfigs.set(config.providerId, {
 			providerId: config.providerId,
-			apiKey: config.apiKey,
-			apiKeyResolver: config.apiKeyResolver,
-			apiKeyEnv: config.apiKeyEnv,
-			baseUrl: config.baseUrl,
-			headers: config.headers ? { ...config.headers } : undefined,
 			timeoutMs: config.timeoutMs,
-			fetch: config.fetch,
 			options: config.options ? { ...config.options } : undefined,
 			metadata: config.metadata ? { ...config.metadata } : undefined,
 			enabled: config.enabled ?? true,
@@ -256,17 +237,7 @@ export class GatewayRegistry {
 			manifest,
 			config: {
 				providerId,
-				apiKey: config?.apiKey ?? record.defaults?.apiKey,
-				apiKeyResolver:
-					config?.apiKeyResolver ?? record.defaults?.apiKeyResolver,
-				apiKeyEnv: config?.apiKeyEnv ?? record.defaults?.apiKeyEnv,
-				baseUrl: config?.baseUrl ?? record.defaults?.baseUrl,
-				headers: {
-					...(record.defaults?.headers ?? {}),
-					...(config?.headers ?? {}),
-				},
 				timeoutMs: config?.timeoutMs ?? record.defaults?.timeoutMs,
-				fetch: config?.fetch ?? record.defaults?.fetch ?? this.fallbackFetch,
 				options: {
 					...(record.defaults?.options ?? {}),
 					...(config?.options ?? {}),
