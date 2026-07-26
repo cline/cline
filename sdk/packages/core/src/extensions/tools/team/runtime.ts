@@ -26,14 +26,9 @@ export {
 // =============================================================================
 
 export {
-	type AgentTask,
-	AgentTeam,
 	AgentTeamsRuntime,
 	type AgentTeamsRuntimeOptions,
-	createAgentTeam,
-	createWorkerReviewerTeam,
 	type SpawnTeammateOptions,
-	type TaskResult,
 	type TeamEvent,
 	type TeamMemberConfig,
 } from "./multi-agent";

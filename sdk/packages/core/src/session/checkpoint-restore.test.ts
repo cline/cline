@@ -4,11 +4,12 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	applyCheckpointToWorktree,
 	createCheckpointRestorePlan,
@@ -16,6 +17,19 @@ import {
 	trimMessagesBeforeCheckpoint,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
+
+const fsMocks = vi.hoisted(() => ({
+	chmod: vi.fn(),
+}));
+
+vi.mock("node:fs/promises", async () => {
+	const actual =
+		await vi.importActual<typeof import("node:fs/promises")>(
+			"node:fs/promises",
+		);
+	fsMocks.chmod.mockImplementation(actual.chmod);
+	return { ...actual, chmod: fsMocks.chmod };
+});
 
 function git(cwd: string, args: string[]): string {
 	return execFileSync("git", ["-C", cwd, ...args], {
@@ -35,15 +49,19 @@ function createRepo(cwd: string): void {
 
 describe("applyCheckpointToWorktree", () => {
 	let dir = "";
+	let outsideDir = "";
 
 	beforeEach(() => {
 		dir = mkdtempSync(join(tmpdir(), "checkpoint-restore-"));
+		outsideDir = mkdtempSync(join(tmpdir(), "checkpoint-restore-outside-"));
 		mkdirSync(dir, { recursive: true });
 		createRepo(dir);
 	});
 
 	afterEach(() => {
+		fsMocks.chmod.mockClear();
 		rmSync(dir, { recursive: true, force: true });
+		rmSync(outsideDir, { recursive: true, force: true });
 	});
 
 	it("validates the checkpoint ref before resetting or cleaning the worktree", async () => {
@@ -51,12 +69,16 @@ describe("applyCheckpointToWorktree", () => {
 		writeFileSync(join(dir, "untracked.txt"), "keep me\n", "utf8");
 
 		await expect(
-			applyCheckpointToWorktree(dir, {
-				ref: "0000000000000000000000000000000000000000",
-				createdAt: Date.now(),
-				runCount: 1,
-				kind: "stash",
-			}, { approved: true }),
+			applyCheckpointToWorktree(
+				dir,
+				{
+					ref: "0000000000000000000000000000000000000000",
+					createdAt: Date.now(),
+					runCount: 1,
+					kind: "stash",
+				},
+				{ approved: true },
+			),
 		).rejects.toThrow();
 
 		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("dirty\n");
@@ -130,6 +152,78 @@ describe("applyCheckpointToWorktree", () => {
 		});
 		expect(readFileSync(join(dir, "a-first.txt"), "utf8")).toBe("current\n");
 	});
+
+	it("rejects a checkpoint path whose parent is a symlink", async () => {
+		const nestedDir = join(dir, "nested");
+		mkdirSync(nestedDir);
+		writeFileSync(join(nestedDir, "target.txt"), "checkpoint\n", "utf8");
+		git(dir, ["add", "nested/target.txt"]);
+		git(dir, ["commit", "-m", "checkpoint with nested file"]);
+		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+
+		rmSync(nestedDir, { recursive: true, force: true });
+		writeFileSync(join(outsideDir, "target.txt"), "outside\n", "utf8");
+		symlinkSync(
+			outsideDir,
+			nestedDir,
+			process.platform === "win32" ? "junction" : "dir",
+		);
+
+		await expect(
+			applyCheckpointToWorktree(
+				dir,
+				{
+					ref: checkpointRef,
+					createdAt: Date.now(),
+					runCount: 1,
+					kind: "commit",
+				},
+				{ approved: true },
+			),
+		).rejects.toThrow(/parent is a symlink/);
+		expect(readFileSync(join(outsideDir, "target.txt"), "utf8")).toBe(
+			"outside\n",
+		);
+	});
+
+	it.skipIf(process.platform === "win32")(
+		"rolls back the current file when chmod fails after writing",
+		async () => {
+			writeFileSync(join(dir, "executable.sh"), "checkpoint\n", "utf8");
+			git(dir, ["add", "executable.sh"]);
+			git(dir, ["update-index", "--chmod=+x", "executable.sh"]);
+			git(dir, ["commit", "-m", "checkpoint with executable"]);
+			const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+			writeFileSync(join(dir, "executable.sh"), "current\n", "utf8");
+			fsMocks.chmod.mockRejectedValueOnce(new Error("chmod failed"));
+
+			await expect(
+				applyCheckpointToWorktree(
+					dir,
+					{
+						ref: checkpointRef,
+						createdAt: Date.now(),
+						runCount: 1,
+						kind: "commit",
+					},
+					{ approved: true },
+				),
+			).rejects.toMatchObject({
+				code: "partial_failure",
+				result: {
+					files: [
+						expect.objectContaining({
+							filePath: join(dir, "executable.sh"),
+							status: "rolled-back",
+						}),
+					],
+				},
+			});
+			expect(readFileSync(join(dir, "executable.sh"), "utf8")).toBe(
+				"current\n",
+			);
+		},
+	);
 
 	it("carries checkpoint metadata through the restored run", () => {
 		const metadata = createRestoredCheckpointMetadata(

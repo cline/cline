@@ -4,6 +4,7 @@ import {
 	lstat,
 	mkdir,
 	readFile,
+	realpath,
 	rename,
 	rm,
 	writeFile,
@@ -81,19 +82,31 @@ export function readSessionCheckpointHistory(
 				entry.kind === "stash" || entry.kind === "commit"
 					? entry.kind
 					: undefined;
-			return [{
-				ref,
-				createdAt,
-				runCount,
-				...(kind ? { kind } : {}),
-				...(entry.schemaVersion === 2 ? { schemaVersion: 2 as const } : {}),
-				...(typeof entry.checkpointId === "string" ? { checkpointId: entry.checkpointId } : {}),
-				...(typeof entry.sessionId === "string" ? { sessionId: entry.sessionId } : {}),
-				...(typeof entry.workspaceRoot === "string" ? { workspaceRoot: entry.workspaceRoot } : {}),
-				...(typeof entry.gitBase === "string" ? { gitBase: entry.gitBase } : {}),
-				...(typeof entry.gitHead === "string" ? { gitHead: entry.gitHead } : {}),
-				...(typeof entry.label === "string" ? { label: entry.label } : {}),
-			}];
+			return [
+				{
+					ref,
+					createdAt,
+					runCount,
+					...(kind ? { kind } : {}),
+					...(entry.schemaVersion === 2 ? { schemaVersion: 2 as const } : {}),
+					...(typeof entry.checkpointId === "string"
+						? { checkpointId: entry.checkpointId }
+						: {}),
+					...(typeof entry.sessionId === "string"
+						? { sessionId: entry.sessionId }
+						: {}),
+					...(typeof entry.workspaceRoot === "string"
+						? { workspaceRoot: entry.workspaceRoot }
+						: {}),
+					...(typeof entry.gitBase === "string"
+						? { gitBase: entry.gitBase }
+						: {}),
+					...(typeof entry.gitHead === "string"
+						? { gitHead: entry.gitHead }
+						: {}),
+					...(typeof entry.label === "string" ? { label: entry.label } : {}),
+				},
+			];
 		});
 }
 
@@ -205,17 +218,91 @@ export function createCheckpointRestorePlan(input: {
 	};
 }
 
-function resolveWorkspacePath(cwd: string, relativePath: string): string {
-	const root = path.resolve(cwd);
+function isPathWithinWorkspace(root: string, candidate: string): boolean {
+	const relative = path.relative(root, candidate);
+	return (
+		relative === "" ||
+		(!relative.startsWith("..") && !path.isAbsolute(relative))
+	);
+}
+
+function unsafePath(relativePath: string, reason: string): never {
+	throw new CheckpointWorkspaceRestoreError(
+		"unsafe_path",
+		`Checkpoint path is unsafe (${reason}): ${relativePath}`,
+	);
+}
+
+function isNodeErrorWithCode(error: unknown, code: string): boolean {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		(error as NodeJS.ErrnoException).code === code
+	);
+}
+
+function resolveWorkspacePath(root: string, relativePath: string): string {
 	const resolved = path.resolve(root, relativePath);
 	const relative = path.relative(root, resolved);
 	if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
-		throw new CheckpointWorkspaceRestoreError(
-			"unsafe_path",
-			`Checkpoint path escapes the workspace: ${relativePath}`,
-		);
+		unsafePath(relativePath, "path escapes the workspace");
 	}
 	return resolved;
+}
+
+async function lstatIfExists(filePath: string) {
+	try {
+		return await lstat(filePath);
+	} catch (error) {
+		if (isNodeErrorWithCode(error, "ENOENT")) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+async function validateParentPath(
+	root: string,
+	filePath: string,
+	relativePath: string,
+	createMissing = false,
+): Promise<void> {
+	const parentRelative = path.relative(root, path.dirname(filePath));
+	if (parentRelative.startsWith("..") || path.isAbsolute(parentRelative)) {
+		unsafePath(relativePath, "parent escapes the workspace");
+	}
+
+	let current = root;
+	for (const segment of parentRelative.split(path.sep).filter(Boolean)) {
+		current = path.join(current, segment);
+		let stat = await lstatIfExists(current);
+		if (!stat) {
+			if (!createMissing) {
+				return;
+			}
+			try {
+				await mkdir(current);
+			} catch (error) {
+				if (!isNodeErrorWithCode(error, "EEXIST")) {
+					throw error;
+				}
+			}
+			stat = await lstat(current);
+		}
+		if (stat.isSymbolicLink()) {
+			unsafePath(relativePath, `parent is a symlink: ${segment}`);
+		}
+		if (!stat.isDirectory()) {
+			unsafePath(relativePath, `parent is not a directory: ${segment}`);
+		}
+		const resolvedParent = await realpath(current);
+		if (!isPathWithinWorkspace(root, resolvedParent)) {
+			unsafePath(
+				relativePath,
+				`parent resolves outside the workspace: ${segment}`,
+			);
+		}
+	}
 }
 
 async function gitBuffer(cwd: string, args: string[]): Promise<Buffer> {
@@ -232,12 +319,14 @@ async function checkpointPaths(cwd: string, ref: string): Promise<string[]> {
 		gitBuffer(cwd, ["diff", "--name-only", "-z", ref, "--"]),
 		gitBuffer(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
 	]);
-	return [...new Set(
-		Buffer.concat([tracked, untracked])
-			.toString("utf8")
-			.split("\0")
-			.filter(Boolean),
-	)].sort((left, right) => left.localeCompare(right));
+	return [
+		...new Set(
+			Buffer.concat([tracked, untracked])
+				.toString("utf8")
+				.split("\0")
+				.filter(Boolean),
+		),
+	].sort((left, right) => left.localeCompare(right));
 }
 
 async function readCheckpointBlob(
@@ -266,8 +355,13 @@ async function readCheckpointBlob(
 	};
 }
 
-async function writeAtomically(filePath: string, content: Buffer): Promise<void> {
-	await mkdir(path.dirname(filePath), { recursive: true });
+async function writeAtomically(
+	root: string,
+	filePath: string,
+	relativePath: string,
+	content: Buffer,
+): Promise<void> {
+	await validateParentPath(root, filePath, relativePath, true);
 	const temporaryPath = `${filePath}.cline-restore-${process.pid}-${Date.now()}`;
 	await writeFile(temporaryPath, content);
 	await rename(temporaryPath, filePath).catch(async (error) => {
@@ -300,15 +394,20 @@ export async function applyCheckpointToWorktree(
 		["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^{commit}`],
 		{ windowsHide: true },
 	);
+	const workspaceRoot = await realpath(path.resolve(cwd));
 	const paths = await checkpointPaths(cwd, checkpoint.ref);
-	const snapshots = new Map<string, { existed: boolean; content?: Buffer; mode?: number }>();
+	const snapshots = new Map<
+		string,
+		{ existed: boolean; content?: Buffer; mode?: number }
+	>();
 	const files: CheckpointRestoreFileResult[] = [];
-	const applied: string[] = [];
+	const applied: Array<{ filePath: string; relativePath: string }> = [];
 
 	try {
 		for (const relativePath of paths) {
-			const filePath = resolveWorkspacePath(cwd, relativePath);
-			const stat = await lstat(filePath).catch(() => undefined);
+			const filePath = resolveWorkspacePath(workspaceRoot, relativePath);
+			await validateParentPath(workspaceRoot, filePath, relativePath);
+			const stat = await lstatIfExists(filePath);
 			if (stat?.isDirectory() || stat?.isSymbolicLink()) {
 				throw new CheckpointWorkspaceRestoreError(
 					"unsafe_path",
@@ -319,41 +418,66 @@ export async function applyCheckpointToWorktree(
 				existed: Boolean(stat),
 				...(stat ? { content: await readFile(filePath), mode: stat.mode } : {}),
 			});
-			const checkpointBlob = await readCheckpointBlob(cwd, checkpoint.ref, relativePath);
+			const checkpointBlob = await readCheckpointBlob(
+				cwd,
+				checkpoint.ref,
+				relativePath,
+			);
+			const fileResult: CheckpointRestoreFileResult = {
+				filePath,
+				action: checkpointBlob.content ? "write" : "delete",
+				status: "restored",
+			};
+			files.push(fileResult);
+			applied.push({ filePath, relativePath });
 			if (checkpointBlob.content) {
-				await writeAtomically(filePath, checkpointBlob.content);
+				await writeAtomically(
+					workspaceRoot,
+					filePath,
+					relativePath,
+					checkpointBlob.content,
+				);
 				if (process.platform !== "win32") {
 					await chmod(filePath, checkpointBlob.executable ? 0o755 : 0o644);
 				}
-				files.push({ filePath, action: "write", status: "restored" });
 			} else {
 				await rm(filePath, { force: true });
-				files.push({ filePath, action: "delete", status: "restored" });
 			}
-			applied.push(filePath);
 		}
 		return { status: "restored", checkpoint, cwd, files };
 	} catch (error) {
 		let rollbackFailed = false;
-		for (const filePath of [...applied].reverse()) {
+		for (const { filePath, relativePath } of [...applied].reverse()) {
 			const snapshot = snapshots.get(filePath);
 			try {
 				if (snapshot?.existed && snapshot.content) {
-					await writeAtomically(filePath, snapshot.content);
+					await writeAtomically(
+						workspaceRoot,
+						filePath,
+						relativePath,
+						snapshot.content,
+					);
 					if (process.platform !== "win32" && snapshot.mode !== undefined) {
 						await chmod(filePath, snapshot.mode);
 					}
 				} else {
 					await rm(filePath, { force: true });
 				}
-				const result = files.find((candidate) => candidate.filePath === filePath);
+				const result = files.find(
+					(candidate) => candidate.filePath === filePath,
+				);
 				if (result) result.status = "rolled-back";
 			} catch (rollbackError) {
 				rollbackFailed = true;
-				const result = files.find((candidate) => candidate.filePath === filePath);
+				const result = files.find(
+					(candidate) => candidate.filePath === filePath,
+				);
 				if (result) {
 					result.status = "failed";
-					result.error = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+					result.error =
+						rollbackError instanceof Error
+							? rollbackError.message
+							: String(rollbackError);
 				}
 			}
 		}

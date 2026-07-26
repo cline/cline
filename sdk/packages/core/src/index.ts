@@ -237,8 +237,6 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export {
-	type AgentTask,
-	AgentTeam,
 	AgentTeamsRuntime,
 	type AgentTeamsRuntimeOptions,
 	type BootstrapAgentTeamsOptions,
@@ -270,7 +268,6 @@ export {
 	type SpawnTeammateOptions,
 	type SubAgentEndContext,
 	type SubAgentStartContext,
-	type TaskResult,
 	type TeamEvent,
 	type TeamMemberConfig,
 	type TeamTeammateRuntimeConfig,
