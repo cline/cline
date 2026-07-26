@@ -37,6 +37,7 @@ const mockExtensionState = (overrides: Record<string, unknown> = {}) => {
 		navigateToSettings: mockNavigateToSettings,
 		remoteConfigSettings: undefined,
 		mode: "act",
+		planActSeparateModelsSetting: false,
 		...overrides,
 	} as any)
 }
@@ -81,6 +82,24 @@ describe("useClinePassPromo", () => {
 		})
 		const { result } = renderHook(() => useClinePassPromo())
 		expect(result.current.isUsingClinePass).toBe(true)
+	})
+
+	it("only reflects the current mode's provider when plan/act use separate models", () => {
+		mockExtensionState({
+			apiConfiguration: { planModeApiProvider: "cline-pass", actModeApiProvider: "anthropic" },
+			planActSeparateModelsSetting: true,
+			mode: "act",
+		})
+		const { result: actResult } = renderHook(() => useClinePassPromo())
+		expect(actResult.current.isUsingClinePass).toBe(false)
+
+		mockExtensionState({
+			apiConfiguration: { planModeApiProvider: "cline-pass", actModeApiProvider: "anthropic" },
+			planActSeparateModelsSetting: true,
+			mode: "plan",
+		})
+		const { result: planResult } = renderHook(() => useClinePassPromo())
+		expect(planResult.current.isUsingClinePass).toBe(true)
 	})
 
 	it("switches provider mode-aware and navigates to API settings on success", async () => {

@@ -18,7 +18,7 @@ export const CLINE_PASS_PROVIDER_ID = "cline-pass"
  */
 export function useClinePassPromo() {
 	const hasClinePassFeatureFlag = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
-	const { apiConfiguration, navigateToSettings, remoteConfigSettings, mode } = useExtensionState()
+	const { apiConfiguration, navigateToSettings, remoteConfigSettings, mode, planActSeparateModelsSetting } = useExtensionState()
 	const { clineUser } = useClineAuth()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -26,9 +26,13 @@ export function useClinePassPromo() {
 	const isBlockedByRemoteConfig = remoteProviders.length > 0 && !remoteProviders.includes(CLINE_PASS_PROVIDER_ID)
 	const isClinePassEnabled = hasClinePassFeatureFlag && !isBlockedByRemoteConfig
 
-	const isUsingClinePass =
-		apiConfiguration?.planModeApiProvider === CLINE_PASS_PROVIDER_ID ||
-		apiConfiguration?.actModeApiProvider === CLINE_PASS_PROVIDER_ID
+	// Mirrors the switch action's scope: with separate plan/act models the
+	// promos only affect (and therefore only reflect) the current mode.
+	const currentModeProvider = mode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+	const isUsingClinePass = planActSeparateModelsSetting
+		? currentModeProvider === CLINE_PASS_PROVIDER_ID
+		: apiConfiguration?.planModeApiProvider === CLINE_PASS_PROVIDER_ID ||
+			apiConfiguration?.actModeApiProvider === CLINE_PASS_PROVIDER_ID
 
 	const subscribeUrl = useMemo(() => buildClinePassSubscribeUrl(clineUser?.appBaseUrl), [clineUser?.appBaseUrl])
 	const manageSubscriptionUrl = useMemo(() => buildClinePassSubscriptionPageUrl(clineUser?.appBaseUrl), [clineUser?.appBaseUrl])
