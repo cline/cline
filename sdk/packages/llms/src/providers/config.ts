@@ -310,14 +310,6 @@ export interface ProviderConfig
 	/** Task/session ID for telemetry */
 	taskId?: string;
 
-	/** Retry callback */
-	onRetryAttempt?: (
-		attempt: number,
-		maxRetries: number,
-		delay: number,
-		error: unknown,
-	) => void;
-
 	/** AbortSignal for cancelling requests */
 	abortSignal?: AbortSignal;
 
