@@ -453,4 +453,37 @@ describe("desktop stream persistence", () => {
 			rmSync(testDataDir, { recursive: true, force: true });
 		}
 	});
+
+	it("discards buffered chunks before session deletion", async () => {
+		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
+		const testDataDir = join(
+			tmpdir(),
+			`cline-desktop-stream-delete-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		);
+		process.env.CLINE_KANBAN_DATA_DIR = testDataDir;
+		try {
+			const {
+				broadcastChunk,
+				createSidecarContext,
+				discardSessionChunkLog,
+				disposeSidecarContext,
+			} = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+
+			broadcastChunk(ctx, "deleted-session", "chat_text", "pending");
+			await discardSessionChunkLog("deleted-session");
+			await disposeSidecarContext(ctx, "test_shutdown");
+
+			expect(
+				existsSync(join(testDataDir, "sessions", "deleted-session.jsonl")),
+			).toBe(false);
+		} finally {
+			if (previousKanbanDataDir === undefined) {
+				delete process.env.CLINE_KANBAN_DATA_DIR;
+			} else {
+				process.env.CLINE_KANBAN_DATA_DIR = previousKanbanDataDir;
+			}
+			rmSync(testDataDir, { recursive: true, force: true });
+		}
+	});
 });

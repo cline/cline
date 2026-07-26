@@ -98,6 +98,15 @@ async function flushSessionChunkLogs(): Promise<void> {
 	sessionChunkLogs.clear();
 }
 
+export async function discardSessionChunkLog(sessionId: string): Promise<void> {
+	const log = sessionChunkLogs.get(sessionId);
+	if (!log) return;
+	if (log.timer) clearTimeout(log.timer);
+	log.lines = [];
+	await log.write;
+	sessionChunkLogs.delete(sessionId);
+}
+
 function appendSessionChunk(
 	ctx: SidecarContext,
 	sessionId: string,

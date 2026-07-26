@@ -62,6 +62,7 @@ import {
 } from "./connectors";
 import {
 	broadcastEvent,
+	discardSessionChunkLog,
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
 } from "./context";
@@ -1277,6 +1278,7 @@ export async function handleCommand(
 			deleted = true;
 		}
 		ctx.liveSessions.delete(sessionId);
+		await discardSessionChunkLog(sessionId);
 		const directoryCandidates = new Set<string>([
 			join(sharedSessionDataDir(), sessionId),
 		]);
