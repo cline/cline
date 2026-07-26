@@ -1,11 +1,3 @@
-import type { BasicLogger } from "@cline/shared";
-import {
-	ClineCoreAutomationController,
-	createClineCoreAutomationExtensionContext,
-	createClineCoreAutomationRuntimeHandlers,
-	normalizeAutomationCronScope,
-	normalizeAutomationOptions,
-} from "./cline-core/automation";
 import {
 	createClineCorePendingPromptsApi,
 	createClineCoreSettingsApi,
@@ -16,8 +8,6 @@ import {
 	toClineCoreStartInput,
 } from "./cline-core/start-input";
 import type {
-	ClineCoreAutomationApi,
-	ClineCoreAutomationOptions,
 	ClineCoreListHistoryOptions,
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
@@ -29,7 +19,6 @@ import type {
 	StartSessionBootstrap,
 } from "./cline-core/types";
 
-import { CronService } from "./cron/service/cron-service";
 import type { RuntimeCapabilities } from "./runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
@@ -49,17 +38,6 @@ import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
 export type {
-	ClineAutomationEventIngressResult,
-	ClineAutomationEventLog,
-	ClineAutomationEventSuppression,
-	ClineAutomationListEventsOptions,
-	ClineAutomationListRunsOptions,
-	ClineAutomationListSpecsOptions,
-	ClineAutomationRun,
-	ClineAutomationRunStatus,
-	ClineAutomationSpec,
-	ClineCoreAutomationApi,
-	ClineCoreAutomationOptions,
 	ClineCoreListHistoryOptions,
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
@@ -89,14 +67,11 @@ export type {
 export class ClineCore {
 	readonly clientName: string | undefined;
 	readonly runtimeAddress: string | undefined;
-	readonly automation: ClineCoreAutomationApi;
 	readonly settings: ClineCoreSettingsApi;
 	readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly capabilities: RuntimeCapabilities | undefined;
-	private readonly logger: BasicLogger | undefined;
-	private readonly automationService: CronService | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
 		StartSessionBootstrap
@@ -109,54 +84,14 @@ export class ClineCore {
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
 		capabilities: RuntimeCapabilities | undefined,
-		logger: BasicLogger | undefined,
-		automationOptions:
-			| (ClineCoreAutomationOptions & { logger?: BasicLogger })
-			| undefined,
 	) {
 		this.clientName = clientName;
 		this.runtimeAddress = runtimeAddress;
 		this.host = host;
 		this.prepare = prepare;
 		this.capabilities = capabilities;
-		this.logger = logger;
 		this.settings = createClineCoreSettingsApi(host);
 		this.pendingPrompts = createClineCorePendingPromptsApi(host);
-		this.automation = new ClineCoreAutomationController(() => {
-			if (!this.automationService) {
-				throw new Error(
-					"ClineCore automation is not enabled. Pass `automation: true` or automation options to ClineCore.create().",
-				);
-			}
-			return this.automationService;
-		});
-		this.automationService = automationOptions
-			? new CronService({
-					workspaceRoot: automationOptions.workspaceRoot ?? process.cwd(),
-					specs: {
-						cronSpecsDir:
-							automationOptions.cronSpecsDir ?? automationOptions.cronDir,
-						scope: normalizeAutomationCronScope(automationOptions.cronScope),
-						workspaceRoot: automationOptions.workspaceRoot,
-					},
-					runtimeHandlers: createClineCoreAutomationRuntimeHandlers({
-						host,
-						getExtensionContext: () =>
-							createClineCoreAutomationExtensionContext({
-								automationService: this.automationService,
-								automation: this.automation,
-								clientName: this.clientName,
-								logger: this.logger,
-							}),
-					}),
-					dbPath: automationOptions.dbPath,
-					logger: automationOptions.logger,
-					pollIntervalMs: automationOptions.pollIntervalMs,
-					claimLeaseSeconds: automationOptions.claimLeaseSeconds,
-					globalMaxConcurrency: automationOptions.globalMaxConcurrency,
-					watcherDebounceMs: automationOptions.watcherDebounceMs,
-				})
-			: undefined;
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -187,21 +122,13 @@ export class ClineCore {
 		const capabilities = normalizeRuntimeCapabilities(options.capabilities);
 		const normalizedOptions = { ...options, capabilities };
 		const host = await createRuntimeHost(normalizedOptions);
-		const automationOptions = normalizeAutomationOptions(options.automation);
 		const core = new ClineCore(
 			host,
 			options.clientName,
 			host.runtimeAddress,
 			options.prepare,
 			capabilities,
-			options.logger,
-			automationOptions
-				? { ...automationOptions, logger: options.logger }
-				: undefined,
 		);
-		if (automationOptions && automationOptions.autoStart !== false) {
-			await core.automation.start();
-		}
 		return core;
 	}
 
@@ -228,7 +155,7 @@ export class ClineCore {
 	 * ```ts
 	 * const result = await cline.start({
 	 *   config: {
-	 *     providerId: "anthropic",
+	 *     providerId: "bedrock",
 	 *     modelId: "claude-opus-4-1",
 	 *   },
 	 * });
@@ -257,14 +184,6 @@ export class ClineCore {
 			const result = await this.host.startSession(
 				normalizeClineCoreStartInput(preparedInput, {
 					defaultCapabilities: this.capabilities,
-					withExtensionContext: (context) =>
-						createClineCoreAutomationExtensionContext({
-							automationService: this.automationService,
-							automation: this.automation,
-							context,
-							clientName: this.clientName,
-							logger: this.logger
-						}),
 				}),
 			);
 			if (bootstrap) {
@@ -360,7 +279,6 @@ export class ClineCore {
 	 */
 	dispose: RuntimeHost["dispose"] = async (...args) => {
 		try {
-			await this.automationService?.dispose();
 			await this.host.dispose(...args);
 		} finally {
 			this.unsubscribeBootstrapCleanup();
@@ -484,14 +402,6 @@ export class ClineCore {
 		const normalizedStart = input.start
 			? normalizeClineCoreStartInput(input.start, {
 					defaultCapabilities: this.capabilities,
-					withExtensionContext: (context) =>
-						createClineCoreAutomationExtensionContext({
-							automationService: this.automationService,
-							automation: this.automation,
-							context,
-							clientName: this.clientName,
-							logger: this.logger
-						}),
 				})
 			: undefined;
 		return this.host.restoreSession({

@@ -1,8 +1,6 @@
 // Dead-source finder: uses esbuild's own bundle reachability (the same analysis
 // that drives tree-shaking + minification mangling) to compute which src/ files
-// are reachable from BOTH shipped entry points:
-//   - src/extension.ts            (VS Code extension host)
-//   - src/standalone/cline-core.ts (standalone host used by JetBrains + CLI)
+// are reachable from the shipped VS Code extension entry point.
 //
 // A src/*.ts file that is NOT in the union of metafile inputs for those two
 // builds is unreachable from any shipped entry => dead (modulo dynamic import()
@@ -80,18 +78,12 @@ async function inputsFor(entry, external) {
 }
 
 const ext = await inputsFor("src/extension.ts", ["vscode"])
-const standalone = await inputsFor("src/standalone/cline-core.ts", [
-	"vscode",
-	"@grpc/reflection",
-	"grpc-health-check",
-	"better-sqlite3",
-])
-const live = new Set([...ext, ...standalone])
+const live = new Set(ext)
 
 // Third consumer: the webview (webview-ui/) is a separate Vite/React build that
 // imports extension code ONLY from src/shared (via "@shared/*" alias or relative
 // "../src/shared/*" paths). Any src/shared file referenced from webview-ui/src is
-// therefore live even if the extension-host/standalone bundles don't reach it.
+// therefore live even if the extension-host bundle does not reach it.
 // Conservatively mark every src/shared file mentioned by the webview as live.
 const webviewFiles = await glob("webview-ui/src/**/*.{ts,tsx}", { cwd: root })
 const sharedMentionedByWebview = new Set()
@@ -122,7 +114,6 @@ const allSrc = (await glob("src/**/*.{ts,tsx}", { cwd: root }))
 const dead = allSrc.filter((f) => !live.has(f)).sort()
 
 console.log(`extension inputs: ${ext.size}`)
-console.log(`standalone inputs: ${standalone.size}`)
 console.log(`union live src files: ${live.size}`)
 console.log(`candidate dead files: ${dead.length}`)
 fs.writeFileSync("/tmp/dead-src.json", JSON.stringify(dead, null, "\t"))

@@ -42,22 +42,22 @@ describe("builtin tool catalog", () => {
 		expect(names).toContain("team_run_task");
 	});
 
-	it("uses a single editor catalog entry and maps to apply_patch when routed", () => {
+	it("uses a single editor catalog entry for Bedrock models", () => {
 		const actCatalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(actCatalog.some((entry) => entry.id === "apply_patch")).toBe(false);
 		expect(
 			actCatalog.find((entry) => entry.id === "editor")?.headlessToolNames,
 		).toEqual(["editor"]);
 
-		const gptCatalog = getCoreBuiltinToolCatalog({
+		const bedrockCatalog = getCoreBuiltinToolCatalog({
 			mode: "act",
-			modelId: "openai/gpt-5.4",
-			providerId: "openai",
+			modelId: "anthropic.claude-sonnet-4-6",
+			providerId: "bedrock",
 		});
 		expect(
-			gptCatalog.find((entry) => entry.id === "editor")?.headlessToolNames,
-		).toEqual(["apply_patch"]);
-		expect(gptCatalog.some((entry) => entry.id === "submit_and_exit")).toBe(
+			bedrockCatalog.find((entry) => entry.id === "editor")?.headlessToolNames,
+		).toEqual(["editor"]);
+		expect(bedrockCatalog.some((entry) => entry.id === "submit_and_exit")).toBe(
 			false,
 		);
 	});

@@ -87,7 +87,7 @@ describe("formatMessagesForAiSdk", () => {
 						type: "text",
 						text: "cache this",
 						providerOptions: {
-							openrouter: { cache_control: { type: "ephemeral" } },
+							bedrock: { guardrailIdentifier: "local-guardrail" },
 						},
 					},
 				],
@@ -102,7 +102,7 @@ describe("formatMessagesForAiSdk", () => {
 						type: "text",
 						text: "cache this",
 						providerOptions: {
-							openrouter: { cache_control: { type: "ephemeral" } },
+							bedrock: { guardrailIdentifier: "local-guardrail" },
 						},
 					},
 				],

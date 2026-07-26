@@ -60,7 +60,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "python-poet",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Write concise Python-focused haiku",
 				tools: [],
@@ -97,7 +97,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "python-poet",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Write concise Python-focused haiku",
 				maxIterations: 7,
@@ -138,7 +138,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "python-poet",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Write concise Python-focused haiku",
 				maxIterations: 7,
@@ -186,7 +186,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "python-poet",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Write concise Python-focused haiku",
 				tools: [],
@@ -242,7 +242,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "python-poet",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Write concise Python-focused haiku",
 				tools: [],
@@ -303,7 +303,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "alice",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Helper teammate",
 				tools: [],
@@ -374,7 +374,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "bob",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Helper teammate",
 				tools: [],
@@ -414,7 +414,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "charlie",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Helper teammate",
 				tools: [],
@@ -470,7 +470,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "diana",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Helper teammate",
 				tools: [],
@@ -528,7 +528,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		runtime.spawnTeammate({
 			agentId: "providers-investigator",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Investigate providers thoroughly",
 				tools: [],
@@ -592,7 +592,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			originalRuntime.spawnTeammate({
 				agentId: "alice",
 				config: {
-					providerId: "anthropic",
+					providerId: "bedrock",
 					modelId: "claude-sonnet-4-5-20250929",
 					systemPrompt: "Helper teammate",
 					tools: [],
@@ -621,7 +621,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			recoveredRuntime.spawnTeammate({
 				agentId: "alice",
 				config: {
-					providerId: "anthropic",
+					providerId: "bedrock",
 					modelId: "claude-sonnet-4-5-20250929",
 					systemPrompt: "Helper teammate",
 					tools: [],
@@ -656,7 +656,7 @@ describe("AgentTeamsRuntime run failure reporting", () => {
 			return {
 				abort: vi.fn(),
 				run: vi.fn(async () => ({
-					text: "Unauthorized: Please re-authenticate your Cline account.",
+					text: "Bedrock request failed after retries.",
 					iterations: 8,
 					finishReason: "error",
 					durationMs: 100,
@@ -685,7 +685,7 @@ describe("AgentTeamsRuntime run failure reporting", () => {
 		runtime.spawnTeammate({
 			agentId: "alice",
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-5-20250929",
 				systemPrompt: "Helper teammate",
 				tools: [],
@@ -696,7 +696,7 @@ describe("AgentTeamsRuntime run failure reporting", () => {
 		const settledRun = await runtime.awaitRun(run.id, 1);
 
 		expect(settledRun.status).toBe("failed");
-		expect(settledRun.error).toContain("Unauthorized");
+		expect(settledRun.error).toContain("Bedrock request failed");
 		expect(events).toContainEqual(
 			expect.objectContaining({
 				type: TeamMessageType.RunFailed,

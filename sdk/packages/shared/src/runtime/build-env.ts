@@ -5,12 +5,7 @@ export const CLINE_DEBUG_HOST_ENV = "CLINE_DEBUG_HOST";
 export const CLINE_DEBUG_PORT_BASE_ENV = "CLINE_DEBUG_PORT_BASE";
 
 export type ClineBuildEnv = "development" | "production";
-export type ClineDebugRole =
-	| "rpc"
-	| "hook"
-	| "plugin-sandbox"
-	| "connector"
-	| "sandbox";
+export type ClineDebugRole = "rpc" | "hook" | "plugin-sandbox" | "sandbox";
 
 export interface ResolveClineBuildEnvOptions {
 	env?: NodeJS.ProcessEnv;
@@ -102,10 +97,8 @@ function resolveRolePortOffset(role: ClineDebugRole | undefined): number {
 			return 1;
 		case "plugin-sandbox":
 			return 2;
-		case "connector":
-			return 3;
 		case "sandbox":
-			return 4;
+			return 3;
 		default:
 			return 9;
 	}

@@ -11,10 +11,6 @@ import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
 
-type ScheduleClientRecord = Record<string, unknown> & {
-	metadata?: Record<string, unknown>;
-};
-
 export interface HubSessionClientOptions {
 	address: string;
 	authToken?: string;
@@ -136,13 +132,6 @@ function normalizeFailedRunPayload(
 	return cloned;
 }
 
-function payloadSessionId(
-	payload: Record<string, unknown> | undefined,
-): string | undefined {
-	const value = payload?.sessionId;
-	return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
 function extractCheckpoint(
 	payload: Record<string, unknown> | undefined,
 ): CheckpointEntry {
@@ -167,21 +156,6 @@ function extractCheckpoint(
 
 function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 	const payload = cloneRecord(event.payload);
-	if (event.event === "schedule.execution_completed") {
-		return {
-			sessionId: event.sessionId?.trim() || payloadSessionId(payload) || "",
-			eventType: "schedule.execution.completed",
-			payload,
-		};
-	}
-	if (event.event === "schedule.execution_failed") {
-		return {
-			sessionId: event.sessionId?.trim() || payloadSessionId(payload) || "",
-			eventType: "schedule.execution.failed",
-			payload,
-		};
-	}
-
 	const sessionId = event.sessionId?.trim();
 	if (!sessionId) {
 		return undefined;
@@ -622,113 +596,5 @@ export class HubSessionClient {
 			);
 		});
 		return unsubscribe;
-	}
-
-	async createSchedule(
-		input: Record<string, unknown>,
-	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.create", input);
-		return reply.payload?.schedule as ScheduleClientRecord | undefined;
-	}
-
-	async listSchedules(_input?: {
-		limit?: number;
-	}): Promise<ScheduleClientRecord[]> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.list");
-		return Array.isArray(reply.payload?.schedules)
-			? (reply.payload?.schedules as ScheduleClientRecord[])
-			: [];
-	}
-
-	async getSchedule(
-		scheduleId: string,
-	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.get", { scheduleId });
-		return reply.payload?.schedule as ScheduleClientRecord | undefined;
-	}
-
-	async updateSchedule(
-		scheduleId: string,
-		input: Record<string, unknown>,
-	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.update", {
-			scheduleId,
-			...input,
-		});
-		return reply.payload?.schedule as ScheduleClientRecord | undefined;
-	}
-
-	async pauseSchedule(
-		scheduleId: string,
-	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.disable", { scheduleId });
-		return reply.payload?.schedule as ScheduleClientRecord | undefined;
-	}
-
-	async resumeSchedule(
-		scheduleId: string,
-	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.enable", { scheduleId });
-		return reply.payload?.schedule as ScheduleClientRecord | undefined;
-	}
-
-	async deleteSchedule(scheduleId: string): Promise<boolean> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.delete", { scheduleId });
-		return reply.payload?.deleted === true;
-	}
-
-	async triggerScheduleNow(
-		scheduleId: string,
-	): Promise<Record<string, unknown> | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.trigger", { scheduleId });
-		return reply.payload?.execution as Record<string, unknown> | undefined;
-	}
-
-	async listScheduleExecutions(
-		scheduleId: string,
-		limit?: number,
-	): Promise<Array<Record<string, unknown>>> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.list_executions", {
-			scheduleId,
-			limit,
-		});
-		return Array.isArray(reply.payload?.executions)
-			? (reply.payload?.executions as Array<Record<string, unknown>>)
-			: [];
-	}
-
-	async getScheduleStats(): Promise<Record<string, unknown> | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.stats");
-		return reply.payload?.stats as Record<string, unknown> | undefined;
-	}
-
-	async getActiveScheduledExecutions(): Promise<
-		Array<Record<string, unknown>>
-	> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.active");
-		return Array.isArray(reply.payload?.executions)
-			? (reply.payload?.executions as Array<Record<string, unknown>>)
-			: [];
-	}
-
-	async getUpcomingScheduledRuns(
-		limit?: number,
-	): Promise<Array<Record<string, unknown>>> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command("schedule.upcoming", { limit });
-		return Array.isArray(reply.payload?.upcoming)
-			? (reply.payload?.upcoming as Array<Record<string, unknown>>)
-			: [];
 	}
 }

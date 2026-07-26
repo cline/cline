@@ -130,7 +130,6 @@ async function collectPluginContributions(
 		registerMessageBuilder: () => {},
 		registerRule: () => {},
 		registerProvider: () => {},
-		registerAutomationEventType: () => {},
 		registerMcpServer: (_server) => {
 			if (!extension.manifest.capabilities.includes("mcp")) {
 				throw new Error('registerMcpServer requires the "mcp" capability');

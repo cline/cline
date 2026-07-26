@@ -6,7 +6,6 @@ import {
 } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
-import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import {
 	clearHubDiscovery,
 	createInMemoryHubOwnerContext,
@@ -103,7 +102,6 @@ describe("hub server startup", () => {
 			host: "127.0.0.1",
 			port,
 			pathname: "/hub",
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
 		expect(result.url).toBe(`ws://127.0.0.1:${port}/hub`);
 		expect(result.action).toBe("started");
@@ -132,7 +130,6 @@ describe("hub server startup", () => {
 					host: "127.0.0.1",
 					port,
 					pathname: "/hub",
-					runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 				}),
 			).rejects.toMatchObject({ code: "EADDRINUSE" });
 			await expect(
@@ -181,7 +178,6 @@ describe("hub server startup", () => {
 				port,
 				pathname: "/hub",
 				allowPortFallback: true,
-				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			});
 
 			expect(result.action).toBe("started");
@@ -212,7 +208,6 @@ describe("hub server startup", () => {
 			host: "127.0.0.1",
 			port: 0,
 			pathname: "/hub",
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
 		const server = requireServer(result.server);
 		servers.add(server);
@@ -251,7 +246,6 @@ describe("hub server startup", () => {
 			host: "127.0.0.1",
 			port: 0,
 			pathname: "/hub",
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
 		servers.add(requireServer(result.server));
 
@@ -281,7 +275,6 @@ describe("hub server startup", () => {
 			host: "127.0.0.1",
 			port: 0,
 			pathname: "/hub",
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
 		servers.add(requireServer(result.server));
 
@@ -320,7 +313,6 @@ describe("hub server startup", () => {
 				host: "127.0.0.1",
 				port: 0,
 				pathname: "/hub",
-				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			});
 			servers.add(requireServer(result.server));
 

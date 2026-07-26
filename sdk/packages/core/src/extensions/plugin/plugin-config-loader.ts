@@ -245,7 +245,6 @@ export interface ResolveAndLoadAgentPluginsOptions
 	workspaceInfo?: WorkspaceInfo;
 	session?: PluginSetupContext["session"];
 	client?: PluginSetupContext["client"];
-	automation?: PluginSetupContext["automation"];
 	logger?: PluginSetupContext["logger"];
 }
 
@@ -272,8 +271,7 @@ export async function resolveAndLoadAgentPlugins(
 			session: options.session,
 			client: options.client,
 			workspaceInfo: options.workspaceInfo,
-			automation: options.automation,
-			logger: options.logger
+			logger: options.logger,
 		});
 		return {
 			extensions: report.plugins,

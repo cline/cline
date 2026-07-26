@@ -8,9 +8,8 @@ const __dirname = path.dirname(__filename)
 
 const production = process.argv.includes("--production") || process.env["IS_DEBUG_BUILD"] === "false"
 const watch = process.argv.includes("--watch")
-const standalone = process.argv.includes("--standalone")
 const e2eBuild = process.argv.includes("--e2e-build")
-const destDir = standalone ? "dist-standalone" : "dist"
+const destDir = "dist"
 
 /**
  * @type {import('esbuild').Plugin}
@@ -87,7 +86,6 @@ const esbuildProblemMatcherPlugin = {
 
 const buildEnvVars = {
 	"import.meta.url": "_importMetaUrl",
-	"process.env.IS_STANDALONE": JSON.stringify(standalone ? "true" : "false"),
 	// Always inline these values so ordinary builds cannot be mislabeled by a
 	// user's runtime environment. Only the combined rollout workflow sets them.
 	"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(process.env.CLINE_ROLLOUT_VARIANT || ""),
@@ -101,7 +99,6 @@ if (production) {
 if (process.env.CLINE_ENVIRONMENT) {
 	buildEnvVars["process.env.CLINE_ENVIRONMENT"] = JSON.stringify(process.env.CLINE_ENVIRONMENT)
 }
-// Base configuration shared between extension and standalone builds
 const baseConfig = {
 	bundle: true,
 	minify: production,
@@ -131,16 +128,6 @@ const extensionConfig = {
 	external: ["vscode"],
 }
 
-// Standalone-specific configuration
-const standaloneConfig = {
-	...baseConfig,
-	entryPoints: ["src/standalone/cline-core.ts"],
-	outfile: `${destDir}/cline-core.js`,
-	// These modules need to load files from the module directory at runtime,
-	// so they cannot be bundled.
-	external: ["vscode", "@grpc/reflection", "grpc-health-check", "better-sqlite3"],
-}
-
 // E2E build script configuration
 const e2eBuildConfig = {
 	...baseConfig,
@@ -152,7 +139,7 @@ const e2eBuildConfig = {
 }
 
 async function main() {
-	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
+	const config = e2eBuild ? e2eBuildConfig : extensionConfig
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()

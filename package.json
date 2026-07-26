@@ -7,23 +7,19 @@
         "sdk/packages/agents",
         "sdk/packages/core",
         "apps/vscode",
-        "apps/vscode/webview-ui",
-        "apps/vscode/testing-platform"
+        "apps/vscode/webview-ui"
     ],
     "scripts": {
         "prepare": "husky",
         "build": "bun run clean && bun install && bun run build:sdk && bun --cwd apps/vscode package",
         "build:sdk": "bun --production -F './sdk/packages/*' build",
         "build:apps": "bun --cwd apps/vscode package",
-        "build:models": "bun -F @cline/llms generate:models && bun format --write",
         "dev": "bun --conditions=development run build:sdk && bun --cwd apps/vscode dev",
         "clean": "bun run sdk/scripts/clean.ts",
         "types": "bun --parallel -F '*' typecheck",
         "test": "bun --parallel -F './sdk/packages/**' test && bun --cwd apps/vscode test",
         "test:unit": "bun -F @cline/agents test && bun -F @cline/llms test && bun -F @cline/core test:unit && bun --cwd apps/vscode test:unit",
         "test:e2e": "bun -F @cline/core test:e2e && bun --cwd apps/vscode test:e2e",
-        "verify:routines": "zsh -lc 'cd sdk/packages/core && bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
-        "verify:workos-device-auth": "bun sdk/scripts/verify-workos-device-auth.ts",
         "biome": "bunx --bun @biomejs/biome",
         "format": "bun biome format sdk/ apps/vscode/",
         "lint": "bun biome lint sdk/ apps/vscode/",
@@ -62,27 +58,13 @@
     },
     "overrides": {
         "axios": "1.18.0",
-        "@opentui/core": "0.4.3",
-        "@opentui/react": "0.4.3",
         "tar-fs": ">=3.1.1",
         "tar": "^7.5.2",
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
         "protobufjs": "7.6.5",
         "mermaid": "11.16.0",
-        "diff": "8.0.4",
-        "@sap-cloud-sdk/connectivity": "4.6.0",
-        "@sap-cloud-sdk/http-client": "4.6.0",
-        "@sap-cloud-sdk/openapi": "4.6.0",
-        "@sap-cloud-sdk/resilience": "4.6.0",
-        "@sap-cloud-sdk/util": "4.6.0"
+        "diff": "8.0.4"
     },
-    "trustedDependencies": [
-        "better-sqlite3",
-        "grpc-tools"
-    ],
-    "packageManager": "bun@1.3.13",
-    "patchedDependencies": {
-        "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch"
-    }
+    "packageManager": "bun@1.3.13"
 }

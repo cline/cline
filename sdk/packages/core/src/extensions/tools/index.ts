@@ -168,7 +168,7 @@ export interface CreateBuiltinToolsOptions
  * })
  *
  * const agent = new Agent({
- *   providerId: "anthropic",
+ *   providerId: "bedrock",
  *   modelId: "claude-sonnet-4-20250514",
  *   systemPrompt: "You are a coding assistant.",
  *   tools,

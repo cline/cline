@@ -26,7 +26,7 @@ function makeTeammateConfigProvider(
 	overrides?: Partial<Parameters<typeof createDelegatedAgentConfigProvider>[0]>,
 ) {
 	return createDelegatedAgentConfigProvider({
-		providerId: "anthropic",
+		providerId: "bedrock",
 		modelId: "claude-sonnet-4-5-20250929",
 		...overrides,
 	});
@@ -466,7 +466,7 @@ describe("createAgentTeamsTools schema surface", () => {
 });
 
 describe("createAgentTeamsTools runtime behavior", () => {
-	it("forwards teammateRuntime headers when spawning teammates", async () => {
+	it("forwards Bedrock connection settings when spawning teammates", async () => {
 		const spawnTeammate = vi.fn();
 		const runtime = {
 			getMemberRole: vi.fn(() => "lead"),
@@ -478,9 +478,16 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			runtime,
 			requesterId: "lead",
 			teammateConfigProvider: makeTeammateConfigProvider({
-				providerId: "cline",
+				providerId: "bedrock",
 				modelId: "anthropic/claude-sonnet-4.6",
-				headers: { Authorization: "Bearer token" },
+				providerConfig: {
+					providerId: "bedrock",
+					modelId: "anthropic/claude-sonnet-4.6",
+					connection: {
+						region: "ca-central-1",
+						profile: "engineering-sso",
+					},
+				},
 			}),
 			createBaseTools: () => [],
 			includeManagementTools: false,
@@ -503,7 +510,12 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(spawnTeammate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				config: expect.objectContaining({
-					headers: { Authorization: "Bearer token" },
+					providerConfig: expect.objectContaining({
+						connection: {
+							region: "ca-central-1",
+							profile: "engineering-sso",
+						},
+					}),
 				}),
 			}),
 		);
@@ -521,7 +533,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			runtime,
 			requesterId: "lead",
 			teammateConfigProvider: makeTeammateConfigProvider({
-				providerId: "cline",
+				providerId: "bedrock",
 				modelId: "anthropic/claude-sonnet-4.6",
 				cwd: "/repo/app",
 			}),

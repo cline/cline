@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isHubProtocolCompatible, readHubScheduleMode } from "./hub";
+import { isHubProtocolCompatible } from "./hub";
 
 describe("isHubProtocolCompatible", () => {
 	it("accepts a hub whose supported client range includes the client protocol", () => {
@@ -27,28 +27,5 @@ describe("isHubProtocolCompatible", () => {
 			compatible: false,
 			reason: "missing_protocol",
 		});
-	});
-});
-
-describe("readHubScheduleMode", () => {
-	it("defaults only when mode is absent", () => {
-		expect(readHubScheduleMode(undefined, "act")).toBe("act");
-		expect(readHubScheduleMode({}, "act")).toBe("act");
-		expect(readHubScheduleMode({ mode: "plan" }, "act")).toBe("plan");
-	});
-
-	it("preserves omission for schedule updates", () => {
-		expect(readHubScheduleMode({})).toBeUndefined();
-	});
-
-	it.each([
-		undefined,
-		null,
-		"",
-		"invalid",
-	])("rejects a present invalid mode: %s", (mode) => {
-		expect(() => readHubScheduleMode({ mode }, "act")).toThrow(
-			"mode must be one of: act, plan",
-		);
 	});
 });

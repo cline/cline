@@ -8,9 +8,8 @@ import { createBuiltinTools } from "../../extensions/tools";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
 
 type LegacyConfig = {
-	providerId: string;
+	providerId: "bedrock";
 	modelId: string;
-	apiKey: string;
 	systemPrompt: string;
 	cwd: string;
 	enableTools: boolean;
@@ -93,9 +92,8 @@ describe("runtime tool parity", () => {
 
 	it("matches legacy tool list when tools+spawn are enabled", async () => {
 		const config: LegacyConfig = {
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "claude-sonnet-4-6",
-			apiKey: "key",
 			systemPrompt: "test",
 			cwd: makeEmptyWorkspaceCwd(),
 			enableTools: true,
@@ -119,9 +117,8 @@ describe("runtime tool parity", () => {
 
 	it("matches legacy tool list when only spawn is enabled", async () => {
 		const config: LegacyConfig = {
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "claude-sonnet-4-6",
-			apiKey: "key",
 			systemPrompt: "test",
 			cwd: makeEmptyWorkspaceCwd(),
 			enableTools: false,
@@ -145,9 +142,8 @@ describe("runtime tool parity", () => {
 
 	it("matches legacy tool list when tools+spawn are disabled", async () => {
 		const config: LegacyConfig = {
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "claude-sonnet-4-6",
-			apiKey: "key",
 			systemPrompt: "test",
 			cwd: makeEmptyWorkspaceCwd(),
 			enableTools: false,

@@ -399,8 +399,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			| undefined;
 		const pluginEventFallbackLogger =
 			inputLocalConfig?.extensionContext?.logger ?? inputLocalConfig?.logger;
-		const pluginEventFallbackAutomation =
-			inputLocalConfig?.extensionContext?.automation;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
@@ -430,11 +428,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					);
 					return;
 				}
-				void this.eventBridge.handlePluginEvent(
-					sessionId,
-					event,
-					pluginEventFallbackAutomation,
-				);
+				void this.eventBridge.handlePluginEvent(sessionId, event);
 			},
 			onTeamEvent: (event: TeamEvent) => {
 				void this.eventBridge.handleTeamEvent(sessionId, event);
@@ -1278,15 +1272,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	handlePluginEvent(
 		rootSessionId: string,
 		event: { name: string; payload?: unknown },
-		fallbackAutomation?: NonNullable<
-			CoreSessionConfig["extensionContext"]
-		>["automation"],
 	): Promise<void> {
-		return this.eventBridge.handlePluginEvent(
-			rootSessionId,
-			event,
-			fallbackAutomation,
-		);
+		return this.eventBridge.handlePluginEvent(rootSessionId, event);
 	}
 
 	// ── Turn execution ──────────────────────────────────────────────────

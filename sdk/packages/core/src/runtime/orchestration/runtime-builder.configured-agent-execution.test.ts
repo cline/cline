@@ -58,9 +58,8 @@ function makeBaseConfig(
 	overrides: Partial<CoreSessionConfig> = {},
 ): CoreSessionConfig {
 	return {
-		providerId: "anthropic",
+		providerId: "bedrock",
 		modelId: "claude-sonnet-4-6",
-		apiKey: "key",
 		systemPrompt: "test",
 		cwd: process.cwd(),
 		enableTools: true,
@@ -222,7 +221,7 @@ Write a concise commit message.`,
 			| undefined;
 		expect(delegatedConfig).toEqual(
 			expect.objectContaining({
-				providerId: "openai",
+				providerId: "bedrock",
 				modelId: "gpt-4.1",
 				maxIterations: 3,
 				parentAgentId: "parent-agent",

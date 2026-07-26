@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,15 +17,18 @@ vi.mock("./runtime/host/host", () => ({
 	createRuntimeHost: createRuntimeHostMock,
 }));
 
-import type { AgentResult } from "@cline/shared";
 import { ClineCore } from "./ClineCore";
 
 function createStartInput(): ClineCoreStartInput {
 	return {
 		config: {
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "claude-sonnet-4-6",
-			apiKey: "test",
+			providerConfig: {
+				providerId: "bedrock",
+				modelId: "claude-sonnet-4-6",
+				connection: { region: "us-east-1" },
+			},
 			cwd: "/tmp/workspace",
 			workspaceRoot: "/tmp/workspace",
 			systemPrompt: "You are concise.",
@@ -45,28 +48,6 @@ function createStartResult(sessionId: string): StartSessionResult {
 		manifest: {} as StartSessionResult["manifest"],
 		manifestPath: `/tmp/${sessionId}.json`,
 		messagesPath: `/tmp/${sessionId}.messages.json`,
-	};
-}
-
-function createAgentResult(text: string): AgentResult {
-	const now = new Date("2026-04-24T10:00:00.000Z");
-	return {
-		text,
-		usage: {
-			inputTokens: 1,
-			outputTokens: 1,
-		},
-		messages: [],
-		toolCalls: [],
-		iterations: 1,
-		finishReason: "completed",
-		model: {
-			id: "test-model",
-			provider: "test-provider",
-		},
-		startedAt: now,
-		endedAt: now,
-		durationMs: 1,
 	};
 }
 
@@ -237,9 +218,13 @@ describe("ClineCore", () => {
 
 		await core.start({
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-6",
-				apiKey: "test",
+				providerConfig: {
+					providerId: "bedrock",
+					modelId: "claude-sonnet-4-6",
+					connection: { region: "us-east-1" },
+				},
 				systemPrompt: "You are concise.",
 				mode: "act",
 				enableTools: true,
@@ -294,62 +279,6 @@ describe("ClineCore", () => {
 		await Promise.resolve();
 
 		expect(dispose).toHaveBeenCalledTimes(1);
-	});
-
-	it("emits session.started telemetry when a new session is started", async () => {
-		const host = {
-			runtimeAddress: undefined,
-			startSession: vi.fn(async () => createStartResult("session-telemetry")),
-			runTurn: vi.fn(),
-			getAccumulatedUsage: vi.fn(),
-			abort: vi.fn(),
-			stopSession: vi.fn(),
-			dispose: vi.fn(),
-			getSession: vi.fn(async () => undefined),
-			listSessions: vi.fn(),
-			deleteSession: vi.fn(),
-			readSessionMessages: vi.fn(),
-			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
-		};
-		createRuntimeHostMock.mockResolvedValue(host);
-
-		const telemetry = {
-			capture: vi.fn(),
-			captureRequired: vi.fn(),
-			setDistinctId: vi.fn(),
-			setMetadata: vi.fn(),
-			updateCommonProperties: vi.fn(),
-			isEnabled: vi.fn(() => true),
-			recordCounter: vi.fn(),
-			recordHistogram: vi.fn(),
-			recordGauge: vi.fn(),
-			flush: vi.fn().mockResolvedValue(undefined),
-			dispose: vi.fn().mockResolvedValue(undefined),
-		};
-
-		const core = await ClineCore.create({
-			backendMode: "local",
-			clientName: "unit-test-client",
-			telemetry: telemetry as never,
-		});
-		await core.start(createStartInput());
-
-		expect(telemetry.capture).toHaveBeenCalledWith(
-			expect.objectContaining({
-				event: "session.started",
-				properties: expect.objectContaining({
-					sessionId: "session-telemetry",
-					source: "core",
-					providerId: "anthropic",
-					modelId: "claude-sonnet-4-6",
-					enableTools: true,
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
-					clientName: "unit-test-client",
-				}),
-			}),
-		);
 	});
 
 	it("merges instance and per-start runtime capabilities", async () => {
@@ -456,78 +385,6 @@ describe("ClineCore", () => {
 			clientContext,
 		);
 		expect(startInput.localRuntime?.onTeamRestored).toBe(onTeamRestored);
-	});
-
-	it("prefers the per-session telemetry service over the ClineCore one", async () => {
-		const host = {
-			runtimeAddress: undefined,
-			startSession: vi.fn(async () => createStartResult("session-override")),
-			runTurn: vi.fn(),
-			getAccumulatedUsage: vi.fn(),
-			abort: vi.fn(),
-			stopSession: vi.fn(),
-			dispose: vi.fn(),
-			getSession: vi.fn(async () => undefined),
-			listSessions: vi.fn(),
-			deleteSession: vi.fn(),
-			readSessionMessages: vi.fn(),
-			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
-		};
-		createRuntimeHostMock.mockResolvedValue(host);
-
-		const coreTelemetry = {
-			capture: vi.fn(),
-			setDistinctId: vi.fn(),
-			updateCommonProperties: vi.fn(),
-			isEnabled: vi.fn(() => true),
-		};
-		const sessionTelemetry = {
-			capture: vi.fn(),
-			setDistinctId: vi.fn(),
-			updateCommonProperties: vi.fn(),
-			isEnabled: vi.fn(() => true),
-		};
-
-		const core = await ClineCore.create({
-			backendMode: "local",
-			telemetry: coreTelemetry as never,
-		});
-		const input = createStartInput();
-		input.config.telemetry = sessionTelemetry as never;
-		await core.start(input);
-
-		expect(sessionTelemetry.capture).toHaveBeenCalledWith(
-			expect.objectContaining({ event: "session.started" }),
-		);
-		expect(coreTelemetry.capture).not.toHaveBeenCalled();
-	});
-
-	it("uses a no-op feature flags provider by default", async () => {
-		const host = {
-			runtimeAddress: undefined,
-			startSession: vi.fn(),
-			runTurn: vi.fn(),
-			getAccumulatedUsage: vi.fn(),
-			abort: vi.fn(),
-			stopSession: vi.fn(),
-			dispose: vi.fn(),
-			getSession: vi.fn(async () => undefined),
-			listSessions: vi.fn(),
-			deleteSession: vi.fn(),
-			readSessionMessages: vi.fn(),
-			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
-		};
-		createRuntimeHostMock.mockResolvedValue(host);
-
-		const core = await ClineCore.create();
-
-		expect(core.featureFlags.getProvider()).toBeInstanceOf(
-			NoOpFeatureFlagsProvider,
-		);
-		await core.dispose();
-		expect(host.dispose).toHaveBeenCalledTimes(1);
 	});
 
 	it("hydrates list rows through the core API", async () => {
@@ -656,85 +513,6 @@ describe("ClineCore", () => {
 		});
 	});
 
-	it("exposes event automation through ClineCore instead of CronService", async () => {
-		const root = mkdtempSync(join(tmpdir(), "cline-core-automation-"));
-		const cronDir = join(root, ".cline", "cron");
-		const reportsDir = join(cronDir, "reports");
-		const dbPath = join(root, ".cline", "data", "db", "cron.db");
-		mkdirSync(join(cronDir, "events"), { recursive: true });
-		writeFileSync(
-			join(cronDir, "events", "local.event.md"),
-			`---
-id: local-test
-title: Local Test
-workspaceRoot: ${root}
-event: local.manual_test
-filters:
-  topic: cron-feature-2
----
-Summarize the local event.
-`,
-			"utf8",
-		);
-
-		const host = {
-			runtimeAddress: undefined,
-			startSession: vi.fn(async () => createStartResult("automation-session")),
-			runTurn: vi.fn(async () => createAgentResult("automation complete")),
-			getAccumulatedUsage: vi.fn(),
-			abort: vi.fn(),
-			stopSession: vi.fn(),
-			dispose: vi.fn(),
-			getSession: vi.fn(async () => undefined),
-			listSessions: vi.fn(),
-			deleteSession: vi.fn(),
-			updateSession: vi.fn(),
-			readSessionMessages: vi.fn(),
-			dispatchHookEvent: vi.fn(),
-			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
-		};
-		createRuntimeHostMock.mockResolvedValue(host);
-
-		try {
-			const core = await ClineCore.create({
-				automation: {
-					cronDir,
-					reportsDir,
-					dbPath,
-					autoStart: false,
-					pollIntervalMs: 10_000,
-				},
-			});
-			await core.automation.reconcileNow();
-			const result = core.automation.ingestEvent({
-				eventId: "evt_local_1",
-				eventType: "local.manual_test",
-				source: "local",
-				subject: "manual smoke test",
-				occurredAt: "2026-04-24T10:00:00.000Z",
-				attributes: { topic: "cron-feature-2" },
-			});
-
-			expect(result.matchedSpecIds).toHaveLength(1);
-			expect(result.queuedRuns).toHaveLength(1);
-
-			await core.automation.start();
-			await core.automation.stop();
-			await core.dispose();
-
-			expect(host.startSession).toHaveBeenCalledTimes(1);
-			expect(host.runTurn).toHaveBeenCalledWith(
-				expect.objectContaining({
-					sessionId: "automation-session",
-					prompt: expect.stringContaining("Trigger event:"),
-				}),
-			);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
 	it("delegates restore to the runtime host", async () => {
 		const restoreResult = {
 			sessionId: "restored-session",
@@ -794,7 +572,7 @@ Summarize the local event.
 				},
 				start: expect.objectContaining({
 					config: expect.objectContaining({
-						providerId: "anthropic",
+						providerId: "bedrock",
 						modelId: "claude-sonnet-4-6",
 					}),
 				}),

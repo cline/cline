@@ -33,8 +33,8 @@ import type {
 } from "../llms/tools";
 import { ToolCallRecordSchema } from "../llms/tools";
 import type { BasicLogger } from "../logging/logger";
-import type { WorkspaceInfo } from "../session/workspace";
 import type { AgentMode } from "../session/runtime-config";
+import type { WorkspaceInfo } from "../session/workspace";
 
 // =============================================================================
 // Agent Events
@@ -297,13 +297,6 @@ export interface AgentHookRunStartContext {
 	userMessage: string;
 }
 
-export interface AgentHookScheduleContext {
-	scheduleId: string;
-	executionId?: string;
-	trigger: "scheduled" | "manual";
-	triggeredAt?: string;
-}
-
 /**
  * Workspace location fields shared by session-scoped and run-scoped contexts.
  *
@@ -348,7 +341,6 @@ export interface AgentHookSessionStartContext extends SessionWorkspaceEnv {
 	agentId: string;
 	conversationId: string;
 	parentAgentId: string | null;
-	schedule?: AgentHookScheduleContext;
 }
 
 /**
@@ -474,7 +466,6 @@ export interface AgentExtensionSessionStartContext extends SessionWorkspaceEnv {
 	agentId: string;
 	conversationId: string;
 	parentAgentId: string | null;
-	schedule?: AgentHookScheduleContext;
 }
 
 export interface AgentExtensionSessionShutdownContext {
@@ -774,11 +765,6 @@ export interface AgentConfig {
 	 * @default "ignore"
 	 */
 	hookErrorMode?: HookErrorMode;
-	/**
-	 * Optional schedule metadata for runs initiated by scheduler services.
-	 * Used by session_start lifecycle hooks.
-	 */
-	schedule?: AgentHookScheduleContext;
 	/**
 	 * Per-tool execution policy. Tool names not listed here default to enabled.
 	 * State-changing tools always require explicit approval; policy values cannot bypass it.

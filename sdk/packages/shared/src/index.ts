@@ -1,54 +1,10 @@
 export * from "./agent";
 export * from "./agents";
-export type {
-	ConnectorAuthorizationDecision,
-	ConnectorAuthorizationRequest,
-	ConnectorEventActor,
-	ConnectorEventContext,
-	ConnectorHookEvent,
-	ConnectorHookEventName,
-} from "./connectors/events";
 export {
-	ConnectorAuthorizationDecisionSchema,
-	ConnectorAuthorizationRequestSchema,
-	ConnectorEventActorSchema,
-	ConnectorEventContextSchema,
-	ConnectorHookEventNameSchema,
-	ConnectorHookEventSchema,
-} from "./connectors/events";
-export type * from "./connectors/options";
-export type {
-	ActiveConnectorRecord,
-	ConfiguredConnectorRecord,
-	ConnectorCatalogEntry,
-	ConnectorChannel,
-	ConnectorChannelsResponse,
-	ConnectorFieldCondition,
-	ConnectorFieldDef,
-	ConnectorPlatformDef,
-	ConnectorSecurityDef,
-	ConnectorSecurityFieldDef,
-} from "./connectors/platforms";
-export {
-	CONNECTOR_CATALOG,
-	CONNECTOR_PLATFORMS,
-	connectorChannelsFromPlatforms,
-	listConnectorCatalog,
-	shouldIncludeConnectorField,
-} from "./connectors/platforms";
-export type {
-	AutomationEventEnvelope,
-	CronEventSpec,
-	CronOneOffSpec,
-	CronScheduleSpec,
-	CronSpec,
-	CronSpecCommonFields,
-	CronSpecExtensionKind,
-	CronSpecMode,
-	CronSpecModelSelection,
-	CronSpecParseResult,
-	CronTriggerKind,
-} from "./cron";
+	getToolApprovalDecision,
+	type ToolApprovalDecision,
+	type ToolApprovalPolicyInput,
+} from "./approval-policy";
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export type {
@@ -59,8 +15,6 @@ export type {
 } from "./extensions/context";
 export type {
 	AgentExtensionApi,
-	AgentExtensionAutomationContext,
-	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
 	AgentExtensionCommandResult,
@@ -208,11 +162,6 @@ export type {
 	ToolPolicy,
 } from "./llms/tools";
 export { ToolCallRecordSchema } from "./llms/tools";
-export {
-	getToolApprovalDecision,
-	type ToolApprovalDecision,
-	type ToolApprovalPolicyInput,
-} from "./approval-policy";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,

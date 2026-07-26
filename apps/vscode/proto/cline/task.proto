@@ -39,8 +39,6 @@ service TaskService {
   rpc askResponse(AskResponseRequest) returns (Empty);
   // Edits a previous user message, truncates following conversation, and regenerates
   rpc editMessageAndRegenerate(EditMessageAndRegenerateRequest) returns (Empty);
-  // Records task feedback (thumbs up/down)
-  rpc taskFeedback(StringRequest) returns (Empty);
   // Executes a quick win task with command and title
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history

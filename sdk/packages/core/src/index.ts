@@ -4,6 +4,7 @@
  * Core contracts, shared state utilities, and Node runtime services.
  */
 
+export { Agent, createAgentRuntime } from "@cline/agents";
 export * as Llms from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
@@ -20,7 +21,6 @@ export type {
 	AgentRunStatus,
 	AgentTool,
 	AgentToolContext,
-	AutomationEventEnvelope,
 	BasicLogger,
 	BasicLogger as Logger,
 	ChatRunTurnRequest,
@@ -28,7 +28,6 @@ export type {
 	ChatStartSessionArtifacts,
 	ChatStartSessionRequest,
 	ChatTurnResult,
-	ConnectorHookEvent,
 	ContentBlock,
 	FileContent,
 	HookSessionContext,
@@ -68,17 +67,6 @@ export {
 export * from "@cline/shared/storage";
 export { ClineCore } from "./ClineCore";
 export type {
-	ClineAutomationEventIngressResult,
-	ClineAutomationEventLog,
-	ClineAutomationEventSuppression,
-	ClineAutomationListEventsOptions,
-	ClineAutomationListRunsOptions,
-	ClineAutomationListSpecsOptions,
-	ClineAutomationRun,
-	ClineAutomationRunStatus,
-	ClineAutomationSpec,
-	ClineCoreAutomationApi,
-	ClineCoreAutomationOptions,
 	ClineCoreListHistoryOptions,
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
@@ -147,6 +135,10 @@ export {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./extensions/config";
 export {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "./extensions/context/compaction";
+export {
 	type AuthorizeMcpServerOAuthOptions,
 	type AuthorizeMcpServerOAuthResult,
 	authorizeMcpServerOAuth,
@@ -199,6 +191,51 @@ export {
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
 } from "./extensions/mcp";
+export {
+	ALL_DEFAULT_TOOL_NAMES,
+	type ApplyPatchExecutor,
+	type ApplyPatchInput,
+	type AskQuestionExecutor,
+	type BuiltinToolAvailabilityContext,
+	CommandExitError,
+	type CreateBuiltinToolsOptions,
+	type CreateDefaultToolsOptions,
+	computePatchChanges,
+	createApplyPatchExecutor,
+	createBuiltinTools,
+	createDefaultExecutors,
+	createDefaultShellExecutor,
+	createDefaultTools,
+	createDefaultToolsWithPreset,
+	createEditorExecutor,
+	createShellExecutor,
+	createShellTool,
+	type DefaultExecutorsOptions,
+	type DefaultToolName,
+	DefaultToolNames,
+	type DefaultToolsConfig,
+	type EditFileInput,
+	type EditorExecutor,
+	type EditorExecutorOptions,
+	getCoreAcpToolNames,
+	getCoreBuiltinToolCatalog,
+	getCoreDefaultEnabledToolIds,
+	getCoreHeadlessToolNames,
+	MAX_COMMAND_OUTPUT_CHARS,
+	PatchActionType,
+	type PatchFileChange,
+	resolveCoreSelectedToolIds,
+	type ShellExecutor,
+	type ShellExecutorOptions,
+	type StructuredCommandInput,
+	StructuredCommandInputSchema,
+	TEAM_TOOL_NAMES,
+	type ToolCatalogEntry,
+	type ToolExecutors,
+	type ToolPresetName,
+	ToolPresets,
+	truncateCommandOutput,
+} from "./extensions/tools";
 export {
 	type AgentTask,
 	AgentTeam,
@@ -368,6 +405,36 @@ export {
 	writeGlobalSettings,
 } from "./services/global-settings";
 export type {
+	BedrockConnectionSettings,
+	BuiltInProviderId,
+	ProviderCapability,
+	ProviderClient,
+	ProviderConfig,
+	ProviderDefaultsConfig,
+	ProviderId,
+	ProviderProtocol,
+	ProviderSettings,
+	ReasoningSettings,
+	ToProviderConfigOptions,
+} from "./services/llms/provider-settings";
+export {
+	BedrockConnectionSchema,
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	createProviderConfig,
+	isBuiltInProviderId,
+	normalizeProviderId,
+	ProviderClientSchema,
+	ProviderIdSchema,
+	ProviderProtocolSchema,
+	ProviderSettingsSchema,
+	parseSettings,
+	ReasoningSettingsSchema,
+	safeCreateProviderConfig,
+	safeParseSettings,
+	toProviderConfig,
+} from "./services/llms/provider-settings";
+export type {
 	McpInstallOptions,
 	McpInstallResult,
 } from "./services/mcp-install";
@@ -457,6 +524,12 @@ export {
 	readSessionCheckpointHistory,
 } from "./session/checkpoint-restore";
 export {
+	createSessionCompactionState,
+	parseSessionCompactionState,
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "./session/models/session-compaction";
+export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,
@@ -501,6 +574,8 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
+// Compatibility barrel (legacy imports).
+export type { RuntimeEnvironment } from "./types";
 export type {
 	ChatMessage,
 	ChatMessageImage,
@@ -518,96 +593,6 @@ export {
 	ChatSummarySchema,
 	ChatViewStateSchema,
 } from "./types/chat-schema";
-export type { SessionMessagesArtifactUploader } from "./types/session";
-export { CORE_BUILD_VERSION } from "./version";
-export { Agent, createAgentRuntime } from "@cline/agents";
-export {
-	createCompactionStateAwarePrepareTurn,
-	createContextCompactionPrepareTurn,
-} from "./extensions/context/compaction";
-export {
-	ALL_DEFAULT_TOOL_NAMES,
-	type ApplyPatchExecutor,
-	type ApplyPatchInput,
-	type AskQuestionExecutor,
-	type BuiltinToolAvailabilityContext,
-	CommandExitError,
-	type CreateBuiltinToolsOptions,
-	type CreateDefaultToolsOptions,
-	computePatchChanges,
-	createApplyPatchExecutor,
-	createBuiltinTools,
-	createDefaultExecutors,
-	createDefaultShellExecutor,
-	createDefaultTools,
-	createDefaultToolsWithPreset,
-	createEditorExecutor,
-	createShellExecutor,
-	createShellTool,
-	type DefaultExecutorsOptions,
-	type DefaultToolName,
-	DefaultToolNames,
-	type DefaultToolsConfig,
-	type EditFileInput,
-	type EditorExecutor,
-	type EditorExecutorOptions,
-	getCoreAcpToolNames,
-	getCoreBuiltinToolCatalog,
-	getCoreDefaultEnabledToolIds,
-	getCoreHeadlessToolNames,
-	MAX_COMMAND_OUTPUT_CHARS,
-	PatchActionType,
-	type PatchFileChange,
-	resolveCoreSelectedToolIds,
-	type ShellExecutor,
-	type ShellExecutorOptions,
-	type StructuredCommandInput,
-	StructuredCommandInputSchema,
-	TEAM_TOOL_NAMES,
-	type ToolCatalogEntry,
-	type ToolExecutors,
-	type ToolPresetName,
-	ToolPresets,
-	truncateCommandOutput,
-} from "./extensions/tools";
-export type {
-	BedrockConnectionSettings,
-	BuiltInProviderId,
-	ProviderCapability,
-	ProviderClient,
-	ProviderConfig,
-	ProviderDefaultsConfig,
-	ProviderId,
-	ProviderProtocol,
-	ProviderSettings,
-	ReasoningSettings,
-	ToProviderConfigOptions,
-} from "./services/llms/provider-settings";
-export {
-	BedrockConnectionSchema,
-	BUILT_IN_PROVIDER,
-	BUILT_IN_PROVIDER_IDS,
-	createProviderConfig,
-	isBuiltInProviderId,
-	normalizeProviderId,
-	ProviderClientSchema,
-	ProviderIdSchema,
-	ProviderProtocolSchema,
-	ProviderSettingsSchema,
-	parseSettings,
-	ReasoningSettingsSchema,
-	safeCreateProviderConfig,
-	safeParseSettings,
-	toProviderConfig,
-} from "./services/llms/provider-settings";
-export {
-	createSessionCompactionState,
-	parseSessionCompactionState,
-	projectSessionCompactionState,
-	type SessionCompactionState,
-} from "./session/models/session-compaction";
-// Compatibility barrel (legacy imports).
-export type { RuntimeEnvironment } from "./types";
 export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
@@ -644,6 +629,7 @@ export {
 	StoredProviderSettingsEntrySchema,
 	StoredProviderSettingsSchema,
 } from "./types/provider-settings";
+export type { SessionMessagesArtifactUploader } from "./types/session";
 export type {
 	SessionHistoryMetadata,
 	SessionHistoryRecord,
@@ -651,3 +637,4 @@ export type {
 	SessionRef,
 } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
+export { CORE_BUILD_VERSION } from "./version";

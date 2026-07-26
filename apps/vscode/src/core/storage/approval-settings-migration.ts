@@ -43,8 +43,7 @@ export function stripMcpAutoApprove(settings: Record<string, unknown>): Record<s
 
 async function cleanMcpSettings(storage: StorageContext): Promise<void> {
 	const settingsPath =
-		process.env.CLINE_MCP_SETTINGS_PATH?.trim() ||
-		path.join(storage.dataDir, "settings", "cline_mcp_settings.json")
+		process.env.CLINE_MCP_SETTINGS_PATH?.trim() || path.join(storage.dataDir, "settings", "cline_mcp_settings.json")
 	try {
 		const raw = await fs.readFile(settingsPath, "utf8")
 		const parsed = JSON.parse(raw) as unknown

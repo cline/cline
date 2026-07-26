@@ -94,10 +94,7 @@ export async function cleanupLegacyApprovalState(context: vscode.ExtensionContex
 	for (const key of ["taskDefaults", "defaultTaskSettings", "taskSettings"]) {
 		const value = context.globalState.get<unknown>(key)
 		if (value && typeof value === "object" && !Array.isArray(value)) {
-			await context.globalState.update(
-				key,
-				stripLegacyApprovalKeys(value as Record<string, unknown>),
-			)
+			await context.globalState.update(key, stripLegacyApprovalKeys(value as Record<string, unknown>))
 		}
 	}
 	await context.globalState.update(APPROVAL_CLEANUP_MIGRATION_KEY, true)

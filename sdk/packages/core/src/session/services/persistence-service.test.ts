@@ -629,7 +629,7 @@ describe("UnifiedSessionPersistenceService", () => {
 				source: SessionSource.CLI,
 				pid: process.pid,
 				interactive: false,
-				provider: "openrouter",
+				provider: "bedrock",
 				model: "qwen/qwen3.6-plus",
 				cwd: "/tmp/project",
 				workspaceRoot: "/tmp/project",

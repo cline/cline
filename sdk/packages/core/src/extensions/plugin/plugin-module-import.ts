@@ -18,7 +18,6 @@ const HOST_PROVIDED_SDK_SPECIFIERS = [
 	"@cline/llms",
 	"@cline/llms/browser",
 	"@cline/shared",
-	"@cline/shared/automation",
 	"@cline/shared/browser",
 	"@cline/shared/storage",
 	"@cline/shared/db",

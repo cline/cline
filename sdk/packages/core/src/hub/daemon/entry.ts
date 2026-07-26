@@ -1,12 +1,12 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr, resolveClineBuildEnv } from "@cline/shared";
-import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+
 initVcr(process.env.CLINE_VCR);
 
 function parseArgs(argv: string[]): {
@@ -69,8 +69,6 @@ async function main(): Promise<void> {
 				resolveClineBuildEnv() === "production"
 					? resolveProductionHubOwnerContext()
 					: resolveSharedHubOwnerContext(),
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-			cronOptions: { workspaceRoot: options.cwd },
 		});
 	} catch (error) {
 		throw error;

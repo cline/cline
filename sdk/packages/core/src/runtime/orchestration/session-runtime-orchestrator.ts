@@ -139,8 +139,7 @@ function filterAvailableExtensionTools(
 ): AgentTool[] {
 	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies)).filter(
 		(tool) =>
-			getToolApprovalDecision({ toolName: tool.name, mode }) !==
-			"prohibited",
+			getToolApprovalDecision({ toolName: tool.name, mode }) !== "prohibited",
 	);
 }
 
@@ -379,8 +378,7 @@ export class SessionRuntime {
 				session: config.extensionContext?.session,
 				client: config.extensionContext?.client,
 				workspaceInfo: config.extensionContext?.workspace,
-				automation: config.extensionContext?.automation,
-				logger: config.extensionContext?.logger ?? this.logger
+				logger: config.extensionContext?.logger ?? this.logger,
 			},
 		});
 		// Resolve + validate eagerly so `getExtensionRegistry()` is
@@ -450,7 +448,7 @@ export class SessionRuntime {
 	 * registry is initialized (§`ensureExtensionsInitialized`), and
 	 * the snapshot reflects everything extensions registered via
 	 * `api.registerTool` / `registerCommand` / `registerMessageBuilder`
-	 * / `registerProvider` / `registerAutomationEventType`.
+	 * / `registerProvider`.
 	 */
 	getExtensionRegistry(): AgentExtensionRegistry<AgentTool, Message[]> {
 		return this.contributionRegistry.getRegistrySnapshot();

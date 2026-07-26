@@ -165,31 +165,6 @@ describe("plugin-loader", () => {
 			"utf8",
 		);
 
-		const packagedSdkSubpathDir = join(copyDir, "packaged-sdk-subpath");
-		await mkdir(packagedSdkSubpathDir, { recursive: true });
-		await writeFile(
-			join(packagedSdkSubpathDir, "package.json"),
-			JSON.stringify({
-				name: "packaged-sdk-subpath",
-				type: "module",
-				cline: {
-					plugins: ["index.ts"],
-				},
-			}),
-			"utf8",
-		);
-		await writeFile(
-			join(packagedSdkSubpathDir, "index.ts"),
-			[
-				"import { createConfiguredTelemetryHandle } from '@cline/core/telemetry';",
-				"export default {",
-				"  name: typeof createConfiguredTelemetryHandle === 'function' ? 'sdk-subpath-ok' : 'invalid',",
-				"  manifest: { capabilities: ['tools'] },",
-				"};",
-			].join("\n"),
-			"utf8",
-		);
-
 		const packagedTypeOnlyDir = join(copyDir, "packaged-type-only-imports");
 		await mkdir(packagedTypeOnlyDir, { recursive: true });
 		await writeFile(
@@ -246,7 +221,7 @@ describe("plugin-loader", () => {
 			[
 				"export default {",
 				"  name: 'targeted-plugin',",
-				"  manifest: { capabilities: ['tools'], providerIds: ['openai'], modelIds: ['gpt-5.4'] },",
+				"  manifest: { capabilities: ['tools'], providerIds: ['bedrock'], modelIds: ['anthropic.claude-sonnet-4-6'] },",
 				"};",
 			].join("\n"),
 			"utf8",
@@ -387,17 +362,6 @@ describe("plugin-loader", () => {
 		).rejects.toThrow(/Cannot find (package|module) 'yaml'/i);
 	});
 
-	it("allows package-based plugins to use host SDK subpath exports", async () => {
-		const plugin = await loadAgentPluginFromPath(
-			join(copyDir, "packaged-sdk-subpath", "index.ts"),
-			{
-				cwd: join(copyDir, "packaged-sdk-subpath"),
-				useCache: true,
-			},
-		);
-		expect(plugin.name).toBe("sdk-subpath-ok");
-	});
-
 	it("allows package-based TypeScript plugins to reference type-only packages", async () => {
 		const plugin = await loadAgentPluginFromPath(
 			join(copyDir, "packaged-type-only-imports", "index.ts"),
@@ -452,8 +416,8 @@ describe("plugin-loader", () => {
 		const report = await loadAgentPluginsFromPathsWithDiagnostics(
 			[join(dir, "plugin-a.mjs"), join(dir, "targeted-plugin.mjs")],
 			{
-				providerId: "openai",
-				modelId: "gpt-5.4",
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
 			},
 		);
 		expect(report.plugins.map((plugin) => plugin.name)).toEqual([
@@ -464,8 +428,8 @@ describe("plugin-loader", () => {
 		const filtered = await loadAgentPluginsFromPathsWithDiagnostics(
 			[join(dir, "plugin-a.mjs"), join(dir, "targeted-plugin.mjs")],
 			{
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4.5",
+				providerId: "bedrock",
+				modelId: "anthropic.claude-haiku-4-5-20251001-v1:0",
 			},
 		);
 		expect(filtered.plugins.map((plugin) => plugin.name)).toEqual(["plugin-a"]);

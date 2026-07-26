@@ -16,7 +16,7 @@ function createConfig(
 	overrides: Partial<StartSessionConfig> = {},
 ): StartSessionConfig {
 	return {
-		providerId: "test-provider",
+		providerId: "bedrock",
 		modelId: "test-model",
 		systemPrompt: "",
 		enableTools: false,

@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
-	AgentExtensionAutomationEventType,
 	AgentExtensionCommandResult,
 	AgentExtensionMcpServer,
 	AgentExtensionRule,
@@ -78,11 +77,6 @@ type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
 	hasContentHandler?: boolean;
 };
 
-type SandboxedAutomationEventTypeDescriptor =
-	AgentExtensionAutomationEventType & {
-		id: string;
-	};
-
 type SandboxedPluginDescriptor = {
 	pluginId: string;
 	pluginPath: string;
@@ -95,7 +89,6 @@ type SandboxedPluginDescriptor = {
 		rules: SandboxedRuleDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
-		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
 		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: SandboxedContributionDescriptor[];
 		flags?: SandboxedContributionDescriptor[];
@@ -117,8 +110,6 @@ function normalizeDescriptor(
 			rules: descriptor.contributions?.rules ?? [],
 			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
 			providers: descriptor.contributions?.providers ?? [],
-			automationEventTypes:
-				descriptor.contributions?.automationEventTypes ?? [],
 			mcpServers: descriptor.contributions?.mcpServers ?? [],
 			shortcuts: descriptor.contributions?.shortcuts ?? [],
 			flags: descriptor.contributions?.flags ?? [],
@@ -517,19 +508,6 @@ function registerSimpleContributions(
 			name: pd.name,
 			description: pd.description,
 			metadata: pd.metadata,
-		});
-	}
-
-	for (const eventType of descriptor.contributions?.automationEventTypes ??
-		[]) {
-		api.registerAutomationEventType({
-			eventType: eventType.eventType,
-			source: eventType.source,
-			description: eventType.description,
-			attributesSchema: eventType.attributesSchema,
-			payloadSchema: eventType.payloadSchema,
-			examples: eventType.examples,
-			metadata: eventType.metadata,
 		});
 	}
 

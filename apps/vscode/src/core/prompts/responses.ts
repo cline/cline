@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
+import type { ClineImageContentBlock, ClineTextContentBlock } from "@/shared/messages/content"
 import { Mode } from "@/shared/storage/types"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
@@ -130,30 +130,30 @@ Otherwise, if you have not completed the task and do not need additional informa
 		text: string,
 		images?: string[],
 		fileString?: string,
-	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
+	): string | Array<ClineTextContentBlock | ClineImageContentBlock> => {
 		const toolResultOutput = []
 
 		if (!(images && images.length > 0) && !fileString) {
 			return text
 		}
 
-		const textBlock: Anthropic.TextBlockParam = { type: "text", text }
+		const textBlock: ClineTextContentBlock = { type: "text", text }
 		toolResultOutput.push(textBlock)
 
 		if (images && images.length > 0) {
-			const imageBlocks: Anthropic.ImageBlockParam[] = formatImagesIntoBlocks(images)
+			const imageBlocks: ClineImageContentBlock[] = formatImagesIntoBlocks(images)
 			toolResultOutput.push(...imageBlocks)
 		}
 
 		if (fileString) {
-			const fileBlock: Anthropic.TextBlockParam = { type: "text", text: fileString }
+			const fileBlock: ClineTextContentBlock = { type: "text", text: fileString }
 			toolResultOutput.push(fileBlock)
 		}
 
 		return toolResultOutput
 	},
 
-	imageBlocks: (images?: string[]): Anthropic.ImageBlockParam[] => {
+	imageBlocks: (images?: string[]): ClineImageContentBlock[] => {
 		return formatImagesIntoBlocks(images)
 	},
 
@@ -348,7 +348,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 }
 
 // to avoid circular dependency
-const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] => {
+const formatImagesIntoBlocks = (images?: string[]): ClineImageContentBlock[] => {
 	return images
 		? images.map((dataUrl) => {
 				// data:image/png;base64,base64string
@@ -361,7 +361,7 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 						media_type: mimeType,
 						data: base64,
 					},
-				} as Anthropic.ImageBlockParam
+				} as ClineImageContentBlock
 			})
 		: []
 }

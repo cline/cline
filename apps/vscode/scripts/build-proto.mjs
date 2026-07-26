@@ -1,107 +1,23 @@
 #!/usr/bin/env node
 
 import chalk from "chalk"
-import { execFileSync, execSync } from "child_process"
-import fsSync from "fs"
+import { execFileSync } from "child_process"
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import { createRequire } from "module"
-import os from "os"
 import * as path from "path"
 import { rmrf } from "./file-utils.mjs"
 import { main as generateHostBridgeClient } from "./generate-host-bridge-client.mjs"
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const isWindows = process.platform === "win32"
-// Resolve the grpc-tools package root via its package.json (stable regardless of `main`), so we
-// can both locate the bundled protoc and re-run its install script when the binary is missing.
-const GRPC_TOOLS_DIR = path.dirname(require.resolve("grpc-tools/package.json"))
-const GRPC_TOOLS_PROTOC = path.join(GRPC_TOOLS_DIR, "bin", isWindows ? "protoc.exe" : "protoc")
-// Legacy compatibility: some older/local Windows setups provision protoc into tmp-protoc.
-// Prefer that path when present, but fall back to the grpc-tools bundled binary used by CI/npm installs.
-const LEGACY_WINDOWS_PROTOC = path.resolve("tmp-protoc/bin/protoc.exe")
-const PROTOC = isWindows && fsSync.existsSync(LEGACY_WINDOWS_PROTOC) ? LEGACY_WINDOWS_PROTOC : GRPC_TOOLS_PROTOC
-
-// `bun install` skips grpc-tools' `install` lifecycle script (`node-pre-gyp install`), so the prebuilt
-// protoc is never downloaded into bin/. When it's missing, run that same command here to fetch it.
-// grpc-tools depends on @mapbox/node-pre-gyp, which exposes the `node-pre-gyp` CLI.
-function resolveNodePreGypCli() {
-	const candidates = ["@mapbox/node-pre-gyp/bin/node-pre-gyp", "node-pre-gyp/bin/node-pre-gyp"]
-	for (const candidate of candidates) {
-		try {
-			// Resolve from the grpc-tools package (its direct dependency).
-			return require.resolve(candidate, { paths: [GRPC_TOOLS_DIR] })
-		} catch {
-			// Fall back to resolving from this script's location (covers hoisted installs).
-			try {
-				return require.resolve(candidate)
-			} catch {
-				// try the next candidate
-			}
-		}
-	}
-	return null
-}
-
-function ensureProtocBinary() {
-	console.warn(chalk.yellow(`protoc not found at ${GRPC_TOOLS_PROTOC}; downloading the grpc-tools prebuilt binary...`))
-	const nodePreGypCli = resolveNodePreGypCli()
-	if (!nodePreGypCli) {
-		console.error(
-			chalk.red(
-				`Could not resolve the node-pre-gyp CLI from ${GRPC_TOOLS_DIR}. Run \`bun install\`, then retry \`bun run protos\`.`,
-			),
-		)
-		process.exit(1)
-	}
-	try {
-		// Mirrors grpc-tools' `scripts.install` ("node-pre-gyp install"): downloads the prebuilt
-		// protoc for the current platform/arch into grpc-tools/bin.
-		execFileSync(process.execPath, [nodePreGypCli, "install"], { cwd: GRPC_TOOLS_DIR, stdio: "inherit" })
-	} catch (error) {
-		console.error(chalk.red(`Failed to download protoc via node-pre-gyp: ${error?.message ?? error}`))
-		process.exit(1)
-	}
-	if (!fsSync.existsSync(GRPC_TOOLS_PROTOC)) {
-		console.error(chalk.red(`protoc still not found at ${GRPC_TOOLS_PROTOC} after node-pre-gyp install.`))
-		process.exit(1)
-	}
-	console.log(chalk.green("✓ protoc binary installed."))
-}
-
-if (!fsSync.existsSync(PROTOC)) {
-	// PROTOC only differs from GRPC_TOOLS_PROTOC when the legacy Windows path exists, so a missing
-	// PROTOC always means the grpc-tools-bundled protoc needs to be fetched.
-	ensureProtocBinary()
-}
+const BUF_PACKAGE_DIR = path.dirname(require.resolve("@bufbuild/buf/package.json"))
+const BUF_CLI = path.join(BUF_PACKAGE_DIR, "bin", "buf")
+const BUF_STATE_DIR = path.resolve("out/buf")
+const TS_PROTO_PLUGIN = require.resolve("ts-proto/protoc-gen-ts_proto")
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
-const GRPC_JS_OUT_DIR = path.resolve("src/generated/grpc-js")
-const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
-const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
-
-// protoc invokes the ts-proto plugin as a child process, so it needs a path it can
-// directly execute. On POSIX the package's JS bin (with its shebang) works. On
-// Windows protoc cannot exec a bare .js or bun's `.bunx` shim ("%1 is not a valid
-// Win32 application"), and the package manager's `.cmd` shim location/name varies
-// (npm vs bun's hoisted store). To be package-manager-agnostic, generate a tiny
-// .cmd wrapper that runs the resolved plugin JS via `node`.
-function resolveTsProtoPlugin() {
-	const pluginJs = require.resolve("ts-proto/protoc-gen-ts_proto")
-	if (!isWindows) {
-		return pluginJs
-	}
-	const wrapperDir = path.resolve("dist-standalone")
-	fsSync.mkdirSync(wrapperDir, { recursive: true })
-	const wrapperPath = path.join(wrapperDir, "protoc-gen-ts_proto.cmd")
-	// %* forwards protoc's plugin args/stdio to the JS entry run under node.
-	fsSync.writeFileSync(wrapperPath, `@echo off\r\nnode "${pluginJs}" %*\r\n`)
-	return wrapperPath
-}
-
-const TS_PROTO_PLUGIN = resolveTsProtoPlugin()
 
 const TS_PROTO_OPTIONS = [
 	"env=both",
@@ -121,11 +37,8 @@ async function main() {
 async function compileProtos() {
 	console.log(chalk.bold.blue("Compiling Protocol Buffers..."))
 
-	// Check for Apple Silicon compatibility before proceeding
-	checkAppleSiliconCompatibility()
-
 	// Create output directories if they don't exist
-	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, NICE_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
+	for (const dir of [TS_OUT_DIR]) {
 		await fs.mkdir(dir, { recursive: true })
 	}
 
@@ -133,44 +46,33 @@ async function compileProtos() {
 	const protoFiles = await globby("**/*.proto", { cwd: PROTO_DIR, realpath: true })
 	console.log(chalk.cyan(`Processing ${protoFiles.length} proto files from`), PROTO_DIR)
 
-	tsProtoc(TS_OUT_DIR, protoFiles, TS_PROTO_OPTIONS)
-	// grpc-js is used to generate service impls for the ProtoBus service.
-	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js", ...TS_PROTO_OPTIONS])
-	// nice-js is used for the Host Bridge client impls because it uses promises.
-	tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
-
-	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
-	const descriptorProtocArgs = [
-		`--proto_path=${PROTO_DIR}`,
-		`--descriptor_set_out=${descriptorFile}`,
-		"--include_imports",
-		...protoFiles,
-	]
-	try {
-		log_verbose(chalk.cyan("Generating descriptor set..."))
-		log_verbose(`${PROTOC} ${descriptorProtocArgs.join(" ")}`)
-		execFileSync(PROTOC, descriptorProtocArgs, { stdio: "inherit" })
-	} catch (error) {
-		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
-		process.exit(1)
-	}
+	generateTypeScript()
 
 	log_verbose(chalk.green("Protocol Buffer code generation completed successfully."))
 	log_verbose(chalk.green(`TypeScript files generated in: ${TS_OUT_DIR}`))
 }
 
-function tsProtoc(outDir, protoFiles, protoOptions) {
-	const args = [
-		`--proto_path=${PROTO_DIR}`,
-		`--plugin=protoc-gen-ts_proto=${TS_PROTO_PLUGIN}`,
-		`--ts_proto_out=${outDir}`,
-		`--ts_proto_opt=${protoOptions.join(",")}`,
-		...protoFiles,
-	]
+function generateTypeScript() {
+	const template = JSON.stringify({
+		version: "v2",
+		plugins: [
+			{
+				local: [process.execPath, TS_PROTO_PLUGIN],
+				out: path.relative(process.cwd(), TS_OUT_DIR),
+				opt: TS_PROTO_OPTIONS,
+				strategy: "all",
+			},
+		],
+	})
 	try {
-		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
-		log_verbose(`${PROTOC} ${args.join(" ")}`)
-		execFileSync(PROTOC, args, { stdio: "inherit" })
+		execFileSync(process.execPath, [BUF_CLI, "generate", PROTO_DIR, "--template", template], {
+			env: {
+				...process.env,
+				BUF_CACHE_DIR: path.join(BUF_STATE_DIR, "cache"),
+				BUF_CONFIG_DIR: path.join(BUF_STATE_DIR, "config"),
+			},
+			stdio: "inherit",
+		})
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
@@ -184,8 +86,6 @@ async function cleanup() {
 	await rmrf("src/generated")
 
 	// Clean up generated files that were moved.
-	await rmrf("src/standalone/services/host-grpc-client.ts")
-	await rmrf("src/standalone/server-setup.ts")
 	await rmrf("src/hosts/vscode/host-grpc-service-config.ts")
 	await rmrf("src/core/controller/grpc-service-config.ts")
 	const oldhostbridgefiles = [
@@ -226,36 +126,6 @@ async function cleanup() {
 	]
 	for (const file of [...oldhostbridgefiles, ...oldprotobusfiles]) {
 		await rmrf(file)
-	}
-}
-
-// Check for Apple Silicon compatibility
-function checkAppleSiliconCompatibility() {
-	// Only run check on macOS
-	if (process.platform !== "darwin") {
-		return
-	}
-
-	// Check if running on Apple Silicon
-	const cpuArchitecture = os.arch()
-	if (cpuArchitecture === "arm64") {
-		try {
-			// Check if Rosetta is installed
-			const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
-
-			if (rosettaCheck === "NOT_INSTALLED") {
-				console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
-				console.log(
-					chalk.red("Rosetta 2 is NOT installed. The npm version of protoc is not compatible with Apple Silicon."),
-				)
-				console.log(chalk.cyan("Please install Rosetta 2 using the following command:"))
-				console.log(chalk.cyan("  softwareupdate --install-rosetta --agree-to-license"))
-				console.log(chalk.red("Aborting build process."))
-				process.exit(1)
-			}
-		} catch (_error) {
-			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
-		}
 	}
 }
 

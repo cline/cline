@@ -19,5 +19,3 @@ export type GrpcCancel = {
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
-
-export type TaskFeedbackType = "thumbs_up" | "thumbs_down"

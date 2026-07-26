@@ -52,8 +52,6 @@ vi.mock("../server", () => ({
 }));
 
 const originalHubPort = process.env.CLINE_HUB_PORT;
-const runtimeHandlers =
-	{} as unknown as EnsureHubServerOptions["runtimeHandlers"];
 
 describe("ensureHubServer", () => {
 	afterEach(() => {
@@ -75,7 +73,7 @@ describe("ensureHubServer", () => {
 		delete process.env.CLINE_HUB_PORT;
 		const { ensureHubServer } = await import("./start-shared-server");
 
-		await ensureHubServer({ runtimeHandlers });
+		await ensureHubServer({});
 
 		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -93,7 +91,7 @@ describe("ensureHubServer", () => {
 		mockResolveClineBuildEnv.mockReturnValue("development");
 		const { ensureHubServer } = await import("./start-shared-server");
 
-		await ensureHubServer({ runtimeHandlers });
+		await ensureHubServer({});
 
 		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -110,7 +108,7 @@ describe("ensureHubServer", () => {
 		delete process.env.CLINE_HUB_PORT;
 		const { ensureHubServer } = await import("./start-shared-server");
 
-		await ensureHubServer({ port: 30000, runtimeHandlers });
+		await ensureHubServer({ port: 30000 });
 
 		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -124,7 +122,7 @@ describe("ensureHubServer", () => {
 		process.env.CLINE_HUB_PORT = "30001";
 		const { ensureHubServer } = await import("./start-shared-server");
 
-		await ensureHubServer({ runtimeHandlers });
+		await ensureHubServer({});
 
 		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({

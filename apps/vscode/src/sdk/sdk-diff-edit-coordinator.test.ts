@@ -375,5 +375,4 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(result).toBe("patch applied")
 		expect(callOrder).toEqual(["close", "apply"])
 	})
-
 })

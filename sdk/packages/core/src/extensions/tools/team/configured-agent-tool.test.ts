@@ -16,14 +16,22 @@ describe("configured agent tools", () => {
 		const [tool] = createConfiguredAgentTools({
 			configProvider: {
 				getRuntimeConfig: () => ({
-					providerId: "anthropic",
+					providerId: "bedrock",
 					modelId: "claude-sonnet-4-6",
-					apiKey: "key",
+					providerConfig: {
+						providerId: "bedrock",
+						modelId: "claude-sonnet-4-6",
+						connection: { region: "us-east-1" },
+					},
 				}),
 				getConnectionConfig: () => ({
-					providerId: "anthropic",
+					providerId: "bedrock",
 					modelId: "claude-sonnet-4-6",
-					apiKey: "key",
+					providerConfig: {
+						providerId: "bedrock",
+						modelId: "claude-sonnet-4-6",
+						connection: { region: "us-east-1" },
+					},
 				}),
 				updateConnectionDefaults: () => {},
 			},

@@ -442,8 +442,8 @@ describe("plugin-config-loader", () => {
 	name: 'compatible-plugin',
 	manifest: {
 		capabilities: ['tools'],
-		providerIds: ['cline'],
-		modelIds: ['anthropic/claude-haiku-4.5']
+		providerIds: ['bedrock'],
+		modelIds: ['anthropic.claude-sonnet-4-6']
 	}
 };`,
 				"utf8",
@@ -454,8 +454,8 @@ describe("plugin-config-loader", () => {
 	name: 'incompatible-plugin',
 	manifest: {
 		capabilities: ['tools'],
-		providerIds: ['openai'],
-		modelIds: ['gpt-5.4']
+		providerIds: ['bedrock'],
+		modelIds: ['anthropic.claude-haiku-4-5-20251001-v1:0']
 	}
 };`,
 				"utf8",
@@ -465,8 +465,8 @@ describe("plugin-config-loader", () => {
 				mode: "in_process",
 				pluginPaths: [compatible, incompatible],
 				cwd: root,
-				providerId: "cline",
-				modelId: "anthropic/claude-haiku-4.5",
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
 			});
 
 			expect(loaded.extensions.map((plugin) => plugin.name)).toEqual([

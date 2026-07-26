@@ -53,9 +53,6 @@ vi.mock("../../extensions/tools/team", () => ({
 			getConnectionConfig: () => ({
 				providerId: runtimeConfig.providerId,
 				modelId: runtimeConfig.modelId,
-				apiKey: runtimeConfig.apiKey,
-				baseUrl: runtimeConfig.baseUrl,
-				headers: runtimeConfig.headers,
 				providerConfig: runtimeConfig.providerConfig,
 				knownModels: runtimeConfig.knownModels,
 				thinking: runtimeConfig.thinking,
@@ -122,11 +119,15 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 
 		await new DefaultRuntimeBuilder().build({
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				headers: {
-					Authorization: "Bearer team-token",
+				providerConfig: {
+					providerId: "bedrock",
+					modelId: "claude-sonnet-4-6",
+					connection: {
+						region: "ca-central-1",
+						profile: "engineering-sso",
+					},
 				},
 				systemPrompt: "test",
 				cwd: process.cwd(),
@@ -152,9 +153,12 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		expect(bootstrapCall).toBeDefined();
 		expect(bootstrapCall?.teammateConfigProvider.getRuntimeConfig()).toEqual(
 			expect.objectContaining({
-				headers: {
-					Authorization: "Bearer team-token",
-				},
+				providerConfig: expect.objectContaining({
+					connection: {
+						region: "ca-central-1",
+						profile: "engineering-sso",
+					},
+				}),
 			}),
 		);
 		expect(onTeamRestored).toHaveBeenCalledTimes(1);
@@ -246,9 +250,8 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 
 		await new DefaultRuntimeBuilder().build({
 			config: {
-				providerId: "cline",
+				providerId: "bedrock",
 				modelId: "anthropic/claude-sonnet-4.6",
-				apiKey: "key",
 				systemPrompt: `Base instructions.
 
 # Workspace Configuration
@@ -282,7 +285,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			clineBootstrapCall?.teammateConfigProvider.getRuntimeConfig(),
 		).toEqual(
 			expect.objectContaining({
-				providerId: "cline",
+				providerId: "bedrock",
 				cwd: "/repo/demo",
 			}),
 		);

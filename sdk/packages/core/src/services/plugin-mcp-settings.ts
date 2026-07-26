@@ -281,7 +281,6 @@ async function collectPluginMcpServers(
 				registerMessageBuilder: () => {},
 				registerRule: () => {},
 				registerProvider: () => {},
-				registerAutomationEventType: () => {},
 				registerMcpServer: (server) => {
 					if (!extension.manifest.capabilities.includes("mcp")) {
 						throw new Error('registerMcpServer requires the "mcp" capability');

@@ -163,82 +163,88 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
-	it("executes extensionless legacy hook files via bash fallback", async () => {
-		const { workspace } = await createWorkspaceWithHook(
-			"PreToolUse",
-			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"legacy-ok"}\'\nexit 0\n',
-		);
-		try {
-			const hooks = createHookConfigFileHooks({
-				cwd: workspace,
-				workspacePath: workspace,
-			});
-			expect(hooks?.beforeTool).toBeTypeOf("function");
-			const control = await hooks?.beforeTool?.(beforeToolContext());
-			expect(control).toMatchObject({ stop: true });
-		} finally {
-			await rm(workspace, {
-				recursive: true,
-				force: true,
-				maxRetries: 3,
-				retryDelay: 250,
-			});
-		}
-	});
+	it.skipIf(process.platform === "win32")(
+		"executes extensionless legacy hook files via bash fallback",
+		async () => {
+			const { workspace } = await createWorkspaceWithHook(
+				"PreToolUse",
+				'echo \'HOOK_CONTROL\t{"cancel":true,"context":"legacy-ok"}\'\nexit 0\n',
+			);
+			try {
+				const hooks = createHookConfigFileHooks({
+					cwd: workspace,
+					workspacePath: workspace,
+				});
+				expect(hooks?.beforeTool).toBeTypeOf("function");
+				const control = await hooks?.beforeTool?.(beforeToolContext());
+				expect(control).toMatchObject({ stop: true });
+			} finally {
+				await rm(workspace, {
+					recursive: true,
+					force: true,
+					maxRetries: 3,
+					retryDelay: 250,
+				});
+			}
+		},
+	);
 
-	it("adapts file hooks into an AgentExtension", async () => {
-		const { workspace } = await createWorkspaceWithHook(
-			"PreToolUse",
-			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"extension-ok"}\'\nexit 0\n',
-		);
-		try {
-			const extension = createHookConfigFileExtension({
-				cwd: workspace,
-				workspacePath: workspace,
-			});
-			expect(extension?.name).toBe("core.hook_config_files");
-			expect(extension?.manifest).toMatchObject({
-				capabilities: ["hooks"],
-			});
-			const control = await extension?.hooks?.beforeTool?.({
-				snapshot: {
-					agentId: "agent_1",
-					conversationId: "conv_1",
-					status: "running",
-					iteration: 1,
-					messages: [],
-					pendingToolCalls: [],
-					usage: {
-						inputTokens: 0,
-						outputTokens: 0,
-						cacheReadTokens: 0,
-						cacheWriteTokens: 0,
+	it.skipIf(process.platform === "win32")(
+		"adapts file hooks into an AgentExtension",
+		async () => {
+			const { workspace } = await createWorkspaceWithHook(
+				"PreToolUse",
+				'echo \'HOOK_CONTROL\t{"cancel":true,"context":"extension-ok"}\'\nexit 0\n',
+			);
+			try {
+				const extension = createHookConfigFileExtension({
+					cwd: workspace,
+					workspacePath: workspace,
+				});
+				expect(extension?.name).toBe("core.hook_config_files");
+				expect(extension?.manifest).toMatchObject({
+					capabilities: ["hooks"],
+				});
+				const control = await extension?.hooks?.beforeTool?.({
+					snapshot: {
+						agentId: "agent_1",
+						conversationId: "conv_1",
+						status: "running",
+						iteration: 1,
+						messages: [],
+						pendingToolCalls: [],
+						usage: {
+							inputTokens: 0,
+							outputTokens: 0,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+						},
 					},
-				},
-				tool: {
-					name: "read_file",
-					description: "",
-					inputSchema: {},
-					execute: async () => "",
-				},
-				toolCall: {
-					type: "tool-call",
-					toolCallId: "call_1",
-					toolName: "read_file",
+					tool: {
+						name: "read_file",
+						description: "",
+						inputSchema: {},
+						execute: async () => "",
+					},
+					toolCall: {
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "read_file",
+						input: { path: "README.md" },
+					},
 					input: { path: "README.md" },
-				},
-				input: { path: "README.md" },
-			});
-			expect(control).toMatchObject({ stop: true });
-		} finally {
-			await rm(workspace, {
-				recursive: true,
-				force: true,
-				maxRetries: 3,
-				retryDelay: 250,
-			});
-		}
-	});
+				});
+				expect(control).toMatchObject({ stop: true });
+			} finally {
+				await rm(workspace, {
+					recursive: true,
+					force: true,
+					maxRetries: 3,
+					retryDelay: 250,
+				});
+			}
+		},
+	);
 
 	it("honors shebang interpreter when present", async () => {
 		const { workspace } = await createWorkspaceWithHook(

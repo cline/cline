@@ -221,52 +221,6 @@ const SCHEMA_STATEMENTS = [
 		created_at TEXT NOT NULL,
 		consumed_at TEXT
 	);`,
-	`CREATE TABLE IF NOT EXISTS schedules (
-		schedule_id TEXT PRIMARY KEY,
-		name TEXT NOT NULL,
-		cron_pattern TEXT NOT NULL,
-		prompt TEXT NOT NULL,
-		provider TEXT NOT NULL,
-		model TEXT NOT NULL,
-		mode TEXT NOT NULL DEFAULT 'act',
-		workspace_root TEXT,
-		cwd TEXT,
-		system_prompt TEXT,
-		max_iterations INTEGER,
-		timeout_seconds INTEGER,
-		max_parallel INTEGER NOT NULL DEFAULT 1,
-		enabled INTEGER NOT NULL DEFAULT 1,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL,
-		last_run_at TEXT,
-		next_run_at TEXT,
-		claim_token TEXT,
-		claim_started_at TEXT,
-		claim_until_at TEXT,
-		created_by TEXT,
-		tags TEXT,
-		metadata_json TEXT
-	);`,
-	`CREATE TABLE IF NOT EXISTS schedule_executions (
-		execution_id TEXT PRIMARY KEY,
-		schedule_id TEXT NOT NULL,
-		session_id TEXT,
-		triggered_at TEXT NOT NULL,
-		started_at TEXT,
-		ended_at TEXT,
-		status TEXT NOT NULL,
-		exit_code INTEGER,
-		error_message TEXT,
-		iterations INTEGER,
-		tokens_used INTEGER,
-		cost_usd REAL,
-		FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id) ON DELETE CASCADE,
-		FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE SET NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_schedule_executions_schedule
-	ON schedule_executions(schedule_id, triggered_at DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_schedules_next_run
-	ON schedules(enabled, next_run_at);`,
 ];
 
 const LEGACY_MIGRATIONS: Array<{
@@ -318,21 +272,6 @@ const LEGACY_MIGRATIONS: Array<{
 		table: "sessions",
 		column: "transcript_path",
 		sql: "ALTER TABLE sessions ADD COLUMN transcript_path TEXT NOT NULL DEFAULT '';",
-	},
-	{
-		table: "schedules",
-		column: "claim_token",
-		sql: "ALTER TABLE schedules ADD COLUMN claim_token TEXT;",
-	},
-	{
-		table: "schedules",
-		column: "claim_started_at",
-		sql: "ALTER TABLE schedules ADD COLUMN claim_started_at TEXT;",
-	},
-	{
-		table: "schedules",
-		column: "claim_until_at",
-		sql: "ALTER TABLE schedules ADD COLUMN claim_until_at TEXT;",
 	},
 ];
 

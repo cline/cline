@@ -161,7 +161,7 @@ export class SqliteTeamStore implements TeamStore {
 		db.exec("PRAGMA journal_mode = WAL;");
 		db.exec("PRAGMA busy_timeout = 5000;");
 		// Single-row table so ALTER-based upgrades can run in order (baseline = 1).
-		// Session/schedule schemas use separate migration paths in @cline/shared.
+		// Session schemas use a separate migration path in @cline/shared.
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_store_schema_version (
 				lock INTEGER PRIMARY KEY CHECK (lock = 1),

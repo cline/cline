@@ -409,7 +409,7 @@ describe("vscode-to-file-migration", () => {
 			})
 		})
 
-		it("preserves top-level URL while dropping the legacy managed-server marker", async () => {
+		it("normalizes a managed server into the shared transport shape", async () => {
 			const mockCtx = createMockVSCodeContext()
 			const extensionStorage = path.join(tempDir, "vscode-global-storage")
 			mockCtx.globalStorageUri.fsPath = extensionStorage
@@ -433,7 +433,6 @@ describe("vscode-to-file-migration", () => {
 			readSharedMcpSettings().mcpServers.managed.should.deepEqual({
 				transport: { type: "streamableHttp", url: "https://managed.example.com/mcp" },
 				disabled: true,
-				url: "https://managed.example.com/mcp",
 			})
 		})
 
@@ -521,64 +520,6 @@ describe("vscode-to-file-migration", () => {
 		})
 	})
 
-	describe("secrets migration", () => {
-		it("should migrate secret keys", async () => {
-			const mockCtx = createMockVSCodeContext()
-			mockCtx._secretsStore.set("apiKey", "sk-test-123")
-			mockCtx._secretsStore.set("openRouterApiKey", "or-test-456")
-
-			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
-
-			result.migrated.should.be.true()
-			result.secretsCount.should.equal(2)
-			storageContext.secrets.get("apiKey")!.should.equal("sk-test-123")
-			storageContext.secrets.get("openRouterApiKey")!.should.equal("or-test-456")
-		})
-
-		it("should NOT overwrite existing secrets in file store", async () => {
-			storageContext.secrets.set("apiKey", "existing-key")
-
-			const mockCtx = createMockVSCodeContext()
-			mockCtx._secretsStore.set("apiKey", "vscode-key")
-
-			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
-
-			result.migrated.should.be.true()
-			result.skippedExisting.should.be.greaterThan(0)
-			storageContext.secrets.get("apiKey")!.should.equal("existing-key")
-		})
-
-		it("should skip empty string secrets", async () => {
-			const mockCtx = createMockVSCodeContext()
-			mockCtx._secretsStore.set("apiKey", "")
-
-			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
-
-			result.migrated.should.be.true()
-			result.secretsCount.should.equal(0)
-		})
-
-		it("should continue even if a single secret read fails", async () => {
-			const mockCtx = createMockVSCodeContext()
-			mockCtx._secretsStore.set("openRouterApiKey", "or-key-123")
-
-			// Make one secret read fail
-			const origGet = mockCtx.secrets.get.bind(mockCtx.secrets)
-			mockCtx.secrets.get = async (key: string) => {
-				if (key === "apiKey") {
-					throw new Error("Simulated secret read error")
-				}
-				return origGet(key)
-			}
-
-			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
-
-			result.migrated.should.be.true()
-			result.secretsCount.should.equal(1)
-			storageContext.secrets.get("openRouterApiKey")!.should.equal("or-key-123")
-		})
-	})
-
 	describe("workspace state migration", () => {
 		it("should migrate workspace state keys", async () => {
 			const toggles = { "rule-1": true, "rule-2": false }
@@ -637,7 +578,6 @@ describe("vscode-to-file-migration", () => {
 		it("should produce same result when run twice", async () => {
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan")
-			mockCtx._secretsStore.set("apiKey", "sk-test")
 
 			// First run
 			const result1 = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
@@ -650,7 +590,6 @@ describe("vscode-to-file-migration", () => {
 
 			// Values should still be correct
 			storageContext.globalState.get("mode")!.should.equal("plan")
-			storageContext.secrets.get("apiKey")!.should.equal("sk-test")
 		})
 	})
 })

@@ -1,6 +1,5 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
 
@@ -41,7 +40,7 @@ vi.mock("../client", () => ({
 
 function createConfig() {
 	return {
-		providerId: "cline",
+		providerId: "bedrock" as const,
 		modelId: "anthropic/claude-haiku-4.5",
 		cwd: "/tmp/project",
 		workspaceRoot: "/tmp/project",
@@ -119,7 +118,7 @@ describe("HubRuntimeHost", () => {
 			workspaceRoot: "/tmp/project",
 			cwd: "/tmp/project",
 			sessionConfig: expect.objectContaining({
-				providerId: "cline",
+				providerId: "bedrock",
 				modelId: "anthropic/claude-haiku-4.5",
 				cwd: "/tmp/project",
 				workspaceRoot: "/tmp/project",
@@ -129,18 +128,6 @@ describe("HubRuntimeHost", () => {
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
-				headers: expect.objectContaining({
-					"HTTP-Referer": "https://cline.bot",
-					"X-Title": "Cline",
-					"User-Agent": "Cline/3.0.38",
-					"X-IS-MULTIROOT": "false",
-					"X-CLIENT-TYPE": "cline-cli",
-					"X-CLIENT-VERSION": "3.0.38",
-					"X-PLATFORM": "cli",
-					"X-PLATFORM-VERSION": "3.0.38",
-					"X-CORE-VERSION": corePackageVersion,
-					"X-Task-ID": expect.any(String),
-				}),
 			}),
 			metadata: expect.objectContaining({
 				source: SessionSource.CLI,
@@ -380,7 +367,7 @@ describe("HubRuntimeHost", () => {
 			interactive: true,
 			workspace: { cwd: "/tmp/project", root: "/tmp/project" },
 			model: {
-				providerId: "cline",
+				providerId: "bedrock",
 				modelId: "anthropic/claude-haiku-4.5",
 			},
 			capabilities: {
@@ -420,7 +407,7 @@ describe("HubRuntimeHost", () => {
 		expect(started.sessionId).toBe("sess-snapshot");
 		expect(started.manifest).toMatchObject({
 			session_id: "sess-snapshot",
-			provider: "cline",
+			provider: "bedrock",
 			model: "anthropic/claude-haiku-4.5",
 			interactive: true,
 			prompt: "Hey",
@@ -455,7 +442,7 @@ describe("HubRuntimeHost", () => {
 		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
 		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({
 			sessionId: "sess-snapshot",
-			provider: "cline",
+			provider: "bedrock",
 			model: "anthropic/claude-haiku-4.5",
 			agentId: "agent-1",
 			conversationId: "conversation-1",
@@ -1506,7 +1493,6 @@ describe("HubRuntimeHost", () => {
 	});
 
 	it("throws when the hub rejects message reads", async () => {
-		const telemetry = { capture: vi.fn() };
 		commandMock.mockResolvedValue({
 			ok: false,
 			error: {
@@ -1516,31 +1502,14 @@ describe("HubRuntimeHost", () => {
 		});
 
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
-		const host = new HubRuntimeHost({
-			url: "ws://127.0.0.1:25463/hub",
-			telemetry: telemetry as never,
-		});
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await expect(host.readSessionMessages("sess-missing")).rejects.toThrow(
 			"Unknown session: sess-missing",
 		);
-		expect(telemetry.capture).toHaveBeenCalledWith({
-			event: "sdk.error",
-			properties: expect.objectContaining({
-				component: "core",
-				operation: "hub.runtime_host.read_session_messages",
-				severity: "warn",
-				handled: true,
-				command: "session.messages",
-				sessionId: "sess-missing",
-				errorCode: "session_not_found",
-				error_message: "Unknown session: sess-missing",
-			}),
-		});
 	});
 
 	it("records rejected compaction state updates as handled errors", async () => {
-		const telemetry = { capture: vi.fn() };
 		const state = createSessionCompactionState({
 			sourceMessages: [{ role: "user", content: "source" }],
 			compactedMessages: [{ role: "user", content: "summary" }],
@@ -1555,31 +1524,14 @@ describe("HubRuntimeHost", () => {
 		});
 
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
-		const host = new HubRuntimeHost({
-			url: "ws://127.0.0.1:25463/hub",
-			telemetry: telemetry as never,
-		});
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await expect(
 			host.updateSessionCompactionState(" sess-1 ", state),
 		).resolves.toEqual({ updated: false });
-		expect(telemetry.capture).toHaveBeenCalledWith({
-			event: "sdk.error",
-			properties: expect.objectContaining({
-				component: "core",
-				operation: "hub.runtime_host.update_session_compaction_state",
-				severity: "warn",
-				handled: true,
-				command: "session.compaction.update",
-				sessionId: "sess-1",
-				errorCode: "session_wrong_client",
-				error_message: "Session sess-1 is owned by other-client",
-			}),
-		});
 	});
 
 	it("treats stale compaction state updates as non-error no-ops", async () => {
-		const telemetry = { capture: vi.fn() };
 		const state = createSessionCompactionState({
 			sourceMessages: [{ role: "user", content: "source" }],
 			compactedMessages: [{ role: "user", content: "summary" }],
@@ -1591,15 +1543,11 @@ describe("HubRuntimeHost", () => {
 		});
 
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
-		const host = new HubRuntimeHost({
-			url: "ws://127.0.0.1:25463/hub",
-			telemetry: telemetry as never,
-		});
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await expect(
 			host.updateSessionCompactionState("sess-1", state),
 		).resolves.toEqual({ updated: false });
-		expect(telemetry.capture).not.toHaveBeenCalled();
 	});
 
 	it("throws when the hub rejects settings list", async () => {

@@ -27,7 +27,6 @@ export interface LoadAgentPluginFromPathOptions {
 	session?: PluginSetupContext["session"];
 	client?: PluginSetupContext["client"];
 	workspaceInfo?: PluginSetupContext["workspaceInfo"];
-	automation?: PluginSetupContext["automation"];
 	logger?: PluginSetupContext["logger"];
 }
 
@@ -128,8 +127,7 @@ export async function loadAgentPluginFromPath(
 					session: Object.keys(session).length > 0 ? session : undefined,
 					client: options.client ?? _ctx.client,
 					workspaceInfo: options.workspaceInfo ?? _ctx.workspaceInfo,
-					automation: options.automation ?? _ctx.automation,
-					logger: options.logger ?? _ctx.logger
+					logger: options.logger ?? _ctx.logger,
 				};
 				return originalSetup(api, ctx);
 			}

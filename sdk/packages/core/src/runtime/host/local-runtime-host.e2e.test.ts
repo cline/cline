@@ -296,7 +296,6 @@ describe("LocalRuntimeHost e2e", () => {
 		const agentShutdown = vi.fn().mockResolvedValue(undefined);
 
 		const manager = new RuntimeHostUnderTest({
-			distinctId: `test-${nanoid(5)}`,
 			sessionService: sessionService as never,
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: () =>
@@ -321,9 +320,8 @@ describe("LocalRuntimeHost e2e", () => {
 		const started = await manager.startSession({
 			interactive: true,
 			...splitCoreSessionConfig({
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-6",
-				apiKey: "test-key",
 				cwd: sessionsDir,
 				systemPrompt: "You are a test agent",
 				mode: "act",
@@ -468,7 +466,6 @@ describe("LocalRuntimeHost e2e", () => {
 		);
 
 		const manager = new RuntimeHostUnderTest({
-			distinctId: `test-${nanoid(5)}`,
 			sessionService: sessionService as never,
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: () =>
@@ -491,9 +488,8 @@ describe("LocalRuntimeHost e2e", () => {
 		const started = await manager.startSession({
 			interactive: false,
 			...splitCoreSessionConfig({
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4-6",
-				apiKey: "test-key",
 				cwd: sessionsDir,
 				systemPrompt: "You are a test agent",
 				mode: "act",

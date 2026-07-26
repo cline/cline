@@ -1,15 +1,5 @@
 import type { Message } from "@cline/llms";
-import type {
-	AgentConfig,
-	AutomationEventEnvelope,
-	BasicLogger
-} from "@cline/shared";
-import type { CronEventSuppression } from "../cron/events/cron-event-ingress";
-import type {
-	CronEventLogRecord,
-	CronRunRecord,
-	CronSpecRecord,
-} from "../cron/store/sqlite-cron-store";
+import type { AgentConfig, BasicLogger } from "@cline/shared";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
 import type { RuntimeCapabilities } from "../runtime/capabilities";
 import type { SessionHistoryListOptions } from "../runtime/host/history";
@@ -44,82 +34,6 @@ export interface RemoteOptions {
 	displayName?: string;
 	workspaceRoot?: string;
 	cwd?: string;
-}
-
-export interface ClineCoreAutomationOptions {
-	/** @deprecated Use `cronSpecsDir`. */
-	cronDir?: string;
-	cronSpecsDir?: string;
-	/** @deprecated Reports are written under the resolved cron specs directory. */
-	reportsDir?: string;
-	cronScope?: "global" | "user" | "workspace";
-	workspaceRoot?: string;
-	dbPath?: string;
-	pollIntervalMs?: number;
-	claimLeaseSeconds?: number;
-	globalMaxConcurrency?: number;
-	watcherDebounceMs?: number;
-	autoStart?: boolean;
-}
-
-export type ClineAutomationSpec = CronSpecRecord;
-export type ClineAutomationRun = CronRunRecord;
-export type ClineAutomationEventLog = CronEventLogRecord;
-export type ClineAutomationEventSuppression = CronEventSuppression;
-export type ClineAutomationRunStatus =
-	| "queued"
-	| "running"
-	| "done"
-	| "failed"
-	| "cancelled";
-
-export interface ClineAutomationListSpecsOptions {
-	triggerKind?: "one_off" | "schedule" | "event";
-	enabled?: boolean;
-	parseStatus?: "valid" | "invalid";
-	includeRemoved?: boolean;
-	limit?: number;
-}
-
-export interface ClineAutomationListRunsOptions {
-	specId?: string;
-	status?: ClineAutomationRunStatus | ClineAutomationRunStatus[];
-	limit?: number;
-}
-
-export interface ClineAutomationListEventsOptions {
-	eventType?: string;
-	source?: string;
-	processingStatus?:
-		| "received"
-		| "unmatched"
-		| "queued"
-		| "suppressed"
-		| "failed";
-	limit?: number;
-}
-
-export interface ClineAutomationEventIngressResult {
-	event: ClineAutomationEventLog;
-	duplicate: boolean;
-	matchedSpecIds: string[];
-	queuedRuns: ClineAutomationRun[];
-	suppressions: ClineAutomationEventSuppression[];
-}
-
-export interface ClineCoreAutomationApi {
-	start(): Promise<void>;
-	stop(): Promise<void>;
-	reconcileNow(): Promise<void>;
-	ingestEvent(
-		event: AutomationEventEnvelope,
-	): ClineAutomationEventIngressResult;
-	listEvents(
-		options?: ClineAutomationListEventsOptions,
-	): ClineAutomationEventLog[];
-	getEvent(eventId: string): ClineAutomationEventLog | undefined;
-	listSpecs(options?: ClineAutomationListSpecsOptions): ClineAutomationSpec[];
-	listRuns(options?: ClineAutomationListRunsOptions): ClineAutomationRun[];
 }
 
 export type ClineCoreListHistoryOptions = SessionHistoryListOptions;
@@ -217,12 +131,6 @@ export interface ClineCoreOptions {
 	 * Consumers can use this to mirror session transcripts into remote storage.
 	 */
 	messagesArtifactUploader?: SessionMessagesArtifactUploader;
-	/**
-	 * Enables file-based and event-driven automation through this ClineCore
-	 * instance. When configured, callers use `cline.automation.*` instead of
-	 * constructing cron services directly.
-	 */
-	automation?: boolean | ClineCoreAutomationOptions;
 	/**
 	 * An already-constructed session backend to use instead of resolving one automatically.
 	 * Intended for testing or embedding a custom persistence layer.

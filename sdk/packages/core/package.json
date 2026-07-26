@@ -36,7 +36,6 @@
 		"test:live": "vitest run --config vitest.config.ts src/extensions/context/compaction.live.test.ts",
 		"test:unit": "vitest run --config vitest.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
-		"verify:routines": "zsh -lc 'bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
 		"test:watch": "vitest --config vitest.config.ts"
 	},
 	"dependencies": {

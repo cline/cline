@@ -142,10 +142,8 @@ function buildProviderConfig(
 	const settings: ProviderSettings = {
 		provider: "bedrock",
 		model: config.modelId,
-		connection:
-			sessionProviderConfig?.connection ??
-			stored?.connection ??
-			{ region: "us-east-1" },
+		connection: sessionProviderConfig?.connection ??
+			stored?.connection ?? { region: "us-east-1" },
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 	};
 	const providerConfig: ProviderConfig = {
@@ -237,11 +235,8 @@ export async function prepareLocalRuntimeBootstrap(
 	// Generate workspace + git metadata once, early, so it can be forwarded to
 	// hooks and extensions. The serialized string goes into CoreSessionConfig
 	// as workspaceMetadata; the structured object is kept as workspaceInfo.
-	const {
-		workspaceInfo,
-		workspaceMetadata,
-		gitState,
-	} = await buildWorkspaceMetadataWithInfo(workspacePath);
+	const { workspaceInfo, workspaceMetadata, gitState } =
+		await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
@@ -256,7 +251,7 @@ export async function prepareLocalRuntimeBootstrap(
 		logger:
 			configuredExtensionContext?.logger ??
 			localConfig?.logger ??
-			defaultLogger
+			defaultLogger,
 	};
 	const fileHookExtension = createHookConfigFileExtension({
 		cwd: input.config.cwd,
@@ -290,7 +285,6 @@ export async function prepareLocalRuntimeBootstrap(
 				session: extensionContext.session,
 				client: extensionContext.client,
 				logger: extensionContext.logger,
-				automation: extensionContext.automation,
 			});
 			logPluginDiagnostics(
 				loadedPlugins.failures,

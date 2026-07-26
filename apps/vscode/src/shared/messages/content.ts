@@ -1,4 +1,3 @@
-import type { Anthropic } from "@anthropic-ai/sdk"
 import type { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
 
 export type ClinePromptInputContent = string
@@ -18,43 +17,57 @@ interface ClineSharedMessageParam {
 	call_id?: string
 }
 
-export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
-
-/**
- * An extension of Anthropic.MessageParam that includes Cline-specific fields: reasoning_details.
- * This ensures backward compatibility where the messages were stored in Anthropic format with additional
- * fields unknown to Anthropic SDK.
- */
-export interface ClineTextContentBlock extends Anthropic.TextBlockParam, ClineSharedMessageParam {
-	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
-	reasoning_details?: ClineReasoningDetailParam[]
-	// Thought Signature associates with Gemini
-	signature?: string
+export interface ClineTextContentBlock extends ClineSharedMessageParam {
+	type: "text"
+	text: string
+	[key: string]: unknown
 }
 
-export interface ClineImageContentBlock extends Anthropic.ImageBlockParam, ClineSharedMessageParam {}
+export interface ClineImageContentBlock extends ClineSharedMessageParam {
+	type: "image"
+	source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }
+	[key: string]: unknown
+}
 
-export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam, ClineSharedMessageParam {}
+export interface ClineDocumentContentBlock extends ClineSharedMessageParam {
+	type: "document"
+	source: unknown
+	[key: string]: unknown
+}
 
-export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {}
+export interface ClineUserToolResultContentBlock extends ClineSharedMessageParam {
+	type: "tool_result"
+	tool_use_id: string
+	content?: string | Array<ClineTextContentBlock | ClineImageContentBlock>
+	is_error?: boolean
+	[key: string]: unknown
+}
 
-/**
- * Assistant only content types
- */
-export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {
-	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
+export interface ClineAssistantToolUseBlock extends ClineSharedMessageParam {
+	type: "tool_use"
+	id: string
+	name: string
+	input: unknown
 	reasoning_details?: unknown[] | ClineReasoningDetailParam[]
-	// Thought Signature associates with Gemini
 	signature?: string
+	[key: string]: unknown
 }
 
-export interface ClineAssistantThinkingBlock extends Anthropic.ThinkingBlock, ClineSharedMessageParam {
-	// The summary items returned by OpenAI response API
-	// The reasoning details that will be moved to the text block when finalized
+export interface ClineAssistantThinkingBlock extends ClineSharedMessageParam {
+	type: "thinking"
+	thinking: string
+	signature: string
 	summary?: unknown[] | ClineReasoningDetailParam[]
+	[key: string]: unknown
 }
 
-export interface ClineAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, ClineSharedMessageParam {}
+export interface ClineAssistantRedactedThinkingBlock extends ClineSharedMessageParam {
+	type: "redacted_thinking"
+	data: string
+	[key: string]: unknown
+}
+
+export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
 
 export type ClineToolResponseContent = ClinePromptInputContent | Array<ClineTextContentBlock | ClineImageContentBlock>
 
@@ -80,7 +93,7 @@ export type ClineContent = ClineUserContent | ClineAssistantContent
  * while allowing for additional metadata specific to Cline to avoid unknown fields in Anthropic SDK
  * added by ignoring the type checking for those fields.
  */
-export interface ClineStorageMessage extends Anthropic.MessageParam {
+export interface ClineStorageMessage {
 	/**
 	 * Response ID associated with this message
 	 */
@@ -111,7 +124,7 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 export function convertClineStorageToAnthropicMessage(
 	clineMessage: ClineStorageMessage,
 	provider = "anthropic",
-): Anthropic.MessageParam {
+): ClineStorageMessage {
 	const { role, content } = clineMessage
 
 	// Handle string content - fast path
@@ -124,9 +137,7 @@ export function convertClineStorageToAnthropicMessage(
 
 	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
 	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
-	const cleanedContent = shouldCleanContent
-		? filteredContent.map(cleanContentBlock)
-		: (filteredContent as Anthropic.MessageParam["content"])
+	const cleanedContent = shouldCleanContent ? filteredContent.map(cleanContentBlock) : filteredContent
 
 	return { role, content: cleanedContent }
 }
@@ -137,7 +148,7 @@ export function convertClineStorageToAnthropicMessage(
  * narrows to the base64 variant for the transform layer. URL sources are not produced by Cline,
  * so they degrade to empty values rather than throwing.
  */
-export function getBase64ImageSource(source: Anthropic.ImageBlockParam["source"]): { mediaType: string; data: string } {
+export function getBase64ImageSource(source: ClineImageContentBlock["source"]): { mediaType: string; data: string } {
 	if (source.type === "base64") {
 		return { mediaType: source.media_type, data: source.data }
 	}
@@ -147,7 +158,7 @@ export function getBase64ImageSource(source: Anthropic.ImageBlockParam["source"]
 /**
  * Builds a base64 data URL from an image block's source. See getBase64ImageSource.
  */
-export function getImageDataUrl(source: Anthropic.ImageBlockParam["source"]): string {
+export function getImageDataUrl(source: ClineImageContentBlock["source"]): string {
 	const { mediaType, data } = getBase64ImageSource(source)
 	return `data:${mediaType};base64,${data}`
 }
@@ -155,7 +166,7 @@ export function getImageDataUrl(source: Anthropic.ImageBlockParam["source"]): st
 /**
  * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
  */
-export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
+export function cleanContentBlock(block: ClineContent): ClineContent {
 	// Fast path: if no Cline-specific fields exist, return as-is
 	const hasClineFields =
 		"reasoning_details" in block ||
@@ -164,7 +175,7 @@ export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
 		(block.type !== "thinking" && "signature" in block)
 
 	if (!hasClineFields) {
-		return block as Anthropic.ContentBlock
+		return block
 	}
 
 	// Removes Cline-specific fields & the signature field that's added for Gemini.
@@ -175,5 +186,5 @@ export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
 		rest.signature = undefined
 	}
 
-	return rest satisfies Anthropic.ContentBlock
+	return rest as ClineContent
 }

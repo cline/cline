@@ -1,9 +1,4 @@
-import type {
-	AgentEvent,
-	AutomationEventEnvelope,
-	BasicLogger,
-	BasicLogMetadata,
-} from "@cline/shared";
+import type { AgentEvent, BasicLogger, BasicLogMetadata } from "@cline/shared";
 import type { TeamEvent } from "../../../extensions/tools/team";
 import {
 	type AgentEventContext,
@@ -113,25 +108,9 @@ export class AgentEventBridge {
 	async handlePluginEvent(
 		rootSessionId: string,
 		event: { name: string; payload?: unknown },
-		fallbackAutomation?: NonNullable<
-			CoreSessionConfig["extensionContext"]
-		>["automation"],
 	): Promise<void> {
 		if (event.name === "plugin_log") {
 			this.handlePluginLog(rootSessionId, event.payload);
-			return;
-		}
-		if (event.name === "automation_event") {
-			const session = this.deps.getSession(rootSessionId);
-			const automation =
-				session?.config.extensionContext?.automation ?? fallbackAutomation;
-			if (!automation) return;
-			const payload =
-				event.payload && typeof event.payload === "object"
-					? (event.payload as AutomationEventEnvelope)
-					: undefined;
-			if (!payload) return;
-			await automation.ingestEvent(payload);
 			return;
 		}
 		if (

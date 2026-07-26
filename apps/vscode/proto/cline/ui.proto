@@ -287,7 +287,6 @@ service UiService {
   rpc subscribeToShowWebview(EmptyRequest) returns (stream ShowWebviewEvent);
 
   // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
-  rpc getWebviewHtml(EmptyRequest) returns (String);
 
   // Opens a URL in the default browser
   rpc openUrl(StringRequest) returns (Empty);

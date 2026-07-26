@@ -1,4 +1,3 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
@@ -6,6 +5,7 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getDocumentsPath } from "./documents-path"
 import { StateManager } from "./StateManager"
@@ -150,7 +150,7 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 	return mcpSettingsFilePath
 }
 
-export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
+export async function getSavedApiConversationHistory(taskId: string): Promise<ClineStorageMessage[]> {
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
 	const fileExists = await fileExistsAtPath(filePath)
 	if (fileExists) {

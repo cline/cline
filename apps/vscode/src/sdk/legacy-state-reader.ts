@@ -9,9 +9,9 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
+import type { ClineStorageMessage } from "@shared/messages/content"
 import { Logger } from "@shared/services/Logger"
 import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
 
@@ -185,8 +185,8 @@ export function deleteLegacyTask(taskId: string, dataDir?: string): boolean {
  * Read the API conversation history for a specific task.
  * Returns an empty array if the file is missing or corrupt.
  */
-export function readApiConversationHistory(taskId: string, dataDir?: string): Anthropic.MessageParam[] {
-	return readJsonFile<Anthropic.MessageParam[]>(apiConversationHistoryPath(taskId, dataDir), [])
+export function readApiConversationHistory(taskId: string, dataDir?: string): ClineStorageMessage[] {
+	return readJsonFile<ClineStorageMessage[]>(apiConversationHistoryPath(taskId, dataDir), [])
 }
 
 /**

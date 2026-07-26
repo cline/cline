@@ -352,11 +352,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{isBrowsing && !isLastMessageResume ? (
 					<ProgressIndicator />
 				) : (
-					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
+					<span className="codicon codicon-inspect" style={browserIconStyle} />
 				)}
-				<span style={approveTextStyle}>
-					Cline wants to use the browser:
-				</span>
+				<span style={approveTextStyle}>Cline wants to use the browser:</span>
 			</div>
 			<div
 				style={{

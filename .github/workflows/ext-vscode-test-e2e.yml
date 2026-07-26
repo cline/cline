@@ -41,9 +41,7 @@ jobs:
                           - 'apps/vscode/proto/**'
                           - 'apps/vscode/tests/**'
                           - 'apps/vscode/scripts/**'
-                          - 'apps/vscode/standalone/**'
                           - 'apps/vscode/assets/**'
-                          - 'apps/vscode/walkthrough/**'
                           - 'apps/vscode/package.json'
                           - 'apps/vscode/webview-ui/package.json'
                           # Root bun lockfile is authoritative for the whole workspace (incl. apps/vscode).

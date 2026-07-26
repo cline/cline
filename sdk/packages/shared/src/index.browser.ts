@@ -1,43 +1,6 @@
 export * from "./agent";
 export * from "./agents";
 export type {
-	ConnectorAuthorizationDecision,
-	ConnectorAuthorizationRequest,
-	ConnectorEventActor,
-	ConnectorEventContext,
-	ConnectorHookEvent,
-	ConnectorHookEventName,
-} from "./connectors/events";
-export {
-	ConnectorAuthorizationDecisionSchema,
-	ConnectorAuthorizationRequestSchema,
-	ConnectorEventActorSchema,
-	ConnectorEventContextSchema,
-	ConnectorHookEventNameSchema,
-	ConnectorHookEventSchema,
-} from "./connectors/events";
-export type * from "./connectors/options";
-export type {
-	ActiveConnectorRecord,
-	ConfiguredConnectorRecord,
-	ConnectorCatalogEntry,
-	ConnectorChannel,
-	ConnectorChannelsResponse,
-	ConnectorFieldCondition,
-	ConnectorFieldDef,
-	ConnectorPlatformDef,
-	ConnectorSecurityDef,
-	ConnectorSecurityFieldDef,
-} from "./connectors/platforms";
-export {
-	CONNECTOR_CATALOG,
-	CONNECTOR_PLATFORMS,
-	connectorChannelsFromPlatforms,
-	listConnectorCatalog,
-	shouldIncludeConnectorField,
-} from "./connectors/platforms";
-export type { AutomationEventEnvelope } from "./cron";
-export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,
@@ -45,8 +8,6 @@ export type {
 } from "./extensions/context";
 export type {
 	AgentExtensionApi,
-	AgentExtensionAutomationContext,
-	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
 	AgentExtensionCommandResult,

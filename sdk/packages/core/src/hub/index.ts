@@ -1,11 +1,8 @@
-export { HubScheduleCommandService } from "../cron/service/schedule-command-service";
-export { HubScheduleService } from "../cron/service/schedule-service";
 export * from "./client";
 export * from "./client/connect";
 export * from "./client/session-client";
 export * from "./client/ui-client";
 export * from "./daemon";
-export * from "./daemon/runtime-handlers";
 export * from "./daemon/start-shared-server";
 export * from "./discovery";
 export * from "./discovery/defaults";

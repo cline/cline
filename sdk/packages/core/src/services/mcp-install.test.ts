@@ -8,10 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	buildMcpInstallTransport,
-	installMcpServer,
-} from "./mcp-install";
+import { buildMcpInstallTransport, installMcpServer } from "./mcp-install";
 
 describe("MCP install service", () => {
 	let root = "";
@@ -170,7 +167,7 @@ describe("MCP install service", () => {
 				name: "fs",
 				settingsPath,
 			}),
-		).toThrow(/requires a command/);
+		).toThrow(/requires an explicit local command/);
 		expect(() =>
 			installMcpServer({
 				name: "bad",

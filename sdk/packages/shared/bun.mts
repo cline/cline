@@ -35,7 +35,6 @@ const runBuild = async (
 await runBuild("node", {
 	entrypoints: [
 		"./src/index.ts",
-		"./src/automation/index.ts",
 		"./src/db/index.ts",
 		"./src/node.ts",
 		"./src/storage/index.ts",

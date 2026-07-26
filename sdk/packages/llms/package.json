@@ -40,10 +40,8 @@
 		"@aws-sdk/credential-providers": "^3.922.0",
 		"@cline/shared": "workspace:*",
 		"@smithy/node-http-handler": "^4.9.5",
-		"@streamparser/json": "^0.0.21",
 		"ai": "^6.0.144",
 		"nanoid": "^5.1.7",
-		"undici": "^7.28.0",
-		"zod": "^4.3.6"
+		"undici": "^7.28.0"
 	}
 }

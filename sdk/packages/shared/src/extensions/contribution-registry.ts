@@ -1,5 +1,4 @@
 import type { AgentRuntimeHooks, AgentTool } from "../agent";
-import type { AutomationEventEnvelope } from "../cron";
 import type { BasicLogger } from "../logging/logger";
 import type { WorkspaceInfo } from "../session/workspace";
 import type { ClientContext } from "./context";
@@ -33,18 +32,6 @@ export interface AgentExtensionMessageBuilder<TMessage = unknown> {
 export interface AgentExtensionProvider {
 	name: string;
 	description?: string;
-	metadata?: Record<string, unknown>;
-}
-
-export interface AgentExtensionAutomationEventType {
-	/** Normalized event type a plugin can emit, e.g. `github.pull_request.opened`. */
-	eventType: string;
-	/** Normalized source identifier, e.g. `github`, `linear`, or `local`. */
-	source: string;
-	description?: string;
-	attributesSchema?: Record<string, unknown>;
-	payloadSchema?: Record<string, unknown>;
-	examples?: AutomationEventEnvelope[];
 	metadata?: Record<string, unknown>;
 }
 
@@ -95,14 +82,6 @@ export interface AgentExtensionMcpServer {
 	metadata?: Record<string, unknown>;
 }
 
-export interface AgentExtensionAutomationContext {
-	/**
-	 * Submit a normalized automation event to the host. Raw webhook or connector
-	 * payloads should be translated into an `AutomationEventEnvelope` first.
-	 */
-	ingestEvent: (event: AutomationEventEnvelope) => void | Promise<void>;
-}
-
 export interface AgentExtensionSessionContext {
 	/** Stable core session id for the root session that loaded the plugin. */
 	sessionId?: string;
@@ -112,7 +91,7 @@ export interface AgentExtensionSessionContext {
  * API surface passed to an extension's `setup()` method.
  *
  * Use it to register the contributions the extension wants to make — tools,
- * commands, message builders, providers, and automation event types. All
+ * commands, message builders, providers, and MCP servers. All
  * registrations accumulate into the `ContributionRegistry` and are available to
  * the host after `setup()` completes.
  */
@@ -129,10 +108,6 @@ export interface AgentExtensionApi<TTool = AgentTool, TMessage = unknown> {
 	) => void;
 	/** Register a provider contribution (e.g. a custom model provider). Requires the `providers` capability. */
 	registerProvider: (provider: AgentExtensionProvider) => void;
-	/** Register a normalized automation event type the plugin can emit. Requires the `automationEvents` capability. */
-	registerAutomationEventType: (
-		eventType: AgentExtensionAutomationEventType,
-	) => void;
 	// Register an MCP server exposed as runtime tools. Requires the `mcp` capability.
 	registerMcpServer: (server: AgentExtensionMcpServer) => void;
 }
@@ -167,12 +142,6 @@ export interface PluginSetupContext {
 	 * setup time.
 	 */
 	workspaceInfo?: WorkspaceInfo;
-	/**
-	 * Automation ingress made available by hosts that enable ClineCore
-	 * automation. Plugins should feature-detect this property so the same plugin
-	 * can run in hosts that do not enable automation.
-	 */
-	automation?: AgentExtensionAutomationContext;
 	/** Host-provided logger scoped to this session/plugin setup. */
 	logger?: BasicLogger;
 }
@@ -185,7 +154,6 @@ const ExtensionCapabilityOptions = [
 	"skills",
 	"messageBuilders",
 	"providers",
-	"automationEvents",
 	"mcp",
 ] as const;
 
@@ -205,7 +173,6 @@ export interface AgentExtensionRegistry<TTool = AgentTool, TMessage = unknown> {
 	rules: AgentExtensionRule[];
 	messageBuilder: AgentExtensionMessageBuilder<TMessage>[];
 	providers: AgentExtensionProvider[];
-	automationEventTypes: AgentExtensionAutomationEventType[];
 	mcpServers: AgentExtensionMcpServer[];
 }
 
@@ -382,37 +349,6 @@ function normalizeManifest<
 	};
 }
 
-function normalizeAutomationEventType(
-	input: AgentExtensionAutomationEventType,
-	extensionName: string,
-): AgentExtensionAutomationEventType {
-	if (!input || typeof input !== "object") {
-		throw new Error(
-			`Invalid automation event contribution for extension "${extensionName}": expected object`,
-		);
-	}
-	const eventType =
-		typeof input.eventType === "string" ? input.eventType.trim() : "";
-	const source = typeof input.source === "string" ? input.source.trim() : "";
-	if (!eventType) {
-		throw new Error(
-			`Invalid automation event contribution for extension "${extensionName}": eventType is required`,
-		);
-	}
-	if (!source) {
-		throw new Error(
-			`Invalid automation event contribution for extension "${extensionName}": source is required`,
-		);
-	}
-	return {
-		...input,
-		eventType,
-		source,
-		examples: input.examples ? [...input.examples] : undefined,
-		metadata: input.metadata ? { ...input.metadata } : undefined,
-	};
-}
-
 export class ContributionRegistry<
 	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool = AgentTool,
@@ -425,7 +361,6 @@ export class ContributionRegistry<
 		rules: [],
 		messageBuilder: [],
 		providers: [],
-		automationEventTypes: [],
 		mcpServers: [],
 	};
 	private normalized: NormalizedExtension<TExtension, TTool, TMessage>[] = [];
@@ -485,7 +420,6 @@ export class ContributionRegistry<
 				rules: [],
 				messageBuilder: [],
 				providers: [],
-				automationEventTypes: [],
 				mcpServers: [],
 			};
 			const api: AgentExtensionApi<TTool, TMessage> = {
@@ -502,16 +436,6 @@ export class ContributionRegistry<
 				registerMessageBuilder: (builder) =>
 					pending.messageBuilder.push(builder),
 				registerProvider: (provider) => pending.providers.push(provider),
-				registerAutomationEventType: (eventType) => {
-					if (!entry.manifest.capabilities.has("automationEvents")) {
-						throw new Error(
-							`Invalid setup for extension "${extensionName}": registerAutomationEventType requires the "automationEvents" capability`,
-						);
-					}
-					pending.automationEventTypes.push(
-						normalizeAutomationEventType(eventType, extensionName),
-					);
-				},
 				registerMcpServer: (server) => {
 					if (!entry.manifest.capabilities.has("mcp")) {
 						throw new Error(
@@ -528,14 +452,8 @@ export class ContributionRegistry<
 					});
 				},
 			};
-			const setupContext = entry.manifest.capabilities.has("automationEvents")
-				? this.setupContext
-				: {
-						...this.setupContext,
-						automation: undefined,
-					};
 			try {
-				await extension.setup?.(api, setupContext);
+				await extension.setup?.(api, this.setupContext);
 				successfulSetups.push(pending);
 			} catch (error) {
 				if (options.tolerateSetupErrors !== true) {
@@ -553,7 +471,6 @@ export class ContributionRegistry<
 			this.registry.rules.push(...pending.rules);
 			this.registry.messageBuilder.push(...pending.messageBuilder);
 			this.registry.providers.push(...pending.providers);
-			this.registry.automationEventTypes.push(...pending.automationEventTypes);
 			this.registry.mcpServers.push(...pending.mcpServers);
 		}
 		this.phase = "activate";
@@ -599,7 +516,6 @@ export class ContributionRegistry<
 			rules: [...this.registry.rules],
 			messageBuilder: [...this.registry.messageBuilder],
 			providers: [...this.registry.providers],
-			automationEventTypes: [...this.registry.automationEventTypes],
 			mcpServers: [...this.registry.mcpServers],
 		};
 	}
@@ -610,10 +526,6 @@ export class ContributionRegistry<
 
 	getRegisteredRules(): AgentExtensionRule[] {
 		return [...this.registry.rules];
-	}
-
-	getRegisteredAutomationEventTypes(): AgentExtensionAutomationEventType[] {
-		return [...this.registry.automationEventTypes];
 	}
 
 	getRegisteredMcpServers(): AgentExtensionMcpServer[] {

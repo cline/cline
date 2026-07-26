@@ -146,7 +146,7 @@ function runForcedBasicCompaction(
 			messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: targetTokens },
 			},
 			mode: "manual",
@@ -336,7 +336,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				],
 				model: {
 					id: "mock-model",
-					provider: "anthropic",
+					provider: "bedrock",
 					info: { id: "mock-model", maxInputTokens: 100_000 },
 				},
 				mode: "manual",
@@ -995,10 +995,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 	it("does not truncate a shallow first task prompt below the trigger for high-output models", async () => {
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openrouter",
+			providerId: "bedrock",
 			modelId: "minimax/minimax-m3",
 			providerConfig: {
-				providerId: "openrouter",
+				providerId: "bedrock",
 				modelId: "minimax/minimax-m3",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1029,7 +1029,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "minimax/minimax-m3",
-				provider: "openrouter",
+				provider: "bedrock",
 				info: {
 					id: "minimax/minimax-m3",
 					maxInputTokens: 1_000,
@@ -1067,7 +1067,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				messages,
 				model: {
 					id: "mock-model",
-					provider: "openrouter",
+					provider: "bedrock",
 					info: { id: "mock-model", maxInputTokens: 1_000 },
 				},
 				mode: "manual",
@@ -1101,35 +1101,15 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(mergedText).toContain("\n...");
 	});
 
-	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {
-		const codexConfig = resolveSummarizerConfig({
-			activeProviderConfig: {
-				providerId: "openai-codex",
-				modelId: "gpt-5.4",
-				maxOutputTokens: 16_000,
-			},
-		});
-		const anthropicConfig = resolveSummarizerConfig({
-			activeProviderConfig: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet",
-			},
-		});
-
-		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
-		expect(codexConfig.thinking).toBe(false);
-		expect(anthropicConfig.maxOutputTokens).toBe(1_024);
-	});
-
 	it("preserves summarizer modelInfo without a nested providerConfig", () => {
 		const resolved = resolveSummarizerConfig({
 			activeProviderConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "primary-model",
 				modelInfo: { id: "primary-model", maxInputTokens: 100_000 },
 			} as LlmsProviders.ProviderConfig,
 			summarizer: {
-				providerId: "openai",
+				providerId: "bedrock",
 				modelId: "small-summary",
 				modelInfo: { id: "small-summary", maxInputTokens: 600 },
 			},
@@ -1154,10 +1134,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1235,7 +1215,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
 		});
@@ -1296,10 +1276,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "Latest request" },
 		];
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1322,7 +1302,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
 		});
@@ -1354,10 +1334,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "Latest request" },
 		];
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1381,7 +1361,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				apiMessages: messages,
 				model: {
 					id: "mock-model",
-					provider: "anthropic",
+					provider: "bedrock",
 					info: { id: "mock-model", maxInputTokens: 10 },
 				},
 			}),
@@ -1408,10 +1388,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		const longToolOutput =
 			"x".repeat(TOOL_RESULT_CHAR_LIMIT + 10_000) + omittedTail;
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1488,7 +1468,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
 		});
@@ -1563,10 +1543,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1622,7 +1602,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: sharedMessages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
 		});
@@ -1701,10 +1681,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1728,7 +1708,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 4_000 },
 			},
 		});
@@ -1820,10 +1800,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1847,7 +1827,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 4_000 },
 			},
 		});
@@ -1874,10 +1854,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "primary-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "primary-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -1885,7 +1865,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				strategy: "agentic",
 				preserveRecentTokens: 1,
 				summarizer: {
-					providerId: "openai",
+					providerId: "bedrock",
 					modelId: "gpt-summary",
 					maxOutputTokens: 512,
 				},
@@ -1915,14 +1895,14 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "primary-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "primary-model", maxInputTokens: 10 },
 			},
 		});
 
 		expect(createHandlerMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerId: "openai",
+				providerId: "bedrock",
 				modelId: "gpt-summary",
 				maxOutputTokens: 512,
 				thinking: false,
@@ -1947,10 +1927,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		const summarizerLimit = 600;
 		const oversizedAssistant = "assistant details ".repeat(5_000);
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "primary-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "primary-model",
 				modelInfo: { id: "primary-model", maxInputTokens: 10_000 },
 			} as LlmsProviders.ProviderConfig,
@@ -1959,7 +1939,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				strategy: "agentic",
 				preserveRecentTokens: 1,
 				summarizer: {
-					providerId: "openai",
+					providerId: "bedrock",
 					modelId: "small-summary",
 					modelInfo: {
 						id: "small-summary",
@@ -1992,7 +1972,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "primary-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "primary-model", maxInputTokens: 10_000 },
 			},
 		});
@@ -2007,10 +1987,10 @@ describe("createContextCompactionPrepareTurn", () => {
 	it("uses basic compaction without calling the summarizer", async () => {
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -2129,7 +2109,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
 		});
@@ -2167,10 +2147,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted at 90%" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2198,7 +2178,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens },
 			},
 		});
@@ -2218,10 +2198,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted at 81%" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2249,7 +2229,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: {
 					id: "mock-model",
 					contextWindow,
@@ -2273,10 +2253,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted full request" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2306,7 +2286,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 2_000 },
 			},
 		});
@@ -2331,10 +2311,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			tools: [],
 		});
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, strategy: "basic" },
@@ -2353,7 +2333,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: {
 					id: "mock-model",
 					maxInputTokens: requestInputTokens / 0.91,
@@ -2370,10 +2350,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted by ratio" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "gpt-5.4-mini",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "gpt-5.4-mini",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2398,7 +2378,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "gpt-5.4-mini",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: { id: "gpt-5.4-mini", maxInputTokens: 200_000 },
 			},
 		});
@@ -2420,10 +2400,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "gpt-5.4-mini",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "gpt-5.4-mini",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2448,7 +2428,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "gpt-5.4-mini",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: {
 					id: "gpt-5.4-mini",
 					contextWindow: 400_000,
@@ -2469,10 +2449,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "gpt-5.5",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "gpt-5.5",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, strategy: "basic", compact },
@@ -2504,7 +2484,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "gpt-5.5",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: {
 					id: "gpt-5.5",
 					maxInputTokens: 272_000,
@@ -2530,10 +2510,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -2569,7 +2549,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: {
 					id: "mock-model",
 					maxInputTokens: 100,
@@ -2598,10 +2578,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "gpt-5.5",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "gpt-5.5",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2626,7 +2606,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "gpt-5.5",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: {
 					id: "gpt-5.5",
 					contextWindow: 400_000,
@@ -2652,10 +2632,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "gpt-5.5",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "gpt-5.5",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2680,7 +2660,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "gpt-5.5",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: {
 					id: "gpt-5.5",
 					contextWindow: 400_000,
@@ -2705,10 +2685,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted by fallback" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "large-output-model",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "large-output-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2727,7 +2707,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: [{ role: "user", content: "small prompt" }],
 			model: {
 				id: "large-output-model",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: {
 					id: "large-output-model",
 					maxInputTokens: 200_000,
@@ -2746,10 +2726,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted by fallback" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openrouter",
+			providerId: "bedrock",
 			modelId: "minimax/minimax-m3",
 			providerConfig: {
-				providerId: "openrouter",
+				providerId: "bedrock",
 				modelId: "minimax/minimax-m3",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, strategy: "basic", compact },
@@ -2774,7 +2754,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "minimax/minimax-m3",
-				provider: "openrouter",
+				provider: "bedrock",
 				info: {
 					id: "minimax/minimax-m3",
 					contextWindow: 524_288,
@@ -2795,10 +2775,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "gpt-5.4-mini",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "gpt-5.4-mini",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2843,7 +2823,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "gpt-5.4-mini",
-				provider: "openai-codex",
+				provider: "bedrock",
 				info: { id: "gpt-5.4-mini", maxInputTokens: 272_000 },
 			},
 		});
@@ -2863,10 +2843,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [{ role: "user" as const, content: "Compacted explicitly" }],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, compact },
@@ -2891,7 +2871,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 100 },
 			},
 		});
@@ -2907,10 +2887,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn(
 			{
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 				providerConfig: {
-					providerId: "anthropic",
+					providerId: "bedrock",
 					modelId: "mock-model",
 				} as LlmsProviders.ProviderConfig,
 				compaction: {
@@ -2940,7 +2920,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 100 },
 			},
 		});
@@ -2973,10 +2953,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		const repeatedText = "manual compact content ".repeat(100);
 		const prepareTurn = createContextCompactionPrepareTurn(
 			{
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 				providerConfig: {
-					providerId: "anthropic",
+					providerId: "bedrock",
 					modelId: "mock-model",
 				} as LlmsProviders.ProviderConfig,
 				compaction: {
@@ -3010,7 +2990,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 10_000 },
 			},
 		});
@@ -3046,10 +3026,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "assistant", content: `Latest reply ${repeatedText}` },
 		];
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "small-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "small-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, strategy: "agentic" },
@@ -3068,7 +3048,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: messages,
 			model: {
 				id: "small-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "small-model", maxInputTokens: 2_000 },
 			},
 		});
@@ -3103,7 +3083,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				messages,
 				model: {
 					id: "mock-model",
-					provider: "anthropic",
+					provider: "bedrock",
 					info: { id: "mock-model", maxInputTokens: 100 },
 				},
 				mode: "manual",
@@ -3142,10 +3122,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 	it("does not compact when only pre-truncation messages exceed the threshold", async () => {
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
@@ -3193,7 +3173,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			],
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 100 },
 			},
 		});
@@ -3206,417 +3186,12 @@ describe("createContextCompactionPrepareTurn", () => {
 	// Telemetry coverage — task.compaction_executed / task.compaction_skipped
 	// ------------------------------------------------------------------
 
-	it("emits task.compaction_executed telemetry after a successful basic compaction", async () => {
-		const captureCalls: Array<{
-			event: string;
-			properties?: Record<string, unknown>;
-		}> = [];
-		const telemetry = {
-			capture: (call: {
-				event: string;
-				properties?: Record<string, unknown>;
-			}) => captureCalls.push(call),
-			captureRequired: () => {},
-			setDistinctId: () => {},
-			updateCommonProperties: () => {},
-			identify: () => {},
-		} as unknown as Parameters<
-			typeof createContextCompactionPrepareTurn
-		>[0]["telemetry"];
-
-		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
-			modelId: "mock-model",
-			providerConfig: {
-				providerId: "anthropic",
-				modelId: "mock-model",
-			} as LlmsProviders.ProviderConfig,
-			compaction: {
-				enabled: true,
-				strategy: "basic",
-			},
-			telemetry,
-			sessionId: "ulid-test-1",
-		});
-
-		const filler = "x".repeat(200);
-		const messages: LlmsProviders.Message[] = [
-			{ role: "user", content: "Original task" },
-			{ role: "assistant", content: `Old answer ${filler}` },
-			{ role: "user", content: `Older user followup ${filler}` },
-			{ role: "assistant", content: `Older assistant ${filler}` },
-			{ role: "user", content: "Latest user question" },
-		];
-
-		const result = await prepareTurn?.({
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			iteration: 1,
-			abortSignal: new AbortController().signal,
-			systemPrompt: "",
-			tools: [],
-			messages,
-			apiMessages: messages,
-			model: {
-				id: "mock-model",
-				provider: "anthropic",
-				info: { id: "mock-model", maxInputTokens: 100 },
-			},
-		});
-
-		expect(result?.messages).toBeDefined();
-		const executed = captureCalls.find(
-			(call) => call.event === "task.compaction_executed",
-		);
-		expect(executed).toBeDefined();
-		const props = executed?.properties as Record<string, unknown>;
-		expect(props.strategy).toBe("basic");
-		expect(props.mode).toBe("auto");
-		expect(props.ulid).toBe("ulid-test-1");
-		expect(props.provider).toBe("anthropic");
-		expect(props.modelId).toBe("mock-model");
-		expect(props.agentId).toBe("agent-1");
-		expect(props.conversationId).toBe("conv-1");
-		expect(typeof props.durationMs).toBe("number");
-		expect(typeof props.tokensBefore).toBe("number");
-		expect(typeof props.tokensAfter).toBe("number");
-		expect(props.messagesBefore).toBe(messages.length);
-		expect(typeof props.messagesAfter).toBe("number");
-		expect(props.tokensSaved).toBe(
-			(props.tokensBefore as number) - (props.tokensAfter as number),
-		);
-	});
-
-	it("marks strategy as 'custom' when a user-supplied compact callback is used", async () => {
-		const captureCalls: Array<{
-			event: string;
-			properties?: Record<string, unknown>;
-		}> = [];
-		const telemetry = {
-			capture: (call: {
-				event: string;
-				properties?: Record<string, unknown>;
-			}) => captureCalls.push(call),
-			captureRequired: () => {},
-			setDistinctId: () => {},
-			updateCommonProperties: () => {},
-			identify: () => {},
-		} as unknown as Parameters<
-			typeof createContextCompactionPrepareTurn
-		>[0]["telemetry"];
-
-		const customCompact = vi.fn(async () => ({
-			messages: [
-				{ role: "user", content: "trimmed" },
-			] as LlmsProviders.Message[],
-		}));
-
-		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
-			modelId: "mock-model",
-			providerConfig: {
-				providerId: "anthropic",
-				modelId: "mock-model",
-			} as LlmsProviders.ProviderConfig,
-			compaction: {
-				enabled: true,
-				strategy: "basic", // ignored when `compact` is provided
-				compact: customCompact,
-			},
-			telemetry,
-		});
-
-		const messages: LlmsProviders.Message[] = [
-			{ role: "user", content: "Original task" },
-			{ role: "assistant", content: "x".repeat(500) },
-			{ role: "user", content: "Latest" },
-		];
-
-		await prepareTurn?.({
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			iteration: 2,
-			abortSignal: new AbortController().signal,
-			systemPrompt: "",
-			tools: [],
-			messages,
-			apiMessages: messages,
-			model: {
-				id: "mock-model",
-				provider: "anthropic",
-				info: { id: "mock-model", maxInputTokens: 100 },
-			},
-		});
-
-		expect(customCompact).toHaveBeenCalledTimes(1);
-		const executed = captureCalls.find(
-			(call) => call.event === "task.compaction_executed",
-		);
-		expect(executed).toBeDefined();
-		expect((executed?.properties as Record<string, unknown>).strategy).toBe(
-			"custom",
-		);
-	});
-
-	it("reports executed compaction telemetry in full-request token units", async () => {
-		const captureCalls: Array<{
-			event: string;
-			properties?: Record<string, unknown>;
-		}> = [];
-		const telemetry = {
-			capture: (call: {
-				event: string;
-				properties?: Record<string, unknown>;
-			}) => captureCalls.push(call),
-			captureRequired: () => {},
-			setDistinctId: () => {},
-			updateCommonProperties: () => {},
-			identify: () => {},
-		} as unknown as Parameters<
-			typeof createContextCompactionPrepareTurn
-		>[0]["telemetry"];
-
-		const compact = vi.fn(async () => ({
-			messages: [{ role: "user" as const, content: "trimmed" }],
-		}));
-		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
-			modelId: "mock-model",
-			providerConfig: {
-				providerId: "anthropic",
-				modelId: "mock-model",
-			} as LlmsProviders.ProviderConfig,
-			compaction: {
-				enabled: true,
-				strategy: "basic",
-				compact,
-			},
-			telemetry,
-		});
-		const messages: LlmsProviders.Message[] = [
-			{ role: "user", content: "Original task" },
-			{ role: "assistant", content: "short answer" },
-			{ role: "user", content: "Latest" },
-		];
-		const apiMessages: LlmsProviders.Message[] = [
-			...messages,
-			{ role: "assistant", content: "provider-only payload ".repeat(1_000) },
-		];
-
-		await prepareTurn?.({
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			iteration: 3,
-			abortSignal: new AbortController().signal,
-			systemPrompt: "",
-			tools: [],
-			messages,
-			apiMessages,
-			model: {
-				id: "mock-model",
-				provider: "anthropic",
-				info: { id: "mock-model", maxInputTokens: 100 },
-			},
-		});
-
-		expect(compact).toHaveBeenCalledTimes(1);
-		const executed = captureCalls.find(
-			(call) => call.event === "task.compaction_executed",
-		);
-		const props = executed?.properties as Record<string, unknown>;
-		expect(props.tokensBefore as number).toBeGreaterThanOrEqual(
-			props.triggerTokens as number,
-		);
-		expect(props.tokensSaved).toBe(
-			(props.tokensBefore as number) - (props.tokensAfter as number),
-		);
-		expect(props.tokensSaved as number).toBeGreaterThanOrEqual(0);
-	});
-
-	it("emits task.compaction_skipped when the strategy returns undefined", async () => {
-		const emitStatusNotice = vi.fn();
-		const captureCalls: Array<{
-			event: string;
-			properties?: Record<string, unknown>;
-		}> = [];
-		const telemetry = {
-			capture: (call: {
-				event: string;
-				properties?: Record<string, unknown>;
-			}) => captureCalls.push(call),
-			captureRequired: () => {},
-			setDistinctId: () => {},
-			updateCommonProperties: () => {},
-			identify: () => {},
-		} as unknown as Parameters<
-			typeof createContextCompactionPrepareTurn
-		>[0]["telemetry"];
-
-		// Force the trigger to fire (small budget vs large transcript) but
-		// supply a `compact` callback that intentionally returns undefined
-		// so the wrapper records a skip.
-		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "anthropic",
-			modelId: "mock-model",
-			providerConfig: {
-				providerId: "anthropic",
-				modelId: "mock-model",
-			} as LlmsProviders.ProviderConfig,
-			compaction: {
-				enabled: true,
-				strategy: "basic",
-				compact: async () => undefined,
-			},
-			telemetry,
-			sessionId: "ulid-test-skip",
-		});
-
-		const messages: LlmsProviders.Message[] = [
-			{ role: "user", content: "Original task" },
-			{ role: "assistant", content: "x".repeat(500) },
-			{ role: "user", content: "Latest" },
-		];
-		const apiMessages: LlmsProviders.Message[] = [
-			{ role: "user", content: "api-shaped ".repeat(500) },
-		];
-		const estimateMessageTokens = createTokenEstimator();
-		const sessionInputTokens = messages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		const apiInputTokens = apiMessages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		const requestInputTokens = estimateRequestInputTokens({
-			systemPrompt: "",
-			messages: apiMessages,
-			tools: [],
-		});
-		expect(apiInputTokens).not.toBe(sessionInputTokens);
-
-		const result = await prepareTurn?.({
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			iteration: 3,
-			emitStatusNotice,
-			abortSignal: new AbortController().signal,
-			systemPrompt: "",
-			tools: [],
-			messages,
-			apiMessages,
-			model: {
-				id: "mock-model",
-				provider: "anthropic",
-				info: { id: "mock-model", maxInputTokens: 100 },
-			},
-		});
-
-		expect(result).toBeUndefined();
-		const skipped = captureCalls.find(
-			(call) => call.event === "task.compaction_skipped",
-		);
-		expect(skipped).toBeDefined();
-		const props = skipped?.properties as Record<string, unknown>;
-		expect(props.strategy).toBe("custom");
-		expect(props.mode).toBe("auto");
-		expect(props.reason).toBe("no_result");
-		expect(emitStatusNotice).toHaveBeenLastCalledWith(
-			"auto-compaction-skipped",
-			expect.objectContaining({
-				kind: "auto_compaction",
-				phase: "skipped",
-			}),
-		);
-		expect(props.ulid).toBe("ulid-test-skip");
-		expect(props.tokensBefore).toBe(requestInputTokens);
-		expect(typeof props.durationMs).toBe("number");
-		expect(
-			captureCalls.find((call) => call.event === "task.compaction_executed"),
-		).toBeUndefined();
-	});
-
-	it("tags telemetry mode as 'manual' when prepareTurn is run with mode: manual", async () => {
-		const captureCalls: Array<{
-			event: string;
-			properties?: Record<string, unknown>;
-		}> = [];
-		const telemetry = {
-			capture: (call: {
-				event: string;
-				properties?: Record<string, unknown>;
-			}) => captureCalls.push(call),
-			captureRequired: () => {},
-			setDistinctId: () => {},
-			updateCommonProperties: () => {},
-			identify: () => {},
-		} as unknown as Parameters<
-			typeof createContextCompactionPrepareTurn
-		>[0]["telemetry"];
-
-		const prepareTurn = createContextCompactionPrepareTurn(
-			{
-				providerId: "anthropic",
-				modelId: "mock-model",
-				providerConfig: {
-					providerId: "anthropic",
-					modelId: "mock-model",
-				} as LlmsProviders.ProviderConfig,
-				compaction: {
-					enabled: true,
-					strategy: "basic",
-				},
-				telemetry,
-			},
-			{ mode: "manual" },
-		);
-
-		const messages: LlmsProviders.Message[] = [
-			{ role: "user", content: "Original task" },
-			{ role: "assistant", content: "x".repeat(500) },
-			{ role: "user", content: "Older followup" },
-			{ role: "assistant", content: "x".repeat(500) },
-			{ role: "user", content: "Latest" },
-		];
-
-		await prepareTurn?.({
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			iteration: 4,
-			abortSignal: new AbortController().signal,
-			systemPrompt: "",
-			tools: [],
-			messages,
-			apiMessages: messages,
-			model: {
-				id: "mock-model",
-				provider: "anthropic",
-				info: { id: "mock-model", maxInputTokens: 100_000 },
-			},
-		});
-
-		const compactionEvent = captureCalls.find(
-			(call) =>
-				call.event === "task.compaction_executed" ||
-				call.event === "task.compaction_skipped",
-		);
-		expect(compactionEvent).toBeDefined();
-		expect((compactionEvent?.properties as Record<string, unknown>).mode).toBe(
-			"manual",
-		);
-	});
-
 	it("does not immediately re-trigger basic compaction on the next turn after accounting for the protected tail", async () => {
 		const prepareTurn = createContextCompactionPrepareTurn({
-			providerId: "openai-codex",
+			providerId: "bedrock",
 			modelId: "mock-model",
 			providerConfig: {
-				providerId: "openai-codex",
+				providerId: "bedrock",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: { enabled: true, strategy: "basic" },
@@ -3625,7 +3200,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const estimateMessageTokens = createTokenEstimator();
 		const model = {
 			id: "mock-model",
-			provider: "openai-codex",
+			provider: "bedrock",
 			info: { id: "mock-model", maxInputTokens: 300 },
 		};
 		const messages: LlmsProviders.Message[] = [
@@ -3708,7 +3283,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: currentMessages,
 			model: {
 				id: "mock-model",
-				provider: "anthropic",
+				provider: "bedrock",
 				info: { id: "mock-model", maxInputTokens: 100_000 },
 			},
 		});
