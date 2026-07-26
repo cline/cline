@@ -21,6 +21,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 
 	private webview?: vscode.WebviewView
 	private disposables: vscode.Disposable[] = []
+	private hasResolvedView = false
 
 	override getWebviewUrl(path: string) {
 		if (!this.webview) {
@@ -52,6 +53,10 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * @returns A promise that resolves when the webview has been fully initialized
 	 */
 	public async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
+		// A newer view supersedes any previous one (VS Code re-resolves this same
+		// provider when the view is moved between sidebars). Release the previous
+		// view's listeners up front in case its onDidDispose fired late or not at all.
+		this.disposeView()
 		this.webview = webviewView
 
 		webviewView.webview.options = {
@@ -99,14 +104,24 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// extension deactivation (tearDown -> WebviewProvider.disposeAllInstances).
 		webviewView.onDidDispose(
 			() => {
-				this.disposeView()
+				// resolveWebviewView awaits HTML generation, so an old view's dispose
+				// event can arrive after a newer view has already been resolved. Only
+				// tear down if this view is still the active one.
+				if (this.webview === webviewView) {
+					this.disposeView()
+				}
 			},
 			null,
 			this.disposables,
 		)
 
-		// if the extension is starting a new session, clear previous task state
-		this.controller.clearTask()
+		// Clear stale task state only when the view first loads after activation.
+		// Re-resolves (e.g. the view moved between sidebars) must not terminate an
+		// active task.
+		if (!this.hasResolvedView) {
+			this.hasResolvedView = true
+			this.controller.clearTask()
+		}
 
 		Logger.log("[VscodeWebviewProvider] Webview view resolved")
 
