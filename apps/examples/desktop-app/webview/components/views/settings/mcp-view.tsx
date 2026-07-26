@@ -49,6 +49,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import {
+	MarketplaceEntrySetupDetails,
 	type MarketplaceLocalInstalledItem,
 	type MarketplaceLocalInstalledItemRenderContext,
 	MarketplaceView,
@@ -540,7 +541,12 @@ export function McpServersContent() {
 				<div className="flex-1" />
 				{renderServerActions(server)}
 			</div>
-			<div className="mt-2.5 ml-5.5">{renderServerDetails(server)}</div>
+			<div className="mt-2.5 ml-5.5 grid gap-2">
+				{renderServerDetails(server)}
+				{context?.matchedEntry ? (
+					<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+				) : null}
+			</div>
 		</div>
 	);
 

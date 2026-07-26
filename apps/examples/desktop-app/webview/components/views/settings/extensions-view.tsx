@@ -22,6 +22,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import {
+	MarketplaceEntrySetupDetails,
 	type MarketplaceLocalInstalledItem,
 	type MarketplaceLocalInstalledItemRenderContext,
 	MarketplaceView,
@@ -889,6 +890,11 @@ export function CustomizationSectionView({
 				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 					{item.path}
 				</p>
+				{context?.matchedEntry ? (
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+					</div>
+				) : null}
 				<div className="mt-3">
 					{renderLocalActionRow({
 						key,
@@ -985,6 +991,11 @@ export function CustomizationSectionView({
 						</p>
 					)}
 				</div>
+				{context?.matchedEntry ? (
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+					</div>
+				) : null}
 				<div className="mt-3">
 					{renderLocalActionRow({
 						key,
@@ -1037,6 +1048,11 @@ export function CustomizationSectionView({
 					<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 						{mcp.settingsPath}
 					</p>
+				) : null}
+				{context?.matchedEntry ? (
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entry={context.matchedEntry} />
+					</div>
 				) : null}
 				<div className="mt-3">
 					{renderLocalActionRow({

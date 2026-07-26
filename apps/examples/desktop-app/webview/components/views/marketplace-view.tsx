@@ -1,4 +1,5 @@
 import {
+	ChevronRight,
 	ExternalLink,
 	Puzzle,
 	Search,
@@ -17,6 +18,11 @@ import {
 } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
@@ -174,29 +180,18 @@ function actionMessage(
 	return undefined;
 }
 
-function EntryDetails({
-	actionState,
-	entry,
-}: {
-	actionState: EntryActionState | undefined;
-	entry: MarketplaceEntry;
-}) {
+function entryHasSetupGuidance(entry: MarketplaceEntry): boolean {
+	return Boolean(entry.install.env?.length) || Boolean(entry.install.notes);
+}
+
+function EntrySetupGuidance({ entry }: { entry: MarketplaceEntry }) {
 	const requiredEnv =
 		entry.install.env?.filter((env) => env.required !== false) ?? [];
 	const optionalEnv =
 		entry.install.env?.filter((env) => env.required === false) ?? [];
-	const hasSetupDetails =
-		requiredEnv.length > 0 ||
-		optionalEnv.length > 0 ||
-		Boolean(entry.install.notes) ||
-		actionState?.status === "failed";
-
-	if (!hasSetupDetails) {
-		return null;
-	}
 
 	return (
-		<div className="grid gap-3 border-t pt-3" data-marketplace-entry-details>
+		<>
 			{requiredEnv.length > 0 || optionalEnv.length > 0 ? (
 				<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
 					<p className="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -255,6 +250,27 @@ function EntryDetails({
 					{entry.install.notes}
 				</p>
 			) : null}
+		</>
+	);
+}
+
+function EntryDetails({
+	actionState,
+	entry,
+}: {
+	actionState: EntryActionState | undefined;
+	entry: MarketplaceEntry;
+}) {
+	const hasSetupDetails =
+		entryHasSetupGuidance(entry) || actionState?.status === "failed";
+
+	if (!hasSetupDetails) {
+		return null;
+	}
+
+	return (
+		<div className="grid gap-3 border-t pt-3" data-marketplace-entry-details>
+			<EntrySetupGuidance entry={entry} />
 
 			{actionState?.status === "failed" ? (
 				<div className="max-h-44 overflow-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -262,6 +278,37 @@ function EntryDetails({
 				</div>
 			) : null}
 		</div>
+	);
+}
+
+/**
+ * Collapsible marketplace setup guidance (required env vars and install notes)
+ * for locally installed items that were matched to a marketplace entry.
+ */
+export function MarketplaceEntrySetupDetails({
+	entry,
+}: {
+	entry: MarketplaceEntry;
+}) {
+	if (!entryHasSetupGuidance(entry)) {
+		return null;
+	}
+
+	return (
+		<Collapsible className="grid gap-2">
+			<CollapsibleTrigger asChild>
+				<button
+					type="button"
+					className="group flex w-fit items-center gap-1 text-xs text-amber-700 transition-colors hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+				>
+					<ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+					Marketplace setup instructions
+				</button>
+			</CollapsibleTrigger>
+			<CollapsibleContent className="grid gap-3">
+				<EntrySetupGuidance entry={entry} />
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
 
