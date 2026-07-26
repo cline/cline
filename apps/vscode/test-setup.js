@@ -25,23 +25,14 @@ tsConfigPaths.register({
 	paths: outPaths,
 })
 
-// Mock the @google/genai module to avoid ESM compatibility issues in tests
-// The module is ES6 only, but the integration tests are compiled to commonJS.
 const originalRequire = Module.prototype.require
 Module.prototype.require = function (id) {
-	// Intercept requires for @google/genai
-	if (id === "@google/genai") {
-		// Return the mock instead
-		const mockPath = path.join(baseUrl, "out/src/test/fixtures/google-genai-mock.js")
-		return originalRequire.call(this, mockPath)
-	}
-
 	// The SDK packages are ESM-only and expose only an `import` condition.
 	// Integration tests run the tsc-built `out/` tree as CommonJS in VS Code's
 	// extension host, so `require("@cline/core")` fails before tests start.
 	// Mock the small surface needed by legacy VS Code integration tests.
 	if (id === "@cline/core") {
-		class ProviderSettingsManager {
+		class BedrockSettingsStore {
 			constructor(_options) {
 				this.state = { providers: {}, lastUsedProvider: undefined }
 			}
@@ -50,22 +41,12 @@ Module.prototype.require = function (id) {
 				return this.state
 			}
 
-			getLastUsedProviderSettings() {
+			getSettings() {
 				return undefined
 			}
 
-			getProviderSettings(_provider) {
-				return undefined
-			}
-
-			saveProviderSettings(_settings, _options) {}
+			save(_settings) {}
 		}
-
-		const resolveProviderApiKeyFromSettings = (manager, providerId) => {
-			const settings = manager.getProviderSettings(providerId)
-			return settings?.apiKey?.trim?.()
-		}
-		const listLocalProviders = async (manager) => ({ providers: [], settingsPath: manager.getFilePath?.() ?? "" })
 
 		return {
 			ClineCore: class {
@@ -121,15 +102,11 @@ Module.prototype.require = function (id) {
 					return () => {}
 				}
 			},
-			ProviderSettingsManager,
-			listLocalProviders,
-			resolveProviderConfig: async () => undefined,
-			getProviderConfigFields: () => [],
+			BedrockSettingsStore,
 			readGlobalSettings: () => ({}),
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
-			resolveProviderApiKeyFromSettings,
 		}
 	}
 
@@ -149,10 +126,8 @@ Module.prototype.require = function (id) {
 
 	if (id === "@cline/llms") {
 		return {
-			getAllProviders: async () => [],
-			getGeneratedModelsForProvider: () => ({}),
-			getProviderCollectionSync: () => undefined,
-			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+			BUILT_IN_PROVIDER: "bedrock",
+			BUILT_IN_PROVIDER_IDS: ["bedrock"],
 		}
 	}
 

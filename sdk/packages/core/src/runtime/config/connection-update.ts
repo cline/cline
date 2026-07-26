@@ -1,11 +1,7 @@
 import type { CoreSessionConfig } from "../../types/config";
 
 export interface ConnectionUpdate {
-	providerId?: string;
 	modelId?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
 	providerConfig?: CoreSessionConfig["providerConfig"];
 	reasoningEffort?: CoreSessionConfig["reasoningEffort"] | null;
 	thinking?: CoreSessionConfig["thinking"] | null;
@@ -13,11 +9,7 @@ export interface ConnectionUpdate {
 }
 
 export interface ConnectionUpdateInput {
-	providerId?: string;
 	modelId?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
 	providerConfig?: CoreSessionConfig["providerConfig"];
 	thinking?: boolean;
 	reasoningEffort?: CoreSessionConfig["reasoningEffort"];
@@ -43,11 +35,7 @@ export function buildConnectionUpdate(
 	input: ConnectionUpdateInput,
 ): ConnectionUpdate {
 	const update: ConnectionUpdate = {};
-	if (input.providerId !== undefined) update.providerId = input.providerId;
 	if (input.modelId !== undefined) update.modelId = input.modelId;
-	if (input.apiKey !== undefined) update.apiKey = input.apiKey;
-	if (input.baseUrl !== undefined) update.baseUrl = input.baseUrl;
-	if (input.headers !== undefined) update.headers = input.headers;
 	if (input.providerConfig !== undefined) {
 		update.providerConfig = input.providerConfig;
 	}

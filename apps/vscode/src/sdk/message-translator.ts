@@ -141,16 +141,8 @@ export class MessageTranslatorState {
 	 */
 	private readonly minter: MessageIdMinter
 
-	constructor(
-		minter: MessageIdMinter = new MessageIdMinter(),
-		private readonly getActiveProviderId?: () => string | undefined,
-	) {
+	constructor(minter: MessageIdMinter = new MessageIdMinter()) {
 		this.minter = minter
-	}
-
-	/** Provider backing the active turn, if the host can supply it. */
-	activeProviderId(): string | undefined {
-		return this.getActiveProviderId?.()
 	}
 
 	/** The shared minter, exposed so coordinators and history rendering mint from the same source. */
@@ -1574,7 +1566,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// Serialize the error message for the webview's ErrorRow to parse.
 			// Preserve structured Bedrock details such as AWS request IDs for the
 			// local error row and diagnostic output.
-			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId())
+			const errorPayload = reshapeErrorForWebview(event.error)
 
 			// Emit an api_req_started with streamingFailedMessage so the
 			// RequestStartRow renders the error via ErrorRow. This replaces

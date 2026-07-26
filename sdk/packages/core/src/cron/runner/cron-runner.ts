@@ -494,7 +494,6 @@ export class CronRunner {
 		spec: CronSpecRecord,
 	): Promise<ChatStartSessionRequest> {
 		const workspaceRoot = (spec.workspaceRoot ?? "").trim();
-		const provider = (spec.providerId ?? "").trim();
 		const model = (spec.modelId ?? "").trim();
 		const runtimeOptions =
 			spec.metadata?.__hubRuntimeOptions &&
@@ -518,7 +517,7 @@ export class CronRunner {
 		return {
 			workspaceRoot,
 			cwd,
-			provider,
+			provider: "bedrock",
 			model,
 			mode,
 			source: spec.source?.trim() || "user",

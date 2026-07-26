@@ -1,6 +1,6 @@
 import path from "node:path"
-import { ProviderSettingsManager } from "@cline/core"
-import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import { BedrockSettingsStore } from "@cline/core"
+import type { ApiConfiguration } from "@shared/api"
 import { BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
@@ -34,10 +34,10 @@ async function migrateBedrockInferenceState(storage: StorageContext): Promise<vo
 		return
 	}
 
-	const providerSettings = new ProviderSettingsManager({
+	const providerSettings = new BedrockSettingsStore({
 		filePath: path.join(storage.dataDir, "settings", "providers.json"),
 		dataDir: storage.dataDir,
-	}).getProviderSettings("bedrock")
+	}).getSettings()
 	const planWasBedrock = storage.globalState.get<string>("planModeApiProvider") === "bedrock"
 	const actWasBedrock = storage.globalState.get<string>("actModeApiProvider") === "bedrock"
 	const currentKeys = new Set<string>(GlobalStateAndSettingKeys)
@@ -56,8 +56,6 @@ async function migrateBedrockInferenceState(storage: StorageContext): Promise<vo
 		awsBedrockEndpoint: storage.globalState.get<string>("awsBedrockEndpoint") || providerSettings?.connection.endpoint,
 		awsBedrockCaBundlePath:
 			storage.globalState.get<string>("awsBedrockCaBundlePath") || providerSettings?.connection.caBundlePath,
-		planModeApiProvider: "bedrock",
-		actModeApiProvider: "bedrock",
 		planModeApiModelId: planWasBedrock
 			? storage.globalState.get<string>("planModeApiModelId") || BEDROCK_DEFAULT_MODEL_ID
 			: BEDROCK_DEFAULT_MODEL_ID,
@@ -115,35 +113,6 @@ export class StateManager {
 	 */
 	private storage: StorageContext
 	private isInitialized = false
-
-	// Cache TTL: 1 hour - long enough to prevent duplicate fetches, short enough to see new models
-	private readonly MODEL_CACHE_TTL_MS = 60 * 60 * 1000
-
-	// In-memory model info cache (not persisted to disk)
-	// These are for dynamic providers that fetch models from APIs
-	private modelInfoCache: {
-		openRouterModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		groqModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		basetenModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		huggingFaceModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		requestyModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		huaweiCloudMaasModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		hicapModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		aihubmixModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		liteLlmModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-		vercelModels: { data: Record<string, ModelInfo>; timestamp: number } | null
-	} = {
-		openRouterModels: null,
-		groqModels: null,
-		basetenModels: null,
-		huggingFaceModels: null,
-		requestyModels: null,
-		huaweiCloudMaasModels: null,
-		hicapModels: null,
-		aihubmixModels: null,
-		liteLlmModels: null,
-		vercelModels: null,
-	}
 
 	// Debounced persistence state
 	private pendingGlobalState = new Set<GlobalStateAndSettingsKey>()
@@ -426,88 +395,6 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		this.sessionOverrideCache[key] = value
-	}
-
-	/**
-	 * Set models cache for a specific provider (in-memory only, not persisted)
-	 */
-	setModelsCache(
-		provider:
-			| "openRouter"
-			| "groq"
-			| "baseten"
-			| "huggingFace"
-			| "requesty"
-			| "huaweiCloudMaas"
-			| "hicap"
-			| "aihubmix"
-			| "liteLlm"
-			| "vercel",
-		models: Record<string, ModelInfo>,
-	): void {
-		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		this.modelInfoCache[cacheKey] = { data: models, timestamp: Date.now() }
-	}
-
-	getModelsCache(
-		provider:
-			| "openRouter"
-			| "groq"
-			| "baseten"
-			| "huggingFace"
-			| "requesty"
-			| "huaweiCloudMaas"
-			| "hicap"
-			| "aihubmix"
-			| "liteLlm"
-			| "vercel",
-	): Record<string, ModelInfo> | null {
-		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		const cached = this.modelInfoCache[cacheKey]
-
-		if (!cached) {
-			return null
-		}
-
-		// Check if cache has expired
-		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
-			this.modelInfoCache[cacheKey] = null
-			return null
-		}
-
-		return cached.data
-	}
-
-	/**
-	 * Get model info by provider and model ID (from in-memory cache)
-	 */
-	getModelInfo(
-		provider:
-			| "openRouter"
-			| "groq"
-			| "baseten"
-			| "huggingFace"
-			| "requesty"
-			| "huaweiCloudMaas"
-			| "hicap"
-			| "aihubmix"
-			| "liteLlm",
-		modelId: string,
-	): ModelInfo | undefined {
-		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		const cached = this.modelInfoCache[cacheKey]
-
-		if (!cached) {
-			return undefined
-		}
-
-		// Check if cache has expired
-		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
-			this.modelInfoCache[cacheKey] = null
-			return undefined
-		}
-
-		return cached.data[modelId]
 	}
 
 	/**

@@ -21,11 +21,8 @@ import type { ProviderConfig } from "./provider-settings";
 export type CoreAgentMode = AgentMode;
 
 export interface CoreModelConfig {
-	providerId: string;
+	providerId: "bedrock";
 	modelId: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
 	providerConfig?: ProviderConfig;
 	knownModels?: Record<string, ModelInfo>;
 	/**
@@ -128,11 +125,8 @@ export interface CoreCompactionResult {
 }
 
 export interface CoreCompactionSummarizerConfig {
-	providerId: string;
+	providerId: "bedrock";
 	modelId: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
 	/**
 	 * Optional pre-resolved model metadata for the summarizer. Supplying either
 	 * this or `knownModels` lets agentic compaction budget summary input against

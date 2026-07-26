@@ -37,7 +37,6 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied — in that case the caller owns
 	 * runtime construction and is responsible for wiring its own fetch.
 	 */
-	fetch?: typeof fetch;
 	/**
 	 * Structured logger forwarded to the internally-constructed local runtime.
 	 * Ignored when `sessionHost` is supplied.

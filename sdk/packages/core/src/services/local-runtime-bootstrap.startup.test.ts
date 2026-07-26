@@ -37,8 +37,8 @@ describe("local Bedrock startup", () => {
 				},
 			},
 			sessionId: "bedrock-startup",
-			providerSettingsManager: {
-				getProviderSettings: vi.fn(() => ({
+			bedrockSettingsStore: {
+				getSettings: vi.fn(() => ({
 					provider: "bedrock",
 					connection: { region: "us-east-1", profile: "developer" },
 				})),

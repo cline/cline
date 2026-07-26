@@ -6,7 +6,6 @@ import type {
 } from "@cline/shared";
 import type {
 	HubScheduleRuntimeHandlers,
-	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
 import type { VerifySubmitExecutor } from "../../extensions/tools";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
@@ -54,19 +53,7 @@ function resolveMode(
 	return request.mode === "plan" ? "plan" : "act";
 }
 
-export interface CreateLocalHubScheduleRuntimeHandlersOptions
-	extends Pick<HubScheduleServiceOptions, "logger"> {
-	/**
-	 * Custom `fetch` implementation forwarded to the scheduler's internal
-	 * `LocalRuntimeHost`. Used by the AI gateway providers for every
-	 * scheduled session executed inside this hub process.
-	 */
-	fetch?: typeof fetch;
-}
-
-export function createLocalHubScheduleRuntimeHandlers(
-	options: CreateLocalHubScheduleRuntimeHandlersOptions = {},
-): HubScheduleRuntimeHandlers {
+export function createLocalHubScheduleRuntimeHandlers(): HubScheduleRuntimeHandlers {
 	const submitScheduledRun: VerifySubmitExecutor = async (summary) => summary;
 	const sessionHost = new LocalRuntimeHost({
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
@@ -74,8 +61,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 			toolExecutors: {
 				submit: submitScheduledRun,
 			},
-		},
-		fetch: options.fetch
+		}
 	});
 
 	return {
@@ -87,7 +73,6 @@ export function createLocalHubScheduleRuntimeHandlers(
 				config: {
 					providerId: normalizeProviderId(request.provider),
 					modelId: request.model,
-					apiKey: request.apiKey?.trim() || undefined,
 					cwd,
 					workspaceRoot: request.workspaceRoot,
 					systemPrompt: request.systemPrompt ?? "",

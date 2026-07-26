@@ -27,7 +27,7 @@ import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "../../services/session-data";
-import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import { BedrockSettingsStore } from "../../services/storage/bedrock-settings-store";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
@@ -187,14 +187,13 @@ export interface LocalRuntimeHostOptions {
 	createAgent?: (config: AgentConfig) => SessionRuntime;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
-	providerSettingsManager?: ProviderSettingsManager;
+	bedrockSettingsStore?: BedrockSettingsStore;
 	logger?: BasicLogger;
 	/**
 	 * Default custom `fetch` implementation threaded into every
 	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
-	fetch?: typeof fetch;
 }
 
 export class LocalRuntimeHost implements RuntimeHost {
@@ -206,9 +205,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly toolExecutors?: Partial<ToolExecutors>;
 	private readonly defaultCapabilities?: RuntimeCapabilities;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
-	private readonly providerSettingsManager: ProviderSettingsManager;
+	private readonly bedrockSettingsStore: BedrockSettingsStore;
 	private readonly defaultLogger?: BasicLogger;
-	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
@@ -235,10 +233,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		this.toolExecutors = this.defaultCapabilities?.toolExecutors;
 		this.defaultToolPolicies = options.toolPolicies;
-		this.providerSettingsManager =
-			options.providerSettingsManager ?? new ProviderSettingsManager();
+		this.bedrockSettingsStore =
+			options.bedrockSettingsStore ?? new BedrockSettingsStore();
 		this.defaultLogger = options.logger;
-		this.defaultFetch = options.fetch;
 
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
@@ -420,11 +417,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
-			providerSettingsManager: this.providerSettingsManager,
+			bedrockSettingsStore: this.bedrockSettingsStore,
 			defaultLogger: this.defaultLogger,
 			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
-			defaultFetch: this.defaultFetch,
 			onPluginEvent: (event) => {
 				if (event.name === "plugin_log") {
 					this.eventBridge.handlePluginLog(
@@ -1183,12 +1179,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<void> {
 		const updates = normalizeConnectionUpdate(rawUpdates);
 		const session = this.getSessionOrThrow(sessionId);
-		if (updates.providerId !== undefined)
-			session.config.providerId = updates.providerId;
 		if (updates.modelId !== undefined) session.config.modelId = updates.modelId;
-		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
-		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
-		if (updates.headers !== undefined) session.config.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			session.config.providerConfig = updates.providerConfig;
 		if (Object.hasOwn(updates, "reasoningEffort")) {
@@ -1206,13 +1197,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		const delegatedUpdates = {
-			...(updates.providerId !== undefined
-				? { providerId: updates.providerId }
-				: {}),
 			...(updates.modelId !== undefined ? { modelId: updates.modelId } : {}),
-			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
-			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
 			...(updates.providerConfig !== undefined
 				? { providerConfig: updates.providerConfig }
 				: {}),
@@ -1230,21 +1215,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 			delegatedUpdates.reasoningEffort = undefined;
 			delegatedUpdates.thinkingBudgetTokens = undefined;
 		}
-		const teammateUpdates = {
-			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
-			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
-		};
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
 			delegatedUpdates,
 		);
 		session.agent.updateConnection(updates);
-		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
 		// Keep the persisted manifest in sync so session history reflects the
 		// connection the session is now using, not the one it started with.
-		if (updates.providerId || updates.modelId) {
+		if (updates.modelId) {
 			await this.mutateSessionManifest(session, (manifest) => {
-				if (updates.providerId) manifest.provider = updates.providerId;
 				if (updates.modelId) manifest.model = updates.modelId;
 			});
 		}

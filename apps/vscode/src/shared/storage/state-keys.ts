@@ -1,4 +1,4 @@
-import { ApiProvider, BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION, DEFAULT_API_PROVIDER } from "@shared/api"
+import { BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
@@ -71,8 +71,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeApiModelId: { default: BEDROCK_DEFAULT_MODEL_ID as string },
 	actModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	actModeReasoningEffort: { default: undefined as string | undefined },
-	planModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
-	actModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
 } satisfies FieldDefinitions
 
 const USER_SETTINGS_FIELDS = {

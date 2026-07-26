@@ -114,7 +114,6 @@ export interface ExtensionState {
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	showFeatureTips?: boolean
-	openAiCodexIsAuthenticated?: boolean
 }
 
 /**

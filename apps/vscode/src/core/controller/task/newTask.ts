@@ -2,7 +2,6 @@ import { String } from "@shared/proto/cline/common"
 import { PlanActMode } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@shared/storage/state-keys"
-import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
 import { normalizeOpenaiReasoningEffort } from "../state/reasoningEffort"
@@ -42,12 +41,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 			}),
 			...(request.taskSettings?.customPrompt === "compact" && {
 				customPrompt: "compact",
-			}),
-			...(request.taskSettings?.planModeApiProvider !== undefined && {
-				planModeApiProvider: convertProtoToApiProvider(request.taskSettings.planModeApiProvider),
-			}),
-			...(request.taskSettings?.actModeApiProvider !== undefined && {
-				actModeApiProvider: convertProtoToApiProvider(request.taskSettings.actModeApiProvider),
 			}),
 		}).filter(([_, value]) => value !== undefined),
 	)

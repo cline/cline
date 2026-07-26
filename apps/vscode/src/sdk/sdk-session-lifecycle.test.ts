@@ -48,13 +48,13 @@ describe("SdkSessionLifecycle", () => {
 
 		await lifecycle.startNewSession({
 			config: {
-				providerId: "anthropic",
+				providerId: "bedrock",
 				modelId: "claude-sonnet-4",
 			},
 		} as StartInput)
 
 		expect(lifecycle.getActiveSession()?.startConfig).toEqual({
-			providerId: "anthropic",
+			providerId: "bedrock",
 			modelId: "claude-sonnet-4",
 		})
 	})
@@ -497,7 +497,7 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({
 			config: {
 				sessionId: "source-session",
-				providerId: "openai",
+				providerId: "bedrock",
 				modelId: "gpt-5",
 			},
 		} as StartInput)

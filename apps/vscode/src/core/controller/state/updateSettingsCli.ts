@@ -1,6 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import type { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."
@@ -27,8 +26,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			actModeReasoningEffort,
 			mode,
 			customPrompt,
-			planModeApiProvider,
-			actModeApiProvider,
 			// Fields requiring special logic or merging
 			useAutoCondense,
 			worktreesEnabled,
@@ -62,16 +59,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 		if (customPrompt === "compact") {
 			controller.stateManager.setGlobalState("customPrompt", "compact")
-		}
-
-		if (planModeApiProvider !== undefined) {
-			const converted = convertProtoToApiProvider(planModeApiProvider)
-			controller.stateManager.setGlobalState("planModeApiProvider", converted)
-		}
-
-		if (actModeApiProvider !== undefined) {
-			const converted = convertProtoToApiProvider(actModeApiProvider)
-			controller.stateManager.setGlobalState("actModeApiProvider", converted)
 		}
 
 		if (controller.task) {

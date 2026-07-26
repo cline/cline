@@ -1137,7 +1137,7 @@ describe("translateSessionEvent — agent_event error", () => {
 	})
 
 	it("preserves the active provider when reshaping insufficient_credits errors", () => {
-		const state = new MessageTranslatorState(undefined, () => "zai")
+		const state = new MessageTranslatorState()
 		const errorJson = JSON.stringify({
 			code: "insufficient_credits",
 			current_balance: 0,
@@ -1157,7 +1157,7 @@ describe("translateSessionEvent — agent_event error", () => {
 		const result = translateSessionEvent(event, state)
 		const parsed = JSON.parse(result.messages[1].text!)
 		expect(parsed.code).toBe("insufficient_credits")
-		expect(parsed.providerId).toBe("zai")
+		expect(parsed.providerId).toBe("bedrock")
 		expect(parsed.details.current_balance).toBe(0)
 	})
 
@@ -1271,7 +1271,7 @@ describe("translateSessionEvent — agent_event error", () => {
 	})
 
 	it("preserves ClinePass period limit errors for specialized webview rendering", () => {
-		const state = new MessageTranslatorState(undefined, () => "cline-pass")
+		const state = new MessageTranslatorState()
 		const message = "You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later."
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -1290,7 +1290,7 @@ describe("translateSessionEvent — agent_event error", () => {
 	})
 
 	it("rewrites Anthropic bare 'model: <id>' 404 into an actionable message", () => {
-		const state = new MessageTranslatorState(undefined, () => "anthropic")
+		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
 			payload: {

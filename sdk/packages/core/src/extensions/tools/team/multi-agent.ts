@@ -920,17 +920,6 @@ export class AgentTeamsRuntime {
 		this.emitEvent({ type: TeamMessageType.TeammateShutdown, agentId, reason });
 	}
 
-	updateTeammateConnections(
-		overrides: Partial<Pick<AgentConfig, "apiKey" | "baseUrl" | "headers">>,
-	): void {
-		for (const member of this.members.values()) {
-			if (member.role !== "teammate" || !member.agent) {
-				continue;
-			}
-			member.agent.updateConnection(overrides);
-		}
-	}
-
 	createTask(input: CreateTeamTaskInput): TeamTask {
 		const taskId = `task_${String(++this.taskCounter).padStart(4, "0")}`;
 		const now = new Date();

@@ -671,24 +671,10 @@ export interface AgentConfig {
 	// Provider Settings
 	// -------------------------------------------------------------------------
 
-	/** Provider ID (e.g., "anthropic", "openai", "gemini") */
-	providerId: string;
+	/** Bedrock is the only inference provider. */
+	providerId: "bedrock";
 	/** Model ID to use */
 	modelId: string;
-	/** API key for the provider */
-	apiKey?: string;
-	/** Custom base URL for the API */
-	baseUrl?: string;
-	/** Additional headers for API requests */
-	headers?: Record<string, string>;
-	/**
-	 * Called when a run fails with an auth-like provider error (e.g. an OAuth
-	 * access token that expired mid-run). Hosts refresh credentials and push
-	 * the new key into the runtime via `updateConnection`; returning `true`
-	 * makes the runtime retry the failed run once with the refreshed
-	 * connection.
-	 */
-	onAuthError?: () => Promise<boolean>;
 	/** Optional provider model catalog overrides */
 	knownModels?: Record<string, ModelInfo>;
 	/** Optional pre-resolved provider configuration (includes provider-specific fields like aws/gcp). */
@@ -884,11 +870,8 @@ export interface AgentConfig {
 export const AgentConfigSchema = z.object({
 	sessionId: z.string().optional(),
 	// Provider Settings
-	providerId: z.string(),
+	providerId: z.literal("bedrock"),
 	modelId: z.string(),
-	apiKey: z.string().optional(),
-	baseUrl: z.string().url().optional(),
-	headers: z.record(z.string(), z.string()).optional(),
 	knownModels: z.record(z.string(), ModelInfoSchema).optional(),
 	providerConfig: z.unknown().optional(),
 	initialMessages: z.array(z.custom<Message>()).optional(),

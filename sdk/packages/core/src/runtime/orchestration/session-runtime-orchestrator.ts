@@ -39,7 +39,6 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	getToolApprovalDecision,
-	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
 	type Message,
@@ -473,15 +472,11 @@ export class SessionRuntime {
 		this.config = { ...this.config, tools: merged };
 	}
 
-	/** Mutate provider / reasoning fields for subsequent runs. */
+	/** Mutate model / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
 		const updates = normalizeConnectionUpdate(overrides);
 		const next: AgentConfig = { ...this.config };
-		if (updates.providerId !== undefined) next.providerId = updates.providerId;
 		if (updates.modelId !== undefined) next.modelId = updates.modelId;
-		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
-		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
-		if (updates.headers !== undefined) next.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			next.providerConfig = updates.providerConfig;
 		if (Object.hasOwn(updates, "reasoningEffort")) {
@@ -670,41 +665,13 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunWithAuthRetry(input).finally(() => {
+		activePromise = this.executeRunInternal(input).finally(() => {
 			if (this.activeRunPromise === activePromise) {
 				this.activeRunPromise = null;
 			}
 		});
 		this.activeRunPromise = activePromise;
 		return activePromise;
-	}
-
-	/**
-	 * Retry a run once when it failed with an auth-like error and the host
-	 * refreshed credentials via `config.onAuthError`. The failed attempt's
-	 * trail is already persisted to the conversation store, so the retry
-	 * continues from where the stream died instead of replaying the run.
-	 */
-	private async executeRunWithAuthRetry(input: {
-		userMessage?: string;
-		userImages?: string[];
-		userFiles?: string[];
-		isContinue: boolean;
-	}): Promise<AgentResult> {
-		const result = await this.executeRunInternal(input);
-		if (
-			result.finishReason !== "error" ||
-			!this.config.onAuthError ||
-			!isLikelyAuthError(result.text)
-		) {
-			return result;
-		}
-		const refreshed = await this.config.onAuthError().catch(() => false);
-		if (!refreshed) {
-			return result;
-		}
-		const retryResult = await this.executeRunInternal({ isContinue: true });
-		return retryResult;
 	}
 
 	private async executeRunInternal(input: {

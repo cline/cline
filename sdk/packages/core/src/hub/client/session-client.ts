@@ -310,7 +310,6 @@ export class HubSessionClient {
 			sessionConfig: {
 				providerId: request.provider,
 				modelId: request.model,
-				apiKey: request.apiKey,
 				cwd: request.cwd ?? request.workspaceRoot,
 				workspaceRoot: request.workspaceRoot,
 				systemPrompt: request.systemPrompt ?? "",
@@ -349,7 +348,6 @@ export class HubSessionClient {
 			modelSelection: {
 				provider: request.provider,
 				model: request.model,
-				apiKey: request.apiKey,
 			},
 			toolPolicies: request.toolPolicies,
 		});
@@ -474,7 +472,6 @@ export class HubSessionClient {
 							sessionConfig: {
 								providerId: request.provider,
 								modelId: request.model,
-								apiKey: request.apiKey,
 								cwd: request.cwd ?? request.workspaceRoot,
 								workspaceRoot: request.workspaceRoot,
 								systemPrompt: request.systemPrompt ?? "",
@@ -510,7 +507,6 @@ export class HubSessionClient {
 							modelSelection: {
 								provider: request.provider,
 								model: request.model,
-								apiKey: request.apiKey,
 							},
 							toolPolicies: request.toolPolicies,
 						}

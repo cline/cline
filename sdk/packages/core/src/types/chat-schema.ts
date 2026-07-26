@@ -3,10 +3,9 @@ import { z } from "zod";
 export const ChatSessionConfigSchema = z.object({
 	workspaceRoot: z.string().min(1),
 	cwd: z.string().optional(),
-	provider: z.string().min(1),
+	provider: z.literal("bedrock"),
 	model: z.string().min(1),
 	mode: z.enum(["act", "plan"]).default("act"),
-	apiKey: z.string(),
 	systemPrompt: z.string().optional(),
 	rules: z.string().optional(),
 	maxIterations: z.number().int().positive().optional(),

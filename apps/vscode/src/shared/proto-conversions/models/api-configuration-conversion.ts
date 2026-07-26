@@ -1,9 +1,5 @@
 import { ModelsApiConfiguration as ProtoApiConfiguration } from "@shared/proto/cline/models"
-import { type ApiConfiguration, type ApiProvider, BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION } from "../../api"
-
-export function convertProtoToApiProvider(_provider: string | undefined): ApiProvider {
-	return "bedrock"
-}
+import { type ApiConfiguration, BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION } from "../../api"
 
 export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoApiConfiguration {
 	return ProtoApiConfiguration.create({
@@ -12,11 +8,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		awsProfile: config.awsProfile,
 		awsBedrockEndpoint: config.awsBedrockEndpoint,
 		awsBedrockCaBundlePath: config.awsBedrockCaBundlePath,
-		planModeApiProvider: "bedrock",
 		planModeApiModelId: config.planModeApiModelId,
 		planModeThinkingBudgetTokens: config.planModeThinkingBudgetTokens,
 		planModeReasoningEffort: config.planModeReasoningEffort,
-		actModeApiProvider: "bedrock",
 		actModeApiModelId: config.actModeApiModelId,
 		actModeThinkingBudgetTokens: config.actModeThinkingBudgetTokens,
 		actModeReasoningEffort: config.actModeReasoningEffort,
@@ -30,11 +24,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		awsProfile: protoConfig.awsProfile,
 		awsBedrockEndpoint: protoConfig.awsBedrockEndpoint,
 		awsBedrockCaBundlePath: protoConfig.awsBedrockCaBundlePath,
-		planModeApiProvider: "bedrock",
 		planModeApiModelId: protoConfig.planModeApiModelId ?? BEDROCK_DEFAULT_MODEL_ID,
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens,
 		planModeReasoningEffort: protoConfig.planModeReasoningEffort,
-		actModeApiProvider: "bedrock",
 		actModeApiModelId: protoConfig.actModeApiModelId ?? BEDROCK_DEFAULT_MODEL_ID,
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens,
 		actModeReasoningEffort: protoConfig.actModeReasoningEffort,

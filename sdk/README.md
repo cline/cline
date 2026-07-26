@@ -1,252 +1,54 @@
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/a05da977-2cb7-498a-88ca-20f24c9562e1" width="100%" />
-</p>
+# Cline SDK
 
-<div align="center">
-<table>
-<tbody>
-<td align="center">
-<a href="https://discord.gg/cline" target="_blank"><strong>Discord</strong></a>
-</td>
-<td align="center">
-<a href="https://www.reddit.com/r/cline/" target="_blank"><strong>r/cline</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
-</td>
-</tbody>
-</table>
-</div>
+The Cline SDK is the Bedrock-backed TypeScript runtime used by the retained
+VS Code extension. It provides an agent loop, tools, persistent sessions,
+plugins, automations, and local or hub-backed execution.
 
-The Cline SDK is a TypeScript framework for building AI agents that can edit files, run shell commands, browse the web, call APIs, and use any custom tool you give them. It's the same engine that powers [Cline](https://github.com/cline/cline), packaged as a library you can embed in your own applications.
+## Runtime
 
-```typescript
-import { Agent } from "@cline/core"
+The inference path is intentionally AWS Bedrock only. Standalone agents accept
+a Bedrock model ID and connection settings:
+
+```ts
+import { Agent } from "@cline/agents";
 
 const agent = new Agent({
-  providerId: "cline",
-  modelId: "openai/gpt-5.5",
-  systemPrompt: "You are a helpful coding assistant.",
-  tools: [],
-})
+	providerId: "bedrock",
+	modelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+	connection: {
+		region: "us-east-1",
+		profile: "default",
+	},
+	systemPrompt: "You are a helpful coding assistant.",
+	tools: [],
+});
 
-const result = await agent.run("Create a REST API with Express and TypeScript")
-console.log(result.text)
+const result = await agent.run("Summarize this project.");
+console.log(result.text);
 ```
 
-That's it. The agent streams its response, calls tools if you give it any, and returns when the task is done.
+Credentials are resolved by the AWS SDK credential chain. They are not stored
+in the generic agent or RPC contracts.
 
-## Install
+## Packages
 
-```bash
-npm install @cline/core
-```
+| Package | Responsibility |
+| --- | --- |
+| `@cline/shared` | Shared runtime, tool, hook, and transport contracts |
+| `@cline/llms` | Bedrock model construction and streaming |
+| `@cline/agents` | Stateless agent loop and tool execution |
+| `@cline/core` | Stateful sessions, storage, plugins, automation, and hub services |
 
-## SDK Skill
+SDK packages resolve workspace dependencies through compiled `dist/` exports.
+After changing SDK source, build the complete SDK before running extension or
+SDK tests:
 
-If you use a coding agent (Claude Code, Codex, Cline, etc.), install the [Cline SDK skill](https://github.com/cline/sdk-skill) to give your agent context on the SDK's APIs and best practices to help you build with the Cline SDK.
-
-```bash
-npx skills add cline/sdk-skill
-```
-
-Prompt it to scaffold agents, create custom tools, wire up plugins, configure providers, and more.
-
-## What You Can Build
-
-Coding agents, Slack bots, scheduled automations, code review pipelines, multi-agent teams, IDE integrations -- anything that benefits from an LLM that can take actions, not just generate text.
-
-```typescript
-// Slack bot: each thread gets its own agent with conversation memory
-const agents = new Map<string, Agent>()
-
-async function handleMessage(threadId: string, message: string) {
-  let agent = agents.get(threadId)
-  if (!agent) {
-    agent = new Agent({
-      providerId: "gemini",
-      modelId: "gemini-3.1-pro-preview",
-      systemPrompt: "You are a concise Slack assistant.",
-      tools: [],
-    })
-    agents.set(threadId, agent)
-  }
-
-  const result = agent.hasRun
-    ? await agent.continue(message)
-    : await agent.run(message)
-
-  return result.text
-}
+```sh
+bun run build:sdk
 ```
 
 The retained host implementation is the VS Code extension in
 [`apps/vscode`](../apps/vscode).
-
-## Custom Tools
-
-Tools are how agents interact with the world. Define a tool with a name, a description the model reads, a JSON Schema for inputs, and a function that does the work:
-
-```typescript
-import { createTool } from "@cline/core"
-
-const deploy = createTool({
-  name: "deploy",
-  description: "Deploy the app to staging or production.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      environment: { type: "string", enum: ["staging", "production"] },
-    },
-    required: ["environment"],
-  },
-  execute: async (input) => {
-    const result = await runDeployment(input.environment)
-    return { url: result.url, status: "success" }
-  },
-})
-
-const agent = new Agent({
-  providerId: "moonshot",
-  modelId: "kimi-k2.5",
-  systemPrompt: "You are a deployment assistant.",
-  tools: [deploy],
-})
-```
-
-The agent decides when to call the tool based on the description. It sees the result and incorporates it into its response.
-
-## Streaming Events
-
-Every event during execution is observable in real time:
-
-```typescript
-const agent = new Agent({
-  providerId: "anthropic",
-  modelId: "claude-opus-4-7",
-  systemPrompt: "You are a helpful assistant.",
-  tools: [myTool],
-  onEvent: (event) => {
-    switch (event.type) {
-      case "content_update":
-        if (event.contentType === "text") process.stdout.write(event.text)
-        break
-      case "content_start":
-        if (event.contentType === "tool") console.log(`\n[${event.toolName}]`)
-        break
-      case "usage":
-        console.log(`\ntokens: ${event.inputTokens} in, ${event.outputTokens} out`)
-        break
-    }
-  },
-})
-```
-
-## Plugins
-
-Package reusable capabilities as extensions. An extension can register tools, observe lifecycle events, and modify agent behavior:
-
-```typescript
-const metrics: AgentPlugin = {
-  name: "metrics",
-  manifest: { capabilities: ["tools", "hooks"] },
-
-  setup(api) {
-    api.registerTool(myCustomTool)
-  },
-
-  hooks: {
-    beforeRun() {
-      console.time("agent")
-    },
-
-    beforeTool({ toolCall }) {
-      console.log(`tool: ${toolCall.toolName}`)
-    },
-
-    afterRun({ result }) {
-      console.timeEnd("agent")
-      console.log(`${result.iterations} iterations, ${result.usage.outputTokens} tokens`)
-    },
-  },
-}
-```
-
-## ClineCore: Full Runtime
-
-When you need session persistence, built-in tools, config discovery, and multi-process support, use `ClineCore`:
-
-```typescript
-import { ClineCore } from "@cline/core"
-
-const cline = await ClineCore.create({ clientName: "my-app" })
-
-const session = await cline.start({
-  prompt: "Set up CI with GitHub Actions",
-  config: {
-    providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    cwd: "/path/to/project",
-    enableTools: true,
-  },
-})
-
-console.log(session.result?.text)
-```
-
-If both `cwd` and `workspaceRoot` are omitted, the execution host places the
-session in the shared chat workspace at
-`<cline-data-dir>/workspaces/chat` (by default
-`~/.cline/data/workspaces/chat`), seeded with an `AGENTS.md` rules file that
-tells the agent to treat the session as a chat and only create a named
-project folder when the user asks for one.
-The paths in `session.manifest` are the authoritative resolved workspace paths.
-
-`ClineCore` gives the agent built-in tools (`bash`, `editor`, `read_files`, `apply_patch`, `search`, `fetch_web`), persists sessions to SQLite, discovers config from `.cline/` directories, and optionally connects to an RPC sidecar for scheduled agents and cross-process session management.
-
-## Packages
-
-The SDK is a layered stack. Use as much or as little as you need:
-
-| Package | What it does |
-|---------|-------------|
-| `@cline/core` | Sessions, persistence, built-in tools, config discovery, RPC |
-| `@cline/agents` | Stateless agent loop with tool execution and streaming |
-| `@cline/llms` | LLM provider gateway (Anthropic, OpenAI, Google, Bedrock, Mistral, and more) |
-| `@cline/shared` | Types, tool creation helpers, hook engine |
-
-`@cline/core` re-exports the public agent, provider, and shared contracts needed
-by stateful hosts. The lower-level packages remain available when a consumer
-wants a smaller dependency footprint.
-
-## Providers
-
-Works with every major LLM provider out of the box:
-
-| Provider | Models |
-|----------|--------|
-| Anthropic | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 |
-| OpenAI | GPT-5.5, GPT-5.3 Codex |
-| Google | Gemini 3.1 Pro Preview, Gemini 3 Flash Preview |
-| AWS Bedrock | Claude, Llama |
-| Mistral | Mistral Large, Codestral |
-| Any OpenAI-compatible | vLLM, Together, Fireworks, Groq, etc. |
-
-## Documentation
-
-Full documentation at [docs.cline.bot/sdk](https://docs.cline.bot/sdk/overview):
-
-- [Quickstart](https://docs.cline.bot/sdk/quickstart) -- zero to running agent in 5 minutes
-- [Core Concepts](https://docs.cline.bot/sdk/agents) -- agents, sessions, tools, events, extensions, hooks
-- [Guides](https://docs.cline.bot/sdk/guides/building-an-agent) -- end-to-end tutorials for common patterns
-- [Architecture](https://docs.cline.bot/sdk/architecture/overview) -- how the SDK is structured and why
-- [API Reference](https://docs.cline.bot/sdk/reference/cline-core) -- every method, type, and config option
-
-
-## Contributing
-
-To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the `#contributors` channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
 
 ## License
 

@@ -88,9 +88,6 @@ export async function readGlobalStateFromStorage(store: ClineMemento): Promise<G
  * Handle properties that require computed logic
  */
 async function handleComputedProperties(result: any, stateValues: Map<string, any>): Promise<void> {
-	result.planModeApiProvider = "bedrock"
-	result.actModeApiProvider = "bedrock"
-
 	// 2. Plan/Act separate models setting with special logic
 	const planActSeparateModelsSettingRaw = stateValues.get("planActSeparateModelsSetting")
 	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {

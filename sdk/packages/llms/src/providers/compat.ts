@@ -1,11 +1,19 @@
 import type {
+	AgentMessage,
 	AgentModel,
 	AgentModelEvent,
+	AgentModelRequest,
 	GatewayModelDefinition,
+	GatewayProviderContext,
+	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { estimateRequestInputTokens } from "@cline/shared";
 import { nanoid } from "nanoid";
-import { createGateway } from "./gateway";
+import { BEDROCK_DEFAULT_MODEL_ID } from "../catalog/bedrock";
+import { createBedrockProvider } from "./ai-sdk";
+import { toAsyncIterable } from "./async";
+import { isPositiveFiniteNumber } from "./utils";
 import type {
 	ApiHandler,
 	ApiStream,
@@ -153,29 +161,161 @@ function toGatewayModelDefinition(
 	};
 }
 
+const DEFAULT_BEDROCK_MAX_OUTPUT_TOKENS = 32_000;
+const BEDROCK_OUTPUT_RESERVE_TOKENS = 1_024;
+
+function resolveBedrockRequestMaxTokens(input: {
+	requestedMaxTokens?: number;
+	model: Pick<GatewayModelDefinition, "contextWindow" | "maxOutputTokens">;
+	estimatedInputTokens: number;
+	reasoningBudgetTokens?: number;
+}): number | undefined {
+	const caps: number[] = [];
+	if (isPositiveFiniteNumber(input.requestedMaxTokens)) {
+		caps.push(Math.floor(input.requestedMaxTokens));
+	} else {
+		const reasoningFloor = isPositiveFiniteNumber(input.reasoningBudgetTokens)
+			? Math.floor(input.reasoningBudgetTokens) +
+				BEDROCK_OUTPUT_RESERVE_TOKENS
+			: 0;
+		if (
+			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
+			isPositiveFiniteNumber(input.model.contextWindow)
+		) {
+			caps.push(
+				Math.max(DEFAULT_BEDROCK_MAX_OUTPUT_TOKENS, reasoningFloor),
+			);
+		}
+	}
+	if (isPositiveFiniteNumber(input.model.maxOutputTokens)) {
+		caps.push(Math.floor(input.model.maxOutputTokens));
+	}
+	if (isPositiveFiniteNumber(input.model.contextWindow)) {
+		const remainingContext =
+			input.model.contextWindow -
+			input.estimatedInputTokens -
+			BEDROCK_OUTPUT_RESERVE_TOKENS;
+		if (remainingContext <= 0) return undefined;
+		caps.push(Math.floor(remainingContext));
+	}
+	return caps.length === 0
+		? undefined
+		: Math.max(1, Math.floor(Math.min(...caps)));
+}
+
+function toBedrockRequest(
+	config: ProviderConfig,
+	request: AgentModelRequest,
+): GatewayStreamRequest {
+	const requestedReasoning = request.options?.reasoning as
+		| {
+				enabled?: boolean;
+				effort?: "low" | "medium" | "high";
+				budgetTokens?: number;
+		  }
+		| undefined;
+	const legacyEffort =
+		request.options?.reasoningEffort === "low" ||
+		request.options?.reasoningEffort === "medium" ||
+		request.options?.reasoningEffort === "high"
+			? request.options.reasoningEffort
+			: undefined;
+	const legacyReasoning:
+		| {
+				enabled?: boolean;
+				effort?: "low" | "medium" | "high";
+				budgetTokens?: number;
+		  }
+		| undefined =
+		typeof request.options?.thinking === "boolean" ||
+		legacyEffort !== undefined ||
+		typeof request.options?.thinkingBudgetTokens === "number"
+			? {
+					enabled:
+						typeof request.options?.thinking === "boolean"
+							? request.options.thinking
+							: undefined,
+					effort: legacyEffort,
+					budgetTokens:
+						typeof request.options?.thinkingBudgetTokens === "number"
+							? request.options.thinkingBudgetTokens
+							: undefined,
+				}
+			: undefined;
+	return {
+		providerId: "bedrock",
+		modelId: config.modelId,
+		systemPrompt: request.systemPrompt,
+		messages: request.messages as readonly AgentMessage[],
+		tools: request.tools,
+		temperature:
+			(request.options?.temperature as number | undefined) ??
+			config.temperature,
+		maxTokens:
+			(request.options?.maxTokens as number | undefined) ??
+			config.maxOutputTokens,
+		reasoning: requestedReasoning ?? legacyReasoning,
+		metadata: request.options?.metadata as
+			| Record<string, unknown>
+			| undefined,
+		signal: request.signal,
+	};
+}
+
 function createModel(config: ProviderConfig): AgentModel {
-	const modelIds = new Set([
-		config.modelId,
-		...Object.keys(config.knownModels ?? {}),
-	]);
-	return createGateway({
-		providerConfigs: [{
-			providerId: "bedrock",
-			defaultModelId: config.modelId,
-			models: [...modelIds].map((id) => toGatewayModelDefinition(id, config)),
-			options: {
-				connection: config.connection,
-				workspaceRoot: config.workspaceRoot,
-			},
-		}],
-		logger: config.logger ?? config.extensionContext?.logger,
-	}).createAgentModel(
-		{ providerId: "bedrock", modelId: config.modelId },
-		{
-			maxTokens: config.maxOutputTokens,
-			temperature: config.temperature,
+	const model = {
+		...toGatewayModelDefinition(config.modelId, config),
+		providerId: "bedrock",
+	};
+	const provider = {
+		id: "bedrock",
+		name: "AWS Bedrock",
+		description: "Amazon Bedrock managed foundation models",
+		defaultModelId: config.modelId || BEDROCK_DEFAULT_MODEL_ID,
+		models: [model],
+		capabilities: ["tools", "reasoning", "prompt-cache", "streaming"] as const,
+		env: ["node"] as const,
+	};
+	const providerConfig: GatewayResolvedProviderConfig = {
+		providerId: "bedrock",
+		options: {
+			connection: config.connection,
+			workspaceRoot: config.workspaceRoot,
 		},
-	);
+	};
+	const context: GatewayProviderContext = {
+		provider,
+		model,
+		config: providerConfig,
+		logger: config.logger ?? config.extensionContext?.logger,
+	};
+	return {
+		async stream(request: AgentModelRequest) {
+			const bedrockRequest = toBedrockRequest(config, request);
+			const maxTokens = resolveBedrockRequestMaxTokens({
+				requestedMaxTokens: bedrockRequest.maxTokens,
+				model,
+				estimatedInputTokens: estimateRequestInputTokens(bedrockRequest),
+				reasoningBudgetTokens: bedrockRequest.reasoning?.budgetTokens,
+			});
+			const bedrock = await createBedrockProvider(providerConfig);
+			return toAsyncIterable(
+				await bedrock.stream(
+					{
+						...bedrockRequest,
+						maxTokens,
+						defaultedMaxTokens:
+							maxTokens !== undefined &&
+							!isPositiveFiniteNumber(bedrockRequest.maxTokens),
+					},
+					{
+						...context,
+						signal: request.signal,
+					},
+				),
+			);
+		},
+	};
 }
 
 function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {

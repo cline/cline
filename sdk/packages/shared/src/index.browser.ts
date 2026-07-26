@@ -159,8 +159,6 @@ export type {
 	ToolUseContent,
 } from "./llms/messages";
 export {
-	ApiFormat,
-	ApiFormatSchema,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -250,7 +248,6 @@ export {
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
 export type {
-	AddProviderActionRequest,
 	ChatAttachmentFile,
 	ChatAttachments,
 	ChatRunTurnRequest,
@@ -260,28 +257,7 @@ export type {
 	ChatStartSessionResponse,
 	ChatToolCallResult,
 	ChatTurnResult,
-	GetProviderModelsActionRequest,
-	ListProvidersActionRequest,
-	ProviderActionRequest,
-	ProviderCapability,
-	ProviderCatalogResponse,
-	ProviderClient,
-	ProviderConfigField,
-	ProviderConfigFieldOption,
-	ProviderConfigFieldPrimitive,
-	ProviderConfigFieldType,
-	ProviderListItem,
-	ProviderModel,
-	ProviderModelsResponse,
-	ProviderProtocol,
-	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
-	SaveProviderSettingsActionRequest,
-} from "./rpc/runtime";
-export {
-	ProviderCapabilitySchema,
-	ProviderClientSchema,
-	ProviderProtocolSchema,
 } from "./rpc/runtime";
 export type {
 	TeamProgressCounts,

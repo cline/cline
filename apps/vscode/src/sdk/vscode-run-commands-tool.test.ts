@@ -29,15 +29,6 @@ vi.mock("@/core/storage/StateManager", () => ({
 	},
 }))
 
-// a HostProvider that unit tests don't set up.
-vi.mock("@services/telemetry", () => ({
-	TerminalUserInterventionAction: { PROCESS_WHILE_RUNNING: "process_while_running" },
-	telemetryService: {
-		captureTerminalUserIntervention: () => {},
-		captureTerminalExecution: () => {},
-	},
-}))
-
 const originalPlatform = process.platform
 const originalEnv = { ...process.env }
 const originalGetConfiguration = vscode.workspace.getConfiguration

@@ -1,6 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateTaskSettingsRequest } from "@shared/proto/cline/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."
 import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"
@@ -37,8 +36,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				actModeReasoningEffort,
 				mode,
 				customPrompt,
-				planModeApiProvider,
-				actModeApiProvider,
 				// Fields requiring special logic
 				browserSettings,
 				...simpleSettings
@@ -69,16 +66,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 
 			if (customPrompt === "compact") {
 				controller.stateManager.setTaskSettings(taskId, "customPrompt", "compact")
-			}
-
-			if (planModeApiProvider !== undefined) {
-				const converted = convertProtoToApiProvider(planModeApiProvider)
-				controller.stateManager.setTaskSettings(taskId, "planModeApiProvider", converted)
-			}
-
-			if (actModeApiProvider !== undefined) {
-				const converted = convertProtoToApiProvider(actModeApiProvider)
-				controller.stateManager.setTaskSettings(taskId, "actModeApiProvider", converted)
 			}
 
 			// Update browser settings (requires careful merging to avoid protobuf defaults)

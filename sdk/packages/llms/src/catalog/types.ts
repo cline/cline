@@ -1,8 +1,6 @@
 import type { ModelInfo, ProviderCapability } from "@cline/shared";
 
 export {
-	ApiFormat,
-	ApiFormatSchema,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,

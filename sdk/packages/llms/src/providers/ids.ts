@@ -1,6 +1,4 @@
-export enum BUILT_IN_PROVIDER {
-	BEDROCK = "bedrock",
-}
+export const BUILT_IN_PROVIDER = "bedrock" as const;
 
 export type BuiltInProviderId = "bedrock";
 export const BUILT_IN_PROVIDER_IDS = ["bedrock"] as const;

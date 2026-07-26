@@ -34,8 +34,6 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			}
 			;(next as Record<string, unknown>)[field] = (proto as unknown as Record<string, unknown>)[field]
 		}
-		next.planModeApiProvider = "bedrock"
-		next.actModeApiProvider = "bedrock"
 		controller.stateManager.setApiConfiguration(next)
 		if (controller.task) {
 			const mode = controller.stateManager.getGlobalSettingsKey("mode")

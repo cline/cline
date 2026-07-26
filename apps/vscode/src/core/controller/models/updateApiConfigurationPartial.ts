@@ -46,8 +46,6 @@ export async function updateApiConfigurationPartial(
 			const modelId = resolveActiveModelIdFromApiConfiguration(updatedConfig, currentMode)
 			controller.task.api = createTaskApiModelShim(modelId)
 		}
-		controller.handleApiConfigurationChanged(currentConfig, updatedConfig)
-
 		// Notify webview
 		await controller.postStateToWebview()
 

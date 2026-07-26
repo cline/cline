@@ -7,7 +7,6 @@
 export * as Llms from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
-	AddProviderActionRequest,
 	AgentConfig,
 	AgentEvent,
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
@@ -32,18 +31,11 @@ export type {
 	ConnectorHookEvent,
 	ContentBlock,
 	FileContent,
-	GetProviderModelsActionRequest,
 	HookSessionContext,
 	ImageContent,
-	ListProvidersActionRequest,
 	Message,
 	MessageWithMetadata,
-	ProviderActionRequest,
-	ProviderCatalogResponse,
-	ProviderListItem,
-	ProviderModel,
 	RuntimeLoggerConfig,
-	SaveProviderSettingsActionRequest,
 	SessionLineage,
 	TEAM_LIFECYCLE_EVENT_TYPE,
 	TEAM_PROGRESS_EVENT_TYPE,
@@ -419,7 +411,7 @@ export type {
 	PluginUninstallResult,
 } from "./services/plugin-uninstall";
 export { uninstallPlugin } from "./services/plugin-uninstall";
-export { ProviderSettingsManager } from "./services/storage/provider-settings-manager";
+export { BedrockSettingsStore } from "./services/storage/bedrock-settings-store";
 export { SqliteSessionStore } from "./services/storage/sqlite-session-store";
 export {
 	SqliteTeamStore,
@@ -578,14 +570,6 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
-export {
-	clearLiveModelsCatalogCache,
-	clearPrivateModelsCatalogCache,
-	DEFAULT_MODELS_CATALOG_URL,
-	getLiveModelsCatalog,
-	getProviderConfig,
-	resolveProviderConfig,
-} from "./services/llms/provider-defaults";
 export type {
 	BedrockConnectionSettings,
 	BuiltInProviderId,

@@ -10,7 +10,7 @@ This document is the architecture source of truth for the Cline SDK repository. 
 **What this covers:**
 - Package boundaries and responsibilities
 - Dependency direction and layering rules
-- Runtime flows (local, hub-backed, remote-config managed)
+- Runtime flows (local and hub-backed)
 - Design seams (repeated patterns instead of one-off integrations)
 - Architectural constraints and why they exist
 
@@ -52,7 +52,6 @@ Owns reusable low-level contracts and infrastructure:
 - extension registry contracts
 - prompt and parsing helpers
 - storage path helpers
-- remote-config schemas, managed instruction materialization, telemetry normalization, and blob upload primitives
 
 Design rule:
 
@@ -62,15 +61,13 @@ Design rule:
 
 Owns model/provider runtime concerns:
 
-- provider settings/config resolution
-- model catalogs and manifests
-- shared gateway-style provider contracts
-- handler creation via an internal gateway registry
-- AI SDK-backed provider execution code
+- Bedrock connection and model configuration
+- Bedrock model construction and streaming
+- AI SDK-backed Bedrock execution code
 
 Design rule:
 
-- provider-specific behavior should be isolated here, not spread across `core` or apps.
+- Bedrock-specific behavior should be isolated here, not spread across `core` or apps.
 
 ### `@cline/agents`
 
@@ -95,11 +92,10 @@ Owns stateful orchestration:
 - session lifecycle
 - storage and persistence
 - config watching/loading and watcher projections
-- settings listing and mutation orchestration
+- Bedrock settings persistence
 - default host tool assembly
 - plugin discovery/loading
 - default context compaction policy
-- telemetry integration
 - hub server and scheduled-runtime services under `src/hub/`
 - hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
 - host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
@@ -112,7 +108,8 @@ Design rules:
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
-- settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
+- Bedrock settings persistence belongs in core storage services, not in
+  host-specific provider registries.
 
 ## Runtime Flows
 
@@ -184,17 +181,6 @@ targets: reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
-
-### Remote-Config Managed Runtime
-
-1. A host or core wrapper fetches a normalized `RemoteConfigBundle`.
-2. `@cline/shared/remote-config` caches the bundle when configured.
-3. Shared remote-config materializes managed rules/workflows/skills under workspace-local `.cline/<plugin>/`.
-4. Shared remote-config derives generic OpenTelemetry config and session blob upload metadata from the bundle.
-5. `@cline/core` exposes the app-facing integration wrapper that applies extensions, telemetry, and session metadata to `StartSessionInput`.
-6. `@cline/core` consumes the prepared local overrides during local bootstrap.
-
-This keeps reusable remote-config behavior in `shared` while the session-specific bridge remains in `core`.
 
 ## Design Seams
 
@@ -364,23 +350,20 @@ Design implications:
 Do not move these concerns into `@cline/agents`:
 
 - session persistence
-- provider settings storage
+- Bedrock settings storage
 - RPC lifecycle
 - host-specific approvals
-- remote-config policy caching
+- host account or hosted-policy state
 
-### Keep `core` Generic
+### Keep `core` Host-Neutral
 
-Do not make `@cline/core` organization- or provider-specific.
-
-If a capability is truly generic and app-facing, add a generic core seam. Reusable remote-config parsing, materialization, and upload primitives belong in `@cline/shared/remote-config`.
+Keep host UI behavior out of `@cline/core`. Bedrock is the one inference
+backend; host-specific presentation and settings controls remain in the app.
 
 ### Use One-Way Optional Layers
 
 Optional higher-level integrations may depend on lower layers.
 Lower layers should not depend on optional feature packages.
-
-For remote config, that means shared owns the reusable bundle/materialization/blob primitives and core owns only the session-oriented wrapper exported to apps.
 
 ## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
 

@@ -10,13 +10,3 @@ export type {
 	ProviderInfo,
 	ProviderProtocol,
 } from "./catalog/types";
-export {
-	getAllProviders,
-	getModelsForProvider,
-	getProvider,
-	getProviderCollection,
-	getProviderCollectionSync,
-	getProviderIds,
-	hasProvider,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID,
-} from "./providers/model-registry";

@@ -1,4 +1,3 @@
-import { ApiFormat } from "./proto/cline/models"
 import type { ApiHandlerSettings } from "./storage/state-keys"
 
 /** AWS Bedrock is the extension's only inference provider. */
@@ -43,7 +42,6 @@ export interface ModelInfo {
 		cacheReadsPrice?: number
 	}[]
 	temperature?: number
-	apiFormat?: ApiFormat
 }
 
 export type BedrockModelId = string

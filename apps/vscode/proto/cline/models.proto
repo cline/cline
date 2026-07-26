@@ -27,13 +27,13 @@ message ModelsApiOptions {
   optional string aws_bedrock_ca_bundle_path = 45;
   reserved 2 to 6, 8 to 10, 13 to 44;
 
-  optional string plan_mode_api_provider = 100;
+  reserved 100; // was plan_mode_api_provider
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
   reserved 104 to 199;
 
-  optional string act_mode_api_provider = 200;
+  reserved 200; // was act_mode_api_provider
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
@@ -48,13 +48,13 @@ message ModelsApiConfiguration {
   optional string aws_bedrock_ca_bundle_path = 88;
   reserved 1, 2, 4 to 13, 15 to 17, 20 to 87;
 
-  optional string plan_mode_api_provider = 100;
+  reserved 100; // was plan_mode_api_provider
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
   reserved 104 to 199;
 
-  optional string act_mode_api_provider = 200;
+  reserved 200; // was act_mode_api_provider
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
@@ -81,14 +81,4 @@ message UpdateApiConfigurationPartialRequest {
   Metadata metadata = 1;
   ModelsApiConfiguration api_configuration = 2;
   google.protobuf.FieldMask update_mask = 3;
-}
-
-// Conversation history stores the wire format used for a model request.
-enum ApiFormat {
-  ANTHROPIC_CHAT = 0;
-  GEMINI_CHAT = 1;
-  OPENAI_CHAT = 2;
-  R1_CHAT = 3;
-  OPENAI_RESPONSES = 4;
-  OPENAI_RESPONSES_WEBSOCKET_MODE = 5;
 }

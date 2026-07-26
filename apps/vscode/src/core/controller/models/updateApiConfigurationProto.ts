@@ -18,7 +18,6 @@ export async function updateApiConfigurationProto(
 			const mode = controller.stateManager.getGlobalSettingsKey("mode")
 			controller.task.api = createTaskApiModelShim(resolveActiveModelIdFromApiConfiguration(next, mode))
 		}
-		controller.handleApiConfigurationChanged(previous, next)
 		await controller.postStateToWebview()
 		return Empty.create()
 	} catch (error) {

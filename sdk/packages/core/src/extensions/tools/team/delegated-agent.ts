@@ -20,10 +20,6 @@ export type DelegatedAgentConnectionConfig = Pick<
 	AgentConfig,
 	| "providerId"
 	| "modelId"
-	| "apiKey"
-	| "baseUrl"
-	| "headers"
-	| "onAuthError"
 	| "providerConfig"
 	| "knownModels"
 	| "thinking"
@@ -36,7 +32,7 @@ export type DelegatedAgentConnectionConfig = Pick<
 export interface DelegatedAgentRuntimeConfig
 	extends DelegatedAgentConnectionConfig {
 	cwd?: string;
-	providerId: string;
+	providerId: "bedrock";
 	clinePlatform?: string;
 	clineIdeName?: string;
 	maxIterations?: number;
@@ -84,10 +80,6 @@ export function createDelegatedAgentConfigProvider(
 		getConnectionConfig: () => ({
 			providerId: runtimeConfig.providerId,
 			modelId: runtimeConfig.modelId,
-			apiKey: runtimeConfig.apiKey,
-			baseUrl: runtimeConfig.baseUrl,
-			headers: runtimeConfig.headers,
-			onAuthError: runtimeConfig.onAuthError,
 			providerConfig: runtimeConfig.providerConfig,
 			knownModels: runtimeConfig.knownModels,
 			thinking: runtimeConfig.thinking,

@@ -26,8 +26,6 @@ export async function syncModeConfigurations(
 ): Promise<void> {
 	const fields = getModeSpecificFields(apiConfiguration, sourceMode)
 	await handleFieldsChange({
-		planModeApiProvider: "bedrock",
-		actModeApiProvider: "bedrock",
 		planModeApiModelId: fields.apiModelId,
 		actModeApiModelId: fields.apiModelId,
 		planModeThinkingBudgetTokens: fields.thinkingBudgetTokens,

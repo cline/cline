@@ -1,7 +1,6 @@
 import { setCompactionStrategyGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
@@ -22,13 +21,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			const convertedApiConfigurationFromProto = {
 				...protoApiConfiguration,
-				// Convert proto ApiProvider enums to native string types
-				planModeApiProvider: protoApiConfiguration.planModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-					: undefined,
-				actModeApiProvider: protoApiConfiguration.actModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-					: undefined,
 				planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
 				actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 			}
@@ -37,8 +29,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			const normalizedApiConfiguration = {
 				...previousApiConfiguration,
 				...convertedApiConfigurationFromProto,
-				planModeApiProvider: "bedrock" as const,
-				actModeApiProvider: "bedrock" as const,
 			}
 
 			controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
@@ -48,7 +38,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				const modelId = resolveActiveModelIdFromApiConfiguration(normalizedApiConfiguration, currentMode)
 				controller.task.api = createTaskApiModelShim(modelId)
 			}
-			controller.handleApiConfigurationChanged(previousApiConfiguration, normalizedApiConfiguration)
 		}
 
 		// Update plan/act separate models setting

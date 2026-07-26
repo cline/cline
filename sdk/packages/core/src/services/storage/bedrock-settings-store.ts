@@ -80,22 +80,19 @@ function migrateLegacyState(input: unknown): StoredProviderSettings {
 	};
 }
 
-export interface ProviderSettingsManagerOptions {
+export interface BedrockSettingsStoreOptions {
 	filePath?: string;
 	dataDir?: string;
 }
 
-export interface SaveProviderSettingsOptions {
-	setLastUsed?: boolean;
+export interface SaveBedrockSettingsOptions {
 	tokenSource?: ProviderTokenSource;
 }
 
-export interface ResolveLastUsedProviderSettingsOptions {}
-
-export class ProviderSettingsManager {
+export class BedrockSettingsStore {
 	private readonly filePath: string;
 
-	constructor(options: ProviderSettingsManagerOptions = {}) {
+	constructor(options: BedrockSettingsStoreOptions = {}) {
 		this.filePath = options.filePath ?? resolveProviderSettingsPath();
 		if (existsSync(this.filePath)) {
 			try {
@@ -154,9 +151,9 @@ export class ProviderSettingsManager {
 		}
 	}
 
-	saveProviderSettings(
+	save(
 		settings: unknown,
-		options: SaveProviderSettingsOptions = {},
+		options: SaveBedrockSettingsOptions = {},
 	): StoredProviderSettings {
 		const validated = ProviderSettingsSchema.parse(settings);
 		const previous = this.read();
@@ -178,32 +175,14 @@ export class ProviderSettingsManager {
 		return next;
 	}
 
-	getProviderSettings(providerId: string): ProviderSettings | undefined {
-		return providerId === "bedrock"
-			? this.read().providers.bedrock?.settings
-			: undefined;
+	getSettings(): ProviderSettings | undefined {
+		return this.read().providers.bedrock?.settings;
 	}
 
-	getLastUsedProviderSettings(
-		_options: ResolveLastUsedProviderSettingsOptions = {},
-	): ProviderSettings | undefined {
-		return this.getProviderSettings("bedrock");
-	}
-
-	getProviderConfig(
-		providerId: string,
+	getConfig(
 		options?: ToProviderConfigOptions,
 	): ProviderConfig | undefined {
-		const settings = this.getProviderSettings(providerId);
+		const settings = this.getSettings();
 		return settings ? toProviderConfig(settings, options) : undefined;
 	}
-
-	getLastUsedProviderConfig(
-		options: ToProviderConfigOptions = {},
-	): ProviderConfig | undefined {
-		const settings = this.getLastUsedProviderSettings();
-		return settings ? toProviderConfig(settings, options) : undefined;
-	}
-
-	async refreshCatalog(): Promise<void> {}
 }

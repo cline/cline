@@ -46,9 +46,6 @@ message Settings {
   optional string act_mode_api_model_id = 84;
   optional int64 act_mode_thinking_budget_tokens = 85;
   optional string act_mode_reasoning_effort = 87;
-  optional string plan_mode_api_provider = 124;
-  optional string act_mode_api_provider = 125;
-  reserved 128;
   optional string global_cline_rules_toggles = 129;
   optional string global_workflow_toggles = 130;
   optional string global_skills_toggles = 131;
@@ -65,7 +62,6 @@ message Settings {
   optional string custom_prompt = 150;
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
-  reserved 155;
   optional bool worktrees_enabled = 172;
   optional bool show_feature_tips = 182;
   optional string aws_bedrock_ca_bundle_path = 187;

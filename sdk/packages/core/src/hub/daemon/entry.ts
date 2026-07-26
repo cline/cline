@@ -69,8 +69,7 @@ async function main(): Promise<void> {
 				resolveClineBuildEnv() === "production"
 					? resolveProductionHubOwnerContext()
 					: resolveSharedHubOwnerContext(),
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
-}),
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			cronOptions: { workspaceRoot: options.cwd },
 		});
 	} catch (error) {

@@ -46,7 +46,7 @@ import {
 import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
-import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
+import type { BedrockSettingsStore } from "./storage/bedrock-settings-store";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
@@ -132,9 +132,9 @@ function buildProviderConfig(
 	config: CoreSessionConfig,
 	_sessionId: string,
 	_source: ResolvedStartSessionInput["source"],
-	providerSettingsManager: ProviderSettingsManager,
+	bedrockSettingsStore: BedrockSettingsStore,
 ): ProviderConfig {
-	const stored = providerSettingsManager.getProviderSettings("bedrock");
+	const stored = bedrockSettingsStore.getSettings();
 	const sessionProviderConfig =
 		config.providerConfig?.providerId === "bedrock"
 			? config.providerConfig
@@ -168,15 +168,10 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
-	providerSettingsManager: ProviderSettingsManager;
+	bedrockSettingsStore: BedrockSettingsStore;
 	defaultLogger?: BasicLogger;
 	defaultCapabilities?: RuntimeCapabilities;
 	defaultToolPolicies?: AgentConfig["toolPolicies"];
-	/**
-	 * Host-level default `fetch` threaded into `ProviderConfig.fetch` so the
-	 * AI gateway providers can use a custom HTTP implementation.
-	 */
-	defaultFetch?: typeof fetch;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
@@ -215,7 +210,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const {
 		input,
 		sessionId,
-		providerSettingsManager,
+		bedrockSettingsStore,
 		defaultLogger,
 		defaultCapabilities,
 		defaultToolPolicies,
@@ -334,7 +329,7 @@ export async function prepareLocalRuntimeBootstrap(
 		baseConfig,
 		sessionId,
 		input.source,
-		providerSettingsManager,
+		bedrockSettingsStore,
 	);
 	const hooks = mergeAgentHooks([
 		baseConfig.hooks,

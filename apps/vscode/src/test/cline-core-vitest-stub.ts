@@ -1,6 +1,4 @@
 import { readFileSync, writeFileSync } from "node:fs"
-import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-
 export interface StartSessionResult {
 	sessionId: string
 }
@@ -179,7 +177,7 @@ interface ProviderSettingsState {
 // (Tests isolate by using a unique dataDir per test.)
 const providerSettingsStores = new Map<string, ProviderSettingsState>()
 
-export class ProviderSettingsManager {
+export class BedrockSettingsStore {
 	private readonly filePath: string
 	private readonly state: ProviderSettingsState
 
@@ -201,47 +199,13 @@ export class ProviderSettingsManager {
 		return { providers: { ...this.state.providers }, lastUsedProvider: this.state.lastUsedProvider }
 	}
 
-	getProviderSettings(providerId: string): Record<string, unknown> | undefined {
-		return this.state.providers[providerId]
+	getSettings(): Record<string, unknown> | undefined {
+		return this.state.providers.bedrock
 	}
 
-	getLastUsedProviderSettings(): Record<string, unknown> | undefined {
-		return this.state.lastUsedProvider ? this.state.providers[this.state.lastUsedProvider] : undefined
-	}
-
-	saveProviderSettings(settings: Record<string, unknown>, options?: { setLastUsed?: boolean }): ProviderSettingsState {
-		const provider = settings.provider
-		if (typeof provider !== "string") {
-			throw new Error("provider is required")
-		}
-		this.state.providers[provider] = { ...settings }
-		if (options?.setLastUsed !== false) {
-			this.state.lastUsedProvider = provider
-		}
+	save(settings: Record<string, unknown>): ProviderSettingsState {
+		this.state.providers.bedrock = { ...settings }
+		this.state.lastUsedProvider = "bedrock"
 		return this.read()
 	}
-}
-
-export interface ModelCatalogConfig {
-	loadLatestOnInit?: boolean
-	loadPrivateOnAuth?: boolean
-	failOnError?: boolean
-	cacheTtlMs?: number
-}
-
-export async function resolveProviderConfig(
-	providerId: string,
-	_config?: ModelCatalogConfig,
-	providerConfig?: { modelId?: string },
-) {
-	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
-	const knownModels = collection?.models ?? {}
-	const requestedModelId = providerConfig?.modelId?.trim()
-	const manifestDefaultModelId = collection?.provider.defaultModelId
-	const defaultModelId =
-		manifestDefaultModelId && knownModels[manifestDefaultModelId]
-			? manifestDefaultModelId
-			: Object.keys(knownModels)[0] || Object.keys(collection?.models ?? {})[0]
-	const modelId = requestedModelId && knownModels[requestedModelId] ? requestedModelId : defaultModelId
-	return { modelId, knownModels }
 }

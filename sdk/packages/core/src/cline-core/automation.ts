@@ -106,7 +106,6 @@ export function createClineCoreAutomationRuntimeHandlers(
 				config: {
 					providerId: normalizeProviderId(request.provider),
 					modelId: request.model,
-					apiKey: request.apiKey?.trim() || undefined,
 					cwd,
 					workspaceRoot: request.workspaceRoot,
 					systemPrompt: request.systemPrompt ?? "",

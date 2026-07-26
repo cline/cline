@@ -203,8 +203,6 @@ async function cleanup() {
 		"src/hosts/vscode/uri/index.ts",
 	]
 	const oldprotobusfiles = [
-		"src/core/controller/account/index.ts",
-		"src/core/controller/account/methods.ts",
 		"src/core/controller/browser/index.ts",
 		"src/core/controller/browser/methods.ts",
 		"src/core/controller/checkpoints/index.ts",

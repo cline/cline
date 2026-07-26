@@ -143,7 +143,7 @@ function buildAgentRuntimeConfig(
 ): DelegatedAgentRuntimeConfig {
 	return {
 		...base,
-		providerId: agent.providerId ?? base.providerId,
+		providerId: "bedrock",
 		modelId: agent.modelId ?? base.modelId,
 		maxIterations: agent.maxIterations ?? base.maxIterations,
 	};

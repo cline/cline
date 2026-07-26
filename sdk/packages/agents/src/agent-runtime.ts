@@ -1,5 +1,5 @@
 import {
-	createGateway,
+	createBedrockAgentModel,
 	type BedrockConnection,
 } from "@cline/llms";
 import type {
@@ -96,13 +96,12 @@ function resolveRuntimeConfig(
 		return config;
 	}
 	const { providerId, modelId, connection, workspaceRoot, ...rest } = config;
-	const gateway = createGateway({
-		providerConfigs: [{
-			providerId,
-			options: { connection, workspaceRoot },
-		}],
+	const model = createBedrockAgentModel({
+		providerId: "bedrock",
+		modelId,
+		connection,
+		workspaceRoot,
 	});
-	const model = gateway.createAgentModel({ providerId, modelId });
 	// The prebuilt-model path preserves a caller-provided messageModelInfo;
 	// mirror that here so the provider/model constructor also tags assistant
 	// messages with modelInfo. An explicit caller-provided value still wins.

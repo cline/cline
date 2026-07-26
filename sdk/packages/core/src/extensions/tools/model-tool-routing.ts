@@ -57,22 +57,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	submit_and_exit: "enableSubmitAndExit",
 };
 
-export const DEFAULT_MODEL_TOOL_ROUTING_RULES: ToolRoutingRule[] = [
-	{
-		name: "openai-native-use-apply-patch",
-		mode: "act",
-		providerIdIncludes: ["openai-native"],
-		enableTools: ["apply_patch"],
-		disableTools: ["editor"],
-	},
-	{
-		name: "codex-and-gpt-use-apply-patch",
-		mode: "act",
-		modelIdIncludes: ["codex", "gpt"],
-		enableTools: ["apply_patch"],
-		disableTools: ["editor"],
-	},
-];
+export const DEFAULT_MODEL_TOOL_ROUTING_RULES: ToolRoutingRule[] = [];
 
 function matchesModelId(
 	modelId: string,

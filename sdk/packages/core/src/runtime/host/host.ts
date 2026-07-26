@@ -86,7 +86,6 @@ function createLocalRuntimeHost(
 		capabilities: options.capabilities,
 		logger: options.logger,
 		toolPolicies: options.toolPolicies,
-		fetch: options.fetch,
 	});
 }
 

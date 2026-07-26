@@ -14,7 +14,11 @@ vi.mock("@aws-sdk/credential-providers", () => ({
 	fromNodeProviderChain: mocks.fromNodeProviderChain,
 }));
 
-import { createGateway, getProviderIds } from "../index";
+import {
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	createBedrockAgentModel,
+} from "../index";
 import { createBedrockProviderModule } from "./vendors/bedrock";
 
 describe("Bedrock-only runtime", () => {
@@ -43,10 +47,15 @@ describe("Bedrock-only runtime", () => {
 	});
 
 	it("exposes only Bedrock", () => {
-		expect(getProviderIds()).toEqual(["bedrock"]);
-		expect(createGateway().listProviders().map((provider) => provider.id)).toEqual([
-			"bedrock",
-		]);
+		expect(BUILT_IN_PROVIDER).toBe("bedrock");
+		expect(BUILT_IN_PROVIDER_IDS).toEqual(["bedrock"]);
+		expect(
+			createBedrockAgentModel({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+				connection: { region: "us-east-1" },
+			}),
+		).toHaveProperty("stream");
 	});
 
 	it("uses the default AWS chain, including an environment session token", async () => {

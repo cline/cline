@@ -26,7 +26,7 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
 
 	// Register the SDK early logger so diagnostic events from
-	// ProviderSettingsManager, RuntimeOAuthTokenManager, and Cline auth
+	// Bedrock settings, MCP OAuth, and local runtime state
 	// flow through Logger.debug → Cline output channel.
 	// These components operate before/outside of ClineCore sessions, so the
 	// session-scoped logger can't reach them.

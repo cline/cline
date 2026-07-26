@@ -13,7 +13,6 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core"
 import { formatDisplayUserInput } from "@cline/shared"
-import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ExtensionState } from "@shared/ExtensionMessage"
@@ -50,7 +49,6 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
-import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
@@ -138,7 +136,6 @@ export class Controller {
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
 	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
-	private providerChanges: SdkProviderChangeCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
 	private taskStart: SdkTaskStartCoordinator
@@ -214,7 +211,7 @@ export class Controller {
 		)
 
 		// Initialize message translator state
-		this.messageTranslatorState = new MessageTranslatorState(undefined, () => this.getActiveProviderId())
+		this.messageTranslatorState = new MessageTranslatorState()
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
@@ -370,19 +367,6 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			rebuilds: this.sessionRebuilds,
 		})
-		this.providerChanges = new SdkProviderChangeCoordinator({
-			stateManager: this.stateManager,
-			sessions: this.sessions,
-			messages: this.messages,
-			sessionConfigBuilder: this.sessionConfigBuilder,
-			getTask: () => this.task,
-			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: async (sdkHost, sessionId) =>
-				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
-			buildStartSessionInput,
-			postStateToWebview: () => this.postStateToWebview(),
-			rebuilds: this.sessionRebuilds,
-		})
 		this.followups = new SdkFollowupCoordinator({
 			stateManager: this.stateManager,
 			interactions: this.interactions,
@@ -481,10 +465,6 @@ export class Controller {
 		this.onSessionEvent(this.grpcBridge.createListener())
 
 		Logger.log("[SdkController] Initialized with the Bedrock SDK adapter and gRPC bridge")
-	}
-
-	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
-		this.providerChanges.handleApiConfigurationChanged(previous, next)
 	}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
@@ -660,20 +640,6 @@ export class Controller {
 	 */
 	onSessionEvent(listener: SessionEventListener): () => void {
 		return this.messages.onSessionEvent(listener)
-	}
-
-	/**
-	 * Get the active API provider for the current mode.
-	 */
-	private getActiveProviderId(): string | undefined {
-		try {
-			const apiConfig = this.stateManager.getApiConfiguration()
-			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
-			const mode = modeValue === "plan" ? "plan" : "act"
-			return mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		} catch {
-			return undefined
-		}
 	}
 
 	private getTaskModelId(): string | undefined {
