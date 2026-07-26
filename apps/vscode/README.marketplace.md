@@ -124,9 +124,12 @@ As Cline works through a task, the extension takes a snapshot of your workspace 
 
 For example, when working with a local web server, you can use 'Restore Workspace Only' to quickly test different versions of your app, then use 'Restore Task and Workspace' when you find the version you want to continue building from. This lets you safely explore different approaches without losing progress.
 
-### Embedded Local MCP Server Host
+### Embedded Local MCP Server Host & Hybrid Agent Support
 
-Cline features an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0. External AI agents and frameworks (such as Hermes Agent, OpenClaw, Python MCP SDK, or custom scripts) can seamlessly connect to inspect files, apply code diffs, and run terminal commands inside your active workspace.
+Cline features an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0.
+
+- 💡 **Massive API Cost Reduction**: Offload heavy long-running tasks, code refactorings, or test runs to local/open-source external agents (Hermes Agent, OpenClaw, Ollama, DeepSeek) while executing tools directly inside your active workspace.
+- 🤝 **Hybrid Model Collaboration**: Run your primary models in Cline alongside external agents working concurrently on the exact same workspace.
 
 #### Quick Agent Setup:
 
@@ -141,10 +144,18 @@ Cline features an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that ex
   { "tools": [ { "name": "cline", "endpoint": "http://127.0.0.1:3000/mcp", "protocol": "mcp-http" } ] }
   ```
 
-- **Health Check & Tools List**:
-  ```powershell
-  Invoke-RestMethod -Uri http://127.0.0.1:3000/mcp -Method POST -ContentType "application/json" -Body '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-  ```
+#### 📋 Ready-to-Use Master Prompt for External Agents:
+
+```markdown
+# AGENT INSTRUCTION DIRECTIVE: CLINE WORKSPACE INTEGRATION
+
+You are an autonomous engineering agent connected to an active VS Code workspace via the Cline MCP Server at http://127.0.0.1:3000/mcp.
+
+## CORE DIRECTIVES
+1. CONNECT: Connect to the HTTP MCP server at http://127.0.0.1:3000/mcp using JSON-RPC 2.0.
+2. WORKSPACE CONTROL: Use the exposed workspace tools (read_file, write_file, apply_diff, run_terminal, search_files, list_files) to execute tasks.
+3. VERIFICATION: Always run test/build commands via run_terminal to verify changes before completing.
+```
 
 <!-- Transparent pixel to create line break after floating image -->
 

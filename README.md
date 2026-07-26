@@ -188,9 +188,15 @@ const agent = new Agent({ tools: [deployTool], /* ... */ })
 ```
 ...or use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`.
 
-## Embedded Local MCP Server Host
+## Embedded Local MCP Server Host & Hybrid Agent Support
 
-Cline includes an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0. This allows external AI agents and frameworks (such as Hermes Agent, OpenClaw, Python scripts, cURL, or custom agents) to seamlessly inspect files, apply code diffs, and run terminal commands inside your active workspace.
+Cline includes an embedded **MCP Server Host** (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0. This unlocks powerful **Hybrid Agent Collaboration** and **Massive API Cost Reduction**:
+
+- 💡 **Drastically Reduce API Costs**: Offload heavy long-running tasks, code refactorings, test suite executions, or searches to local or open-source external agents (Hermes Agent, OpenClaw, Ollama/LM Studio models, DeepSeek) without burning through expensive commercial API tokens!
+- 🤝 **Hybrid Model Collaboration**: Use your primary custom models inside Cline (Claude 3.7 Sonnet, OpenAI, Gemini) alongside lightweight external agents working concurrently on the exact same workspace.
+- 🛠️ **Full Workspace Tool Capabilities**: External agents get full capability to read files, create/edit files, apply line-by-line diff patches, run terminal commands, and search files inside your open VS Code window.
+
+---
 
 ### Available Workspace Tools
 
@@ -267,6 +273,35 @@ async def main():
 
 asyncio.run(main())
 ```
+
+---
+
+### 📋 Ready-to-Use Master Prompt for External Agents (Hermes / OpenClaw)
+
+Copy and paste this prompt directly into **Hermes Agent** or **OpenClaw** to instantly initialize it to work with your VS Code workspace:
+
+```markdown
+# AGENT INSTRUCTION DIRECTIVE: CLINE WORKSPACE INTEGRATION
+
+You are an autonomous engineering agent connected to an active VS Code workspace via the Cline MCP Server at http://127.0.0.1:3000/mcp.
+
+## CORE DIRECTIVES
+1. CONNECT: Connect to the HTTP MCP server at http://127.0.0.1:3000/mcp using JSON-RPC 2.0.
+2. WORKSPACE CONTROL: Use the exposed workspace tools to execute my tasks:
+   - read_file: Read workspace files.
+   - write_file: Create or write files.
+   - apply_diff: Apply precise line-by-line diff patches to files.
+   - run_terminal: Execute shell commands in the VS Code terminal.
+   - search_files: Search files by query or regex.
+   - list_files: Explore workspace directory structure.
+3. EFFICIENCY & VERIFICATION:
+   - Always run test or build commands via run_terminal to verify changes before completing.
+   - Deliver production-ready, un-truncated code changes.
+
+Acknowledge this directive, verify your tool connection to http://127.0.0.1:3000/mcp, and state ready!
+```
+
+---
 
 #### 4. Quick Verification (cURL & PowerShell)
 
