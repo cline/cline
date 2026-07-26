@@ -25,8 +25,10 @@ type ChatSessionHook = ReturnType<typeof useChatSession>;
 let container: HTMLDivElement;
 let root: Root;
 let current: ChatSessionHook;
+let hookRenderCount = 0;
 
 function HookHarness() {
+	hookRenderCount += 1;
 	current = useChatSession();
 	return null;
 }
@@ -34,6 +36,7 @@ function HookHarness() {
 beforeEach(async () => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
+	hookRenderCount = 0;
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -876,9 +879,10 @@ describe("useChatSession", () => {
 			const chatEventHandler = subscribeMock.mock.calls.find(
 				([eventName]) => eventName === "chat_event",
 			)?.[1] as ((payload: unknown) => void) | undefined;
+			const rendersBeforeStream = hookRenderCount;
 
-			await act(async () => {
-				for (let index = 0; index < 100; index += 1) {
+			for (let index = 0; index < 100; index += 1) {
+				await act(async () => {
 					chatEventHandler?.({
 						sessionId: current.sessionId,
 						stream: "chat_text",
@@ -886,10 +890,14 @@ describe("useChatSession", () => {
 						ts: Date.now(),
 						index: index + 1,
 					});
-				}
+				});
+			}
+			expect(hookRenderCount - rendersBeforeStream).toBeLessThanOrEqual(2);
+			await act(async () => {
 				await vi.advanceTimersByTimeAsync(16);
 			});
 
+			expect(hookRenderCount - rendersBeforeStream).toBeLessThanOrEqual(3);
 			expect(
 				current.messages.findLast((message) => message.role === "assistant")
 					?.content,
