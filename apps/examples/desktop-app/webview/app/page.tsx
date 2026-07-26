@@ -297,7 +297,14 @@ export default function Home() {
 						) : activeThread ? (
 							<div
 								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
+								// `content-visibility: hidden` lets the browser skip layout,
+								// paint and raster for the pane while Settings covers it,
+								// without unmounting it and losing the in-flight session.
+								className={
+									view === "settings"
+										? "flex min-h-0 flex-1 flex-col [content-visibility:hidden]"
+										: "flex min-h-0 flex-1 flex-col"
+								}
 								inert={view === "settings" ? true : undefined}
 							>
 								<ChatThreadPane

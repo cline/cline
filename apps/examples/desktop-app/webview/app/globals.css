@@ -319,10 +319,19 @@
 	animation-timing-function: ease-in-out;
 	animation-iteration-count: infinite;
 	animation-direction: alternate;
+	will-change: opacity, transform;
 }
 
 .aurora-motion-reverse {
 	animation-name: aurora-drift-reverse;
+}
+
+/*
+ * The starfield is promoted once and the dots animate inside it, so the
+ * compositor manages one layer instead of one per star.
+ */
+.aurora-starfield {
+	transform: translateZ(0);
 }
 
 .aurora-star {
@@ -334,6 +343,21 @@
 
 .aurora-star:nth-of-type(2n) {
 	--aurora-star-x: -6px;
+}
+
+/*
+ * A full-screen view (Settings) renders on top of the chat pane while leaving
+ * it mounted and `inert` so its state survives. Without this the aurora keeps
+ * animating underneath the overlay, so every view in the app inherits the
+ * compositing cost of a screen nobody can see.
+ */
+[inert] .aurora-root,
+[inert] .aurora-horizon,
+[inert] .aurora-current,
+[inert] .aurora-motion,
+[inert] .aurora-star,
+[inert] .hero-word-char {
+	animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -39,10 +39,27 @@ function HeroHeading() {
 	useEffect(() => {
 		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
 		if (media.matches) return;
-		const interval = setInterval(() => {
-			setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
-		}, HERO_CYCLE_MS);
-		return () => clearInterval(interval);
+		let interval: ReturnType<typeof setInterval> | undefined;
+		// Cycling the verb remounts a handful of nodes and restarts their
+		// entrance animation. Keeping that running in a background window burns
+		// frames for something nobody is looking at.
+		const sync = () => {
+			if (document.hidden) {
+				clearInterval(interval);
+				interval = undefined;
+				return;
+			}
+			if (interval) return;
+			interval = setInterval(() => {
+				setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
+			}, HERO_CYCLE_MS);
+		};
+		sync();
+		document.addEventListener("visibilitychange", sync);
+		return () => {
+			clearInterval(interval);
+			document.removeEventListener("visibilitychange", sync);
+		};
 	}, []);
 
 	const verb = HERO_VERBS[verbIndex];
