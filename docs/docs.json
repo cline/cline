@@ -154,7 +154,8 @@
 							"core-workflows/using-commands",
 							"core-workflows/checkpoints",
 							"cli/agent-teams",
-							"features/subagents"
+							"features/subagents",
+							"features/using-browser"
 						]
 					},
 					{
@@ -458,11 +459,11 @@
 		},
 		{
 			"source": "/customization/focus-chain",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/plan-and-act"
 		},
 		{
 			"source": "/features/deep-planning",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/plan-and-act"
 		},
 		{
 			"source": "/customization/auto-approve",
@@ -650,11 +651,15 @@
 		},
 		{
 			"source": "/features/slash-commands/deep-planning",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/plan-and-act"
+		},
+		{
+			"source": "/features/slash-commands/compact",
+			"destination": "/core-workflows/using-commands#compact"
 		},
 		{
 			"source": "/features/slash-commands/smol",
-			"destination": "/core-workflows/using-commands#smol"
+			"destination": "/core-workflows/using-commands#compact"
 		},
 		{
 			"source": "/features/slash-commands/new-rule",
@@ -666,7 +671,7 @@
 		},
 		{
 			"source": "/features/focus-chain",
-			"destination": "/core-workflows/using-commands#deep-planning"
+			"destination": "/core-workflows/plan-and-act"
 		},
 		{
 			"source": "/features/skills",
