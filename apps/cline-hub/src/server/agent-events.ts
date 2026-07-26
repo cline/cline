@@ -6,6 +6,43 @@ import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import { asString, chunkText } from "./utils";
 
+async function recordDriveWorkFromTool(
+	ctx: HubContext,
+	sessionId: string,
+	tool: WebviewToolEvent,
+): Promise<void> {
+	if (!ctx.uiClient) {
+		return;
+	}
+	if (tool.status !== "completed" && tool.status !== "failed") {
+		return;
+	}
+	try {
+		const reply = await ctx.uiClient.command("call_record_work", {
+			sessionId,
+			tool: {
+				toolCallId: tool.toolCallId,
+				toolName: tool.toolName,
+				status: tool.status,
+				input: tool.input,
+				output: tool.output,
+				error: tool.error,
+			},
+		});
+		if (
+			!reply.ok &&
+			reply.error?.code !== "room_not_found" &&
+			reply.error?.code !== "unsupported_tool_for_stage"
+		) {
+			console.warn(
+				`call_record_work failed for ${sessionId}:`,
+				reply.error?.message ?? reply.error?.code,
+			);
+		}
+	} catch (error) {
+		console.warn(`call_record_work threw for ${sessionId}:`, error);
+	}
+}
 function agentEventText(event: AgentEvent): string {
 	if (
 		event.type === "content_start" &&
@@ -41,6 +78,9 @@ function forwardAgentEvent(
 			return;
 		}
 		if (event.contentType === "tool") {
+			if (event.toolCallId && event.input !== undefined) {
+				ctx.pendingToolInputs.set(event.toolCallId, event.input);
+			}
 			ctx.sendToSelectedPeers(sessionId, {
 				type: "tool_event",
 				text: `Running ${event.toolName ?? "tool"}...`,
@@ -81,19 +121,28 @@ function forwardAgentEvent(
 		}
 		if (event.contentType === "tool") {
 			const toolName = event.toolName ?? "tool";
+			const cachedInput = event.toolCallId
+				? ctx.pendingToolInputs.get(event.toolCallId)
+				: undefined;
+			if (event.toolCallId) {
+				ctx.pendingToolInputs.delete(event.toolCallId);
+			}
+			const toolEvent: WebviewToolEvent = {
+				toolCallId: event.toolCallId,
+				toolName,
+				status: event.error ? "failed" : "completed",
+				input: cachedInput,
+				output: event.output,
+				error: event.error,
+			};
 			ctx.sendToSelectedPeers(sessionId, {
 				type: "tool_event",
 				text: event.error
 					? `${toolName} failed: ${event.error}`
 					: `${toolName} completed`,
-				event: {
-					toolCallId: event.toolCallId,
-					toolName,
-					status: event.error ? "failed" : "completed",
-					output: event.output,
-					error: event.error,
-				},
+				event: toolEvent,
 			});
+			void recordDriveWorkFromTool(ctx, sessionId, toolEvent);
 		}
 		return;
 	}

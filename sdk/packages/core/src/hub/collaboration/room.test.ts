@@ -76,6 +76,48 @@ describe("DriveRoomStore", () => {
 		expect(snapshot.participants).toHaveLength(1);
 		expect(snapshot.participants[0]?.displayName).toBe("Adam II");
 	});
+
+	it("recordWork upserts stage.cards from edit and command", () => {
+		const store = new DriveRoomStore();
+		store.create("room_work", "2026-07-26T10:00:00.000Z");
+		store.recordWork({
+			roomId: "room_work",
+			work: {
+				kind: "edit",
+				path: "src/router.ts",
+				summary: "route /drive",
+			},
+			at: "2026-07-26T10:00:01.000Z",
+			eventId: "work_edit_1",
+		});
+		store.recordWork({
+			roomId: "room_work",
+			work: {
+				kind: "command",
+				command: "bun test",
+				failed: false,
+			},
+			at: "2026-07-26T10:00:02.000Z",
+			eventId: "work_cmd_1",
+		});
+		const cards = store.getOrThrow("room_work").stage.cards;
+		expect(cards.map((c) => c.category).sort()).toEqual(["command", "edit"]);
+		expect(cards.find((c) => c.category === "edit")?.title).toBe(
+			"src/router.ts",
+		);
+		expect(cards.find((c) => c.category === "command")?.title).toBe(
+			"bun test",
+		);
+	});
+
+	it("links sessionId to room for the work bridge", () => {
+		const store = new DriveRoomStore();
+		store.create("room_link");
+		store.linkSession("sess_1", "room_link");
+		expect(store.getRoomIdForSession("sess_1")).toBe("room_link");
+		store.unlinkSession("sess_1");
+		expect(store.getRoomIdForSession("sess_1")).toBeUndefined();
+	});
 });
 
 describe("joinCall", () => {

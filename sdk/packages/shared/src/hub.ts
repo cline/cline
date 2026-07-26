@@ -460,6 +460,8 @@ export type HubCommandName =
 	| "call_mute"
 	| "call_set_stage"
 	| "call_set_mode"
+	| "call_record_work"
+	| "call_get_room"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"

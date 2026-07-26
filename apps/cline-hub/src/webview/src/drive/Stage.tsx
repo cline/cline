@@ -1,9 +1,9 @@
 /**
- * Events-first Call Stage surface for Hub Chat (Drive Slice A).
- * Renders StageCard rows via ai-elements; always labels the sharer.
+ * Events-first Call Stage surface for Drive Mode Chat.
+ * Live rooms render hub roomSnapshot.stage; offline/demo may use fixtures.
  */
 
-import type { StageCard } from "@cline/shared";
+import type { StageCard, StagePin } from "@cline/shared";
 import type { ReactNode } from "react";
 import {
 	CodeBlock,
@@ -30,9 +30,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type StageHumanPin = {
-	kind: "selection" | "file" | "terminal";
-	label: string;
+export type StageHumanPin = Pick<StagePin, "kind" | "label"> & {
+	ref?: string;
 };
 
 export type StageViewProps = {
@@ -40,8 +39,10 @@ export type StageViewProps = {
 	/** Always shown in the stage header (agent partner or You). */
 	sharerLabel: string;
 	demo?: boolean;
-	/** Client-only structured pin stub when You take stage (Slice B later). */
+	/** Structured human share when You take stage (hub pin). */
 	humanPin?: StageHumanPin | null;
+	/** When true, agent work cards are dimmed under the human pin. */
+	humanSharing?: boolean;
 	nowLabel?: string;
 	nextLabel?: string;
 	emptyHint?: string;
@@ -185,20 +186,62 @@ function StageCardView({ card }: { card: StageCard }) {
 	}
 }
 
-function HumanPinStub({ pin }: { pin: StageHumanPin }) {
-	return (
-		<div className="rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
-			<div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-amber-800 dark:text-amber-200">
-				<span className="rounded border border-amber-500/40 px-1.5 py-0.5">
-					{pin.kind} pin
-				</span>
-				<span className="normal-case text-foreground">{pin.label}</span>
-			</div>
-			<p className="mt-1 text-[11px] text-muted-foreground">
-				Structured share from hub <code>call_set_stage</code>.
-			</p>
-		</div>
-	);
+function HumanPinContent({ pin }: { pin: StageHumanPin }) {
+	const body = pin.ref?.trim() || pin.label;
+	switch (pin.kind) {
+		case "selection":
+			return (
+				<div className="rounded-md border border-amber-500/40 bg-amber-500/5">
+					<div className="flex items-center gap-2 border-b border-amber-500/20 px-3 py-2 text-[10px] uppercase tracking-wide text-amber-800 dark:text-amber-200">
+						<span className="rounded border border-amber-500/40 px-1.5 py-0.5">
+							selection
+						</span>
+						<span className="truncate normal-case text-foreground">{pin.label}</span>
+					</div>
+					<pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] text-foreground">
+						{body}
+					</pre>
+				</div>
+			);
+		case "file":
+			return (
+				<div className="rounded-md border bg-background">
+					<div className="flex items-center gap-2 border-b px-3 py-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+						<span className="rounded border px-1.5 py-0.5">file</span>
+						<span className="truncate font-mono normal-case text-foreground">
+							{pin.label}
+						</span>
+					</div>
+					<pre className="overflow-auto p-3 font-mono text-[11px] text-muted-foreground">
+						{body}
+					</pre>
+				</div>
+			);
+		case "terminal":
+			return (
+				<Terminal isStreaming={false} output={body}>
+					<TerminalHeader>
+						<TerminalTitle>
+							<span className="mr-2 inline-flex">
+								<Badge className="text-[10px] uppercase" variant="outline">
+									terminal
+								</Badge>
+							</span>
+							{pin.label}
+						</TerminalTitle>
+					</TerminalHeader>
+					<TerminalContent>
+						<pre className="whitespace-pre-wrap break-words text-zinc-100">
+							{body}
+						</pre>
+					</TerminalContent>
+				</Terminal>
+			);
+		default: {
+			const _exhaustive: never = pin.kind;
+			return _exhaustive;
+		}
+	}
 }
 
 /**
@@ -210,12 +253,16 @@ export function Stage({
 	sharerLabel,
 	demo,
 	humanPin,
+	humanSharing,
 	nowLabel,
 	nextLabel,
 	emptyHint = "Waiting for partner tool activity on this session.",
 	className,
 	children,
 }: StageViewProps) {
+	const showHumanPrimary = Boolean(humanPin) && (humanSharing || Boolean(humanPin));
+	const suppressAgentCards = Boolean(humanPin) && humanSharing !== false;
+
 	return (
 		<div
 			className={cn(
@@ -232,18 +279,31 @@ export function Stage({
 					</Badge>
 				) : (
 					<Badge className="ml-auto shrink-0 text-[10px]" variant="outline">
-						Live session
+						{showHumanPrimary ? "Human share" : "Live room"}
 					</Badge>
 				)}
 			</div>
 			<div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
-				{humanPin ? <HumanPinStub pin={humanPin} /> : null}
+				{humanPin ? <HumanPinContent pin={humanPin} /> : null}
 				{cards.length === 0 && !humanPin ? (
 					<p className="text-xs text-muted-foreground">{emptyHint}</p>
 				) : null}
-				{cards.map((card) => (
-					<StageCardView card={card} key={card.id} />
-				))}
+				{!suppressAgentCards
+					? cards.map((card) => (
+							<StageCardView card={card} key={card.id} />
+						))
+					: cards.length > 0
+						? (
+								<div className="space-y-2 opacity-40" aria-hidden>
+									<p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+										Agent deck paused while you share
+									</p>
+									{cards.map((card) => (
+										<StageCardView card={card} key={card.id} />
+									))}
+								</div>
+							)
+						: null}
 				{children}
 			</div>
 			{nowLabel != null || nextLabel != null ? (

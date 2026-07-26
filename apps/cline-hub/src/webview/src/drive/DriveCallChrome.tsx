@@ -1,6 +1,6 @@
 import type { StageCard } from "@cline/shared";
 import { HandIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,18 +77,47 @@ export function DriveCallStrip({
 	onHandToggle,
 	onSubModeChange,
 	onTakeStage,
+	pinDefaults,
 }: {
 	drive: DriveUiState;
 	disabled?: boolean;
 	onMuteToggle: () => void;
 	onHandToggle: () => void;
 	onSubModeChange: (mode: DriveSubMode) => void;
-	/** Client-only Agent / You take stage (not hub call_set_stage). */
-	onTakeStage?: (who: "agent" | "you") => void;
+	/** Hub call_set_stage: agent clears pin; you pins with kind defaults. */
+	onTakeStage?: (
+		who: "agent" | "you",
+		pin?: {
+			kind: "selection" | "file" | "terminal";
+			label: string;
+			ref?: string;
+		},
+	) => void;
+	pinDefaults?: Record<
+		"selection" | "file" | "terminal",
+		{ kind: "selection" | "file" | "terminal"; label: string; ref?: string }
+	>;
 }) {
+	const [pinPickerOpen, setPinPickerOpen] = useState(false);
+
 	if (!drive.active) {
 		return null;
 	}
+
+	const kinds = (
+		["selection", "file", "terminal"] as const
+	).map((kind) => {
+		const pin = pinDefaults?.[kind] ?? {
+			kind,
+			label:
+				kind === "selection"
+					? "Current selection"
+					: kind === "file"
+						? "Shared file"
+						: "Terminal",
+		};
+		return { kind, pin };
+	});
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/5 px-4 py-2">
@@ -123,7 +152,10 @@ export function DriveCallStrip({
 					<>
 						<Button
 							disabled={disabled}
-							onClick={() => onTakeStage("agent")}
+							onClick={() => {
+								setPinPickerOpen(false);
+								onTakeStage("agent");
+							}}
 							size="sm"
 							type="button"
 							variant={drive.stageSharer === "agent" ? "default" : "ghost"}
@@ -133,7 +165,7 @@ export function DriveCallStrip({
 						</Button>
 						<Button
 							disabled={disabled}
-							onClick={() => onTakeStage("you")}
+							onClick={() => setPinPickerOpen((open) => !open)}
 							size="sm"
 							type="button"
 							variant={drive.stageSharer === "you" ? "default" : "ghost"}
@@ -141,6 +173,30 @@ export function DriveCallStrip({
 						>
 							You take stage
 						</Button>
+						{pinPickerOpen ? (
+							<div className="flex w-full flex-wrap items-center gap-1 border-t border-amber-500/20 pt-2">
+								<span className="mr-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+									Share
+								</span>
+								{kinds.map(({ kind, pin }) => (
+									<Button
+										disabled={disabled}
+										key={kind}
+										onClick={() => {
+											setPinPickerOpen(false);
+											onTakeStage("you", pin);
+										}}
+										size="sm"
+										type="button"
+										variant="outline"
+										className="h-7 px-2 text-xs capitalize"
+										title={pin.ref ?? pin.label}
+									>
+										{kind}
+									</Button>
+								))}
+							</div>
+						) : null}
 					</>
 				) : null}
 				<Button

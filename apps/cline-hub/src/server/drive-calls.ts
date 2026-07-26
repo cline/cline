@@ -22,7 +22,8 @@ export async function handleCallCommand(
 			| "call_leave"
 			| "call_mute"
 			| "call_set_stage"
-			| "call_set_mode";
+			| "call_set_mode"
+			| "call_get_room";
 		[key: string]: unknown;
 	},
 ): Promise<void> {

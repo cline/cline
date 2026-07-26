@@ -250,7 +250,8 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						frame.type === "call_leave" ||
 						frame.type === "call_mute" ||
 						frame.type === "call_set_stage" ||
-						frame.type === "call_set_mode"
+						frame.type === "call_set_mode" ||
+						frame.type === "call_get_room"
 					) {
 						await handleCallCommand(ctx, peer, frame);
 					}

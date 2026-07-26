@@ -275,6 +275,7 @@ export type WebviewInboundMessage =
 			human: { id: string; displayName: string };
 			agent: { id: string; displayName: string };
 			activateDrive?: boolean;
+			sessionId?: string;
 	  }
 	| {
 			type: "call_leave";
@@ -306,6 +307,11 @@ export type WebviewInboundMessage =
 			roomId: string;
 			subMode: "plan" | "act" | "ask" | "debug";
 			driveActive?: boolean;
+	  }
+	| {
+			type: "call_get_room";
+			roomId?: string;
+			sessionId?: string;
 	  };
 
 export type WebviewOutboundMessage =

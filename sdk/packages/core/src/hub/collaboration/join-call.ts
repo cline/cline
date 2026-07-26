@@ -16,6 +16,8 @@ export type JoinCallInput = {
 	};
 	/** When true (default), set driveActive and stage sharer to the agent. */
 	activateDrive?: boolean;
+	/** Optional agent session linked for tool → room work bridge. */
+	sessionId?: string;
 };
 
 export type JoinCallResult = {
@@ -46,8 +48,15 @@ export function joinCall(
 		seatSources: [],
 	};
 
-	store.join({ roomId: input.roomId, participant: human });
+	store.join({
+		roomId: input.roomId,
+		participant: human,
+		sessionId: input.sessionId,
+	});
 	store.join({ roomId: input.roomId, participant: agent });
+	if (input.sessionId) {
+		store.linkSession(input.sessionId, input.roomId);
+	}
 
 	const activate = input.activateDrive !== false;
 	if (activate) {

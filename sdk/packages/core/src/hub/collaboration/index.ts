@@ -5,3 +5,8 @@ export {
 	resetDriveRoomStoreForTests,
 	type RoomCommitResult,
 } from "./room";
+export {
+	workRecordFromToolEvent,
+	type WorkRecordPayload,
+	type WorkToolInput,
+} from "./work-from-tool";

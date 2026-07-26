@@ -23,6 +23,8 @@ export class HubContext {
 	readonly sessions = new Map<string, TrackedSession>();
 	readonly pendingToolApprovals = new Map<string, PendingToolApproval>();
 	readonly events: WebviewHubEvent[] = [];
+	/** toolCallId → input captured at content_start for Drive work bridge. */
+	readonly pendingToolInputs = new Map<string, unknown>();
 
 	hubUrl = "";
 	hubAuthToken = "";

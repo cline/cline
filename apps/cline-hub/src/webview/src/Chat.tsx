@@ -70,6 +70,7 @@ import {
 	fixtureStageCards,
 } from "./drive/demoFixture";
 import { Stage } from "./drive/Stage";
+import { buildHumanPinDefaults } from "./drive/pinDefaults";
 import { projectStageFromMessages } from "./drive/stageReducer";
 import {
 	DEFAULT_DRIVE_UI,
@@ -82,6 +83,34 @@ import {
 import type { RoomSnapshot, StagePin } from "@cline/shared";
 import { getVsCodeApi, postToHost } from "./vscode";
 
+function clearDeadDriveRoom(
+	setDrive: (updater: (current: DriveUiState) => DriveUiState) => void,
+	setRoomSnapshot: (value: RoomSnapshot | null) => void,
+	setDriveJoinNote: (value: string | null) => void,
+	setStatus: (value: string) => void,
+	refs?: {
+		hydratedRoomRef?: MutableRefObject<string | null>;
+		linkedSessionRoomRef?: MutableRefObject<string | null>;
+	},
+): void {
+	if (refs?.hydratedRoomRef) {
+		refs.hydratedRoomRef.current = null;
+	}
+	if (refs?.linkedSessionRoomRef) {
+		refs.linkedSessionRoomRef.current = null;
+	}
+	setRoomSnapshot(null);
+	setDriveJoinNote(null);
+	setDrive((current) => ({
+		...current,
+		active: false,
+		stageLayout: false,
+		handRaised: false,
+		stageSharer: "agent",
+		roomId: null,
+	}));
+	setStatus("Room ended. Join again.");
+}
 type ChatMessage = WebviewChatMessage;
 type ChatMessageBlock = WebviewChatMessageBlock;
 type ToolEvent = NonNullable<WebviewChatMessage["toolEvents"]>[number];
@@ -762,6 +791,8 @@ export default function Chat({
 	});
 	const [roomSnapshot, setRoomSnapshot] = useState<RoomSnapshot | null>(null);
 	const [driveJoinNote, setDriveJoinNote] = useState<string | null>(null);
+	const hydratedRoomRef = useRef<string | null>(null);
+	const linkedSessionRoomRef = useRef<string | null>(null);
 	const [reasonLevel, setReasonLevel] = useState<WebviewReasonLevel>("none");
 	const [enableTools, setEnableTools] = useState(true);
 	const [enableSpawn, setEnableSpawn] = useState(false);
@@ -1094,6 +1125,16 @@ export default function Chat({
 					return;
 				}
 				case "call_error":
+					if (message.code === "room_not_found") {
+						clearDeadDriveRoom(
+							setDrive,
+							setRoomSnapshot,
+							setDriveJoinNote,
+							setStatus,
+							{ hydratedRoomRef, linkedSessionRoomRef },
+						);
+						return;
+					}
 					setStatus(`Drive call error: ${message.text}`);
 					return;
 			}
@@ -1194,6 +1235,49 @@ export default function Chat({
 		}
 	}, [drive]);
 
+	/** Hydrate hub room snapshot after reload / late attach. */
+	useEffect(() => {
+		if (roomSnapshot?.roomId) {
+			hydratedRoomRef.current = roomSnapshot.roomId;
+			return;
+		}
+		if (!drive.roomId) {
+			hydratedRoomRef.current = null;
+			return;
+		}
+		if (hydratedRoomRef.current === drive.roomId) {
+			return;
+		}
+		hydratedRoomRef.current = drive.roomId;
+		postToHost({
+			type: "call_get_room",
+			roomId: drive.roomId,
+			sessionId: sessionIdRef.current,
+		});
+	}, [drive.roomId, roomSnapshot?.roomId]);
+
+	/** Link agent session → room when session becomes available after Join. */
+	useEffect(() => {
+		if (!sessionId || !drive.roomId || !drive.active) {
+			return;
+		}
+		const key = `${sessionId}:${drive.roomId}`;
+		if (linkedSessionRoomRef.current === key) {
+			return;
+		}
+		linkedSessionRoomRef.current = key;
+		postToHost({
+			type: "call_join",
+			roomId: drive.roomId,
+			human: { id: "you", displayName: "You" },
+			agent: {
+				id: drive.partnerName.toLowerCase(),
+				displayName: drive.partnerName,
+			},
+			sessionId,
+		});
+	}, [sessionId, drive.roomId, drive.active, drive.partnerName]);
+
 	const latestToolLabel = useMemo(() => {
 		for (let i = messages.length - 1; i >= 0; i -= 1) {
 			const events = messages[i]?.toolEvents;
@@ -1219,21 +1303,37 @@ export default function Chat({
 		[messages, drive.stageSharer, drive.partnerName],
 	);
 
-	/** Offline fixture when demo mode and the session has no stageable tools yet. */
-	const useStageFixture = drive.demo && liveStage.cards.length === 0;
+	const liveRoom = Boolean(roomSnapshot && drive.active);
+	const roomCards = roomSnapshot?.stage.cards ?? [];
+	/** Offline fixture only when demo and no hub/live cards yet. */
+	const useStageFixture =
+		drive.demo &&
+		!liveRoom &&
+		roomCards.length === 0 &&
+		liveStage.cards.length === 0;
 	const hubPin: StagePin | null =
 		roomSnapshot?.stage.sharer?.kind === "human"
 			? (roomSnapshot.stage.pin ?? null)
 			: null;
 	const stageCards = useStageFixture
 		? fixtureStageCards()
-		: liveStage.cards;
+		: liveRoom
+			? roomCards
+			: liveStage.cards;
 	const stageSharerLabel =
 		drive.stageSharer === "you"
 			? "You"
 			: useStageFixture
 				? `${DRIVE_DEMO_FIXTURE.room.partnerName} · ${DRIVE_DEMO_FIXTURE.room.name}`
 				: drive.partnerName;
+	const pinDefaults = useMemo(
+		() => buildHumanPinDefaults(stageCards),
+		[stageCards],
+	);
+	const nowFromRoom =
+		roomCards.length > 0
+			? roomCards[roomCards.length - 1]?.title
+			: undefined;
 
 	const respondToApproval = (approvalId: string, approved: boolean) => {
 		setPendingApprovals((current) =>
@@ -1349,6 +1449,7 @@ export default function Chat({
 												id: partnerName.toLowerCase(),
 												displayName: partnerName,
 											},
+											sessionId: sessionIdRef.current,
 										});
 										return {
 											...current,
@@ -1369,6 +1470,8 @@ export default function Chat({
 									}
 									setDriveJoinNote(null);
 									setRoomSnapshot(null);
+									linkedSessionRoomRef.current = null;
+									hydratedRoomRef.current = null;
 									return {
 										...current,
 										active: false,
@@ -1405,6 +1508,7 @@ export default function Chat({
 				<DriveCallStrip
 					disabled={isHydrating}
 					drive={drive}
+					pinDefaults={pinDefaults}
 					onHandToggle={() => {
 						setDrive((current) => {
 							const handRaised = !current.handRaised;
@@ -1443,20 +1547,21 @@ export default function Chat({
 						});
 						setMode(toNativeMode(subMode));
 					}}
-					onTakeStage={(who) => {
+					onTakeStage={(who, pin) => {
 						setDrive((current) => {
 							const roomId = current.roomId;
 							const agentId = current.partnerName.toLowerCase();
 							if (roomId) {
 								if (who === "you") {
+									const defaults = buildHumanPinDefaults(
+										roomSnapshot?.stage.cards ?? stageCards,
+									);
+									const nextPin = pin ?? defaults.selection;
 									postToHost({
 										type: "call_set_stage",
 										roomId,
 										sharer: { kind: "human", participantId: "you" },
-										pin: {
-											kind: "selection",
-											label: "Current selection",
-										},
+										pin: nextPin,
 									});
 								} else {
 									postToHost({
@@ -1739,16 +1844,12 @@ export default function Chat({
 						emptyHint={
 							useStageFixture
 								? "Demo fixture cards."
-								: "Waiting for partner tool activity on this session. Edit / command / test tools update this stage."
+								: liveRoom
+									? "Waiting for partner tool activity in this Drive room. Edit / command / test tools update the shared stage."
+									: "Waiting for partner tool activity on this session. Edit / command / test tools update this stage."
 						}
-						humanPin={
-							drive.stageSharer === "you"
-								? (hubPin ?? {
-										kind: "selection",
-										label: "Current selection",
-									})
-								: null
-						}
+						humanPin={drive.stageSharer === "you" ? hubPin : null}
+						humanSharing={drive.stageSharer === "you"}
 						nextLabel={
 							useStageFixture
 								? DRIVE_DEMO_FIXTURE.nextLabel
@@ -1757,12 +1858,15 @@ export default function Chat({
 						nowLabel={
 							useStageFixture
 								? DRIVE_DEMO_FIXTURE.nowLabel
-								: sending
-									? latestToolLabel
-									: liveStage.cards.length > 0
-										? liveStage.cards[liveStage.cards.length - 1]?.title ??
-											"idle"
-										: "idle"
+								: drive.stageSharer === "you" && hubPin
+									? hubPin.label
+									: sending
+										? latestToolLabel
+										: nowFromRoom ??
+											(liveStage.cards.length > 0
+												? liveStage.cards[liveStage.cards.length - 1]
+														?.title ?? "idle"
+												: "idle")
 						}
 						sharerLabel={stageSharerLabel}
 					/>

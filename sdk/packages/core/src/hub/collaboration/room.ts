@@ -16,6 +16,7 @@ import type {
 	StagePin,
 	StageSharer,
 } from "@cline/shared";
+import type { WorkRecordPayload } from "./work-from-tool";
 
 export type RoomCommitResult = {
 	snapshot: RoomSnapshot;
@@ -32,6 +33,9 @@ function newEventId(prefix: string): string {
 
 export class DriveRoomStore {
 	readonly rooms = new Map<string, RoomSnapshot>();
+	/** Session ↔ room links for agent tool → work bridge. */
+	readonly sessionToRoom = new Map<string, string>();
+	readonly roomToSessions = new Map<string, Set<string>>();
 
 	get(roomId: string): RoomSnapshot | undefined {
 		return this.rooms.get(roomId);
@@ -55,6 +59,34 @@ export class DriveRoomStore {
 		return snapshot;
 	}
 
+	linkSession(sessionId: string, roomId: string): void {
+		const previous = this.sessionToRoom.get(sessionId);
+		if (previous && previous !== roomId) {
+			const set = this.roomToSessions.get(previous);
+			set?.delete(sessionId);
+		}
+		this.sessionToRoom.set(sessionId, roomId);
+		let sessions = this.roomToSessions.get(roomId);
+		if (!sessions) {
+			sessions = new Set();
+			this.roomToSessions.set(roomId, sessions);
+		}
+		sessions.add(sessionId);
+	}
+
+	unlinkSession(sessionId: string): void {
+		const roomId = this.sessionToRoom.get(sessionId);
+		if (!roomId) {
+			return;
+		}
+		this.sessionToRoom.delete(sessionId);
+		this.roomToSessions.get(roomId)?.delete(sessionId);
+	}
+
+	getRoomIdForSession(sessionId: string): string | undefined {
+		return this.sessionToRoom.get(sessionId);
+	}
+
 	commit(event: DriveEvent): RoomCommitResult {
 		const current = this.getOrThrow(event.roomId);
 		const next = reduceRoom(current, event);
@@ -67,8 +99,12 @@ export class DriveRoomStore {
 		participant: Participant;
 		actorId?: string;
 		at?: string;
+		sessionId?: string;
 	}): RoomCommitResult {
 		this.create(input.roomId, input.at);
+		if (input.sessionId) {
+			this.linkSession(input.sessionId, input.roomId);
+		}
 		return this.commit({
 			schemaVersion: 1,
 			id: newEventId("join"),
@@ -159,6 +195,62 @@ export class DriveRoomStore {
 			subMode: input.subMode,
 			driveActive: input.driveActive,
 		});
+	}
+
+	recordWork(input: {
+		roomId: string;
+		work: WorkRecordPayload;
+		actorId?: string;
+		at?: string;
+		eventId?: string;
+	}): RoomCommitResult {
+		const at = input.at ?? nowIso();
+		const id = input.eventId ?? newEventId("work");
+		const actorId = input.actorId;
+		switch (input.work.kind) {
+			case "edit":
+				return this.commit({
+					schemaVersion: 1,
+					id,
+					roomId: input.roomId,
+					at,
+					actorId,
+					type: "work.edit",
+					track: "work",
+					path: input.work.path,
+					summary: input.work.summary,
+				});
+			case "command":
+				return this.commit({
+					schemaVersion: 1,
+					id,
+					roomId: input.roomId,
+					at,
+					actorId,
+					type: "work.command",
+					track: "work",
+					command: input.work.command,
+					failed: input.work.failed,
+					exitCode: input.work.exitCode,
+				});
+			case "test_result":
+				return this.commit({
+					schemaVersion: 1,
+					id,
+					roomId: input.roomId,
+					at,
+					actorId,
+					type: "work.test_result",
+					track: "work",
+					label: input.work.label,
+					passed: input.work.passed,
+					summary: input.work.summary,
+				});
+			default: {
+				const _exhaustive: never = input.work;
+				return _exhaustive;
+			}
+		}
 	}
 }
 
