@@ -56,7 +56,6 @@ function convertTool(tool: McpTool): ProtoMcpTool {
 		name: tool.name,
 		description: tool.description,
 		inputSchema: inputSchemaString,
-		autoApprove: tool.autoApprove,
 	}
 }
 
@@ -155,7 +154,6 @@ function convertProtoTool(protoTool: ProtoMcpTool): McpTool {
 				? JSON.parse(protoTool.inputSchema)
 				: protoTool.inputSchema
 			: undefined,
-		autoApprove: protoTool.autoApprove,
 	}
 }
 

@@ -343,7 +343,6 @@ export class HubSessionClient {
 				enableTools: request.enableTools,
 				enableSpawn: request.enableSpawn,
 				enableTeams: request.enableTeams,
-				autoApproveTools: request.autoApproveTools,
 				toolExecutors: request.toolExecutors,
 				configExtensions: request.configExtensions,
 			},
@@ -506,7 +505,6 @@ export class HubSessionClient {
 								enableTools: request.enableTools,
 								enableSpawn: request.enableSpawn,
 								enableTeams: request.enableTeams,
-								autoApproveTools: request.autoApproveTools,
 								configExtensions: request.configExtensions,
 							},
 							modelSelection: {

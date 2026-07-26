@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
+import { LEGACY_APPROVAL_KEYS, stripLegacyApprovalKeys } from "./approval-settings-migration"
 import { ensureRulesDirectoryExists } from "./disk"
 
 const ACCOUNT_CLEANUP_MIGRATION_KEY = "phase4AccountCleanupComplete"
@@ -47,6 +48,60 @@ const ACCOUNT_TASK_DEFAULT_FIELDS = new Set([
 	"refreshToken",
 	"subscription",
 ])
+
+const APPROVAL_CLEANUP_MIGRATION_KEY = "phase5ApprovalCleanupComplete"
+
+async function cleanTaskSettingsFiles(context: vscode.ExtensionContext): Promise<void> {
+	const tasksDirectory = path.join(context.globalStorageUri.fsPath, "tasks")
+	let taskDirectories: string[]
+	try {
+		taskDirectories = await fs.readdir(tasksDirectory)
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return
+		throw error
+	}
+	await Promise.all(
+		taskDirectories.map(async (taskId) => {
+			const settingsPath = path.join(tasksDirectory, taskId, "settings.json")
+			try {
+				const raw = await fs.readFile(settingsPath, "utf8")
+				const parsed = JSON.parse(raw) as unknown
+				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
+				const cleaned = stripLegacyApprovalKeys(parsed as Record<string, unknown>)
+				if (JSON.stringify(cleaned) !== JSON.stringify(parsed)) {
+					await fs.writeFile(settingsPath, JSON.stringify(cleaned, null, 2))
+				}
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+					Logger.warn(`[Storage Migration] Failed to clean task settings ${taskId}`, error)
+				}
+			}
+		}),
+	)
+}
+
+/**
+ * Removes approval-bypass keys from legacy VS Code global, workspace, and task
+ * stores before they are exported to shared file-backed storage.
+ */
+export async function cleanupLegacyApprovalState(context: vscode.ExtensionContext): Promise<void> {
+	if (context.globalState.get<boolean>(APPROVAL_CLEANUP_MIGRATION_KEY)) return
+	await Promise.all([
+		...LEGACY_APPROVAL_KEYS.map((key) => context.globalState.update(key, undefined)),
+		...LEGACY_APPROVAL_KEYS.map((key) => context.workspaceState.update(key, undefined)),
+		cleanTaskSettingsFiles(context),
+	])
+	for (const key of ["taskDefaults", "defaultTaskSettings", "taskSettings"]) {
+		const value = context.globalState.get<unknown>(key)
+		if (value && typeof value === "object" && !Array.isArray(value)) {
+			await context.globalState.update(
+				key,
+				stripLegacyApprovalKeys(value as Record<string, unknown>),
+			)
+		}
+	}
+	await context.globalState.update(APPROVAL_CLEANUP_MIGRATION_KEY, true)
+}
 
 function withoutAccountTaskDefaults(value: unknown): unknown {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {

@@ -28,6 +28,7 @@ import type {
 } from "@cline/shared";
 import {
 	estimateTokens,
+	getToolApprovalDecision,
 	mergeModelOptions,
 	normalizeJsonLikeStringsForSchema,
 	omitUndefinedValues,
@@ -120,19 +121,6 @@ function resolveToolPolicy(
 		...(policies?.["*"] ?? {}),
 		...(policies?.[toolName] ?? {}),
 	};
-}
-
-const READ_ONLY_TOOLS = new Set([
-	"read_files",
-	"read_file",
-	"list_files",
-	"list_code_definition_names",
-	"search_codebase",
-	"search_files",
-]);
-
-function requiresExplicitApproval(toolName: string): boolean {
-	return !READ_ONLY_TOOLS.has(toolName);
 }
 
 interface PendingToolAssembly {
@@ -394,6 +382,7 @@ export class AgentRuntime {
 	private readonly listeners = new Set<AgentEventListener>();
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	private readonly tools = new Map<string, AgentTool<any, any>>();
+	private readonly pluginToolNames = new Set<string>();
 	private hooks: HookBag = {
 		beforeRun: [],
 		afterRun: [],
@@ -518,6 +507,7 @@ export class AgentRuntime {
 				systemPrompt: this.config.systemPrompt,
 			});
 			for (const tool of setup?.tools ?? []) {
+				this.pluginToolNames.add(tool.name);
 				this.tools.set(tool.name, tool);
 			}
 			this.registerHooks(setup?.hooks);
@@ -1250,9 +1240,19 @@ export class AgentRuntime {
 				...resolveToolPolicy(toolCall.toolName, this.config.toolPolicies),
 				...policyOverride,
 			};
+			const approvalDecision = getToolApprovalDecision({
+				toolName: toolCall.toolName,
+				mode: this.config.mode,
+				input,
+				source: this.pluginToolNames.has(toolCall.toolName)
+					? "plugin"
+					: undefined,
+			});
 			if (policy.enabled === false) {
 				skipReason = `Tool "${toolCall.toolName}" is disabled by policy`;
-			} else if (requiresExplicitApproval(toolCall.toolName)) {
+			} else if (approvalDecision === "prohibited") {
+				skipReason = `Tool "${toolCall.toolName}" is prohibited in plan mode`;
+			} else if (approvalDecision === "require_approval") {
 				const approval = await this.requestToolApproval(
 					toolCall,
 					input,

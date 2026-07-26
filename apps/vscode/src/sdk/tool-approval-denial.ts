@@ -1,4 +1,6 @@
-import { isEditTool } from "./sdk-tool-policies"
+function isEditTool(toolName: string): boolean {
+	return ["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"].includes(toolName)
+}
 
 export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = "User denied the tool execution"
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."

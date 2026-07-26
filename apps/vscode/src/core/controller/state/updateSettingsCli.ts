@@ -2,7 +2,6 @@ import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import type { Settings } from "@shared/storage/state-keys"
-import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
@@ -24,7 +23,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 		// These should NOT be included in the batch update
 		const {
 			// Fields requiring conversion
-			autoApprovalSettings,
 			planModeReasoningEffort,
 			actModeReasoningEffort,
 			mode,
@@ -46,29 +44,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 		)
 
 		controller.stateManager.setGlobalStateBatch(filteredSettings)
-
-		Logger.log("autoApprovalSettings", controller.stateManager.getGlobalSettingsKey("autoApprovalSettings"))
-
-		// Handle fields requiring type conversion from generated protobuf types to application types
-		if (autoApprovalSettings) {
-			// Merge with current settings to preserve unspecified fields
-			const currentAutoApprovalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-			const mergedSettings = {
-				...currentAutoApprovalSettings,
-				...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
-				...(autoApprovalSettings.enableNotifications !== undefined && {
-					enableNotifications: autoApprovalSettings.enableNotifications,
-				}),
-				actions: {
-					...currentAutoApprovalSettings.actions,
-					...(autoApprovalSettings.actions
-						? Object.fromEntries(Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined))
-						: {}),
-				},
-			}
-
-			controller.stateManager.setGlobalState("autoApprovalSettings", mergedSettings)
-		}
 
 		if (planModeReasoningEffort !== undefined) {
 			const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)

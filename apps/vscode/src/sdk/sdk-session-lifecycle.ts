@@ -5,7 +5,6 @@ import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
-import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
 import { VscodeSessionHost } from "./vscode-session-host"
 
@@ -127,13 +126,10 @@ export class SdkSessionLifecycle {
 			await pendingStop
 		}
 
-		const toolPolicies = buildToolPolicies(this.options.mcpHub)
-
 		const sdkHost = await this.getOrCreateSharedHost()
 
 		const startResult = await sdkHost.start({
 			...startInput,
-			toolPolicies,
 		})
 		this.activeSession = {
 			sessionId: startResult.sessionId,

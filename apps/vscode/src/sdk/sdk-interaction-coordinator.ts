@@ -1,4 +1,8 @@
-import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision } from "@cline/shared"
+import type {
+	ConsecutiveMistakeLimitContext,
+	ConsecutiveMistakeLimitDecision,
+	ToolApprovalRequest,
+} from "@cline/shared"
 import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
@@ -6,16 +10,6 @@ import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { buildToolApprovalDenialReason } from "./tool-approval-denial"
-
-export interface ToolApprovalRequest {
-	agentId: string
-	conversationId: string
-	iteration: number
-	toolCallId: string
-	toolName: string
-	input: unknown
-	policy: { enabled?: boolean; autoApprove?: boolean }
-}
 
 export interface SdkInteractionCoordinatorOptions {
 	messages: SdkMessageCoordinator

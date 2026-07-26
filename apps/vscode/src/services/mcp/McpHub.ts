@@ -691,19 +691,7 @@ export class McpHub {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
 
-			// Get autoApprove settings
-			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
-
-			// Mark tools as always allowed based on settings
-			const tools = (response?.tools || []).map((tool) => ({
-				...tool,
-				autoApprove: autoApproveConfig.includes(tool.name),
-			}))
-
-			return tools
+			return response?.tools || []
 		} catch (error) {
 			Logger.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
@@ -859,19 +847,11 @@ export class McpHub {
 				}
 			} else {
 				// Only Cline-specific settings changed - update in-memory state without restart
-				const autoApprove = config.autoApprove || []
-				if (currentConnection.server.tools) {
-					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
-						...tool,
-						autoApprove: autoApprove.includes(tool.name),
-					}))
-				}
 				// Also update Cline-specific settings in the stored config.
 				// This handles the case where someone manually edits the MCP settings file -
 				// the file watcher triggers this code path, and we need to sync the in-memory
 				// config with the file without restarting the server.
 				const currentConfig = JSON.parse(currentConnection.server.config)
-				currentConfig.autoApprove = config.autoApprove
 				currentConfig.timeout = config.timeout
 				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
@@ -940,16 +920,8 @@ export class McpHub {
 			} else {
 				// Only Cline-specific settings changed - update in-memory state without restart
 				// Don't set connectionChangesOccurred since the RPC already returned the updated state
-				const autoApprove = config.autoApprove || []
-				if (currentConnection.server.tools) {
-					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
-						...tool,
-						autoApprove: autoApprove.includes(tool.name),
-					}))
-				}
 				// Also update Cline-specific settings in the stored config
 				const currentConfig = JSON.parse(currentConnection.server.config)
-				currentConfig.autoApprove = config.autoApprove
 				currentConfig.timeout = config.timeout
 				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
@@ -969,7 +941,6 @@ export class McpHub {
 	 * Excludes Cline-specific settings since they don't affect the MCP server transport connection.
 	 *
 	 * ## Cline-specific settings (don't require restart):
-	 * - `autoApprove`: tool approval list (UI setting)
 	 * - `timeout`: request timeout (read at request time, not connection time)
 	 *
 	 * ## MCP SDK connection settings (require restart):
@@ -991,14 +962,12 @@ export class McpHub {
 		// connection. Token changes are picked up separately, by
 		// serverGainedOAuthTokens in updateServerConnections.
 		const {
-			autoApprove: _oldAutoApprove,
 			timeout: _oldTimeout,
 			oauth: _oldOauth,
 			metadata: _oldMetadata,
 			...oldConnectionConfig
 		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
 		const {
-			autoApprove: _newAutoApprove,
 			timeout: _newTimeout,
 			oauth: _newOauth,
 			metadata: _newMetadata,
@@ -1361,104 +1330,6 @@ export class McpHub {
 		}
 	}
 
-	/**
-	 * RPC variant of toggleToolAutoApprove that returns the updated servers instead of notifying the webview
-	 * @param serverName The name of the MCP server
-	 * @param toolNames Array of tool names to toggle auto-approve for
-	 * @param shouldAllow Whether to enable or disable auto-approve
-	 * @returns Array of updated MCP servers
-	 */
-	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
-		try {
-			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const { config, autoApprove } = await updateMcpSettingsFile(settingsPath, (parsed) => {
-				// Initialize autoApprove if it doesn't exist
-				const servers = parsed.mcpServers as Record<string, any>
-				if (!servers[serverName].autoApprove) {
-					servers[serverName].autoApprove = []
-				}
-
-				const approve = servers[serverName].autoApprove
-				for (const toolName of toolNames) {
-					const toolIndex = approve.indexOf(toolName)
-
-					if (shouldAllow && toolIndex === -1) {
-						// Add tool to autoApprove list
-						approve.push(toolName)
-					} else if (!shouldAllow && toolIndex !== -1) {
-						// Remove tool from autoApprove list
-						approve.splice(toolIndex, 1)
-					}
-				}
-				return { config: parsed, autoApprove: approve }
-			})
-			this.recordSettingsFingerprint(config.mcpServers as Record<string, McpServerConfig>)
-
-			// Update the tools list to reflect the change
-			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection && connection.server.tools) {
-				// Update the autoApprove property of each tool in the in-memory server object
-				connection.server.tools = connection.server.tools.map((tool) => ({
-					...tool,
-					autoApprove: autoApprove.includes(tool.name),
-				}))
-			}
-
-			// Return sorted servers without notifying webview
-			const serverOrder = Object.keys(config.mcpServers || {})
-			return this.getSortedMcpServers(serverOrder)
-		} catch (error) {
-			Logger.error("Failed to update autoApprove settings:", error)
-			throw error // Re-throw to ensure the error is properly handled
-		}
-	}
-
-	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
-		try {
-			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const { autoApprove, mcpServers } = await updateMcpSettingsFile(settingsPath, (config) => {
-				// Initialize autoApprove if it doesn't exist
-				const servers = config.mcpServers as Record<string, any>
-				if (!servers[serverName].autoApprove) {
-					servers[serverName].autoApprove = []
-				}
-
-				const approve = servers[serverName].autoApprove
-				for (const toolName of toolNames) {
-					const toolIndex = approve.indexOf(toolName)
-
-					if (shouldAllow && toolIndex === -1) {
-						// Add tool to autoApprove list
-						approve.push(toolName)
-					} else if (!shouldAllow && toolIndex !== -1) {
-						// Remove tool from autoApprove list
-						approve.splice(toolIndex, 1)
-					}
-				}
-				return { autoApprove: approve as string[], mcpServers: servers as Record<string, McpServerConfig> }
-			})
-			this.recordSettingsFingerprint(mcpServers)
-
-			// Update the tools list to reflect the change
-			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection && connection.server.tools) {
-				// Update the autoApprove property of each tool in the in-memory server object
-				connection.server.tools = connection.server.tools.map((tool) => ({
-					...tool,
-					autoApprove: autoApprove.includes(tool.name),
-				}))
-				await this.notifyWebviewOfServerChanges()
-			}
-		} catch (error) {
-			Logger.error("Failed to update autoApprove settings:", error)
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: "Failed to update autoApprove settings",
-			})
-			throw error // Re-throw to ensure the error is properly handled
-		}
-	}
-
 	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
 		try {
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
@@ -1472,7 +1343,6 @@ export class McpHub {
 					url: serverUrl,
 					type: transportType,
 					disabled: false,
-					autoApprove: [],
 				}
 
 				// Expand environment variables for validation

@@ -94,6 +94,7 @@ export function createAgentRuntimeConfig(
 		conversationId: input.conversationId,
 		parentAgentId: input.parentAgentId,
 		agentRole: input.agentRole,
+		mode: agentConfig.mode,
 		systemPrompt: input.systemPrompt ?? agentConfig.systemPrompt,
 		messageModelInfo,
 		model: input.model,

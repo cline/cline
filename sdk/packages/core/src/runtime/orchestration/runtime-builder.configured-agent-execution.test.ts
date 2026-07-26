@@ -150,7 +150,7 @@ Write a concise commit message.`,
 		const onSubAgentStart = vi.fn();
 		const onSubAgentEnd = vi.fn();
 		const effectiveToolPolicies = {
-			"*": { autoApprove: false },
+			"*": {},
 			read_files: { enabled: false },
 		};
 		const runtime = await new DefaultRuntimeBuilder().build({

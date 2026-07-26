@@ -21,26 +21,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 	const filteredTaskSettings: Partial<Settings> = Object.fromEntries(
 		Object.entries({
 			...request.taskSettings,
-			...(request.taskSettings?.autoApprovalSettings && {
-				autoApprovalSettings: (() => {
-					// Merge with global settings to ensure complete settings for new task
-					const globalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-					const incomingSettings = request.taskSettings.autoApprovalSettings
-					return {
-						...globalSettings,
-						...(incomingSettings.version !== undefined && { version: incomingSettings.version }),
-						...(incomingSettings.enableNotifications !== undefined && {
-							enableNotifications: incomingSettings.enableNotifications,
-						}),
-						actions: {
-							...globalSettings.actions,
-							...(incomingSettings.actions
-								? Object.fromEntries(Object.entries(incomingSettings.actions).filter(([_, v]) => v !== undefined))
-								: {}),
-						},
-					}
-				})(),
-			}),
 			...(request.taskSettings?.browserSettings && {
 				browserSettings: {
 					viewport: request.taskSettings.browserSettings.viewport || DEFAULT_BROWSER_SETTINGS.viewport,

@@ -530,7 +530,7 @@ describe("HubRuntimeHost", () => {
 				toolCallId: "call-1",
 				toolName: "run_commands",
 				inputJson: '{"commands":["echo hi"]}',
-				policy: { autoApprove: false },
+				policy: {},
 			},
 		});
 		await new Promise((resolve) => setTimeout(resolve, 0));
@@ -544,7 +544,7 @@ describe("HubRuntimeHost", () => {
 			toolCallId: "call-1",
 			toolName: "run_commands",
 			input: { commands: ["echo hi"] },
-			policy: { autoApprove: false },
+			policy: {},
 		});
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"approval.respond",
@@ -680,7 +680,7 @@ describe("HubRuntimeHost", () => {
 				toolCallId: "call-approval-1",
 				toolName: "run_commands",
 				inputJson: '{"commands":["echo hi"]}',
-				policy: { autoApprove: false },
+				policy: {},
 			},
 		});
 		await new Promise((resolve) => setTimeout(resolve, 0));
@@ -693,7 +693,7 @@ describe("HubRuntimeHost", () => {
 			toolCallId: "call-approval-1",
 			toolName: "run_commands",
 			input: { commands: ["echo hi"] },
-			policy: { autoApprove: false },
+			policy: {},
 		});
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"approval.respond",

@@ -119,11 +119,7 @@ export function createClineCoreAutomationRuntimeHandlers(
 					missionLogIntervalSteps: request.missionStepInterval,
 					missionLogIntervalMs: request.missionTimeIntervalMs,
 				},
-				toolPolicies: request.toolPolicies ?? {
-					"*": {
-						autoApprove: false,
-					},
-				},
+				toolPolicies: request.toolPolicies,
 				localRuntime: {
 					extensionContext: input.getExtensionContext(),
 					configExtensions: request.configExtensions,

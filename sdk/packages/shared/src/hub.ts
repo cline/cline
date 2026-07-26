@@ -702,7 +702,6 @@ export interface HubSessionRuntimeOptions {
 	enableTools?: boolean;
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
-	autoApproveTools?: boolean;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	clientContributions?: HubClientContribution[];
 }

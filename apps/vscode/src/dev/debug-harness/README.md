@@ -137,7 +137,7 @@ curl localhost:19229/api -d '{"method":"oauth.captured_urls"}'
 #    The authorize URL contains redirect_uri=vscode://saoudrizwan.claude-dev/mcp-auth/callback/HASH
 
 # 3. Get a real authorization code from the auth server, e.g. by following the
-#    captured authorize URL (the test server auto-approves and 302s to the
+#    captured authorize URL (the test server accepts consent and 302s to the
 #    vscode:// callback carrying ?code=...&state=...):
 curl -s -D - -o /dev/null "<captured-authorize-url>" | grep -i '^location:'
 

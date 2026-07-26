@@ -35,7 +35,7 @@
  * Fault-injection knobs (CLI flags / env) let us reproduce specific bugs:
  *
  *   --port <n>            Port to listen on (default 7777, env MCP_OAUTH_TEST_PORT)
- *   --auto-approve        Skip the consent screen; always approve (default: off,
+ *   --accept-consent      Skip the consent screen; accept consent (default: off,
  *                         shows an interactive Approve/Deny page)
  *   --auto-deny           Skip the consent screen; always deny (redirect comes
  *                         back with error=access_denied)
@@ -67,7 +67,7 @@ import http from "node:http"
 interface TestServerOptions {
 	port: number
 	host: string
-	autoApprove: boolean
+	acceptConsent: boolean
 	autoDeny: boolean
 	codeTtlMs: number
 	slowAuthorizeMs: number
@@ -90,7 +90,7 @@ function parseArgs(argv: string[]): TestServerOptions {
 	const opts: TestServerOptions = {
 		port: Number(process.env.MCP_OAUTH_TEST_PORT) || 7777,
 		host: "127.0.0.1",
-		autoApprove: false,
+		acceptConsent: false,
 		autoDeny: false,
 		codeTtlMs: 10 * 60 * 1000,
 		slowAuthorizeMs: 0,
@@ -104,8 +104,8 @@ function parseArgs(argv: string[]): TestServerOptions {
 			case "--port":
 				opts.port = Number(argv[++i])
 				break
-			case "--auto-approve":
-				opts.autoApprove = true
+			case "--accept-consent":
+				opts.acceptConsent = true
 				break
 			case "--auto-deny":
 				opts.autoDeny = true
@@ -136,8 +136,8 @@ function parseArgs(argv: string[]): TestServerOptions {
 				printUsageAndExit(1)
 		}
 	}
-	if (opts.autoApprove && opts.autoDeny) {
-		console.error("Cannot set both --auto-approve and --auto-deny")
+	if (opts.acceptConsent && opts.autoDeny) {
+		console.error("Cannot set both --accept-consent and --auto-deny")
 		process.exit(1)
 	}
 	if (!Number.isInteger(opts.instances) || opts.instances < 1) {
@@ -166,7 +166,7 @@ Options:
   --instances <n>       Start N independent servers, each on its own random
                         port (implies --random-port). Use to add several MCP
                         servers to Cline at once.
-  --auto-approve        Always approve authorization (no consent screen)
+  --accept-consent      Accept authorization without a consent screen
   --auto-deny           Always deny authorization (simulate "Deny" click)
   --code-ttl <ms>       Authorization code lifetime (default 600000)
   --slow-authorize <ms> Delay /authorize response by <ms>
@@ -278,7 +278,7 @@ class TestServer {
 				console.log(`MCP OAuth Test Server listening on ${this.baseUrl}`)
 				console.log(`  MCP endpoint:   ${this.baseUrl}/mcp  (type: streamableHttp)`)
 				console.log(`  Authorize page: ${this.baseUrl}/authorize`)
-				const mode = this.opts.autoApprove ? "auto-approve" : this.opts.autoDeny ? "auto-deny" : "interactive consent"
+				const mode = this.opts.acceptConsent ? "accept consent" : this.opts.autoDeny ? "auto-deny" : "interactive consent"
 				console.log(`  Mode: ${mode}, code TTL: ${this.opts.codeTtlMs}ms`)
 				resolve()
 			})
@@ -415,7 +415,7 @@ class TestServer {
 
 		// Decide approve/deny.
 		let approved: boolean
-		if (this.opts.autoApprove) {
+		if (this.opts.acceptConsent) {
 			approved = true
 		} else if (this.opts.autoDeny) {
 			approved = false

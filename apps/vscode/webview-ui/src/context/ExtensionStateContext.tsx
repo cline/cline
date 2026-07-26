@@ -1,4 +1,3 @@
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
@@ -168,7 +167,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		clineMessages: [],
 		queuedPrompts: [],
 		taskHistory: [],
-		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		preferredLanguage: "English",
 		mode: "act",
@@ -204,7 +202,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandTaskId: undefined,
 		foregroundCommandRunning: false,
 		lastDismissedCliBannerVersion: 0,
-		backgroundEditEnabled: false,
 		showFeatureTips: true,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
@@ -261,12 +258,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						setState((prevState) => {
-							// Versioning logic for autoApprovalSettings
-							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-
+						setState(() => {
 							// Route the snapshot's transcript through the convergent-replica reducer:
 							// merge by ts/seq within the same epoch (never truncate), replace on a
 							// newer epoch, ignore stale/older snapshots. Unstamped (classic/legacy)
@@ -285,12 +277,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							// undefined for classic/legacy state.
 							stateData.turnState = replicaRef.current.turnState
 
-							const newState = {
-								...stateData,
-								autoApprovalSettings: shouldUpdateAutoApproval
-									? stateData.autoApprovalSettings
-									: prevState.autoApprovalSettings,
-							}
+							const newState = stateData
 
 							const hasBedrockConnection = Boolean(
 								newState.apiConfiguration?.awsRegion ||

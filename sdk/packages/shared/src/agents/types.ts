@@ -34,6 +34,7 @@ import type {
 import { ToolCallRecordSchema } from "../llms/tools";
 import type { BasicLogger } from "../logging/logger";
 import type { WorkspaceInfo } from "../session/workspace";
+import type { AgentMode } from "../session/runtime-config";
 
 // =============================================================================
 // Agent Events
@@ -704,6 +705,8 @@ export interface AgentConfig {
 
 	/** System prompt for the agent */
 	systemPrompt: string;
+	/** Plan mode exposes read-only tools only. */
+	mode?: AgentMode;
 	/** Tools available to the agent */
 	tools: AgentTool[];
 	/**
@@ -892,6 +895,7 @@ export const AgentConfigSchema = z.object({
 
 	// Agent Behavior
 	systemPrompt: z.string(),
+	mode: z.enum(["act", "plan"]).optional(),
 	tools: z.array(z.custom<AgentTool>()),
 	maxIterations: z.number().positive().optional(),
 	maxParallelToolCalls: z.number().int().positive().default(8),
@@ -940,7 +944,6 @@ export const AgentConfigSchema = z.object({
 			z.string(),
 			z.object({
 				enabled: z.boolean().optional(),
-				autoApprove: z.boolean().optional(),
 			}),
 		)
 		.optional(),
@@ -958,7 +961,6 @@ export const AgentConfigSchema = z.object({
 				policy: z
 					.object({
 						enabled: z.boolean().optional(),
-						autoApprove: z.boolean().optional(),
 					})
 					.default({}),
 			}),

@@ -23,8 +23,8 @@ describe("builtin tool catalog", () => {
 		).toBe(true);
 	});
 
-	it("marks teams and spawn disabled by default in yolo mode", () => {
-		const catalog = getCoreBuiltinToolCatalog({ mode: "yolo" });
+	it("marks teams and spawn disabled by default in plan mode", () => {
+		const catalog = getCoreBuiltinToolCatalog({ mode: "plan" });
 		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
 			false,
 		);

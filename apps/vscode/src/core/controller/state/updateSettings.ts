@@ -205,10 +205,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.terminalManager?.setDefaultTerminalProfile(request.defaultTerminalProfile)
 		}
 
-		if (request.backgroundEditEnabled !== undefined) {
-			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
-		}
-
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}

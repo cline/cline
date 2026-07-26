@@ -341,11 +341,9 @@ export async function handleSessionCreate(
 			!Array.isArray(payload.toolPolicies)
 				? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
 						string,
-						{ autoApprove?: boolean; enabled?: boolean }
+						{ enabled?: boolean }
 					>)
-				: runtimeOptions.autoApproveTools === true
-					? { "*": { autoApprove: true } }
-					: undefined,
+				: undefined,
 	});
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
@@ -597,11 +595,9 @@ export async function handleSessionRestore(
 						!Array.isArray(payload.toolPolicies)
 							? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
 									string,
-									{ autoApprove?: boolean; enabled?: boolean }
+									{ enabled?: boolean }
 								>)
-							: runtimeOptions.autoApproveTools === true
-								? { "*": { autoApprove: true } }
-								: undefined,
+							: undefined,
 				};
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),

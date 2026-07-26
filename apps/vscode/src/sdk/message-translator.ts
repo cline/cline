@@ -227,7 +227,7 @@ export class MessageTranslatorState {
 		this.streamingToolInput = input
 	}
 
-	/** Remember the approval prompt row for a tool call after the user approves it. */
+	/** Record the approval prompt row for a tool call after the user approves it. */
 	recordApprovedToolMessageTs(toolCallId: string, messageTs: number): void {
 		this.approvedToolMessageTsByCallId.set(toolCallId, messageTs)
 	}

@@ -202,7 +202,7 @@ describe("HubServerTransport boundaries", () => {
 			toolCallId: "call-1",
 			toolName: "run_commands",
 			input: { commands: ["echo hi"] },
-			policy: { autoApprove: false },
+			policy: {},
 		});
 
 		expect(result).toEqual({
@@ -494,7 +494,7 @@ describe("HubServerTransport boundaries", () => {
 				toolCallId: "call-1",
 				toolName: "run_commands",
 				input: { commands: ["echo hi"] },
-				policy: { autoApprove: false },
+				policy: {},
 			});
 			resultPromise.then((result) => {
 				settled = result;
@@ -575,7 +575,7 @@ describe("HubServerTransport boundaries", () => {
 			toolCallId: "call-1",
 			toolName: "run_commands",
 			input: { commands: ["echo hi"] },
-			policy: { autoApprove: false },
+			policy: {},
 		});
 		await Promise.resolve();
 

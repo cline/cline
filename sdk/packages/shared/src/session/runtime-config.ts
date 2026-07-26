@@ -1,6 +1,6 @@
 import type { ToolPolicy } from "../llms/tools";
 
-export type AgentMode = "act" | "plan" | "zen";
+export type AgentMode = "act" | "plan";
 export type RuntimeConfigExtensionKind =
 	| "rules"
 	| "skills"

@@ -232,8 +232,6 @@ export interface McpSettingsFile {
 			url?: string
 			/** Whether the server is disabled */
 			disabled?: boolean
-			/** Auto-approve settings for tools */
-			autoApprove?: string[]
 			/** Timeout in milliseconds */
 			timeout?: number
 			/** Transport type */

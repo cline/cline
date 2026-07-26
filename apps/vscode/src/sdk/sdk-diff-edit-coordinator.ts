@@ -15,26 +15,15 @@ import { HostProvider } from "@/hosts/host-provider"
 import type { EditPreview } from "@/integrations/editor/EditPreview"
 import { Logger } from "@/shared/services/Logger"
 
-/**
- * How long an auto-approved edit's preview stays visible after the write, so the
- * user can watch the change land without stalling the agent loop for long.
- * Manually-approved edits don't need this: the preview is open while the user decides.
- */
-const AUTO_APPROVE_PREVIEW_LINGER_MS = 1_500
-
 export interface SdkDiffEditCoordinatorOptions {
 	/** Workspace root used to resolve relative tool paths. */
 	getCwd: () => Promise<string>
-	/** When Background Edit is enabled, edits apply headlessly with no preview. */
-	isBackgroundEditEnabled: () => boolean
 	/** Injectable for tests. Defaults to the host-registered factory. */
 	createEditPreview?: () => EditPreview
 	/** Injectable for tests. Defaults to the SDK's disk-writing editor executor. */
 	fallbackEditorExecutor?: EditorExecutor
 	/** Injectable for tests. Defaults to the SDK's disk-writing apply_patch executor. */
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
-	/** Test seam: overrides the auto-approve preview linger. */
-	autoApprovePreviewLingerMs?: number
 }
 
 interface DiffEditSession {
@@ -55,19 +44,16 @@ interface DiffEditSession {
  *
  * Previews open at approval time (the SDK surfaces tool input only after the model's
  * stream completes, so the approval callback is the only pre-execution point with
- * full input; streaming-during-generation is not possible). Auto-approved edits get
- * a brief preview during execution instead.
+ * full input; streaming-during-generation is not possible).
  */
 export class SdkDiffEditCoordinator {
 	private readonly sessions = new Map<string, DiffEditSession>()
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
-	private readonly autoApprovePreviewLingerMs: number
 
 	constructor(private readonly options: SdkDiffEditCoordinatorOptions) {
 		this.fallbackEditorExecutor = options.fallbackEditorExecutor ?? createEditorExecutor()
 		this.fallbackApplyPatchExecutor = options.fallbackApplyPatchExecutor ?? createApplyPatchExecutor()
-		this.autoApprovePreviewLingerMs = options.autoApprovePreviewLingerMs ?? AUTO_APPROVE_PREVIEW_LINGER_MS
 	}
 
 	/**
@@ -76,7 +62,7 @@ export class SdkDiffEditCoordinator {
 	 * approval flow proceeds without a preview and the executor still applies the edit.
 	 */
 	async openForApproval(toolCallId: string, toolName: string, input: unknown): Promise<void> {
-		if (this.options.isBackgroundEditEnabled() || this.sessions.has(toolCallId)) {
+		if (this.sessions.has(toolCallId)) {
 			return
 		}
 		try {
@@ -92,59 +78,27 @@ export class SdkDiffEditCoordinator {
 	}
 
 	/**
-	 * The `editor` tool executor override: delegate the write to the SDK's disk executor,
-	 * with the preview visible around it. Auto-approved edits (no pre-approval preview)
-	 * get a brief preview that lingers shortly after the write so the user sees it land.
+	 * The `editor` tool executor override delegates the approved write to the
+	 * SDK's disk executor, with the preview visible around it.
 	 */
 	async executeEditorTool(input: EditFileInput, cwd: string, context: AgentToolContext): Promise<string> {
 		const toolCallId = context.toolCallId ?? ""
-		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		try {
-			if (!hadPreApprovalPreview && !this.options.isBackgroundEditEnabled()) {
-				// Auto-approved (or hook-approved) edit: no preview was opened at approval
-				// time, so show one now. Best-effort — never blocks the edit.
-				try {
-					await this.openEditorPreview(toolCallId, input)
-				} catch (error) {
-					Logger.warn(`[SdkDiffEditCoordinator] Failed to show auto-approve preview: ${error}`)
-				}
-			}
-			const result = await this.fallbackEditorExecutor(input, cwd, context)
-			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
-				// Keep the auto-approve preview visible briefly after the write; an abort
-				// just cuts the linger short (the edit has already been applied).
-				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
-			}
-			return result
+			return await this.fallbackEditorExecutor(input, cwd, context)
 		} finally {
 			await this.discardPreview(toolCallId)
 		}
 	}
 
 	/**
-	 * The `apply_patch` tool executor override: manually-approved patches close their
-	 * approval preview before applying; auto-approved patches show a brief preview
-	 * around execution, matching the `editor` tool behavior.
+	 * The `apply_patch` tool executor override closes its approval preview before
+	 * applying the approved patch.
 	 */
 	async executeApplyPatchTool(input: ApplyPatchInput, cwd: string, context: AgentToolContext): Promise<string> {
 		const toolCallId = context.toolCallId ?? ""
-		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		try {
-			if (hadPreApprovalPreview) {
-				await this.discardPreview(toolCallId)
-			} else if (!this.options.isBackgroundEditEnabled()) {
-				try {
-					await this.openPatchPreview(toolCallId, input)
-				} catch (error) {
-					Logger.warn(`[SdkDiffEditCoordinator] Failed to show auto-approve patch preview: ${error}`)
-				}
-			}
-
-			const result = await this.fallbackApplyPatchExecutor(input, cwd, context)
-			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
-				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
-			}
-			return result
+			await this.discardPreview(toolCallId)
+			return await this.fallbackApplyPatchExecutor(input, cwd, context)
 		} finally {
 			await this.discardPreview(toolCallId)
 		}
@@ -337,22 +291,4 @@ function resolveEditPath(cwd: string, inputPath: string): string {
 		throw new Error(`Path must stay within cwd: ${inputPath}`)
 	}
 	return resolved
-}
-
-/** Waits `ms`, resolving early (never rejecting) if the signal aborts. */
-function lingerDelay(ms: number, signal?: AbortSignal): Promise<void> {
-	if (signal?.aborted) {
-		return Promise.resolve()
-	}
-	return new Promise((resolve) => {
-		const timer = setTimeout(() => {
-			signal?.removeEventListener("abort", onAbort)
-			resolve()
-		}, ms)
-		const onAbort = () => {
-			clearTimeout(timer)
-			resolve()
-		}
-		signal?.addEventListener("abort", onAbort, { once: true })
-	})
 }

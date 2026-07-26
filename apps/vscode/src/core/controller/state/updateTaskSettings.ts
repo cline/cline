@@ -33,7 +33,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 			// Extract all special case fields that need dedicated handlers
 			const {
 				// Fields requiring conversion
-				autoApprovalSettings,
 				planModeReasoningEffort,
 				actModeReasoningEffort,
 				mode,
@@ -53,25 +52,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 			controller.stateManager.setTaskSettingsBatch(taskId, filteredSettings)
 
 			// Handle fields requiring type conversion from generated protobuf types to application types
-			if (autoApprovalSettings) {
-				// Merge with current settings to preserve unspecified fields
-				const currentAutoApprovalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				const mergedSettings = {
-					...currentAutoApprovalSettings,
-					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
-					...(autoApprovalSettings.enableNotifications !== undefined && {
-						enableNotifications: autoApprovalSettings.enableNotifications,
-					}),
-					actions: {
-						...currentAutoApprovalSettings.actions,
-						...(autoApprovalSettings.actions
-							? Object.fromEntries(Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined))
-							: {}),
-					},
-				}
-				controller.stateManager.setTaskSettings(taskId, "autoApprovalSettings", mergedSettings)
-			}
-
 			if (planModeReasoningEffort !== undefined) {
 				const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)
 				controller.stateManager.setTaskSettings(taskId, "planModeReasoningEffort", converted)

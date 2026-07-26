@@ -233,11 +233,6 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		return launchMessage?.text || ""
 	}, [messages])
 
-	const isAutoApproved = useMemo(() => {
-		const launchMessage = messages.find((m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch")
-		return launchMessage?.say === "browser_action_launch"
-	}, [messages])
-
 	// const lastCheckpointMessageTs = useMemo(() => {
 	// 	const lastCheckpointMessage = findLast(messages, (m) => m.lastCheckpointHash !== undefined)
 	// 	return lastCheckpointMessage?.ts
@@ -360,7 +355,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
 				)}
 				<span style={approveTextStyle}>
-					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}
+					Cline wants to use the browser:
 				</span>
 			</div>
 			<div

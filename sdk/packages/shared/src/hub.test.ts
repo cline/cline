@@ -32,9 +32,9 @@ describe("isHubProtocolCompatible", () => {
 
 describe("readHubScheduleMode", () => {
 	it("defaults only when mode is absent", () => {
-		expect(readHubScheduleMode(undefined, "yolo")).toBe("yolo");
-		expect(readHubScheduleMode({}, "yolo")).toBe("yolo");
-		expect(readHubScheduleMode({ mode: "plan" }, "yolo")).toBe("plan");
+		expect(readHubScheduleMode(undefined, "act")).toBe("act");
+		expect(readHubScheduleMode({}, "act")).toBe("act");
+		expect(readHubScheduleMode({ mode: "plan" }, "act")).toBe("plan");
 	});
 
 	it("preserves omission for schedule updates", () => {
@@ -47,8 +47,8 @@ describe("readHubScheduleMode", () => {
 		"",
 		"invalid",
 	])("rejects a present invalid mode: %s", (mode) => {
-		expect(() => readHubScheduleMode({ mode }, "yolo")).toThrow(
-			"mode must be one of: act, plan, yolo",
+		expect(() => readHubScheduleMode({ mode }, "act")).toThrow(
+			"mode must be one of: act, plan",
 		);
 	});
 });

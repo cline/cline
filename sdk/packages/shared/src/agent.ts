@@ -12,6 +12,7 @@ import type {
 	ToolPolicy,
 } from "./llms/tools";
 import type { BasicLogger } from "./logging/logger";
+import type { AgentMode } from "./session/runtime-config";
 
 // =============================================================================
 // Message parts
@@ -410,6 +411,7 @@ export interface AgentRuntimeConfig {
 	conversationId?: string;
 	parentAgentId?: string | null;
 	agentRole?: AgentRole;
+	mode?: AgentMode;
 	systemPrompt?: string;
 	messageModelInfo?: AgentMessage["modelInfo"];
 	model: AgentModel;

@@ -8,6 +8,7 @@ import {
 	type AgentResult,
 	type BasicLogger,
 	createSessionId,
+	getToolApprovalDecision,
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
@@ -478,7 +479,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			configWithProvider.teamName = runtime.teamRuntime.getTeamName();
 		}
 
-		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
+		const tools = [
+			...runtime.tools,
+			...(configWithProvider.extraTools ?? []),
+		].filter(
+			(tool) =>
+				getToolApprovalDecision({
+					toolName: tool.name,
+					mode: configWithProvider.mode,
+				}) !== "prohibited",
+		);
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
@@ -541,6 +551,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			temperature: configWithProvider.temperature,
 			systemPrompt: configWithProvider.systemPrompt,
+			mode: configWithProvider.mode,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
 			prepareTurn,

@@ -46,13 +46,7 @@ interface PluginUninstallCandidate {
 
 const INSTALLS_DIRECTORY_NAME = "_installed";
 const PACKAGE_DIRECTORY_NAME = "package";
-const INSTALL_KIND_DEPTHS = new Map<string, number>([
-	["git", 2],
-	["local", 1],
-	["npm", 1],
-	["official", 1],
-	["remote", 1],
-]);
+const LOCAL_INSTALL_KIND = "local";
 
 function normalizeMatchValue(value: string): string {
 	return value.trim().toLowerCase();
@@ -108,7 +102,10 @@ function resolveInstalledRootFromPath(filePath: string): string | undefined {
 	if (!kind) {
 		return undefined;
 	}
-	const depth = INSTALL_KIND_DEPTHS.get(kind) ?? 1;
+	if (kind !== LOCAL_INSTALL_KIND) {
+		return undefined;
+	}
+	const depth = 1;
 	const endIndex = installedIndex + 2 + depth;
 	if (parts.length < endIndex) {
 		return undefined;
@@ -132,24 +129,13 @@ function collectInstalledRoots(pluginRoot: string): string[] {
 	}
 	const roots: string[] = [];
 	for (const kindEntry of safeReadDir(installedRoot)) {
-		if (!kindEntry.isDirectory()) {
+		if (
+			!kindEntry.isDirectory() ||
+			kindEntry.name !== LOCAL_INSTALL_KIND
+		) {
 			continue;
 		}
 		const kindPath = join(installedRoot, kindEntry.name);
-		if (kindEntry.name === "git") {
-			for (const hostEntry of safeReadDir(kindPath)) {
-				if (!hostEntry.isDirectory()) {
-					continue;
-				}
-				const hostPath = join(kindPath, hostEntry.name);
-				for (const installEntry of safeReadDir(hostPath)) {
-					if (installEntry.isDirectory()) {
-						roots.push(join(hostPath, installEntry.name));
-					}
-				}
-			}
-			continue;
-		}
 		for (const installEntry of safeReadDir(kindPath)) {
 			if (installEntry.isDirectory()) {
 				roots.push(join(kindPath, installEntry.name));
@@ -268,6 +254,15 @@ function collectCandidates(pluginRoots: string[]): PluginUninstallCandidate[] {
 						createInstalledCandidate(installedRoot),
 					);
 				}
+				continue;
+			}
+			if (
+				isInsidePath(
+					resolve(entryPath),
+					join(pluginRoot, INSTALLS_DIRECTORY_NAME),
+				)
+			) {
+				// Legacy hosted installs are intentionally left as ordinary files.
 				continue;
 			}
 			const directCandidate = createDirectCandidate(entryPath, pluginRoots);

@@ -124,16 +124,14 @@ describe("CronRunner", () => {
 		expect(calls.start).toBe(1);
 		expect(calls.send).toBe(1);
 		expect(calls.stop).toBe(1);
-		expect(calls.startRequests[0]?.mode).toBe("yolo");
-		expect(calls.startRequests[0]?.toolPolicies?.["*"]).toEqual({
-			autoApprove: true,
-		});
+		expect(calls.startRequests[0]?.mode).toBe("act");
+		expect(calls.startRequests[0]?.toolPolicies?.["*"]).toBeUndefined();
 		expect(
 			calls.startRequests[0]?.toolPolicies?.[DefaultToolNames.ASK],
-		).toEqual({ enabled: false, autoApprove: true });
+		).toEqual({ enabled: false });
 		expect(
 			calls.startRequests[0]?.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT],
-		).toEqual({ enabled: true, autoApprove: true });
+		).toBeUndefined();
 
 		const run = requireValue(
 			store.listRuns({ specId: upserted.record.specId })[0],
@@ -144,7 +142,7 @@ describe("CronRunner", () => {
 		expect(existsSync(reportPath)).toBe(true);
 	});
 
-	it("falls back to yolo for an unknown mode and disables questions", async () => {
+	it("falls back to act for an unknown mode and disables questions", async () => {
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({
 			externalId: "headless-unknown",
@@ -179,29 +177,24 @@ describe("CronRunner", () => {
 		await runner.dispose();
 
 		const request = requireValue(calls.startRequests[0]);
-		expect(request.mode).toBe("yolo");
+		expect(request.mode).toBe("act");
 		expect(request.toolPolicies?.["*"]).toEqual({
 			enabled: false,
-			autoApprove: true,
 		});
 		expect(request.toolPolicies?.[DefaultToolNames.READ_FILES]).toEqual({
 			enabled: true,
-			autoApprove: true,
 		});
 		expect(request.toolPolicies?.[DefaultToolNames.ASK]).toEqual({
 			enabled: false,
-			autoApprove: true,
 		});
-		expect(request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT]).toEqual({
-			enabled: true,
-			autoApprove: true,
-		});
+		expect(
+			request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT],
+		).toBeUndefined();
 	});
 
 	it.each([
 		"act",
 		"plan",
-		"yolo",
 	] as const)("preserves an explicit %s mode for scheduled runs", async (mode) => {
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({
@@ -239,11 +232,10 @@ describe("CronRunner", () => {
 		expect(request.mode).toBe(mode);
 		expect(request.toolPolicies?.[DefaultToolNames.ASK]).toEqual({
 			enabled: false,
-			autoApprove: true,
 		});
-		expect(request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT]).toEqual(
-			mode === "yolo" ? { enabled: true, autoApprove: true } : undefined,
-		);
+		expect(
+			request.toolPolicies?.[DefaultToolNames.SUBMIT_AND_EXIT],
+		).toBeUndefined();
 	});
 
 	it("marks runs failed when the runtime throws", async () => {

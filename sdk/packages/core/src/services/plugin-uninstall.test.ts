@@ -115,7 +115,6 @@ describe("plugin uninstall service", () => {
 		expect(readGlobalSettings()).toEqual({
 			autoUpdateEnabled: true,
 			disabledPlugins: ["/tmp/other-plugin.ts"],
-			telemetryOptOut: false,
 		});
 	});
 
@@ -204,7 +203,6 @@ describe("plugin uninstall service", () => {
 				expect(readGlobalSettings()).toEqual({
 					autoUpdateEnabled: true,
 					disabledPlugins: [pluginPath],
-					telemetryOptOut: false,
 				});
 			} finally {
 				chmodSync(pluginRoot, 0o755);

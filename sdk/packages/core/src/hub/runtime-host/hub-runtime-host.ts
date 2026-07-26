@@ -2031,7 +2031,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			typeof event.payload.policy === "object" &&
 			!Array.isArray(event.payload.policy)
 				? (event.payload.policy as ToolApprovalRequest["policy"])
-				: { autoApprove: false };
+				: {};
 		const input = parseApprovalInput(event.payload?.inputJson);
 		this.pendingApprovalToolCallIds.add(toolCallId);
 		this.emitToolCallContentStart({

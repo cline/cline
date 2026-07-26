@@ -100,11 +100,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 					missionLogIntervalSteps: request.missionStepInterval,
 					missionLogIntervalMs: request.missionTimeIntervalMs,
 				},
-				toolPolicies: request.toolPolicies ?? {
-					"*": {
-						autoApprove: false,
-					},
-				},
+				toolPolicies: request.toolPolicies,
 				localRuntime: {
 					configExtensions: request.configExtensions,
 				},

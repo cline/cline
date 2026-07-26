@@ -22,6 +22,7 @@ import type { StorageContext } from "@shared/storage/storage-context"
 import { FSWatcher } from "chokidar"
 import { Logger } from "@/shared/services/Logger"
 import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
+import { migrateLegacyApprovalSettings } from "./approval-settings-migration"
 import { readTaskSettingsFromStorage, writeTaskSettingsToStorage } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { readGlobalStateFromStorage, readSecretsFromStorage, readWorkspaceStateFromStorage } from "./utils/state-helpers"
@@ -177,6 +178,7 @@ export class StateManager {
 
 		try {
 			await migrateBedrockInferenceState(storage)
+			await migrateLegacyApprovalSettings(storage)
 
 			// Load all extension state from file-backed stores
 			const globalState = await readGlobalStateFromStorage(storage.globalState)

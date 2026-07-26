@@ -48,7 +48,6 @@ import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
-import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import { FeatureTip } from "./FeatureTip"
 import HookMessage from "./HookMessage"
@@ -149,8 +148,7 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
-			useExtensionState()
+		const { mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -424,22 +422,12 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
-								<DiffEditRow
-									isLoading={message.partial}
-									patch={tool.diff || tool.content!}
-									path={tool.path}
-									startLineNumbers={tool.startLineNumbers}
-								/>
-							) : (
-								<CodeAccordian
-									// isLoading={message.partial}
-									code={tool.content}
-									isExpanded={isExpanded}
-									onToggleExpand={handleToggle}
-									path={tool.path!}
-								/>
-							)}
+							<CodeAccordian
+								code={tool.content}
+								isExpanded={isExpanded}
+								onToggleExpand={handleToggle}
+								path={tool.path!}
+							/>
 						</div>
 					)
 				case "fileDeleted":
@@ -469,17 +457,13 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span className="font-bold">Cline wants to create a new file:</span>
 							</div>
-							{backgroundEditEnabled && tool.path && tool.content ? (
-								<DiffEditRow patch={tool.content} path={tool.path} startLineNumbers={tool.startLineNumbers} />
-							) : (
-								<CodeAccordian
-									code={tool.content!}
-									isExpanded={isExpanded}
-									isLoading={message.partial}
-									onToggleExpand={handleToggle}
-									path={tool.path!}
-								/>
-							)}
+							<CodeAccordian
+								code={tool.content!}
+								isExpanded={isExpanded}
+								isLoading={message.partial}
+								onToggleExpand={handleToggle}
+								path={tool.path!}
+							/>
 						</div>
 					)
 				case "readFile":
@@ -798,9 +782,6 @@ export const ChatRowContent = memo(
 											description:
 												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description ||
 												"",
-											autoApprove:
-												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
-												false,
 										}}
 									/>
 								</div>

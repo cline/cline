@@ -170,10 +170,6 @@ export function normalizeLegacyMcpServer(
 		metadata: isRecord(source.metadata) ? source.metadata : undefined,
 	})
 
-	const autoApprove = normalizeStringArray(source.autoApprove)
-	if (autoApprove) {
-		normalized.autoApprove = autoApprove
-	}
 	if (typeof source.timeout === "number") {
 		normalized.timeout = source.timeout
 	}

@@ -78,14 +78,14 @@ describe("SqliteCronStore", () => {
 		expect(result.record.source).toBe("automation");
 	});
 
-	it("defaults hub schedules to yolo and preserves explicit modes on update", () => {
+	it("defaults hub schedules to act and preserves explicit modes on update", () => {
 		const created = store.createHubSchedule({
 			name: "Routine",
 			cronPattern: "0 * * * *",
 			prompt: "Do the work",
 			workspaceRoot: "/ws",
 		});
-		expect(created.mode).toBe("yolo");
+		expect(created.mode).toBe("act");
 
 		const act = store.updateHubSchedule(created.externalId, {
 			scheduleId: created.externalId,
@@ -108,15 +108,15 @@ describe("SqliteCronStore", () => {
 		expect(
 			store.updateHubSchedule(created.externalId, {
 				scheduleId: created.externalId,
-				mode: "yolo",
+				mode: "act",
 			})?.mode,
-		).toBe("yolo");
+		).toBe("act");
 	});
 
 	it.each([
 		undefined,
 		"unknown",
-	])("falls back to yolo when updating a hub schedule with stored mode %s", (storedMode) => {
+	])("falls back to act when updating a hub schedule with stored mode %s", (storedMode) => {
 		const scheduleId = `sched-${storedMode ?? "missing"}`;
 		store.upsertSpec({
 			externalId: scheduleId,
@@ -141,7 +141,7 @@ describe("SqliteCronStore", () => {
 			scheduleId,
 			name: "Updated routine",
 		});
-		expect(updated?.mode).toBe("yolo");
+		expect(updated?.mode).toBe("act");
 	});
 
 	it("does not bump revision on cosmetic-only re-upsert with same hash", () => {

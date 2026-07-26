@@ -28,7 +28,6 @@ export type McpTool = {
 	name: string
 	description?: string
 	inputSchema?: object
-	autoApprove?: boolean
 }
 
 export type McpResource = {

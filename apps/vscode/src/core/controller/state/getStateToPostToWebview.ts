@@ -29,7 +29,6 @@ export async function getStateToPostToWebview(controller: {
 	// Get API configuration from cache for immediate access
 	const apiConfiguration = stateManager.getApiConfiguration()
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
-	const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
 	const browserSettings = stateManager.getGlobalSettingsKey("browserSettings")
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
 	const mode = stateManager.getGlobalSettingsKey("mode")
@@ -85,7 +84,6 @@ export async function getStateToPostToWebview(controller: {
 		currentTaskItem,
 		clineMessages,
 		checkpointRestoreInput,
-		autoApprovalSettings,
 		browserSettings,
 		preferredLanguage,
 		mode,
@@ -128,7 +126,6 @@ export async function getStateToPostToWebview(controller: {
 		lastDismissedInfoBannerVersion,
 		lastDismissedModelBannerVersion,
 		lastDismissedCliBannerVersion,
-		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		showFeatureTips,
 		favoritedModelIds: [],
 	} as ExtensionState

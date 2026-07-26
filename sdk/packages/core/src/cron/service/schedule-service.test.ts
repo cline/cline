@@ -82,7 +82,7 @@ describe("HubScheduleService", () => {
 				timeoutSeconds: 30,
 				metadata: { delivery: { threadId: "thread-1" } },
 			});
-			expect(created.mode).toBe("yolo");
+			expect(created.mode).toBe("act");
 
 			const execution = await service.triggerScheduleNow(created.scheduleId);
 			expect(execution?.status).toBe("success");
@@ -114,7 +114,7 @@ describe("HubScheduleService", () => {
 	});
 
 	sqliteIt(
-		"maps missing and unknown stored modes to yolo while preserving act",
+		"maps missing and unknown stored modes to act while preserving act",
 		async () => {
 			const dbPath = await createTempDbPath();
 			cleanupPaths.push(dbPath);
@@ -155,8 +155,8 @@ describe("HubScheduleService", () => {
 				},
 			});
 			try {
-				expect(service.getSchedule("sched-missing")?.mode).toBe("yolo");
-				expect(service.getSchedule("sched-unknown")?.mode).toBe("yolo");
+				expect(service.getSchedule("sched-missing")?.mode).toBe("act");
+				expect(service.getSchedule("sched-unknown")?.mode).toBe("act");
 				expect(service.getSchedule("sched-act")?.mode).toBe("act");
 			} finally {
 				await service.dispose();
@@ -293,7 +293,7 @@ describe("HubScheduleService", () => {
 					scheduleId: string;
 					mode: string;
 				};
-				expect(created.mode).toBe("yolo");
+				expect(created.mode).toBe("act");
 
 				const planReply = await commands.handleCommand({
 					version: "v1",
@@ -325,7 +325,7 @@ describe("HubScheduleService", () => {
 						ok: false,
 						error: {
 							code: "schedule_command_failed",
-							message: "mode must be one of: act, plan, yolo",
+							message: "mode must be one of: act, plan",
 						},
 					});
 				}
@@ -345,7 +345,7 @@ describe("HubScheduleService", () => {
 					ok: false,
 					error: {
 						code: "schedule_command_failed",
-						message: "mode must be one of: act, plan, yolo",
+						message: "mode must be one of: act, plan",
 					},
 				});
 

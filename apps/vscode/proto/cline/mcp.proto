@@ -14,7 +14,6 @@ service McpService {
   rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
   rpc restartMcpServer(StringRequest) returns (McpServers);
   rpc deleteMcpServer(StringRequest) returns (McpServers);
-  rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
   rpc openMcpSettings(EmptyRequest) returns (Empty);
   rpc authenticateMcpServer(StringRequest) returns (Empty);
   rpc getLatestMcpServers(Empty) returns (McpServers);
@@ -42,18 +41,11 @@ message AddRemoteMcpServerRequest {
   optional string transport_type = 4;
 }
 
-message ToggleToolAutoApproveRequest {
-  Metadata metadata = 1;
-  string server_name = 2;
-  repeated string tool_names = 3;
-  bool auto_approve = 4;
-}
-
 message McpTool {
   string name = 1;
   optional string description = 2;
   optional string input_schema = 3;
-  optional bool auto_approve = 4;
+  reserved 4;
 }
 
 message McpResource {

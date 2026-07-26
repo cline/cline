@@ -20,10 +20,8 @@ User messages arrive wrapped in a <user_input mode="..."> tag. The mode attribut
 
 /**
  * Plan-mode behavioral contract, appended when the session mode is "plan".
- * run_commands intentionally stays available in plan mode -- it is essential
- * for read-only investigation -- so the contract must spell out that it is
- * inspection-only there; the mitigation for plan-mode mutations is prompting
- * plus mode-switch notices, not tool removal.
+ * Plan mode exposes only non-mutating tools. Terminal commands and every
+ * state-changing operation belong in the plan for later execution in act mode.
  */
 export const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
 
@@ -36,7 +34,7 @@ You are in Plan mode. Your role is to explore, analyze, and plan -- not to execu
 - Do NOT edit files, write code, run destructive commands, or make any changes
 - Do NOT implement anything -- focus on understanding and alignment first
 
-The run_commands tool remains available in plan mode strictly for read-only inspection -- listing files, searching (grep), reading configs, inspecting git history and diffs, checking tool versions, and the like. Never use it to change anything: no creating, modifying, or deleting files, no writing scripts that make changes, and no state-changing commands (installs, migrations, database or schema changes, container commands that mutate state, etc.). If the task requires a mutation, put it in the plan; it happens only after the user switches to act mode.
+Terminal commands and state-changing tools are unavailable in plan mode. If the task requires a mutation, put it in the plan; it happens only after the user switches to act mode.
 
 Once the user has reviewed your plan and explicitly approved it in a follow-up message, use the switch_to_act_mode tool to switch to act mode and begin implementation. Calling switch_to_act_mode immediately starts execution, so never call it in the same turn you present a plan and never treat the original task request as approval -- end your turn after presenting the plan and wait for the user's response.`;
 

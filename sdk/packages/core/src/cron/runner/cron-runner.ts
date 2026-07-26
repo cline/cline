@@ -63,16 +63,15 @@ function buildToolPolicies(
 ): NonNullable<ChatStartSessionRequest["toolPolicies"]> {
 	const policies: NonNullable<ChatStartSessionRequest["toolPolicies"]> =
 		spec.tools === undefined
-			? { "*": { autoApprove: false } }
-			: { "*": { enabled: false, autoApprove: false } };
+			? {}
+			: { "*": { enabled: false } };
 	for (const tool of spec.tools ?? []) {
-		policies[tool] = { enabled: true, autoApprove: false };
+		policies[tool] = { enabled: true };
 	}
 	// Scheduled runs are headless, so they cannot wait for a human response.
 	policies[DefaultToolNames.ASK] = {
 		...policies[DefaultToolNames.ASK],
 		enabled: false,
-		autoApprove: false,
 	};
 	return policies;
 }
@@ -505,7 +504,6 @@ export class CronRunner {
 						enableTools?: boolean;
 						enableSpawn?: boolean;
 						enableTeams?: boolean;
-						autoApproveTools?: boolean;
 					})
 				: undefined;
 		const cwd =
@@ -533,7 +531,6 @@ export class CronRunner {
 			enableTools: runtimeOptions?.enableTools ?? true,
 			enableSpawn: runtimeOptions?.enableSpawn ?? true,
 			enableTeams: runtimeOptions?.enableTeams ?? true,
-			autoApproveTools: false,
 			toolPolicies: buildToolPolicies(spec),
 			configExtensions: DEFAULT_CRON_EXTENSIONS.filter((extension) =>
 				cronExtensionEnabled(spec, extension),

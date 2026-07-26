@@ -37,6 +37,5 @@ export const NON_DETERMINISTIC_FIELDS = [
 	"tasks.totalCost",
 
 	"stateJson.clineMessages",
-	"stateJson.autoApprovalSettings.version",
 	"stateJson.browserSettings.chromeExecutablePath",
 ]

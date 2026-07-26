@@ -32,23 +32,16 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		);
 	});
 
-	it("keeps run_commands available-but-read-only in the plan contract", () => {
-		// Explicit product decision: run_commands is NOT removed in plan mode
-		// (it is essential for read-only investigation); the mitigation for
-		// plan-mode mutations is prompting, so the contract must spell out the
-		// inspection-only usage.
-		expect(PLAN_MODE_INSTRUCTIONS).toContain("run_commands");
-		expect(PLAN_MODE_INSTRUCTIONS).toContain("read-only");
+	it("makes terminal commands unavailable in the plan contract", () => {
+		expect(PLAN_MODE_INSTRUCTIONS).toContain("Terminal commands");
+		expect(PLAN_MODE_INSTRUCTIONS).toContain("unavailable");
 		expect(PLAN_MODE_INSTRUCTIONS).toContain("switch_to_act_mode");
 	});
 
-	it("emits mode instructions for both mode: undefined and yolo", () => {
+	it("emits mode-tag instructions when mode is omitted", () => {
 		// After a switch the transcript still contains messages tagged with the
 		// other mode, so the explanation is unconditional.
 		expect(buildClineSystemPrompt({ ...BASE_OPTIONS })).toContain(
-			MODE_TAG_INSTRUCTIONS,
-		);
-		expect(buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "yolo" })).toContain(
 			MODE_TAG_INSTRUCTIONS,
 		);
 	});

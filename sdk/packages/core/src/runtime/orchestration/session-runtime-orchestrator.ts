@@ -38,6 +38,7 @@ import {
 	type BasicLogger,
 	type ContributionRegistry,
 	createContributionRegistry,
+	getToolApprovalDecision,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -135,8 +136,13 @@ function filterToolsByPolicies(
 function filterAvailableExtensionTools(
 	tools: AgentTool[],
 	toolPolicies: AgentConfig["toolPolicies"],
+	mode: AgentConfig["mode"],
 ): AgentTool[] {
-	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies)).filter(
+		(tool) =>
+			getToolApprovalDecision({ toolName: tool.name, mode }) !==
+			"prohibited",
+	);
 }
 
 function mergeRuntimeHooks(
@@ -776,6 +782,7 @@ export class SessionRuntime {
 		const extensionTools = filterAvailableExtensionTools(
 			[...extensionToolsByName.values()],
 			this.config.toolPolicies,
+			this.config.mode,
 		);
 		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {

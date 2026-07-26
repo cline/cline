@@ -44,13 +44,6 @@ const editorFeatures: FeatureToggle[] = [
 		settingKey: "showFeatureTips",
 	},
 	{
-		id: "background-edit",
-		label: "Background Edit",
-		description: "Allow edits without stealing editor focus",
-		stateKey: "backgroundEditEnabled",
-		settingKey: "backgroundEditEnabled",
-	},
-	{
 		id: "checkpoints",
 		label: "Checkpoints",
 		description: "Save progress at key points for easy rollback",
@@ -114,7 +107,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		compactionStrategy,
 		subagentsEnabled,
 		worktreesEnabled,
-		backgroundEditEnabled,
 		showFeatureTips,
 	} = useExtensionState()
 
@@ -126,7 +118,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		useAutoCondense,
 		subagentsEnabled,
 		worktreesEnabled,
-		backgroundEditEnabled,
 	}
 
 	return (

@@ -79,7 +79,6 @@ function containsPlaceholder(value: string): boolean {
 
 function splitTargetArgsAndHeaders(input: {
 	headers?: string[];
-	parseTransport?: boolean;
 	targetArgs?: string[];
 	transport?: string;
 }): { headers: string[]; targetArgs: string[]; transport?: string } {
@@ -89,19 +88,6 @@ function splitTargetArgsAndHeaders(input: {
 	const args = input.targetArgs ?? [];
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
-		if (input.parseTransport && arg === "--transport") {
-			const value = args[index + 1];
-			if (!value) {
-				throw new Error("--transport requires a value");
-			}
-			transport = value;
-			index++;
-			continue;
-		}
-		if (input.parseTransport && arg?.startsWith("--transport=")) {
-			transport = arg.slice("--transport=".length);
-			continue;
-		}
 		if (arg === "--header") {
 			const value = args[index + 1];
 			if (!value) {
@@ -167,7 +153,7 @@ export function buildMcpInstallTransport(options: {
 		const [command, ...args] = targetArgs;
 		if (!command?.trim()) {
 			throw new Error(
-				"Stdio MCP install requires a command after the server name, for example: cline mcp install fs --yes -- npx -y @modelcontextprotocol/server-filesystem /tmp",
+				"Stdio MCP configuration requires an explicit local command.",
 			);
 		}
 		return {
@@ -192,22 +178,6 @@ export function buildMcpInstallTransport(options: {
 		name,
 		transport: headers ? { type, url, headers } : { type, url },
 		warnings,
-	};
-}
-
-export function parseMcpInstallArgs(args: string[]): McpInstallOptions {
-	const [name, ...targetArgs] = args;
-	if (!name) {
-		throw new Error(
-			"Marketplace MCP install args must start with a server name.",
-		);
-	}
-	return {
-		name,
-		...splitTargetArgsAndHeaders({
-			parseTransport: true,
-			targetArgs,
-		}),
 	};
 }
 

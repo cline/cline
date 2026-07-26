@@ -4,7 +4,10 @@ import type {
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	getToolApprovalDecision,
+	hasRuntimeConfigExtension,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {
@@ -81,6 +84,17 @@ function filterAvailableTools(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 ): AgentTool[] {
 	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+}
+
+function filterToolsForMode(
+	tools: AgentTool[],
+	mode: CoreAgentMode,
+): AgentTool[] {
+	return tools.filter(
+		(tool) =>
+			getToolApprovalDecision({ toolName: tool.name, mode }) !==
+			"prohibited",
+	);
 }
 
 const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
@@ -652,7 +666,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
-		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);
+		const finalTools = filterToolsForMode(
+			filterAvailableTools(tools, effectiveToolPolicies),
+			normalized.mode,
+		);
 		const requiresCompletionTool = finalTools.some(
 			(tool) =>
 				tool.name === "submit_and_exit" &&
@@ -715,9 +732,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {
 					agent.addTools(
-						filterDisabledTools(pendingLeadTeamTools, [
-							...globallyDisabledToolNames,
-						]),
+						filterToolsForMode(
+							filterDisabledTools(pendingLeadTeamTools, [
+								...globallyDisabledToolNames,
+							]),
+							normalized.mode,
+						),
 					);
 				}
 			},

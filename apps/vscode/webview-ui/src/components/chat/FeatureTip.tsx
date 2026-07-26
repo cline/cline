@@ -29,9 +29,6 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Use /compact to condense long conversations and free up context window space.",
 	},
 	{
-		text: "Enable auto-approve for read-only tools like file reads to speed up exploration.",
-	},
-	{
 		text: "Use the quote button to select text from Cline's response and reference it in your reply.",
 	},
 	{

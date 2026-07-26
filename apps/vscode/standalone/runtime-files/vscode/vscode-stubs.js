@@ -939,10 +939,6 @@ vscode.languages.registerCompletionItemProvider = (_selector, _provider, _trigge
 	console.log("Called stubbed function: vscode.languages.registerCompletionItemProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerInlineCompletionItemProvider = (_selector, _provider) => {
-	console.log("Called stubbed function: vscode.languages.registerInlineCompletionItemProvider")
-	return createStub("unknown")
-}
 vscode.languages.registerCodeActionsProvider = (_selector, _provider, _metadata) => {
 	console.log("Called stubbed function: vscode.languages.registerCodeActionsProvider")
 	return createStub("unknown")

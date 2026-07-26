@@ -2,10 +2,7 @@ import { DEFAULT_MCP_TIMEOUT_SECONDS, MIN_MCP_TIMEOUT_SECONDS } from "@shared/mc
 import { z } from "zod"
 import { TYPE_ERROR_MESSAGE } from "./constants"
 
-const AutoApproveSchema = z.array(z.string()).default([])
-
 export const BaseConfigSchema = z.object({
-	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
 	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 	// OAuth state written by the CLI — preserved as-is (VSCode doesn't implement OAuth flows yet)
@@ -58,7 +55,6 @@ const nestedTransportConfigSchema = z
 			nestedStreamableHttpTransportSchema,
 		]),
 		disabled: z.boolean().optional(),
-		autoApprove: AutoApproveSchema.optional(),
 		timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 		oauth: z.unknown().optional(),
 		metadata: z.unknown().optional(),

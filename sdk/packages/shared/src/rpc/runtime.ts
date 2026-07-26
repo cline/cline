@@ -14,7 +14,6 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
-	autoApproveTools?: boolean;
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
 	timeoutSeconds?: number;

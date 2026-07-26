@@ -211,6 +211,11 @@ export type {
 } from "./llms/tools";
 export { ToolCallRecordSchema } from "./llms/tools";
 export {
+	getToolApprovalDecision,
+	type ToolApprovalDecision,
+	type ToolApprovalPolicyInput,
+} from "./approval-policy";
+export {
 	type BasicLogger,
 	type BasicLogMetadata,
 	noopBasicLogger,

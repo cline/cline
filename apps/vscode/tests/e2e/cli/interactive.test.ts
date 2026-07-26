@@ -1,6 +1,6 @@
 import { test } from "@microsoft/tui-test"
 import { CLINE_BIN } from "./helpers/constants.js"
-import { assertApiTab, assertAutoApproveTab, assertFeaturesTab, assertOtherTab } from "./helpers/page-objects/settings.js"
+import { assertApiTab, assertFeaturesTab, assertOtherTab } from "./helpers/page-objects/settings.js"
 import { expectVisible, testEnv, typeAndSubmit } from "./utils.js"
 
 test.describe("cline interactive basics", () => {
@@ -33,10 +33,6 @@ test.describe("cline interactive basics", () => {
 		// API tab (default)
 		await assertApiTab(terminal)
 		await expectVisible(terminal, "Use separate models for Plan and Act")
-
-		// Auto-approve tab
-		terminal.keyRight()
-		await assertAutoApproveTab(terminal)
 
 		// Features tab
 		terminal.keyRight()

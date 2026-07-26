@@ -382,7 +382,6 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
-	parseMcpInstallArgs,
 } from "./services/mcp-install";
 export type {
 	ParsedPluginSource,
@@ -394,7 +393,6 @@ export type {
 export {
 	collectPluginMcpOAuthCandidates,
 	installPlugin,
-	isOfficialPluginSlug,
 	parsePluginSource,
 } from "./services/plugin-install";
 export type {

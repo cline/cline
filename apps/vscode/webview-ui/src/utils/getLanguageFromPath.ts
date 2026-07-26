@@ -77,7 +77,6 @@ const extensionToLanguage: { [key: string]: string } = {
 	// Data science and ML
 	r: "r",
 	jl: "julia",
-	ipynb: "jupyter", // Jupyter notebooks
 }
 
 // Example usage:

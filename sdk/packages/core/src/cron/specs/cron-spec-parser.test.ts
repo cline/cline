@@ -55,11 +55,11 @@ describe("computeContentHash", () => {
 			expect(r.spec?.mode).toBe("act");
 		});
 
-		it("defaults to yolo and parses cron runtime fields", () => {
+		it("defaults to act and parses cron runtime fields", () => {
 			const raw = `---\nid: cleanup\nworkspaceRoot: /ws\ntools: run_commands,read_files\nnotesDirectory: /notes\nextensions:\n  - rules\n  - skills\nsource: automation\n---\nBody`;
 			const r = parseCronSpecFile({ relativePath: "cleanup.md", raw });
 			expect(r.error).toBeUndefined();
-			expect(r.spec?.mode).toBe("yolo");
+			expect(r.spec?.mode).toBe("act");
 			expect(r.spec?.tools).toEqual(["run_commands", "read_files"]);
 			expect(r.spec?.notesDirectory).toBe("/notes");
 			expect(r.spec?.extensions).toEqual(["rules", "skills"]);

@@ -17,7 +17,6 @@ service StateService {
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc resetState(ResetStateRequest) returns (Empty);
   rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
-  rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
   rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
@@ -26,24 +25,6 @@ service StateService {
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
   rpc flushPendingState(EmptyRequest) returns (Empty);
-}
-
-message AutoApprovalActions {
-  optional bool read_files = 1;
-  optional bool read_files_externally = 2;
-  optional bool edit_files = 3;
-  optional bool edit_files_externally = 4;
-  optional bool execute_safe_commands = 5;
-  optional bool execute_all_commands = 6;
-  optional bool use_browser = 7;
-  optional bool use_mcp = 8;
-}
-
-// Auto approval settings for task execution
-message AutoApprovalSettings {
-  int32 version = 1;
-  AutoApprovalActions actions = 2;
-  optional bool enable_notifications = 3;
 }
 
 // NOTE: Add the new secret fields under SECRETS_KEYS in src/shared/storage/state-keys.ts
@@ -67,7 +48,7 @@ message Settings {
   optional string act_mode_reasoning_effort = 87;
   optional string plan_mode_api_provider = 124;
   optional string act_mode_api_provider = 125;
-  optional AutoApprovalSettings auto_approval_settings = 128;
+  reserved 128;
   optional string global_cline_rules_toggles = 129;
   optional string global_workflow_toggles = 130;
   optional string global_skills_toggles = 131;
@@ -84,7 +65,7 @@ message Settings {
   optional string custom_prompt = 150;
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
-  optional bool background_edit_enabled = 155;
+  reserved 155;
   optional bool worktrees_enabled = 172;
   optional bool show_feature_tips = 182;
   optional string aws_bedrock_ca_bundle_path = 187;
@@ -144,13 +125,6 @@ message ChatContent {
 message ResetStateRequest {
   Metadata metadata = 1;
   optional bool global = 2;
-}
-
-message AutoApprovalSettingsRequest {
-  Metadata metadata = 1;
-  int32 version = 2;
-  AutoApprovalActions actions = 3;
-  bool enable_notifications = 4;
 }
 
 // Browser settings for UpdateSettingsRequest
@@ -213,7 +187,7 @@ message UpdateSettingsRequest {
   optional int32 subagent_terminal_output_line_limit = 30;
   reserved 31; // was cline_env
   reserved 33; // was hosted onboarding models
-  optional bool background_edit_enabled = 36;
+  reserved 36; // was background_edit_enabled
   reserved 37; // was oca_reasoning_effort
   reserved 39; // was opt_out_of_remote_config
   optional bool worktrees_enabled = 40;

@@ -42,15 +42,15 @@ export const ToolPresets = {
 	plan: {
 		enableReadFiles: true,
 		enableSearch: true,
-		enableBash: true,
+		enableBash: false,
 		enableWebFetch: true,
 		enableApplyPatch: false,
 		enableEditor: false,
 		enableSkills: true,
 		enableAskQuestion: true,
 		enableSubmitAndExit: false,
-		enableSpawnAgent: true,
-		enableAgentTeams: true,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
 	},
 
 	/**

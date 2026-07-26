@@ -57,7 +57,7 @@ can click **Approve** or **Deny**.
 | `--port <n>` | Port to listen on (default `7777`, env `MCP_OAUTH_TEST_PORT`). `0` = OS-assigned random port. |
 | `--random-port` | Bind an OS-assigned random free port instead of `--port` |
 | `--instances <n>` | Start N independent servers, each on its own random port (implies `--random-port`). Use to add several MCP servers to Cline at once. |
-| `--auto-approve` | Skip consent; always approve |
+| `--accept-consent` | Skip the consent screen and accept authorization |
 | `--auto-deny` | Skip consent; always deny (simulate "Deny" click) |
 | `--code-ttl <ms>` | Authorization-code lifetime (default `600000`). Set small to force expiry. |
 | `--slow-authorize <ms>` | Delay `/authorize` response (simulate a slow user) |

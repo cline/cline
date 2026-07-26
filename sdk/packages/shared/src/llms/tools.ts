@@ -10,11 +10,6 @@ export interface ToolPolicy {
 	 * @default true
 	 */
 	enabled?: boolean;
-	/**
-	 * Whether this tool can run without asking the client for approval.
-	 * @default true
-	 */
-	autoApprove?: boolean;
 }
 
 // =============================================================================

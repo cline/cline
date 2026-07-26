@@ -1,7 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineRulesToggles } from "./cline-rules"
@@ -33,7 +32,6 @@ export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
 	apiConfiguration?: ApiConfiguration
-	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string
@@ -115,7 +113,6 @@ export interface ExtensionState {
 	hooksEnabled?: boolean
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
-	backgroundEditEnabled?: boolean
 	showFeatureTips?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }

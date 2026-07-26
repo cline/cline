@@ -40,15 +40,7 @@ import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-m
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
-	requestToolApproval?: (request: {
-		agentId: string
-		conversationId: string
-		iteration: number
-		toolCallId: string
-		toolName: string
-		input: unknown
-		policy: { enabled: boolean; autoApprove: boolean }
-	}) => Promise<{ approved: boolean; reason?: string }>
+	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
 	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
 	/**
@@ -61,7 +53,7 @@ export interface VscodeSessionHostOptions {
 	 * delegating to the SDK's default patch application).
 	 */
 	applyPatchExecutor?: ApplyPatchExecutor
-	/** Per-tool approval policies derived from the user's auto-approval settings. */
+	/** Optional per-tool availability policy. Approval cannot be bypassed. */
 	toolPolicies?: Record<string, ToolPolicy>
 	/**
 	 * Lazy factory for the VscodeTerminalManager.

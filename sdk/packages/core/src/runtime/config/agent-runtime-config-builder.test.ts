@@ -139,7 +139,7 @@ describe("createAgentRuntimeConfig", () => {
 			maxIterations: 7,
 			maxParallelToolCalls: 4,
 			completionPolicy: { requireCompletionTool: true },
-			toolPolicies: { "*": { autoApprove: false } },
+			toolPolicies: { "*": {} },
 			requestToolApproval: async () => ({ approved: true }),
 			consumePendingUserMessage: () => "steer",
 		});
@@ -182,7 +182,7 @@ describe("createAgentRuntimeConfig", () => {
 			requireCompletionTool: true,
 		});
 		expect(runtimeConfig.toolPolicies).toEqual({
-			"*": { autoApprove: false },
+			"*": {},
 		});
 		expect(runtimeConfig.requestToolApproval).toBe(
 			agentConfig.requestToolApproval,

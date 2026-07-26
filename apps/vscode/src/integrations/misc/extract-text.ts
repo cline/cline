@@ -9,7 +9,6 @@ import * as path from "path"
 import pdf from "pdf-parse/lib/pdf-parse"
 import { truncateContent } from "@/shared/content-limits"
 import { Logger } from "@/shared/services/Logger"
-import { sanitizeNotebookForLLM } from "./notebook-utils"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -54,9 +53,6 @@ async function callTextExtractionFunctions(filePath: string): Promise<string> {
 		case ".docx":
 			content = await extractTextFromDOCX(filePath)
 			break
-		case ".ipynb":
-			content = await extractTextFromIPYNB(filePath)
-			break
 		case ".xlsx":
 			content = await extractTextFromExcel(filePath)
 			break
@@ -85,17 +81,6 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
 async function extractTextFromDOCX(filePath: string): Promise<string> {
 	const result = await mammoth.extractRawText({ path: filePath })
 	return result.value
-}
-
-async function extractTextFromIPYNB(filePath: string): Promise<string> {
-	const fileBuffer = await fs.readFile(filePath)
-	const encoding = await detectEncoding(fileBuffer)
-	const data = iconv.decode(fileBuffer, encoding)
-
-	// Strip all outputs to reduce context size - outputs aren't needed for understanding
-	// notebook structure. For Jupyter commands, the specific cell's outputs are included
-	// separately via sanitizeCellForLLM which preserves text outputs.
-	return sanitizeNotebookForLLM(data, true)
 }
 
 /**

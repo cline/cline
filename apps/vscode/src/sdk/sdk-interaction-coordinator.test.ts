@@ -30,13 +30,14 @@ describe("SdkInteractionCoordinator", () => {
 		messages.onSessionEvent(listener)
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "read_files",
 			input: { path: "README.md" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalled())
 
@@ -65,13 +66,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "editor",
 			input: { path: "calculator.py", old_text: "# comment", new_text: "" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 		const approvalTs = task.messageStateHandler.getClineMessages()[0].ts
@@ -113,13 +115,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "execute_command",
 			input: { command: "npm test" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
@@ -150,13 +153,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "editor",
 			input: { path: "a.ts", old_text: "a", new_text: "b" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
@@ -171,13 +175,14 @@ describe("SdkInteractionCoordinator", () => {
 
 		// Plain rejection (no feedback) also carries the file-unchanged statement.
 		const secondApproval = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 2,
 			toolCallId: "tool-call-2",
 			toolName: "editor",
 			input: { path: "a.ts", old_text: "a", new_text: "b" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		// Prior messages: ask #1 + the user_feedback say from the first denial.
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages().length).toBeGreaterThanOrEqual(3))
@@ -198,13 +203,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "fetch_web_content",
 			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
@@ -227,13 +233,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "fetch_web_content",
 			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
@@ -259,13 +266,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		void coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "github__search-repos",
 			input: { query: "cline" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
@@ -399,13 +407,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "read_files",
 			input: {},
-			policy: { autoApprove: false },
+			policy: {},
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
@@ -435,13 +444,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "editor",
 			input: { path: "a.ts", old_text: "a", new_text: "b" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 
 		await vi.waitFor(() => expect(events).toEqual(["hook-start"]))
@@ -466,13 +476,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
+			sessionId: "session-123",
 			agentId: "agent",
 			conversationId: "conversation",
 			iteration: 1,
 			toolCallId: "tool-call",
 			toolName: "editor",
 			input: { path: "a.ts", old_text: "a", new_text: "b" },
-			policy: { autoApprove: false },
+			policy: {},
 		})
 
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))

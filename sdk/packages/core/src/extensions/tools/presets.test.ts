@@ -1,34 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
 	createDefaultToolsWithPreset,
-	createToolPoliciesWithPreset,
+	resolveToolPresetName,
 	ToolPresets,
 } from "./presets";
 
 describe("default tool presets", () => {
-	it("explicitly configures ask_question across presets", () => {
-		expect(ToolPresets.search.enableAskQuestion).toBe(false);
-		expect(ToolPresets.act.enableAskQuestion).toBe(true);
-		expect(ToolPresets.plan.enableAskQuestion).toBe(true);
-		expect(ToolPresets.minimal.enableAskQuestion).toBe(false);
-		expect(ToolPresets.yolo.enableAskQuestion).toBe(false);
-	});
-
-	it("disables spawn and team tools by default in yolo mode", () => {
+	it("keeps mutation tools in act mode and removes them from plan mode", () => {
+		expect(ToolPresets.act.enableBash).toBe(true);
+		expect(ToolPresets.act.enableEditor).toBe(true);
 		expect(ToolPresets.act.enableSpawnAgent).toBe(true);
-		expect(ToolPresets.act.enableAgentTeams).toBe(true);
-		expect(ToolPresets.yolo.enableSpawnAgent).toBe(false);
-		expect(ToolPresets.yolo.enableAgentTeams).toBe(false);
-		expect(ToolPresets.yolo.enableSubmitAndExit).toBe(true);
+		expect(ToolPresets.plan.enableBash).toBe(false);
+		expect(ToolPresets.plan.enableEditor).toBe(false);
+		expect(ToolPresets.plan.enableSpawnAgent).toBe(false);
+		expect(ToolPresets.plan.enableAgentTeams).toBe(false);
 	});
 
-	it("disables search and web fetch in yolo mode", () => {
-		expect(ToolPresets.yolo.enableSearch).toBe(false);
-		expect(ToolPresets.yolo.enableWebFetch).toBe(false);
+	it("resolves only act and plan presets from agent mode", () => {
+		expect(resolveToolPresetName({ mode: "act" })).toBe("act");
+		expect(resolveToolPresetName({ mode: "plan" })).toBe("plan");
+		expect(resolveToolPresetName({})).toBe("act");
 	});
 
-	it("yolo preset excludes ask_question even when its executor exists", () => {
-		const tools = createDefaultToolsWithPreset("yolo", {
+	it("omits mutation tools from the concrete plan tool set", () => {
+		const tools = createDefaultToolsWithPreset("plan", {
 			executors: {
 				readFile: async () => "ok",
 				search: async () => "ok",
@@ -41,32 +36,8 @@ describe("default tool presets", () => {
 			},
 		});
 
-		expect(tools.map((tool) => tool.name)).toEqual([
-			"read_files",
-			"run_commands",
-			"editor",
-		]);
-	});
-});
-
-describe("tool policy presets", () => {
-	it("returns empty policies for default", () => {
-		expect(createToolPoliciesWithPreset("default")).toEqual({});
-	});
-
-	it("yolo preset enables and auto-approves all tools", () => {
-		const policies = createToolPoliciesWithPreset("yolo");
-		expect(policies["*"]).toEqual({
-			enabled: true,
-			autoApprove: true,
-		});
-		expect(policies.ask_question).toEqual({
-			enabled: true,
-			autoApprove: true,
-		});
-		expect(policies.skills).toEqual({
-			enabled: true,
-			autoApprove: true,
-		});
+		expect(tools.map((tool) => tool.name)).not.toContain("run_commands");
+		expect(tools.map((tool) => tool.name)).not.toContain("editor");
+		expect(tools.map((tool) => tool.name)).toContain("read_files");
 	});
 });

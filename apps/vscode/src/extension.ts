@@ -28,6 +28,7 @@ import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebvie
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import {
 	cleanupClineAccountState,
+	cleanupLegacyApprovalState,
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
@@ -534,6 +535,7 @@ if (IS_DEV) {
 async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<void> {
 	try {
 		await cleanupClineAccountState(context)
+		await cleanupLegacyApprovalState(context)
 		const migrationKey = "phase4LegacyVSCodeStorageMigrationComplete"
 		const hasMigrated = context.globalState.get(migrationKey)
 		if (hasMigrated !== undefined) {

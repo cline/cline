@@ -183,7 +183,7 @@ describe("McpHub.deleteServerRPC", () => {
 		// schema-validated content, so the watcher's "change" event for our own
 		// write is a no-op. Read the file back through the same validating reader
 		// the implementation uses so the expected fingerprint includes the schema
-		// defaults (autoApprove, timeout) the impl seeds.
+		// transport defaults the implementation seeds.
 		const validated = await (hub as any).readAndValidateMcpSettingsFile()
 		const expected = (hub as any).computeConnectionFingerprint(validated.mcpServers)
 		;(hub as any).lastConnectionFingerprint.should.equal(expected)

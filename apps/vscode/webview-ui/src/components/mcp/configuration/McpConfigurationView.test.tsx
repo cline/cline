@@ -39,10 +39,9 @@ describe("McpConfigurationView", () => {
 		mocks.getLatestMcpServers.mockClear()
 	})
 
-	it("never renders the marketplace tab while keeping remote servers available", async () => {
+	it("renders configured and remote server entry points", async () => {
 		render(<McpConfigurationView onDone={vi.fn()} />)
 
-		expect(screen.queryByRole("button", { name: "Marketplace" })).not.toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Remote Servers" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
 		expect(screen.getByText("Configure Servers View")).toBeInTheDocument()
@@ -53,7 +52,6 @@ describe("McpConfigurationView", () => {
 	it("keeps user-configured remote servers available", () => {
 		render(<McpConfigurationView initialTab="addRemote" onDone={vi.fn()} />)
 
-		expect(screen.queryByRole("button", { name: "Marketplace" })).not.toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Remote Servers" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
 		expect(screen.getByText("Add Remote Server Form")).toBeInTheDocument()

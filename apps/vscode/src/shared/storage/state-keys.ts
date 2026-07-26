@@ -1,4 +1,3 @@
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ApiProvider, BEDROCK_DEFAULT_MODEL_ID, BEDROCK_DEFAULT_REGION, DEFAULT_API_PROVIDER } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -78,9 +77,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 
 const USER_SETTINGS_FIELDS = {
 	// Settings that are NOT part of ApiHandlerOptions
-	autoApprovalSettings: {
-		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
-	},
 	globalClineRulesToggles: { default: {} as ClineRulesToggles },
 	globalWorkflowToggles: { default: {} as ClineRulesToggles },
 	globalSkillsToggles: { default: {} as Record<string, boolean> },
@@ -101,7 +97,6 @@ const USER_SETTINGS_FIELDS = {
 	mode: { default: "act" as Mode },
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	customPrompt: { default: undefined as "compact" | undefined },
-	backgroundEditEnabled: { default: false as boolean },
 	showFeatureTips: { default: true as boolean },
 } satisfies FieldDefinitions
 
