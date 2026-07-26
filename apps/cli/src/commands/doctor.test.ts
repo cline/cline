@@ -22,6 +22,7 @@ const {
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
 	mockEnsureFileExists,
+	mockListActiveConnectors,
 	mockStopAllConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
@@ -50,8 +51,10 @@ const {
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
 	mockEnsureFileExists: vi.fn(),
+	mockListActiveConnectors: vi.fn(() => []),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
+		failedProcesses: 0,
 		stoppedSessions: 0,
 		executed: 0,
 	})),
@@ -70,6 +73,7 @@ vi.mock("@cline/core", () => ({
 	readHubDiscovery: mockReadHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
+	listActiveConnectors: mockListActiveConnectors,
 }));
 
 vi.mock("../connectors/common", () => ({
@@ -100,6 +104,7 @@ describe("runDoctorCommand", () => {
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 0,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 			executed: 0,
 		});
@@ -283,6 +288,7 @@ describe("runDoctorCommand", () => {
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 2,
+			failedProcesses: 0,
 			stoppedSessions: 5,
 			executed: 3,
 		});

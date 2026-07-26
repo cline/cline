@@ -61,6 +61,13 @@ const kanbanMocks = vi.hoisted(() => ({
 const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
 }));
+const connectMocks = vi.hoisted(() => ({
+	formatAdapterList: vi.fn(() => ""),
+	runConnectAdapter: vi.fn(async () => 0),
+	runRestartConnector: vi.fn(async () => 0),
+	runStopAllConnectors: vi.fn(async () => 0),
+	runStopConnector: vi.fn(async () => 0),
+}));
 const migrationNoticeMocks = vi.hoisted(() => ({
 	getClineCliMigrationNotice: vi.fn<
 		(
@@ -198,6 +205,7 @@ vi.mock("./runtime/prompt", () => ({
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
+vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
@@ -273,6 +281,16 @@ describe("runCli lightweight command dispatch", () => {
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
 		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
+		connectMocks.formatAdapterList.mockReset();
+		connectMocks.formatAdapterList.mockReturnValue("");
+		connectMocks.runConnectAdapter.mockReset();
+		connectMocks.runConnectAdapter.mockResolvedValue(0);
+		connectMocks.runRestartConnector.mockReset();
+		connectMocks.runRestartConnector.mockResolvedValue(0);
+		connectMocks.runStopAllConnectors.mockReset();
+		connectMocks.runStopAllConnectors.mockResolvedValue(0);
+		connectMocks.runStopConnector.mockReset();
+		connectMocks.runStopConnector.mockResolvedValue(0);
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReset();
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(undefined);
 		migrationNoticeMocks.markClineCliMigrationNoticeShown.mockReset();
@@ -334,6 +352,55 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	}, 30_000);
+
+	it("routes connector restart arguments through the restart lifecycle", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			undefined,
+		);
+		expect(connectMocks.runConnectAdapter).not.toHaveBeenCalled();
+		expect(connectMocks.runStopConnector).not.toHaveBeenCalled();
+	});
+
+	it("routes a targeted connector restart to one instance", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart-instance",
+			"cline_bot",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			"cline_bot",
+		);
+	});
 
 	it("does not load runtime modules for root update", async () => {
 		mockState.runAgentImports = 0;

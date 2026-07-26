@@ -42,3 +42,8 @@ From `apps/examples/menubar/`:
 - `bun run dev:ui` - run only the Hub Monitor UI at `http://127.0.0.1:3466/` with preview data
 - `bun run dev` - run the full Tauri app with the real hub sidecar
 - `bun run typecheck` - TypeScript check
+
+When the menubar starts the shared hub, it also supplies the CLI command used
+to restore persisted connectors. Development builds use
+`apps/cli/src/index.ts` when it is present; packaged builds use `cline` from
+`PATH`, or the executable specified by `CLINE_CLI_PATH`.

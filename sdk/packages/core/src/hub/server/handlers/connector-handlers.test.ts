@@ -1,7 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HubCommandEnvelope } from "@cline/shared";
+import {
+	type ConnectorConfigRecord,
+	type ConnectorConnectionRecord,
+	withConnectorStore,
+} from "@cline/shared/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { __test__, handleConnectorCommand } from "./connector-handlers";
 import type { HubTransportContext } from "./context";
@@ -53,15 +58,25 @@ describe("connector hub handlers", () => {
 		};
 	}
 
+	function readPersistedConnector(
+		channel: string,
+	): ConnectorConfigRecord | undefined {
+		return withConnectorStore((store) => store.getConfig(channel));
+	}
+
 	function readPersistedConnectorValues(
 		channel: string,
 	): Record<string, string> {
-		const persisted = JSON.parse(
-			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
-		) as {
-			connectors: Record<string, { values: Record<string, string> }>;
-		};
-		return persisted.connectors[channel]?.values ?? {};
+		return readPersistedConnector(channel)?.values ?? {};
+	}
+
+	function readPersistedConnection(
+		channel: string,
+		instanceId: string,
+	): ConnectorConnectionRecord | undefined {
+		return withConnectorStore((store) =>
+			store.getConnection(channel, instanceId),
+		);
 	}
 
 	it("configures a connector through hub settings without starting it", () => {
@@ -78,23 +93,103 @@ describe("connector hub handlers", () => {
 			expect.objectContaining({ id: "telegram", type: "telegram" }),
 		]);
 
-		const persisted = JSON.parse(
-			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
-		) as {
-			connectors: {
-				telegram: {
-					values: Record<string, string>;
-					security: { enabled: boolean; values: Record<string, string> };
-				};
-			};
-		};
-		expect(persisted.connectors.telegram.values["-k"]).toBe(
-			"123456:fake-token",
-		);
-		expect(persisted.connectors.telegram.security).toEqual({
+		const persisted = readPersistedConnector("telegram");
+		expect(persisted?.values["-k"]).toBe("123456:fake-token");
+		expect(persisted?.security).toEqual({
 			enabled: true,
 			values: { userId: "123456789" },
 		});
+		expect(readPersistedConnection("telegram", "cline_bot")).toBeUndefined();
+	});
+
+	it("does not surface CLI-only connections as dashboard configurations", () => {
+		useTempDataDir();
+		withConnectorStore((store) =>
+			store.recordConnected("telegram", "cline_bot", [
+				"-k",
+				"123456:fake-token",
+			]),
+		);
+
+		expect(__test__.connectorChannelsPayload().configured).toEqual([]);
+		expect(readPersistedConnector("telegram")).toBeUndefined();
+		expect(readPersistedConnection("telegram", "cline_bot")).toBeDefined();
+	});
+
+	it("refreshes reconnect args when a configured credential changes", () => {
+		useTempDataDir();
+		withConnectorStore((store) => {
+			store.recordConnected("telegram", "old_bot", [
+				"--provider",
+				"openrouter",
+				"--bot-token",
+				"123456:old-token",
+				"--bot-username",
+				"old_bot",
+				"--cwd",
+				"/workspace",
+				"--no-tools",
+				"--hook-command",
+				"custom-hook",
+			]);
+			store.setEnabled("telegram", false);
+		});
+
+		__test__.configureConnector({
+			channel: "telegram",
+			values: { "-k": "123456:rotated-token" },
+			security: { enabled: true, values: { userId: "987654321" } },
+		});
+
+		const persisted = readPersistedConnection("telegram", "old_bot");
+		expect(persisted?.connectArgs).toEqual([
+			"--provider",
+			"openrouter",
+			"--cwd",
+			"/workspace",
+			"--no-tools",
+			"-k",
+			"123456:rotated-token",
+			"--allowed-user-id",
+			"987654321",
+		]);
+		expect(persisted?.enabled).toBe(false);
+	});
+
+	it("saves dashboard config without rewriting multiple persisted instances", () => {
+		useTempDataDir();
+		withConnectorStore((store) => {
+			store.recordConnected("telegram", "first_bot", [
+				"-k",
+				"123456:first-token",
+			]);
+			store.recordConnected("telegram", "second_bot", [
+				"-k",
+				"123456:second-token",
+			]);
+		});
+
+		const response = __test__.configureConnector({
+			channel: "telegram",
+			values: { "-k": "123456:dashboard-token" },
+		});
+
+		expect(response.configured).toEqual([
+			expect.objectContaining({ id: "telegram", type: "telegram" }),
+		]);
+		expect(readPersistedConnectorValues("telegram")).toEqual({
+			"-k": "123456:dashboard-token",
+		});
+		expect(
+			withConnectorStore((store) =>
+				store
+					.listConnections("telegram")
+					.map((connection) => connection.connectArgs),
+			),
+		).toEqual([
+			["-k", "123456:first-token"],
+			["-k", "123456:second-token"],
+		]);
 	});
 
 	it("validates security fields before persisting connector settings", () => {
@@ -110,7 +205,7 @@ describe("connector hub handlers", () => {
 		expect(__test__.connectorChannelsPayload().configured).toEqual([]);
 	});
 
-	it("deletes a connector config and removes an empty settings file", () => {
+	it("deletes a connector config from the store", () => {
 		useTempDataDir();
 
 		__test__.configureConnector({
@@ -133,17 +228,39 @@ describe("connector hub handlers", () => {
 			expect.objectContaining({ id: "slack", type: "slack" }),
 		]);
 
-		const persisted = JSON.parse(
-			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
-		) as {
-			connectors: Record<string, unknown>;
-		};
-		expect(persisted.connectors).not.toHaveProperty("telegram");
-		expect(persisted.connectors).toHaveProperty("slack");
+		expect(readPersistedConnector("telegram")).toBeUndefined();
+		expect(readPersistedConnector("slack")).toBeDefined();
 
 		const deleteSlack = __test__.deleteConnectorConfig({ channel: "slack" });
 		expect(deleteSlack.configured).toEqual([]);
-		expect(existsSync(__test__.resolveConnectorSettingsPath())).toBe(false);
+		expect(readPersistedConnector("slack")).toBeUndefined();
+	});
+
+	it("preserves CLI reconnect state when dashboard config is deleted", () => {
+		useTempDataDir();
+		withConnectorStore((store) =>
+			store.recordConnected("telegram", "cline_bot", [
+				"-k",
+				"123456:fake-token",
+			]),
+		);
+		__test__.configureConnector({
+			channel: "telegram",
+			values: { "-k": "123456:fake-token" },
+		});
+
+		const response = __test__.deleteConnectorConfig({
+			channel: "telegram",
+		});
+
+		expect(response.configured).toEqual([]);
+		expect(readPersistedConnector("telegram")).toBeUndefined();
+		expect(readPersistedConnection("telegram", "cline_bot")).toEqual(
+			expect.objectContaining({
+				connectArgs: ["-k", "123456:fake-token"],
+				enabled: true,
+			}),
+		);
 	});
 
 	it("validates only included conditional connector fields", () => {

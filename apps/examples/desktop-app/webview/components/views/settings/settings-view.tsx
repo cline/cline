@@ -11,13 +11,10 @@ import {
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
-import {
-	loadProviderCatalog,
-	readCachedProviderCatalog,
-	writeProviderCatalogCache,
-} from "@/lib/provider-model-catalog";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
+	ProviderCatalogResponse,
 	ProviderModelsResponse,
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
@@ -75,6 +72,13 @@ type GlobalSettingsResponse = {
 	autoUpdateEnabled: boolean;
 };
 
+const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
+
+let providerCatalogCache: {
+	providers: Provider[];
+	fetchedAt: number;
+} | null = null;
+
 // -----------------------------------------------------------
 // Component
 // -----------------------------------------------------------
@@ -90,10 +94,10 @@ export function SettingsView({
 }) {
 	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
-		() => readCachedProviderCatalog() ?? [],
+		() => providerCatalogCache?.providers ?? [],
 	);
 	const [providersLoading, setProvidersLoading] = useState(
-		() => !readCachedProviderCatalog(),
+		() => !providerCatalogCache,
 	);
 	const [providerCatalogError, setProviderCatalogError] = useState<
 		string | null
@@ -126,47 +130,53 @@ export function SettingsView({
 					typeof next === "function"
 						? (next as (prev: Provider[]) => Provider[])(prev)
 						: next;
-				writeProviderCatalogCache(resolved);
+				providerCatalogCache = {
+					providers: resolved,
+					fetchedAt: Date.now(),
+				};
 				return resolved;
 			});
 		},
 		[],
 	);
 
-	const refreshProviderCatalog = useCallback(
-		async (options: { force?: boolean } = {}) => {
-			const cached = options.force ? null : readCachedProviderCatalog();
-			if (cached) {
-				setProviders(cached);
-				setProvidersLoading(false);
-				setProviderCatalogError(null);
-				return;
-			}
-
-			setProvidersLoading(true);
+	const loadProviderCatalog = useCallback(async () => {
+		const now = Date.now();
+		if (
+			providerCatalogCache &&
+			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+		) {
+			setProviders(providerCatalogCache.providers);
+			setProvidersLoading(false);
 			setProviderCatalogError(null);
-			try {
-				setProviders(await loadProviderCatalog(options));
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				setProviderCatalogError(message);
-				setProviders([]);
-			} finally {
-				setProvidersLoading(false);
-			}
-		},
-		[],
-	);
+			return;
+		}
+
+		setProvidersLoading(true);
+		setProviderCatalogError(null);
+		try {
+			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+				"list_provider_catalog",
+			);
+			setProvidersWithCache(payload.providers);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setProviderCatalogError(message);
+			setProviders([]);
+		} finally {
+			setProvidersLoading(false);
+		}
+	}, [setProvidersWithCache]);
 
 	useEffect(() => {
 		if (activeNav !== "Models") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
-			void refreshProviderCatalog();
+			void loadProviderCatalog();
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
-	}, [activeNav, refreshProviderCatalog]);
+	}, [activeNav, loadProviderCatalog]);
 
 	const persistProviderSettings = useCallback(
 		async (
@@ -191,6 +201,10 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+			} finally {
+				// Keep the shared short-lived catalog cache (composer model
+				// selector, onboarding) in sync with the just-saved settings.
+				invalidateProviderCatalogCache();
 			}
 		},
 		[],
@@ -348,11 +362,12 @@ export function SettingsView({
 				models_source_url: payload.modelsSourceUrl,
 				capabilities: payload.capabilities,
 			});
-			await refreshProviderCatalog({ force: true });
+			invalidateProviderCatalogCache();
+			await loadProviderCatalog();
 			setAddingProvider(false);
 			setSelectedProviderId(payload.providerId);
 		},
-		[refreshProviderCatalog],
+		[loadProviderCatalog],
 	);
 
 	const openAddProvider = () => {

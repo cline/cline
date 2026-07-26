@@ -51,6 +51,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import { getConnectorSystemPrompt } from "./prompts";
@@ -477,11 +478,23 @@ class LinearConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopLinearConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
 	protected override async runWithOptions(
 		options: ConnectLinearOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
+		context.setPersistenceInstanceId(options.userName);
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const staleState = this.removeStaleState(
@@ -492,25 +505,24 @@ class LinearConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<LinearThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_LINEAR_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[linear] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[linear] starting background connector pid=${pid} user=${options.userName}`,
-				foregroundHint:
-					"[linear] use `cline connect linear -i ...` to run in the foreground",
-				launchFailureMessage: "failed to launch Linear connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_LINEAR_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[linear] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[linear] starting background connector pid=${pid} user=${options.userName}`,
+			foregroundHint:
+				"[linear] use `cline connect linear -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Linear connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({

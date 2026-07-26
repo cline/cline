@@ -547,9 +547,9 @@ export function useSessionHistory({
 		const refreshPromise = (async () => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
-			// The flag only drives the empty-state spinner, so a background poll
-			// has nothing to announce; toggling it re-rendered the whole shell
-			// twice every 12 seconds for a list that usually has not changed.
+			// Only surface the loading state before anything has been fetched:
+			// consumers only render it for an empty list, and toggling it on
+			// every background poll re-rendered the whole app twice per refresh.
 			if (sessionsRef.current.length === 0) {
 				setIsLoadingHistory(true);
 			}

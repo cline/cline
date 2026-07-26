@@ -41,8 +41,6 @@ describe("createWorkspaceFileReadExecutor", () => {
 	})
 
 	it("reports the resolved workspace path for missing relative files", async () => {
-		await expect(readFile({ path: "src/missing.ts" }, context)).rejects.toThrow(
-			path.join(workspaceRoot, "src", "missing.ts"),
-		)
+		await expect(readFile({ path: "src/missing.ts" }, context)).rejects.toThrow(path.join(workspaceRoot, "src", "missing.ts"))
 	})
 })

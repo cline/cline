@@ -9,8 +9,24 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
-const importCheck =
-	'import { Conversation, Message } from "@cline/ui/components/agent-chat"; const css = import.meta.resolve("@cline/ui/components/agent-chat.css"); const tokens = import.meta.resolve("@cline/ui/theme/tokens.css"); if (!Conversation || !Message || !css || !tokens) process.exit(1);';
+const importCheck = `
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Conversation, Message } from "@cline/ui/components/agent-chat";
+
+for (const specifier of [
+	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/scoped-tokens.css",
+]) {
+	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
+		throw new Error("packed CSS export does not exist: " + specifier);
+	}
+}
+
+const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
+const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
+if (!Conversation || !Message || !css || !tokens) process.exit(1);
+`;
 
 async function run(command: string[], cwd: string): Promise<void> {
 	const child = Bun.spawn(command, {

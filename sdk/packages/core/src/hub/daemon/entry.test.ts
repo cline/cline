@@ -9,6 +9,7 @@ const {
 	mockResolveHubEndpointOptions,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
+	mockReconnectDaemonConnectors,
 	mockStartHubWebSocketServer,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
@@ -33,6 +34,7 @@ const {
 		ownerId: "shared",
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
+	mockReconnectDaemonConnectors: vi.fn(async () => []),
 	mockStartHubWebSocketServer: vi.fn(async () => ({
 		close: vi.fn(async () => undefined),
 	})),
@@ -60,6 +62,10 @@ vi.mock("@cline/shared", () => ({
 	resolveClineBuildEnv: () => "production",
 }));
 
+vi.mock("@cline/agents", () => ({
+	AgentRuntimeAbortError: class AgentRuntimeAbortError extends Error {},
+}));
+
 vi.mock("../daemon/runtime-handlers", () => ({
 	createLocalHubScheduleRuntimeHandlers:
 		mockCreateLocalHubScheduleRuntimeHandlers,
@@ -76,6 +82,10 @@ vi.mock("../discovery/workspace", () => ({
 
 vi.mock("../server", () => ({
 	startHubWebSocketServer: mockStartHubWebSocketServer,
+}));
+
+vi.mock("../../services/connectors/daemon-connector-reconnect", () => ({
+	reconnectDaemonConnectors: mockReconnectDaemonConnectors,
 }));
 
 vi.mock("./telemetry", () => ({
@@ -98,6 +108,7 @@ describe("hub daemon entry", () => {
 		mockResolveHubEndpointOptions.mockClear();
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
+		mockReconnectDaemonConnectors.mockClear();
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
@@ -123,10 +134,8 @@ describe("hub daemon entry", () => {
 		];
 		vi.spyOn(process, "on").mockImplementation(() => process);
 
-		await import("./entry");
-		await vi.waitFor(() => {
-			expect(mockStartHubWebSocketServer).toHaveBeenCalled();
-		});
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
 
 		expect(mockStartHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -141,6 +150,37 @@ describe("hub daemon entry", () => {
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledOnce();
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
 			telemetry: mockDaemonTelemetryService,
+		});
+		expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
+	});
+
+	it("does not signal readiness before the WebSocket server is listening", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+
+		let releaseServer!: () => void;
+		mockStartHubWebSocketServer.mockImplementationOnce(async () => {
+			await new Promise<void>((resolve) => {
+				releaseServer = resolve;
+			});
+			return { close: vi.fn(async () => undefined) };
+		});
+
+		const { hubDaemonReady } = await import("./entry");
+		let ready = false;
+		void hubDaemonReady.then(() => {
+			ready = true;
+		});
+		await Promise.resolve();
+		expect(ready).toBe(false);
+
+		releaseServer();
+		await hubDaemonReady;
+		expect(ready).toBe(true);
+		await vi.waitFor(() => {
+			expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
 		});
 	});
 

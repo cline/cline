@@ -48,62 +48,48 @@ export function buildProviderModelCatalog(
 	};
 }
 
-/**
- * The catalog is ~700KB of JSON — every provider Cline knows about, each with
- * its full model list. Four unrelated call sites want it (chat composer,
- * onboarding, settings, routines) and several of them mount at once, so
- * without a shared cache a single cold start used to ship it over the
- * transport ten times.
- *
- * The payload carries live credential and enabled state, so anything that
- * mutates provider settings must call `invalidateProviderCatalog`.
- */
-const PROVIDER_CATALOG_TTL_MS = 60_000;
+// The provider catalog payload is large (hundreds of KB) and several
+// components request it at startup (composer, onboarding, credentials sync).
+// Deduplicate concurrent requests and keep the response briefly so the app
+// boot issues a single round-trip instead of one per consumer.
+const PROVIDER_CATALOG_CACHE_TTL_MS = 5_000;
 
-let catalogCache: { providers: Provider[]; fetchedAt: number } | null = null;
-let catalogInFlight: Promise<Provider[]> | null = null;
+let providerCatalogCache: {
+	fetchedAt: number;
+	promise: Promise<ProviderCatalogResponse>;
+} | null = null;
 
-export function readCachedProviderCatalog(): Provider[] | null {
-	if (!catalogCache) return null;
-	if (Date.now() - catalogCache.fetchedAt > PROVIDER_CATALOG_TTL_MS)
-		return null;
-	return catalogCache.providers;
-}
-
-/** Replaces the cache after a local edit, so the next reader sees it. */
-export function writeProviderCatalogCache(providers: Provider[]): void {
-	catalogCache = { providers, fetchedAt: Date.now() };
-}
-
-export function invalidateProviderCatalog(): void {
-	catalogCache = null;
-}
-
-export async function loadProviderCatalog(
-	options: { force?: boolean } = {},
-): Promise<Provider[]> {
-	if (!options.force) {
-		const cached = readCachedProviderCatalog();
-		if (cached) return cached;
-		if (catalogInFlight) return catalogInFlight;
+export function fetchProviderCatalog(options?: {
+	fresh?: boolean;
+}): Promise<ProviderCatalogResponse> {
+	const now = Date.now();
+	if (
+		!options?.fresh &&
+		providerCatalogCache &&
+		now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+	) {
+		return providerCatalogCache.promise;
 	}
+	const promise = desktopClient
+		.invoke<ProviderCatalogResponse>("list_provider_catalog")
+		.catch((error) => {
+			// Never cache failures.
+			if (providerCatalogCache?.promise === promise) {
+				providerCatalogCache = null;
+			}
+			throw error;
+		});
+	providerCatalogCache = { fetchedAt: now, promise };
+	return promise;
+}
 
-	catalogInFlight = (async () => {
-		const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-			"list_provider_catalog",
-		);
-		const providers = payload.providers ?? [];
-		writeProviderCatalogCache(providers);
-		return providers;
-	})().finally(() => {
-		catalogInFlight = null;
-	});
-
-	return catalogInFlight;
+export function invalidateProviderCatalogCache(): void {
+	providerCatalogCache = null;
 }
 
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
-	return buildProviderModelCatalog(await loadProviderCatalog());
+	const payload = await fetchProviderCatalog();
+	return buildProviderModelCatalog(payload.providers ?? []);
 }
 
 export async function loadProviderModels(

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { resolveClineDataDir } from "@cline/core";
 import { Command, CommanderError } from "commander";
 import {
+	CONNECT_ALREADY_RUNNING_EXIT_CODE,
 	isProcessRunning,
 	readJsonFile,
 	removeFile,
@@ -13,15 +14,19 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "./types";
 
 const SHOW_HELP_ERROR = "__SHOW_HELP__";
+const CONNECTOR_STARTUP_TIMEOUT_MS = 15_000;
+const CONNECTOR_STARTUP_POLL_MS = 100;
 
 export abstract class ConnectorBase<Options, State>
 	implements ConnectCommandDefinition
 {
 	stopAll?(io: ConnectIo): Promise<ConnectStopResult>;
+	stopInstance?(instanceId: string, io: ConnectIo): Promise<ConnectStopResult>;
 
 	constructor(
 		public readonly name: string,
@@ -41,7 +46,15 @@ export abstract class ConnectorBase<Options, State>
 		options: Options,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number>;
+
+	protected async validateOptions(
+		_options: Options,
+		_io: ConnectIo,
+	): Promise<number> {
+		return 0;
+	}
 
 	showHelp(io: ConnectIo): void {
 		const output = this.createCommand().helpInformation().trimEnd();
@@ -50,7 +63,11 @@ export abstract class ConnectorBase<Options, State>
 		}
 	}
 
-	async run(rawArgs: string[], io: ConnectIo): Promise<number> {
+	async run(
+		rawArgs: string[],
+		io: ConnectIo,
+		context: ConnectRunContext,
+	): Promise<number> {
 		let options: Options;
 		try {
 			options = this.parseArgs(rawArgs);
@@ -63,7 +80,27 @@ export abstract class ConnectorBase<Options, State>
 			io.writeErr(message);
 			return 1;
 		}
-		return this.runWithOptions(options, rawArgs, io);
+		const validationExitCode = await this.validateOptions(options, io);
+		if (validationExitCode !== 0) {
+			return validationExitCode;
+		}
+		return this.runWithOptions(options, rawArgs, io, context);
+	}
+
+	async validate(rawArgs: string[], io: ConnectIo): Promise<number> {
+		let options: Options;
+		try {
+			options = this.parseArgs(rawArgs);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (message === SHOW_HELP_ERROR) {
+				this.showHelp(io);
+				return 0;
+			}
+			io.writeErr(message);
+			return 1;
+		}
+		return await this.validateOptions(options, io);
 	}
 
 	protected parseArgs(rawArgs: string[]): Options {
@@ -145,14 +182,15 @@ export abstract class ConnectorBase<Options, State>
 		formatBackgroundStartMessage: (pid: number) => string;
 		foregroundHint: string;
 		launchFailureMessage: string;
-	}): Promise<boolean> {
+		startupTimeoutMs?: number;
+	}): Promise<number | undefined> {
 		if (input.interactive || process.env[input.childEnvVar] === "1") {
-			return false;
+			return undefined;
 		}
 		const runningState = input.readState(input.statePath);
 		if (runningState && input.isRunning(runningState)) {
 			input.io.writeln(input.formatAlreadyRunningMessage(runningState));
-			return true;
+			return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 		}
 		const pid = spawnDetachedConnector(
 			["connect", this.name],
@@ -161,11 +199,32 @@ export abstract class ConnectorBase<Options, State>
 		);
 		if (!pid) {
 			input.io.writeErr(input.launchFailureMessage);
-			return true;
+			return 1;
 		}
 		input.io.writeln(input.formatBackgroundStartMessage(pid));
 		input.io.writeln(input.foregroundHint);
-		return true;
+		const startedAt = Date.now();
+		const timeoutMs = input.startupTimeoutMs ?? CONNECTOR_STARTUP_TIMEOUT_MS;
+		while (Date.now() - startedAt < timeoutMs) {
+			const state = input.readState(input.statePath);
+			if (state && input.isRunning(state)) {
+				return 0;
+			}
+			if (!isProcessRunning(pid)) {
+				input.io.writeErr(
+					`${input.launchFailureMessage}: child exited before becoming ready`,
+				);
+				return 1;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, CONNECTOR_STARTUP_POLL_MS),
+			);
+		}
+		await terminateProcess(pid);
+		input.io.writeErr(
+			`${input.launchFailureMessage}: timed out after ${timeoutMs}ms`,
+		);
+		return 1;
 	}
 
 	protected async stopAllFromStatePaths(
@@ -177,13 +236,15 @@ export abstract class ConnectorBase<Options, State>
 		) => Promise<ConnectStopResult>,
 	): Promise<ConnectStopResult> {
 		let stoppedProcesses = 0;
+		let failedProcesses = 0;
 		let stoppedSessions = 0;
 		for (const statePath of statePaths) {
 			const result = await stopInstance(statePath, io);
 			stoppedProcesses += result.stoppedProcesses;
+			failedProcesses += result.failedProcesses;
 			stoppedSessions += result.stoppedSessions;
 		}
-		return { stoppedProcesses, stoppedSessions };
+		return { stoppedProcesses, failedProcesses, stoppedSessions };
 	}
 
 	protected async stopManagedProcess(input: {
@@ -198,17 +259,31 @@ export abstract class ConnectorBase<Options, State>
 		const state = input.readState(input.statePath);
 		if (!state) {
 			this.removeStateFile(input.statePath);
-			return { stoppedProcesses: 0, stoppedSessions: 0 };
+			return {
+				stoppedProcesses: 0,
+				failedProcesses: 0,
+				stoppedSessions: 0,
+			};
 		}
+		const pid = input.getPid(state);
 		let stoppedProcesses = 0;
-		if (await terminateProcess(input.getPid(state))) {
+		if (await terminateProcess(pid)) {
 			stoppedProcesses = 1;
 			input.io.writeln(input.describeStoppedProcess(state));
+		} else if (isProcessRunning(pid)) {
+			input.io.writeErr(
+				`[connect] failed to stop connector process pid=${pid}`,
+			);
+			return {
+				stoppedProcesses: 0,
+				failedProcesses: 1,
+				stoppedSessions: 0,
+			};
 		}
 		const stoppedSessions = await input.stopSessions(state);
 		input.clearBindings?.(state);
 		this.removeStateFile(input.statePath);
-		return { stoppedProcesses, stoppedSessions };
+		return { stoppedProcesses, failedProcesses: 0, stoppedSessions };
 	}
 
 	protected parseOptionalInteger(

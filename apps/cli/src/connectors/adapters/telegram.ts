@@ -20,7 +20,7 @@ import {
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
-import { isProcessRunning } from "../common";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
 	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
@@ -51,6 +51,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -604,10 +605,37 @@ class TelegramConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopTelegramConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override async validateOptions(
+		options: ConnectTelegramOptions,
+		io: ConnectIo,
+	): Promise<number> {
+		try {
+			await resolveTelegramBotUsername({
+				...options,
+				botUsername: undefined,
+			});
+			return 0;
+		} catch (error) {
+			io.writeErr(error instanceof Error ? error.message : String(error));
+			return 1;
+		}
+	}
+
 	protected override async runWithOptions(
 		inputOptions: ConnectTelegramOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
 		if (
 			!inputOptions.botUsername &&
@@ -621,7 +649,7 @@ class TelegramConnector extends ConnectorBase<
 				io.writeln(
 					`[telegram] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress}`,
 				);
-				return 0;
+				return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 			}
 		}
 		let resolvedBotUsername: string;
@@ -638,6 +666,8 @@ class TelegramConnector extends ConnectorBase<
 		const backgroundArgs = inputOptions.botUsername
 			? rawArgs
 			: [...rawArgs, "--bot-username", resolvedBotUsername];
+		context.setPersistenceArgs(backgroundArgs);
+		context.setPersistenceInstanceId(options.botUsername);
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
 		const staleState = this.removeStaleState(
@@ -648,26 +678,24 @@ class TelegramConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<TelegramThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs: backgroundArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
-				foregroundHint:
-					"[telegram] use `cline connect telegram -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Telegram connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs: backgroundArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
+			foregroundHint:
+				"[telegram] use `cline connect telegram -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Telegram connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({

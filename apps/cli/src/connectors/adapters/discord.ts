@@ -59,6 +59,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -937,9 +938,18 @@ class DiscordConnector extends ConnectorBase<
 		);
 	}
 
-	protected override async runWithOptions(
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopDiscordConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override async validateOptions(
 		options: ConnectDiscordOptions,
-		rawArgs: string[],
 		io: ConnectIo,
 	): Promise<number> {
 		if (!options.applicationId) {
@@ -960,7 +970,16 @@ class DiscordConnector extends ConnectorBase<
 			);
 			return 1;
 		}
+		return 0;
+	}
 
+	protected override async runWithOptions(
+		options: ConnectDiscordOptions,
+		rawArgs: string[],
+		io: ConnectIo,
+		context: ConnectRunContext,
+	): Promise<number> {
+		context.setPersistenceInstanceId(options.applicationId);
 		const statePath = this.resolveConnectorStatePath(options.applicationId);
 		const bindingsPath = this.resolveBindingsPath(options.applicationId);
 		const staleState = this.removeStaleState(
@@ -971,26 +990,24 @@ class DiscordConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<DiscordThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_DISCORD_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[discord] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[discord] starting background connector pid=${pid} application=${options.applicationId}`,
-				foregroundHint:
-					"[discord] use `cline connect discord -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Discord connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_DISCORD_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[discord] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[discord] starting background connector pid=${pid} application=${options.applicationId}`,
+			foregroundHint:
+				"[discord] use `cline connect discord -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Discord connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
