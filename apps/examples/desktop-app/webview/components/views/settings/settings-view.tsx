@@ -11,6 +11,7 @@ import {
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -200,6 +201,10 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+			} finally {
+				// Keep the shared short-lived catalog cache (composer model
+				// selector, onboarding) in sync with the just-saved settings.
+				invalidateProviderCatalogCache();
 			}
 		},
 		[],
@@ -357,6 +362,7 @@ export function SettingsView({
 				models_source_url: payload.modelsSourceUrl,
 				capabilities: payload.capabilities,
 			});
+			invalidateProviderCatalogCache();
 			await loadProviderCatalog();
 			setAddingProvider(false);
 			setSelectedProviderId(payload.providerId);

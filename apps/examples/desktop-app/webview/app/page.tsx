@@ -268,11 +268,15 @@ export default function Home() {
 		<AccountProvider>
 			<SidebarProvider>
 				<div
+					aria-hidden={showOnboarding ? true : undefined}
 					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
 					// The onboarding overlay is opaque and sits on top of the whole
 					// shell; hiding the shell keeps its aurora + animations from
 					// being composited every frame underneath while it still mounts
 					// and loads (providers, history, transport) in the background.
+					// `inert` additionally keeps the covered controls out of the
+					// keyboard tab order and assistive tech while it is hidden.
+					inert={showOnboarding ? true : undefined}
 					style={showOnboarding ? { visibility: "hidden" } : undefined}
 				>
 					<Sidebar
@@ -767,12 +771,15 @@ function ChatThreadPane({
 				return;
 			}
 			onThreadStarted?.(threadId);
-			promptInputRef.current = "";
+			// Also clear the injected draft: the composer cleared its local copy,
+			// but a stale non-empty draft would repopulate the input if the
+			// composer remounts (e.g. a transport blip re-showing the loader).
+			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			await sendPrompt(trimmed, toSend);
 		},
-		[onThreadStarted, pendingAttachments, sendPrompt, threadId],
+		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
 
 	const handleReasoningChange = useCallback(
