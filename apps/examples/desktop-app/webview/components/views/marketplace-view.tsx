@@ -635,6 +635,11 @@ export function MarketplaceView({
 	>(() => new Map());
 	const [installedStatusState, setInstalledStatusState] =
 		useState<InstalledStatusState>("loading");
+	// True while the installed-status of catalog entries may be out of sync with
+	// the locally installed items (e.g. right after an item is added/removed and
+	// before list_marketplace_installed_entries responds).
+	const [installedStatusStale, setInstalledStatusStale] = useState(true);
+	const [recheckNonce, setRecheckNonce] = useState(0);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -676,6 +681,7 @@ export function MarketplaceView({
 			return;
 		}
 		let cancelled = false;
+		setInstalledStatusStale(true);
 		void (async () => {
 			try {
 				const response =
@@ -691,13 +697,14 @@ export function MarketplaceView({
 			} finally {
 				if (!cancelled) {
 					setInstalledStatusState("ready");
+					setInstalledStatusStale(false);
 				}
 			}
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [catalog, installedItemsSignature]);
+	}, [catalog, installedItemsSignature, recheckNonce]);
 
 	const pageDetails = primitivePageDetails[primitive];
 	const PageIcon = pageDetails.icon;
@@ -724,18 +731,43 @@ export function MarketplaceView({
 		});
 	}, [primitiveEntries, query, tagLabels]);
 
+	// Assign each installed marketplace entry to at most one local item so a
+	// single entry's badge and setup guidance are never duplicated across
+	// unrelated local cards that happen to share a broad match value.
 	const matchedEntriesByLocalItemKey = useMemo(() => {
 		const matched = new Map<string, MarketplaceEntry[]>();
+		const items = installedItems ?? [];
 		const installedMarketplaceEntries = primitiveEntries.filter((entry) =>
 			installedEntryKeys.has(entryKey(entry)),
 		);
-		for (const item of installedItems ?? []) {
-			const entries = installedMarketplaceEntries.filter((candidate) =>
-				entryMatchesLocalItem(candidate, item),
+		for (const entry of installedMarketplaceEntries) {
+			const candidates = items.filter((item) =>
+				entryMatchesLocalItem(entry, item),
 			);
-			if (entries.length > 0) {
-				matched.set(item.key, entries);
+			let target = candidates.length === 1 ? candidates[0] : undefined;
+			if (!target && candidates.length > 1) {
+				// Prefer the item that matches the entry's own id or name over
+				// items that only share a weaker value (e.g. an install argument
+				// or a path segment).
+				const strongValues = new Set(
+					[entry.id, entry.name].map(normalizeMatchValue).filter(Boolean),
+				);
+				const strongCandidates = candidates.filter((item) =>
+					item.matchValues
+						.map(normalizeMatchValue)
+						.some((value) => strongValues.has(value)),
+				);
+				target =
+					strongCandidates.length === 1 ? strongCandidates[0] : undefined;
 			}
+			if (!target) {
+				// Still ambiguous: keep the entry on its own marketplace card
+				// rather than guessing which local item it belongs to.
+				continue;
+			}
+			const entries = matched.get(target.key) ?? [];
+			entries.push(entry);
+			matched.set(target.key, entries);
 		}
 		return matched;
 	}, [installedEntryKeys, installedItems, primitiveEntries]);
@@ -752,15 +784,24 @@ export function MarketplaceView({
 
 	// Installed marketplace entries that have a matching local item are rendered
 	// through that item's own card, so only unmatched entries fall back to the
-	// marketplace entry card here.
+	// marketplace entry card here. While the installed status is being rechecked
+	// against a changed local inventory, unmatched entries are withheld so a
+	// just-removed entry does not briefly resurface as an installed card.
 	const installedEntries = useMemo(
 		() =>
-			queryFilteredEntries.filter(
-				(entry) =>
-					installedEntryKeys.has(entryKey(entry)) &&
-					!matchedEntryKeys.has(entryKey(entry)),
-			),
-		[queryFilteredEntries, installedEntryKeys, matchedEntryKeys],
+			installedStatusStale
+				? []
+				: queryFilteredEntries.filter(
+						(entry) =>
+							installedEntryKeys.has(entryKey(entry)) &&
+							!matchedEntryKeys.has(entryKey(entry)),
+					),
+		[
+			queryFilteredEntries,
+			installedEntryKeys,
+			installedStatusStale,
+			matchedEntryKeys,
+		],
 	);
 
 	const marketplaceEntriesBeforeTag = useMemo(
@@ -907,8 +948,13 @@ export function MarketplaceView({
 				status: "installed",
 				message: result.message,
 			});
+			// Withhold the entry's fallback marketplace card until the local
+			// items are refreshed and the installed status is rechecked, so the
+			// entry lands directly on its matching local card.
+			setInstalledStatusStale(true);
 			markEntryInstalled(entry);
 			await onInstalledItemsChanged?.();
+			setRecheckNonce((nonce) => nonce + 1);
 		} catch (error) {
 			setEntryState(entry, {
 				status: "failed",
