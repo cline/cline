@@ -297,21 +297,38 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 }
 
 /**
- * Load field number mappings from existing proto file
+ * Parse `reserved` statements from an existing proto message definition so they
+ * survive regeneration (removed fields must keep their numbers/names reserved).
+ */
+function parseProtoMessageReservedStatements(protoContent, messageName) {
+	const messageRegex = new RegExp(`message\\s+${messageName}\\s*\\{([^}]*(?:\\{[^}]*\\}[^}]*)*)\\}`, "s")
+	const match = protoContent.match(messageRegex)
+
+	if (!match) {
+		return []
+	}
+
+	return [...match[1].matchAll(/^[ \t]*(reserved\b[^\n]*)$/gm)].map((m) => m[1].trim())
+}
+
+/**
+ * Load field number mappings and reserved statements from existing proto file
  */
 async function loadFieldNumbersFromProto() {
 	try {
 		const protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")
 		const secrets = parseProtoMessageFieldNumbers(protoContent, "Secrets")
 		const settings = parseProtoMessageFieldNumbers(protoContent, "Settings")
+		const secretsReserved = parseProtoMessageReservedStatements(protoContent, "Secrets")
+		const settingsReserved = parseProtoMessageReservedStatements(protoContent, "Settings")
 
 		console.log(`  Found ${Object.keys(secrets).length} existing Secrets fields`)
 		console.log(`  Found ${Object.keys(settings).length} existing Settings fields`)
 
-		return { Secrets: secrets, Settings: settings }
+		return { Secrets: secrets, Settings: settings, SecretsReserved: secretsReserved, SettingsReserved: settingsReserved }
 	} catch {
 		// Proto file doesn't exist, start fresh
-		return { Secrets: {}, Settings: {} }
+		return { Secrets: {}, Settings: {}, SecretsReserved: [], SettingsReserved: [] }
 	}
 }
 
@@ -364,8 +381,13 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 /**
  * Generate proto message definition
  */
-function generateProtoMessage(messageName, fields, fieldNumbers) {
+function generateProtoMessage(messageName, fields, fieldNumbers, reservedStatements = []) {
 	const lines = [`message ${messageName} {`]
+
+	// Re-emit reserved statements so removed field numbers/names stay reserved
+	for (const statement of reservedStatements) {
+		lines.push(`  ${statement}`)
+	}
 
 	// Sort fields by field number for consistent output
 	const sortedFields = [...fields].sort((a, b) => fieldNumbers[a.name] - fieldNumbers[b.name])
@@ -385,13 +407,13 @@ function generateProtoMessage(messageName, fields, fieldNumbers) {
 /**
  * Generate Secrets message from SECRETS_KEYS
  */
-function generateSecretsMessage(secretsKeys, fieldNumbers) {
+function generateSecretsMessage(secretsKeys, fieldNumbers, reservedStatements) {
 	const fields = secretsKeys.map((key) => ({
 		name: key,
 		protoType: "string",
 	}))
 
-	return generateProtoMessage("Secrets", fields, fieldNumbers)
+	return generateProtoMessage("Secrets", fields, fieldNumbers, reservedStatements)
 }
 
 /**
@@ -439,8 +461,8 @@ async function main() {
 	const settingsFieldNumbers = assignFieldNumbers(settingsFields, existingFieldNumbers.Settings, 1)
 
 	// Generate messages
-	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers)
-	const settingsMessage = generateProtoMessage("Settings", settingsFields, settingsFieldNumbers)
+	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers, existingFieldNumbers.SecretsReserved)
+	const settingsMessage = generateProtoMessage("Settings", settingsFields, settingsFieldNumbers, existingFieldNumbers.SettingsReserved)
 
 	// Read existing proto file
 	let protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")

@@ -112,6 +112,8 @@ message Secrets {
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 150; // was custom_prompt (removed - compact prompt setting no longer supported)
+  reserved "custom_prompt";
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -392,7 +394,7 @@ message UpdateSettingsRequest {
   reserved 43; // was lazy_teammate_mode_enabled (removed)
   reserved 12; // was terminal_output_line_limit (removed; SDK command output limits are character-based)
   reserved 19; // was custom_prompt (removed - compact prompt setting no longer supported)
-  reserved "native_tool_call_enabled", "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
+  reserved "native_tool_call_enabled", "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled", "custom_prompt";
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
