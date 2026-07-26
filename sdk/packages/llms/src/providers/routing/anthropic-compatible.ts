@@ -496,6 +496,12 @@ export function buildAnthropicCompatibleReasoningOptions(
 ) {
 	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
 	if (
+		request.reasoning?.enabled === false &&
+		request.modelId.toLowerCase().includes("claude-fable")
+	) {
+		return { max_tokens: ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS };
+	}
+	if (
 		policy.kind === "none" ||
 		(!request.reasoning?.enabled &&
 			!request.reasoning?.effort &&
