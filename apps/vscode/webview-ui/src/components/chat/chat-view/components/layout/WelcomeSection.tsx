@@ -24,6 +24,10 @@ import { WelcomeSectionProps } from "../../types/chatTypes"
 // Shares the legacy extension's banner id so a dismissal there carries over here.
 const CLINE_PASS_PROMO_BANNER_ID = "cline-pass-home-promo-v2"
 
+// Module-level so optimistic dismissals survive unmounting (e.g. starting a task)
+// before the persisted dismissedBanners state round-trips from the extension host.
+const sessionDismissedBanners = new Set<string>()
+
 /**
  * Welcome section shown when there's no active task
  * Includes info banner, announcements, home header, and history preview
@@ -74,7 +78,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { isClinePassEnabled, isUsingClinePass, openSubscribePage, switchToClinePassProvider } = useClinePassPromo()
-	const [dismissedLocalBanners, setDismissedLocalBanners] = useState<Set<string>>(() => new Set())
+	const [dismissedLocalBanners, setDismissedLocalBanners] = useState<Set<string>>(() => new Set(sessionDismissedBanners))
 
 	// Open modal once we have welcome banners
 	useEffect(() => {
@@ -218,6 +222,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 */
 	const handleBannerDismiss = useCallback((bannerId: string) => {
 		// Hide immediately, without waiting for the persisted state round-trip.
+		sessionDismissedBanners.add(bannerId)
 		setDismissedLocalBanners((previous) => new Set(previous).add(bannerId))
 
 		// !! Do not continue use these version numbers or add new banners that don't have unique IDs. !!

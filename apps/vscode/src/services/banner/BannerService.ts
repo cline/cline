@@ -238,7 +238,10 @@ export class BannerService {
 			StateManager.get().setGlobalState("dismissedBanners", [...dismissed, { bannerId, dismissedAt: Date.now() }])
 
 			await this.sendBannerEvent(bannerId, "dismiss")
-			this.clearCache()
+			// Mark the cache stale so the next read refetches, but keep the current
+			// banners so unrelated carousel items don't disappear in the meantime.
+			// The dismissed banner is already filtered out via isBannerDismissed().
+			this.lastFetchTime = 0
 		} catch (error) {
 			Logger.error("[BannerService] Error dismissing banner", error)
 		}

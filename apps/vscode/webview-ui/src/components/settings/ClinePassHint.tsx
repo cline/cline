@@ -11,6 +11,10 @@ import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers
 const CLINE_PASS_SETTINGS_HINT_ID = "cline-pass-settings-hint-v1"
 const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
+// Module-level so an optimistic dismissal survives unmounting (e.g. leaving
+// settings) before the persisted dismissedBanners state round-trips.
+let sessionDismissed = false
+
 interface ClinePassHintProps {
 	selectedProvider: string
 	currentMode: Mode
@@ -25,7 +29,7 @@ export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintPr
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const { dismissedBanners, remoteConfigSettings } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-	const [locallyDismissed, setLocallyDismissed] = useState(false)
+	const [locallyDismissed, setLocallyDismissed] = useState(sessionDismissed)
 
 	const isDismissed =
 		locallyDismissed || (dismissedBanners ?? []).some((dismissed) => dismissed.bannerId === CLINE_PASS_SETTINGS_HINT_ID)
@@ -39,6 +43,7 @@ export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintPr
 	}
 
 	const handleDismiss = () => {
+		sessionDismissed = true
 		setLocallyDismissed(true)
 		StateServiceClient.dismissBanner({ value: CLINE_PASS_SETTINGS_HINT_ID }).catch(console.error)
 	}
