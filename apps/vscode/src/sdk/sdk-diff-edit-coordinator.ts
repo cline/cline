@@ -22,6 +22,13 @@ import { Logger } from "@/shared/services/Logger"
  */
 const AUTO_APPROVE_PREVIEW_LINGER_MS = 1_500
 
+/**
+ * Upper bound on opening a diff preview. `vscode.diff` can stall on a busy or wedged
+ * workbench; the preview is purely cosmetic, so a stall must never block the approval
+ * ask or eat into the edit tool's own execution timeout — the edit proceeds without it.
+ */
+const PREVIEW_OPEN_TIMEOUT_MS = 5_000
+
 export interface SdkDiffEditCoordinatorOptions {
 	/** Workspace root used to resolve relative tool paths. */
 	getCwd: () => Promise<string>
@@ -35,6 +42,8 @@ export interface SdkDiffEditCoordinatorOptions {
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
 	/** Test seam: overrides the auto-approve preview linger. */
 	autoApprovePreviewLingerMs?: number
+	/** Test seam: overrides how long a preview open may take before the edit proceeds without it. */
+	previewOpenTimeoutMs?: number
 }
 
 interface DiffEditSession {
@@ -63,11 +72,13 @@ export class SdkDiffEditCoordinator {
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
 	private readonly autoApprovePreviewLingerMs: number
+	private readonly previewOpenTimeoutMs: number
 
 	constructor(private readonly options: SdkDiffEditCoordinatorOptions) {
 		this.fallbackEditorExecutor = options.fallbackEditorExecutor ?? createEditorExecutor()
 		this.fallbackApplyPatchExecutor = options.fallbackApplyPatchExecutor ?? createApplyPatchExecutor()
 		this.autoApprovePreviewLingerMs = options.autoApprovePreviewLingerMs ?? AUTO_APPROVE_PREVIEW_LINGER_MS
+		this.previewOpenTimeoutMs = options.previewOpenTimeoutMs ?? PREVIEW_OPEN_TIMEOUT_MS
 	}
 
 	/**
@@ -261,19 +272,31 @@ export class SdkDiffEditCoordinator {
 			content.editType === "create"
 				? `${fileName}: New File (Preview)`
 				: `${fileName}: Original ↔ Cline's Changes (Preview)`
-		try {
-			await preview.open({
-				title,
-				absolutePath: content.absolutePath,
-				displayPath: content.displayPath,
-				leftContent: content.leftContent,
-				rightContent: content.rightContent,
-			})
-		} catch (error) {
-			// open() can fail after partially opening (the session isn't registered yet,
-			// so discardPreview couldn't reach it) — close directly to avoid an orphaned tab.
-			await preview.close().catch(() => {})
-			throw error
+		// The preview is cosmetic, so a vscode.diff call that rejects or stalls must never
+		// block the approval ask or fail the edit: race the open against a timer and let
+		// callers catch the failure and proceed without a preview.
+		const opened = preview.open({
+			title,
+			absolutePath: content.absolutePath,
+			displayPath: content.displayPath,
+			leftContent: content.leftContent,
+			rightContent: content.rightContent,
+		})
+		const failure = await Promise.race([
+			opened.then(
+				() => undefined,
+				(error) => new Error(`diff preview failed to open: ${error}`),
+			),
+			delay(this.previewOpenTimeoutMs).then(
+				() => new Error(`diff preview did not open within ${this.previewOpenTimeoutMs}ms`),
+			),
+		])
+		if (failure) {
+			// Whenever the open settles — a failed open may have partially opened a tab, a
+			// stalled one may open late — close it so no orphaned tab lingers. (The session
+			// is never registered on failure, so discardPreview couldn't reach it.)
+			void opened.catch(() => {}).finally(() => preview.close().catch(() => {}))
+			throw failure
 		}
 		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
 	}
@@ -337,6 +360,10 @@ function resolveEditPath(cwd: string, inputPath: string): string {
 		throw new Error(`Path must stay within cwd: ${inputPath}`)
 	}
 	return resolved
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** Waits `ms`, resolving early (never rejecting) if the signal aborts. */
