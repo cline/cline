@@ -267,11 +267,22 @@ function ConnectStep({
 		setSigningIn(false);
 		// Cancel the backend browser round-trip so a later-completed
 		// authorization in the abandoned tab can never persist credentials.
-		desktopClient
-			.invoke("cancel_provider_oauth_login", { provider: "cline" })
-			.catch(() => {
-				// The attempt counter above already discards a stale completion.
-			});
+		// Retry transient delivery failures; if the transport itself is gone,
+		// the sidecar cancels pending logins when the connection closes.
+		void (async () => {
+			for (let attempt = 0; attempt < 3; attempt++) {
+				try {
+					await desktopClient.invoke("cancel_provider_oauth_login", {
+						provider: "cline",
+					});
+					return;
+				} catch {
+					await new Promise((resolve) =>
+						setTimeout(resolve, 250 * (attempt + 1)),
+					);
+				}
+			}
+		})();
 	}, []);
 
 	const connectWithClineApiKey = useCallback(async () => {

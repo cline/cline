@@ -2,6 +2,7 @@ import type { ProviderSettingsManager } from "@cline/core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	cancelProviderOAuthLogin,
+	cancelProviderOAuthLoginsForOwner,
 	OAuthLoginCancelledError,
 	runCancellableProviderOAuthLogin,
 } from "./oauth-login";
@@ -44,6 +45,7 @@ describe("runCancellableProviderOAuthLogin", () => {
 			makeManager(),
 			"cline",
 			() => undefined,
+			{},
 			dependencies,
 		);
 
@@ -64,6 +66,7 @@ describe("runCancellableProviderOAuthLogin", () => {
 			makeManager(),
 			"cline",
 			() => undefined,
+			{},
 			dependencies,
 		);
 		// Cancellation must reject the pending login right away, without
@@ -92,6 +95,7 @@ describe("runCancellableProviderOAuthLogin", () => {
 			makeManager(),
 			"cline",
 			() => undefined,
+			{},
 			makeDependencies({
 				login: () =>
 					new Promise<Credentials>((resolve) => {
@@ -109,6 +113,7 @@ describe("runCancellableProviderOAuthLogin", () => {
 			makeManager(),
 			"cline",
 			() => undefined,
+			{},
 			secondDependencies,
 		);
 
@@ -123,5 +128,37 @@ describe("runCancellableProviderOAuthLogin", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(firstSave).not.toHaveBeenCalled();
 		expect(secondSave).toHaveBeenCalledTimes(1);
+	});
+
+	it("cancels pending logins when their transport connection closes", async () => {
+		let resolveLogin: (credentials: Credentials) => void = () => undefined;
+		const { dependencies, save } = makeDependencies({
+			login: () =>
+				new Promise<Credentials>((resolve) => {
+					resolveLogin = resolve;
+				}),
+		});
+		const connection = {};
+
+		const pending = runCancellableProviderOAuthLogin(
+			makeManager(),
+			"cline",
+			() => undefined,
+			{ owner: connection },
+			dependencies,
+		);
+
+		// A different connection closing must not cancel this login.
+		expect(cancelProviderOAuthLoginsForOwner({})).toBe(0);
+
+		// The initiating connection closing cancels it, so a lost cancel
+		// command (transport drop, webview reload) cannot leave an abandoned
+		// flow that persists credentials later.
+		expect(cancelProviderOAuthLoginsForOwner(connection)).toBe(1);
+		await expect(pending).rejects.toBeInstanceOf(OAuthLoginCancelledError);
+
+		resolveLogin({ accessToken: "late-token" });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(save).not.toHaveBeenCalled();
 	});
 });

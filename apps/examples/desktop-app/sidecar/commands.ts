@@ -1114,6 +1114,7 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
+	options?: { connection?: object },
 ): Promise<unknown> {
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -1461,6 +1462,7 @@ export async function handleCommand(
 					);
 				});
 			},
+			{ owner: options?.connection },
 		);
 	}
 	if (command === "cancel_provider_oauth_login") {

@@ -16,6 +16,8 @@ export class OAuthLoginCancelledError extends Error {
 type PendingOAuthLogin = {
 	cancelled: boolean;
 	cancel: () => void;
+	/** Transport connection that initiated the login, when known. */
+	owner?: object;
 };
 
 // One pending browser round-trip per provider. Starting a new login for the
@@ -45,6 +47,7 @@ export async function runCancellableProviderOAuthLogin(
 	manager: ProviderSettingsManager,
 	providerId: string,
 	openUrl: (url: string) => void,
+	options: { owner?: object } = {},
 	dependencies: OAuthLoginDependencies = defaultDependencies,
 ): Promise<{ provider: string; accessToken: string }> {
 	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
@@ -62,6 +65,7 @@ export async function runCancellableProviderOAuthLogin(
 			entry.cancelled = true;
 			rejectOnCancel(new OAuthLoginCancelledError(providerId));
 		},
+		owner: options.owner,
 	};
 	pendingOAuthLoginsByProvider.set(providerId, entry);
 
@@ -104,4 +108,22 @@ export function cancelProviderOAuthLogin(providerId: string): boolean {
 	entry.cancel();
 	pendingOAuthLoginsByProvider.delete(providerId);
 	return true;
+}
+
+/**
+ * Cancels every pending OAuth login initiated by a transport connection.
+ * Called when that connection closes so a lost or undeliverable cancel
+ * command (e.g. the webview reloaded or the transport dropped) can never
+ * leave an abandoned browser flow that persists credentials later.
+ */
+export function cancelProviderOAuthLoginsForOwner(owner: object): number {
+	let cancelled = 0;
+	for (const [providerId, entry] of pendingOAuthLoginsByProvider) {
+		if (entry.owner === owner) {
+			entry.cancel();
+			pendingOAuthLoginsByProvider.delete(providerId);
+			cancelled += 1;
+		}
+	}
+	return cancelled;
 }
