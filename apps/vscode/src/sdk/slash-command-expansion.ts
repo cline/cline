@@ -99,7 +99,17 @@ export function expandSlashCommands(
 	return text
 }
 
+/** The discovered workflow files the disabled set is computed for. */
+export interface WorkflowRecordRef {
+	/** Command name (frontmatter `name`, or file basename without extension). */
+	name: string
+	/** Absolute path of the workflow file. */
+	filePath: string
+}
+
 export interface BuildDisabledWorkflowNamesOptions {
+	/** Discovered workflow records from `listRecords("workflow")`. */
+	records: ReadonlyArray<WorkflowRecordRef>
 	/** `globalWorkflowToggles` (global settings) — keyed by absolute file path. */
 	globalToggles?: Record<string, boolean>
 	/** Workspace `workflowToggles` — keyed by absolute file path. */
@@ -110,39 +120,54 @@ export interface BuildDisabledWorkflowNamesOptions {
 	remoteAlwaysEnabledNames?: Iterable<string>
 }
 
+function fileBasename(filePath: string): string {
+	return filePath.replace(/^.*[/\\]/, "")
+}
+
+/** Matches files materialized from remote config (`.cline/remote-config/…`). */
+const REMOTE_CONFIG_PATH_REGEX = /[/\\]\.cline[/\\]remote-config[/\\]/
+
 /**
- * Build the set of canonical workflow names the user disabled via the Workflows
- * toggles (local, global, and enterprise/remote scopes).
+ * Build the set of canonical command names whose workflows the user disabled
+ * via the Workflows toggles (local, global, and enterprise/remote scopes).
  *
- * A name is disabled only when *no* toggle entry for it is enabled: legacy
- * expansion only searched enabled workflows across scopes, so a disabled
- * workspace file must not shadow a same-named enabled global one (or vice
- * versa). Locked (`alwaysEnabled`) remote workflows always count as enabled.
+ * Toggle state is matched to each discovered record by its file basename, so a
+ * frontmatter `name` that differs from the filename is still governed by the
+ * file's toggle. A basename that appears in several scopes counts as enabled
+ * when *any* scope has it enabled: legacy expansion only searched enabled
+ * workflows across scopes, so a disabled workspace file must not shadow a
+ * same-named enabled global one (or vice versa). Files materialized from
+ * remote config are governed by the name-keyed remote toggles instead, and
+ * locked (`alwaysEnabled`) remote workflows always count as enabled.
  */
 export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOptions): Set<string> {
-	const enabledByName = new Map<string, boolean>()
-	const register = (rawName: string, enabled: boolean) => {
-		const name = canonicalWorkflowName(rawName)
-		if (!name) {
-			return
-		}
-		enabledByName.set(name, (enabledByName.get(name) ?? false) || enabled)
-	}
-
+	const enabledByBasename = new Map<string, boolean>()
 	for (const toggles of [options.globalToggles ?? {}, options.workspaceToggles ?? {}]) {
 		for (const [filePath, enabled] of Object.entries(toggles)) {
-			register(filePath.replace(/^.*[/\\]/, ""), enabled)
+			const key = canonicalWorkflowName(fileBasename(filePath))
+			if (!key) {
+				continue
+			}
+			enabledByBasename.set(key, (enabledByBasename.get(key) ?? false) || enabled)
 		}
 	}
-	for (const [name, enabled] of Object.entries(options.remoteToggles ?? {})) {
-		register(name, enabled)
-	}
-	for (const name of options.remoteAlwaysEnabledNames ?? []) {
-		register(name, true)
-	}
+	const remoteToggles = new Map(
+		Object.entries(options.remoteToggles ?? {}).map(([name, enabled]) => [canonicalWorkflowName(name), enabled]),
+	)
+	const remoteAlwaysEnabled = new Set([...(options.remoteAlwaysEnabledNames ?? [])].map(canonicalWorkflowName))
 
 	const disabled = new Set<string>()
-	for (const [name, enabled] of enabledByName) {
+	for (const record of options.records) {
+		const name = canonicalWorkflowName(record.name)
+		if (!name) {
+			continue
+		}
+		let enabled: boolean
+		if (REMOTE_CONFIG_PATH_REGEX.test(record.filePath)) {
+			enabled = remoteAlwaysEnabled.has(name) || remoteToggles.get(name) !== false
+		} else {
+			enabled = enabledByBasename.get(canonicalWorkflowName(fileBasename(record.filePath))) ?? true
+		}
 		if (!enabled) {
 			disabled.add(name)
 		}

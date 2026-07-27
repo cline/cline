@@ -66,47 +66,91 @@ describe("expandSlashCommands", () => {
 })
 
 describe("buildDisabledWorkflowNames", () => {
-	it("indexes disabled workflows by canonical (extension-less, lower-cased) name", () => {
+	it("disables records whose file toggle is off, by canonical command name", () => {
 		const disabled = buildDisabledWorkflowNames({
+			records: [
+				{ name: "Release", filePath: "/home/user/Documents/Cline/Workflows/Release.md" },
+				{ name: "notes", filePath: "/home/user/Documents/Cline/Workflows/notes.txt" },
+				{ name: "keep", filePath: "/home/user/Documents/Cline/Workflows/keep.md" },
+			],
 			globalToggles: {
 				"/home/user/Documents/Cline/Workflows/Release.md": false,
 				"/home/user/Documents/Cline/Workflows/notes.txt": false,
+				"/home/user/Documents/Cline/Workflows/keep.md": true,
 			},
 		})
 		expect(disabled).toEqual(new Set(["release", "notes"]))
 	})
 
+	it("matches the toggle by file basename even when frontmatter renames the command", () => {
+		const disabled = buildDisabledWorkflowNames({
+			records: [{ name: "ship-it", filePath: "/repo/.clinerules/workflows/release.md" }],
+			workspaceToggles: { "/repo/.clinerules/workflows/release.md": false },
+		})
+		expect(disabled).toEqual(new Set(["ship-it"]))
+	})
+
 	it("keeps a name enabled when any scope has it enabled", () => {
 		// Legacy expansion searched enabled workflows across scopes, so a
 		// disabled workspace file must not shadow an enabled global one.
+		const records = [{ name: "release", filePath: "/repo/.clinerules/workflows/release.md" }]
 		expect(
 			buildDisabledWorkflowNames({
+				records,
 				globalToggles: { "/global/dir/release.md": true },
 				workspaceToggles: { "/repo/.clinerules/workflows/release.md": false },
 			}),
 		).toEqual(new Set())
 		expect(
 			buildDisabledWorkflowNames({
+				records,
 				globalToggles: { "/global/dir/release.md": false },
 				workspaceToggles: { "/repo/.clinerules/workflows/release.md": true },
 			}),
 		).toEqual(new Set())
 	})
 
-	it("collects disabled names from every scope, including remote", () => {
+	it("treats records without any toggle entry as enabled", () => {
 		const disabled = buildDisabledWorkflowNames({
-			globalToggles: { "/global/dir/deploy.md": false, "/global/dir/keep.md": true },
-			workspaceToggles: { "C:\\repo\\.clinerules\\workflows\\hotfix.md": false },
+			records: [{ name: "fresh", filePath: "/home/user/.cline/workflows/fresh.md" }],
+			globalToggles: { "/global/dir/other.md": false },
+		})
+		expect(disabled).toEqual(new Set())
+	})
+
+	it("governs remote-config records by name-keyed remote toggles", () => {
+		const disabled = buildDisabledWorkflowNames({
+			records: [
+				{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" },
+				{ name: "org-review", filePath: "/repo/.cline/remote-config/workflows/org-review.md" },
+				{ name: "org-default", filePath: "C:\\repo\\.cline\\remote-config\\workflows\\org-default.md" },
+			],
 			remoteToggles: { "org-standards": false, "org-review": true },
 		})
-		expect(disabled).toEqual(new Set(["deploy", "hotfix", "org-standards"]))
+		expect(disabled).toEqual(new Set(["org-standards"]))
 	})
 
 	it("treats locked (alwaysEnabled) remote workflows as enabled despite stale toggles", () => {
 		const disabled = buildDisabledWorkflowNames({
+			records: [{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" }],
 			remoteToggles: { "org-standards": false },
 			remoteAlwaysEnabledNames: ["org-standards"],
 		})
 		expect(disabled).toEqual(new Set())
+	})
+
+	it("collects disabled names across local and remote scopes", () => {
+		const disabled = buildDisabledWorkflowNames({
+			records: [
+				{ name: "deploy", filePath: "/global/dir/deploy.md" },
+				{ name: "keep", filePath: "/global/dir/keep.md" },
+				{ name: "hotfix", filePath: "C:\\repo\\.clinerules\\workflows\\hotfix.md" },
+				{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" },
+			],
+			globalToggles: { "/global/dir/deploy.md": false, "/global/dir/keep.md": true },
+			workspaceToggles: { "C:\\repo\\.clinerules\\workflows\\hotfix.md": false },
+			remoteToggles: { "org-standards": false },
+		})
+		expect(disabled).toEqual(new Set(["deploy", "hotfix", "org-standards"]))
 	})
 })
