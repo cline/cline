@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 if ! command -v gitleaks >/dev/null 2>&1; then
 	echo "gitleaks is required for the pre-commit secret scan."
 	echo "Install it with: brew install gitleaks"
