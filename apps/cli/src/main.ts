@@ -362,6 +362,11 @@ export async function runCli(): Promise<void> {
 		.description("Connect to an external channel")
 		.argument("[channel]", "Channel to connect Cline CLI to")
 		.option("--stop", "Kill all current channel connections")
+		.option("--restart", "Restart a channel connection")
+		.option(
+			"--restart-instance <id>",
+			"Restart one connector instance (used by daemon recovery)",
+		)
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
@@ -372,15 +377,31 @@ export async function runCli(): Promise<void> {
 			const {
 				formatAdapterList,
 				runConnectAdapter,
+				runRestartConnector,
 				runStopAllConnectors,
 				runStopConnector,
 			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
-			if (opts.stop) {
+			if (opts.stop && (opts.restart || opts.restartInstance)) {
+				io.writeErr("connect accepts only one of --stop or --restart");
+				ctx.exitCode = 1;
+			} else if (opts.stop) {
 				if (adapter) {
 					ctx.exitCode = await runStopConnector(adapter, io);
 				} else {
 					ctx.exitCode = await runStopAllConnectors(io);
+				}
+			} else if (opts.restart || opts.restartInstance) {
+				if (!adapter) {
+					io.writeErr("connect --restart requires a channel");
+					ctx.exitCode = 1;
+				} else {
+					ctx.exitCode = await runRestartConnector(
+						adapter,
+						connectCmd.args.slice(1),
+						io,
+						opts.restartInstance,
+					);
 				}
 			} else if (adapter) {
 				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
