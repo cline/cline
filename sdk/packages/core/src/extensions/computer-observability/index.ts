@@ -19,4 +19,9 @@ export {
 	type ArtifactSinkStatus,
 	type ComputerTaskArtifactEvent,
 } from "./artifact-events";
+export {
+	createJournalEventSink,
+	type JournalPublishTransport,
+} from "./journal-sink";
 export { ComputerTaskArtifactRecorder } from "./recorder";
+export { createTranscriptRecordingHooks } from "./transcript-observer";

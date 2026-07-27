@@ -88,6 +88,8 @@ export interface ComputerUserStatus {
 	runId?: string;
 	latestNote?: HelperNote & { ageSeconds: number };
 	pendingQuestion?: DriverQuestion;
+	/** The most recent completed run's report, retained until the next run. */
+	lastReport?: { result: string; observations: string[] };
 	lastMeaningfulProgressAt?: number;
 	/** Human-readable one-liner for the driver's tool result. */
 	summary: string;
@@ -110,6 +112,8 @@ export class ComputerUserCoordinator {
 	private lastMeaningfulProgressAt: number | undefined;
 	private pendingQuestion: DriverQuestion | undefined;
 	private finalReport: { result: string; observations: string[] } | undefined;
+	/** Retained after completion so status polls can read the outcome. */
+	private lastReport: { result: string; observations: string[] } | undefined;
 	/** Serializes all state transitions; the background run stays outside it. */
 	private transitionQueue: Promise<unknown> = Promise.resolve();
 	private readonly now: () => number;
@@ -144,6 +148,7 @@ export class ComputerUserCoordinator {
 				prompt: task,
 			};
 			this.state = { kind: "running", sessionId, run };
+			this.lastReport = undefined;
 			this.markProgress();
 			this.recordStatusChange("running");
 			this.launchRun(sessionId, run);
@@ -185,6 +190,7 @@ export class ComputerUserCoordinator {
 						prompt: text,
 					};
 					this.state = { kind: "running", sessionId, run };
+					this.lastReport = undefined;
 					this.markProgress();
 					this.recordStatusChange("running");
 					this.launchRun(sessionId, run);
@@ -234,6 +240,7 @@ export class ComputerUserCoordinator {
 				this.state.kind === "waiting_for_driver"
 					? this.state.question
 					: undefined,
+			lastReport: this.lastReport,
 			lastMeaningfulProgressAt: this.lastMeaningfulProgressAt,
 			summary: this.buildSummary(noteAge),
 		};
@@ -447,6 +454,10 @@ export class ComputerUserCoordinator {
 				return;
 			}
 			this.state = { kind: "idle", sessionId };
+			// Retain the outcome so a status wait that unblocks on this
+			// transition reads the result immediately instead of waiting
+			// for the queued DONE message to reach the driver.
+			this.lastReport = report;
 			this.recordStatusChange("idle");
 			this.options.notifyDriver({
 				prompt: formatCompletionForDriver(report, result),
@@ -485,7 +496,11 @@ export class ComputerUserCoordinator {
 			case "failed":
 				return `${noteLine} Status: failed.`;
 			case "idle":
-				return `${noteLine} Status: idle.`;
+				// A status wait that unblocks on completion gets the outcome
+				// here, without racing the queued DONE steer message.
+				return this.lastReport
+					? `The computer user finished: "${this.lastReport.result}" Status: idle.`
+					: `${noteLine} Status: idle.`;
 			case "disposed":
 				return "The computer user has been shut down.";
 		}
