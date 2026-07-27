@@ -161,6 +161,55 @@ describe("run handlers", () => {
 		await expect(promise).resolves.toMatchObject({ ok: true });
 	});
 
+	it("accepts attachment-only input with an empty prompt", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ runTurn });
+
+		const reply = await handleSessionInput(ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: "req-attachment-only",
+			sessionId: "session-1",
+			payload: {
+				sessionId: "session-1",
+				prompt: "",
+				attachments: {
+					userImages: ["data:image/png;base64,abc"],
+					userFiles: ["/tmp/attachment.txt"],
+				},
+			},
+		});
+
+		expect(reply).toMatchObject({ ok: true });
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "session-1",
+				prompt: "",
+				userImages: ["data:image/png;base64,abc"],
+				userFiles: ["/tmp/attachment.txt"],
+			}),
+		);
+	});
+
+	it("rejects input with neither a prompt nor attachments", async () => {
+		const runTurn = vi.fn();
+		const ctx = createContext({ runTurn });
+
+		const reply = await handleSessionInput(ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: "req-empty",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", prompt: "   " },
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: expect.objectContaining({ code: "invalid_session_input" }),
+		});
+		expect(runTurn).not.toHaveBeenCalled();
+	});
+
 	it("treats abort as applied when the runtime abort hook rejects", async () => {
 		const abort = vi.fn().mockRejectedValue(new Error("Run aborted"));
 		const ctx = createContext({ abort });

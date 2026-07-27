@@ -191,23 +191,32 @@ export async function handleSessionInput(
 			: typeof payload.input === "string"
 				? payload.input
 				: "";
-	if (!prompt.trim()) {
-		return errorReply(
-			envelope,
-			"invalid_session_input",
-			"session input requires a prompt string",
-		);
-	}
-	ctx.publish(ctx.buildEvent("run.started", undefined, sessionId));
 	const attachments =
 		payload.attachments &&
 		typeof payload.attachments === "object" &&
 		!Array.isArray(payload.attachments)
 			? (payload.attachments as Record<string, unknown>)
 			: undefined;
-	const userFiles = Array.isArray(attachments?.userFiles)
-		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
+	const userImages = Array.isArray(attachments?.userImages)
+		? attachments.userImages.filter(
+				(image): image is string => typeof image === "string",
+			)
 		: undefined;
+	const userFiles = Array.isArray(attachments?.userFiles)
+		? attachments.userFiles.filter(
+				(filePath): filePath is string => typeof filePath === "string",
+			)
+		: undefined;
+	// Attachment-only sends are valid: the runtime accepts an empty prompt as
+	// long as images or files accompany it (see LocalRuntimeHost.executeTurn).
+	if (!prompt.trim() && !userImages?.length && !userFiles?.length) {
+		return errorReply(
+			envelope,
+			"invalid_session_input",
+			"session input requires a prompt string or attachments",
+		);
+	}
+	ctx.publish(ctx.buildEvent("run.started", undefined, sessionId));
 	const timeoutMs = parseRunTimeoutMs(payload);
 	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
 	let result: AgentResult | undefined;
@@ -223,9 +232,7 @@ export async function handleSessionInput(
 					payload.delivery === "queue" || payload.delivery === "steer"
 						? payload.delivery
 						: undefined,
-				userImages: Array.isArray(attachments?.userImages)
-					? (attachments.userImages as string[])
-					: undefined,
+				userImages,
 				userFiles,
 				timeoutMs,
 			},
