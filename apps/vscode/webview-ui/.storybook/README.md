@@ -250,4 +250,4 @@ The `StorybookWebview` decorator provides a VSCode-like environment with proper 
 
 - [Storybook Documentation](https://storybook.js.org/docs)
 - [Testing with Storybook](https://storybook.js.org/docs/writing-tests)
-- [React Storybook Guide](https://storybook.js.org/docs/get-started/react-vite)
+- [React Storybook Guide](https://storybook.js.org/docs/get-started/frameworks/react-vite)

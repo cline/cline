@@ -196,5 +196,5 @@ For component naming differences and text modifiers, see `components/REFERENCE.m
 
 **Repository**: https://github.com/anomalyco/opentui
 **Core Docs**: https://github.com/anomalyco/opentui/tree/main/packages/core/docs
-**Examples**: https://github.com/anomalyco/opentui/tree/main/packages/core/src/examples
+**Examples**: https://github.com/anomalyco/opentui/tree/main/packages
 **Awesome List**: https://github.com/msmps/awesome-opentui

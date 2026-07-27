@@ -3,7 +3,7 @@
 This directory is the single documentation source for package-level responsibilities.
 
 - High-level package roles: this file (`packages/README.md`)
-- Package interaction and runtime flows: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
+- Package interaction and runtime flows: [`ARCHITECTURE.md`](../ARCHITECTURE.md)
 
 ## Package Responsibilities
 
