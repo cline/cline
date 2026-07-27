@@ -396,19 +396,21 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 	const maximumBudget = Math.min(
 		ANTHROPIC_MAX_THINKING_BUDGET_TOKENS,
 		typeof options.maxTokens === "number"
-			? Math.max(options.maxTokens - 1, 1)
+			? options.maxTokens - 1
 			: ANTHROPIC_MAX_THINKING_BUDGET_TOKENS,
 	);
+	if (maximumBudget < 1) {
+		return undefined;
+	}
+	const defaultBudget = Math.min(minimumBudget, maximumBudget);
 	if (
 		typeof options.explicitBudgetTokens === "number" &&
 		options.explicitBudgetTokens > 0
 	) {
-		return maximumBudget < minimumBudget
-			? maximumBudget
-			: Math.min(
-					Math.max(Math.floor(options.explicitBudgetTokens), minimumBudget),
-					maximumBudget,
-				);
+		return Math.min(
+			Math.max(Math.floor(options.explicitBudgetTokens), defaultBudget),
+			maximumBudget,
+		);
 	}
 
 	if (
@@ -420,14 +422,8 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 	) {
 		return undefined;
 	}
-	if (!options.effort) {
-		return minimumBudget;
-	}
-	if (typeof options.maxTokens !== "number") {
-		return minimumBudget;
-	}
-	if (options.maxTokens <= minimumBudget) {
-		return minimumBudget;
+	if (!options.effort || typeof options.maxTokens !== "number") {
+		return defaultBudget;
 	}
 
 	return (
@@ -435,8 +431,8 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 			// Anthropic thinking shares max_tokens with visible output.
 			effort: options.effort === "max" ? "xhigh" : options.effort,
 			maxBudget: maximumBudget,
-			minimumBudget,
-		}) ?? minimumBudget
+			minimumBudget: defaultBudget,
+		}) ?? defaultBudget
 	);
 }
 
@@ -444,10 +440,11 @@ function resolveAnthropicManualBudget(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): number | undefined {
-	if (typeof request.reasoning?.budgetTokens === "number") {
-		return request.reasoning.budgetTokens;
-	}
-	if (context.model.reasoningOptions !== undefined) {
+	const explicitBudgetTokens = request.reasoning?.budgetTokens;
+	if (
+		typeof explicitBudgetTokens !== "number" &&
+		context.model.reasoningOptions !== undefined
+	) {
 		return undefined;
 	}
 	return resolveAnthropicCompatibleReasoningBudget({
@@ -455,6 +452,7 @@ function resolveAnthropicManualBudget(
 		family: resolveModelFamily(context),
 		effort: request.reasoning?.effort,
 		maxTokens: request.maxTokens,
+		explicitBudgetTokens,
 	});
 }
 
@@ -481,9 +479,7 @@ export function buildAnthropicCompatibleReasoningOptions(
 	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
 		reasoning.effort = request.reasoning.effort;
 	}
-	if (typeof request.reasoning?.budgetTokens === "number") {
-		reasoning.max_tokens = request.reasoning.budgetTokens;
-	} else if (
+	if (
 		policy.kind === "anthropic-manual" &&
 		typeof budgetTokens === "number" &&
 		budgetTokens >= 0

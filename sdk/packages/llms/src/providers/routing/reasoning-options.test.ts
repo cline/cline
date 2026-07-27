@@ -83,6 +83,19 @@ describe("normalizeReasoningRequest", () => {
 		).toEqual({ enabled: true });
 	});
 
+	it("selects the nearest advertised effort when enabled is the only input", () => {
+		expect(
+			normalizeReasoningRequest(
+				makeRequest({ enabled: true }),
+				makeContext([{ type: "effort", values: ["high"] }]),
+			).reasoning,
+		).toEqual({
+			enabled: undefined,
+			effort: "high",
+			budgetTokens: undefined,
+		});
+	});
+
 	it("derives and clamps a budget for budget-controlled models", () => {
 		const context = makeContext([
 			{ type: "budget_tokens", min: 512, max: 4096 },

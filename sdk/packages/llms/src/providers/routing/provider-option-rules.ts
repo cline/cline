@@ -124,17 +124,6 @@ function buildReasoningPatchForProvider(
 	});
 }
 
-function buildProviderReasoningPatch(
-	input: ProviderOptionBuildInput,
-	reasoning: Record<string, unknown>,
-): ProviderOptionsPatch {
-	return buildProviderAndAliasPatch({
-		providerId: input.request.providerId,
-		providerOptionsKey: input.providerOptionsKey,
-		bucketOptions: { reasoning },
-	});
-}
-
 function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 	| {
 			thinkingLevel?: "minimal" | "low" | "medium" | "high";
@@ -349,7 +338,7 @@ const vercelReasoningRule: ProviderOptionRule = {
 						? { enabled: true }
 						: undefined;
 		return gatewayReasoning
-			? buildProviderReasoningPatch(input, gatewayReasoning)
+			? buildReasoningPatchForProvider(input, gatewayReasoning)
 			: undefined;
 	},
 };
@@ -430,7 +419,7 @@ const togetherReasoningToggleRule: ProviderOptionRule = {
 		typeof input.request.reasoning?.enabled === "boolean",
 	suppresses: { genericThinking: true },
 	build: (input) =>
-		buildProviderReasoningPatch(input, {
+		buildReasoningPatchForProvider(input, {
 			enabled: input.request.reasoning?.enabled,
 		}),
 };

@@ -534,6 +534,33 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			}),
 		);
 	});
+
+	it.each([
+		["provider cap", undefined, 200_000, 128_000],
+		["output cap", 2048, 200_000, 2047],
+		["small output cap", 64, 4096, 63],
+	] as const)("clamps custom Anthropic explicit budgets to the %s", (_, maxTokens, budgetTokens, expected) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				maxTokens,
+				reasoning: { enabled: true, budgetTokens },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				family: "claude",
+			}),
+		);
+
+		expect(result.anthropic).toMatchObject({
+			thinking: { type: "enabled", budgetTokens: expected },
+		});
+		expect(result.openaiCompatible).toMatchObject({
+			reasoning: { enabled: true, max_tokens: expected },
+		});
+	});
 });
 
 describe("composeAiSdkProviderOptions: family/provider thinking patches", () => {
@@ -1826,177 +1853,120 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 });
 
 describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
-	runCases([
-		{
-			name: "direct Moonshot toggle on -> thinking.type=enabled",
-			request: {
+	it.each([
+		[true, "enabled"],
+		[false, "disabled"],
+	] as const)("maps Moonshot toggle %s to thinking.type=%s", (enabled, type) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
 				providerId: "moonshot",
 				modelId: "kimi-k3",
-				reasoning: { enabled: true },
-			},
-			context: {
-				family: "kimi-k3",
-				reasoningOptions: [
-					{ type: "toggle" },
-					...effortOptions(["low", "medium", "high", "max"]),
-				],
-			},
-			expect: [
-				{
-					bucket: "moonshot",
-					has: { thinking: { type: "enabled" } },
-					lacks: ["effort", "reasoningSummary"],
-				},
-				{
-					bucket: "openaiCompatible",
-					has: { thinking: { type: "enabled" } },
-				},
-			],
-		},
-		{
-			name: "direct Moonshot toggle off -> thinking.type=disabled",
-			request: {
+				reasoning: { enabled },
+			}),
+			makeContext({
 				providerId: "moonshot",
 				modelId: "kimi-k3",
-				reasoning: { enabled: false },
-			},
-			context: {
 				family: "kimi-k3",
 				reasoningOptions: [{ type: "toggle" }],
-			},
-			expect: [
-				{
-					bucket: "moonshot",
-					has: { thinking: { type: "disabled" } },
-				},
-			],
-		},
-		{
-			name: "Fireworks effort -> only reasoning_effort",
-			request: {
-				providerId: "fireworks",
-				modelId: "accounts/fireworks/models/gpt-oss",
-				reasoning: { effort: "max" },
-			},
-			context: {
-				reasoningOptions: effortOptions(["low", "medium", "high", "max"]),
-			},
-			expect: [
-				{
-					bucket: "fireworks",
-					has: { reasoningEffort: "max" },
-					lacks: ["thinking", "effort", "reasoningSummary"],
-				},
-			],
-		},
-		{
-			name: "Fireworks toggle off -> reasoning effort none",
-			request: {
-				providerId: "fireworks",
-				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoning: { enabled: false },
-			},
-			context: {
-				reasoningOptions: [{ type: "toggle" }],
-			},
-			expect: [
-				{
-					bucket: "fireworks",
-					has: { reasoningEffort: "none" },
-					lacks: ["thinking", "effort", "reasoningSummary"],
-				},
-			],
-		},
-		{
-			name: "Fireworks toggle on -> nearest advertised default effort",
-			request: {
+			}),
+		);
+		expect(result.moonshot).toMatchObject({ thinking: { type } });
+		expect(result.openaiCompatible).toMatchObject({ thinking: { type } });
+		expect(result.moonshot).not.toHaveProperty("effort");
+		expect(result.moonshot).not.toHaveProperty("reasoningSummary");
+	});
+
+	it.each([
+		[
+			"effort",
+			{ effort: "max" },
+			effortOptions(["low", "medium", "high", "max"]),
+			{ reasoningEffort: "max" },
+		],
+		[
+			"off",
+			{ enabled: false },
+			[{ type: "toggle" }],
+			{ reasoningEffort: "none" },
+		],
+		[
+			"on",
+			{ enabled: true },
+			[{ type: "toggle" }, ...effortOptions(["low", "medium", "high", "max"])],
+			{ reasoningEffort: "medium" },
+		],
+		[
+			"budget",
+			{ budgetTokens: 4096 },
+			budgetOptions(128, 32_768),
+			{ thinking: { type: "enabled", budget_tokens: 4096 } },
+		],
+	] as const)("maps Fireworks %s to its supported wire shape", (_, reasoning, reasoningOptions, expected) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
 				providerId: "fireworks",
 				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoning: { enabled: true },
-			},
-			context: {
-				reasoningOptions: [
-					{ type: "toggle" },
-					...effortOptions(["low", "medium", "high", "max"]),
-				],
-			},
-			expect: [
-				{
-					bucket: "fireworks",
-					has: { reasoningEffort: "medium" },
-					lacks: ["thinking", "effort", "reasoningSummary"],
-				},
-			],
-		},
-		{
-			name: "Fireworks token budget -> enabled thinking budget",
-			request: {
+				reasoning,
+			}),
+			makeContext({
 				providerId: "fireworks",
 				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoning: { budgetTokens: 4096 },
-			},
-			context: {
-				reasoningOptions: budgetOptions(128, 32_768),
-			},
-			expect: [
-				{
-					bucket: "fireworks",
-					has: {
-						thinking: { type: "enabled", budget_tokens: 4096 },
-					},
-					lacks: ["reasoningEffort", "effort", "reasoningSummary"],
-				},
-			],
-		},
-		{
-			name: "Together toggle off -> reasoning.enabled=false",
-			request: {
+				reasoningOptions,
+			}),
+		);
+		expect(result.fireworks).toMatchObject(expected);
+		expect(result.fireworks).not.toHaveProperty("effort");
+		expect(result.fireworks).not.toHaveProperty("reasoningSummary");
+		if ("thinking" in expected) {
+			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
+		} else {
+			expect(result.fireworks).not.toHaveProperty("thinking");
+		}
+	});
+
+	it("maps Together off to reasoning.enabled=false", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
 				providerId: "together",
 				modelId: "zai-org/glm-5.2",
 				reasoning: { enabled: false },
-			},
-			context: {
+			}),
+			makeContext({
+				providerId: "together",
+				modelId: "zai-org/glm-5.2",
 				family: "glm",
-				reasoningOptions: [
-					{ type: "toggle" },
-					...effortOptions(["low", "medium", "high", "max"]),
-				],
-			},
-			expect: [
-				{
-					bucket: "together",
-					has: { reasoning: { enabled: false } },
-					lacks: ["thinking"],
-				},
-			],
-		},
-		{
-			name: "Vercel budget control -> reasoning.max_tokens without adaptive thinking",
-			request: {
+				reasoningOptions: [{ type: "toggle" }],
+			}),
+		);
+		expect(result.together).toMatchObject({
+			reasoning: { enabled: false },
+		});
+		expect(result.together).not.toHaveProperty("thinking");
+	});
+
+	it("keeps Vercel Gemini budget metadata out of Anthropic headroom", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
 				providerId: "vercel-ai-gateway",
 				modelId: "google/gemini-2.5-pro",
 				maxTokens: 64,
 				reasoning: { budgetTokens: 128 },
-			},
-			context: {
+			}),
+			makeContext({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/gemini-2.5-pro",
 				family: "gemini-pro",
 				reasoningOptions: budgetOptions(128, 32_768),
 				maxOutputTokens: 64,
-			},
-			expect: [
-				{
-					bucket: "vercel-ai-gateway",
-					has: { reasoning: { max_tokens: 128 } },
-					lacks: ["thinking", "reasoningEffort"],
-				},
-				{
-					bucket: "vercelAiGateway",
-					has: { reasoning: { max_tokens: 128 } },
-					lacks: ["thinking", "reasoningEffort"],
-				},
-			],
-		},
-	]);
+			}),
+		);
+		for (const bucket of ["vercel-ai-gateway", "vercelAiGateway"]) {
+			expect(result[bucket]).toMatchObject({
+				reasoning: { max_tokens: 128 },
+			});
+			expect(result[bucket]).not.toHaveProperty("thinking");
+		}
+	});
 });
 
 describe("composeAiSdkProviderOptions: provider-specific overlays", () => {

@@ -80,9 +80,14 @@ export function normalizeReasoningRequest(
 			: { ...request, reasoning: undefined };
 	}
 
+	const hasExplicitBudget = typeof reasoning.budgetTokens === "number";
 	const effort = reasoning.effort
 		? normalizeReasoningEffort(reasoning.effort, controls.efforts)
-		: undefined;
+		: reasoning.enabled === true &&
+				!hasExplicitBudget &&
+				!controls.supportsDefault
+			? normalizeReasoningEffort("medium", controls.efforts)
+			: undefined;
 	const isAnthropicBudget = providerReasoningRouteMatches(
 		"anthropic-thinking",
 		request,
@@ -104,11 +109,15 @@ export function normalizeReasoningRequest(
 		return {
 			...request,
 			reasoning: {
-				enabled: reasoning.enabled,
+				enabled: reasoning.effort ? reasoning.enabled : undefined,
 				effort,
 				budgetTokens: explicitBudget,
 			},
 		};
+	}
+
+	if (reasoning.enabled === true && !hasExplicitBudget && controls.effort) {
+		return { ...request, reasoning: { enabled: true } };
 	}
 
 	if (controls.budget) {
