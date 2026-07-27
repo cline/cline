@@ -2046,6 +2046,7 @@ interface ScriptedToolOptions {
 	iteration?: number;
 	name?: string;
 	input?: unknown;
+	isError?: boolean;
 }
 
 function toolStarted(
@@ -2086,6 +2087,7 @@ function completedTool(
 						toolCallId: id,
 						toolName: started.toolCall.toolName,
 						output,
+						isError: options.isError,
 					},
 				],
 				createdAt: 1,
@@ -2417,21 +2419,19 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("still aborts repeated MCP failures whose error output changes", async () => {
+	it("still aborts repeated adapter-promoted MCP failures", async () => {
 		const { session, abortCalls } = loopSession({
 			events: [
 				turnStarted(),
 				...[1, 2, 3].flatMap((index) =>
 					completedTool(
 						`mcp-failed-${index}`,
-						{
-							content: [{ type: "text", text: `attempt ${index}` }],
-							isError: true,
-						},
+						{ error: `attempt ${index}` },
 						{
 							iteration: index,
 							name: "server__poll",
 							input: { jobId: "job-1" },
+							isError: true,
 						},
 					),
 				),
@@ -2441,6 +2441,29 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.run("repeat a failing MCP poll");
 
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("allows successful non-MCP outputs containing isError data", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[3, 2, 1].flatMap((pendingChecks, index) =>
+					completedTool(
+						`status-${index}`,
+						{ isError: true, pendingChecks },
+						{
+							iteration: index + 1,
+							name: "status",
+							input: { jobId: "job-1" },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor a successful custom tool");
+
+		expect(abortCalls).toHaveLength(0);
 	});
 
 	it("resets loop detection when run() starts a fresh conversation", async () => {

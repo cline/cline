@@ -98,8 +98,7 @@ function containsFailedToolOperation(output: unknown): boolean {
 			operation !== null &&
 			typeof operation === "object" &&
 			!Array.isArray(operation) &&
-			((operation as { success?: unknown }).success === false ||
-				(operation as { isError?: unknown }).isError === true),
+			(operation as { success?: unknown }).success === false,
 	);
 }
 

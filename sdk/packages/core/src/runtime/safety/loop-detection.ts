@@ -61,7 +61,9 @@ function toolOutputSignature(output: unknown): string {
 	const type =
 		output === null ? "null" : Array.isArray(output) ? "array" : typeof output;
 	try {
-		return `${type}:${JSON.stringify(sortKeys(output))}`;
+		const serialized = JSON.stringify(output);
+		if (serialized === undefined) return `${type}:undefined`;
+		return `${type}:${JSON.stringify(sortKeys(JSON.parse(serialized)))}`;
 	} catch {
 		return `${type}:${String(output)}`;
 	}

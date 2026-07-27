@@ -187,4 +187,20 @@ describe("LoopDetectionTracker", () => {
 		expect(completeBatch(tracker, 2, [second])).toEqual(["soft"]);
 		expect(inspect(tracker, 3)).toBe("ok");
 	});
+
+	it("preserves serializable non-plain output values", () => {
+		const tracker = createTracker();
+
+		expect(
+			completeBatch(tracker, 1, [
+				{ updatedAt: new Date("2026-01-01T00:00:00.000Z") },
+			]),
+		).toEqual(["ok"]);
+		expect(
+			completeBatch(tracker, 2, [
+				{ updatedAt: new Date("2026-01-02T00:00:00.000Z") },
+			]),
+		).toEqual(["soft"]);
+		expect(inspect(tracker, 3)).toBe("ok");
+	});
 });
