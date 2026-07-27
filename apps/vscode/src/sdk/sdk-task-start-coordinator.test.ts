@@ -71,8 +71,11 @@ describe("SdkTaskStartCoordinator", () => {
 		)
 	})
 
-	it("emits a Cline auth error instead of starting when the cline provider has no token", async () => {
-		const { coordinator, options } = makeCoordinator({ config: { providerId: "cline", modelId: "model", apiKey: "" } })
+	it("does not start a Cline task when this IDE is logged out but shared storage has a token", async () => {
+		const { coordinator, options } = makeCoordinator({
+			config: { providerId: "cline", modelId: "model", apiKey: "shared-token" },
+			isClineAccountAuthenticated: false,
+		})
 
 		const sessionId = await coordinator.initTask("needs auth")
 
@@ -83,7 +86,10 @@ describe("SdkTaskStartCoordinator", () => {
 	})
 
 	it("emits a Cline auth error instead of starting when ClinePass has no token", async () => {
-		const { coordinator, options } = makeCoordinator({ config: { providerId: "cline-pass", modelId: "model", apiKey: "" } })
+		const { coordinator, options } = makeCoordinator({
+			config: { providerId: "cline-pass", modelId: "model", apiKey: "" },
+			isClineAccountAuthenticated: true,
+		})
 
 		const sessionId = await coordinator.initTask("needs clinepass auth")
 
@@ -281,6 +287,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		resolveContextMentions: vi.fn(async (text: string) => `resolved: ${text}`),
 		isClineManagedProviderActive: vi.fn(() => false),
+		isClineAccountAuthenticated: vi.fn(() => input.isClineAccountAuthenticated ?? true),
 		emitClineAuthError: vi.fn(),
 		captureProviderApiError: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
@@ -306,6 +313,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: ReturnType<typeof vi.fn>
 		resolveContextMentions: ReturnType<typeof vi.fn>
 		isClineManagedProviderActive: ReturnType<typeof vi.fn>
+		isClineAccountAuthenticated: ReturnType<typeof vi.fn>
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
@@ -328,4 +336,5 @@ interface MakeCoordinatorInput {
 	}
 	historyItem: HistoryItem
 	hasHistoryItem: boolean
+	isClineAccountAuthenticated: boolean
 }
