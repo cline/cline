@@ -70,6 +70,10 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+export function sessionHistoryDisplayTimestamp(item: SessionHistoryRecord): number {
+	return dateStringToTimestamp(item.startedAt ?? item.endedAt ?? item.updatedAt)
+}
+
 /**
  * Sort comparator for session history records by recency: newest first.
  *
@@ -155,7 +159,7 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 	const metadata = item.metadata
 	return {
 		id: item.sessionId,
-		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
+		ts: sessionHistoryDisplayTimestamp(item),
 		task: formatDisplayUserInput(metadataString(metadata, "title") ?? item.prompt ?? ""),
 		tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
 		tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
