@@ -1,7 +1,3 @@
-import { combineApiRequests } from "@shared/combineApiRequests"
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
-import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
@@ -19,14 +15,12 @@ import {
 	CHAT_CONSTANTS,
 	ChatLayout,
 	convertHtmlToMarkdown,
-	filterVisibleMessages,
-	groupLowStakesTools,
-	groupMessages,
 	InputSection,
 	MessagesArea,
 	QueuedPrompts,
 	TaskSection,
 	useChatState,
+	useIncrementalMessages,
 	useMessageHandlers,
 	useScrollBehavior,
 	WelcomeSection,
@@ -120,12 +114,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
-	const modifiedMessages = useMemo(() => {
-		const slicedMessages = displayMessages.slice(1)
-		// Only combine hook sequences if hooks are enabled
-		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
-		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
-	}, [displayMessages, hooksEnabled])
+	// Incremental message processing -- caches derived arrays across renders when
+	// messages haven't changed (ts/seq fingerprint), avoiding 7 full traversals per update.
+	const { modifiedMessages, visibleMessages, groupedMessages } = useIncrementalMessages(displayMessages, hooksEnabled)
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
@@ -349,14 +340,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			clearTimeout(timer)
 		}
 	}, [isHidden, sendingDisabled, enableButtons])
-
-	const visibleMessages = useMemo(() => {
-		return filterVisibleMessages(modifiedMessages)
-	}, [modifiedMessages])
-
-	const groupedMessages = useMemo(() => {
-		return groupLowStakesTools(groupMessages(visibleMessages))
-	}, [visibleMessages])
 
 	// Use scroll behavior hook
 	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
