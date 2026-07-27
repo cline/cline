@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Logger } from "@/shared/services/Logger"
+import type { ProviderId } from "./model-catalog/contracts"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -39,6 +40,25 @@ function providerForMode(config: ApiConfiguration, mode: Mode): string | undefin
 
 export class SdkProviderChangeCoordinator {
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
+
+	handleProviderConfigFieldsChanged(providerId: ProviderId): void {
+		const mode = this.getCurrentMode()
+		const activeProvider = providerForMode(this.options.stateManager.getApiConfiguration(), mode)
+		const changedProvider = toLegacyApiProvider(providerId)
+
+		if (activeProvider !== changedProvider) {
+			return
+		}
+
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.log("[SdkController] Provider fields changed without active session; next task will use new configuration")
+			return
+		}
+
+		Logger.log(`[SdkController] Active provider fields changed for ${mode}: ${changedProvider}`)
+		this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		const mode = this.getCurrentMode()

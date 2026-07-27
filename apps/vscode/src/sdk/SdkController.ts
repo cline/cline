@@ -638,7 +638,9 @@ export class Controller {
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
 		this.scheduleProviderConfigStatePost()
 
-		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
+		if (event.kind === "fields") {
+			this.providerChanges.handleProviderConfigFieldsChanged(event.providerId)
+		} else if (this.isSelectionForActiveModeProvider(event)) {
 			this.sessions
 				?.updateActiveSessionModel(event.selection.modelId)
 				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
