@@ -56,6 +56,17 @@ export type ComputerUseAction =
  */
 export const GET_DISPLAY_INFO_ACTION = "get_display_info";
 
+/**
+ * Internal action (not one of Anthropic's `computer` tool actions) that
+ * publishes a host-side event (transcript message, coordinator status
+ * change, ...) into the backend's journal for the observatory. The backend
+ * journals computer actions itself as it executes them; `publish_event`
+ * exists for the events only the agent host can see. `kind` namespaces the
+ * event (e.g. "transcript.message"); `payload` is passed through to
+ * observers untouched.
+ */
+export const PUBLISH_EVENT_ACTION = "publish_event";
+
 /** Native display dimensions reported by the backend. */
 export interface ComputerUseDisplayInfo {
 	widthPx: number;
@@ -69,7 +80,14 @@ export type ComputerUseCoordinate = readonly [number, number];
 export interface ComputerUseRequest {
 	/** Monotonically increasing id used to match responses to requests. */
 	id: number;
-	action: ComputerUseAction | typeof GET_DISPLAY_INFO_ACTION;
+	action:
+		| ComputerUseAction
+		| typeof GET_DISPLAY_INFO_ACTION
+		| typeof PUBLISH_EVENT_ACTION;
+	/** Event kind, required for "publish_event". */
+	kind?: string;
+	/** Event payload, required for "publish_event". */
+	payload?: unknown;
 	coordinate?: ComputerUseCoordinate;
 	startCoordinate?: ComputerUseCoordinate;
 	/**
