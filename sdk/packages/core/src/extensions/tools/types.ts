@@ -97,6 +97,25 @@ export type WebFetchExecutor = (
 ) => Promise<string>;
 
 /**
+ * Executor for publishing a Status Hub update (ARD-0005).
+ *
+ * @param input - Status fields supplied by the agent
+ * @param context - Tool execution context
+ * @returns Human-readable confirmation, including the assigned seq
+ */
+export type StatusReportExecutor = (
+	input: {
+		subject: string;
+		state: string;
+		headline: string;
+		detail?: string;
+		priority?: string;
+		progress?: number;
+	},
+	context: AgentToolContext,
+) => Promise<string>;
+
+/**
  * Executor for editing files
  *
  * @param input - Editor command input
@@ -212,6 +231,8 @@ export interface ToolExecutors {
 	skills?: SkillsExecutorWithMetadata;
 	/** Follow-up question implementation */
 	askQuestion?: AskQuestionExecutor;
+	/** Status Hub publish implementation */
+	reportStatus?: StatusReportExecutor;
 	/** Final submission implementation */
 	submit?: VerifySubmitExecutor;
 }
@@ -232,6 +253,7 @@ export type DefaultToolName =
 	| "editor"
 	| "skills"
 	| "ask_question"
+	| "report_status"
 	| "submit_and_exit";
 
 /**
@@ -285,6 +307,12 @@ export interface DefaultToolsConfig {
 	 * @default true
 	 */
 	enableAskQuestion?: boolean;
+
+	/**
+	 * Enable the report_status tool (Status Hub)
+	 * @default true
+	 */
+	enableReportStatus?: boolean;
 
 	/**
 	 * Enable the submit_and_exit tool

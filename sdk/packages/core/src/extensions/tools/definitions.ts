@@ -44,6 +44,8 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type ReportStatusInput,
+	ReportStatusInputSchema,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -70,6 +72,7 @@ import type {
 	SkillsExecutorWithMetadata,
 	ToolOperationResult,
 	VerifySubmitExecutor,
+	StatusReportExecutor,
 	WebFetchExecutor,
 } from "./types";
 
@@ -507,6 +510,44 @@ export function createShellTool(
 }
 
 /**
+ * Create the report_status tool (Status Hub, ARD-0005).
+ *
+ * Lets an agent publish where it is to a shared, queryable log so humans and
+ * other agents can see project state without reading a transcript. Cheap and
+ * non-destructive, so it is not retryable-sensitive and needs no approval.
+ */
+export function createReportStatusTool(
+	executor: StatusReportExecutor,
+): AgentTool<ReportStatusInput, string> {
+	return createTool<ReportStatusInput, string>({
+		name: "report_status",
+		description:
+			"Publish a status update to the Status Hub, the shared log humans and other " +
+			"agents read to understand what is happening across a project. " +
+			"Report when you start a distinct piece of work, when you finish it, when " +
+			"you get blocked, and at meaningful milestones during long work — not after " +
+			"every tool call. Reuse the same `subject` for every update about the same " +
+			"work so it reads as one timeline. This does not message the user directly " +
+			"unless you mark it high or critical priority; prefer letting your status be " +
+			"found rather than interrupting.",
+		inputSchema: zodToJsonSchema(ReportStatusInputSchema),
+		timeoutMs: 10000,
+		retryable: true,
+		maxRetries: 1,
+		execute: async (input, context) => {
+			const validatedInput = validateWithZod(ReportStatusInputSchema, input);
+			try {
+				return await executor(validatedInput, context);
+			} catch (error) {
+				// A failed status report must never take down the work being
+				// reported on — surface it as a tool-level message instead.
+				return `Status update not recorded: ${formatError(error)}`;
+			}
+		},
+	});
+}
+
+/**
  * Create the fetch_web_content tool
  *
  * Fetches content from URLs and analyzes them using provided prompts.
@@ -881,6 +922,7 @@ export function createDefaultTools(
 		enableEditor = true,
 		enableSkills = true,
 		enableAskQuestion = true,
+		enableReportStatus = true,
 		enableSubmitAndExit = false,
 		...config
 	} = options;
@@ -919,6 +961,11 @@ export function createDefaultTools(
 	// Add skills tool if enabled and executor provided
 	if (enableSkills && executors.skills) {
 		tools.push(createSkillsTool(executors.skills, config));
+	}
+
+	// Add report_status tool if enabled and executor provided
+	if (enableReportStatus && executors.reportStatus) {
+		tools.push(createReportStatusTool(executors.reportStatus));
 	}
 
 	const submitExecutor = enableSubmitAndExit ? executors.submit : undefined;

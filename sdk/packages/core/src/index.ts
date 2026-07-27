@@ -400,6 +400,7 @@ export type {
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
 export * from "./hub";
+export * from "./status";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {

@@ -47,6 +47,7 @@ import {
 import { HubContext } from "./server/state";
 import { broadcastHubState, hubStatusPayload } from "./server/state-payloads";
 import { handleCallCommand } from "./server/drive-calls";
+import { handleStatusCommand } from "./server/status-calls";
 import type { BrowserFrame, BrowserPeer } from "./server/types";
 
 export interface ClineHubDashboardServer {
@@ -254,6 +255,12 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						frame.type === "call_get_room"
 					) {
 						await handleCallCommand(ctx, peer, frame);
+					} else if (
+						frame.type === "status_query" ||
+						frame.type === "status_board" ||
+						frame.type === "status_subjects"
+					) {
+						await handleStatusCommand(ctx, peer, frame);
 					}
 				} catch (error) {
 					ctx.send(peer, {

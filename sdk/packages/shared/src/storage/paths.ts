@@ -211,6 +211,19 @@ export function resolveCronDbPath(): string {
 	return join(resolveDbDataDir(), "cron.db");
 }
 
+/**
+ * Path to the dedicated Status Hub database.
+ * Separate file for the same reason cron is: status is a hot append path with
+ * its own retention, and it should not contend on session storage.
+ */
+export function resolveStatusDbPath(): string {
+	const explicitPath = process.env.CLINE_STATUS_DB_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveDbDataDir(), "status.db");
+}
+
 export type CronSpecsScope = "global" | "workspace";
 
 export interface ResolveCronSpecsDirOptions {

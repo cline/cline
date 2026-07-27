@@ -52,6 +52,7 @@ export type {
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export * from "./drive";
+export * from "./status";
 export type {
 	ClientContext,
 	ClientName,

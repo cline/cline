@@ -465,6 +465,12 @@ export type HubCommandName =
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"
+	| "status.publish"
+	| "status.query"
+	| "status.current"
+	| "status.board"
+	| "status.subjects"
+	| "status.prune"
 	| "ui.notify"
 	| "ui.show_window";
 
@@ -565,7 +571,8 @@ export type HubEventName =
 	| "ui.show_window"
 	| "hub.client.updated"
 	| "room.snapshot"
-	| "room.event";
+	| "room.event"
+	| "status.updated";
 
 export interface HubEventEnvelope {
 	version: HubProtocolVersion;

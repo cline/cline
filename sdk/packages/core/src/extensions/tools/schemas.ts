@@ -187,6 +187,68 @@ export const FetchWebContentInputSchema = z.object({
 });
 
 /**
+ * Schema for report_status tool input (Status Hub, ARD-0005).
+ *
+ * The `describe` text is the contract the model actually reads, so quality
+ * guidance lives here rather than only in the system prompt: it is what makes
+ * a status update specific instead of "working on it".
+ */
+export const ReportStatusInputSchema = z.object({
+	subject: z
+		.string()
+		.min(1)
+		.describe(
+			"Stable '/'-delimited key for the work this status is about, reused across " +
+				"every update for that work so they form one timeline. Examples: " +
+				"'migration/auth', 'drive-room/abc', 'review/pr-42'. Do not invent a new " +
+				"subject for a progress update on work you already reported.",
+		),
+	state: z
+		.enum(["queued", "running", "blocked", "done", "failed", "cancelled"])
+		.describe(
+			"Lifecycle state. Use 'blocked' when you cannot proceed without input, " +
+				"'failed' when the work stopped and will not continue, 'done' only when " +
+				"the work is actually finished.",
+		),
+	headline: z
+		.string()
+		.min(1)
+		.max(300)
+		.describe(
+			"One specific present-tense line a human can scan without opening anything. " +
+				"Name the actual thing: 'Rewriting token exchange in auth/session.ts', not " +
+				"'Working on the task'. No filler, no restating the request.",
+		),
+	detail: z
+		.string()
+		.max(10_000)
+		.optional()
+		.describe(
+			"Optional context another agent or a human would need to pick this up: what " +
+				"you tried, what you found, what you need. Required in spirit when state " +
+				"is 'blocked' or 'failed' — say what would unblock it.",
+		),
+	priority: z
+		.enum(["low", "normal", "high", "critical"])
+		.optional()
+		.describe(
+			"Defaults to 'normal'. Use 'high' when a human should look soon and " +
+				"'critical' only when work has stopped and cannot continue unattended — " +
+				"these interrupt the user directly, so over-using them makes the signal " +
+				"worthless. Routine progress is always 'normal' or 'low'.",
+		),
+	progress: z
+		.number()
+		.min(0)
+		.max(1)
+		.optional()
+		.describe(
+			"Fraction complete from 0 to 1, only when the work has a meaningful ratio " +
+				"(e.g. 7 of 20 files migrated). Omit rather than guessing.",
+		),
+});
+
+/**
  * Schema for editor tool input
  */
 export const EditFileInputSchema = z
@@ -321,6 +383,11 @@ export type WebFetchRequest = z.infer<typeof WebFetchRequestSchema>;
  * Input for the fetch_web_content tool
  */
 export type FetchWebContentInput = z.infer<typeof FetchWebContentInputSchema>;
+
+/**
+ * Input for the report_status tool
+ */
+export type ReportStatusInput = z.infer<typeof ReportStatusInputSchema>;
 
 /**
  * Input for the editor tool

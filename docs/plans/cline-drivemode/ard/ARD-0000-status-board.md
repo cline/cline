@@ -22,6 +22,7 @@
 | [ARD-0002](ARD-0002-agent-graph-canonical-derived.md) | Canonical YAML → derived graph | **Recommended** | |
 | [ARD-0003](ARD-0003-recruit-and-roster-pack.md) | Recruit ranks; packs stay curated | **Recommended** | Lexical MVP |
 | [ARD-0004](ARD-0004-gated-learn-privacy.md) | Gated learn; no transcript dump | **Recommended** | |
+| [ARD-0005](ARD-0005-status-hub.md) | Status Hub: SQLite status log in the Cline SDK | **Accepted** | SDK-scope, not Drive-only. Implemented: store, service, hub ops, `report_status` tool, dashboard viewer |
 
 Promotion rule. When Harrison replies `accept all`, flip these four to **Accepted** in this board and in each ARD header.
 

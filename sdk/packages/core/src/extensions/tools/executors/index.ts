@@ -17,6 +17,10 @@ import {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
 } from "./file-read";
+import {
+	createReportStatusExecutor,
+	type ReportStatusExecutorOptions,
+} from "./report-status";
 import { createSearchExecutor, type SearchExecutorOptions } from "./search";
 import {
 	createWebFetchExecutor,
@@ -41,6 +45,10 @@ export {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
 } from "./file-read";
+export {
+	createReportStatusExecutor,
+	type ReportStatusExecutorOptions,
+} from "./report-status";
 export { createSearchExecutor, type SearchExecutorOptions } from "./search";
 export {
 	createWebFetchExecutor,
@@ -57,6 +65,7 @@ export interface DefaultExecutorsOptions {
 	webFetch?: WebFetchExecutorOptions;
 	applyPatch?: ApplyPatchExecutorOptions;
 	editor?: EditorExecutorOptions;
+	reportStatus?: ReportStatusExecutorOptions;
 }
 
 /**
@@ -98,5 +107,6 @@ export function createDefaultExecutors(
 		webFetch: createWebFetchExecutor(options.webFetch),
 		applyPatch: createApplyPatchExecutor(options.applyPatch),
 		editor: createEditorExecutor(options.editor),
+		reportStatus: createReportStatusExecutor(options.reportStatus),
 	};
 }

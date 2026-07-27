@@ -43,6 +43,7 @@ const TOOL_NAME_TO_FLAG: Record<
 		| "enableEditor"
 		| "enableSkills"
 		| "enableAskQuestion"
+		| "enableReportStatus"
 		| "enableSubmitAndExit"
 	>
 > = {
@@ -54,6 +55,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	editor: "enableEditor",
 	skills: "enableSkills",
 	ask_question: "enableAskQuestion",
+	report_status: "enableReportStatus",
 	submit_and_exit: "enableSubmitAndExit",
 };
 

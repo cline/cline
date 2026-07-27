@@ -105,6 +105,7 @@ export class HubUIClient {
 		onSessionDetached?: (payload: Record<string, unknown>) => void;
 		onRoomSnapshot?: (payload: Record<string, unknown>) => void;
 		onRoomEvent?: (payload: Record<string, unknown>) => void;
+		onStatusUpdated?: (payload: Record<string, unknown>) => void;
 	}): () => void {
 		return this.client.subscribe((event: HubEventEnvelope) => {
 			switch (event.event) {
@@ -136,6 +137,9 @@ export class HubUIClient {
 					break;
 				case "room.event":
 					handlers.onRoomEvent?.(event.payload ?? {});
+					break;
+				case "status.updated":
+					handlers.onStatusUpdated?.(event.payload ?? {});
 					break;
 			}
 		});

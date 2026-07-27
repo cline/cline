@@ -25,6 +25,7 @@ export {
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 	resolveCronDbPath,
+	resolveStatusDbPath,
 	resolveCronEventsDir,
 	resolveCronReportsDir,
 	resolveCronSpecsDir,

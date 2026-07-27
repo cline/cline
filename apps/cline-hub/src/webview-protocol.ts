@@ -312,7 +312,37 @@ export type WebviewInboundMessage =
 			type: "call_get_room";
 			roomId?: string;
 			sessionId?: string;
-	  };
+	  }
+	| {
+			/** Paged changelog across every agent. */
+			type: "status_query";
+			requestId: string;
+			subject?: string;
+			subjectPrefix?: string;
+			state?: Array<
+				"queued" | "running" | "blocked" | "done" | "failed" | "cancelled"
+			>;
+			priority?: Array<"low" | "normal" | "high" | "critical">;
+			sessionId?: string;
+			agentId?: string;
+			text?: string;
+			cursor?: number;
+			limit?: number;
+	  }
+	| {
+			/** Current status per subject — the "where is everything" board. */
+			type: "status_board";
+			requestId: string;
+			state?: Array<
+				"queued" | "running" | "blocked" | "done" | "failed" | "cancelled"
+			>;
+			sessionId?: string;
+			agentId?: string;
+			text?: string;
+			cursor?: number;
+			limit?: number;
+	  }
+	| { type: "status_subjects"; requestId: string; limit?: number };
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
@@ -397,4 +427,24 @@ export type WebviewOutboundMessage =
 			event: import("@cline/shared").DriveEvent;
 			snapshot: import("@cline/shared").RoomSnapshot;
 	  }
-	| { type: "call_error"; text: string; code?: string };
+	| { type: "call_error"; text: string; code?: string }
+	| {
+			type: "status_page";
+			requestId: string;
+			updates: import("@cline/shared").StatusUpdate[];
+			nextCursor: number | null;
+			hasMore: boolean;
+			ftsAvailable: boolean;
+	  }
+	| { type: "status_subjects_result"; requestId: string; subjects: string[] }
+	| {
+			/** Live append: a status landed while the view is open. */
+			type: "status_updated";
+			update: import("@cline/shared").StatusUpdate;
+	  }
+	| {
+			type: "status_error";
+			requestId: string;
+			text: string;
+			code?: string;
+	  };

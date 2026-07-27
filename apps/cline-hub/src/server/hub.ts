@@ -239,6 +239,17 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				snapshot,
 			});
 		},
+		onStatusUpdated(payload) {
+			// Only the new row is pushed; open views append it to whatever page
+			// they already hold rather than refetching.
+			if (!asString(payload.updateId)) {
+				return;
+			}
+			ctx.broadcast({
+				type: "status_updated",
+				update: payload as unknown as import("@cline/shared").StatusUpdate,
+			});
+		},
 	});
 
 	ctx.cline.subscribe((event) => handleSessionEvent(ctx, event));

@@ -43,6 +43,7 @@ import {
 } from "./handlers/client-handlers";
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import { handleDriveRoomCommand } from "./handlers/drive-room-handlers";
+import { handleStatusCommand } from "./handlers/status-handlers";
 import {
 	buildHubEvent,
 	type HubTransportContext,
@@ -421,6 +422,13 @@ export class HubServerTransport implements NativeHubTransport {
 			case "call_record_work":
 			case "call_get_room":
 				return handleDriveRoomCommand(this.ctx, envelope);
+			case "status.publish":
+			case "status.query":
+			case "status.current":
+			case "status.board":
+			case "status.subjects":
+			case "status.prune":
+				return await handleStatusCommand(this.ctx, envelope);
 			case "settings.get":
 			case "settings.patch":
 				return {
