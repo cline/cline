@@ -189,16 +189,16 @@ describe("McpHub.deleteServerRPC", () => {
 		;(hub as any).lastConnectionFingerprint.should.equal(expected)
 	})
 
-	it("throws when the server is not found", async () => {
+	it("sanitizes the propagated error when the server is not found", async () => {
 		await writeSettings({ beta: { type: "stdio", command: "b" } })
 
 		let threw: Error | undefined
 		try {
-			await hub.deleteServerRPC("missing")
+			await hub.deleteServerRPC("Authorization: Bearer cli-secret")
 		} catch (err) {
 			threw = err as Error
 		}
 		;(threw === undefined).should.be.false()
-		threw!.message.should.match(/not found in MCP configuration/)
+		threw!.message.should.equal("Authorization: [REDACTED]")
 	})
 })

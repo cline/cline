@@ -1489,7 +1489,7 @@ export class McpHub {
 				serverName,
 				toolName,
 				"error",
-				error instanceof Error ? error.message : String(error),
+				toMcpDiagnosticMessage(error),
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
 			throw error
@@ -1544,7 +1544,7 @@ export class McpHub {
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			Logger.error("Failed to update autoApprove settings:", toMcpDiagnosticText(error))
-			throw error // Re-throw to ensure the error is properly handled
+			throw new Error(toMcpDiagnosticMessage(error))
 		}
 	}
 
@@ -1639,7 +1639,7 @@ export class McpHub {
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			Logger.error("Failed to add remote MCP server:", toMcpDiagnosticText(error))
-			throw error
+			throw new Error(toMcpDiagnosticMessage(error))
 		}
 	}
 
@@ -1675,7 +1675,7 @@ export class McpHub {
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${toMcpDiagnosticText(error)}`)
-			throw error
+			throw new Error(toMcpDiagnosticMessage(error))
 		}
 	}
 

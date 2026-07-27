@@ -199,17 +199,18 @@ describe("McpHub.callTool", () => {
 
 		it("should capture error telemetry when client.request fails", async () => {
 			const client = createMockClient()
-			client.request.rejects(new Error("Network timeout"))
+			const requestError = new Error("Authorization: Bearer cli-secret")
+			client.request.rejects(requestError)
 			const { hub, telemetryService } = createMcpHub({ client })
 
-			let threw = false
+			let thrown: unknown
 			try {
 				await hub.callTool("test-server", "failing_tool", { key: "value" }, "ulid-011")
-			} catch {
-				threw = true
+			} catch (error) {
+				thrown = error
 			}
 
-			threw.should.be.true()
+			;(thrown === requestError).should.be.true()
 			telemetryService.captureMcpToolCall.calledTwice.should.be.true()
 
 			// First call: "started"
@@ -219,7 +220,7 @@ describe("McpHub.callTool", () => {
 			// Second call: "error"
 			const errorCall = telemetryService.captureMcpToolCall.secondCall.args
 			errorCall[3].should.equal("error")
-			errorCall[4].should.equal("Network timeout")
+			errorCall[4].should.equal("Authorization: [REDACTED]")
 		})
 	})
 
