@@ -86,6 +86,21 @@ declare module "vscode" {
 	}
 }
 
+// Extra search terms for providers whose display label does not contain the
+// model family users are most likely to type. Without these, searching
+// "claude" misses Anthropic and "gpt" misses OpenAI, because the Fuse index
+// is otherwise built from the display label alone. Keep this curated to the
+// provider that owns the model family — indexing every provider's default
+// model id would surface unrelated gateways (many default to gpt/claude
+// models) for these queries.
+export const PROVIDER_SEARCH_ALIASES: Record<string, string[]> = {
+	anthropic: ["claude", "claude sonnet", "claude opus", "claude haiku"],
+	"openai-native": ["gpt", "chatgpt"],
+	xai: ["grok"],
+	moonshot: ["kimi"],
+	zai: ["glm"],
+}
+
 const ApiOptions = ({
 	showModelOptions,
 	apiErrorMessage,
@@ -196,12 +211,19 @@ const ApiOptions = ({
 		return providerOptions.map((option) => ({
 			value: option.value,
 			html: option.label,
+			// Searchable but never displayed: the provider id plus curated
+			// model-family aliases (e.g. "claude" -> Anthropic).
+			aliases: [option.value, ...(PROVIDER_SEARCH_ALIASES[option.value] ?? [])],
 		}))
 	}, [providerOptions])
 
 	const fuse = useMemo(() => {
 		return new Fuse(searchableItems, {
-			keys: ["html"],
+			// Label matches outrank alias matches for equal-quality hits.
+			keys: [
+				{ name: "html", weight: 0.8 },
+				{ name: "aliases", weight: 0.2 },
+			],
 			threshold: 0.3,
 			shouldSort: true,
 			isCaseSensitive: false,

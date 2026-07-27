@@ -203,6 +203,69 @@ describe("ApiOptions Component", () => {
 	})
 })
 
+describe("Provider search", () => {
+	const mockPostMessage = vi.fn()
+
+	beforeEach(() => {
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
+		// Realistic subset of the live catalog: labels alone reproduce the bug
+		// ("claude" only matches Claude Code, "gpt" only matches NanoGPT and
+		// OpenAI ChatGPT Subscription).
+		mockProviderListings([
+			{ id: "requesty", name: "Requesty", protocol: "openai-chat", allowsCustomModelIds: false },
+			{ id: "anthropic", name: "Anthropic", protocol: "anthropic", allowsCustomModelIds: false },
+			{ id: "claude-code", name: "Claude Code", protocol: "anthropic", allowsCustomModelIds: false },
+			{ id: "openai-native", name: "OpenAI", protocol: "openai-responses", allowsCustomModelIds: false },
+			{
+				id: "openai-codex",
+				name: "OpenAI ChatGPT Subscription",
+				protocol: "openai-responses",
+				allowsCustomModelIds: false,
+			},
+			{ id: "nanogpt", name: "NanoGPT", protocol: "openai-chat", allowsCustomModelIds: false },
+		])
+		mockExtensionState({
+			planModeApiProvider: "requesty",
+			actModeApiProvider: "requesty",
+		})
+	})
+
+	const searchProviders = (term: string) => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={false} />
+			</ExtensionStateContextProvider>,
+		)
+		const searchInput = screen.getByTestId("provider-selector-input")
+		fireEvent.focus(searchInput)
+		// fireEvent.input's target-value assignment does not support the
+		// toolkit's web component (its `value` accessor sits deeper in the
+		// prototype chain than testing-library traverses), so set the value
+		// directly and dispatch a bubbling input event.
+		;(searchInput as HTMLInputElement).value = term
+		fireEvent(searchInput, new Event("input", { bubbles: true }))
+	}
+
+	it("surfaces Anthropic alongside Claude Code when searching 'claude'", () => {
+		searchProviders("claude")
+		expect(screen.getByTestId("provider-option-anthropic")).toBeInTheDocument()
+		expect(screen.getByTestId("provider-option-claude-code")).toBeInTheDocument()
+	})
+
+	it("surfaces OpenAI alongside label matches when searching 'gpt'", () => {
+		searchProviders("gpt")
+		expect(screen.getByTestId("provider-option-openai-native")).toBeInTheDocument()
+		expect(screen.getByTestId("provider-option-nanogpt")).toBeInTheDocument()
+	})
+
+	it("does not surface unrelated providers for 'claude'", () => {
+		searchProviders("claude")
+		expect(screen.queryByTestId("provider-option-openai-native")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("provider-option-requesty")).not.toBeInTheDocument()
+	})
+})
+
 describe("OpenApiInfoOptions", () => {
 	const mockPostMessage = vi.fn()
 
