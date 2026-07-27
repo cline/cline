@@ -8,22 +8,27 @@ import { McpHub } from "../McpHub"
 describe("McpHub timeout reconciliation", () => {
 	it("rebuilds a connection when only its timeout changes", async () => {
 		const hub = Object.create(McpHub.prototype) as McpHub
-		const oldConnection = {
+		const makeConnection = (timeout: number) => ({
 			server: {
 				name: "slow-server",
-				config: JSON.stringify({ type: "stdio", command: "node", timeout: 60 }),
+				config: JSON.stringify({ type: "stdio", command: "node", timeout }),
 				status: "connected",
 				disabled: false,
+				tools: [{ name: "slow-tool", inputSchema: { type: "object" } }],
 			},
 			client: {},
 			transport: {},
-		}
-		;(hub as any).connections = [oldConnection]
+		})
+		;(hub as any).connections = [makeConnection(60)]
 		;(hub as any).isConnecting = false
+		const toolListChanged = sinon.stub()
+		hub.setToolListChangeCallback(toolListChanged)
 		const deleteConnection = sinon.stub(hub as any, "deleteConnection").callsFake(async () => {
 			;(hub as any).connections = []
 		})
-		const connectToServer = sinon.stub(hub as any, "connectToServer").resolves()
+		const connectToServer = sinon.stub(hub as any, "connectToServer").callsFake(async () => {
+			;(hub as any).connections = [makeConnection(120)]
+		})
 		sinon.stub(hub as any, "removeAllFileWatchers")
 		sinon.stub(hub as any, "setupFileWatcher")
 
@@ -38,6 +43,8 @@ describe("McpHub timeout reconciliation", () => {
 		expect(deleteConnection.calledOnce).toBe(true)
 		expect(connectToServer.calledOnce).toBe(true)
 		expect(connectToServer.firstCall.args[1]).toMatchObject({ timeout: 120 })
+		await new Promise((resolve) => setTimeout(resolve, 350))
+		expect(toolListChanged.calledOnce).toBe(true)
 	})
 
 	it("reconciles the persisted timeout after an RPC update", async () => {

@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDefaultMcpServerClientFactory } from "./client";
+import { resolveMcpServerRegistrations } from "./config-loader";
 import type { McpServerRegistration } from "./types";
 
 /**
@@ -195,6 +196,35 @@ describe("mcp client request timeout", () => {
 		const client = await factory(
 			fakeServerRegistration({ delayMs: 0, initDelayMs: 3_000 }),
 		);
+		const startedAt = Date.now();
+		try {
+			await expect(client.connect()).rejects.toThrow(/timed out/);
+			expect(Date.now() - startedAt).toBeLessThan(8_000);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("keeps the fast probe when a malformed settings timeout is ignored", async () => {
+		const filePath = join(tempRoot, `malformed-timeout-${Date.now()}.json`);
+		writeFileSync(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					"fake-server": {
+						transport: fakeServerRegistration({
+							delayMs: 0,
+							initDelayMs: 3_000,
+						}).transport,
+						timeout: "60",
+					},
+				},
+			}),
+			"utf8",
+		);
+		const [registration] = resolveMcpServerRegistrations({ filePath });
+		expect(registration.timeoutSeconds).toBeUndefined();
+		const client = await createDefaultMcpServerClientFactory()(registration);
 		const startedAt = Date.now();
 		try {
 			await expect(client.connect()).rejects.toThrow(/timed out/);

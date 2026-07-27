@@ -167,6 +167,15 @@ describe("McpHub.callTool", () => {
 			requestOptions.timeout.should.be.a.Number()
 			requestOptions.timeout.should.be.above(0)
 		})
+
+		it("should pass the abort signal in request options", async () => {
+			const { hub, client } = createMcpHub()
+			const controller = new AbortController()
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-signal", controller.signal)
+
+			client.request.firstCall.args[2].signal.should.equal(controller.signal)
+		})
 	})
 
 	// ── Per-server timeout resolution ─────────────────────────────────

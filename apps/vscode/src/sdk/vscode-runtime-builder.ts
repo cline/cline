@@ -13,7 +13,7 @@ interface McpToolDescriptor {
 	inputSchema: Record<string, unknown>
 }
 
-class McpHubToolProvider {
+export class McpHubToolProvider {
 	constructor(private readonly mcpHub: McpHub) {}
 
 	async listTools(serverName: string): Promise<readonly McpToolDescriptor[]> {
@@ -41,7 +41,7 @@ class McpHubToolProvider {
 		context?: AgentToolContext
 	}): Promise<unknown> {
 		const ulid = `sdk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid)
+		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid, request.context?.signal)
 	}
 }
 

@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import type { AgentToolContext } from "@cline/shared";
+import { type AgentToolContext, isMcpTimeoutConfigured } from "@cline/shared";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -160,10 +160,11 @@ class StdioMcpClient implements McpServerClient {
 		// Keep the fast probe default unless the user opted into patience:
 		// an unconfigured server must not stall startup longer than it did
 		// before per-server timeouts existed.
-		this.connectAttemptTimeoutMs =
-			registration.timeoutSeconds === undefined
-				? MCP_CONNECT_PROBE_TIMEOUT_MS
-				: this.requestTimeoutMs;
+		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
+			registration.timeoutSeconds,
+		)
+			? this.requestTimeoutMs
+			: MCP_CONNECT_PROBE_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -180,10 +181,11 @@ class StdioMcpClient implements McpServerClient {
 		let lastError: Error | undefined;
 		// An explicit timeout is the total initialize budget across both protocol
 		// encodings. Omitted timeouts preserve the legacy 1.5s budget per probe.
-		const connectDeadline =
-			this.registration.timeoutSeconds === undefined
-				? undefined
-				: Date.now() + this.connectAttemptTimeoutMs;
+		const connectDeadline = isMcpTimeoutConfigured(
+			this.registration.timeoutSeconds,
+		)
+			? Date.now() + this.connectAttemptTimeoutMs
+			: undefined;
 
 		for (const [attemptIndex, protocolMode] of attempts.entries()) {
 			const attemptTimeoutMs =

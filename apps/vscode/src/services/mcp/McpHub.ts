@@ -47,6 +47,23 @@ import { McpSettingsSchema, McpTimeoutSecondsSchema, ServerConfigSchema } from "
 import { updateMcpSettingsFile } from "./settingsLock"
 import { augmentMcpTimeoutError, resolveMcpServerTimeoutMs } from "./timeout"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
+
+function stableJsonStringify(value: unknown): string {
+	if (value === undefined) {
+		return "null"
+	}
+	if (value === null || typeof value !== "object") {
+		return JSON.stringify(value)
+	}
+	if (Array.isArray(value)) {
+		return `[${value.map(stableJsonStringify).join(",")}]`
+	}
+	return `{${Object.entries(value as Record<string, unknown>)
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableJsonStringify(entryValue)}`)
+		.join(",")}}`
+}
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -971,6 +988,10 @@ export class McpHub {
 			}
 		}
 
+		// MCP agent tools snapshot server metadata and timeout when a session is
+		// built. Reconciliation must enroll that snapshot boundary even when the
+		// set of tool names is unchanged.
+		this.checkToolListChanged()
 		this.isConnecting = false
 	}
 
@@ -1419,6 +1440,7 @@ export class McpHub {
 		toolName: string,
 		toolArguments: Record<string, unknown> | undefined,
 		ulid: string,
+		signal?: AbortSignal,
 	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
@@ -1456,6 +1478,7 @@ export class McpHub {
 				CallToolResultSchema,
 				{
 					timeout,
+					signal,
 				},
 			)
 
@@ -1771,10 +1794,10 @@ export class McpHub {
 	/**
 	 * Compute a fingerprint of the current tool list.
 	 *
-	 * The fingerprint is a sorted, deterministic string of
-	 * "serverName:toolName" pairs for all connected, non-disabled servers.
-	 * Changes to this fingerprint indicate that the agent's available
-	 * tool set has changed and a session restart may be needed.
+	 * The fingerprint is a sorted, deterministic representation of every value
+	 * captured by createMcpTools: server name, tool name, description, input
+	 * schema, and timeout. A change to any captured value must rebuild the active
+	 * session even when the set of tool names is unchanged.
 	 */
 	computeToolFingerprint(): string {
 		const entries: string[] = []
@@ -1782,12 +1805,21 @@ export class McpHub {
 			if (conn.server.disabled || conn.server.status !== "connected") {
 				continue
 			}
+			const timeoutMs = resolveMcpServerTimeoutMs(conn.server.config)
 			for (const tool of conn.server.tools ?? []) {
-				entries.push(`${conn.server.name}:${tool.name}`)
+				entries.push(
+					stableJsonStringify([
+						conn.server.name,
+						tool.name,
+						tool.description ?? null,
+						tool.inputSchema ?? {},
+						timeoutMs,
+					]),
+				)
 			}
 		}
 		entries.sort()
-		return entries.join("|")
+		return JSON.stringify(entries)
 	}
 
 	/**

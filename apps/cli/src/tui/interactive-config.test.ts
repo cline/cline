@@ -32,4 +32,14 @@ describe("getMcpDescription", () => {
 			}),
 		).toBe("streamableHttp, no auth, timeout 60s");
 	});
+
+	it("reports malformed programmatic timeouts as unconfigured", () => {
+		expect(
+			getMcpDescription({
+				name: "local",
+				transport: { type: "stdio", command: "node" },
+				timeoutSeconds: Number.NaN,
+			}),
+		).toBe("stdio, local, request timeout 60s, initialize probe 1.5s");
+	});
 });

@@ -3,6 +3,7 @@ import {
 	clampMcpTimeoutSeconds,
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	formatMcpTimeoutErrorMessage,
+	isMcpTimeoutConfigured,
 	MAX_MCP_TIMEOUT_SECONDS,
 	MIN_MCP_TIMEOUT_SECONDS,
 	resolveMcpTimeoutSeconds,
@@ -35,6 +36,17 @@ describe("resolveMcpTimeoutSeconds", () => {
 		// A milliseconds/seconds mix-up (60000 meaning 60s) clamps instead of
 		// becoming ~16 hours.
 		expect(resolveMcpTimeoutSeconds(60000)).toBe(MAX_MCP_TIMEOUT_SECONDS);
+	});
+});
+
+describe("isMcpTimeoutConfigured", () => {
+	it("accepts only finite numeric values", () => {
+		expect(isMcpTimeoutConfigured(60)).toBe(true);
+		expect(isMcpTimeoutConfigured(undefined)).toBe(false);
+		expect(isMcpTimeoutConfigured(null)).toBe(false);
+		expect(isMcpTimeoutConfigured("60")).toBe(false);
+		expect(isMcpTimeoutConfigured(Number.NaN)).toBe(false);
+		expect(isMcpTimeoutConfigured(Infinity)).toBe(false);
 	});
 });
 
