@@ -326,6 +326,28 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
 	})
 
+	it("delivers the follow-up when the same task was reloaded with a new proxy", async () => {
+		const task = makeTask("task-1")
+		// showTaskWithId allocates a fresh proxy for the same task id.
+		const reloadedProxy = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.loadInitialMessages.mockImplementationOnce(async () => {
+			options.getTask.mockReturnValue(reloadedProxy)
+			return [{ role: "user", content: "hello" }]
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(options.onFollowUpAbandoned).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			"resolved: continue",
+			undefined,
+			undefined,
+		)
+	})
+
 	it("settles the turn phase when the task changes before the resume starts", async () => {
 		const task = makeTask("task-1")
 		const replacementTask = makeTask("task-2")

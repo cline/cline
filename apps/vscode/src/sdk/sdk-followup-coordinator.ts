@@ -85,7 +85,9 @@ export class SdkFollowupCoordinator {
 		await this.options.runExclusive(async () => {
 			// Task navigation does not use the rebuild scheduler. Do not deliver a
 			// prompt submitted from one task into a task selected while we waited.
-			if (task && this.options.getTask() !== task) {
+			// Compare by taskId: reloading the same task allocates a new TaskProxy,
+			// and the user's follow-up should survive that.
+			if (task && this.options.getTask()?.taskId !== task.taskId) {
 				await this.abandonFollowUp(
 					`askResponse: Task changed while waiting to resume ${task.taskId}; cancelling follow-up`,
 				)
@@ -147,7 +149,7 @@ export class SdkFollowupCoordinator {
 		try {
 			await this.resumeSessionFromTask(task, prompt, images, files)
 		} catch (error) {
-			if (this.options.getTask() !== task) {
+			if (this.options.getTask()?.taskId !== task.taskId) {
 				// Settle the pre-set streaming phase, but do not emit the stale
 				// failure into the newly displayed task's transcript.
 				await this.abandonFollowUp(`Suppressing resume failure for task no longer displayed: ${task.taskId}`)
@@ -189,7 +191,10 @@ export class SdkFollowupCoordinator {
 
 		const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
 		const resumeStart = await prepareTaskResumeStartInput(this.options, taskId)
-		if (this.options.getTask() !== task) {
+		// Targeting checks below compare by taskId (logical identity): reloading
+		// the same task allocates a new TaskProxy and must not cancel the
+		// follow-up. Cleanup (endStartedResume) uses object identity instead.
+		if (this.options.getTask()?.taskId !== taskId) {
 			await this.abandonFollowUp(`Task changed before resume start for ${taskId}; cancelling follow-up`)
 			return
 		}
@@ -201,7 +206,7 @@ export class SdkFollowupCoordinator {
 			interactive: true,
 		})
 
-		if (this.options.getTask() !== task) {
+		if (this.options.getTask()?.taskId !== taskId) {
 			await this.endStartedResume(sdkHost, startResult.sessionId)
 			await this.abandonFollowUp(`Task changed during resume start for ${taskId}; cancelled follow-up`)
 			return
@@ -212,7 +217,7 @@ export class SdkFollowupCoordinator {
 				historyItem.ts = Date.now()
 				historyItem.modelId = resumeStart.config.modelId
 				await this.options.taskHistory.updateTaskHistoryItem(historyItem)
-				if (this.options.getTask() !== task) {
+				if (this.options.getTask()?.taskId !== taskId) {
 					await this.endStartedResume(sdkHost, startResult.sessionId)
 					await this.abandonFollowUp(`Task changed while updating history for ${taskId}; cancelled follow-up`)
 					return
@@ -225,7 +230,7 @@ export class SdkFollowupCoordinator {
 					? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
 					: "[TASK RESUMPTION] Please continue where you left off.")
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
-			if (this.options.getTask() !== task) {
+			if (this.options.getTask()?.taskId !== taskId) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)
 				await this.abandonFollowUp(`Task changed while resolving mentions for ${taskId}; cancelled follow-up`)
 				return
@@ -246,7 +251,9 @@ export class SdkFollowupCoordinator {
 			}
 
 			await this.options.postStateToWebview()
-			if (this.options.getTask() !== task) {
+			// Compare against the original taskId: a proxy reloaded from history
+			// carries it, while task.taskId may have been reassigned above.
+			if (this.options.getTask()?.taskId !== taskId && this.options.getTask() !== task) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)
 				await this.abandonFollowUp(`Task changed while posting resumed state for ${taskId}; cancelled follow-up`)
 				return
