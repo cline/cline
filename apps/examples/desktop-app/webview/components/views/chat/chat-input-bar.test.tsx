@@ -85,7 +85,7 @@ describe("ChatInputBar", () => {
 							onSteerPromptInQueue={vi.fn()}
 							onSwitchGitBranch={vi.fn(async () => true)}
 							onUndoPromptInQueue={vi.fn()}
-							promptInput=""
+							promptDraft={{ version: 0, value: "" }}
 							promptsInQueue={[]}
 							provider="cline"
 							reasoningEffort="high"
@@ -165,7 +165,7 @@ describe("ChatInputBar", () => {
 						onSteerPromptInQueue={vi.fn()}
 						onSwitchGitBranch={vi.fn(async () => true)}
 						onUndoPromptInQueue={vi.fn()}
-						promptInput=""
+						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
 						provider="cline"
 						reasoningEffort="low"
