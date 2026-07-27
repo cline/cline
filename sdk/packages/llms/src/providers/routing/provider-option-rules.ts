@@ -1,18 +1,16 @@
 import { isClineProvider } from "@cline/shared";
 import {
+	getModelReasoningControls,
 	isDeepSeekFamily,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMiniMaxM3Model,
 	isMoonshotKimiModelIdFallback,
 	modelReasoningDefaultsOn,
+	normalizeReasoningEffort,
 	providerReasoningRouteMatches,
 	resolveGeminiThinkingMode,
 } from "../model-facts";
-import {
-	getModelReasoningControls,
-	normalizeReasoningEffort,
-} from "../reasoning-controls";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {

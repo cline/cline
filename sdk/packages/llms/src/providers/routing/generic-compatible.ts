@@ -3,11 +3,11 @@ import type {
 	GatewayStreamRequest,
 } from "@cline/shared";
 import {
+	getModelReasoningControls,
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	resolveModelFamily,
 } from "../model-facts";
-import { getModelReasoningControls } from "../reasoning-controls";
 import {
 	buildAnthropicCompatibleReasoningOptions,
 	resolveAnthropicReasoningRequestPolicy,

@@ -8,12 +8,12 @@ import {
 	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
 import {
+	getModelReasoningControls,
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	modelRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
-import { getModelReasoningControls } from "../reasoning-controls";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;

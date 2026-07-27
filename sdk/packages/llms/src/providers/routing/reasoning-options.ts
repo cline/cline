@@ -4,11 +4,11 @@ import {
 	type ModelReasoningOption,
 	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
-import { providerReasoningRouteMatches } from "../model-facts";
 import {
 	getModelReasoningControls,
 	normalizeReasoningEffort,
-} from "../reasoning-controls";
+	providerReasoningRouteMatches,
+} from "../model-facts";
 
 function clampBudget(
 	budgetTokens: number,
