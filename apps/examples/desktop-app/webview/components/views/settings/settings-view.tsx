@@ -718,7 +718,7 @@ function GeneralSettingsContent() {
 							Auto update
 						</p>
 						<p className="mt-1 text-[15px] text-muted-foreground">
-							Automatically install Cline CLI updates on startup.
+							Automatically install Cline updates on startup.
 						</p>
 						{autoUpdateError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
