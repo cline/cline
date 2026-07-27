@@ -1,17 +1,19 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
-import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import OllamaModelPicker from "../OllamaModelPicker"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the OllamaProvider component
@@ -27,18 +29,51 @@ interface OllamaProviderProps {
  */
 export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: OllamaProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-
-	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { config, write, commitSelection } = useProviderConfig("ollama")
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+
+	const ollamaBaseUrl = config?.baseUrl ?? apiConfiguration?.ollamaBaseUrl
+	// providers.json (config.contextWindow) is the source of truth; the legacy
+	// apiConfiguration string is a migration fallback.
+	const ollamaNumCtx = config?.contextWindow || Number.parseInt(apiConfiguration?.ollamaApiOptionsCtxNum || "", 10)
+	const ollamaModelInfo = useMemo(() => {
+		return {
+			...openAiModelInfoSafeDefaults,
+			...(Number.isFinite(ollamaNumCtx) && ollamaNumCtx > 0 ? { contextWindow: ollamaNumCtx } : {}),
+		}
+	}, [ollamaNumCtx])
+	const ollamaModelInfoById = useMemo(
+		() => Object.fromEntries(ollamaModels.map((modelId) => [modelId, { ...ollamaModelInfo, name: modelId }])),
+		[ollamaModelInfo, ollamaModels],
+	)
+	const { selectedModel, commitModelSelection } = useProviderModelSelection("ollama", currentMode, {
+		models: ollamaModelInfoById,
+		config,
+		commitSelection,
+		fallbackModelInfo: ollamaModelInfo,
+		customModelInfo: (modelId) => ({ ...ollamaModelInfo, name: modelId }),
+	})
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "Ollama",
+		write,
+	})
+
+	const handleBaseUrlChange = useCallback(
+		(value: string) => {
+			void write({ baseUrl: value }).catch((error) => console.error("Failed to update Ollama base URL:", error))
+		},
+		[write],
+	)
 
 	// Poll ollama models
 	const requestOllamaModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.getOllamaModels(
 				StringRequest.create({
-					value: apiConfiguration?.ollamaBaseUrl || "",
+					value: ollamaBaseUrl || "",
 				}),
 			)
 			if (response && response.values) {
@@ -48,7 +83,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			console.error("Failed to fetch Ollama models:", error)
 			setOllamaModels([])
 		}
-	}, [apiConfiguration?.ollamaBaseUrl])
+	}, [ollamaBaseUrl])
 
 	useEffect(() => {
 		requestOllamaModels()
@@ -59,17 +94,17 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 	return (
 		<div className="flex flex-col gap-2">
 			<BaseUrlField
-				initialValue={apiConfiguration?.ollamaBaseUrl}
+				initialValue={ollamaBaseUrl}
 				label="Use custom base URL"
-				onChange={(value) => handleFieldChange("ollamaBaseUrl", value)}
+				onChange={handleBaseUrlChange}
 				placeholder="Default: http://localhost:11434"
 			/>
 
-			{apiConfiguration?.ollamaBaseUrl && (
+			{ollamaBaseUrl && (
 				<ApiKeyField
 					helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
-					initialValue={apiConfiguration?.ollamaApiKey || ""}
-					onChange={(value) => handleFieldChange("ollamaApiKey", value)}
+					initialValue={savedApiKeyMask}
+					onChange={handleApiKeyChange}
 					placeholder="Enter API Key (optional)..."
 					providerName="Ollama"
 				/>
@@ -82,10 +117,17 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
 				onModelChange={(modelId) => {
-					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
+					const trimmedModelId = modelId.trim()
+					if (!trimmedModelId) {
+						return
+					}
+					void commitModelSelection({
+						modelId: trimmedModelId,
+						modelInfo: { ...ollamaModelInfo, name: trimmedModelId },
+					}).catch((error) => console.error("Failed to update Ollama model selection:", error))
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
-				selectedModelId={ollamaModelId || ""}
+				selectedModelId={selectedModel.modelId || ""}
 			/>
 
 			{/* Show status message based on model availability */}
@@ -96,13 +138,45 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				</p>
 			)}
 
-			<DebouncedTextField
-				initialValue={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
-				onChange={(v) => handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)}
-				placeholder={"e.g. 32768"}
-				style={{ width: "100%" }}>
-				<span className="font-semibold">Model Context Window</span>
-			</DebouncedTextField>
+			{/* Render only after the provider config RPC has resolved: the
+			    debounced input fires onChange for its initial value shortly
+			    after mount, so mounting before `config` loads would persist
+			    the 32768 fallback over a value saved in providers.json. */}
+			{config !== undefined && (
+				<DebouncedTextField
+					initialValue={Number.isFinite(ollamaNumCtx) && ollamaNumCtx > 0 ? String(ollamaNumCtx) : ""}
+					onChange={(v) => {
+						const contextWindow = Number.parseInt(v, 10)
+						const numCtx = Number.isFinite(contextWindow) && contextWindow > 0 ? contextWindow : undefined
+						// The debounced input also fires for its initial value and
+						// external prop syncs — only persist actual changes.
+						const currentNumCtx = Number.isFinite(ollamaNumCtx) && ollamaNumCtx > 0 ? ollamaNumCtx : undefined
+						if (numCtx === currentNumCtx) {
+							return
+						}
+						// Persist to providers.json (`contextWindow`); the store
+						// mirrors the value to the legacy state key for older
+						// readers. Zero clears the setting.
+						void write({ contextWindow: numCtx ?? 0 }).catch((error) =>
+							console.error("Failed to update Ollama context window:", error),
+						)
+
+						if (selectedModel.modelId) {
+							void commitModelSelection({
+								modelId: selectedModel.modelId,
+								modelInfo: {
+									...openAiModelInfoSafeDefaults,
+									name: selectedModel.modelId,
+									...(numCtx ? { contextWindow: numCtx } : {}),
+								},
+							}).catch((error) => console.error("Failed to update Ollama context window:", error))
+						}
+					}}
+					placeholder={"Default: 32768"}
+					style={{ width: "100%" }}>
+					<span className="font-semibold">Model Context Window</span>
+				</DebouncedTextField>
+			)}
 
 			{showModelOptions && (
 				<>
@@ -110,7 +184,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
 						onChange={(value) => {
 							// Convert to number, with validation
-							const numValue = parseInt(value, 10)
+							const numValue = Number.parseInt(value, 10)
 							if (!Number.isNaN(numValue) && numValue > 0) {
 								handleFieldChange("requestTimeoutMs", numValue)
 							}
@@ -125,8 +199,6 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				</>
 			)}
 
-			<UseCustomPromptCheckbox providerId="ollama" />
-
 			<p
 				style={{
 					fontSize: "12px",
@@ -140,8 +212,8 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					quickstart guide.
 				</VSCodeLink>{" "}
 				<span style={{ color: "var(--vscode-errorForeground)" }}>
-					(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude models.
-					Less capable models may not work as expected.)
+					(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts, so behavior can vary across
+					models. Less capable models may not work as expected.)
 				</span>
 			</p>
 		</div>

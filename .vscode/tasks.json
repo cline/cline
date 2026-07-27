@@ -5,8 +5,8 @@
 	"tasks": [
 		{
 			"label": "compile-standalone",
-			"type": "npm",
-			"script": "compile-standalone",
+			"type": "shell",
+			"command": "bun run compile-standalone",
 			"group": "build",
 			"problemMatcher": [],
 			"presentation": {
@@ -18,8 +18,8 @@
 		},
 		{
 			"label": "npm: protos",
-			"type": "npm",
-			"script": "protos",
+			"type": "shell",
+			"command": "bun run protos",
 			"problemMatcher": [],
 			"isBackground": false,
 			"presentation": {
@@ -64,11 +64,11 @@
 			"group": "build"
 		},
 		{
-			"type": "npm",
-			"script": "build:webview",
+			"type": "shell",
+			"command": "bun run build:webview",
 			"group": "build",
 			"problemMatcher": [],
-			"isBackground": true,
+			"isBackground": false,
 			"label": "npm: build:webview",
 			"dependsOn": [
 				"npm: protos"
@@ -85,11 +85,11 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "build:webview:test",
+			"type": "shell",
+			"command": "bun run build:webview:test",
 			"group": "build",
 			"problemMatcher": [],
-			"isBackground": true,
+			"isBackground": false,
 			"label": "npm: build:webview:test",
 			"dependsOn": [
 				"npm: protos"
@@ -107,23 +107,23 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "dev:webview",
+			"type": "shell",
+			"command": "bun run dev:webview",
 			"group": "build",
 			"problemMatcher": [
 				{
 					"pattern": [
 						{
-							"regexp": ".",
+							"regexp": "^(?!)((?:.*))$",
+							"kind": "file",
 							"file": 1,
-							"location": 2,
-							"message": 3
+							"message": 1
 						}
 					],
 					"background": {
 						"activeOnStart": true,
-						"beginsPattern": ".",
-						"endsPattern": "."
+						"beginsPattern": "^Building webview for|^\\s*VITE",
+						"endsPattern": "^.*Local:\\s+http://127\\.0\\.0\\.1:[0-9]+/"
 					}
 				}
 			],
@@ -144,8 +144,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild",
+			"type": "shell",
+			"command": "bun run watch:esbuild",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -169,7 +169,8 @@
 			"isBackground": true,
 			"label": "npm: watch:esbuild",
 			"dependsOn": [
-				"npm: protos"
+				"npm: protos",
+				"build-sdk:debug"
 			],
 			"presentation": {
 				"group": "watch",
@@ -183,8 +184,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild:test",
+			"type": "shell",
+			"command": "bun run watch:esbuild:test",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -208,7 +209,8 @@
 			"isBackground": true,
 			"label": "npm: watch:esbuild:test",
 			"dependsOn": [
-				"npm: protos"
+				"npm: protos",
+				"build-sdk:debug"
 			],
 			"presentation": {
 				"group": "watch",
@@ -223,8 +225,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:tsc",
+			"type": "shell",
+			"command": "bun run watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
@@ -241,8 +243,9 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-tests",
+			"type": "shell",
+			"command": "bun run watch-tests",
+			"label": "npm: watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"dependsOn": [
@@ -280,8 +283,8 @@
 			"command": "rm -rf ${workspaceFolder}/apps/vscode/dist/tmp/user && mkdir -p ${workspaceFolder}/apps/vscode/dist/tmp/user"
 		},
 		{
-			"type": "npm",
-			"script": "storybook",
+			"type": "shell",
+			"command": "bun run storybook",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
@@ -308,7 +311,25 @@
 				"$tsc"
 			],
 			"options": {
-				"cwd": "${workspaceFolder}/sdk"
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "build-sdk:debug",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"CLINE_SOURCEMAPS": "1"
+				}
 			}
 		}
 	],

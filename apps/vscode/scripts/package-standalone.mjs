@@ -47,8 +47,13 @@ async function installNodeDependencies() {
 
 	await cpr(RUNTIME_DEPS_DIR, BUILD_DIR)
 
-	console.log("Running npm install in distribution directory...")
-	execSync("npm install", { stdio: "inherit", cwd: BUILD_DIR })
+	// This is an ISOLATED runtime install inside the standalone distribution
+	// directory (dist-standalone), driven by the "cline-core" runtime-files
+	// manifest — it is NOT part of the monorepo workspace install. TARGET_NODE_VERSION
+	// and the prebuild-install calls below target the Node ABI of the bundled
+	// runtime (matching the JetBrains-packaged Node), not the build tooling.
+	console.log("Running bun install in distribution directory...")
+	execSync("bun install", { stdio: "inherit", cwd: BUILD_DIR })
 
 	// Move the vscode directory into node_modules.
 	// It can't be installed using npm because it will create a symlink which cannot be unzipped correctly on windows.
@@ -92,7 +97,10 @@ async function packageAllBinaryDeps() {
 			const dest = path.join(binaryDir, module)
 			await cpr(src, dest)
 
-			// Download the binary libs
+			// Download the binary libs.
+			// `--target=${TARGET_NODE_VERSION}` selects the Node ABI of the bundled
+			// standalone runtime (NOT the bun/build tooling) so the prebuilt native
+			// `.node` binaries load in the Node that runs cline-core.
 			const v = IS_VERBOSE ? "--verbose" : ""
 			const cmd = `npx prebuild-install --platform=${platform} --arch=${arch} --target=${TARGET_NODE_VERSION} ${v}`
 			log_verbose(`${module}: ${cmd}`)

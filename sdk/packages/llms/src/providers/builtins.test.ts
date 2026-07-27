@@ -1,7 +1,12 @@
-import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	CLINE_ENVIRONMENT_ENV,
+	CLINE_ENVIRONMENTS,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 
 function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
@@ -50,14 +55,128 @@ describe("cline builtin spec defaults.baseUrl", () => {
 	});
 });
 
+describe("cline builtin models", () => {
+	it("exposes its canonical default model ID", () => {
+		expect(findClineSpec().defaultModelId).toBe(CLINE_DEFAULT_MODEL_ID);
+	});
+
+	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {
+		const models = await getModelsForProvider("cline");
+
+		expect(models["zai/glm-5.2"]).toMatchObject({
+			id: "zai/glm-5.2",
+			name: "GLM 5.2",
+			contextWindow: 1_040_000,
+			maxInputTokens: 1_040_000,
+		});
+		expect(models["zai/glm-5.1"]).toMatchObject({
+			id: "zai/glm-5.1",
+		});
+		expect(models["z-ai/glm-5.2"]).toBeUndefined();
+	});
+});
+
+describe("cline-pass builtin spec", () => {
+	it("registers a distinct Cline-compatible provider with a custom model list", async () => {
+		const models = await getModelsForProvider("cline-pass");
+		const provider = await getProvider("cline-pass");
+
+		expect(provider).toMatchObject({
+			id: "cline-pass",
+			name: "ClinePass",
+			baseUrl: `${CLINE_ENVIRONMENTS.production.apiBaseUrl}/api/v1`,
+			client: "openai-compatible",
+			capabilities: expect.arrayContaining([
+				"oauth",
+				"tools",
+				"reasoning",
+				"prompt-cache",
+			]),
+		});
+		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
+		expect(Object.keys(models).length).toBeGreaterThan(0);
+		for (const model of Object.values(models)) {
+			expect(model.contextWindow).toBeGreaterThan(0);
+			expect(model.maxInputTokens).toBeGreaterThan(0);
+			expect(model.maxTokens).toBeGreaterThan(0);
+			expect(model.capabilities).toEqual(expect.arrayContaining(["tools"]));
+			expect(model.pricing).toBeDefined();
+		}
+	});
+});
+
 describe("built-in provider metadata", () => {
+	it("merges generated provider specs with handwritten built-in overrides", async () => {
+		const generatedIds = new Set(
+			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
+		);
+		const builtinIds = new Set(BUILTIN_SPECS.map((spec) => spec.id));
+
+		for (const generatedId of generatedIds) {
+			expect(builtinIds.has(generatedId)).toBe(true);
+		}
+		expect(generatedIds.has("alibaba")).toBe(true);
+		expect(generatedIds.has("cohere")).toBe(false);
+
+		await expect(getProvider("alibaba")).resolves.toMatchObject({
+			id: "alibaba",
+			client: "openai-compatible",
+			baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		});
+		await expect(getModelsForProvider("alibaba")).resolves.toHaveProperty(
+			"qwen3.7-plus",
+		);
+
+		const generatedMistral = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "mistral",
+		);
+		expect(generatedMistral).toBeDefined();
+		await expect(getProvider("mistral")).resolves.toMatchObject({
+			id: "mistral",
+			baseUrl: "https://api.mistral.ai/v1",
+			defaultModelId: generatedMistral?.defaultModelId,
+			client: "ai-sdk-community",
+		});
+		await expect(getModelsForProvider("mistral")).resolves.toHaveProperty(
+			generatedMistral?.defaultModelId ?? "",
+		);
+	});
+
+	it("uses generated specs directly when no runtime override is required", () => {
+		const generatedOnlyProviderIds = [
+			"fireworks",
+			"poolside",
+			"nebius",
+			"baseten",
+			"requesty",
+			"huggingface",
+			"moonshot",
+			"wandb",
+			"xiaomi",
+			"tencent-tokenhub",
+		] as const;
+
+		for (const providerId of generatedOnlyProviderIds) {
+			expect(BUILTIN_SPECS.find((spec) => spec.id === providerId)).toEqual(
+				GENERATED_PROVIDER_SPECS.find((spec) => spec.id === providerId),
+			);
+		}
+	});
+
 	it("marks popular providers with a provider capability and rank", async () => {
 		await expect(getProvider("cline")).resolves.toMatchObject({
+			name: "Cline Usage-Billing",
 			capabilities: expect.arrayContaining(["popular"]),
 			metadata: { popularRank: 1 },
 		});
 		await expect(getProvider("zai")).resolves.not.toMatchObject({
 			capabilities: expect.arrayContaining(["popular"]),
+		});
+	});
+
+	it("uses the current Hugging Face router endpoint", async () => {
+		await expect(getProvider("huggingface")).resolves.toMatchObject({
+			baseUrl: "https://router.huggingface.co/v1",
 		});
 	});
 
@@ -67,37 +186,28 @@ describe("built-in provider metadata", () => {
 		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining([
-				"gpt-5.5",
-				"gpt-5.5-pro",
-				"gpt-5.2",
-				"gpt-5.3-codex",
-				"gpt-5.3-codex-spark",
-				"gpt-5.4",
-				"gpt-5.4-mini",
-			]),
+			expect.arrayContaining(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]),
 		);
+		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
+		expect(modelIds).not.toContain("gpt-5.2");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.3-codex");
+		expect(modelIds).not.toContain("gpt-5.3-codex-spark");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
 		expect(modelIds).not.toContain("o3");
 		expect(chatGptModels["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiModels["gpt-5.5"],
-				maxInputTokens: 272_000,
+				// ChatGPT/Codex backend caps: 272K input at the 95% effective budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
 		expect(chatGptModels["gpt-5.4"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.4",
-				maxInputTokens: expect.any(Number),
-				contextWindow: expect.any(Number),
-			}),
-		);
-		expect(chatGptModels["gpt-5.3-codex"]).toEqual(
-			expect.objectContaining({
-				name: "GPT-5.3 Codex",
 				maxInputTokens: expect.any(Number),
 				contextWindow: expect.any(Number),
 			}),
@@ -122,5 +232,23 @@ describe("built-in provider metadata", () => {
 				expect(model.family?.startsWith("glm")).toBe(true);
 			}
 		}
+	});
+
+	it("routes direct MiniMax M3 through MiniMax thinking metadata", async () => {
+		await expect(getProvider("minimax")).resolves.toMatchObject({
+			metadata: {
+				routing: {
+					reasoning: {
+						format: "minimax-thinking",
+						routes: [
+							expect.objectContaining({
+								matcher: "model-id",
+								modelId: "MiniMax-M3",
+							}),
+						],
+					},
+				},
+			},
+		});
 	});
 });

@@ -65,21 +65,6 @@ export async function isDirectory(filePath: string): Promise<boolean> {
 }
 
 /**
- * Gets the size of a file in kilobytes
- * @param filePath - Path to the file to check
- * @returns Promise<number> - Size of the file in KB, or 0 if file doesn't exist
- */
-export async function getFileSizeInKB(filePath: string): Promise<number> {
-	try {
-		const stats = await fs.stat(filePath)
-		const fileSizeInKB = stats.size / 1000 // Convert bytes to KB (decimal) - matches OS file size display
-		return fileSizeInKB
-	} catch {
-		return 0
-	}
-}
-
-/**
  * Writes content to a file
  * @param filePath - Absolute path to the file
  * @param content - Content to write (string or Uint8Array)

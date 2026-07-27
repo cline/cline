@@ -14,6 +14,9 @@ const HUB_STARTUP_LOCK_POLL_MS = 100;
 export interface HubServerDiscoveryRecord {
 	hubId: string;
 	protocolVersion: string;
+	minClientProtocolVersion?: string;
+	maxClientProtocolVersion?: string;
+	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
 	authToken: string;
@@ -24,6 +27,23 @@ export interface HubServerDiscoveryRecord {
 	startedAt: string;
 	updatedAt: string;
 }
+
+export type HubServerProbeRecord = {
+	protocolVersion: string;
+	minClientProtocolVersion?: string;
+	maxClientProtocolVersion?: string;
+	capabilities?: readonly string[];
+	coreVersion?: string;
+	buildId?: string;
+	host: string;
+	port: number;
+	url: string;
+	hubId?: string;
+	authToken?: string;
+	pid?: number;
+	startedAt?: string;
+	updatedAt?: string;
+};
 
 export interface HubOwnerContext {
 	ownerId: string;
@@ -135,6 +155,20 @@ export async function readHubDiscovery(
 		return {
 			hubId: parsed.hubId,
 			protocolVersion: parsed.protocolVersion,
+			minClientProtocolVersion:
+				typeof parsed.minClientProtocolVersion === "string"
+					? parsed.minClientProtocolVersion
+					: undefined,
+			maxClientProtocolVersion:
+				typeof parsed.maxClientProtocolVersion === "string"
+					? parsed.maxClientProtocolVersion
+					: undefined,
+			capabilities: Array.isArray(parsed.capabilities)
+				? parsed.capabilities.filter(
+						(capability): capability is string =>
+							typeof capability === "string",
+					)
+				: undefined,
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
@@ -225,13 +259,60 @@ export async function withHubStartupLock<T>(
 
 export async function probeHubServer(
 	url: string,
-): Promise<HubServerDiscoveryRecord | undefined> {
+	options?: { authToken?: string },
+): Promise<HubServerProbeRecord | undefined> {
 	try {
-		const response = await fetch(toHubHealthUrl(url));
+		const response = await fetch(
+			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),
+			{
+				headers: options?.authToken
+					? { authorization: `Bearer ${options.authToken}` }
+					: undefined,
+			},
+		);
 		if (!response.ok) {
 			return undefined;
 		}
-		return (await response.json()) as HubServerDiscoveryRecord;
+		const parsed = (await response.json()) as Partial<HubServerProbeRecord>;
+		if (
+			typeof parsed.protocolVersion !== "string" ||
+			typeof parsed.host !== "string" ||
+			typeof parsed.port !== "number" ||
+			typeof parsed.url !== "string"
+		) {
+			return undefined;
+		}
+		return {
+			protocolVersion: parsed.protocolVersion,
+			minClientProtocolVersion:
+				typeof parsed.minClientProtocolVersion === "string"
+					? parsed.minClientProtocolVersion
+					: undefined,
+			maxClientProtocolVersion:
+				typeof parsed.maxClientProtocolVersion === "string"
+					? parsed.maxClientProtocolVersion
+					: undefined,
+			capabilities: Array.isArray(parsed.capabilities)
+				? parsed.capabilities.filter(
+						(capability): capability is string =>
+							typeof capability === "string",
+					)
+				: undefined,
+			coreVersion:
+				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
+			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+			host: parsed.host,
+			port: parsed.port,
+			url: parsed.url,
+			hubId: typeof parsed.hubId === "string" ? parsed.hubId : undefined,
+			authToken:
+				typeof parsed.authToken === "string" ? parsed.authToken : undefined,
+			pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
+			startedAt:
+				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+			updatedAt:
+				typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+		};
 	} catch {
 		return undefined;
 	}
@@ -250,6 +331,12 @@ export function toHubHealthUrl(wsUrl: string): string {
 	parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
 	parsed.pathname = "/health";
 	parsed.search = "";
+	return parsed.toString();
+}
+
+export function toHubStatusUrl(wsUrl: string): string {
+	const parsed = new URL(toHubHealthUrl(wsUrl));
+	parsed.pathname = "/status";
 	return parsed.toString();
 }
 

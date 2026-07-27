@@ -1,11 +1,13 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { buildApiHandler } from "@/core/api"
 import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
 import { Secrets } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
+import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
+import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
 
 /**
  * Parses field mask paths into separate sets for options and secrets
@@ -41,7 +43,8 @@ function parseFieldMask(updateMask: string[]): {
 function getAlternateModeField(fieldName: string): string | null {
 	if (fieldName.startsWith("planMode")) {
 		return fieldName.replace("planMode", "actMode")
-	} else if (fieldName.startsWith("actMode")) {
+	}
+	if (fieldName.startsWith("actMode")) {
 		return fieldName.replace("actMode", "planMode")
 	}
 	return null
@@ -135,20 +138,21 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			controller.stateManager.setSecretsBatch(secrets)
 		}
 		if (Object.keys(options).length > 0) {
-			controller.stateManager.setGlobalStateBatch(options)
+			controller.stateManager.setGlobalStateBatch(
+				normalizeProviderSwitchModel(
+					controller.getProviderConfigStore(),
+					controller.stateManager.getApiConfiguration(),
+					options,
+				),
+			)
+			await clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
 		}
 
-		// Update the task's API handler if there's an active task
+		// Update the task's API model shim if there's an active task
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			// Build updated config
-			controller.task.api = buildApiHandler(
-				{
-					...controller.stateManager.getApiConfiguration(),
-					ulid: controller.task.ulid,
-				},
-				currentMode,
-			)
+			const modelId = resolveActiveModelIdFromApiConfiguration(controller.stateManager.getApiConfiguration(), currentMode)
+			controller.task.api = createTaskApiModelShim(modelId)
 		}
 
 		// Post updated state to webview

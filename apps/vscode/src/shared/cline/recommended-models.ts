@@ -1,4 +1,4 @@
-export interface ClineRecommendedModel {
+interface ClineRecommendedModel {
 	id: string
 	name: string
 	description: string

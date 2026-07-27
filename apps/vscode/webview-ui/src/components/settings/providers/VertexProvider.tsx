@@ -1,9 +1,13 @@
-import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useProviderModels } from "@/hooks/useProviderModels"
+import { useProviderUsageCostDisplay } from "@/hooks/useProviderUsageCostDisplay"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -11,8 +15,7 @@ import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
 
 /**
  * Props for the VertexProvider component
@@ -23,21 +26,6 @@ interface VertexProviderProps {
 	currentMode: Mode
 }
 
-// Vertex models that support thinking
-const SUPPORTED_THINKING_MODELS = [
-	"claude-sonnet-4-6",
-	"claude-sonnet-4-6:1m",
-	"claude-haiku-4-5@20251001",
-	"claude-sonnet-4-5@20250929",
-	"claude-3-7-sonnet@20250219",
-	"claude-sonnet-4@20250514",
-	"claude-opus-4@20250514",
-	"claude-opus-4-1@20250805",
-	"gemini-2.5-flash",
-	"gemini-2.5-pro",
-	"gemini-2.5-flash-lite-preview-06-17",
-]
-
 const REGIONS = VertexData.regions
 
 /**
@@ -45,17 +33,59 @@ const REGIONS = VertexData.regions
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { models: allVertexModels, defaultModelId } = useProviderModels("vertex")
+	const { config, write, commitSelection } = useProviderConfig("vertex")
+	const { selectedModel, selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(
+		"vertex",
+		currentMode,
+		{
+			models: allVertexModels,
+			defaultModelId,
+			config,
+			commitSelection,
+		},
+	)
+	const hideUsageCost = useProviderUsageCostDisplay("vertex") === "hide"
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const vertexProjectId = config?.gcp?.projectId ?? apiConfiguration?.vertexProjectId ?? ""
+	const vertexRegion = config?.gcp?.region ?? config?.region ?? apiConfiguration?.vertexRegion ?? ""
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const writeProviderConfig = (patch: Parameters<typeof write>[0], label: string) => {
+		void write(patch).catch((err) => console.error(`Failed to update Vertex ${label}:`, err))
+	}
+	const writeGcp = (gcp: NonNullable<Parameters<typeof write>[0]["gcp"]>, label: string) => {
+		writeProviderConfig({ gcp }, label)
+	}
+
+	const handleProjectIdChange = (value: string) => {
+		writeGcp({ projectId: value }, "project ID")
+	}
+
+	const handleRegionChange = (value: string) => {
+		writeProviderConfig({ region: value, gcp: { region: value } }, "region")
+	}
+
+	// Catalog and selection come from the SDK via gRPC. Vertex carries a
+	// per-model `supportsGlobalEndpoint` flag (populated host-side from
+	// the allowlist in
+	// `apps/vscode/src/sdk/model-catalog/vertex-global-endpoint.ts`).
+	// When the user selects `vertexRegion === "global"` the picker is
+	// filtered to only models known to work with that endpoint so the
+	// runtime cannot produce a `model not available in region: global`
+	// error from a user-pickable combination.
+	const modelsToUse = useMemo(() => {
+		if (vertexRegion !== "global") {
+			return allVertexModels
+		}
+		return Object.fromEntries(Object.entries(allVertexModels).filter(([, info]) => info.supportsGlobalEndpoint === true))
+	}, [allVertexModels, vertexRegion])
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
+	const supportsThinkingBudget =
+		selectedModelInfo.supportsReasoning === true &&
+		selectedModelInfo.thinkingConfig !== undefined &&
+		selectedModelInfo.thinkingConfig.supportsThinkingLevel !== true
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
-
-	// Determine which models to use based on region
-	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
 
 	return (
 		<div
@@ -67,8 +97,8 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.vertexProjectId === undefined}>
 				<DebouncedTextField
 					disabled={remoteConfigSettings?.vertexProjectId !== undefined}
-					initialValue={apiConfiguration?.vertexProjectId || ""}
-					onChange={(value) => handleFieldChange("vertexProjectId", value)}
+					initialValue={vertexProjectId}
+					onChange={handleProjectIdChange}
 					placeholder="Enter Project ID..."
 					style={{ width: "100%" }}>
 					<div className="flex items-center gap-2 mb-1">
@@ -91,9 +121,9 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<VSCodeDropdown
 						disabled={remoteConfigSettings?.vertexRegion !== undefined}
 						id="vertex-region-dropdown"
-						onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}
+						onChange={(e: any) => handleRegionChange(e.target.value)}
 						style={{ width: "100%" }}
-						value={apiConfiguration?.vertexRegion || ""}>
+						value={vertexRegion}>
 						<VSCodeOption value="">Select a region...</VSCodeOption>
 						{REGIONS.map((region) => (
 							<VSCodeOption key={region} value={region}>
@@ -128,13 +158,13 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<ModelSelector
 						label="Model"
 						models={modelsToUse}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
+						onChange={(e: any) => {
+							const modelId = e.target.value
+							void commitModelSelection({
+								modelId,
+								modelInfo: modelsToUse[modelId] ?? selectedModel.modelInfo,
+							}).catch((err) => console.error("Failed to commit Vertex model selection:", err))
+						}}
 						selectedModelId={selectedModelId}
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
@@ -147,7 +177,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 						/>
-					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ? (
+					) : supportsThinkingBudget ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					) : null}
 
@@ -155,7 +185,12 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						<ReasoningEffortSelector currentMode={currentMode} />
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

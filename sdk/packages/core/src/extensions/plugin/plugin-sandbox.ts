@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentExtensionCommandResult,
+	AgentExtensionMcpServer,
 	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
@@ -24,6 +26,12 @@ export type SandboxedPluginSetupContext = Pick<
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
 	exportName?: string;
+	/**
+	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
+	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
+	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
+	 * to raise the ceiling without touching code.
+	 */
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
@@ -89,6 +97,7 @@ type SandboxedPluginDescriptor = {
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: SandboxedContributionDescriptor[];
 		flags?: SandboxedContributionDescriptor[];
 	};
@@ -111,6 +120,7 @@ function normalizeDescriptor(
 			providers: descriptor.contributions?.providers ?? [],
 			automationEventTypes:
 				descriptor.contributions?.automationEventTypes ?? [],
+			mcpServers: descriptor.contributions?.mcpServers ?? [],
 			shortcuts: descriptor.contributions?.shortcuts ?? [],
 			flags: descriptor.contributions?.flags ?? [],
 		},
@@ -212,8 +222,25 @@ const BOOTSTRAP = resolveBootstrap();
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
 	fallback: number,
+	envVarName?: string,
 ): number {
-	return typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : fallback;
+	if (typeof timeoutMs === "number" && timeoutMs > 0) {
+		return timeoutMs;
+	}
+	if (envVarName) {
+		const raw = process.env[envVarName];
+		if (raw) {
+			// Number() is stricter than parseInt: it rejects values with
+			// trailing non-numeric characters (e.g. "4000ms" -> NaN) so a
+			// malformed env value falls back to the default instead of
+			// silently consuming its numeric prefix.
+			const parsed = Number(raw);
+			if (Number.isInteger(parsed) && parsed > 0) {
+				return parsed;
+			}
+		}
+	}
+	return fallback;
 }
 
 export async function loadSandboxedPlugins(
@@ -221,6 +248,7 @@ export async function loadSandboxedPlugins(
 ): Promise<
 	{
 		extensions: AgentConfig["extensions"];
+		pluginPaths: string[];
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
@@ -231,7 +259,11 @@ export async function loadSandboxedPlugins(
 			: { bootstrapScript: BOOTSTRAP.script }),
 		onEvent: options.onEvent,
 	});
-	const importTimeoutMs = withTimeoutFallback(options.importTimeoutMs, 4000);
+	const importTimeoutMs = withTimeoutFallback(
+		options.importTimeoutMs,
+		4000,
+		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
@@ -330,6 +362,7 @@ export async function loadSandboxedPlugins(
 	return {
 		extensions,
 		failures: initialized.failures,
+		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {
 			await sandbox.shutdown();
 		},
@@ -405,7 +438,7 @@ function registerCommands(
 			description: cd.description,
 			handler: async (input: string) => {
 				try {
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -419,7 +452,7 @@ function registerCommands(
 						throw error;
 					}
 					await reinitialize();
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -500,6 +533,10 @@ function registerSimpleContributions(
 			examples: eventType.examples,
 			metadata: eventType.metadata,
 		});
+	}
+
+	for (const mcpServer of descriptor.contributions?.mcpServers ?? []) {
+		api.registerMcpServer(mcpServer);
 	}
 }
 

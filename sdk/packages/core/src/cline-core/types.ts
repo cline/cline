@@ -21,7 +21,9 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../runtime/host/runtime-host";
-import type { CoreSessionConfig } from "../types/config";
+import type { FeatureFlagsService } from "../services/feature-flags";
+import type { CheckpointWorkspaceCompareResult } from "../session/checkpoint-diff";
+import type { ClineCoreStartConfig } from "../types/config";
 import type { SessionMessagesArtifactUploader } from "../types/session";
 
 export type { RuntimeHostMode } from "../runtime/host/runtime-host";
@@ -126,7 +128,7 @@ export type ClineCoreListHistoryOptions = SessionHistoryListOptions;
 
 export interface ClineCoreStartInput
 	extends Omit<StartSessionInput, "config" | "localRuntime"> {
-	config: CoreSessionConfig;
+	config: ClineCoreStartConfig;
 	localRuntime?: LocalRuntimeStartOptions;
 }
 
@@ -164,6 +166,14 @@ export interface RestoreResult {
 	messages?: Message[];
 	checkpoint: CheckpointEntry;
 }
+
+export interface CompareCheckpointInput {
+	sessionId: string;
+	checkpointRunCount: number;
+	cwd?: string;
+}
+
+export type CompareCheckpointResult = CheckpointWorkspaceCompareResult;
 
 export interface ClineCoreOptions {
 	/**
@@ -205,6 +215,11 @@ export interface ClineCoreOptions {
 	 * If omitted, telemetry is a no-op.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Feature flags service for this ClineCore instance.
+	 * If omitted, Core uses a no-op provider with default flag values.
+	 */
+	featureFlags?: FeatureFlagsService;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.
@@ -257,6 +272,8 @@ export interface ClineCoreOptions {
 	 * Optional hook invoked before each session starts.
 	 * Use this to prepare workspace-scoped runtime state and then return an
 	 * adapter that mutates the shared session input before core starts the run.
+	 * This runs before the execution host resolves an omitted workspace, so
+	 * pathless starts expose neither `cwd` nor `workspaceRoot` to this hook.
 	 */
 	prepare?: (
 		input: ClineCoreStartInput,

@@ -1,0 +1,445 @@
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/azeret-mono/latin.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@cline/ui/theme/index.css";
+@import "@cline/ui/components/agent-chat.css";
+
+@source "../../node_modules/streamdown/dist";
+
+@layer base {
+	html,
+	body {
+		height: 100%;
+		min-height: 100vh;
+		overflow: hidden;
+	}
+
+	#__next {
+		height: 100%;
+	}
+}
+
+/* Hero heading cycling verb (components/views/chat/welcome-chat.tsx) */
+@keyframes hero-word-in {
+	0% {
+		opacity: 0;
+		transform: translateY(0.42em);
+		filter: blur(6px);
+	}
+	60% {
+		filter: blur(0);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+		filter: blur(0);
+	}
+}
+
+.hero-word-char {
+	display: inline-block;
+	white-space: pre;
+	/* Solid fallback so the word is never invisible if text clipping is unsupported. */
+	color: var(--brand-violet);
+	animation: hero-word-in 0.5s cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+
+/*
+ * Gradient fill per character. The clip lives on each animated span (not a
+ * shared parent) because WebKit — used by the Tauri webview on macOS — drops
+ * the parent's background when a child paints on its own transform/filter
+ * layer, which would leave the animating letters blank. The -webkit- prefixes
+ * are required by WebKit; @supports keeps the solid fallback above otherwise.
+ */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+	.hero-word-char {
+		background-image: linear-gradient(
+			135deg,
+			var(--brand-periwinkle),
+			var(--brand-violet) 55%,
+			var(--brand-magenta)
+		);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hero-word-char {
+		/* biome-ignore lint/complexity/noImportantStyles: reduced motion must override inline animation delay */
+		animation: none !important;
+	}
+}
+
+/*
+ * Chat Markdown (components/ui/markdown.tsx). Streamdown ships its defaults
+ * as Tailwind utilities, which land in the layered @source output; these
+ * unlayered rules win the cascade without needing !important.
+ */
+
+/* Chat panes are narrow and the base text is --text-sm: tighten the rhythm
+ * between top-level blocks from Streamdown's document-scale 1rem. */
+.cline-markdown > :not(:last-child) {
+	margin-block-end: 0.75rem;
+}
+
+/* Chat-scale heading ramp (defaults go up to text-3xl, huge next to 14px body). */
+.cline-markdown :is(h1, h2, h3, h4, h5, h6) {
+	margin-block: 1.25rem 0.5rem;
+	line-height: 1.35;
+}
+
+.cline-markdown h1 {
+	font-size: 1.25rem;
+}
+
+.cline-markdown h2 {
+	font-size: 1.125rem;
+}
+
+.cline-markdown h3 {
+	font-size: 1rem;
+}
+
+.cline-markdown :is(h4, h5, h6) {
+	font-size: 0.875rem;
+}
+
+.cline-markdown hr {
+	margin-block: 1rem;
+}
+
+/* Outside markers so wrapped list lines align with their first line, not the
+ * bullet (Streamdown uses list-inside). */
+.cline-markdown :is(ul, ol) {
+	list-style-position: outside;
+	padding-inline-start: 1.375rem;
+}
+
+.cline-markdown li {
+	padding-block: 0.125rem;
+}
+
+.cline-markdown li::marker {
+	color: var(--muted-foreground);
+}
+
+.cline-markdown [data-streamdown="inline-code"] {
+	padding: 0.1em 0.35em;
+	font-size: 0.8125rem;
+}
+
+/*
+ * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
+ * holding a language header row plus an inner bordered body. Collapse it to a
+ * single quiet block: no outer chrome, no language label, and the copy button
+ * only appears while hovering the block.
+ */
+.cline-markdown [data-streamdown="code-block"] {
+	padding: 0;
+	gap: 0;
+	border: none;
+	background: transparent;
+}
+
+.cline-markdown [data-streamdown="code-block-header"] {
+	display: none;
+}
+
+.cline-markdown [data-streamdown="code-block-body"] {
+	border-radius: 0.5rem;
+	background: var(--card);
+	padding: 0.625rem 0.75rem;
+	font-size: 0.8125rem;
+	line-height: 1.6;
+}
+
+/* The body's <pre> paints the Shiki theme background, which never quite
+ * matches the app theme; let the body's --card background show instead. */
+.cline-markdown [data-streamdown="code-block-body"] pre {
+	background: transparent;
+}
+
+/* The actions overlay's -mt-10 was sized to cover the (now hidden) header
+ * row; re-anchor it over the top-right of the code body and reveal on
+ * hover/focus so it stops competing with the code. Stickiness is kept so the
+ * copy button stays reachable inside long blocks. */
+.cline-markdown [data-streamdown="code-block"]
+	> div:has(> [data-streamdown="code-block-actions"]) {
+	margin-block: 0 -2rem;
+	padding: 0.375rem 0.375rem 0 0;
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+/* While hidden the pill must not intercept clicks or text selection on the
+ * code beneath it (it ships with pointer-events-auto). Keyboard focus is
+ * unaffected by pointer-events, so tabbing still reveals it. */
+.cline-markdown [data-streamdown="code-block-actions"] {
+	pointer-events: none;
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]:hover
+	> div:has(> [data-streamdown="code-block-actions"]),
+.cline-markdown
+	[data-streamdown="code-block"]
+	> div:focus-within:has(> [data-streamdown="code-block-actions"]) {
+	opacity: 1;
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]:hover
+	[data-streamdown="code-block-actions"],
+.cline-markdown
+	[data-streamdown="code-block"]
+	> div:focus-within
+	[data-streamdown="code-block-actions"] {
+	pointer-events: auto;
+}
+
+@media (hover: none) {
+	.cline-markdown
+		[data-streamdown="code-block"]
+		> div:has(> [data-streamdown="code-block-actions"]) {
+		opacity: 1;
+	}
+
+	.cline-markdown [data-streamdown="code-block-actions"] {
+		pointer-events: auto;
+	}
+}
+
+/* Tables get the same single-box treatment as code blocks. */
+.cline-markdown [data-streamdown="table-wrapper"] {
+	padding: 0;
+	gap: 0;
+	overflow: hidden;
+	border-radius: 0.5rem;
+	background: var(--card);
+}
+
+/* Aurora background (components/ui/aurora-bg.tsx) */
+@keyframes aurora-drift {
+	0% {
+		opacity: 0.55;
+		transform: translate3d(-8%, 5%, 0) rotate(-5deg) scale(0.94);
+	}
+	50% {
+		opacity: 0.92;
+		transform: translate3d(13%, -10%, 0) rotate(6deg) scale(1.11);
+	}
+	100% {
+		opacity: 0.62;
+		transform: translate3d(-5%, -2%, 0) rotate(-3deg) scale(1.02);
+	}
+}
+
+@keyframes aurora-drift-reverse {
+	0% {
+		opacity: 0.62;
+		transform: translate3d(10%, -6%, 0) rotate(5deg) scale(1.08);
+	}
+	50% {
+		opacity: 0.9;
+		transform: translate3d(-12%, -12%, 0) rotate(-6deg) scale(0.96);
+	}
+	100% {
+		opacity: 0.58;
+		transform: translate3d(6%, 2%, 0) rotate(3deg) scale(1.04);
+	}
+}
+
+@keyframes aurora-horizon-breathe {
+	0% {
+		opacity: 0.48;
+		transform: translate3d(-3%, 9%, 0) scale(0.96, 0.84);
+	}
+	50% {
+		opacity: 0.88;
+		transform: translate3d(3%, -5%, 0) scale(1.08, 1.16);
+	}
+	100% {
+		opacity: 0.58;
+		transform: translate3d(-1%, 2%, 0) scale(1.02, 0.96);
+	}
+}
+
+@keyframes aurora-current-sweep {
+	0% {
+		opacity: 0.28;
+		transform: translate3d(-16%, 8%, 0) rotate(-8deg) scaleX(0.84);
+	}
+	50% {
+		opacity: 0.72;
+		transform: translate3d(17%, -8%, 0) rotate(4deg) scaleX(1.08);
+	}
+	100% {
+		opacity: 0.38;
+		transform: translate3d(28%, 4%, 0) rotate(-2deg) scaleX(0.94);
+	}
+}
+
+@keyframes aurora-twinkle {
+	0%,
+	100% {
+		opacity: 0.15;
+		transform: translate3d(0, 4px, 0) rotate(0deg) scale(0.78);
+	}
+	50% {
+		opacity: 0.78;
+		transform: translate3d(var(--aurora-star-x, 5px), -8px, 0) rotate(35deg)
+			scale(1.08);
+	}
+}
+
+.aurora-horizon {
+	animation: aurora-horizon-breathe 8s ease-in-out -3s infinite alternate;
+	transform-origin: center bottom;
+	will-change: opacity, transform;
+}
+
+.aurora-current {
+	animation-name: aurora-current-sweep;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+	will-change: opacity, transform;
+}
+
+.aurora-current-reverse {
+	animation-direction: alternate-reverse;
+}
+
+.aurora-motion {
+	animation-name: aurora-drift;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+}
+
+.aurora-motion-reverse {
+	animation-name: aurora-drift-reverse;
+}
+
+.aurora-star {
+	--aurora-star-x: 5px;
+	animation-name: aurora-twinkle;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+}
+
+.aurora-star:nth-of-type(2n) {
+	--aurora-star-x: -6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.aurora-current,
+	.aurora-horizon,
+	.aurora-motion,
+	.aurora-star {
+		/* biome-ignore lint/complexity/noImportantStyles: reduced motion must override inline animation timing */
+		animation: none !important;
+	}
+
+	.aurora-horizon {
+		opacity: 0.68;
+		transform: translate3d(0, -1%, 0) scale(1.05);
+	}
+
+	.aurora-current,
+	.aurora-motion {
+		opacity: 0.58;
+		transform: none;
+	}
+
+	.aurora-current,
+	.aurora-horizon,
+	.aurora-motion {
+		will-change: auto;
+	}
+}
+
+/*
+ * Accent palettes (Settings -> General -> Accent color). The default
+ * "violet" accent is the @cline/ui brand tokens untouched; each block below
+ * re-anchors the interactive tokens on the html[data-cline-accent] attribute
+ * set by lib/theme.ts. Values follow the brand token pattern: emphasis is a
+ * pressed/hover shade of primary, ring is a softer focus shade, and dark
+ * mode lifts lightness so the accent stays legible on dark surfaces.
+ * Tokens like --chart-1 and --sidebar-primary alias var(--primary), so they
+ * follow automatically.
+ */
+
+:root[data-cline-accent="graphite"] {
+	--primary: oklch(0.27 0.012 248);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.2 0.012 248);
+	--ring: oklch(0.55 0.012 248);
+}
+
+:root.dark[data-cline-accent="graphite"] {
+	--primary: oklch(0.92 0.006 248);
+	--primary-foreground: oklch(0.18 0.01 248);
+	--primary-emphasis: oklch(0.97 0.004 248);
+	--ring: oklch(0.7 0.008 248);
+}
+
+:root[data-cline-accent="cyan"] {
+	--primary: oklch(0.6 0.12 222);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.52 0.13 222);
+	--ring: oklch(0.66 0.1 222);
+}
+
+:root.dark[data-cline-accent="cyan"] {
+	--primary: oklch(0.7 0.12 222);
+	--primary-foreground: oklch(0.16 0.02 222);
+	--primary-emphasis: oklch(0.77 0.11 222);
+	--ring: oklch(0.7 0.1 222);
+}
+
+:root[data-cline-accent="pink"] {
+	--primary: oklch(0.75 0.1 354);
+	--primary-foreground: oklch(0.28 0.08 354);
+	--primary-emphasis: oklch(0.68 0.12 354);
+	--ring: oklch(0.79 0.08 354);
+}
+
+:root.dark[data-cline-accent="pink"] {
+	--primary: oklch(0.78 0.1 354);
+	--primary-foreground: oklch(0.25 0.07 354);
+	--primary-emphasis: oklch(0.84 0.08 354);
+	--ring: oklch(0.78 0.08 354);
+}
+
+:root[data-cline-accent="espresso"] {
+	--primary: oklch(0.36 0.035 35);
+	--primary-foreground: oklch(0.98 0.005 35);
+	--primary-emphasis: oklch(0.29 0.035 35);
+	--ring: oklch(0.55 0.03 35);
+}
+
+:root.dark[data-cline-accent="espresso"] {
+	--primary: oklch(0.72 0.045 45);
+	--primary-foreground: oklch(0.22 0.03 40);
+	--primary-emphasis: oklch(0.79 0.04 45);
+	--ring: oklch(0.72 0.04 45);
+}
+
+:root[data-cline-accent="ember"] {
+	--primary: oklch(0.6 0.19 33);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.52 0.19 33);
+	--ring: oklch(0.66 0.16 33);
+}
+
+:root.dark[data-cline-accent="ember"] {
+	--primary: oklch(0.7 0.17 36);
+	--primary-foreground: oklch(0.17 0.03 33);
+	--primary-emphasis: oklch(0.77 0.15 36);
+	--ring: oklch(0.7 0.14 36);
+}

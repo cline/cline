@@ -51,6 +51,7 @@ import type {
 	RuntimeSessionConfig,
 } from "../../runtime/host/runtime-host";
 import { formatRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import type { CoreSessionConfig } from "../../types/config";
 
 type RequestCapability = (
@@ -218,11 +219,16 @@ export function parseHubClientContributions(
 function serializeToolContext(
 	context: AgentToolContext,
 ): Record<string, unknown> {
+	const metadata = context.metadata ? { ...context.metadata } : undefined;
+	if (metadata) {
+		delete metadata[CLINE_INTERNAL_TELEMETRY_METADATA_KEY];
+	}
 	return {
 		agentId: context.agentId,
 		conversationId: context.conversationId,
 		iteration: context.iteration,
-		metadata: context.metadata,
+		metadata:
+			metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
 }
 
@@ -377,6 +383,8 @@ function createUserInstructionServiceProxy(
 			configuredSkills(snapshot, allowedSkillNames).some(
 				(entry) => !entry.disabled,
 			),
+		createSkillsExecutor: (allowedSkillNames) =>
+			createSnapshotSkillsExecutor(snapshot, allowedSkillNames),
 		createExtension: (options): AgentExtension => ({
 			name: "cline-hub-user-instructions",
 			manifest: {

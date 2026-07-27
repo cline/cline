@@ -1,4 +1,4 @@
-import { afterEach, describe, it } from "mocha"
+import { afterEach, describe, it } from "bun:test"
 import "should"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 

@@ -60,6 +60,30 @@ describe("createVertexProviderModule", () => {
 		expect(createVertexAnthropicMock).not.toHaveBeenCalled();
 	});
 
+	it("accepts nested gcp project and region options", async () => {
+		await createVertexProviderModule(
+			config({
+				options: {
+					gcp: {
+						projectId: "nested-project",
+						region: "europe-west4",
+					},
+				},
+			}),
+			context("gemini-3-flash-preview"),
+		);
+
+		expect(createVertexMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				project: "nested-project",
+				location: "europe-west4",
+				googleAuthOptions: {
+					projectId: "nested-project",
+				},
+			}),
+		);
+	});
+
 	it("keeps API-key express mode when Gemini config has no GCP settings", async () => {
 		await createVertexProviderModule(
 			config({

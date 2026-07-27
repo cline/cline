@@ -128,6 +128,55 @@ describe("RuntimeEventAdapter — suppressed events", () => {
 	});
 });
 
+describe("RuntimeEventAdapter — status notices", () => {
+	let adapter: RuntimeEventAdapter;
+	beforeEach(() => {
+		adapter = new RuntimeEventAdapter();
+	});
+
+	it("preserves bounded compaction reasons", () => {
+		for (const reason of [
+			"auto_compaction",
+			"manual_compaction",
+			"compaction_budget_emergency",
+		] as const) {
+			const out = adapter.translate({
+				type: "status-notice",
+				snapshot: makeSnapshot(),
+				message: "compaction status",
+				metadata: { reason },
+			});
+
+			expect(out).toEqual([
+				{
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message: "compaction status",
+					reason,
+					metadata: { reason },
+				},
+			]);
+		}
+	});
+
+	it("does not promote arbitrary status reasons", () => {
+		const out = adapter.translate({
+			type: "status-notice",
+			snapshot: makeSnapshot(),
+			message: "custom",
+			metadata: { reason: "surprise" },
+		});
+
+		expect(out[0]).toMatchObject({
+			type: "notice",
+			noticeType: "status",
+			message: "custom",
+			reason: undefined,
+		});
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Iteration lifecycle
 // ---------------------------------------------------------------------------

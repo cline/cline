@@ -335,6 +335,9 @@ async function runHookCommandOnce(
 			? ["pipe", "ignore", "ignore"]
 			: ["pipe", "pipe", "pipe"],
 		detached: options.detached,
+		// Prevent a console window from flashing on Windows (especially when
+		// detached, which would otherwise allocate a new console).
+		windowsHide: true,
 	});
 	const spawned = new Promise<void>((resolve) => {
 		child.once("spawn", () => resolve());

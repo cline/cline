@@ -1,6 +1,11 @@
 {
-	"root": false,
+	"root": true,
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"defaultBranch": "main"
+	},
 	"assist": {
 		"enabled": true,
 		"actions": {
@@ -50,8 +55,8 @@
 				"useEnumInitializers": "off",
 				"useSelfClosingElements": "info",
 				"useSingleVarDeclarator": "off",
-				"useNumberNamespace": "info",
-				"noInferrableTypes": "info",
+				"useNumberNamespace": "off",
+				"noInferrableTypes": "off",
 				"useTemplate": "info",
 				"noUselessElse": "info"
 			},
@@ -122,12 +127,15 @@
 			"!!**/out",
 			"!!**/evals",
 			"!!**/playwright",
+			"!!**/.vscode-test",
 			"!!**/test-results",
+			"!!**/coverage",
 			"!!**/node_modules",
 			"!!**/webview-ui/build",
 			"!!**/generated",
 			"!!**/proto",
-			"!!**/tests/specs"
+			"!!**/tests/specs",
+			"!!assets/icons/*.svg"
 		]
 	},
 	"plugins": [

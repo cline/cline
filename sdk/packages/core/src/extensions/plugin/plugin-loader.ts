@@ -162,6 +162,7 @@ export async function loadAgentPluginsFromPathsWithDiagnostics(
 	options: LoadAgentPluginFromPathOptions & PluginTargeting = {},
 ): Promise<{
 	plugins: AgentExtension[];
+	pluginPaths: string[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
 }> {
@@ -201,10 +202,12 @@ export async function loadAgentPluginsFromPathsWithDiagnostics(
 		}
 	}
 
+	const loadedEntries = [...loadedByName.values()].sort(
+		(left, right) => left.order - right.order,
+	);
 	return {
-		plugins: [...loadedByName.values()]
-			.sort((left, right) => left.order - right.order)
-			.map((entry) => entry.plugin),
+		plugins: loadedEntries.map((entry) => entry.plugin),
+		pluginPaths: loadedEntries.map((entry) => entry.pluginPath),
 		failures,
 		warnings,
 	};

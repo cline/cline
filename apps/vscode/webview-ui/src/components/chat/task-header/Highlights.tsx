@@ -24,7 +24,7 @@ const highlightSlashCommands = (text: string, withShadow = true) => {
 	]
 }
 
-export const highlightMentions = (text: string, withShadow = true) => {
+const highlightMentions = (text: string, withShadow = true) => {
 	if (!mentionRegexGlobal.test(text)) {
 		return text
 	}

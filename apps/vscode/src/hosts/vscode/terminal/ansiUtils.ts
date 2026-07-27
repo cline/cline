@@ -1,4 +1,4 @@
-export function ansiRegex({ onlyFirst = false } = {}) {
+function ansiRegex({ onlyFirst = false } = {}) {
 	// Valid string terminator sequences are BEL, ESC\, and 0x9c
 	const ST = "(?:\\u0007|\\u001B\\u005C|\\u009C)"
 	const pattern = [

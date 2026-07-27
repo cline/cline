@@ -24,7 +24,7 @@ export function createConsoleLogExporter(): ConsoleLogRecordExporter {
 	return new ConsoleLogRecordExporter()
 }
 
-export function ensurePathSuffix(url: URL, suffix: string): void {
+function ensurePathSuffix(url: URL, suffix: string): void {
 	const pathname = url.pathname
 	const normalizedPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname
 	url.pathname = normalizedPathname

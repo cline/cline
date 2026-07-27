@@ -12,7 +12,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"cline-glm-4.7-thinking-off": {
@@ -26,7 +26,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"cline-glm-5-thinking-off": {
@@ -40,7 +40,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"zai-glm-4.6-thinking-off": {
@@ -54,7 +54,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"zai-glm-4.7-thinking-off": {
@@ -68,7 +68,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"zai-glm-5-thinking-off": {
@@ -82,7 +82,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"openrouter-glm-4.6-thinking-off": {
@@ -96,7 +96,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"openrouter-glm-4.7-thinking-off": {
@@ -110,7 +110,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"openrouter-glm-5-thinking-off": {
@@ -124,7 +124,7 @@
 			"prompt": "Answer with only the number: what is 47*83?",
 			"expectations": {
 				"requireUsage": true,
-				"requireNoReasoningChunk": true
+				"requireNoReasoningSignal": true
 			}
 		},
 		"anthropic-claude-sonnet-thinking-off": {

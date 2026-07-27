@@ -7,8 +7,6 @@ const Popover = PopoverPrimitive.Root
 
 const PopoverTrigger = PopoverPrimitive.Trigger
 
-const PopoverAnchor = PopoverPrimitive.Anchor
-
 function PopoverContent({
 	className,
 	align = "center",
@@ -44,4 +42,4 @@ function PopoverContent({
 
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
-export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
+export { Popover, PopoverContent, PopoverTrigger }

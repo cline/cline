@@ -1,4 +1,10 @@
-import { createGateway, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms";
+import {
+	createGateway,
+	createHandlerAsync,
+	hasRegisteredHandler,
+	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	normalizeProviderId,
+} from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentModel,
@@ -7,6 +13,7 @@ import type {
 	ITelemetryService,
 	ModelInfo,
 } from "@cline/shared";
+import { createAgentModelFromApiHandler } from "./apihandler-agent-model-adapter";
 import type { ProviderConfig } from "./provider-settings";
 
 function compactOptions(
@@ -18,6 +25,13 @@ function compactOptions(
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
+function usesOpenAICompatibleClient(config: ProviderConfig): boolean {
+	return (
+		config.providerId === "openai-compatible" ||
+		config.clientType === "openai-compatible"
+	);
+}
+
 function buildGatewayProviderOptions(
 	config: ProviderConfig,
 ): Record<string, unknown> | undefined {
@@ -27,6 +41,13 @@ function buildGatewayProviderOptions(
 		openRouterProviderSorting: config.openRouterProviderSorting,
 		modelCatalog: config.modelCatalog,
 	};
+
+	if (usesOpenAICompatibleClient(config)) {
+		Object.assign(options, {
+			apiVersion: config.azure?.apiVersion,
+			useIdentity: config.azure?.useIdentity,
+		});
+	}
 
 	if (config.providerId === "bedrock") {
 		Object.assign(options, {
@@ -53,22 +74,58 @@ function buildGatewayProviderOptions(
 		});
 	}
 
+	if (config.providerId === "sapaicore") {
+		Object.assign(options, config.sap);
+	}
+
 	return compactOptions(options);
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: undefined;
 }
 
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
 	const pc = config.providerConfig as ProviderConfig | undefined;
-	if (pc?.knownModels) {
-		return pc.knownModels;
+	const knownModels = pc?.knownModels
+		? pc.knownModels
+		: (config.knownModels ??
+			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
+			undefined);
+	// Caller-configured limits are authoritative for the selected model —
+	// surface them to the gateway so the resolved model definition carries
+	// the right limits (e.g. Ollama's num_ctx derives from the resolved
+	// model's context window):
+	//  - `maxInputTokens` is where `ProviderSettings.contextWindow` lands via
+	//    `toProviderConfig` (the providers.json path used by CLI/Core hosts).
+	//  - `modelInfo` is an explicit per-model override (the VS Code path);
+	//    it wins over the generic limit.
+	const configuredContextWindow = readPositiveInteger(pc?.maxInputTokens);
+	const modelInfo =
+		pc?.modelInfo && pc.modelInfo.id === config.modelId
+			? pc.modelInfo
+			: undefined;
+	if (configuredContextWindow === undefined && !modelInfo) {
+		return knownModels;
 	}
-	if (config.knownModels) {
-		return config.knownModels;
-	}
-	return (
-		MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ?? undefined
-	);
+	return {
+		...(knownModels ?? {}),
+		[config.modelId]: {
+			...knownModels?.[config.modelId],
+			...(configuredContextWindow !== undefined
+				? {
+						contextWindow: configuredContextWindow,
+						maxInputTokens: configuredContextWindow,
+					}
+				: {}),
+			...modelInfo,
+			id: config.modelId,
+		},
+	};
 }
 
 function toGatewayCapabilities(
@@ -139,19 +196,44 @@ export function createAgentModelFromConfig(
 		headers: config.headers ?? baseProviderConfig?.headers,
 		knownModels: resolveKnownModelsFromConfig(config),
 		maxOutputTokens: config.maxTokensPerTurn,
+		temperature: config.temperature,
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,
 		logger,
 		extensionContext: config.extensionContext,
 	};
+
+	// Host-registered custom handlers (e.g. VS Code LM, which needs the host's
+	// `vscode.lm` API) are not part of the gateway. When a handler is registered
+	// for this provider, adapt its `ApiHandler` surface onto the `AgentModel`
+	// contract the runtime expects. The handler is built lazily (via
+	// `createHandlerAsync`) on the first stream so that providers registered
+	// with `registerAsyncHandler` resolve correctly.
+	if (
+		hasRegisteredHandler(
+			normalizeProviderId(normalizedProviderConfig.providerId),
+		)
+	) {
+		return createAgentModelFromApiHandler(() =>
+			createHandlerAsync(normalizedProviderConfig),
+		);
+	}
+
 	return createGateway({
+		// Forward the host-provided fetch so inference honors proxy/CA config on
+		// JetBrains and CLI, where the global fetch is not proxy-aware. Without
+		// this the agent loop falls back to bare global fetch and corporate
+		// proxy/self-signed CA setups fail.
+		fetch: normalizedProviderConfig.fetch,
 		providerConfigs: [
 			{
 				providerId: normalizedProviderConfig.providerId,
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
+				timeoutMs: normalizedProviderConfig.timeoutMs,
+				fetch: normalizedProviderConfig.fetch,
 				options: buildGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
@@ -168,6 +250,9 @@ export function createAgentModelFromConfig(
 			providerId: normalizedProviderConfig.providerId,
 			modelId: normalizedProviderConfig.modelId,
 		},
-		{ maxTokens: normalizedProviderConfig.maxOutputTokens },
+		{
+			maxTokens: normalizedProviderConfig.maxOutputTokens,
+			temperature: normalizedProviderConfig.temperature,
+		},
 	);
 }

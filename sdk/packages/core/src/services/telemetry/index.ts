@@ -1,3 +1,4 @@
+export { resolveCoreDistinctId } from "./distinct-id";
 export type {
 	ITelemetryAdapter,
 	TelemetryArray,

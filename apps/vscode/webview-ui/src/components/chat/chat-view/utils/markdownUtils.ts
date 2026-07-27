@@ -10,7 +10,7 @@ import { unified } from "unified"
 /**
  * Clean up markdown escape characters
  */
-export function cleanupMarkdownEscapes(markdown: string): string {
+function cleanupMarkdownEscapes(markdown: string): string {
 	return (
 		markdown
 			// Handle underscores and asterisks (single or multiple)

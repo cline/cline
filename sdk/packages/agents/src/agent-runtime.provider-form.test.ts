@@ -6,7 +6,7 @@ import type {
 	AgentRuntimeEvent,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentRuntime } from "./agent-runtime";
+import { AgentRuntime, AgentRuntimeAbortError } from "./agent-runtime";
 import { Agent, createAgent } from "./index";
 
 const { createAgentModel, createGateway } = vi.hoisted(() => {
@@ -73,6 +73,7 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 					apiKey: "test-key",
 					baseUrl: undefined,
 					headers: undefined,
+					options: undefined,
 				},
 			],
 		});
@@ -82,14 +83,46 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		});
 	});
 
+	it("passes provider options through to the llms gateway", () => {
+		const model = new ScriptedModel([]);
+		createAgentModel.mockReturnValue(model);
+
+		new Agent({
+			providerId: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-4.1",
+			options: { apiVersion: "2025-01-01-preview" },
+		});
+
+		expect(createGateway).toHaveBeenCalledWith({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					baseUrl:
+						"https://example.openai.azure.com/openai/deployments/gpt-4.1",
+					headers: undefined,
+					options: { apiVersion: "2025-01-01-preview" },
+				},
+			],
+		});
+	});
+
 	it("forwards abort() to the active AgentRuntime", async () => {
+		let abortReason: unknown;
 		const model = new ScriptedModel([
 			async function* (request) {
 				yield { type: "text-delta", text: "partial" };
 				await new Promise<void>((resolve) => {
-					request.signal?.addEventListener("abort", () => resolve(), {
-						once: true,
-					});
+					request.signal?.addEventListener(
+						"abort",
+						() => {
+							abortReason = request.signal?.reason;
+							resolve();
+						},
+						{ once: true },
+					);
 				});
 				yield { type: "finish", reason: "aborted" };
 			},
@@ -113,6 +146,12 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		await expect(runPromise).resolves.toMatchObject({
 			status: "aborted",
 		});
+		expect(abortReason).toBeInstanceOf(AgentRuntimeAbortError);
+		if (!(abortReason instanceof AgentRuntimeAbortError)) {
+			throw new Error("expected agent runtime abort reason");
+		}
+		expect(abortReason.message).toBe("user cancelled");
+		expect(abortReason.reason).toBe("user cancelled");
 	});
 
 	it("createAgent() and new Agent() both return an AgentRuntime instance", () => {
@@ -194,5 +233,57 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		unsubscribe();
 		await agent.run("again");
 		expect(received).toHaveLength(countAfterRun);
+	});
+
+	it("derives messageModelInfo from providerId/modelId so assistant messages carry model tags", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hi" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		createAgentModel.mockReturnValue(model);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+		});
+
+		const result = await agent.run("hello");
+
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.modelInfo).toEqual({
+			id: "claude-sonnet-4-6",
+			provider: "anthropic",
+		});
+	});
+
+	it("prefers an explicit messageModelInfo over the derived provider/model", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hi" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		createAgentModel.mockReturnValue(model);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			messageModelInfo: {
+				id: "explicit-model",
+				provider: "explicit-provider",
+				family: "explicit-family",
+			},
+		});
+
+		const result = await agent.run("hello");
+
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.modelInfo).toEqual({
+			id: "explicit-model",
+			provider: "explicit-provider",
+			family: "explicit-family",
+		});
 	});
 });

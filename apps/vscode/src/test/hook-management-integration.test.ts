@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import * as fs from "fs/promises"
 import * as os from "os"
@@ -9,11 +9,11 @@ import { createHook } from "../core/controller/file/createHook"
 import { deleteHook } from "../core/controller/file/deleteHook"
 import { refreshHooks } from "../core/controller/file/refreshHooks"
 import { toggleHook } from "../core/controller/file/toggleHook"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { StateManager } from "../core/storage/StateManager"
 import { HostProvider } from "../hosts/host-provider"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
-import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Integration tests for hook management
@@ -80,9 +80,7 @@ describe("Hook Management Integration", () => {
 	})
 
 	describe("Complete Hook Lifecycle", () => {
-		it("should support full lifecycle: create -> verify disabled -> enable -> verify enabled -> delete -> verify gone", async function () {
-			this.timeout(10000)
-
+		it("should support full lifecycle: create -> verify disabled -> enable -> verify enabled -> delete -> verify gone", async () => {
 			const hookName = "TaskStart"
 
 			// Step 1: Verify hook doesn't exist initially
@@ -170,11 +168,9 @@ describe("Hook Management Integration", () => {
 			// Step 10: Final refresh to confirm clean state
 			hooks = await refreshHooks(mockController, undefined, globalHooksDir)
 			hooks.globalHooks.should.have.length(0)
-		})
+		}, 10000)
 
-		it("should handle multiple global hooks with independent states", async function () {
-			this.timeout(10000)
-
+		it("should handle multiple global hooks with independent states", async () => {
 			// Create four global hooks
 			await createHook(
 				mockController,
@@ -303,11 +299,9 @@ describe("Hook Management Integration", () => {
 			// Verify all are gone
 			const finalHooks = await refreshHooks(mockController, undefined, globalHooksDir)
 			finalHooks.globalHooks.should.have.length(0)
-		})
+		}, 10000)
 
-		it("should maintain hook state consistency after rapid operations", async function () {
-			this.timeout(10000)
-
+		it("should maintain hook state consistency after rapid operations", async () => {
 			const hookName = "TaskCancel"
 
 			// Rapid sequence of operations
@@ -363,13 +357,11 @@ describe("Hook Management Integration", () => {
 				const mode = stats.mode & 0o777
 				;(mode & 0o100).should.be.greaterThan(0)
 			}
-		})
+		}, 10000)
 	})
 
 	describe("Cache Invalidation", () => {
-		it("should properly invalidate cache across all operations", async function () {
-			this.timeout(10000)
-
+		it("should properly invalidate cache across all operations", async () => {
 			// Create a hook
 			await createHook(
 				mockController,
@@ -427,6 +419,6 @@ describe("Hook Management Integration", () => {
 			// Final refresh should show it's gone
 			hooks = await refreshHooks(mockController, undefined, globalHooksDir)
 			hooks.globalHooks.should.have.length(0)
-		})
+		}, 10000)
 	})
 })

@@ -10,7 +10,7 @@ import { highlight } from "../history/HistoryView"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export const HICAP_MODEL_PICKER_Z_INDEX = 1_000
+const HICAP_MODEL_PICKER_Z_INDEX = 1_000
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -23,7 +23,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 	)
 }
 
-export interface HicapModelPickerProps {
+interface HicapModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 }
@@ -209,8 +209,10 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 								return (
 									<div
 										className={`p-[5px_10px] cursor-pointer break-all whitespace-normal ${
-											index === selectedIndex ? "bg-[var(--vscode-list-activeSelectionBackground)]" : ""
-										} hover:bg-[var(--vscode-list-activeSelectionBackground)]`}
+											index === selectedIndex
+												? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]"
+												: ""
+										} hover:bg-[var(--vscode-list-activeSelectionBackground)] hover:text-[var(--vscode-list-activeSelectionForeground)]`}
 										key={item.id}
 										onClick={() => {
 											handleModelChange(item.id)

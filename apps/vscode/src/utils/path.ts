@@ -98,7 +98,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	if (isLocatedInPath(cwd, absolutePath)) {
 		return normalizedRelPath.toPosix()
 	}
-	// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
+	// we are outside the cwd, so show the absolute path (useful for when Cline passes in '../../' for example)
 	return absolutePath.toPosix()
 }
 
@@ -128,22 +128,6 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 		}
 	}
 	return await getCwd(defaultCwd)
-}
-
-export async function isLocatedInWorkspace(pathToCheck = ""): Promise<boolean> {
-	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
-	for (const workspacePath of workspacePaths) {
-		const resolvedPathResult = workspaceResolver.resolveWorkspacePath(
-			workspacePath,
-			pathToCheck,
-			"Utils.path.isLocatedInWorkspace",
-		)
-		const resolvedPath = typeof resolvedPathResult === "string" ? resolvedPathResult : resolvedPathResult.absolutePath
-		if (isLocatedInPath(workspacePath, resolvedPath)) {
-			return true
-		}
-	}
-	return false
 }
 
 // Returns true if `pathToCheck` is located inside `dirPath`.

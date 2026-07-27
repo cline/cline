@@ -21,7 +21,7 @@ permissions:
 
 defaults:
     run:
-        working-directory: sdk
+        working-directory: .
 
 jobs:
     quality-checks:
@@ -96,12 +96,12 @@ jobs:
 
             - name: Run SDK Tests (Windows)
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'windows-latest' }}
-              run: bun -F './packages/**' test
+              run: bun -F './sdk/packages/**' test
 
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               timeout-minutes: 10
-              run: bun scripts/ci-node-smoke.ts
+              run: bun sdk/scripts/ci-node-smoke.ts
 
             - name: Run TUI e2e tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
@@ -109,4 +109,4 @@ jobs:
 
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
-              run: bun scripts/check-publish.ts
+              run: bun sdk/scripts/check-publish.ts

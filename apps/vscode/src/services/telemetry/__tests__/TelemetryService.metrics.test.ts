@@ -1,6 +1,9 @@
+import { describe, it } from "bun:test"
 import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
+import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -79,6 +82,61 @@ function createTelemetryService(provider: FakeProvider, overrides: Partial<Telem
 }
 
 describe("TelemetryService metrics", () => {
+	it("includes rollout metadata on traditional events and metrics", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, {
+			extension_variant: "next",
+		})
+
+		service.captureTaskCreated("task-rollout", "anthropic")
+		service.captureTokenUsage("task-rollout", 120, 80, "anthropic", "model-a")
+
+		const taskEvent = provider.logs.find((entry) => entry.event === "task.created")
+		assert.strictEqual(taskEvent?.properties?.extension_variant, "next")
+		for (const entry of [...provider.counters, ...provider.histograms]) {
+			assert.strictEqual(entry.attributes.extension_variant, "next")
+		}
+	})
+
+	it("captures one bounded rollout fallback event for rollout builds", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, {
+			extension_variant: "legacy",
+		})
+
+		service.captureRolloutBundleActivated({
+			attemptedBundle: "next",
+			actualBundle: "legacy",
+			fallback: true,
+			error: new TypeError("x".repeat(ROLLOUT_ERROR_MESSAGE_LIMIT + 20)),
+		})
+
+		const events = provider.logs.filter((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT)
+		assert.strictEqual(events.length, 1)
+		assert.strictEqual(events[0].properties?.attempted_bundle, "next")
+		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
+		assert.strictEqual(events[0].properties?.fallback, true)
+		assert.strictEqual(events[0].properties?.error_type, "TypeError")
+		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
+		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
+	})
+
+	it("does not capture rollout activation events for ordinary builds", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureRolloutBundleActivated({
+			attemptedBundle: "legacy",
+			actualBundle: "legacy",
+			fallback: false,
+		})
+
+		assert.strictEqual(
+			provider.logs.some((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT),
+			false,
+		)
+	})
+
 	it("captureTokenUsage emits token counters and histograms", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
@@ -287,6 +345,8 @@ describe("TelemetryService metrics", () => {
 			errorMessage: "boom",
 			provider: "anthropic",
 			errorStatus: 500,
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
+			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 		})
 
 		assert.strictEqual(provider.counters.length, 1)
@@ -297,6 +357,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.provider, "anthropic")
 		assert.strictEqual(entry.attributes.model, "claude")
 		assert.strictEqual(entry.attributes.error_status, 500)
+		assert.strictEqual(entry.attributes.error_type, PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR)
+		assert.strictEqual(entry.attributes.failure_phase, PROVIDER_FAILURE_PHASE.STREAMING)
 		assert.strictEqual(provider.histograms.length, 1)
 		const errorHistogram = provider.histograms[0]
 		assert.strictEqual(errorHistogram.name, TelemetryService.METRICS.ERRORS.PER_TASK)
@@ -305,6 +367,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+		assert.strictEqual(errorHistogram.attributes.error_type, PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR)
+		assert.strictEqual(errorHistogram.attributes.failure_phase, PROVIDER_FAILURE_PHASE.STREAMING)
 	})
 
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
@@ -382,5 +446,48 @@ describe("TelemetryService metrics", () => {
 		const entry = provider.histograms[0]
 		assert.strictEqual(entry.attributes.extension_version, "test")
 		assert.strictEqual(entry.attributes.platform, "test-platform")
+	})
+
+	it("captureLegacyTaskMigration emits event and migration metrics", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureLegacyTaskMigration({
+			taskId: "legacy-task",
+			outcome: "success",
+			reason: "migrated",
+			durationMs: 250,
+			legacyApiHistoryLength: 3,
+			convertedMessageCount: 2,
+			hasFavorite: true,
+			hasCost: true,
+			hasTokenUsage: true,
+			hasCwd: true,
+		})
+
+		const event = provider.logs.find((entry) => entry.event === "task.legacy_task_migration")
+		assert.ok(event)
+		assert.strictEqual(event?.properties?.ulid, "legacy-task")
+		assert.strictEqual(event?.properties?.outcome, "success")
+		assert.strictEqual(event?.properties?.legacyApiHistoryLength, 3)
+
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_ATTEMPTS_TOTAL,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SUCCESS_TOTAL,
+			],
+		)
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_DURATION_SECONDS,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_LEGACY_MESSAGES_COUNT,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_CONVERTED_MESSAGES_COUNT,
+			],
+		)
+		assert.strictEqual(provider.histograms[0].value, 0.25)
+		assert.strictEqual(provider.histograms[0].attributes.migration_type, "legacy_task_to_sdk_session")
+		assert.strictEqual(provider.histograms[0].attributes.reason, "migrated")
 	})
 })

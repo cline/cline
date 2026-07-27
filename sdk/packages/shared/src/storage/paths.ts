@@ -10,6 +10,18 @@ import {
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { PluginManifest } from "..";
+import {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+} from "./chat-workspace-paths";
+
+// Keep the structural pieces browser-safe while exposing them through the
+// canonical Node storage-path module alongside the data-dir resolver.
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./chat-workspace-paths";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
@@ -23,7 +35,22 @@ export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
 
+/**
+ * Shared workspace for all sessions started without a `cwd`/`workspaceRoot`.
+ * Lives under the cline data dir (not `os.tmpdir()`) so OS temp reapers never
+ * delete user work, the path is private to the user on multi-user hosts, and
+ * the directory shares the session store's lifecycle and env overrides.
+ */
+export function resolveChatWorkspacePath(): string {
+	return join(
+		resolveClineDataDir(),
+		CLINE_WORKSPACES_DIRECTORY_NAME,
+		CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	);
+}
+
 export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
+export const CLINE_CONNECTOR_SETTINGS_FILE_NAME = "settings.json";
 
 function resolveDefaultHomeDir(): string {
 	const envHome = process?.env?.HOME?.trim();
@@ -142,6 +169,22 @@ export function resolveTeamDataDir(): string {
 		return explicitDir;
 	}
 	return join(resolveClineDataDir(), "teams");
+}
+
+export function resolveConnectorDataDir(): string {
+	const explicitDir = process.env.CLINE_CONNECTOR_DATA_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveClineDataDir(), "connectors");
+}
+
+export function resolveConnectorSettingsPath(): string {
+	const explicitPath = process.env.CLINE_CONNECTOR_SETTINGS_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveConnectorDataDir(), CLINE_CONNECTOR_SETTINGS_FILE_NAME);
 }
 
 export function resolveDbDataDir(): string {

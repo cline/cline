@@ -5,6 +5,77 @@ import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 
 export type HubProtocolVersion = "v1";
 
+export const CURRENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
+export const MIN_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
+export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
+
+export type HubCapabilityName =
+	| "client.register"
+	| "client.list"
+	| "session.create"
+	| "session.list"
+	| "session.get"
+	| "session.run"
+	| "session.abort"
+	| "schedule.create"
+	| "schedule.list"
+	| "settings.get"
+	| "settings.set";
+
+export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"client.register",
+	"client.list",
+	"session.create",
+	"session.list",
+	"session.get",
+	"session.run",
+	"session.abort",
+	"schedule.create",
+	"schedule.list",
+	"settings.get",
+	"settings.set",
+];
+
+export interface HubProtocolMetadata {
+	protocolVersion: string;
+	minClientProtocolVersion?: string;
+	maxClientProtocolVersion?: string;
+	capabilities?: readonly string[];
+}
+
+export type HubCompatibilityResult =
+	| { compatible: true }
+	| { compatible: false; reason: "missing_protocol" | "unsupported_protocol" };
+
+function parseHubProtocolNumber(
+	version: string | undefined,
+): number | undefined {
+	const match = /^v(\d+)$/.exec(version?.trim() ?? "");
+	if (!match) {
+		return undefined;
+	}
+	return Number.parseInt(match[1] ?? "", 10);
+}
+
+export function isHubProtocolCompatible(
+	hub: HubProtocolMetadata,
+	clientProtocolVersion: HubProtocolVersion = CURRENT_HUB_PROTOCOL_VERSION,
+): HubCompatibilityResult {
+	const hubProtocol = parseHubProtocolNumber(hub.protocolVersion);
+	const clientProtocol = parseHubProtocolNumber(clientProtocolVersion);
+	if (hubProtocol === undefined || clientProtocol === undefined) {
+		return { compatible: false, reason: "missing_protocol" };
+	}
+	const minClientProtocol =
+		parseHubProtocolNumber(hub.minClientProtocolVersion) ?? hubProtocol;
+	const maxClientProtocol =
+		parseHubProtocolNumber(hub.maxClientProtocolVersion) ?? hubProtocol;
+	return clientProtocol >= minClientProtocol &&
+		clientProtocol <= maxClientProtocol
+		? { compatible: true }
+		: { compatible: false, reason: "unsupported_protocol" };
+}
+
 export type HubActorKind = "client" | "peerHub";
 
 export type HubTransportKind =
@@ -255,6 +326,37 @@ export interface ScheduleExecutionRecord {
 	costUsd?: number;
 }
 
+export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
+export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
+
+export const HUB_SCHEDULE_MODES = ["act", "plan", "yolo"] as const;
+export type HubScheduleMode = (typeof HUB_SCHEDULE_MODES)[number];
+
+export function isHubScheduleMode(value: unknown): value is HubScheduleMode {
+	return HUB_SCHEDULE_MODES.some((mode) => mode === value);
+}
+
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent: HubScheduleMode,
+): HubScheduleMode;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+): HubScheduleMode | undefined;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent?: HubScheduleMode,
+): HubScheduleMode | undefined {
+	if (!payload || !Object.hasOwn(payload, "mode")) {
+		return defaultWhenAbsent;
+	}
+	const mode = payload.mode;
+	if (isHubScheduleMode(mode)) {
+		return mode;
+	}
+	throw new Error(`mode must be one of: ${HUB_SCHEDULE_MODES.join(", ")}`);
+}
+
 export interface HubScheduleCreateInput {
 	name: string;
 	cronPattern: string;
@@ -263,7 +365,7 @@ export interface HubScheduleCreateInput {
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string;
 	maxIterations?: number;
 	timeoutSeconds?: number;
@@ -283,7 +385,7 @@ export interface HubScheduleUpdateInput {
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string | null;
 	maxIterations?: number | null;
 	timeoutSeconds?: number | null;
@@ -313,6 +415,9 @@ export type HubCommandName =
 	| "session.restore"
 	| "session.delete"
 	| "session.update"
+	| "session.update_connection"
+	| "session.compaction.get"
+	| "session.compaction.update"
 	| "session.pending_prompts"
 	| "session.update_pending_prompt"
 	| "session.remove_pending_prompt"
@@ -347,6 +452,9 @@ export type HubCommandName =
 	| "settings.get"
 	| "settings.patch"
 	| "settings.toggle"
+	| "connector.channels"
+	| "connector.configure"
+	| "connector.delete_config"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"
@@ -418,6 +526,7 @@ export type HubEventName =
 	| "iteration.finished"
 	| "assistant.delta"
 	| "assistant.finished"
+	| "session.notice"
 	| "reasoning.delta"
 	| "reasoning.finished"
 	| "agent.done"
@@ -589,6 +698,7 @@ export interface HubSessionRuntimeOptions {
 	timeoutSeconds?: number;
 	thinking?: boolean;
 	reasoningEffort?: ReasoningEffort;
+	thinkingBudgetTokens?: number;
 	checkpointEnabled?: boolean;
 	enableTools?: boolean;
 	enableSpawn?: boolean;

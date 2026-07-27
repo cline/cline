@@ -12,6 +12,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode } from "@shared/storage/types"
@@ -75,7 +76,10 @@ const GLOBAL_STATE_FIELDS = {
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
 	vscodeTerminalExecutionMode: {
-		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
+		// Default to background execution to match the CLI's behavior. Users who
+		// previously chose a mode keep their saved value (we can't distinguish an
+		// explicit choice from a coincidentally-saved old default, so we honor it).
+		default: "backgroundExec" as "vscodeTerminal" | "backgroundExec",
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
@@ -86,7 +90,6 @@ const GLOBAL_STATE_FIELDS = {
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
-	nativeToolCallEnabled: { default: true as boolean },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	remoteSkillsToggles: { default: {} as ClineRulesToggles },
@@ -141,7 +144,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	ocaMode: { default: "internal" as string },
 	aihubmixBaseUrl: { default: undefined as string | undefined },
 	aihubmixAppCode: { default: undefined as string | undefined },
-	enableParallelToolCalling: { default: true as boolean },
 
 	// Plan mode configurations
 	planModeApiModelId: { default: undefined as string | undefined },
@@ -156,6 +158,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	planModeOpenRouterModelInfo: { default: undefined as ModelInfo | undefined },
 	planModeClineModelId: { default: undefined as string | undefined },
 	planModeClineModelInfo: { default: undefined as ModelInfo | undefined },
+	planModeClinePassModelId: { default: undefined as string | undefined },
+	planModeClinePassModelInfo: { default: undefined as ModelInfo | undefined },
 	planModeOpenAiModelId: { default: undefined as string | undefined },
 	planModeOpenAiModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
 	planModeOllamaModelId: { default: undefined as string | undefined },
@@ -200,6 +204,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeOpenRouterModelInfo: { default: undefined as ModelInfo | undefined },
 	actModeClineModelId: { default: undefined as string | undefined },
 	actModeClineModelInfo: { default: undefined as ModelInfo | undefined },
+	actModeClinePassModelId: { default: undefined as string | undefined },
+	actModeClinePassModelInfo: { default: undefined as ModelInfo | undefined },
 	actModeOpenAiModelId: { default: undefined as string | undefined },
 	actModeOpenAiModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
 	actModeOllamaModelId: { default: undefined as string | undefined },
@@ -232,8 +238,17 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
 
 	// Model-specific settings
-	planModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
-	actModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
+	// The transform folds SDK provider-id spellings (e.g. `openai-compatible`)
+	// back to the legacy `ApiProvider` spelling (`openai`) when state written
+	// by older builds or other hosts is loaded from disk.
+	planModeApiProvider: {
+		default: DEFAULT_API_PROVIDER as ApiProvider,
+		transform: (v: any) => (typeof v === "string" ? toLegacyApiProvider(v) : v),
+	},
+	actModeApiProvider: {
+		default: DEFAULT_API_PROVIDER as ApiProvider,
+		transform: (v: any) => (typeof v === "string" ? toLegacyApiProvider(v) : v),
+	},
 
 	// Deprecated model settings
 	hicapModelId: { default: undefined as string | undefined },
@@ -257,24 +272,17 @@ const USER_SETTINGS_FIELDS = {
 	enableCheckpointsSetting: { default: true as boolean },
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
-	terminalOutputLineLimit: { default: 500 as number },
-	maxConsecutiveMistakes: { default: 3 as number },
-	strictPlanModeEnabled: { default: false as boolean },
 	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	subagentsEnabled: { default: false as boolean },
-	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
-	customPrompt: { default: undefined as "compact" | undefined },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
-	doubleCheckCompletionEnabled: { default: false as boolean },
-	lazyTeammateModeEnabled: { default: false as boolean },
 	showFeatureTips: { default: true as boolean },
 
 	// OpenTelemetry configuration
@@ -410,8 +418,8 @@ export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet
 export const GLOBAL_STATE_DEFAULTS = extractDefaults(GLOBAL_STATE_FIELDS)
 export const SETTINGS_DEFAULTS = extractDefaults(SETTINGS_FIELDS)
 export const SETTINGS_TRANSFORMS = extractTransforms(SETTINGS_FIELDS)
-export const ASYNC_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isAsync")
-export const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isComputed")
+const ASYNC_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isAsync")
+const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isComputed")
 
 // ============================================================================
 // HELPER FUNCTIONS

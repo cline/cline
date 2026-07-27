@@ -80,7 +80,6 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		completion_result: ClineSay.COMPLETION_RESULT_SAY,
 		user_feedback: ClineSay.USER_FEEDBACK,
 		user_feedback_diff: ClineSay.USER_FEEDBACK_DIFF,
-		api_req_retried: ClineSay.API_REQ_RETRIED,
 		command: ClineSay.COMMAND_SAY,
 		command_output: ClineSay.COMMAND_OUTPUT_SAY,
 		tool: ClineSay.TOOL_SAY,
@@ -101,14 +100,13 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
-		error_retry: ClineSay.ERROR_RETRY,
 		hook_status: ClineSay.HOOK_STATUS,
 		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
 		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
 		subagent: ClineSay.SUBAGENT_STATUS,
 		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
 		subagent_usage: ClineSay.SUBAGENT_USAGE,
-		generate_explanation: ClineSay.GENERATE_EXPLANATION,
+		compaction: ClineSay.COMPACTION,
 	}
 
 	const result = mapping[say]
@@ -132,7 +130,6 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.COMPLETION_RESULT_SAY]: "completion_result",
 		[ClineSay.USER_FEEDBACK]: "user_feedback",
 		[ClineSay.USER_FEEDBACK_DIFF]: "user_feedback_diff",
-		[ClineSay.API_REQ_RETRIED]: "api_req_retried",
 		[ClineSay.COMMAND_SAY]: "command",
 		[ClineSay.COMMAND_OUTPUT_SAY]: "command_output",
 		[ClineSay.TOOL_SAY]: "tool",
@@ -152,14 +149,13 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
-		[ClineSay.ERROR_RETRY]: "error_retry",
-		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
 		[ClineSay.SUBAGENT_STATUS]: "subagent",
 		[ClineSay.USE_SUBAGENTS_SAY]: "use_subagents",
 		[ClineSay.SUBAGENT_USAGE]: "subagent_usage",
+		[ClineSay.COMPACTION]: "compaction",
 	}
 
 	return mapping[say]
@@ -193,6 +189,9 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		images: message.images ?? [],
 		files: message.files ?? [],
 		partial: message.partial ?? false,
+		// Convergent-replica fields (default 0 = unstamped, e.g. classic/legacy path).
+		seq: message.seq ?? 0,
+		epoch: message.epoch ?? 0,
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -278,6 +277,15 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 			protoMessage.conversationHistoryDeletedRange.startIndex,
 			protoMessage.conversationHistoryDeletedRange.endIndex,
 		]
+	}
+
+	// Convergent-replica fields. 0 means unstamped (classic/legacy path) — leave undefined so
+	// the webview reducer treats such messages as always-applicable rather than epoch 0.
+	if (protoMessage.seq && protoMessage.seq !== 0) {
+		message.seq = protoMessage.seq
+	}
+	if (protoMessage.epoch && protoMessage.epoch !== 0) {
+		message.epoch = protoMessage.epoch
 	}
 
 	return message

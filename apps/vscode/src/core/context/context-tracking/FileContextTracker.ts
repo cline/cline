@@ -1,9 +1,8 @@
-import { getTaskMetadata, readTaskHistoryFromState, saveTaskMetadata } from "@core/storage/disk"
+import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import chokidar, { FSWatcher } from "chokidar"
 import * as path from "path"
 import { Controller } from "@/core/controller"
-import { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
@@ -276,42 +275,5 @@ export class FileContextTracker {
 			Logger.error("Error retrieving pending file context warning:", error)
 		}
 		return undefined
-	}
-
-	/**
-	 * Static method to clean up orphaned pending file context warnings at startup
-	 * This removes warnings for tasks that may no longer exist
-	 */
-	static async cleanupOrphanedWarnings(stateManager: StateManager): Promise<void> {
-		const startTime = Date.now()
-		try {
-			const taskHistory = await readTaskHistoryFromState()
-			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
-			const allStateKeys = Object.keys(stateManager.getAllWorkspaceStateEntries())
-			const pendingWarningKeys = allStateKeys.filter((key) => key.startsWith("pendingFileContextWarning_"))
-
-			const orphanedPendingContextTasks: string[] = []
-			for (const key of pendingWarningKeys) {
-				const taskId = key.replace("pendingFileContextWarning_", "")
-				if (!existingTaskIds.has(taskId)) {
-					orphanedPendingContextTasks.push(key)
-				}
-			}
-
-			if (orphanedPendingContextTasks.length > 0) {
-				for (const key of orphanedPendingContextTasks) {
-					// NOTE: Using 'as any' because dynamic keys like pendingFileContextWarning_${taskId}
-					// are legitimate workspace state keys but don't fit the strict LocalStateKey type system
-					await stateManager.setWorkspaceState(key as any, undefined)
-				}
-			}
-
-			const duration = Date.now() - startTime
-			Logger.log(
-				`FileContextTracker: Processed ${existingTaskIds.size} tasks, found ${pendingWarningKeys.length} pending warnings, ${orphanedPendingContextTasks.length} orphaned, deleted ${orphanedPendingContextTasks.length}, took ${duration}ms`,
-			)
-		} catch (error) {
-			Logger.error("[FileContextTracker] Error cleaning up orphaned file context warnings:", error)
-		}
 	}
 }

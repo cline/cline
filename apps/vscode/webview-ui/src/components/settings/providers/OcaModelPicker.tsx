@@ -2,13 +2,13 @@ import type { ApiConfiguration, OcaModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { useMemo } from "react"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND, VSC_FOREGROUND } from "@/utils/vscStyles"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-export interface OcaModelPickerProps {
+interface OcaModelPickerProps {
 	apiConfiguration: ApiConfiguration | undefined
 	isPopup?: boolean
 	currentMode: Mode
@@ -99,16 +99,13 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 		await onRefresh?.()
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, currentMode)
-	}, [apiConfiguration, currentMode])
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("oca", apiConfiguration, currentMode)
 
 	const selectedReasoningEffort = useMemo(() => {
 		if (currentMode == "plan") {
 			return apiConfiguration?.planModeOcaReasoningEffort
-		} else {
-			return apiConfiguration?.actModeOcaReasoningEffort
 		}
+		return apiConfiguration?.actModeOcaReasoningEffort
 	}, [apiConfiguration, currentMode])
 
 	const reasoningEffortOptions = selectedModelInfo ? (selectedModelInfo as OcaModelInfo).reasoningEffortOptions : []

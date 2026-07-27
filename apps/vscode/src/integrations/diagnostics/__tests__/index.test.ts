@@ -1,8 +1,17 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.cline"
 import { expect } from "chai"
-import { beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
-import * as pathUtils from "@/utils/path"
+import * as actualPathUtils from "@/utils/path"
+
+// bun loads real ESM, so sinon cannot stub the `@/utils/path` namespace export
+// ("ES Modules cannot be stubbed"). Inject a module-level sinon stub for
+// `getCwd` via mock.module so the full sinon stub API keeps working.
+const getCwdStub: sinon.SinonStub = sinon.stub()
+const pathUtilsMock = () => ({ ...actualPathUtils, getCwd: getCwdStub })
+mock.module("@/utils/path", pathUtilsMock)
+mock.module("@utils/path", pathUtilsMock)
+
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../"
 
 describe("Diagnostics Tests", () => {
@@ -187,14 +196,14 @@ describe("Diagnostics Tests", () => {
 	})
 
 	describe("diagnosticsToProblemsString", () => {
-		let _getCwdStub: sinon.SinonStub
-
 		beforeEach(() => {
-			_getCwdStub = sinon.stub(pathUtils, "getCwd").resolves("/workspace")
+			getCwdStub.reset()
+			getCwdStub.resolves("/workspace")
 		})
 
 		afterEach(() => {
 			sinon.restore()
+			getCwdStub.reset()
 		})
 
 		it("should return empty string when diagnostics array is empty", async () => {

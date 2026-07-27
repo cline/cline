@@ -5,6 +5,10 @@ import {
 	type ToolExecutors,
 	ToolPresets,
 } from "../../../extensions/tools";
+import type {
+	SubAgentEndContext,
+	SubAgentStartContext,
+} from "../../../extensions/tools/team";
 import { createSpawnAgentTool } from "../../../extensions/tools/team";
 import { buildTelemetryAgentIdentity } from "../../../services/agent-events";
 import { filterDisabledTools } from "../../../services/global-settings";
@@ -31,65 +35,18 @@ export interface SpawnToolDeps {
 	invokeBackendOptional(method: string, ...args: unknown[]): Promise<void>;
 }
 
-export function createSessionSpawnTool(
+export interface SessionSubAgentLifecycleCallbacks {
+	onSubAgentEvent: (event: AgentEvent) => void;
+	onSubAgentStart: (context: SubAgentStartContext) => void;
+	onSubAgentEnd: (context: SubAgentEndContext) => void;
+}
+
+export function createSessionSubAgentLifecycleCallbacks(
 	deps: SpawnToolDeps,
 	config: CoreSessionConfig,
 	rootSessionId: string,
-	toolExecutors?: Partial<ToolExecutors>,
-): AgentTool {
-	const createSubAgentTools = () => {
-		const tools: AgentTool[] = config.enableTools
-			? createBuiltinTools({
-					cwd: config.cwd,
-					...ToolPresets[resolveToolPresetName({ mode: config.mode })],
-					executors: toolExecutors,
-				})
-			: [];
-		if (config.enableSpawnAgent) {
-			tools.push(
-				createSessionSpawnTool(deps, config, rootSessionId, toolExecutors),
-			);
-		}
-		return filterDisabledTools(tools);
-	};
-
-	return createSpawnAgentTool({
-		configProvider: {
-			getRuntimeConfig: () =>
-				deps
-					.getSession(rootSessionId)
-					?.runtime.delegatedAgentConfigProvider?.getRuntimeConfig() ?? {
-					providerId: config.providerId,
-					modelId: config.modelId,
-					cwd: config.cwd,
-					apiKey: config.apiKey,
-					baseUrl: config.baseUrl,
-					headers: config.headers,
-					providerConfig: config.providerConfig,
-					knownModels: config.knownModels,
-					thinking: config.thinking,
-					maxIterations: config.maxIterations,
-					hooks: config.hooks,
-					extensions: config.extensions,
-					logger: config.logger,
-					telemetry: config.telemetry,
-				},
-			getConnectionConfig: () =>
-				deps
-					.getSession(rootSessionId)
-					?.runtime.delegatedAgentConfigProvider?.getConnectionConfig() ?? {
-					providerId: config.providerId,
-					modelId: config.modelId,
-					apiKey: config.apiKey,
-					baseUrl: config.baseUrl,
-					headers: config.headers,
-					providerConfig: config.providerConfig,
-					knownModels: config.knownModels,
-					thinking: config.thinking,
-				},
-			updateConnectionDefaults: () => {},
-		},
-		createSubAgentTools,
+): SessionSubAgentLifecycleCallbacks {
+	return {
 		onSubAgentEvent: (event) => deps.onAgentEvent(rootSessionId, config, event),
 		onSubAgentStart: (context) => {
 			const teamRuntime = deps.getSession(rootSessionId)?.runtime.teamRuntime;
@@ -158,5 +115,73 @@ export function createSessionSpawnTool(
 				context,
 			);
 		},
+	};
+}
+
+export function createSessionSpawnTool(
+	deps: SpawnToolDeps,
+	config: CoreSessionConfig,
+	rootSessionId: string,
+	toolExecutors?: Partial<ToolExecutors>,
+): AgentTool {
+	const lifecycle = createSessionSubAgentLifecycleCallbacks(
+		deps,
+		config,
+		rootSessionId,
+	);
+	const createSubAgentTools = () => {
+		const tools: AgentTool[] = config.enableTools
+			? createBuiltinTools({
+					cwd: config.cwd,
+					...ToolPresets[resolveToolPresetName({ mode: config.mode })],
+					executors: toolExecutors,
+				})
+			: [];
+		if (config.enableSpawnAgent) {
+			tools.push(
+				createSessionSpawnTool(deps, config, rootSessionId, toolExecutors),
+			);
+		}
+		return filterDisabledTools(tools);
+	};
+
+	return createSpawnAgentTool({
+		configProvider: {
+			getRuntimeConfig: () =>
+				deps
+					.getSession(rootSessionId)
+					?.runtime.delegatedAgentConfigProvider?.getRuntimeConfig() ?? {
+					providerId: config.providerId,
+					modelId: config.modelId,
+					cwd: config.cwd,
+					apiKey: config.apiKey,
+					baseUrl: config.baseUrl,
+					headers: config.headers,
+					providerConfig: config.providerConfig,
+					knownModels: config.knownModels,
+					thinking: config.thinking,
+					maxIterations: config.maxIterations,
+					hooks: config.hooks,
+					extensions: config.extensions,
+					logger: config.logger,
+					telemetry: config.telemetry,
+				},
+			getConnectionConfig: () =>
+				deps
+					.getSession(rootSessionId)
+					?.runtime.delegatedAgentConfigProvider?.getConnectionConfig() ?? {
+					providerId: config.providerId,
+					modelId: config.modelId,
+					apiKey: config.apiKey,
+					baseUrl: config.baseUrl,
+					headers: config.headers,
+					providerConfig: config.providerConfig,
+					knownModels: config.knownModels,
+					thinking: config.thinking,
+				},
+			updateConnectionDefaults: () => {},
+		},
+		createSubAgentTools,
+		...lifecycle,
 	}) as AgentTool;
 }

@@ -15,19 +15,13 @@ MCP (Model Context Protocol) lets Cline use external tools and data sources thro
 ## Quick start
 
 1. Open **MCP Servers** in Cline
-2. Add a server (from Marketplace or manually)
+2. Add a local server manually, or connect to a hosted remote server
 3. Configure credentials/environment variables
 4. Verify tools appear and test one tool call
 
 ## Add servers
 
-### Option 1: Marketplace
-
-Use Cline's MCP Marketplace for one-click install when available.
-1. In the Cline panel, click the MCP Servers icon (stacked server icon in the top toolbar).
-2. Open the Marketplace tab.
-
-### Option 2: Manual config
+### Manual config
 
 Edit your MCP config file and add either:
 
@@ -89,12 +83,13 @@ When adding a server, the CLI prompts for server name, transport type, command/a
 }
 ```
 
-### Remote server (HTTP/SSE)
+### Remote server (Streamable HTTP)
 
 ```json
 {
   "mcpServers": {
     "remote-server": {
+      "type": "streamableHttp",
       "url": "https://example.com/mcp",
       "headers": {
         "Authorization": "Bearer your-token"
@@ -105,6 +100,8 @@ When adding a server, the CLI prompts for server name, transport type, command/a
   }
 }
 ```
+
+The `type` field selects the transport. Omitting it defaults to the legacy `sse` transport for backward compatibility, so set `"type": "streamableHttp"` explicitly for the recommended transport. Use `"type": "sse"` only for legacy SSE servers.
 
 ## Transport types
 

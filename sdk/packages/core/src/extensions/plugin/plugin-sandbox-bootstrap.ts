@@ -11,6 +11,7 @@
  */
 
 import {
+	type AgentExtensionMcpServer,
 	type AutomationEventEnvelope,
 	normalizePluginManifest,
 	type PluginManifest,
@@ -37,8 +38,19 @@ interface PluginTool {
 interface PluginCommand {
 	name: string;
 	description?: string;
-	handler?: (input: string) => Promise<string>;
+	handler?: (
+		input: string,
+	) => Promise<PluginCommandResult> | PluginCommandResult;
 }
+
+// Keep this local mirror in sync with AgentExtensionCommandResult from @cline/shared.
+// The sandbox bootstrap runs in an isolated process and avoids host package imports.
+type PluginCommandResult =
+	| string
+	| {
+			reply?: string;
+			submitPrompt?: string;
+	  };
 
 interface PluginRule {
 	id: string;
@@ -74,6 +86,7 @@ interface PluginApi {
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 	registerAutomationEventType(eventType: PluginAutomationEventType): void;
+	registerMcpServer(server: AgentExtensionMcpServer): void;
 }
 
 interface PluginSetupCtx {
@@ -142,6 +155,7 @@ interface PluginDescriptor {
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 		automationEventTypes: AutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: ContributionDescriptor[];
 		flags?: ContributionDescriptor[];
 	};
@@ -426,6 +440,7 @@ async function loadPluginDescriptor(args: {
 			messageBuilders: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 			shortcuts: [],
 			flags: [],
 		};
@@ -497,6 +512,9 @@ async function loadPluginDescriptor(args: {
 					id: makeId(args.pluginId, "automation_event"),
 					...normalizeAutomationEventType(eventType),
 				});
+			},
+			registerMcpServer: (server) => {
+				contributions.mcpServers.push(server);
 			},
 		};
 
@@ -706,7 +724,7 @@ async function executeCommand(args: {
 	pluginId: string;
 	contributionId: string;
 	input: string;
-}): Promise<string> {
+}): Promise<PluginCommandResult> {
 	const state = getPlugin(args.pluginId);
 	const handler = state.handlers.commands.get(args.contributionId);
 	if (typeof handler !== "function") {

@@ -1,7 +1,8 @@
-import { geminiModels, ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import styled from "styled-components"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import { formatPrice, hasThinkingBudget, supportsBrowserUse, supportsImages, supportsPromptCache } from "../utils/pricingUtils"
 
@@ -174,6 +175,14 @@ interface ModelInfoViewProps {
 	providerSorting?: string
 	onProviderSortingChange?: (value: string) => void
 	showProviderRouting?: boolean
+	/**
+	 * Suppress the per-token pricing display (compact input/output row, cache
+	 * pricing in Advanced, and tiered pricing). Set this for providers whose
+	 * billing is subscription-based or otherwise not per-token, mirroring the
+	 * SDK's `ProviderInfo.metadata.usageCostDisplay = "hide"` signal (see
+	 * `resolveProviderUsageCostDisplay` in `@cline/llms`).
+	 */
+	hideUsageCost?: boolean
 }
 
 // ========== Component ==========
@@ -185,10 +194,12 @@ export const ModelInfoView = ({
 	providerSorting,
 	onProviderSortingChange,
 	showProviderRouting,
+	hideUsageCost,
 }: ModelInfoViewProps) => {
 	const [advancedExpanded, setAdvancedExpanded] = useState(false)
 
-	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+	const { models: geminiModels } = useProviderModels("gemini")
+	const isGemini = Object.hasOwn(geminiModels, selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
 
@@ -215,13 +226,13 @@ export const ModelInfoView = ({
 						<InfoValue>{formatCompactContext(modelInfo.contextWindow)}</InfoValue>
 					</InfoItem>
 				)}
-				{modelInfo.inputPrice !== undefined && (
+				{!hideUsageCost && modelInfo.inputPrice !== undefined && (
 					<InfoItem>
 						<InfoLabel>Input: </InfoLabel>
 						<InfoValue>{formatCompactPrice(modelInfo.inputPrice)}</InfoValue>
 					</InfoItem>
 				)}
-				{modelInfo.outputPrice !== undefined && (
+				{!hideUsageCost && modelInfo.outputPrice !== undefined && (
 					<InfoItem>
 						<InfoLabel>Output: </InfoLabel>
 						<InfoValue>
@@ -257,7 +268,7 @@ export const ModelInfoView = ({
 					)}
 
 					{/* Cache Pricing */}
-					{hasCachePricing && (
+					{!hideUsageCost && hasCachePricing && (
 						<>
 							{modelInfo.cacheReadsPrice !== undefined && (
 								<AdvancedRow>
@@ -275,7 +286,7 @@ export const ModelInfoView = ({
 					)}
 
 					{/* Tiered Pricing */}
-					{hasTiers && (
+					{!hideUsageCost && hasTiers && (
 						<div style={{ marginTop: 8 }}>
 							<div style={{ fontWeight: 500, marginBottom: 4 }}>Tiered Pricing:</div>
 							{modelInfo.tiers && (

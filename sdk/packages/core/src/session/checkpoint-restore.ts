@@ -61,7 +61,7 @@ export function createRestoredCheckpointMetadata(
 	return latest ? { latest, history } : undefined;
 }
 
-function findCheckpointForRun(
+export function findCheckpointForRun(
 	history: readonly CheckpointEntry[],
 	runCount: number,
 ): CheckpointEntry | undefined {

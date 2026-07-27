@@ -9,7 +9,7 @@ interface WhatsNewItemsProps {
 	inlineCodeStyle: React.CSSProperties
 }
 
-export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({ welcomeBanners, onBannerAction, onClose, inlineCodeStyle }) => {
+const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({ welcomeBanners, onBannerAction, onClose, inlineCodeStyle }) => {
 	const hasWelcomeBanners = welcomeBanners && welcomeBanners.length > 0
 
 	return (

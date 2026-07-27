@@ -1,0 +1,1748 @@
+import { execFileSync, spawn } from "node:child_process";
+import {
+	existsSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import type {
+	ClineAccountActionRequest,
+	ProviderCapability,
+	ProviderClient,
+	ProviderProtocol,
+	SaveProviderSettingsActionRequest,
+} from "@cline/core";
+import {
+	addLocalProvider,
+	ClineAccountService,
+	createUserInstructionConfigService,
+	discoverPluginModulePaths,
+	ensureCustomProvidersLoaded,
+	executeClineAccountAction,
+	getCoreBuiltinToolCatalog,
+	getLocalProviderModels,
+	listHookConfigFiles,
+	listLocalProviders,
+	listPluginTools,
+	normalizeOAuthProvider,
+	ProviderSettingsManager,
+	RuntimeOAuthTokenManager,
+	readGlobalSettings,
+	resolveLocalClineAuthToken,
+	resolvePluginConfigSearchPaths,
+	resolveSessionBackend,
+	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
+	SqliteSessionStore,
+	saveLocalProviderSettings,
+	setAutoUpdateEnabledGlobally,
+	setDisabledPlugin,
+	setDisabledTools,
+	setTelemetryOptOutGlobally,
+	toggleDisabledTool,
+	updateMcpSettingsFileSync,
+} from "@cline/core";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	getClineEnvironmentConfig,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+	readHubScheduleMode,
+} from "@cline/shared";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import packageJson from "../package.json";
+import {
+	connectorChannelsPayload,
+	startConnectorChannel,
+	stopConnectorChannel,
+} from "./connectors";
+import {
+	broadcastEvent,
+	ensureSharedHubClient,
+	resolveSidecarAskQuestion,
+} from "./context";
+import {
+	installMarketplaceEntryForDesktopCommand,
+	listMarketplaceInstalledEntries,
+	uninstallLocalPrimitive,
+	uninstallMarketplaceEntryForDesktopCommand,
+} from "./marketplace";
+import {
+	cancelProviderOAuthLogin,
+	runCancellableProviderOAuthLogin,
+} from "./oauth-login";
+import {
+	findArtifactUnderDir,
+	readSessionManifest,
+	resolveMcpSettingsPath,
+	rootSessionIdFrom,
+	sessionLogPath,
+	sharedSessionDataDir,
+} from "./paths";
+import { readSessionHooks } from "./session-data/artifacts";
+import { normalizeSessionTitle } from "./session-data/common";
+import { discoverChatSessions } from "./session-data/discovery";
+import { readSessionMessages } from "./session-data/messages";
+import { searchWorkspaceFiles } from "./session-data/search";
+import type {
+	ChatSessionCommandRequest,
+	JsonRecord,
+	SidecarContext,
+} from "./types";
+
+// Strict allowlist: the opener hands the URL to the OS protocol handler, so
+// anything broader (file:, custom app schemes) would let webview content
+// launch arbitrary local handlers.
+const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
+
+function openUrlInDefaultBrowser(url: string): Promise<void> {
+	const platform = process.platform;
+	// On Windows the URL must not pass through cmd.exe: `cmd /c start <url>`
+	// re-parses metacharacters (&, ^, |) that are valid inside http(s) URLs,
+	// turning a crafted URL into command execution. rundll32 hands the URL
+	// straight to the protocol handler with no shell parsing.
+	const spawned =
+		platform === "darwin"
+			? spawn("open", [url], { stdio: "ignore", detached: true })
+			: platform === "win32"
+				? spawn("rundll32", ["url.dll,FileProtocolHandler", url], {
+						stdio: "ignore",
+						detached: true,
+					})
+				: spawn("xdg-open", [url], {
+						stdio: "ignore",
+						detached: true,
+					});
+	// A missing opener binary emits an async "error" event; without a listener
+	// it becomes an uncaught exception that kills the sidecar. Launchers hand
+	// off to the browser and exit quickly, so a fast non-zero exit means the
+	// handoff failed (xdg-open exits 3 when no handler is available; rundll32
+	// exits 0 even on failure, so Windows stays best-effort). If the launcher
+	// is still running after the grace window, assume the handoff worked
+	// rather than blocking on a launcher that lingers.
+	return new Promise((resolve, reject) => {
+		const graceTimer = setTimeout(resolve, 2_000);
+		spawned.once("spawn", () => {
+			spawned.unref();
+		});
+		spawned.once("error", (error) => {
+			clearTimeout(graceTimer);
+			reject(new Error(`could not open browser: ${error.message}`));
+		});
+		spawned.once("exit", (code) => {
+			clearTimeout(graceTimer);
+			if (code === 0 || code === null) {
+				resolve();
+			} else {
+				reject(new Error(`browser opener exited with code ${code}`));
+			}
+		});
+	});
+}
+
+function readProviderSettingsUpdate(
+	args: Record<string, unknown> | undefined,
+): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
+	return args?.settings && typeof args.settings === "object"
+		? (args.settings as Partial<
+				Omit<SaveProviderSettingsActionRequest, "action" | "providerId">
+			>)
+		: {};
+}
+
+// ---------------------------------------------------------------------------
+// MCP settings helpers
+// ---------------------------------------------------------------------------
+
+function readMcpServersResponse(): JsonRecord {
+	const settingsPath = resolveMcpSettingsPath();
+	if (!existsSync(settingsPath)) {
+		return { settingsPath, hasSettingsFile: false, servers: [] };
+	}
+	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
+	const servers = parsed.mcpServers as JsonRecord | undefined;
+	const entries = Object.entries(servers ?? {}).map(([name, body]) => {
+		const record = body as JsonRecord;
+		const transport =
+			record.transport && typeof record.transport === "object"
+				? (record.transport as JsonRecord)
+				: undefined;
+		const rawTransportType =
+			transport?.type ?? record.transportType ?? record.type;
+		const transportType = String(
+			rawTransportType ??
+				(typeof transport?.url === "string" || typeof record.url === "string"
+					? "sse"
+					: "stdio"),
+		).trim();
+		return {
+			name,
+			transportType,
+			disabled: record.disabled === true,
+			command:
+				typeof transport?.command === "string"
+					? transport.command
+					: typeof record.command === "string"
+						? record.command
+						: undefined,
+			args: Array.isArray(transport?.args)
+				? transport.args
+				: Array.isArray(record.args)
+					? record.args
+					: undefined,
+			cwd:
+				typeof transport?.cwd === "string"
+					? transport.cwd
+					: typeof record.cwd === "string"
+						? record.cwd
+						: undefined,
+			env:
+				transport?.env && typeof transport.env === "object"
+					? transport.env
+					: record.env && typeof record.env === "object"
+						? record.env
+						: undefined,
+			url:
+				typeof transport?.url === "string"
+					? transport.url
+					: typeof record.url === "string"
+						? record.url
+						: undefined,
+			headers:
+				transport?.headers && typeof transport.headers === "object"
+					? transport.headers
+					: record.headers && typeof record.headers === "object"
+						? record.headers
+						: undefined,
+			metadata: record.metadata,
+		};
+	});
+	return { settingsPath, hasSettingsFile: true, servers: entries };
+}
+
+/**
+ * Transport type + URL a server record actually points at, tolerating both
+ * the nested `transport` shape and legacy flat fields (mirrors
+ * readMcpServersResponse).
+ */
+function mcpTransportIdentity(record: JsonRecord): string {
+	const transport =
+		record.transport && typeof record.transport === "object"
+			? (record.transport as JsonRecord)
+			: undefined;
+	const url =
+		typeof transport?.url === "string"
+			? transport.url
+			: typeof record.url === "string"
+				? record.url
+				: "";
+	// Core's config-loader defaults a URL-based legacy record with no explicit
+	// type to SSE and maps the legacy "http" alias to streamableHttp; mirror
+	// both so an unchanged endpoint keeps the same identity.
+	const rawType = transport?.type ?? record.transportType ?? record.type;
+	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
+	const normalizedType = type === "http" ? "streamableHttp" : type;
+	return `${normalizedType}\u0000${url}`;
+}
+
+function writeMcpServersMap(servers: JsonRecord): void {
+	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
+		settings.mcpServers = servers;
+	});
+}
+
+function ensureMcpSettingsFile(): string {
+	const path = resolveMcpSettingsPath();
+	if (!existsSync(path)) {
+		writeMcpServersMap({});
+	}
+	return path;
+}
+
+function removePathIfExists(
+	path: string,
+	options?: { recursive?: boolean },
+): boolean {
+	if (!path || !existsSync(path)) {
+		return false;
+	}
+	rmSync(path, {
+		force: true,
+		recursive: options?.recursive === true,
+	});
+	return true;
+}
+
+// Cline access tokens expire between app launches, so account requests must
+// resolve through the refresh-aware OAuth manager instead of reading the
+// persisted token directly. A single shared instance keeps concurrent account
+// requests single-flight; the refresh token is single-use, so parallel
+// refreshes would invalidate each other.
+let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
+
+async function resolveFreshClineAuthToken(
+	manager: ProviderSettingsManager,
+): Promise<string | undefined> {
+	try {
+		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
+		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
+			providerId: "cline",
+		});
+		if (resolution?.apiKey) {
+			return resolution.apiKey;
+		}
+	} catch {
+		// Fall back to the persisted token; the account request surfaces the
+		// auth failure to the caller.
+	}
+	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
+}
+
+function mergePersistedSessionRecord(
+	store: SqliteSessionStore,
+	sessionId: string,
+	record: JsonRecord,
+): JsonRecord {
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	const metadata =
+		record.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return {
+		...(persisted ?? {}),
+		...record,
+		sessionId,
+		provider: record.provider ?? persisted?.provider ?? "",
+		model: record.model ?? persisted?.model ?? "",
+		cwd: record.cwd ?? persisted?.cwd ?? "",
+		workspaceRoot:
+			record.workspaceRoot ?? persisted?.workspaceRoot ?? persisted?.cwd ?? "",
+		prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
+		parentSessionId:
+			record.parentSessionId ??
+			persisted?.parentSessionId ??
+			metadata?.parentSessionId,
+		parentAgentId:
+			record.parentAgentId ??
+			persisted?.parentAgentId ??
+			metadata?.parentAgentId,
+		agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
+		conversationId:
+			record.conversationId ??
+			persisted?.conversationId ??
+			metadata?.conversationId,
+		isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
+		startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
+		updatedAt: record.updatedAt ?? persisted?.updatedAt,
+		metadata: {
+			...((persisted?.metadata && typeof persisted.metadata === "object"
+				? persisted.metadata
+				: {}) as JsonRecord),
+			...(metadata ?? {}),
+		},
+	};
+}
+
+async function getSessionFromSidecarManager(
+	ctx: SidecarContext,
+	sessionId: string,
+): Promise<JsonRecord | undefined> {
+	const store = new SqliteSessionStore();
+	if (ctx.sessionManager) {
+		const session = await ctx.sessionManager.get(sessionId);
+		if (session) {
+			return mergePersistedSessionRecord(
+				store,
+				sessionId,
+				session as unknown as JsonRecord,
+			);
+		}
+	}
+
+	if (ctx.hubClient) {
+		try {
+			const reply = await ctx.hubClient.command(
+				"session.get",
+				undefined,
+				sessionId,
+			);
+			const session = reply.payload?.session;
+			if (session && typeof session === "object") {
+				return mergePersistedSessionRecord(
+					store,
+					sessionId,
+					session as JsonRecord,
+				);
+			}
+		} catch {
+			// Fall through to the local SQLite index.
+		}
+	}
+
+	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	return persisted
+		? mergePersistedSessionRecord(store, sessionId, persisted)
+		: undefined;
+}
+
+async function listSessionsFromSidecarManager(
+	ctx: SidecarContext,
+	limit: number,
+): Promise<unknown> {
+	const max = Math.max(1, Math.floor(limit));
+	if (ctx.sessionManager) {
+		return await ctx.sessionManager.list(max, { hydrate: false });
+	}
+
+	const byId = new Map<string, JsonRecord>();
+	const store = new SqliteSessionStore();
+
+	if (ctx.hubClient) {
+		try {
+			const reply = await ctx.hubClient.command("session.list", { limit: max });
+			const sessions = Array.isArray(reply.payload?.sessions)
+				? reply.payload.sessions
+				: [];
+			for (const item of sessions) {
+				if (!item || typeof item !== "object") continue;
+				const record = item as JsonRecord;
+				const sessionId = String(record.sessionId ?? "").trim();
+				if (sessionId)
+					byId.set(
+						sessionId,
+						mergePersistedSessionRecord(store, sessionId, record),
+					);
+			}
+		} catch {
+			// Fall through to the local SQLite index.
+		}
+	}
+
+	if (byId.size === 0) {
+		for (const session of store.list(max)) {
+			byId.set(session.sessionId, session as unknown as JsonRecord);
+		}
+	}
+
+	for (const [sessionId, session] of ctx.liveSessions.entries()) {
+		const existing = byId.get(sessionId);
+		byId.set(sessionId, {
+			...(existing ?? {}),
+			sessionId,
+			status: session.status,
+			provider: session.config.provider ?? existing?.provider ?? "",
+			model: session.config.model ?? existing?.model ?? "",
+			cwd: session.config.cwd ?? existing?.cwd ?? "",
+			workspaceRoot:
+				session.config.workspaceRoot ??
+				existing?.workspaceRoot ??
+				existing?.cwd ??
+				"",
+			prompt: session.prompt ?? existing?.prompt,
+			startedAt:
+				existing?.startedAt ?? new Date(session.startedAt).toISOString(),
+			endedAt:
+				session.endedAt !== undefined
+					? new Date(session.endedAt).toISOString()
+					: existing?.endedAt,
+			metadata: {
+				...((existing?.metadata && typeof existing.metadata === "object"
+					? existing.metadata
+					: {}) as JsonRecord),
+				...(session.title ? { title: session.title } : {}),
+			},
+		});
+	}
+
+	return Array.from(byId.values())
+		.sort((left, right) => {
+			const leftTime = Date.parse(
+				String(left.updatedAt ?? left.startedAt ?? ""),
+			);
+			const rightTime = Date.parse(
+				String(right.updatedAt ?? right.startedAt ?? ""),
+			);
+			return (
+				(Number.isNaN(rightTime) ? 0 : rightTime) -
+				(Number.isNaN(leftTime) ? 0 : leftTime)
+			);
+		})
+		.slice(0, max);
+}
+
+// ---------------------------------------------------------------------------
+// Git helpers
+// ---------------------------------------------------------------------------
+
+function listGitBranches(
+	ctx: SidecarContext,
+	cwd?: string,
+): { current?: string; branches?: string[] } {
+	const targetCwd = cwd?.trim() || ctx.workspaceRoot;
+	const current = (() => {
+		try {
+			return execFileSync("git", ["branch", "--show-current"], {
+				cwd: targetCwd,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim();
+		} catch {
+			return "";
+		}
+	})();
+	try {
+		const stdout = execFileSync(
+			"git",
+			["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+			{
+				cwd: targetCwd,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "ignore"],
+			},
+		);
+		const branches = stdout
+			.split("\n")
+			.map((v) => v.trim())
+			.filter(Boolean);
+		return { current: current || undefined, branches };
+	} catch {
+		return { current: current || undefined, branches: [] };
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Routine schedule helpers (in-process via shared hub server)
+// ---------------------------------------------------------------------------
+
+function toPositiveInt(value: unknown): number | undefined {
+	if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+	const rounded = Math.trunc(value);
+	return rounded > 0 ? rounded : undefined;
+}
+
+function routineScheduleTiming(
+	args?: Record<string, unknown>,
+): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+	if (args?.schedule_type === "once") {
+		const runAt =
+			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
+		return Number.isFinite(runAt)
+			? {
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+				}
+			: undefined;
+	}
+	const cronPattern = asTrimmedString(args?.cron_pattern);
+	return cronPattern ? { cronPattern } : undefined;
+}
+
+function asTrimmedString(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function asTrimmedStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const values = value
+		.map((item) => asTrimmedString(item))
+		.filter((item): item is string => item !== undefined);
+	return values.length > 0 ? values : undefined;
+}
+
+async function handleRoutineScheduleCommand(
+	ctx: SidecarContext,
+	command: string,
+	args?: Record<string, unknown>,
+): Promise<unknown> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const clientCommand = async (
+		hubCommand: string,
+		payload?: Record<string, unknown>,
+	) => {
+		const reply = await hubClient.command(hubCommand as never, payload);
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? `hub command failed: ${hubCommand}`,
+			);
+		}
+		return (reply.payload ?? {}) as Record<string, unknown>;
+	};
+	if (command === "list_routine_schedules") {
+		const [schedules, activeExecutions, upcomingRuns, lastExecutions] =
+			await Promise.all([
+				clientCommand("schedule.list", {
+					limit: toPositiveInt(args?.limit) ?? 200,
+				}),
+				clientCommand("schedule.active"),
+				clientCommand("schedule.upcoming", { limit: 30 }),
+				clientCommand("schedule.list_executions", { limit: 50 }),
+			]);
+		const scheduleRecords = (schedules.schedules ?? []) as JsonRecord[];
+		const executionRecords = (lastExecutions.executions ?? []) as JsonRecord[];
+		// The bulk query returns the newest executions across ALL schedules,
+		// so a few chatty schedules can evict everyone else's latest run.
+		// Backfill the latest execution for schedules that have run
+		// (lastRunAt set) but fell out of that window.
+		const covered = new Set<string>();
+		for (const execution of executionRecords) {
+			if (typeof execution.scheduleId === "string") {
+				covered.add(execution.scheduleId);
+			}
+		}
+		const missing = scheduleRecords.filter(
+			(schedule) =>
+				typeof schedule.scheduleId === "string" &&
+				schedule.lastRunAt != null &&
+				!covered.has(schedule.scheduleId),
+		);
+		const concurrency = 8;
+		for (let index = 0; index < missing.length; index += concurrency) {
+			const chunk = missing.slice(index, index + concurrency);
+			const replies = await Promise.all(
+				chunk.map((schedule) =>
+					clientCommand("schedule.list_executions", {
+						scheduleId: schedule.scheduleId,
+						limit: 1,
+					}).catch(() => undefined),
+				),
+			);
+			for (const reply of replies) {
+				const executions = (reply?.executions ?? []) as JsonRecord[];
+				if (executions[0]) {
+					executionRecords.push(executions[0]);
+				}
+			}
+		}
+		return {
+			schedules: scheduleRecords,
+			activeExecutions: activeExecutions.executions ?? [],
+			upcomingRuns: upcomingRuns.runs ?? [],
+			lastExecutions: executionRecords,
+		};
+	}
+	if (command === "create_routine_schedule") {
+		const name = asTrimmedString(args?.name);
+		const timing = routineScheduleTiming(args);
+		const prompt = asTrimmedString(args?.prompt);
+		const workspaceRoot = asTrimmedString(args?.workspace_root);
+		if (!name || !timing || !prompt || !workspaceRoot) {
+			throw new Error(
+				"createSchedule requires name, timing, prompt, and workspace_root",
+			);
+		}
+		const created = await clientCommand("schedule.create", {
+			name,
+			...timing,
+			prompt,
+			modelSelection: {
+				providerId: asTrimmedString(args?.provider) ?? "cline",
+				modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
+			},
+			mode: readHubScheduleMode(args, "yolo"),
+			workspaceRoot,
+			cwd: asTrimmedString(args?.cwd),
+			systemPrompt: asTrimmedString(args?.system_prompt),
+			maxIterations: toPositiveInt(args?.max_iterations),
+			timeoutSeconds: toPositiveInt(args?.timeout_seconds),
+			maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+			enabled: args?.enabled !== false,
+			tags: asTrimmedStringArray(args?.tags),
+		});
+		return { schedule: created.schedule ?? null };
+	}
+	const scheduleId = asTrimmedString(args?.schedule_id);
+	if (!scheduleId) throw new Error(`${command} requires schedule_id`);
+	if (command === "update_routine_schedule") {
+		const mode = readHubScheduleMode(args);
+		const name = asTrimmedString(args?.name);
+		const timing = routineScheduleTiming(args);
+		const prompt = asTrimmedString(args?.prompt);
+		const workspaceRoot = asTrimmedString(args?.workspace_root);
+		if (!name || !timing || !prompt || !workspaceRoot) {
+			throw new Error(
+				"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
+			);
+		}
+		const reply = await clientCommand("schedule.update", {
+			scheduleId,
+			name,
+			...timing,
+			prompt,
+			modelSelection: {
+				providerId: asTrimmedString(args?.provider) ?? "cline",
+				modelId: asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID,
+			},
+			...(mode === undefined ? {} : { mode }),
+			workspaceRoot,
+			cwd: asTrimmedString(args?.cwd) ?? null,
+			systemPrompt:
+				args?.system_prompt === null
+					? null
+					: asTrimmedString(args?.system_prompt),
+			maxIterations:
+				args?.max_iterations === null
+					? null
+					: toPositiveInt(args?.max_iterations),
+			timeoutSeconds:
+				args?.timeout_seconds === null
+					? null
+					: toPositiveInt(args?.timeout_seconds),
+			maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+			enabled: args?.enabled !== false,
+			tags: asTrimmedStringArray(args?.tags) ?? [],
+		});
+		return { schedule: reply.schedule ?? null };
+	}
+	if (command === "pause_routine_schedule") {
+		const reply = await clientCommand("schedule.disable", { scheduleId });
+		return { schedule: reply.schedule ?? null };
+	}
+	if (command === "resume_routine_schedule") {
+		const reply = await clientCommand("schedule.enable", { scheduleId });
+		return { schedule: reply.schedule ?? null };
+	}
+	if (command === "trigger_routine_schedule") {
+		// wait: false queues the run and returns immediately; the default
+		// path blocks until the whole agent run finishes, which outlives the
+		// webview's request timeout.
+		const reply = await clientCommand("schedule.trigger", {
+			scheduleId,
+			wait: false,
+		});
+		return { execution: reply.execution ?? null };
+	}
+	if (command === "delete_routine_schedule") {
+		const reply = await clientCommand("schedule.delete", { scheduleId });
+		return { deleted: reply.deleted === true };
+	}
+	throw new Error(`unsupported routine schedule command: ${command}`);
+}
+
+// ---------------------------------------------------------------------------
+// User instruction config listing through the core config service.
+// ---------------------------------------------------------------------------
+
+function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
+	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
+}
+
+async function listUserInstructionConfigs(
+	workspaceRoot: string,
+): Promise<JsonRecord> {
+	const warnings: string[] = [];
+
+	const loadUserInstructionSnapshot = async (
+		type: "rule" | "skill" | "workflow",
+	): Promise<unknown[]> => {
+		const items: unknown[] = [];
+		const service = createUserInstructionConfigService({
+			skills: { workspacePath: workspaceRoot },
+			rules: { workspacePath: workspaceRoot },
+			workflows: { workspacePath: workspaceRoot },
+		});
+		try {
+			await service.start();
+			for (const record of service.listRecords(type)) {
+				const item = record.item as unknown as JsonRecord;
+				if (item.disabled === true) continue;
+				items.push({
+					id: record.id,
+					name: item.name ?? record.id,
+					instructions: item.instructions,
+					path: record.filePath,
+				});
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			warnings.push(`${type}: ${message}`);
+		} finally {
+			service.stop();
+		}
+		return items;
+	};
+
+	const loadAgents = (): unknown[] => {
+		const agentsById = new Map<string, { name: string; path: string }>();
+		const directories = resolveAgentConfigSearchPaths(workspaceRoot).filter(
+			(d) => existsSync(d),
+		);
+		for (const directory of directories) {
+			try {
+				for (const entry of readdirSync(directory, { withFileTypes: true })) {
+					if (!entry.isFile()) continue;
+					const ext = extname(entry.name).toLowerCase();
+					if (ext !== ".yml" && ext !== ".yaml") continue;
+					const filePath = join(directory, entry.name);
+					const raw = readFileSyncStrippingUtf8Bom(filePath);
+					const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+					const fm = fmMatch?.[1] ?? "";
+					const nameMatch = fm.match(/^\s*name:\s*(.+?)\s*$/m);
+					const parsedName = nameMatch?.[1]?.replace(/^["']|["']$/g, "").trim();
+					const name =
+						parsedName && parsedName.length > 0
+							? parsedName
+							: basename(entry.name, ext);
+					const id = name.toLowerCase();
+					if (!agentsById.has(id)) {
+						agentsById.set(id, { name, path: filePath });
+					}
+				}
+			} catch {
+				// best-effort
+			}
+		}
+		return [...agentsById.values()].sort((a, b) =>
+			a.name.localeCompare(b.name),
+		);
+	};
+
+	const loadHooks = (): unknown[] => {
+		try {
+			return listHookConfigFiles(workspaceRoot);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			warnings.push(`hooks: ${message}`);
+			return [];
+		}
+	};
+
+	const loadPlugins = (): Array<{
+		name: string;
+		path: string;
+		enabled: boolean;
+	}> => {
+		const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
+		const pluginsByPath = new Map<
+			string,
+			{ name: string; path: string; enabled: boolean }
+		>();
+		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
+			(d) => existsSync(d),
+		);
+		for (const directory of directories) {
+			try {
+				for (const filePath of discoverPluginModulePaths(directory)) {
+					if (pluginsByPath.has(filePath)) {
+						continue;
+					}
+					pluginsByPath.set(filePath, {
+						name: basename(filePath, extname(filePath)),
+						path: filePath,
+						enabled: !disabledPlugins.has(filePath),
+					});
+				}
+			} catch {
+				// best-effort
+			}
+		}
+		return [...pluginsByPath.values()].sort((a, b) =>
+			a.name.localeCompare(b.name),
+		);
+	};
+
+	const [rules, workflows, skills, pluginTools] = await Promise.all([
+		loadUserInstructionSnapshot("rule"),
+		loadUserInstructionSnapshot("workflow"),
+		loadUserInstructionSnapshot("skill"),
+		listPluginTools({
+			workspacePath: workspaceRoot,
+			cwd: workspaceRoot,
+		}),
+	]);
+
+	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		disabledToolIds: disabledTools,
+	});
+
+	return {
+		workspaceRoot,
+		rules,
+		workflows,
+		skills,
+		agents: loadAgents(),
+		plugins: loadPlugins(),
+		tools: [
+			...builtinToolCatalog.map((tool) => ({
+				id: tool.id,
+				name: tool.id,
+				description: tool.description,
+				enabled:
+					tool.defaultEnabled &&
+					!tool.headlessToolNames.some((name) => disabledTools.has(name)),
+				source: "builtin",
+				headlessToolNames: tool.headlessToolNames,
+			})),
+			...pluginTools.map((tool) => ({
+				id: `${tool.pluginName}:${tool.name}:${tool.path}`,
+				name: tool.name,
+				description: tool.description,
+				enabled: tool.enabled,
+				source: tool.source,
+				path: tool.path,
+				pluginName: tool.pluginName,
+			})),
+		],
+		hooks: loadHooks(),
+		mcp: readMcpServersResponse(),
+		warnings,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Native OS commands
+// ---------------------------------------------------------------------------
+
+function pickWorkspaceDirectory(): string | null {
+	const platform = process.platform;
+	if (platform === "darwin") {
+		try {
+			const result = execFileSync(
+				"osascript",
+				[
+					"-e",
+					'set theFolder to choose folder with prompt "Select workspace directory"',
+					"-e",
+					"return POSIX path of theFolder",
+				],
+				{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+			).trim();
+			return result || null;
+		} catch {
+			return null;
+		}
+	}
+	// Linux — try zenity
+	try {
+		const result = execFileSync(
+			"zenity",
+			["--file-selection", "--directory", "--title=Select workspace directory"],
+			{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+		).trim();
+		return result || null;
+	} catch {
+		return null;
+	}
+}
+
+function openFileInEditor(filePath: string): void {
+	const platform = process.platform;
+	const cmd =
+		platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+	const cmdArgs =
+		platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
+	const child = spawn(cmd, cmdArgs, { stdio: "ignore", detached: true });
+	// An unhandled child error event would crash the sidecar process.
+	child.once("error", () => {});
+	child.unref();
+}
+
+// The macOS app shell launches the sidecar with a minimal GUI PATH
+// (/usr/bin:/bin:...), so editor CLIs installed under /usr/local/bin or
+// /opt/homebrew/bin are often not resolvable. `macApps` lets `open -a`
+// find the app bundle regardless of PATH.
+interface CodeEditorDefinition {
+	id: string;
+	label: string;
+	cli: string;
+	macApps: string[];
+}
+
+// Order doubles as the auto-open preference when no editor is requested.
+const CODE_EDITOR_CATALOG: readonly CodeEditorDefinition[] = [
+	{
+		id: "vscode",
+		label: "VS Code",
+		cli: "code",
+		macApps: ["Visual Studio Code"],
+	},
+	{ id: "cursor", label: "Cursor", cli: "cursor", macApps: ["Cursor"] },
+	{ id: "windsurf", label: "Windsurf", cli: "windsurf", macApps: ["Windsurf"] },
+	{ id: "zed", label: "Zed", cli: "zed", macApps: ["Zed"] },
+	{
+		id: "vscode-insiders",
+		label: "VS Code Insiders",
+		cli: "code-insiders",
+		macApps: ["Visual Studio Code - Insiders"],
+	},
+	{
+		id: "sublime",
+		label: "Sublime Text",
+		cli: "subl",
+		macApps: ["Sublime Text"],
+	},
+	{
+		id: "intellijidea",
+		label: "IntelliJ IDEA",
+		cli: "idea",
+		macApps: ["IntelliJ IDEA", "IntelliJ IDEA CE"],
+	},
+	{ id: "xcode", label: "Xcode", cli: "xed", macApps: ["Xcode"] },
+];
+
+function findExecutableOnPath(name: string): string | null {
+	try {
+		const locator = process.platform === "win32" ? "where" : "which";
+		const stdout = execFileSync(locator, [name], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+		return stdout.split("\n")[0]?.trim() || null;
+	} catch {
+		return null;
+	}
+}
+
+// cmd.exe re-parses metacharacters inside arguments even when quoted (the
+// reason Node refuses to spawn .cmd files without a shell), so strings that
+// could smuggle a second command must never reach it.
+const WINDOWS_CMD_UNSAFE_PATTERN = /[&|^<>%!"\r\n]/;
+
+function isMacAppInstalled(app: string): boolean {
+	return (
+		existsSync(`/Applications/${app}.app`) ||
+		existsSync(join(homedir(), "Applications", `${app}.app`))
+	);
+}
+
+/** Editors the current machine can actually launch, in catalog order. */
+function listAvailableCodeEditors(): Array<{ id: string; label: string }> {
+	return CODE_EDITOR_CATALOG.filter(
+		(editor) =>
+			findExecutableOnPath(editor.cli) !== null ||
+			(process.platform === "darwin" && editor.macApps.some(isMacAppInstalled)),
+	).map(({ id, label }) => ({ id, label }));
+}
+
+/** Launches `executable filePath` detached; false if the CLI is unusable. */
+function launchEditorCli(executable: string, filePath: string): boolean {
+	// Windows `where` resolves editor CLIs to .cmd/.bat shims, which
+	// spawn() cannot launch directly — route those through cmd.exe.
+	const isWindowsShim =
+		process.platform === "win32" && /\.(cmd|bat)$/i.test(executable);
+	if (isWindowsShim && WINDOWS_CMD_UNSAFE_PATTERN.test(executable)) {
+		return false;
+	}
+	const child = isWindowsShim
+		? spawn("cmd", ["/c", executable, filePath], {
+				stdio: "ignore",
+				detached: true,
+			})
+		: spawn(executable, [filePath], {
+				stdio: "ignore",
+				detached: true,
+			});
+	// Spawn failures surface as async error events; without a listener
+	// they crash the sidecar. Fall back to the OS default opener so the
+	// click still opens the file.
+	child.once("error", () => {
+		openFileInEditor(filePath);
+	});
+	child.unref();
+	return true;
+}
+
+function launchMacApp(app: string, filePath: string): boolean {
+	try {
+		execFileSync("open", ["-a", app, filePath], {
+			stdio: ["ignore", "ignore", "ignore"],
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Returns the launcher that handled the file, for logging/UI feedback. */
+function openFileInCodeEditor(filePath: string, editorId?: string): string {
+	if (
+		process.platform === "win32" &&
+		WINDOWS_CMD_UNSAFE_PATTERN.test(filePath)
+	) {
+		throw new Error(
+			"File path contains characters that cannot be passed safely to the Windows shell",
+		);
+	}
+	if (editorId && editorId !== "default") {
+		const editor = CODE_EDITOR_CATALOG.find((entry) => entry.id === editorId);
+		if (!editor) {
+			throw new Error(`Unknown editor: ${editorId}`);
+		}
+		const executable = findExecutableOnPath(editor.cli);
+		if (executable && launchEditorCli(executable, filePath)) {
+			return editor.label;
+		}
+		if (
+			process.platform === "darwin" &&
+			editor.macApps.some((app) => launchMacApp(app, filePath))
+		) {
+			return editor.label;
+		}
+		throw new Error(`${editor.label} is not available on this machine`);
+	}
+	if (!editorId) {
+		for (const editor of CODE_EDITOR_CATALOG) {
+			const executable = findExecutableOnPath(editor.cli);
+			if (executable && launchEditorCli(executable, filePath)) {
+				return editor.cli;
+			}
+		}
+		if (process.platform === "darwin") {
+			for (const editor of CODE_EDITOR_CATALOG) {
+				const app = editor.macApps.find((candidate) =>
+					launchMacApp(candidate, filePath),
+				);
+				if (app) {
+					return app;
+				}
+			}
+		}
+	}
+	openFileInEditor(filePath);
+	return "system default";
+}
+
+// ---------------------------------------------------------------------------
+// Main command router
+// ---------------------------------------------------------------------------
+
+export async function handleCommand(
+	ctx: SidecarContext,
+	command: string,
+	args?: Record<string, unknown>,
+	options?: { connection?: object },
+): Promise<unknown> {
+	// ── Chat session commands ──────────────────────────────────────────
+	if (command === "chat_session_command") {
+		const { handleChatSessionCommand } = await import("./chat-session");
+		return await handleChatSessionCommand(
+			ctx,
+			(args?.request as ChatSessionCommandRequest | undefined) ??
+				(args as ChatSessionCommandRequest),
+		);
+	}
+
+	// ── Session data reading ──────────────────────────────────────────
+	if (command === "read_session_messages") {
+		return await readSessionMessages(
+			ctx,
+			String(args?.sessionId ?? ""),
+			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
+		);
+	}
+	if (command === "read_session_hooks") {
+		return await readSessionHooks(
+			String(args?.sessionId ?? ""),
+			typeof args?.limit === "number" ? args.limit : 300,
+		);
+	}
+
+	// ── Process context ───────────────────────────────────────────────
+	if (command === "get_process_context") {
+		const hubUrl =
+			ctx.hubClient?.getUrl() ??
+			ctx.sessionManager?.runtimeAddress?.trim() ??
+			null;
+		return {
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+			homeDir: homedir(),
+			platform: process.platform,
+			appVersion: packageJson.version,
+			hub: {
+				status: ctx.hubClient?.isConnected() ? "connected" : "disconnected",
+				url: hubUrl,
+				error: ctx.hubClient?.getConnectionError()?.message ?? null,
+			},
+		};
+	}
+	if (command === "get_chat_ws_endpoint") {
+		return "";
+	}
+
+	// ── Tool approvals (in-memory) ────────────────────────────────────
+	if (command === "poll_tool_approvals") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		return Array.from(ctx.pendingApprovals.values())
+			.filter((a) => a.item.sessionId === sessionId)
+			.map((a) => a.item);
+	}
+	if (command === "respond_tool_approval") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const requestId = String(args?.requestId ?? "").trim();
+		if (!sessionId || !requestId) {
+			throw new Error("sessionId and requestId are required");
+		}
+		const pending = ctx.pendingApprovals.get(requestId);
+		if (pending) {
+			pending.resolve({
+				approved: Boolean(args?.approved),
+				...(typeof args?.reason === "string" && args.reason.trim().length > 0
+					? { reason: args.reason.trim() }
+					: {}),
+			});
+		}
+		ctx.pendingApprovals.delete(requestId);
+		const remaining = Array.from(ctx.pendingApprovals.values())
+			.filter((a) => a.item.sessionId === sessionId)
+			.map((a) => a.item);
+		broadcastEvent(ctx, "tool_approval_state", {
+			sessionId,
+			items: remaining,
+		});
+		return true;
+	}
+	if (command === "respond_ask_question") {
+		const requestId = String(args?.requestId ?? "").trim();
+		if (!requestId) {
+			throw new Error("requestId is required");
+		}
+		const answer = String(args?.answer ?? "").trim();
+		const resolved = resolveSidecarAskQuestion(ctx, requestId, answer);
+		if (!resolved) {
+			throw new Error(`unknown ask question request: ${requestId}`);
+		}
+		broadcastEvent(ctx, "ask_question_answered", { requestId });
+		return true;
+	}
+
+	// ── Session discovery ─────────────────────────────────────────────
+	if (command === "list_chat_sessions") {
+		return discoverChatSessions(
+			ctx,
+			typeof args?.limit === "number" ? args.limit : 300,
+		);
+	}
+	if (command === "list_cli_sessions") {
+		return await listSessionsFromSidecarManager(
+			ctx,
+			typeof args?.limit === "number" ? args.limit : 300,
+		);
+	}
+	if (command === "list_discovered_sessions") {
+		return await listSessionsFromSidecarManager(
+			ctx,
+			typeof args?.limit === "number" ? args.limit : 300,
+		);
+	}
+	if (command === "get_discovered_session") {
+		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
+	if (command === "update_chat_session_title") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		const title = normalizeSessionTitle(String(args?.title ?? ""));
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const result = await backend.updateSession({ sessionId, title });
+		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
+		const liveSession = ctx.liveSessions.get(sessionId);
+		if (liveSession) liveSession.title = title;
+		return true;
+	}
+	if (command === "delete_chat_session" || command === "delete_cli_session") {
+		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
+		const store = new SqliteSessionStore();
+		const row = store.get(sessionId);
+		const manifest = readSessionManifest(sessionId);
+		let deleted = false;
+		let deleteError: Error | null = null;
+		try {
+			if (ctx.sessionManager) {
+				deleted = await ctx.sessionManager.delete(sessionId);
+			} else {
+				const backend = await resolveSessionBackend({ backendMode: "local" });
+				const deleteSession = (
+					backend as {
+						deleteSession: (
+							sessionId: string,
+							cascade?: boolean,
+						) => Promise<boolean | { deleted: boolean }>;
+					}
+				).deleteSession.bind(backend);
+				const deleteResult = await deleteSession(sessionId, true);
+				deleted =
+					typeof deleteResult === "boolean"
+						? deleteResult
+						: deleteResult.deleted;
+			}
+		} catch (error) {
+			deleteError = error instanceof Error ? error : new Error(String(error));
+		}
+		if (store.delete(sessionId, true)) {
+			deleted = true;
+		}
+		ctx.liveSessions.delete(sessionId);
+		const directoryCandidates = new Set<string>([
+			join(sharedSessionDataDir(), sessionId),
+		]);
+		for (const path of [
+			row?.messagesPath,
+			typeof manifest?.messages_path === "string"
+				? manifest.messages_path
+				: null,
+		]) {
+			if (typeof path === "string" && path.trim().length > 0) {
+				directoryCandidates.add(dirname(path));
+			}
+		}
+		for (const path of [sessionLogPath(sessionId)]) {
+			if (removePathIfExists(path, { recursive: true })) {
+				deleted = true;
+			}
+		}
+		for (const dir of directoryCandidates) {
+			if (removePathIfExists(dir, { recursive: true })) {
+				deleted = true;
+			}
+		}
+		for (const path of [
+			row?.messagesPath,
+			typeof manifest?.messages_path === "string"
+				? manifest.messages_path
+				: null,
+			join(sharedSessionDataDir(), sessionId, `${sessionId}.json`),
+		].filter((v): v is string => typeof v === "string" && v.length > 0)) {
+			if (removePathIfExists(path)) {
+				deleted = true;
+			}
+		}
+		for (const suffix of ["messages.json"]) {
+			const fileName = `${sessionId}.${suffix}`;
+			const found = findArtifactUnderDir(
+				join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),
+				fileName,
+				4,
+			);
+			if (found && removePathIfExists(found)) {
+				deleted = true;
+			}
+		}
+		if (!deleted && deleteError) {
+			ctx.logger?.error?.("Failed to delete desktop chat session", {
+				sessionId,
+				error: deleteError,
+			});
+			throw deleteError;
+		}
+		ctx.logger?.log("Desktop chat session delete completed", {
+			sessionId,
+			deleted,
+		});
+		if (deleted) {
+			broadcastEvent(ctx, "session_deleted", {
+				sessionId,
+				command,
+				deleted: true,
+			});
+		}
+		return deleted;
+	}
+
+	// ── Workspace file search ─────────────────────────────────────────
+	if (command === "search_workspace_files") {
+		return await searchWorkspaceFiles(ctx, args);
+	}
+
+	// ── External links ─────────────────────────────────────────────────
+	if (command === "open_external_url") {
+		const rawUrl = String(args?.url ?? "").trim();
+		let parsed: URL;
+		try {
+			parsed = new URL(rawUrl);
+		} catch {
+			throw new Error(`invalid url: ${rawUrl}`);
+		}
+		if (!OPENABLE_URL_PROTOCOLS.has(parsed.protocol)) {
+			throw new Error(
+				"only http(s), mailto and tel urls can be opened externally",
+			);
+		}
+		await openUrlInDefaultBrowser(parsed.toString());
+		return { opened: true };
+	}
+
+	// ── Cline account ──────────────────────────────────────────────────
+	if (command === "cline_account") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+		const settings = manager.getProviderSettings("cline");
+		const accountService = new ClineAccountService({
+			apiBaseUrl:
+				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+			getAuthToken: async () => resolveFreshClineAuthToken(manager),
+		});
+		return await executeClineAccountAction(
+			args as ClineAccountActionRequest,
+			accountService,
+		);
+	}
+
+	// ── Provider management ────────────────────────────────────────────
+	if (command === "list_provider_catalog") {
+		const manager = new ProviderSettingsManager();
+		await ensureCustomProvidersLoaded(manager);
+		return await listLocalProviders(manager, { isClinePassEnabled: true });
+	}
+	if (command === "list_provider_models") {
+		const manager = new ProviderSettingsManager();
+		return await getLocalProviderModels(
+			String(args?.provider ?? ""),
+			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+		);
+	}
+	if (command === "save_provider_settings") {
+		const manager = new ProviderSettingsManager();
+		return saveLocalProviderSettings(manager, {
+			...readProviderSettingsUpdate(args),
+			providerId: String(args?.provider ?? ""),
+			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
+			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
+			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
+		});
+	}
+	if (command === "add_provider") {
+		const manager = new ProviderSettingsManager();
+		await ensureCustomProvidersLoaded(manager);
+		return await addLocalProvider(manager, {
+			providerId: String(args?.provider_id ?? ""),
+			name: String(args?.name ?? ""),
+			baseUrl: String(args?.base_url ?? ""),
+			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
+			headers:
+				args?.headers && typeof args.headers === "object"
+					? (args.headers as Record<string, string>)
+					: undefined,
+			timeoutMs:
+				typeof args?.timeout_ms === "number" ? args.timeout_ms : undefined,
+			models: Array.isArray(args?.models)
+				? (args.models as string[])
+				: undefined,
+			defaultModelId:
+				typeof args?.default_model_id === "string"
+					? args.default_model_id
+					: undefined,
+			modelsSourceUrl:
+				typeof args?.models_source_url === "string"
+					? args.models_source_url
+					: undefined,
+			protocol:
+				typeof args?.protocol === "string"
+					? (args.protocol as ProviderProtocol)
+					: undefined,
+			client:
+				typeof args?.client === "string"
+					? (args.client as ProviderClient)
+					: undefined,
+			capabilities: Array.isArray(args?.capabilities)
+				? (args.capabilities as ProviderCapability[])
+				: undefined,
+		});
+	}
+	if (command === "run_provider_oauth_login") {
+		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
+		const manager = new ProviderSettingsManager();
+		return await runCancellableProviderOAuthLogin(
+			manager,
+			providerId,
+			(url) => {
+				// The OAuth helper's openUrl callback is fire-and-forget; surface
+				// opener failures in the log instead of an unhandled rejection.
+				openUrlInDefaultBrowser(url).catch((error) => {
+					console.warn(
+						`[sidecar] ${error instanceof Error ? error.message : error}`,
+					);
+				});
+			},
+			{ owner: options?.connection },
+		);
+	}
+	if (command === "cancel_provider_oauth_login") {
+		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
+		return {
+			provider: providerId,
+			cancelled: cancelProviderOAuthLogin(providerId),
+		};
+	}
+
+	// ── Global settings ────────────────────────────────────────────────
+	if (command === "get_global_settings") {
+		return readGlobalSettings();
+	}
+	if (command === "set_telemetry_opt_out") {
+		if (typeof args?.telemetry_opt_out !== "boolean") {
+			throw new Error("telemetry_opt_out must be a boolean");
+		}
+		setTelemetryOptOutGlobally(args.telemetry_opt_out);
+		return readGlobalSettings();
+	}
+	if (command === "set_auto_update_enabled") {
+		if (typeof args?.auto_update_enabled !== "boolean") {
+			throw new Error("auto_update_enabled must be a boolean");
+		}
+		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
+		return readGlobalSettings();
+	}
+
+	// ── Connector channels ─────────────────────────────────────────────
+	if (command === "list_connector_channels") {
+		return connectorChannelsPayload();
+	}
+	if (command === "start_connector_channel") {
+		return await startConnectorChannel(ctx.workspaceRoot, args);
+	}
+	if (command === "stop_connector_channel") {
+		return await stopConnectorChannel(ctx.workspaceRoot, args);
+	}
+
+	// ── MCP server management ─────────────────────────────────────────
+	if (command === "list_mcp_servers") {
+		return readMcpServersResponse();
+	}
+	if (command === "set_mcp_server_disabled") {
+		const path = ensureMcpSettingsFile();
+		updateMcpSettingsFileSync(path, (settings) => {
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+				{}) as JsonRecord;
+			const name = String(args?.name ?? "").trim();
+			const current = servers[name];
+			if (!current || typeof current !== "object") {
+				throw new Error(`unknown MCP server: ${name}`);
+			}
+			servers[name] = {
+				...(current as JsonRecord),
+				disabled: Boolean(args?.disabled),
+			};
+			settings.mcpServers = servers;
+		});
+		return readMcpServersResponse();
+	}
+	if (command === "upsert_mcp_server") {
+		const input =
+			args?.input && typeof args.input === "object"
+				? (args.input as JsonRecord)
+				: (args as JsonRecord);
+		const name = String(input.name ?? "").trim();
+		if (!name) throw new Error("server name is required");
+		const previousName = String(
+			input.previousName ?? input.previous_name ?? "",
+		).trim();
+		const transportType = String(
+			input.transportType ?? input.transport_type ?? "",
+		).trim();
+		const next: JsonRecord =
+			transportType === "stdio"
+				? {
+						transport: {
+							type: "stdio",
+							command: input.command,
+							args: input.args,
+							cwd: input.cwd,
+							env: input.env,
+						},
+						disabled: Boolean(input.disabled),
+						metadata: input.metadata,
+					}
+				: {
+						transport: {
+							type: transportType,
+							url: input.url,
+							headers: input.headers,
+						},
+						disabled: Boolean(input.disabled),
+						metadata: input.metadata,
+					};
+		const path = ensureMcpSettingsFile();
+		updateMcpSettingsFileSync(path, (settings) => {
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+				{}) as JsonRecord;
+			// Preserve machine-managed fields the editor dialog doesn't expose:
+			// oauth tokens for remote servers and plugin-ownership metadata.
+			const sourceName =
+				previousName && servers[previousName] ? previousName : name;
+			const existing = servers[sourceName];
+			const upserted = { ...next };
+			if (existing && typeof existing === "object") {
+				const record = existing as JsonRecord;
+				if (upserted.metadata === undefined && record.metadata !== undefined) {
+					upserted.metadata = record.metadata;
+				}
+				// OAuth tokens were issued for a specific endpoint; carrying them
+				// onto an edited transport or URL would send the old server's
+				// credentials to a different endpoint.
+				if (
+					record.oauth !== undefined &&
+					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
+				) {
+					upserted.oauth = record.oauth;
+				}
+			}
+			if (previousName && previousName !== name) {
+				delete servers[previousName];
+			}
+			servers[name] = upserted;
+			settings.mcpServers = servers;
+		});
+		return readMcpServersResponse();
+	}
+	if (command === "delete_mcp_server") {
+		const path = ensureMcpSettingsFile();
+		updateMcpSettingsFileSync(path, (settings) => {
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+				{}) as JsonRecord;
+			delete servers[String(args?.name ?? "")];
+			settings.mcpServers = servers;
+		});
+		return readMcpServersResponse();
+	}
+	if (command === "ensure_mcp_settings_file") {
+		return ensureMcpSettingsFile();
+	}
+
+	// ── Git operations ─────────────────────────────────────────────────
+	if (command === "get_git_branch") {
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const branches = listGitBranches(ctx, cwd);
+		const { prewarmWorkspaceMetadata } = await import("./chat-session");
+		prewarmWorkspaceMetadata(cwd);
+		return { branch: branches.current };
+	}
+	if (command === "list_git_branches") {
+		return listGitBranches(
+			ctx,
+			typeof args?.cwd === "string" ? args.cwd : undefined,
+		);
+	}
+	if (command === "checkout_git_branch") {
+		const cwd = typeof args?.cwd === "string" ? args.cwd : undefined;
+		const branch = String(args?.branch ?? "").trim();
+		if (!branch) throw new Error("branch is required");
+		const targetCwd = cwd?.trim() || ctx.workspaceRoot;
+		execFileSync("git", ["checkout", branch], {
+			cwd: targetCwd,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		const { refreshWorkspaceMetadata } = await import("./chat-session");
+		refreshWorkspaceMetadata(targetCwd);
+		return { branch };
+	}
+
+	// ── Routine schedules ─────────────────────────────────────────────
+	if (
+		command === "list_routine_schedules" ||
+		command === "create_routine_schedule" ||
+		command === "update_routine_schedule" ||
+		command === "pause_routine_schedule" ||
+		command === "resume_routine_schedule" ||
+		command === "trigger_routine_schedule" ||
+		command === "delete_routine_schedule"
+	) {
+		return await handleRoutineScheduleCommand(ctx, command, args);
+	}
+
+	// ── User instruction configs ──────────────────────────────────────
+	if (command === "list_user_instruction_configs") {
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "list_marketplace_installed_entries") {
+		return listMarketplaceInstalledEntries(
+			args,
+			await listUserInstructionConfigs(ctx.workspaceRoot),
+		);
+	}
+	if (command === "install_marketplace_entry") {
+		const result = await installMarketplaceEntryForDesktopCommand(args);
+		return result;
+	}
+	if (command === "uninstall_marketplace_entry") {
+		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
+		return result;
+	}
+	if (command === "uninstall_local_primitive") {
+		const result = await uninstallLocalPrimitive(args, {
+			workspaceRoot: ctx.workspaceRoot,
+		});
+		return result;
+	}
+	if (command === "toggle_disabled_plugin_tool") {
+		const toolName = String(args?.name ?? "").trim();
+		if (!toolName) {
+			throw new Error("tool name is required");
+		}
+		toggleDisabledTool(toolName);
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "set_tool_disabled") {
+		const rawNames = Array.isArray(args?.names) ? args.names : [args?.name];
+		const toolNames = rawNames
+			.map((name) => String(name ?? "").trim())
+			.filter(Boolean);
+		if (toolNames.length === 0) {
+			throw new Error("tool name is required");
+		}
+		setDisabledTools(toolNames, args?.disabled === true);
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "set_plugin_disabled") {
+		const pluginPath = String(args?.path ?? "").trim();
+		if (!pluginPath) {
+			throw new Error("plugin path is required");
+		}
+		setDisabledPlugin(pluginPath, args?.disabled === true);
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+
+	// ── Native OS commands ────────────────────────────────────────────
+	if (command === "validate_workspace_directory") {
+		const workspacePath = String(args?.path ?? "").trim();
+		if (!workspacePath) return { valid: false };
+		try {
+			return { valid: statSync(workspacePath).isDirectory() };
+		} catch {
+			return { valid: false };
+		}
+	}
+	if (command === "pick_workspace_directory") {
+		return pickWorkspaceDirectory();
+	}
+	if (command === "open_mcp_settings_file") {
+		const path = ensureMcpSettingsFile();
+		openFileInEditor(path);
+		return path;
+	}
+	if (command === "list_available_editors") {
+		return listAvailableCodeEditors();
+	}
+	if (command === "open_file_in_editor") {
+		const rawPath = String(args?.path ?? "").trim();
+		if (!rawPath) throw new Error("path is required");
+		const baseDir =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		const filePath = isAbsolute(rawPath) ? rawPath : join(baseDir, rawPath);
+		if (!existsSync(filePath)) {
+			throw new Error(`File not found: ${filePath}`);
+		}
+		const requestedEditor =
+			typeof args?.editor === "string" && args.editor.trim()
+				? args.editor.trim()
+				: undefined;
+		const editor = openFileInCodeEditor(filePath, requestedEditor);
+		return { path: filePath, editor };
+	}
+
+	throw new Error(`unsupported desktop command: ${command}`);
+}

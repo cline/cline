@@ -1,3 +1,4 @@
+export { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "./providers/builtins";
 export {
 	type ApiHandler,
 	BUILT_IN_PROVIDER,
@@ -29,6 +30,25 @@ import {
 } from "./providers/types";
 
 export {
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
+	extractClinePassLimitMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
+} from "./providers/errors";
+export {
+	getRegisteredHandler,
+	getRegisteredHandlerAsync,
+	hasRegisteredHandler,
+	isRegisteredHandlerAsync,
 	registerAsyncHandler,
 	registerHandler,
 } from "./providers/factory-registry";

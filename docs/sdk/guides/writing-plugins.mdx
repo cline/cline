@@ -284,6 +284,21 @@ Users can also install package plugins from git, npm, or a local path:
 cline plugin install https://github.com/your-org/cline-github-plugin.git
 ```
 
+## Bundling Skills
+
+Package plugins can include skills by adding a top-level `skills/` directory next to `package.json`:
+
+```txt
+cline-github-plugin/
+  package.json
+  github-plugin.ts
+  skills/
+    triage/
+      SKILL.md
+```
+
+Each bundled skill follows the same directory format as any other [Cline skill](/customization/skills). When the plugin is installed or loaded through `pluginPaths`, Cline discovers those skills automatically.
+
 See [Plugins](/customization/plugins) for the full manifest format, directory layout, and the [typescript-lsp-plugin](https://github.com/cline/typescript-lsp-plugin) for a complete working example.
 
 ## Plugin Design Guidelines

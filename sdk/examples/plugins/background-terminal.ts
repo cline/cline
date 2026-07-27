@@ -193,6 +193,8 @@ function startCommand(
 		detached: true,
 		stdio: ["ignore", "pipe", "pipe"],
 		env: process.env,
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
 	});
 
 	const record: JobRecord = {
@@ -266,6 +268,11 @@ const plugin: AgentPlugin = {
 			workspaceContext?.rootPath?.trim() ||
 			sessionDefaultCwd;
 		setupSessionId = ctx.session?.sessionId?.trim() || undefined;
+		ctx.logger?.log("background-terminal plugin setup", {
+			sessionId: setupSessionId,
+			defaultCwd: sessionDefaultCwd,
+			jobsDir: JOBS_DIR,
+		});
 
 		api.registerTool(
 			createTool<unknown, Record<string, unknown>>({
@@ -311,6 +318,14 @@ const plugin: AgentPlugin = {
 						notifyParent,
 						resolveToolSessionId(context),
 					);
+					ctx.logger?.log("Started background command", {
+						sessionId: record.sessionId,
+						toolName: "start_background_command",
+						jobId: record.jobId,
+						cwd: record.cwd,
+						shell: record.shell,
+						pid: record.pid,
+					});
 
 					return {
 						jobId: record.jobId,

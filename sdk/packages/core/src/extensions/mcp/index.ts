@@ -2,6 +2,8 @@ export type { DefaultMcpServerClientFactoryOptions } from "./client";
 export { createDefaultMcpServerClientFactory } from "./client";
 export type {
 	LoadMcpSettingsOptions,
+	McpSettingsLockOptions,
+	McpSettingsMutator,
 	McpSettingsFile,
 	RegisterMcpServersFromSettingsOptions,
 	SetMcpServerDisabledOptions,
@@ -16,6 +18,12 @@ export {
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
+	updateMcpSettingsFile,
+	updateMcpSettingsFileSync,
+	McpSettingsLockTimeoutError,
+	McpSettingsMutatorPurityError,
+	McpSettingsUpdateSkippedError,
 } from "./config-loader";
 export { InMemoryMcpManager } from "./manager";
 export type {
@@ -25,6 +33,11 @@ export type {
 	McpOAuthProviderContext,
 } from "./oauth";
 export { authorizeMcpServerOAuth } from "./oauth";
+export type { PluginMcpServerResolution } from "./plugin-server-registration";
+export {
+	normalizePluginMcpServerRegistration,
+	resolvePluginMcpServerRegistrations,
+} from "./plugin-server-registration";
 export type {
 	CreateDisabledMcpToolPoliciesOptions,
 	CreateDisabledMcpToolPolicyOptions,

@@ -1,8 +1,13 @@
-import { initVcr } from "@cline/shared";
+import { AgentRuntimeAbortError } from "@cline/agents";
+import { initVcr, resolveClineBuildEnv } from "@cline/shared";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
 
@@ -57,17 +62,34 @@ async function main(): Promise<void> {
 		pathname: options.pathname,
 	});
 
-	const server = await startHubWebSocketServer({
-		host: endpoint.host,
-		port: endpoint.port,
-		pathname: endpoint.pathname,
-		owner: resolveSharedHubOwnerContext(),
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		cronOptions: { workspaceRoot: options.cwd },
-	});
+	const daemonTelemetry = createHubDaemonTelemetry();
+
+	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
+	try {
+		server = await startHubWebSocketServer({
+			host: endpoint.host,
+			port: endpoint.port,
+			pathname: endpoint.pathname,
+			owner:
+				resolveClineBuildEnv() === "production"
+					? resolveProductionHubOwnerContext()
+					: resolveSharedHubOwnerContext(),
+			telemetry: daemonTelemetry.telemetry,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+				telemetry: daemonTelemetry.telemetry,
+			}),
+			cronOptions: { workspaceRoot: options.cwd },
+		});
+	} catch (error) {
+		// Flush before the top-level catch exits so failed daemon starts are
+		// still visible in telemetry instead of dying silently.
+		await daemonTelemetry.dispose().catch(() => undefined);
+		throw error;
+	}
 
 	const shutdown = async (): Promise<void> => {
 		await server.close();
+		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
 
@@ -92,7 +114,12 @@ async function main(): Promise<void> {
 				);
 			})
 			.finally(() => {
-				process.exit(1);
+				void daemonTelemetry
+					.dispose()
+					.catch(() => undefined)
+					.finally(() => {
+						process.exit(1);
+					});
 			});
 	};
 
@@ -106,6 +133,12 @@ async function main(): Promise<void> {
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
+		if (reason instanceof AgentRuntimeAbortError) {
+			process.stderr.write(
+				`[hub-daemon] ignored agent runtime abort rejection: ${reason.message}\n`,
+			);
+			return;
+		}
 		shutdownFatal("unhandledRejection", reason);
 	});
 

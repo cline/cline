@@ -2,6 +2,28 @@ import { describe, expect, it, vi } from "vitest";
 import { createContributionRegistry } from "./contribution-registry";
 
 describe("ContributionRegistry automation event contributions", () => {
+	it("accepts skills-only plugins without setup contributions", async () => {
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "skill-pack",
+					manifest: { capabilities: ["skills"] },
+				},
+			],
+		});
+
+		await expect(registry.initialize()).resolves.toBeUndefined();
+		expect(registry.getRegistrySnapshot()).toMatchObject({
+			tools: [],
+			commands: [],
+			rules: [],
+			messageBuilder: [],
+			providers: [],
+			automationEventTypes: [],
+			mcpServers: [],
+		});
+	});
+
 	it("registers automation event types declared by plugins", async () => {
 		const registry = createContributionRegistry({
 			extensions: [
@@ -131,5 +153,38 @@ describe("ContributionRegistry automation event contributions", () => {
 		await expect(registry.initialize()).rejects.toThrow(
 			/registerAutomationEventType requires the "automationEvents" capability/,
 		);
+	});
+
+	it("registers MCP servers declared by plugins", async () => {
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "github-pack",
+					manifest: { capabilities: ["mcp"] },
+					setup(api) {
+						api.registerMcpServer({
+							name: "github",
+							transport: {
+								type: "stdio",
+								command: "npx",
+								args: ["-y", "@modelcontextprotocol/server-github"],
+							},
+						});
+					},
+				},
+			],
+		});
+
+		await registry.initialize();
+
+		expect(registry.getRegisteredMcpServers()).toEqual([
+			expect.objectContaining({
+				name: "github",
+				metadata: {
+					source: "plugin",
+					plugin: "github-pack",
+				},
+			}),
+		]);
 	});
 });

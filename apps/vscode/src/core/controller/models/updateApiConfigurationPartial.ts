@@ -1,9 +1,11 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
+import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
+import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -39,13 +41,17 @@ export async function updateApiConfigurationPartial(
 		for (const field of request.updateMask) {
 			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
 		}
+		const normalizedConfig = normalizeProviderSwitchModel(controller.getProviderConfigStore(), currentConfig, updatedConfig)
 
-		// Update storage and task API handler
-		controller.stateManager.setApiConfiguration(updatedConfig)
+		// Update storage and task API model shim
+		controller.stateManager.setApiConfiguration(normalizedConfig)
+		await clearOrganizationForClinePassProviderSelection(controller, normalizedConfig)
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler({ ...updatedConfig, ulid: controller.task.ulid }, currentMode)
+			const modelId = resolveActiveModelIdFromApiConfiguration(normalizedConfig, currentMode)
+			controller.task.api = createTaskApiModelShim(modelId)
 		}
+		controller.handleApiConfigurationChanged(currentConfig, normalizedConfig)
 
 		// Notify webview
 		await controller.postStateToWebview()

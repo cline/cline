@@ -1,6 +1,6 @@
 import { Logger } from "../services/Logger"
 
-export interface ClineStorageChangeEvent {
+interface ClineStorageChangeEvent {
 	readonly key: string
 }
 
@@ -209,26 +209,4 @@ export abstract class ClineSyncStorage<T = any> {
 	protected abstract _set(key: string, value: T | undefined): void
 	protected abstract _delete(key: string): void
 	protected abstract _keys(): readonly string[]
-}
-
-/**
- * A simple in-memory implementation of ClineStorage using a Map.
- */
-export class ClineInMemoryStorage extends ClineStorage {
-	/**
-	 * A simple in-memory cache to store key-value pairs.
-	 */
-	private readonly _cache = new Map<string, string>()
-
-	protected async _get(key: string): Promise<string | undefined> {
-		return this._cache.get(key)
-	}
-
-	protected async _store(key: string, value: string): Promise<void> {
-		this._cache.set(key, value)
-	}
-
-	protected async _delete(key: string): Promise<void> {
-		this._cache.delete(key)
-	}
 }

@@ -30,7 +30,7 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 	{
 		id: "read_files",
 		description:
-			"Read the full content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided.",
+			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. Long files are windowed; page with start_line/end_line.",
 		headlessToolNames: ["read_files"],
 	},
 	{

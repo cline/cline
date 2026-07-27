@@ -5,7 +5,6 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClinePlanModeResponse,
-	ClineSayGenerateExplanation,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
@@ -13,12 +12,9 @@ import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
-	ArrowRightIcon,
 	BellIcon,
-	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	CircleSlashIcon,
 	CircleXIcon,
 	FileCode2Icon,
 	FilePlus2Icon,
@@ -28,7 +24,6 @@ import {
 	Link2Icon,
 	LoaderCircleIcon,
 	PencilIcon,
-	RefreshCwIcon,
 	SearchIcon,
 	SettingsIcon,
 	SquareArrowOutUpRightIcon,
@@ -38,8 +33,8 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
-import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
@@ -47,9 +42,10 @@ import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
+import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
+import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
@@ -71,10 +67,11 @@ const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 interface ChatRowProps {
 	message: ClineMessage
 	isExpanded: boolean
-	onToggleExpand: (ts: number) => void
+	onToggleExpand: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onLastRowContentChange: () => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
@@ -82,7 +79,6 @@ interface ChatRowProps {
 	mode?: Mode
 	reasoningContent?: string
 	responseStarted?: boolean
-	isRequestInProgress?: boolean
 }
 
 export interface QuoteButtonState {
@@ -92,7 +88,9 @@ export interface QuoteButtonState {
 	selectedText: string
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "onLastRowContentChange"> {
+	onLastRowContentChange?: () => void
+}
 
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
@@ -143,22 +141,13 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		onLastRowContentChange,
 		mode,
-		isRequestInProgress,
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const {
-			backgroundEditEnabled,
-			mcpServers,
-			mcpMarketplaceCatalog,
-			onRelinquishControl,
-			vscodeTerminalExecutionMode,
-			clineMessages,
-			showFeatureTips,
-		} = useExtensionState()
-		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
-		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
+		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
+			useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -203,16 +192,14 @@ export const ChatRowContent = memo(
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
+				return [info.cost, info.cancelReason, info.streamingFailedMessage]
 			}
-			return [undefined, undefined, undefined, undefined, undefined]
+			return [undefined, undefined, undefined]
 		}, [message.text, message.say])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 		const apiRequestFailedMessage =
-			isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
-				? lastModifiedMessage?.text
-				: undefined
+			isLast && lastModifiedMessage?.ask === "api_req_failed" ? lastModifiedMessage?.text : undefined
 
 		const type = message.type === "ask" ? message.ask : message.say
 
@@ -230,14 +217,6 @@ export const ChatRowContent = memo(
 		const handleToggle = useCallback(() => {
 			onToggleExpand(message.ts)
 		}, [onToggleExpand, message.ts])
-
-		// Use the onRelinquishControl hook instead of message event
-		useEffect(() => {
-			return onRelinquishControl(() => {
-				setSeeNewChangesDisabled(false)
-				setExplainChangesDisabled(false)
-			})
-		}, [onRelinquishControl])
 
 		// --- Quote Button Logic ---
 		// MOVE handleQuoteClick INSIDE ChatRowContent
@@ -337,10 +316,7 @@ export const ChatRowContent = memo(
 						),
 						<span className="ph-no-capture font-bold text-foreground break-words">
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code className="break-all">
-								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
-							</code>{" "}
-							MCP server:
+							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
 						</span>,
 					]
 				case "completion_result":
@@ -443,10 +419,10 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							{backgroundEditEnabled && tool.path && tool.content ? (
+							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
 								<DiffEditRow
 									isLoading={message.partial}
-									patch={tool.content}
+									patch={tool.diff || tool.content!}
 									path={tool.path}
 									startLineNumbers={tool.startLineNumbers}
 								/>
@@ -527,10 +503,11 @@ export const ChatRowContent = memo(
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
-										{tool.readLineStart != null && tool.readLineEnd != null ? (
+										{tool.readLineStart != null ? (
 											<span className="opacity-80">
 												{" "}
-												({tool.readLineStart}-{tool.readLineEnd})
+												({tool.readLineStart}
+												{tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"})
 											</span>
 										) : null}
 									</span>
@@ -749,7 +726,7 @@ export const ChatRowContent = memo(
 				// Wait 500ms before auto-expanding to avoid animating fast commands
 				const timer = setTimeout(() => {
 					// Expand after 500ms
-					onToggleExpand(message.ts)
+					onToggleExpand(message.ts, { preserveAutoScroll: true })
 				}, 500)
 
 				return () => clearTimeout(timer)
@@ -767,6 +744,7 @@ export const ChatRowContent = memo(
 					isOutputFullyExpanded={isOutputFullyExpanded}
 					message={message}
 					onCancelCommand={onCancelCommand}
+					onOutputChange={onLastRowContentChange}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
 					title={title}
 				/>
@@ -917,6 +895,7 @@ export const ChatRowContent = memo(
 					case "user_feedback":
 						return (
 							<UserMessage
+								canRestoreWorkspace={canRestoreWorkspaceFromMessage(clineMessages, message.ts)}
 								files={message.files}
 								images={message.images}
 								messageTs={message.ts}
@@ -942,8 +921,6 @@ export const ChatRowContent = memo(
 						return <ErrorRow errorType="diff_error" message={message} />
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
-					case "checkpoint_created":
-						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
 					case "load_mcp_documentation":
 						return (
 							<div className="text-foreground flex items-center opacity-70 text-[12px] py-1 px-0">
@@ -951,89 +928,15 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
-					case "generate_explanation": {
-						let explanationInfo: ClineSayGenerateExplanation = {
-							title: "code changes",
-							fromRef: "",
-							toRef: "",
-							status: "generating",
-						}
-						try {
-							if (message.text) {
-								explanationInfo = JSON.parse(message.text)
-							}
-						} catch {
-							// Use defaults if parsing fails
-						}
-						// Check if generation was interrupted:
-						// 1. If status is "generating" but this isn't the last message, it was interrupted
-						// 2. If status is "generating" and lastModifiedMessage is a resume ask, task was just cancelled
-						const wasCancelled =
-							explanationInfo.status === "generating" &&
-							(!isLast ||
-								lastModifiedMessage?.ask === "resume_task" ||
-								lastModifiedMessage?.ask === "resume_completed_task")
-						const isGenerating = explanationInfo.status === "generating" && !wasCancelled
-						const isError = explanationInfo.status === "error"
-						return (
-							<div className="bg-code flex flex-col border border-editor-group-border rounded-sm py-2.5 px-3">
-								<div className="flex items-center">
-									{isGenerating ? (
-										<ProgressIndicator />
-									) : isError ? (
-										<CircleXIcon className="size-2 mr-2 text-error" />
-									) : wasCancelled ? (
-										<CircleSlashIcon className="size-2 mr-2" />
-									) : (
-										<CheckIcon className="size-2 mr-2 text-success" />
-									)}
-									<span className="font-semibold">
-										{isGenerating
-											? "Generating explanation"
-											: isError
-												? "Failed to generate explanation"
-												: wasCancelled
-													? "Explanation cancelled"
-													: "Generated explanation"}
-									</span>
-								</div>
-								{isError && explanationInfo.error && (
-									<div className="opacity-80 ml-6 mt-1.5 text-error break-words">{explanationInfo.error}</div>
-								)}
-								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
-									<div className="opacity-80 ml-6 mt-1.5">
-										<div>{explanationInfo.title}</div>
-										{explanationInfo.fromRef && (
-											<div className="opacity-70 mt-1.5 break-all text-xs">
-												<code className="bg-quote rounded-sm py-0.5 pr-1.5">
-													{explanationInfo.fromRef}
-												</code>
-												<ArrowRightIcon className="inline size-2 mx-1" />
-												<code className="bg-quote rounded-sm py-0.5 px-1.5">
-													{explanationInfo.toRef || "working directory"}
-												</code>
-											</div>
-										)}
-									</div>
-								)}
-							</div>
-						)
-					}
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 
 						return (
 							<CompletionOutputRow
-								explainChangesDisabled={explainChangesDisabled}
 								handleQuoteClick={handleQuoteClick}
 								headClassNames={HEADER_CLASSNAMES}
-								messageTs={message.ts}
 								quoteButtonState={quoteButtonState}
-								seeNewChangesDisabled={seeNewChangesDisabled}
-								setExplainChangesDisabled={setExplainChangesDisabled}
-								setSeeNewChangesDisabled={setSeeNewChangesDisabled}
-								showActionRow={message.partial !== true && hasChanges}
 								text={text || ""}
 							/>
 						)
@@ -1057,52 +960,6 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)
-					case "error_retry":
-						try {
-							const retryInfo = JSON.parse(message.text || "{}")
-							const { attempt, maxAttempts, delaySeconds, failed, errorMessage } = retryInfo
-							const isFailed = failed === true
-
-							return (
-								<div className="flex flex-col gap-2">
-									{errorMessage && (
-										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
-									)}
-									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px] p-3">
-										<div className="flex items-center mb-1">
-											{isFailed && !isRequestInProgress ? (
-												<TriangleAlertIcon className="mr-2 size-2" />
-											) : (
-												<RefreshCwIcon className="mr-2 size-2 animate-spin" />
-											)}
-											<span className="font-medium text-foreground">
-												{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
-											</span>
-										</div>
-										<div className="text-foreground opacity-80">
-											{isFailed ? (
-												<span>
-													Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
-													intervention required.
-												</span>
-											) : (
-												<span>
-													Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> -
-													Retrying in {delaySeconds} seconds...
-												</span>
-											)}
-										</div>
-									</div>
-								</div>
-							)
-						} catch (_e) {
-							// Fallback if JSON parsing fails
-							return (
-								<div className="text-foreground">
-									<MarkdownRow markdown={message.text} />
-								</div>
-							)
-						}
 					case "hook_status":
 						return <HookMessage CommandOutput={CommandOutputContent} message={message} />
 					case "hook_output_stream":
@@ -1147,6 +1004,8 @@ export const ChatRowContent = memo(
 						)
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
+					case "compaction":
+						return <CompactionRow message={message} />
 					default:
 						return (
 							<div>
@@ -1172,15 +1031,9 @@ export const ChatRowContent = memo(
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
 								<CompletionOutputRow
-									explainChangesDisabled={explainChangesDisabled}
 									handleQuoteClick={handleQuoteClick}
 									headClassNames={HEADER_CLASSNAMES}
-									messageTs={message.ts}
 									quoteButtonState={quoteButtonState}
-									seeNewChangesDisabled={seeNewChangesDisabled}
-									setExplainChangesDisabled={setExplainChangesDisabled}
-									setSeeNewChangesDisabled={setSeeNewChangesDisabled}
-									showActionRow={message.partial !== true && hasChanges}
 									text={text || ""}
 								/>
 							)

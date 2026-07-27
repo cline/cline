@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile)
  * keystroke; "network" mounts have very different latency characteristics
  * from "local" ones and we want to filter slow events by this.
  */
-export type FsClass = "local" | "network" | "unknown"
+type FsClass = "local" | "network" | "unknown"
 
 export interface FsInfo {
 	fsClass: FsClass

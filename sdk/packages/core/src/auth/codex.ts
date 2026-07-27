@@ -5,7 +5,7 @@
  * It is only intended for CLI use, not browser environments.
  */
 
-import type { ITelemetryService } from "@cline/shared";
+import { decodeJwtPayload, type ITelemetryService } from "@cline/shared";
 import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
@@ -15,14 +15,8 @@ import {
 	identifyAccount,
 } from "../services/telemetry/core-events";
 import { startLocalOAuthServer } from "./server";
-import type {
-	OAuthCredentials,
-	OAuthLoginCallbacks,
-	OAuthPrompt,
-	OAuthProviderInterface,
-} from "./types";
+import type { OAuthCredentials, OAuthPrompt } from "./types";
 import {
-	decodeJwtPayload,
 	getProofKey,
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,
@@ -442,50 +436,3 @@ export async function getValidOpenAICodexCredentials(
 		return null;
 	}
 }
-
-export function isOpenAICodexTokenExpired(
-	credentials: OAuthCredentials,
-	refreshBufferMs: number = OPENAI_CODEX_OAUTH_CONFIG.refreshBufferMs,
-): boolean {
-	return isCredentialLikelyExpired(credentials, refreshBufferMs);
-}
-
-export function normalizeOpenAICodexCredentials(
-	credentials: OAuthCredentials,
-): OAuthCredentials {
-	const accountId = credentials.accountId ?? getAccountId(credentials.access);
-	if (!accountId) {
-		throw new Error("Failed to extract accountId from token");
-	}
-	return {
-		...credentials,
-		accountId,
-		metadata: {
-			...(credentials.metadata ?? {}),
-			provider: "openai-codex",
-		},
-	};
-}
-
-export const openaiCodexOAuthProvider: OAuthProviderInterface = {
-	id: "openai-codex",
-	name: "ChatGPT Plus/Pro (ChatGPT Subscription)",
-	usesCallbackServer: true,
-
-	async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
-		return loginOpenAICodex({
-			onAuth: callbacks.onAuth,
-			onPrompt: callbacks.onPrompt,
-			onProgress: callbacks.onProgress,
-			onManualCodeInput: callbacks.onManualCodeInput,
-		});
-	},
-
-	async refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
-		return refreshOpenAICodexToken(credentials.refresh, credentials);
-	},
-
-	getApiKey(credentials: OAuthCredentials): string {
-		return credentials.access;
-	},
-};

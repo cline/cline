@@ -1,5 +1,7 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version as corePackageVersion } from "../../../package.json";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
 
 const commandMock = vi.hoisted(() => vi.fn());
@@ -99,6 +101,11 @@ describe("HubRuntimeHost", () => {
 		const started = await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
+			localRuntime: {
+				extensionContext: {
+					client: { name: "cline-cli", version: "3.0.38" },
+				},
+			},
 			prompt: "Hey",
 		});
 
@@ -122,6 +129,18 @@ describe("HubRuntimeHost", () => {
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
+				headers: expect.objectContaining({
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"User-Agent": "Cline/3.0.38",
+					"X-IS-MULTIROOT": "false",
+					"X-CLIENT-TYPE": "cline-cli",
+					"X-CLIENT-VERSION": "3.0.38",
+					"X-PLATFORM": "cli",
+					"X-PLATFORM-VERSION": "3.0.38",
+					"X-CORE-VERSION": corePackageVersion,
+					"X-Task-ID": expect.any(String),
+				}),
 			}),
 			metadata: expect.objectContaining({
 				source: SessionSource.CLI,
@@ -132,6 +151,116 @@ describe("HubRuntimeHost", () => {
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
+	});
+
+	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-pathless",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: resolvedWorkspace,
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		const started = await host.startSession({
+			config: {
+				...createConfig(),
+				sessionId: "sess-pathless",
+				cwd: undefined,
+				workspaceRoot: undefined,
+			},
+			source: SessionSource.CORE,
+		});
+
+		expect(started.manifest.cwd).toBe(resolvedWorkspace);
+		expect(started.manifest.workspace_root).toBe(resolvedWorkspace);
+		const createPayload = commandMock.mock.calls[0]?.[1] as
+			| Record<string, unknown>
+			| undefined;
+		expect(createPayload?.cwd).toBeUndefined();
+		expect(createPayload?.workspaceRoot).toBeUndefined();
+		expect(createPayload?.sessionConfig).toMatchObject({
+			sessionId: "sess-pathless",
+		});
+		expect(createPayload?.sessionConfig).not.toHaveProperty("cwd");
+		expect(createPayload?.sessionConfig).not.toHaveProperty("workspaceRoot");
+	});
+
+	it("rejects a pathless reply without the execution host workspace", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-missing-workspace",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.startSession({
+				config: {
+					...createConfig(),
+					sessionId: "sess-missing-workspace",
+					cwd: undefined,
+					workspaceRoot: undefined,
+				},
+				source: SessionSource.CORE,
+			}),
+		).rejects.toThrow("Hub runtime did not return a resolved workspace path.");
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
+	});
+
+	it("cleans a restored session when its host workspace is missing", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "sess-restored-missing-workspace",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+				},
+				checkpoint: {},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.restoreSession({
+				sessionId: "source-session",
+				checkpointRunCount: 1,
+				start: {
+					config: {
+						...createConfig(),
+						sessionId: "sess-restored-missing-workspace",
+						cwd: undefined,
+						workspaceRoot: undefined,
+					},
+					source: SessionSource.CORE,
+				},
+			}),
+		).rejects.toThrow("Hub runtime did not return a resolved workspace path.");
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
 	});
 
 	it("restarts an idle local hub and retries session.create after startup timeout", async () => {
@@ -1408,6 +1537,69 @@ describe("HubRuntimeHost", () => {
 				error_message: "Unknown session: sess-missing",
 			}),
 		});
+	});
+
+	it("records rejected compaction state updates as handled errors", async () => {
+		const telemetry = { capture: vi.fn() };
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "sess-1",
+		});
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: {
+				code: "session_wrong_client",
+				message: "Session sess-1 is owned by other-client",
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({
+			url: "ws://127.0.0.1:25463/hub",
+			telemetry: telemetry as never,
+		});
+
+		await expect(
+			host.updateSessionCompactionState(" sess-1 ", state),
+		).resolves.toEqual({ updated: false });
+		expect(telemetry.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "core",
+				operation: "hub.runtime_host.update_session_compaction_state",
+				severity: "warn",
+				handled: true,
+				command: "session.compaction.update",
+				sessionId: "sess-1",
+				errorCode: "session_wrong_client",
+				error_message: "Session sess-1 is owned by other-client",
+			}),
+		});
+	});
+
+	it("treats stale compaction state updates as non-error no-ops", async () => {
+		const telemetry = { capture: vi.fn() };
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "sess-1",
+		});
+		commandMock.mockResolvedValue({
+			ok: true,
+			payload: { updated: false },
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({
+			url: "ws://127.0.0.1:25463/hub",
+			telemetry: telemetry as never,
+		});
+
+		await expect(
+			host.updateSessionCompactionState("sess-1", state),
+		).resolves.toEqual({ updated: false });
+		expect(telemetry.capture).not.toHaveBeenCalled();
 	});
 
 	it("throws when the hub rejects settings list", async () => {

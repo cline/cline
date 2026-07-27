@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env bun
 
 /**
  * Simple Cline gRPC Server
@@ -7,13 +7,13 @@
  * without requiring the full installation, while automatically mocking all external services. Simply run:
  *
  *   # One-time setup (generates protobuf files)
- *	 npm run compile-standalone
- *   npm run test:sca-server
+ *	 bun run compile-standalone
+ *   bun run test:sca-server
  *
  * The following components are started automatically:
  *   1. HostBridge test server
  *   2. ClineApiServerMock (mock implementation of the Cline API)
- *   3. AuthServiceMock (activated if E2E_TEST="true")
+ *   3. SDK WorkOS device-auth flow, with WorkOS fetches mocked by testing-platform-workos-fetch-mock.cjs
  *
  * Environment Variables for Customization:
  *   PROJECT_ROOT - Override project root directory (default: parent of scripts dir)
@@ -22,7 +22,7 @@
  *   PROTOBUS_PORT - gRPC server port (default: 26040)
  *   HOSTBRIDGE_PORT - HostBridge server port (default: 26041)
  *   WORKSPACE_DIR - Working directory (default: current directory)
- *   E2E_TEST - Enable E2E test mode (default: true)
+ *   E2E_TEST - Enable legacy mock auth mode (default: false)
  *   CLINE_ENVIRONMENT - Environment setting (default: local)
  *
  * Ideal for local development, testing, or lightweight E2E scenarios.
@@ -38,7 +38,7 @@ import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 const PROTOBUS_PORT = process.env.PROTOBUS_PORT || "26040"
 const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
-const E2E_TEST = process.env.E2E_TEST || "true"
+const E2E_TEST = process.env.E2E_TEST || "false"
 const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
 const USE_C8 = process.env.USE_C8 === "true"
 
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 		console.error("  CLINE_DIST_DIR - Override distribution directory")
 		console.error("  CLINE_CORE_FILE - Override core file name")
 		console.error("")
-		console.error("To build the standalone version, run: npm run compile-standalone")
+		console.error("To build the standalone version, run: bun run compile-standalone")
 		process.exit(1)
 	}
 
@@ -83,8 +83,8 @@ async function main(): Promise<void> {
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 
 	console.log("Starting HostBridge test server...")
-	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
-		stdio: "pipe",
+	const hostbridge: ChildProcess = spawn("bun", [path.join(__dirname, "test-hostbridge-server.ts")], {
+		stdio: "inherit",
 		env: {
 			...process.env,
 			TEST_HOSTBRIDGE_WORKSPACE_DIR: clineTestWorkspace,
@@ -115,13 +115,16 @@ async function main(): Promise<void> {
 
 	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
 
-	const baseArgs = ["--enable-source-maps", path.join(distDir, "cline-core.js")]
+	const workosFetchMockPath = path.join(projectRoot, "scripts", "testing-platform-workos-fetch-mock.cjs")
+	const baseArgs = ["--enable-source-maps", "--require", workosFetchMockPath, path.join(distDir, "cline-core.js")]
 
-	const spawnArgs = USE_C8 ? ["c8", "--report-dir", covDir, "node", ...baseArgs] : ["node", ...baseArgs]
+	const c8Bin = path.join(projectRoot, "node_modules", ".bin", process.platform === "win32" ? "c8.cmd" : "c8")
+	const spawnCommand = USE_C8 ? c8Bin : "node"
+	const spawnArgs = USE_C8 ? ["--report-dir", covDir, "node", ...baseArgs] : baseArgs
 
 	console.log(`Starting Cline Core Service... (useC8=${USE_C8})`)
 
-	const coreService: ChildProcess = spawn("npx", spawnArgs, {
+	const coreService: ChildProcess = spawn(spawnCommand, spawnArgs, {
 		cwd: projectRoot,
 		env: {
 			...process.env,

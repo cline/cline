@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
+import { stripUtf8Bom } from "@cline/shared";
 import {
 	AGENTS_RULES_FILE_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -11,6 +12,7 @@ import {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import YAML from "yaml";
+import { resolveAgentPluginSkillDirectories } from "../plugin/plugin-config-loader";
 import {
 	type UnifiedConfigDefinition,
 	type UnifiedConfigFileCandidate,
@@ -82,6 +84,10 @@ export interface CreateInstructionWatcherOptions {
 export interface CreateSkillsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
 	workspacePath?: string;
+	includePluginSkills?: boolean;
+	pluginSkillDirectories?: ReadonlyArray<string>;
+	pluginPaths?: ReadonlyArray<string>;
+	cwd?: string;
 }
 
 export interface CreateRulesConfigDefinitionOptions {
@@ -110,6 +116,41 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 
 function isMarkdownFile(fileName: string): boolean {
 	return MARKDOWN_EXTENSIONS.has(extname(fileName).toLowerCase());
+}
+
+function dedupeDirectoryPaths(directories: ReadonlyArray<string>): string[] {
+	const deduped: string[] = [];
+	const seen = new Set<string>();
+	for (const directory of directories) {
+		const normalized = resolve(directory);
+		if (seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		deduped.push(directory);
+	}
+	return deduped;
+}
+
+function resolveSkillDirectories(
+	options?: CreateSkillsConfigDefinitionOptions,
+): string[] {
+	const directories = [
+		...(options?.directories ??
+			resolveSkillsConfigSearchPaths(options?.workspacePath)),
+	];
+	if (options?.pluginSkillDirectories) {
+		directories.push(...options.pluginSkillDirectories);
+	} else if (options?.includePluginSkills) {
+		directories.push(
+			...resolveAgentPluginSkillDirectories({
+				pluginPaths: options.pluginPaths,
+				workspacePath: options.workspacePath,
+				cwd: options.cwd ?? options.workspacePath,
+			}),
+		);
+	}
+	return dedupeDirectoryPaths(directories);
 }
 
 async function discoverManagedPluginRoots(
@@ -153,10 +194,15 @@ async function discoverManagedPluginRoots(
 function parseMarkdownFrontmatter(
 	content: string,
 ): ParseMarkdownFrontmatterResult {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding),
+	// which Node's `utf-8` decoding does not strip on its own. Without this the frontmatter
+	// regex below never matches a file that starts with "\uFEFF---" (see cline/cline#12151).
+	const normalizedContent = stripUtf8Bom(content);
+
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-	const match = content.match(frontmatterRegex);
+	const match = normalizedContent.match(frontmatterRegex);
 	if (!match) {
-		return { data: {}, body: content, hadFrontmatter: false };
+		return { data: {}, body: normalizedContent, hadFrontmatter: false };
 	}
 
 	const [, yamlContent, body] = match;
@@ -171,7 +217,7 @@ function parseMarkdownFrontmatter(
 		const message = error instanceof Error ? error.message : String(error);
 		return {
 			data: {},
-			body: content,
+			body: normalizedContent,
 			hadFrontmatter: true,
 			parseError: message,
 		};
@@ -480,16 +526,16 @@ async function discoverManagedWorkflowFiles(
 export function createSkillsConfigDefinition(
 	options?: CreateSkillsConfigDefinitionOptions,
 ): UnifiedConfigDefinition<"skill", SkillConfig> {
-	const directories =
-		options?.directories ??
-		resolveSkillsConfigSearchPaths(options?.workspacePath);
+	const directories = resolveSkillDirectories(options);
 	const managedRoot = options?.workspacePath
 		? join(options.workspacePath, ".cline")
 		: undefined;
 
 	return {
 		type: "skill",
-		directories: managedRoot ? [...directories, managedRoot] : directories,
+		directories: managedRoot
+			? dedupeDirectoryPaths([...directories, managedRoot])
+			: directories,
 		discoverFiles: discoverSkillFiles,
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
 		parseFile: (context) =>

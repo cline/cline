@@ -1,11 +1,14 @@
 import * as LlmsModels from "@cline/llms";
-import { isOAuthProviderId } from "@cline/shared";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
 
 export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
+	| "azureApiVersion"
 	| "awsRegion"
 	| "awsProfile"
+	| "gcpProjectId"
+	| "gcpRegion"
 	| "sapClientId"
 	| "sapClientSecret"
 	| "sapTokenUrl"
@@ -33,8 +36,11 @@ export interface ProviderConfigFields {
 const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
+	"azureApiVersion",
 	"awsRegion",
 	"awsProfile",
+	"gcpProjectId",
+	"gcpRegion",
 	"sapClientId",
 	"sapClientSecret",
 	"sapTokenUrl",
@@ -53,6 +59,39 @@ interface ProviderConfigFieldMetadata {
 const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 	Record<string, ProviderConfigFieldMetadata>
 > = {
+	"openai-compatible": {
+		description:
+			"For Azure AI Foundry deployments, use a Base URL ending at /openai/deployments/<deployment> and set the Azure API version.",
+		fields: {
+			azureApiVersion: {
+				label: "Azure API Version (optional)",
+				placeholder: "2025-01-01-preview",
+				note: "Required for Azure AI Foundry deployment URLs.",
+				optional: true,
+			},
+		},
+	},
+	vertex: {
+		mode: "replace",
+		description:
+			"Vertex AI can use Google Cloud Application Default Credentials with a project/region. An API key is optional for supported Gemini models.",
+		fields: {
+			gcpProjectId: {
+				label: "Google Cloud Project ID",
+				placeholder: "my-gcp-project",
+			},
+			gcpRegion: {
+				label: "Google Cloud Region",
+				placeholder: "us-central1",
+				defaultValue: "us-central1",
+			},
+			apiKey: {
+				label: "API Key (optional)",
+				placeholder: "Leave blank to use Google Cloud credentials",
+				optional: true,
+			},
+		},
+	},
 	bedrock: {
 		mode: "replace",
 		description:
@@ -186,7 +225,7 @@ export function getProviderConfigFields(
 	providerId: string,
 ): ProviderConfigFields {
 	const id = LlmsModels.normalizeProviderId(providerId);
-	if (isOAuthProviderId(id)) {
+	if (isOAuthProvider(id)) {
 		return { providerId: id, authMethod: "oauth", fields: {} };
 	}
 

@@ -1,0 +1,443 @@
+export type ConnectorCatalogEntry = {
+	name: string;
+	description: string;
+};
+
+export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
+	{
+		name: "discord",
+		description:
+			"Discord interactions and gateway bridge backed by RPC runtime sessions",
+	},
+	{
+		name: "gchat",
+		description: "Google Chat webhook bridge backed by RPC runtime sessions",
+	},
+	{
+		name: "linear",
+		description: "Linear webhook bridge backed by RPC runtime sessions",
+	},
+	{
+		name: "slack",
+		description: "Slack webhook/socket bridge backed by RPC runtime sessions",
+	},
+	{
+		name: "telegram",
+		description: "Bridge Telegram bot messages into RPC chat sessions",
+	},
+	{
+		name: "whatsapp",
+		description: "Bridge WhatsApp webhook messages into RPC chat sessions",
+	},
+];
+
+export function listConnectorCatalog(): ConnectorCatalogEntry[] {
+	return CONNECTOR_CATALOG.map((entry) => ({ ...entry }));
+}
+
+export interface ConnectorPlatformDef {
+	id: string;
+	name: string;
+	type: "polling" | "webhook" | "hybrid";
+	hint: string;
+	fields: ConnectorFieldDef[];
+	security?: ConnectorSecurityDef;
+}
+
+export interface ConnectorFieldDef {
+	flag: string;
+	label: string;
+	placeholder?: string;
+	required?: boolean;
+	help?: string[];
+	initialValue?: string;
+	options?: Array<{ value: string; label: string; hint?: string }>;
+	includeWhen?: ConnectorFieldCondition;
+}
+
+export type ConnectorFieldCondition = {
+	flag: string;
+	equals?: string;
+	notEquals?: string;
+};
+
+export interface ConnectorSecurityFieldDef {
+	key: string;
+	label: string;
+	placeholder?: string;
+	help?: string[];
+	requiredMessage: string;
+	validate?: (value: string) => string | undefined;
+}
+
+export interface ConnectorSecurityDef {
+	prompt: string;
+	fields: ConnectorSecurityFieldDef[];
+	buildArgs: (values: Record<string, string>) => string[];
+}
+
+export type ConnectorChannel = {
+	id: string;
+	name: string;
+	type: ConnectorPlatformDef["type"];
+	hint: string;
+	fields: ConnectorFieldDef[];
+	security?: {
+		prompt: string;
+		fields: Array<Omit<ConnectorSecurityFieldDef, "validate">>;
+	};
+};
+
+export type ActiveConnectorRecord = {
+	id: string;
+	type: string;
+	pid: number;
+	hubUrl: string;
+	startedAt?: string;
+	applicationId?: string;
+	botUsername?: string;
+	userName?: string;
+	phoneNumberId?: string;
+	port?: number;
+	baseUrl?: string;
+	connectionMode?: string;
+};
+
+export type ConfiguredConnectorRecord = {
+	id: string;
+	type: string;
+	configuredAt: string;
+	updatedAt: string;
+};
+
+export type ConnectorChannelsResponse = {
+	available: ConnectorChannel[];
+	active: ActiveConnectorRecord[];
+	configured: ConfiguredConnectorRecord[];
+};
+
+export function shouldIncludeConnectorField(
+	field: ConnectorFieldDef,
+	values: Record<string, string>,
+): boolean {
+	const condition = field.includeWhen;
+	if (!condition) {
+		return true;
+	}
+	const value = values[condition.flag] ?? "";
+	if (condition.equals !== undefined && value !== condition.equals) {
+		return false;
+	}
+	if (condition.notEquals !== undefined && value === condition.notEquals) {
+		return false;
+	}
+	return true;
+}
+
+export function connectorChannelsFromPlatforms(
+	platforms: ConnectorPlatformDef[] = CONNECTOR_PLATFORMS,
+): ConnectorChannel[] {
+	const supported = new Set(
+		listConnectorCatalog().map((connector) => connector.name),
+	);
+	return platforms
+		.filter((platform) => supported.has(platform.id))
+		.map((platform) => ({
+			id: platform.id,
+			name: platform.name,
+			type: platform.type,
+			hint: platform.hint,
+			fields: platform.fields.map((field) => ({
+				flag: field.flag,
+				label: field.label,
+				placeholder: field.placeholder,
+				required: field.required,
+				help: field.help,
+				initialValue: field.initialValue,
+				options: field.options,
+				includeWhen: field.includeWhen,
+			})),
+			security: platform.security
+				? {
+						prompt: platform.security.prompt,
+						fields: platform.security.fields.map((field) => ({
+							key: field.key,
+							label: field.label,
+							placeholder: field.placeholder,
+							help: field.help,
+							requiredMessage: field.requiredMessage,
+						})),
+					}
+				: undefined,
+		}));
+}
+
+function validateTelegramUserId(value: string): string | undefined {
+	return /^\d+$/.test(value)
+		? undefined
+		: "Telegram user ID must contain digits only";
+}
+
+function validateSlackTeamId(value: string): string | undefined {
+	return /^T[A-Z0-9]+$/.test(value)
+		? undefined
+		: "Slack workspace ID must start with T and contain uppercase letters or digits only";
+}
+
+function validateSlackUserId(value: string): string | undefined {
+	return /^[UW][A-Z0-9]+$/.test(value)
+		? undefined
+		: "Slack member ID must start with U or W and contain uppercase letters or digits only";
+}
+
+export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
+	{
+		id: "telegram",
+		name: "Telegram",
+		type: "polling",
+		hint: "Easiest to set up. No public URL needed.",
+		fields: [
+			{
+				flag: "-k",
+				label: "Bot token",
+				placeholder: "7123456789:AAH...",
+				required: true,
+				help: [
+					"Open Telegram and start a chat with @BotFather",
+					"Send /newbot and follow the prompts",
+					"BotFather gives you this after creating the bot",
+					"It looks like 7123456789:AAHxxx...",
+				],
+			},
+		],
+		security: {
+			prompt:
+				"By default, anyone who finds your bot can message it and run tasks on your machine. Restrict access to your Telegram user ID?",
+			fields: [
+				{
+					key: "userId",
+					label: "Your Telegram user ID",
+					placeholder: "123456789",
+					help: [
+						"Message @userinfobot on Telegram",
+						"It will reply with your numeric user ID",
+					],
+					requiredMessage: "User ID is required to restrict access",
+					validate: validateTelegramUserId,
+				},
+			],
+			buildArgs: ({ userId }) => ["--allowed-user-id", userId ?? ""],
+		},
+	},
+	{
+		id: "slack",
+		name: "Slack",
+		type: "hybrid",
+		hint: "Public URL for webhook mode; leave blank for socket mode.",
+		fields: [
+			{
+				flag: "--bot-token",
+				label: "Bot token",
+				placeholder: "xoxb-...",
+				required: true,
+				help: [
+					"Go to api.slack.com/apps and create a new app",
+					"Add Bot Token Scopes: chat:write, app_mentions:read, channels:history, channels:read, im:history, im:read, im:write, users:read",
+					"Install to workspace and copy the Bot Token",
+				],
+			},
+			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "leave blank for socket mode",
+				help: [
+					"Enter a publicly accessible URL for webhook mode",
+					"Leave blank to use Slack socket mode instead",
+				],
+			},
+			{
+				flag: "--signing-secret",
+				label: "Signing secret",
+				required: true,
+				help: ["Found in your app's Basic Information page"],
+				includeWhen: { flag: "--base-url", notEquals: "" },
+			},
+			{
+				flag: "--app-token",
+				label: "App-level token",
+				placeholder: "xapp-...",
+				required: true,
+				help: [
+					"Enable Socket Mode in the Slack app",
+					"Generate an app-level token with the connections:write scope",
+				],
+				includeWhen: { flag: "--base-url", equals: "" },
+			},
+		],
+		security: {
+			prompt: "Restrict which Slack users can interact with the bot?",
+			fields: [
+				{
+					key: "teamId",
+					label: "Allowed Slack workspace ID",
+					placeholder: "T01ABC123",
+					help: [
+						"Open your Slack workspace URL in a browser",
+						"The workspace ID is the segment after /client/, for example T01ABC123",
+					],
+					requiredMessage: "Workspace ID is required to restrict access",
+					validate: validateSlackTeamId,
+				},
+				{
+					key: "userId",
+					label: "Allowed Slack member ID",
+					placeholder: "U01ABC123",
+					help: [
+						"Click a user's name in Slack, then View full profile",
+						"Click ... and Copy member ID",
+					],
+					requiredMessage: "Member ID is required to restrict access",
+					validate: validateSlackUserId,
+				},
+			],
+			buildArgs: ({ teamId, userId }) => [
+				"--hook-command",
+				`jq -r ".payload.actor.participantKey" | grep -qx "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			],
+		},
+	},
+	{
+		id: "discord",
+		name: "Discord",
+		type: "webhook",
+		hint: "Requires a Discord app and public URL.",
+		fields: [
+			{
+				flag: "--application-id",
+				label: "Application ID",
+				required: true,
+				help: [
+					"Go to discord.com/developers/applications",
+					"Create a new app, copy the Application ID",
+				],
+			},
+			{
+				flag: "--bot-token",
+				label: "Bot token",
+				required: true,
+				help: ["Go to Bot section, create a bot, copy the token"],
+			},
+			{
+				flag: "--public-key",
+				label: "Public key",
+				required: true,
+				help: ["Found in General Information of your app"],
+			},
+			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "https://example.com",
+				required: true,
+				help: [
+					"Base URL for the connector",
+					"For Discord, set the Interactions Endpoint URL to <base-url>/api/webhooks/discord",
+				],
+			},
+		],
+	},
+	{
+		id: "whatsapp",
+		name: "WhatsApp",
+		type: "webhook",
+		hint: "Requires Meta developer account and public URL.",
+		fields: [
+			{
+				flag: "--phone-number-id",
+				label: "Phone number ID",
+				required: true,
+				help: ["From your WhatsApp Business account in Meta Developer portal"],
+			},
+			{
+				flag: "--access-token",
+				label: "Access token",
+				required: true,
+				help: ["Generate a permanent token in Meta Developer portal"],
+			},
+			{
+				flag: "--app-secret",
+				label: "App secret",
+				required: true,
+				help: ["Found in App Settings > Basic"],
+			},
+			{
+				flag: "--verify-token",
+				label: "Webhook verify token",
+				placeholder: "my-verify-token",
+				required: true,
+				help: ["Any string you choose, used to verify webhook setup"],
+			},
+			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "https://example.com",
+				required: true,
+			},
+		],
+	},
+	{
+		id: "gchat",
+		name: "Google Chat",
+		type: "webhook",
+		hint: "Requires Google Cloud project and public URL.",
+		fields: [
+			{
+				flag: "--credentials-json",
+				label: "Service account credentials JSON",
+				required: true,
+				help: [
+					"Create a service account in Google Cloud Console",
+					"Download the credentials JSON file",
+					"Paste the JSON content here",
+				],
+			},
+			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "https://example.com",
+				required: true,
+			},
+		],
+	},
+	{
+		id: "linear",
+		name: "Linear",
+		type: "webhook",
+		hint: "React to Linear issues and comments.",
+		fields: [
+			{
+				flag: "--api-key",
+				label: "API key",
+				required: true,
+				help: ["Go to Linear Settings > API > Personal API keys"],
+			},
+			{
+				flag: "--webhook-secret",
+				label: "Webhook signing secret",
+				required: true,
+				help: [
+					"Go to Settings > API > Webhooks, create one",
+					"Copy the signing secret",
+				],
+			},
+			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "https://example.com",
+				required: true,
+			},
+		],
+	},
+];
+
+export const PLATFORMS = CONNECTOR_PLATFORMS;
+export const shouldIncludeField = shouldIncludeConnectorField;
