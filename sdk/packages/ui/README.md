@@ -75,6 +75,8 @@ For an embedded surface, import scoped tokens and optional Markdown styles:
 </section>
 ```
 
+Dark values activate when `.dark` is on the wrapper or an ancestor.
+
 The theme follows the standard shadcn semantic contract (`--background`,
 `--foreground`, `--card`, `--primary`, `--border`, `--ring`, charts, and
 sidebar surfaces) and Tailwind theme names. This means shadcn components and
