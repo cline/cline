@@ -1,0 +1,805 @@
+{
+ "clusters": [
+  {
+   "cluster_id": "terminal-skipped-hang",
+   "label": "Terminal command completion is never signalled: the command shows \"Skipped\"/\"Pending\" while the task hangs forever on \"Thinking\u2026\", recoverable only by restarting the extension or VS Code",
+   "canonical": 12079,
+   "canonical_rationale": "Highest engagement of the family (15 comments, 6+ distinct reporters), the only one with numbered repro steps AND a maintainer (@saoudrizwan/@dominiccooney) already triaging it in-thread, and it is filed against the current 4.0.6 SDK extension rather than a retired 3.x build. Tie-break vs #10015 (also 15 comments): #10015 is a rant with no usable repro and is pinned to v3.76; #12079 supersedes it and already absorbed #12073/#12198.",
+   "duplicates": [
+    10015,
+    10031,
+    10537,
+    10588,
+    10709,
+    10853,
+    11295,
+    11452,
+    11495,
+    11550,
+    11669,
+    12073,
+    12198,
+    12389
+   ],
+   "related": [
+    10407,
+    10549,
+    10931,
+    10951,
+    11402,
+    11622,
+    12417
+   ],
+   "confidence": "high",
+   "shared_root_cause": "The VS Code terminal host never observes the end-of-command signal, so `run_commands` waits on a promise that never settles. On main the command status enum still carries `skipped` (apps/vscode/src/shared/ExtensionMessage.ts, rendered by webview-ui/src/components/chat/CommandOutputRow.tsx) and the foreground path in apps/vscode/src/sdk/vscode-run-commands-tool.ts waits up to VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 1 hour, so a missed OSC-633/shell-integration exit marker stalls the whole task. #11972 (OSC 633 parser + shell-execution-end API) and #12352 target exactly this; @dominiccooney confirms in #12079 that markerless terminals (SSH, no shell integration) still fall back to a timed screen scrape.",
+   "total_reporters": 15
+  },
+  {
+   "cluster_id": "stream-never-starts",
+   "label": "Provider stream never starts or never ends and there is no response-start/idle timeout, so the UI sits on \"Thinking\u2026\" with no terminal command involved",
+   "canonical": 10208,
+   "canonical_rationale": "13 comments and the only report with a decisive observation \u2014 the prompt never reaches the LM Studio server at all, so this is a request/stream-lifecycle hang rather than the terminal-completion hang tracked in #12079. Kept separate from the terminal cluster on purpose.",
+   "duplicates": [],
+   "related": [
+    10631,
+    11035,
+    12095
+   ],
+   "confidence": "low",
+   "shared_root_cause": "Unknown. Candidate is the absence of a provider-agnostic first-token / idle timeout in `@cline/llms` (only the Ollama vendor wraps one), which lets a stalled or half-open connection hang indefinitely; #10631 documents the TCP half-open variant.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "grey-blank-webview",
+   "label": "Cline chat webview goes grey/blank while the extension keeps working; a single render throw blanks the whole panel because there is no error boundary",
+   "canonical": 10626,
+   "canonical_rationale": "Two independent confirmations (one on 3.89.2, one saying it is now frequent), the clearest statement of the invariant (\"the extension is still working, the interface is completely gray\"), and a triage note that already scopes the fix (find the message shape that throws + add a root error boundary). #10201 has one more comment but bundles a separate feature ask.",
+   "duplicates": [
+    10201,
+    10814,
+    12422
+   ],
+   "related": [
+    11527,
+    12419
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "An unhandled exception while rendering the chat message list unmounts the React tree and leaves an empty webview; nothing in apps/vscode/webview-ui wraps the message list in an error boundary, so one bad row blanks everything. #11527 names a concrete instance (React error #31 when opening an older conversation).",
+   "total_reporters": 4
+  },
+  {
+   "cluster_id": "extension-host-crash",
+   "label": "VS Code extension host process terminates/restarts repeatedly, resetting Cline to the start screen",
+   "canonical": 11377,
+   "canonical_rationale": "Only report in the pair with actual data (14 extension-host crashes across 4 sessions, STATUS_STACK_BUFFER_OVERRUN, native-module hypothesis). #10030 has no logs at all.",
+   "duplicates": [],
+   "related": [
+    10030
+   ],
+   "confidence": "low",
+   "shared_root_cause": "Unknown \u2014 a native crash in the extension host, not a Cline JS exception. Both reports lack the crash dump needed to confirm a shared cause, so they are only filed together, not merged.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "cli-bun-binary-crash",
+   "label": "Cline CLI dies immediately at launch because the Bun-compiled binary uses AVX2 instructions absent on pre-Haswell CPUs (SIGILL / 'Illegal instruction')",
+   "canonical": 10514,
+   "canonical_rationale": "Earliest report, 3 comments, two independent hardware confirmations (Sandy Bridge i5-2500 and Ivy Bridge i7-3770), and complete step-by-step repro. Tie-break: #11539 has the better root-cause writeup (objdump showing `vpermq`) and should be carried into #10514 as evidence, but #10514 wins on engagement and repro and the existing triage already points #11539 at it.",
+   "duplicates": [
+    11539
+   ],
+   "related": [
+    11945,
+    11993,
+    12042,
+    12080
+   ],
+   "confidence": "high",
+   "shared_root_cause": "Since CLI v3.0.0 the npm package ships a Bun-embedded standalone executable (`@cline/cli-<platform>`); Bun's default build targets AVX2, so any pre-Haswell x86-64 CPU faults on the first AVX2 opcode. The related issues are other launch crashes of the same binary with different causes (arm64 container, macOS AMFI code signing, Windows) and are deliberately NOT merged.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "openai-compat-context-window-ignored",
+   "label": "Configured context-window size for OpenAI-compatible models is ignored and the 128k default is used instead, so compaction fires far too early",
+   "canonical": 10551,
+   "canonical_rationale": "Most complete report of the family: 5 comments, exact configuration (`deepseek-v4-pro`, contextWindow 1048576), the observed 128k cap, and it already links the two open PRs. #10980 is the same defect stated more briefly.",
+   "duplicates": [
+    10980
+   ],
+   "related": [
+    10094,
+    10375,
+    12520
+   ],
+   "confidence": "high",
+   "shared_root_cause": "`openAiModelInfoSafeDefaults.contextWindow` (128_000) is the fallback whenever the user-configured window fails to reach the resolved model info \u2014 see apps/vscode/src/sdk/model-catalog/shape-adapter.ts:196 and store.ts:192. The CLI has the mirror-image defect in `resolveModelInfo` (sdk/packages/llms/src/providers/compat.ts:620), where `config.modelInfo ?? config.knownModels?.[id]` short-circuits on a defaulted `modelInfo` and shadows the registry entry (#12520). Related issues are the same class through other providers: vscode-lm's FALLBACK_CONTEXT_WINDOW = 128_000 (#10094) and OLLAMA_DEFAULT_CONTEXT_WINDOW = 32768 (#10375).",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "inflated-token-count",
+   "label": "Token/context counter reports absurd values (millions of tokens for a one-word prompt) on OpenAI-compatible endpoints and proxies",
+   "canonical": 11660,
+   "canonical_rationale": "5 comments, a one-line deterministic repro (\"send test in plan mode\"), a named provider/deployment (zai-org/GLM-5.2 on SiliconFlow) and a commenter diagnosis that matches the code. #10148 has one more comment and a tcpdump but its specific mechanism (multiple `usage` chunks summed by the legacy openai.ts) was removed in the SDK rewrite, so it is listed as related rather than as canonical.",
+   "duplicates": [
+    10212,
+    11208,
+    11858,
+    12067
+   ],
+   "related": [
+    10148,
+    10244,
+    10306
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Unknown, but the common shape is `normalizeUsage` (sdk/packages/llms/src/providers/ai-sdk.ts:686) trusting a non-standard `usage` payload from an OpenAI-compatible gateway \u2014 cache-inclusive `prompt_tokens`, cumulative per-chunk snapshots, or a proxy's own accounting. On main only one usage event is emitted per stream, so the legacy per-chunk summing bug is gone; the field-precedence question is what remains.",
+   "total_reporters": 5
+  },
+  {
+   "cluster_id": "gpt55-context-overflow",
+   "label": "gpt-5.5 requests fail once the conversation grows past ~500k tokens even though Cline advertises a 1M window, instead of compacting first",
+   "canonical": 10410,
+   "canonical_rationale": "13 comments and by far the highest-visibility thread of the group (users publicly announcing they are switching tools, a contributor mid-patch), with the effective-vs-advertised limit stated precisely. #10405 was already merged into it.",
+   "duplicates": [
+    10405,
+    12111
+   ],
+   "related": [
+    12323
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "The model catalog's input budget for gpt-5.5 overstates the limit the provider actually enforces, and there is no fallback that force-compacts and retries when the provider reports overflow. Compaction budget hardening landed after these reports (10cb9bd97 / #12142, 4a97b46f5 / #12217), so both need re-verification rather than a blind close.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "compaction-runs-while-disabled",
+   "label": "Context is silently auto-compacted at ~90k tokens even though auto-compaction is turned off, and the context bar visibly runs backwards",
+   "canonical": 10637,
+   "canonical_rationale": "9 comments, five affected users, one of whom shipped a proxy workaround; states the disabled setting, the trigger point and the observable symptom (usage bar going backwards) precisely. #10519 is the identical observation asked as a support question.",
+   "duplicates": [
+    10519
+   ],
+   "related": [
+    12468
+   ],
+   "confidence": "high",
+   "shared_root_cause": "Truncation/compaction is budgeted against a fallback input-token limit rather than the model's real window, so it fires around 128_000 * 0.9 regardless of the user's auto-compaction toggle; `DEFAULT_MAX_INPUT_TOKENS = 128_000` is still the fallback on main whenever a model reports neither `maxInputTokens` nor `contextWindow`. Both reporters used OpenAI-compatible DeepSeek, which is exactly the configuration that hits that fallback (see the openai-compat-context-window-ignored cluster).",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "custom-base-url-404",
+   "label": "Custom/self-hosted base URLs return \"404 Not Found\" because Cline does not normalise the endpoint path it appends",
+   "canonical": 10495,
+   "canonical_rationale": "5 comments and several distinct reporters across different gateways (featherless, chutes, z.ai), plus the decisive control observation that the same base URL works on the pre-SDK extension. The CLI reports (#10239/#10260) are thinner versions of the same failure.",
+   "duplicates": [
+    10239,
+    10260
+   ],
+   "related": [
+    11920
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "`normalizeSdkBaseUrl` (apps/vscode/src/sdk/cline-session-factory.ts:518) only copies the provider's default path onto a configured URL when that URL has *no* path at all (`configuredUrl.pathname === \"/\"`). A gateway published under a sub-path (e.g. `https://host/raw/anthropic`) therefore keeps its path, the `/v1` suffix is never added, and the request 404s \u2014 which is exactly the manual fix #11920's reporter had to apply in providers.json.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "mcp-task-progress-leak",
+   "label": "Cline's internal `task_progress` parameter is forwarded to MCP servers as a tool argument, so the server rejects the call",
+   "canonical": 10426,
+   "canonical_rationale": "Earlier of the two and stated generically (any MCP server, any tool) rather than Jira-specific, so it is the better umbrella. Engagement is identical (2 comments each); #10737's cross-reference list (#8256/#9684/#9919) should be carried over so the whole family closes together.",
+   "duplicates": [
+    10737
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "The retired 3.x `use_mcp_tool` XML tool appended `task_progress` to every tool schema and did not strip it before dispatch. The SDK rewrite dropped that mechanism entirely, so both are legacy-only and can be closed as one.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "mcp-initialize-timeout",
+   "label": "MCP stdio servers that take more than ~1.5s to start are silently dropped because the `initialize` handshake timeout is hardcoded",
+   "canonical": 12344,
+   "canonical_rationale": "Filed as a bug with the observable consequence (server listed with zero tools), carries the log line, is confirmed against code, and has an open PR (#12363). #12044 describes the same hardcoded 1500ms but frames it as a configuration request.",
+   "duplicates": [
+    12044
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "A hardcoded ~1500ms `initialize` request timeout in the `@cline/core` MCP client, applied per connect attempt, with no per-server or global override; the official MCP SDK default is 60s. Both reports show the same `MCP request timed out for \"<name>\" (initialize)` log line.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "mcp-streamablehttp-transport",
+   "label": "streamableHttp MCP transport defects: initialize handshake skipped, and unbounded reconnect on fast-flapping SSE",
+   "canonical": 11693,
+   "canonical_rationale": "Best-evidenced of the two (Wireshark capture of the bare `GET /mcp` with no session id) and has a two-line fix identified in apps/vscode/src/services/mcp/schemas.ts.",
+   "duplicates": [],
+   "related": [
+    12119
+   ],
+   "confidence": "high",
+   "shared_root_cause": "Deliberately NOT merged: #11693 is a transport-selection bug (a `streamableHttp` server is routed down the SSE branch, so no POST initialize is sent) while #12119 is a retry-budget bug in `StreamableHttpReconnectHandler`. Same subsystem, different root causes.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "acp-provider-gating",
+   "label": "ACP mode only knows the two OAuth sign-in providers, so BYOK users are forced to log in and see just two entries in the provider/model selector",
+   "canonical": 12043,
+   "canonical_rationale": "3 comments, the most complete environment and config dump (Zed ACP registry, `default_config_options`), a named financial impact (users silently billed on the hosted tier), and a contributor waiting on direction. The other two are single-comment reports of the same gate.",
+   "duplicates": [
+    11662,
+    12120
+   ],
+   "related": [
+    11404
+   ],
+   "confidence": "high",
+   "shared_root_cause": "`ACP_AUTH_METHODS` in apps/cli/src/acp/auth.ts is a two-entry const (`cline`, `openai-codex`) and is the only provider source ACP has: `initialize` advertises it as `authMethods`, `tryRestoreAuth` scans only those two for a persisted key, `newSession` throws `authRequired` when neither is present, and `buildProviderConfigOption` maps over it to build the selector. Providers configured through `ProviderSettingsManager`/`cline auth` are invisible to all four paths.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "cli-settings-not-persisted",
+   "label": "Settings changed in the CLI TUI (`/settings`, `cline config`) apply to the running session but are not written to disk, so they revert on next launch",
+   "canonical": 10861,
+   "canonical_rationale": "Earlier, 3 comments, and the more precise report: it names the command, the exact reproduction (change Mode, `/quit`, reopen) and the missing `~/.cline/data/settings/global-settings.json`. #12158 adds the important safety consequence (auto-approve returns to on) and an attached report, which should be carried over.",
+   "duplicates": [
+    12158
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "The TUI settings screen mutates in-memory session state instead of writing through the same store `/settings` reads from, so nothing is persisted for the next process.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "claude-code-exit-code-1",
+   "label": "Claude Code provider fails on every request with `{\"message\":\"Command failed with exit code 1\"}` while the `claude` CLI works fine from a terminal",
+   "canonical": 10135,
+   "canonical_rationale": "Earliest and by far the most engaged (14 comments), names the affected model set and the `claude --version` that triggers it, and is already the thread everyone else is commenting on. #10929 was previously merged into it.",
+   "duplicates": [
+    10502,
+    10600,
+    10929,
+    11296
+   ],
+   "related": [
+    10278,
+    10847
+   ],
+   "confidence": "high",
+   "shared_root_cause": "Cline's spawn/parse of the local `claude` binary in the retired 3.x Claude Code handler breaks against newer Claude Code CLI releases (reporters pin 2.1.85 as the last working version; failures start around 2.1.92\u20132.1.163). It reproduces on both VS Code and JetBrains because both embed the same legacy core. PR #11169 proposes a fix but edits `apps/vscode/src/integrations/claude-code/run.ts`, which no longer exists on main.",
+   "total_reporters": 5
+  },
+  {
+   "cluster_id": "bedrock-temperature-deprecated",
+   "label": "Amazon Bedrock rejects the request with '`temperature` is deprecated for this model' on newer adaptive-thinking Claude models",
+   "canonical": 10573,
+   "canonical_rationale": "Earlier, 2 comments, and already carries a second reporter confirming the same failure on Opus 4.8. #12252 adds the application-inference-profile variant.",
+   "duplicates": [
+    12252
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "Cline sends `temperature` unconditionally; there is no capability gate that strips it for models that reject it (the only such check on main, sdk/packages/core/src/services/llms/provider-defaults.ts:500, is Poolside-specific).",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "sap-ai-core",
+   "label": "SAP AI Core provider is unusable in three different ways (model list fetch, Anthropic streaming, CLI credential namespace)",
+   "canonical": 10218,
+   "canonical_rationale": "Only one of the three with a concrete provider-side error string and exact repro steps. Recorded as a cluster for routing convenience, not as a merge.",
+   "duplicates": [],
+   "related": [
+    10536,
+    11379
+   ],
+   "confidence": "low",
+   "shared_root_cause": "Not shared \u2014 three distinct defects in the same provider (SSE iteration failure for Anthropic models, model-list fetch failure, and a CLI key-namespace mismatch fixed by b56ce72fc/#11756). Explicitly not merged.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "webview-clipboard",
+   "label": "Copying text out of the Cline webview (Ctrl+C or right-click \u2192 Copy) silently does nothing",
+   "canonical": 10198,
+   "canonical_rationale": "The most informative of the three: it establishes that copying works right after startup and degrades later, which is the detail that distinguishes a runtime permission/focus loss from a never-worked configuration problem. All three have equal engagement (2 comments).",
+   "duplicates": [
+    10250,
+    11107
+   ],
+   "related": [
+    11238
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Unknown. Most likely the webview's `navigator.clipboard.writeText` promise rejecting (transient activation / focus loss inside the VS Code webview) with the rejection swallowed, and no fallback to the host clipboard RPC in apps/vscode/src/utils/env.ts. Marked medium because none of the three reporters supplied a devtools console log.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "settings-input-eats-characters",
+   "label": "Settings text fields eat characters and jump the caret while typing (base URL, model id, API key fields)",
+   "canonical": 10510,
+   "canonical_rationale": "Names the responsible component (`DebouncedTextField`) and has 2 comments. Tie-break vs #11307, which has the better artifact (a screen recording showing `gfgg` becoming `gfabcg`) but only 1 comment \u2014 that recording should be carried over as the repro.",
+   "duplicates": [
+    10697,
+    11307
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "`useDebouncedInput` (apps/vscode/webview-ui/src/components/settings/utils/useDebouncedInput.ts) resets `localValue` from `initialValue` whenever the external value changes, with no focus or pending-edit guard, so a debounced round-trip to the backend overwrites whatever the user typed in the meantime. `ApiKeyField.tsx` already has the `isFocusedRef`/`hasPendingUserEditRef` guard; `DebouncedTextField.tsx` and `BaseUrlField.tsx` do not.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "prompt-lost-on-mode-switch",
+   "label": "A typed prompt is discarded instead of sent when the user switches Act\u2194Plan and then presses Send",
+   "canonical": 12237,
+   "canonical_rationale": "Identical repro to #11241 but filed against the current 4.0.8 SDK extension, so it is the one worth reproducing on main; #11241's 3.86.2 build is retired. Engagement is equal (1 comment each).",
+   "duplicates": [
+    11241
+   ],
+   "related": [
+    10877,
+    11787
+   ],
+   "confidence": "high",
+   "shared_root_cause": "The composer is cleared by the mode-switch/session-rebuild path before the send completes, so the text is lost and no message is dispatched. On main the suspect is the send racing `SdkModeCoordinator.waitForPendingRebuild`.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "diff-approve-buttons-stuck",
+   "label": "Save/Accept/Reject buttons go permanently disabled after the first file in a multi-file or multi-step edit, blocking the rest of the approval flow",
+   "canonical": 10035,
+   "canonical_rationale": "7 comments with five escalating users and the cleanest statement of the invariant (first file fine, second file greyed out). #11979 is the same failure described one step later in the flow.",
+   "duplicates": [
+    11979
+   ],
+   "related": [
+    10623,
+    11137
+   ],
+   "confidence": "high",
+   "shared_root_cause": "The webview's approval button state is not recomputed for the second and subsequent diff asks, so the buttons stay in the disabled state left over from the first approval. Fixed in the shared webview by bcf8c1d03 (2026-07-26), which had not shipped to either reporter's build.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "xml-tool-parser-rejects-valid-call",
+   "label": "Legacy XML tool parser fails to recognise a valid tool call and answers \"[ERROR] You did not use a tool in your previous response!\", producing a retry loop",
+   "canonical": 11523,
+   "canonical_rationale": "Most precise of the three (names the tool, the mode and the retry count) and is the thread the reporter is still asking for a status on. #11643 and #11695 were already merged into it by per-issue triage.",
+   "duplicates": [
+    11643,
+    11695
+   ],
+   "related": [
+    10855
+   ],
+   "confidence": "high",
+   "shared_root_cause": "The retired 3.x streaming XML tool parser plus its `noToolsUsed` retry response. Both were removed by the SDK rewrite (native tool calling), and e4091c368 additionally makes the mistake limit stop the run instead of looping, so the whole family is legacy-only.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "ollama-json-tool-loop",
+   "label": "Local/Ollama models that emit tool calls as raw JSON are treated as plain chat text, so the agent loops forever re-emitting the same call",
+   "canonical": 11263,
+   "canonical_rationale": "13 comments, covers both halves of the failure (HTTP 400/500 for models without native tool support, and the JSON tool loop for those that have it) and has an open PR (#11272). Tie-break vs #10843, which has the sharper single-cause writeup but only 3 comments.",
+   "duplicates": [
+    10843
+   ],
+   "related": [
+    10412
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Cline sends a populated `tools` array to models whose GGUF metadata declares no tool support, and its parser only accepts the XML tool format, so a model that answers with `{\"name\": ..., \"arguments\": ...}` is scored as 'no tool used' and asked to retry indefinitely. Marked medium because the reporter of #11263 later doubted parts of their own analysis.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "hub-session-loss",
+   "label": "CLI loses its session mid-conversation \u2014 \"session not found\" / \"Unknown session\" \u2014 because the hub daemon and the client disagree about session state",
+   "canonical": 11661,
+   "canonical_rationale": "The only forensic report in the group (hub-daemon log timestamps, three named failure modes) and the one other reporters already point at. #12240 was previously merged into it.",
+   "duplicates": [
+    12240,
+    12318
+   ],
+   "related": [
+    10506,
+    11376,
+    12153
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "The hub's in-process session map loses (or never registers) a session that the CLI client still holds a handle to, and there is no reconciliation path \u2014 consistent with the reporter observation in #12240 that purely local models never hit it. Marked medium because #11661's own timeline is internally inconsistent and two of its three stated root causes are misdiagnosed, so the cluster is grouped by symptom, not by a confirmed mechanism.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "codex-responses-item-pairing",
+   "label": "OpenAI Responses API rejects the request because reasoning/function_call items or response ids are not replayed correctly across turns (gpt-5.x, Codex)",
+   "canonical": 10656,
+   "canonical_rationale": "7 comments and six distinct reporters, still active, and it already frames the failure as a class rather than a single error string. Tie-break: #12242 is the technically better report (reproduced on 4.0.8 and root-caused in `@cline/llms`) and disproves #10656's 'cannot happen on the new provider path' triage note, so its analysis must be carried into #10656 rather than lost.",
+   "duplicates": [
+    12242
+   ],
+   "related": [
+    10371,
+    10479,
+    11221
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Responses-API item identity is not preserved across turns: the reasoning item that must accompany a `function_call` is dropped because `emitAiSdkEvents` never captures `part.providerMetadata.openai` and `toAiSdkMessages` never replays it as `providerOptions.openai`. The related issues are the legacy variants of the same identity problem (`previous_response_id` chaining in #10479, stored non-`rs_` ids replayed in #10371); #11221 is upstream model deprecation and is deliberately not merged.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "invalid-api-response-empty",
+   "label": "\"Invalid API Response: The provider returned an empty or unparsable response\" on models whose tool-call output Cline cannot parse",
+   "canonical": 10413,
+   "canonical_rationale": "3 comments, still attracting fresh reports as of 2026-07-24, and the only one that offers a testable hypothesis (`<thinking>` vs `<think>` tag handling). #10238 is the same model family with no added detail.",
+   "duplicates": [
+    10238
+   ],
+   "related": [
+    10330,
+    10566,
+    12385
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "A single generic error is surfaced for several different upstream conditions (model emits unparsable tool calls, provider returns an empty completion, stream ends with no output), which is why the reports cluster by message text but not necessarily by cause. Only the two Qwen 3.5/3.6 35B A3B reports are merged; the Bedrock, gateway-qwen and Kimi K3 reports are kept separate.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "opaque-connection-error",
+   "label": "Every request fails with a bare \"[provider] Connection error.\" while the identical request succeeds via curl",
+   "canonical": 12362,
+   "canonical_rationale": "9 comments, at least four distinct reporters, carries the `extension-regression` label and is OPEN/REOPENED. Recorded as a cluster to flag the shared symptom; no merge, because triage on #12362 itself says at least two root causes are bundled inside it.",
+   "duplicates": [],
+   "related": [
+    12018,
+    12096
+   ],
+   "confidence": "low",
+   "shared_root_cause": "Unknown. The common factor is that the SDK provider path collapses several distinct failures (reasoning-only responses, TLS/proxy failures, stale cached config) into the single unhelpful string 'Connection error.', which prevents reporters from self-diagnosing. #12018 has an identified, different cause (reasoning-only Cerebras responses).",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "stale-model-catalog",
+   "label": "Provider model pickers are missing recently released models because the generated catalog lags the provider and there is no live /v1/models refresh",
+   "canonical": 10427,
+   "canonical_rationale": "6 comments and the earliest of the DeepSeek pair; #10469 (10 comments) was already merged into it by per-issue triage and is kept there. Only the two same-provider reports are merged \u2014 the other nine are listed as related because each needs its own catalog entry even though the underlying gap is shared.",
+   "duplicates": [
+    10469
+   ],
+   "related": [
+    10459,
+    10464,
+    10471,
+    10882,
+    10922,
+    11490,
+    11583,
+    11747,
+    12474
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Provider model lists are baked into a generated catalog (models.dev derived) rather than fetched from the provider at runtime, so every provider release cycle produces a new 'model X is missing' report; providers that models.dev drops entirely (SambaNova, #11583) disappear silently. Curated `modelsFactory` overrides exist only for a few providers (e.g. buildClaudeCodeModels, buildOpenAICodexModels).",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "kanban-crash-data-loss",
+   "label": "`cline kanban` crashes and in-progress/review cards are trashed or fail to restore",
+   "canonical": 10216,
+   "canonical_rationale": "Has the actual stack trace (`proper-lockfile`), and #10245 was already merged into it. The two card-loss reports are kept as related because the crash mechanism they describe is not the lockfile one.",
+   "duplicates": [
+    10245
+   ],
+   "related": [
+    10052,
+    10255
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Lives in the separate `kanban` npm package rather than this repo (the stack frames are in `node_modules/kanban`), so the whole group should be transferred to cline/kanban rather than fixed here.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "jetbrains-command-no-output",
+   "label": "On the JetBrains plugin, `execute_command` reports success with exit code 0 and no output while the command never actually runs, so the agent acts on fabricated results and loops",
+   "canonical": 12048,
+   "canonical_rationale": "5 comments and three reporters, states the worst consequence explicitly (the model believes a fabricated 'exit code 0, no output'), and is filed against the current plugin 1.1.60 / core 4.0.6. #11350 previously pointed at #10948, which is outside this dataset's window, so it is re-parented here.",
+   "duplicates": [
+    11350,
+    12293
+   ],
+   "related": [
+    11019
+   ],
+   "confidence": "high",
+   "shared_root_cause": "The JetBrains standalone host has no working terminal integration: `VscodeTerminalManager` depends on `vscode.window.onDidStartTerminalShellExecution`, which does not exist outside VS Code, so the command is never dispatched and a synthetic success result is returned. Same subsystem as #12079 but a different host, which is why they are separate clusters.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "extension-not-activating",
+   "label": "Cline never appears: no Activity Bar icon, no commands in the palette, or the view silently disappears",
+   "canonical": 10345,
+   "canonical_rationale": "Slightly more informative than #11292 (records that the palette commands vanished too) and has 2 comments. Low confidence throughout \u2014 every report in this group is needs-info with no extension-host log.",
+   "duplicates": [
+    11292
+   ],
+   "related": [
+    10130,
+    11562,
+    12208
+   ],
+   "confidence": "low",
+   "shared_root_cause": "Unknown \u2014 almost certainly a failed extension activation, but none of the four reporters supplied the 'Cline' output channel or extension-host log needed to confirm a single cause.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "mid-session-unauthorized",
+   "label": "Long-running sessions die mid-task with \"Unauthorized. Please \u2026 re-authenticate your Cline account\" and resume on any next prompt",
+   "canonical": 12094,
+   "canonical_rationale": "Most precise description of the pattern (long session, dies with the exact string, resumes on any prompt) and the one whose triage identified the fix commit. 2 comments vs 1 and 2 for the others.",
+   "duplicates": [
+    10614,
+    12299
+   ],
+   "related": [],
+   "confidence": "medium",
+   "shared_root_cause": "OAuth credentials expiring mid-run without a refresh-and-retry, addressed by d859a86a6 ('fix(sdk): retry runs once after refreshing expired OAuth credentials'). Marked medium because #10614 is a CLI 0.0.13 beta report with only a screenshot.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "insufficient-balance-free-models",
+   "label": "\"Insufficient balance\" with a negative Cline Credits balance when using free models",
+   "canonical": 10952,
+   "canonical_rationale": "5 comments and a maintainer already acknowledging in-thread that the free-daily-limit-to-credits fallback is a backend limitation being worked on, which makes it the right place to consolidate.",
+   "duplicates": [
+    10257
+   ],
+   "related": [
+    12053
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Backend/account-service behaviour (free-tier usage falling through to a credits charge and driving the balance negative), not extension code. #12053 is kept related because its symptom points at active-account selection rather than at the free-tier fallback.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "logged-out-task-gating",
+   "label": "Cline starts and completes tasks while the user is signed out, because the gate keys off sign-in state rather than the selected provider",
+   "canonical": 12509,
+   "canonical_rationale": "Filed first, reproduced on more surfaces (VS Code, IntelliJ, PyCharm, Rider; macOS and Windows) and already confirmed against code. Both are QA reports from the same reporter and need the same product decision.",
+   "duplicates": [
+    12530
+   ],
+   "related": [],
+   "confidence": "medium",
+   "shared_root_cause": "The sign-out path does not gate task creation or abort an in-flight task; the correct gate is 'active provider is Cline-managed (`cline`/`cline-pass`)', not 'user is signed in', because BYOK users are legitimately never signed in. One change fixes both reports.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "shell-override-ignored",
+   "label": "The shell configured in Cline settings is ignored and commands run in the system default shell instead",
+   "canonical": 11017,
+   "canonical_rationale": "Earlier, 2 comments, and the cleaner statement of the defect (system default `fish` used even though `bash` is configured). #12437 is the Windows PowerShell 7 vs 5.1 instance of the same override being dropped, and adds the visible consequence (garbled non-ASCII output).",
+   "duplicates": [
+    12437
+   ],
+   "related": [
+    10444,
+    11022
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "The configured shell/terminal profile is not threaded through to the spawned process. #12331 ('fix(vscode): shell mismatch between prompt, execution, and user configuration on Windows') shipped in 4.0.10, yet #12437 reproduces on 4.0.10, so a hardcoded pwsh path remains.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "tui-render-tearing",
+   "label": "CLI TUI renders overlapping/ghost text from previous rows during updates",
+   "canonical": 10622,
+   "canonical_rationale": "Has the concrete repro (plan mode + option-select dialog) and 3 comments; #11649 was already merged into it and both its reporter and a commenter agree.",
+   "duplicates": [
+    11649
+   ],
+   "related": [
+    12184
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "OpenTUI redraw/diffing leaving stale cells on partial updates. #12184 (line breaks after every word) is a layout/wrap bug in the same renderer with a different cause, so it is related rather than merged.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "task-history-loss",
+   "label": "Completed or interrupted tasks vanish from Task History after a window reload or VS Code restart",
+   "canonical": 11663,
+   "canonical_rationale": "The most detailed of the group (names the platform, the reload trigger and the data actually lost) and the only one that also documents the workspace-mixing side of the problem.",
+   "duplicates": [
+    11576,
+    12239
+   ],
+   "related": [
+    10453,
+    11547,
+    12413
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Unknown. The candidate is the session flush racing teardown, so `readMessages()` returns nothing for a task that was active at reload time (#12413's triage points at `sdk-task-control-coordinator.ts` plus @cline/core session persistence). Grouped by symptom; none of the reporters supplied their `~/.cline/data` layout.",
+   "total_reporters": 3
+  },
+  {
+   "cluster_id": "legacy-replace-in-file",
+   "label": "Legacy `replace_in_file` SEARCH/REPLACE applier defects (stray blank lines, false 'does not match', silent no-write, hallucinated tags)",
+   "canonical": 11274,
+   "canonical_rationale": "Cleanest and most reproducible statement of a single concrete defect. Recorded as a cluster only so the four can be closed together as legacy-only \u2014 they are not merged.",
+   "duplicates": [],
+   "related": [
+    10590,
+    11205,
+    11439
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Not one bug, but one dead subsystem: all four target the retired 3.x SEARCH/REPLACE block applier. Main uses the `editor` tool with substring `old_str`/`new_str` edits via apps/vscode/src/sdk/sdk-diff-edit-coordinator.ts, and the only remaining SEARCH/REPLACE prompt text (apps/vscode/src/core/prompts/responses.ts) has no importers.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "approval-bypass",
+   "label": "Commands and MCP tools execute without the approval prompt the user expected",
+   "canonical": 10499,
+   "canonical_rationale": "6 comments and the clearest security framing (MCP tools with auto-approve explicitly OFF still firing). Recorded to group the consent-bypass reports for one owner; not merged, because each has a different bypass path.",
+   "duplicates": [],
+   "related": [
+    10783,
+    12020
+   ],
+   "confidence": "low",
+   "shared_root_cause": "Not shared \u2014 three separate fail-open paths: MCP tool policies defaulting to allow when a server's tool list changes (#10499), a rejected command re-running without a second ask (#10783), and the model-supplied `requires_approval=false` being trusted (#12020). Worth one owner, not one fix.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "weak-model-mistake-limit",
+   "label": "Models without reliable native tool calling trip the consecutive-mistake limit, and the \"Cline uses complex prompts \u2026 recommended to use Claude Sonnet\" notice is shown over and over",
+   "canonical": 10500,
+   "canonical_rationale": "13 comments \u2014 by far the most engaged of the four \u2014 and it quotes the notice verbatim together with the provider that triggers it (GPT-5.5 via ChatGPT Subscription). Tie-break vs #12264 (3 comments, better-articulated ask for a dismiss setting): engagement and the fact that later reports keep landing on #10500's wording. #12210 previously pointed at #5915, which is outside this dataset's window, so it is re-parented here.",
+   "duplicates": [
+    10591,
+    12210,
+    12264
+   ],
+   "related": [],
+   "confidence": "medium",
+   "shared_root_cause": "A weak or non-tool-calling model produces unusable turns, the consecutive-mistake counter trips, and the notice is re-emitted on every subsequent failure instead of once per run. e4091c368 makes the mistake limit stop the run rather than loop and a1d69fee6 (#12061) fixed the weak-tool-call trigger; the underlying model-capability question remains the long-running #5915.",
+   "total_reporters": 4
+  },
+  {
+   "cluster_id": "gpt55-file-create-stall",
+   "label": "File creation stalls mid-task on ChatGPT-subscription gpt-5.5: the diff/preview never settles, the approval ask never arrives, and only a new task recovers",
+   "canonical": 11854,
+   "canonical_rationale": "9 comments, a screenshot, a stated trigger (a second file created immediately after the first) and a workaround, and the reporter re-confirmed it across 4.0.1/4.0.2/4.0.6. #11859 is the same reporter's follow-up with the same model and no repro.",
+   "duplicates": [
+    11859
+   ],
+   "related": [
+    11530,
+    11919
+   ],
+   "confidence": "medium",
+   "shared_root_cause": "Suspected stalled diff preview blocking the approval ask, so the task neither errors nor proceeds. Marked medium because #11854's own trigger (two file creations back to back) is a race the reporter inferred, not one anyone has reproduced on main; #12558 landed after the last confirmation and needs a retest.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "tui-mouse-capture",
+   "label": "CLI TUI captures the mouse, so the terminal's own right-click paste and drag-select stop working",
+   "canonical": 11531,
+   "canonical_rationale": "4 comments, three enumerated symptoms traced to one cause, exact terminal/VTE versions, and a named fix. #10509 is the same complaint a month earlier with one comment.",
+   "duplicates": [
+    10509
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "`enableMouseMovement` (OpenTUI motion tracking) is on for the whole TUI, so the terminal emulator never sees the mouse events it needs for its own context menu and selection. Both issues resolve to the same fix: a `--no-mouse` flag/config key, or scoping mouse capture to the onboarding/home view.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "qwen-400-bad-request",
+   "label": "Qwen models on the Cline/Alibaba route started returning 400 Bad Request",
+   "canonical": 10253,
+   "canonical_rationale": "Earlier of the pair and already the established parent; equal engagement (3 comments each). #10265 adds the useful framing that this is a recent regression on qwen3-coder-plus.",
+   "duplicates": [
+    10265
+   ],
+   "related": [],
+   "confidence": "medium",
+   "shared_root_cause": "Carried over from per-issue triage, which merged these two; the shared request-shape defect on the Qwen route was not re-derived in this pass.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "mimo-provider-config",
+   "label": "Xiaomi MiMo provider configuration is rejected/misconfigured",
+   "canonical": 10391,
+   "canonical_rationale": "Original Chinese-language report; #10392 is the machine-translated re-file of the same complaint by triage convention. Engagement is comparable (3 vs 4 comments).",
+   "duplicates": [
+    10392
+   ],
+   "related": [
+    11152
+   ],
+   "confidence": "high",
+   "shared_root_cause": "Same report filed twice (once in Chinese, once translated). #11152 is the related base-URL question for the same provider.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "openai-compat-custom-headers",
+   "label": "Custom HTTP headers can no longer be set for the OpenAI-compatible provider in CLI 3.x, breaking gateways that authenticate via headers",
+   "canonical": 11018,
+   "canonical_rationale": "Tie-break flips the per-slice verdict: #11018 has 10 comments vs 4, names the concrete broken workflow (Kimi for Coding needs `User-Agent`/`X-Client-Name`), and a maintainer committed to prioritising it there. #10953 is earlier and has the cleaner minimal repro, which should be carried across.",
+   "duplicates": [
+    10953
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "The CLI 3.x provider-config surface dropped the custom-headers input that 2.18.0 had; the schema still permits headers, but the configure flow appears to rewrite providers.json entries without them.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "ask-question-schema-too-strict",
+   "label": "`ask_question` rejects the option shape some models emit, so the question renders with no answers",
+   "canonical": 11337,
+   "canonical_rationale": "Root-caused report naming the over-strict schema; #11302 is the user-facing symptom of the same defect with no diagnosis.",
+   "duplicates": [
+    11302
+   ],
+   "related": [
+    12220
+   ],
+   "confidence": "high",
+   "shared_root_cause": "The `ask_question` options schema in @cline/core accepts only string[], so a model that returns object[] fails validation and the UI shows a question with no selectable answers.",
+   "total_reporters": 2
+  },
+  {
+   "cluster_id": "hub-ws-empty-authtoken",
+   "label": "Hub WebSocket rejects no-auth clients because an empty `authToken` is replaced by a random one",
+   "canonical": 11369,
+   "canonical_rationale": "States the regression and the version it appeared in (v0.0.43); #11370 is the same defect described from the client side (code 1006).",
+   "duplicates": [
+    11370
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "An empty-string `authToken` is treated as unset, so the hub generates a random token and then rejects clients that connect without one.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "paperclaw-promo",
+   "label": "PaperClaw self-promotion filed twice (custom-instruction preset, then integration request)",
+   "canonical": 10294,
+   "canonical_rationale": "First of the two filings by the same author; both are promotional rather than actionable.",
+   "duplicates": [
+    10301
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "Not a defect \u2014 the same third-party project submitted twice.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "gdpo-hdpo-noise",
+   "label": "Contentless \"HDPO\"/\"GDPO\" issues from the same author",
+   "canonical": 12112,
+   "canonical_rationale": "First of the two; neither has any content.",
+   "duplicates": [
+    12117
+   ],
+   "related": [],
+   "confidence": "high",
+   "shared_root_cause": "Not a defect \u2014 spam/noise.",
+   "total_reporters": 1
+  },
+  {
+   "cluster_id": "ui-localization",
+   "label": "Cline's UI is English-only and the preferred-language setting does not change it",
+   "canonical": 12518,
+   "canonical_rationale": "The clearest articulation of the actual gap (there is no i18n framework in the webview) and the right place to consolidate. Recorded as related-only: #10166 misreads a missing feature as a regression and #11619 has no error text.",
+   "duplicates": [],
+   "related": [
+    10166,
+    11619
+   ],
+   "confidence": "low",
+   "shared_root_cause": "apps/vscode/webview-ui has no i18n layer; the 'Preferred Language' setting only injects a language key into the system prompt (apps/vscode/src/shared/Languages.ts via cline-session-factory.ts), so it can never localise the UI chrome.",
+   "total_reporters": 1
+  }
+ ],
+ "singletons_checked": 291
+}
