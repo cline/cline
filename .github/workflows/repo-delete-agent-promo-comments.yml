@@ -23,8 +23,14 @@ jobs:
             github.event.issue.pull_request &&
             endsWith(github.event.comment.user.login, '[bot]') &&
             contains(github.event.comment.body, 'can help with this pull request')
+        # Comment deletion goes through the issues API, but GitHub gates the
+        # endpoint by where the comment lives: issue comments need `issues`,
+        # PR-conversation comments need `pull-requests`. The prefilter restricts
+        # this job to PR comments, so pull-requests is the one that matters;
+        # issues is kept in case the prefilter is ever widened.
         permissions:
             issues: write
+            pull-requests: write
         steps:
             # Pinned to a commit SHA (not the mutable v7 tag) because this job holds
             # write permissions and fires on attacker-postable events.
