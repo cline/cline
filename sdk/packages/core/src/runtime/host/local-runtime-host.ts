@@ -567,60 +567,62 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
-		const initialCompactionState =
-			compact && rawInitialCompactionState
-				? {
-						...rawInitialCompactionState,
-						conversation_id:
-							rawInitialCompactionState.conversation_id?.trim() || sessionId,
-					}
-				: undefined;
-		const prepareTurn = compact
-			? createCompactionStateAwarePrepareTurn({
-					compact,
-					getState: () => activeSessionRef?.compactionState,
-					saveState: async (state) => {
-						const activeSession = activeSessionRef;
-						if (!activeSession) return;
-						const stateForSession = {
-							...state,
-							conversation_id: activeSession.sessionId,
-						};
-						try {
-							const result = await this.persistActiveSessionCompactionState(
-								activeSession,
-								stateForSession,
-							);
-							if (!result.updated) {
-								configWithProvider.logger?.debug?.(
-									"Skipped stale session compaction state",
-									{
-										sessionId: activeSession.sessionId,
-										sourceMessageCount: stateForSession.source_message_count,
-									},
-								);
-							}
-						} catch (error) {
-							configWithProvider.logger?.error?.(
-								"Failed to persist session compaction state",
-								{ sessionId: activeSession.sessionId, error },
-							);
-							captureSdkError(configWithProvider.telemetry, {
-								component: "core",
-								operation: "session.persist_compaction_state",
-								severity: "warn",
-								handled: true,
-								error,
-								context: {
-									sessionId: activeSession.sessionId,
-									providerId: configWithProvider.providerId,
-									modelId: configWithProvider.modelId,
-								},
-							});
-						}
-					},
-				})
+		// A compaction sidecar must keep projecting into the working context even
+		// when auto-compaction is disabled (`compact` undefined): manual /compact
+		// persists a sidecar and promises the next turn will use it. The
+		// state-aware prepareTurn handles `compact: undefined` by projecting the
+		// existing state without re-compacting, and no-ops when no state exists.
+		const initialCompactionState = rawInitialCompactionState
+			? {
+					...rawInitialCompactionState,
+					conversation_id:
+						rawInitialCompactionState.conversation_id?.trim() || sessionId,
+				}
 			: undefined;
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => activeSessionRef?.compactionState,
+			saveState: async (state) => {
+				const activeSession = activeSessionRef;
+				if (!activeSession) return;
+				const stateForSession = {
+					...state,
+					conversation_id: activeSession.sessionId,
+				};
+				try {
+					const result = await this.persistActiveSessionCompactionState(
+						activeSession,
+						stateForSession,
+					);
+					if (!result.updated) {
+						configWithProvider.logger?.debug?.(
+							"Skipped stale session compaction state",
+							{
+								sessionId: activeSession.sessionId,
+								sourceMessageCount: stateForSession.source_message_count,
+							},
+						);
+					}
+				} catch (error) {
+					configWithProvider.logger?.error?.(
+						"Failed to persist session compaction state",
+						{ sessionId: activeSession.sessionId, error },
+					);
+					captureSdkError(configWithProvider.telemetry, {
+						component: "core",
+						operation: "session.persist_compaction_state",
+						severity: "warn",
+						handled: true,
+						error,
+						context: {
+							sessionId: activeSession.sessionId,
+							providerId: configWithProvider.providerId,
+							modelId: configWithProvider.modelId,
+						},
+					});
+				}
+			},
+		});
 
 		const agentConfig = {
 			sessionId,

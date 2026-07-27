@@ -21,6 +21,7 @@ type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHos
 type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
 type EditorExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["editorExecutor"]>
 type ApplyPatchExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["applyPatchExecutor"]>
+type ReadFileExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["readFileExecutor"]>
 
 export interface SdkSessionLifecycleOptions {
 	mcpHub: McpHub
@@ -30,6 +31,8 @@ export interface SdkSessionLifecycleOptions {
 	editorExecutor?: EditorExecutorHandler
 	/** Custom `apply_patch` executor (reverts the diff preview, then applies via the SDK default). */
 	applyPatchExecutor?: ApplyPatchExecutorHandler
+	/** Custom `read_files` executor (resolves relative paths against the workspace root). */
+	readFileExecutor?: ReadFileExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
 	getTerminalManager?: () => VscodeTerminalManager
@@ -324,6 +327,7 @@ export class SdkSessionLifecycle {
 				askQuestion: this.options.askQuestion,
 				editorExecutor: this.options.editorExecutor,
 				applyPatchExecutor: this.options.applyPatchExecutor,
+				readFileExecutor: this.options.readFileExecutor,
 				getTerminalManager: this.options.getTerminalManager,
 				foregroundCommands: this.options.foregroundCommands,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,

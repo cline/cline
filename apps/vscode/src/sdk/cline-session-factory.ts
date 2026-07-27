@@ -29,6 +29,7 @@ import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
@@ -607,6 +608,10 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",
+		// The OpenAI Compatible provider may be stored under its SDK spelling
+		// (settings written through the SDK settings store) instead of the
+		// extension's legacy "openai" id; both use the same legacy state field.
+		"openai-compatible": "openAiBaseUrl",
 		ollama: "ollamaBaseUrl",
 		lmstudio: "lmStudioBaseUrl",
 		gemini: "geminiBaseUrl",
@@ -619,7 +624,26 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 
 	const field = baseUrlMap[providerId]
 	if (field) {
-		return normalizeSdkBaseUrl(providerId, config[field])
+		const fromState = normalizeSdkBaseUrl(providerId, config[field])
+		if (fromState) {
+			return fromState
+		}
+	}
+
+	// SDK-backed providers save their base URL in providers.json instead of
+	// legacy ApiConfiguration fields. Fall back to that store (mirroring
+	// resolveApiKey) so ProviderConfig consumers that don't re-resolve settings
+	// themselves — e.g. the compaction summarizer's createHandlerAsync — still
+	// reach the configured endpoint instead of the provider default.
+	try {
+		const manager = getProviderSettingsManager()
+		const settingsBaseUrl = manager.getProviderSettings(providerSettingsProviderId(providerId))?.baseUrl
+		const normalized = normalizeSdkBaseUrl(providerId, settingsBaseUrl)
+		if (normalized) {
+			return normalized
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} base URL from providers.json`)
 	}
 
 	return undefined
@@ -666,9 +690,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		const stateManager = StateManager.get()
 		apiConfig = stateManager.getApiConfiguration()
 
-		// Resolve the provider for the current mode
+		// Resolve the provider for the current mode. State written by older
+		// builds or other hosts may carry SDK catalog spellings (e.g.
+		// `openai-compatible`); fold them back to the legacy spelling the
+		// provider-keyed maps below are keyed by.
 		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		providerId = modeProvider
+		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
 
 		if (providerId) {
 			// Resolve API key
@@ -721,7 +748,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {
-				providerId = lastUsed.provider
+				// providers.json stores SDK provider ids (e.g. `openai-compatible`);
+				// normalize to the legacy spelling used across this factory.
+				providerId = toLegacyApiProvider(lastUsed.provider)
 				modelId = lastUsed.model
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
@@ -856,6 +885,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		apiKey,
 		baseUrl,
 		providerConfig,
+		// Also expose the catalog at the top level: manual compaction
+		// (sdk-compaction.ts) budgets against config.knownModels[modelId] and
+		// otherwise falls back to a conservative 64k input budget.
+		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		cwd,
 		workspaceRoot,
 		systemPrompt,

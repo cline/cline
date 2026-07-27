@@ -521,7 +521,12 @@ export function useSessionHistory({
 		const refreshPromise = (async () => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
-			setIsLoadingHistory(true);
+			// Only surface the loading state before anything has been fetched:
+			// consumers only render it for an empty list, and toggling it on
+			// every background poll re-rendered the whole app twice per refresh.
+			if (sessionsRef.current.length === 0) {
+				setIsLoadingHistory(true);
+			}
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })

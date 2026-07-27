@@ -64,6 +64,11 @@ export interface VscodeSessionHostOptions {
 	 * delegating to the SDK's default patch application).
 	 */
 	applyPatchExecutor?: ApplyPatchExecutor
+	/**
+	 * Custom `read_files` executor (resolves relative paths against the workspace root
+	 * instead of the extension host's process.cwd(), which is usually "/").
+	 */
+	readFileExecutor?: ToolExecutors["readFile"]
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
 	/** Shared SDK telemetry service owned by SdkController. */
@@ -106,6 +111,9 @@ export class VscodeSessionHost implements SdkSessionHost {
 		}
 		if (options.applyPatchExecutor) {
 			toolExecutors.applyPatch = options.applyPatchExecutor
+		}
+		if (options.readFileExecutor) {
+			toolExecutors.readFile = options.readFileExecutor
 		}
 		if (options.getTerminalManager) {
 			// Setting bash to undefined suppresses the SDK's createShellTool():

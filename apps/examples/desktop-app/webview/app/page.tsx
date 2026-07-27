@@ -59,6 +59,7 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { fetchProviderCatalog } from "@/lib/provider-model-catalog";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -265,7 +266,18 @@ export default function Home() {
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+				<div
+					aria-hidden={showOnboarding ? true : undefined}
+					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+					// The onboarding overlay is opaque and sits on top of the whole
+					// shell; hiding the shell keeps its aurora + animations from
+					// being composited every frame underneath while it still mounts
+					// and loads (providers, history, transport) in the background.
+					// `inert` additionally keeps the covered controls out of the
+					// keyboard tab order and assistive tech while it is hidden.
+					inert={showOnboarding ? true : undefined}
+					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				>
 					<Sidebar
 						className="border-r border-sidebar-border"
 						collapsible="icon"
@@ -385,7 +397,18 @@ function ChatThreadPane({
 		abort,
 		hydrateSession,
 	} = useChatSession();
-	const [promptInput, setPromptInput] = useState("");
+	// The live composer text lives inside ChatInputBar so typing does not
+	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
+	// pushes external updates (quick actions, undo, resets) via promptDraft.
+	const promptInputRef = useRef("");
+	const [promptDraft, setPromptDraft] = useState({ version: 0, value: "" });
+	const setPromptInput = useCallback((value: string) => {
+		promptInputRef.current = value;
+		setPromptDraft((prev) => ({ version: prev.version + 1, value }));
+	}, []);
+	const handlePromptInputChange = useCallback((value: string) => {
+		promptInputRef.current = value;
+	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 	const dragDepthRef = useRef(0);
@@ -451,13 +474,7 @@ function ChatThreadPane({
 
 		async function loadProviderCredentials() {
 			try {
-				const payload = await desktopClient.invoke<{
-					providers?: Array<{
-						id?: string;
-						apiKey?: string;
-						baseUrl?: string;
-					}>;
-				}>("list_provider_catalog");
+				const payload = await fetchProviderCatalog();
 				if (cancelled) {
 					return;
 				}
@@ -730,7 +747,7 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId]);
+	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -744,19 +761,25 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
-	}, [historySession, hydrateSession]);
+	}, [historySession, hydrateSession, setPromptInput]);
 
-	const handleSend = useCallback(async () => {
-		const trimmed = promptInput.trim();
-		if (!trimmed && pendingAttachments.length === 0) {
-			return;
-		}
-		onThreadStarted?.(threadId);
-		setPromptInput("");
-		const toSend = [...pendingAttachments];
-		setPendingAttachments([]);
-		await sendPrompt(trimmed, toSend);
-	}, [onThreadStarted, pendingAttachments, promptInput, sendPrompt, threadId]);
+	const handleSend = useCallback(
+		async (prompt: string) => {
+			const trimmed = prompt.trim();
+			if (!trimmed && pendingAttachments.length === 0) {
+				return;
+			}
+			onThreadStarted?.(threadId);
+			// Also clear the injected draft: the composer cleared its local copy,
+			// but a stale non-empty draft would repopulate the input if the
+			// composer remounts (e.g. a transport blip re-showing the loader).
+			setPromptInput("");
+			const toSend = [...pendingAttachments];
+			setPendingAttachments([]);
+			await sendPrompt(trimmed, toSend);
+		},
+		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
+	);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -801,6 +824,12 @@ function ChatThreadPane({
 			void answerAskQuestion(requestId, answer);
 		},
 		[answerAskQuestion],
+	);
+	const handleRestoreCheckpoint = useCallback(
+		(runCount: number) => {
+			void restoreCheckpoint(runCount);
+		},
+		[restoreCheckpoint],
 	);
 
 	const handleForkSession = useCallback(async () => {
@@ -914,6 +943,7 @@ function ChatThreadPane({
 		onDeleteSession,
 		reset,
 		threadId,
+		setPromptInput,
 	]);
 
 	const handleAttachFiles = useCallback((files: File[]) => {
@@ -1125,7 +1155,7 @@ function ChatThreadPane({
 					mode: prev.mode === "plan" ? "act" : "plan",
 				}))
 			}
-			onPromptInputChange={setPromptInput}
+			onPromptInputChange={handlePromptInputChange}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={(promptId) => {
 				void steerPromptInQueue(promptId);
@@ -1148,12 +1178,12 @@ function ChatThreadPane({
 					};
 				})
 			}
-			onSend={() => void handleSend()}
+			onSend={(prompt) => void handleSend(prompt)}
 			gitBranch={gitBranch}
 			model={config.model}
 			mode={config.mode}
 			promptsInQueue={promptsInQueue}
-			promptInput={promptInput}
+			promptDraft={promptDraft}
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
 			status={status}
@@ -1229,9 +1259,7 @@ function ChatThreadPane({
 								chatTransportState={chatTransportState}
 								error={displayedError}
 								messages={displayedMessages}
-								onRestoreCheckpoint={(runCount) =>
-									void restoreCheckpoint(runCount)
-								}
+								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}

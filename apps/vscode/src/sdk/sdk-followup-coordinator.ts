@@ -54,10 +54,6 @@ export class SdkFollowupCoordinator {
 		askResponse?: ClineAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
 	): Promise<void> {
-		if (this.options.interactions.resolvePendingMistakeLimit(prompt, askResponse)) {
-			return
-		}
-
 		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)) {
 			return
 		}

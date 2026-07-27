@@ -85,7 +85,7 @@ describe("ChatInputBar", () => {
 							onSteerPromptInQueue={vi.fn()}
 							onSwitchGitBranch={vi.fn(async () => true)}
 							onRemovePromptInQueue={vi.fn()}
-							promptInput=""
+							promptDraft={{ version: 0, value: "" }}
 							promptsInQueue={[]}
 							provider="cline"
 							reasoningEffort="high"
@@ -165,7 +165,7 @@ describe("ChatInputBar", () => {
 						onSteerPromptInQueue={vi.fn()}
 						onSwitchGitBranch={vi.fn(async () => true)}
 						onRemovePromptInQueue={vi.fn()}
-						promptInput=""
+						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
 						provider="cline"
 						reasoningEffort="low"
@@ -247,7 +247,7 @@ describe("ChatInputBar", () => {
 						onSteerPromptInQueue={onSteerPromptInQueue}
 						onSwitchGitBranch={vi.fn(async () => true)}
 						onRemovePromptInQueue={onRemovePromptInQueue}
-						promptInput=""
+						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[
 							{
 								id: "queued-prompt-1",
