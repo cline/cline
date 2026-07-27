@@ -371,9 +371,12 @@ export function buildAnthropicProviderOptions(
 			thinking = { type: "adaptive" };
 		} else if (policy.kind === "anthropic-manual") {
 			const budgetTokens = resolveAnthropicManualBudget(request, context);
-			if (budgetTokens !== undefined) {
-				thinking = { type: "enabled", budgetTokens };
+			if (budgetTokens === undefined) {
+				throw new Error(
+					"Anthropic manual thinking requires a positive budget smaller than maxTokens.",
+				);
 			}
+			thinking = { type: "enabled", budgetTokens };
 		}
 	}
 
