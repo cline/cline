@@ -375,7 +375,7 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			models.find((model) => model.id === "cline-free/live-free-model"),
 		).toMatchObject({
 			id: "cline-free/live-free-model",
-			name: "Live Free Model",
+			name: "Live Free Model (free)",
 			supportsReasoning: true,
 		});
 	});

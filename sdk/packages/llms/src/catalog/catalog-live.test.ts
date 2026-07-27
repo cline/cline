@@ -242,7 +242,7 @@ describe("models-dev-catalog", () => {
 		]);
 		expect(models["cline-free/kat-coder-pro"]).toMatchObject({
 			id: "cline-free/kat-coder-pro",
-			name: "KAT Coder Pro",
+			name: "KAT Coder Pro (free)",
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			// free models are billed at $0 regardless of catalog pricing
@@ -250,9 +250,12 @@ describe("models-dev-catalog", () => {
 		});
 		expect(result.cline?.["cline-free/kat-coder-pro"]).toMatchObject({
 			id: "cline-free/kat-coder-pro",
-			name: "KAT Coder Pro",
+			name: "KAT Coder Pro (free)",
 			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
 		});
+		expect(models["cline-free/kat-coder-pro"]).not.toBe(
+			result.cline?.["cline-free/kat-coder-pro"],
+		);
 	});
 
 	it("labels a Cline free model when its name matches a ClinePass model", () => {
@@ -306,13 +309,13 @@ describe("models-dev-catalog", () => {
 		expect(
 			suffixed["cline-pass"]?.["cline-free/trinity-large-preview:free"],
 		).toMatchObject({
-			name: "Trinity Large Preview",
+			name: "Trinity Large Preview (free)",
 			contextWindow: 512_000,
 		});
 		expect(
 			suffixed.cline?.["cline-free/trinity-large-preview:free"],
 		).toMatchObject({
-			name: "Trinity Large Preview",
+			name: "Trinity Large Preview (free)",
 			contextWindow: 512_000,
 		});
 
@@ -346,7 +349,7 @@ describe("models-dev-catalog", () => {
 			cline: {
 				"cline-free/k2-think": expect.objectContaining({
 					id: "cline-free/k2-think",
-					name: "K2 Think",
+					name: "K2 Think (free)",
 					contextWindow: 1_000_000,
 					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
 				}),
