@@ -733,9 +733,6 @@
     "sdk/packages/ui": {
       "name": "@cline/ui",
       "version": "0.2.0-next.0",
-      "dependencies": {
-        "@radix-ui/react-slot": "1.2.4",
-      },
       "devDependencies": {
         "@fontsource-variable/schibsted-grotesk": "^5.2.8",
         "@fontsource/azeret-mono": "^5.2.9",
@@ -743,7 +740,6 @@
         "@storybook/addon-docs": "^9.1.17",
         "@storybook/react-vite": "^9.1.6",
         "@tailwindcss/vite": "^4.2.0",
-        "@testing-library/react": "^16.2.0",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
         "jsdom": "^26.0.0",

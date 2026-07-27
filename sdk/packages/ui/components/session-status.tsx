@@ -1,5 +1,4 @@
 import type { OutputHTMLAttributes } from "react";
-import { cx } from "./utils.js";
 
 export type SessionStatusTone = "neutral" | "running" | "error";
 
@@ -20,11 +19,13 @@ export function SessionStatus({
 	return (
 		<output
 			aria-label={label}
-			className={cx(
+			className={[
 				"cline-ui-session-status",
 				`cline-ui-session-status--${tone}`,
 				className,
-			)}
+			]
+				.filter(Boolean)
+				.join(" ")}
 			{...props}
 		>
 			<span aria-hidden="true" className="cline-ui-session-status__dot" />

@@ -34,10 +34,12 @@
 	},
 	"files": [
 		"components.css",
-		"components/controls.css",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
 		"components/markdown.css",
+		"components/index.ts",
+		"components/session-status.css",
+		"components/session-status.tsx",
 		"dist",
 		"theme",
 		"ADOPTION.md",
@@ -68,9 +70,6 @@
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
 		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts"
 	},
-	"dependencies": {
-		"@radix-ui/react-slot": "1.2.4"
-	},
 	"peerDependencies": {
 		"react": ">=18.3.0 <20",
 		"tailwindcss": ">=4.0.0 <5"
@@ -90,7 +89,6 @@
 		"@storybook/addon-docs": "^9.1.17",
 		"@storybook/react-vite": "^9.1.6",
 		"@tailwindcss/vite": "^4.2.0",
-		"@testing-library/react": "^16.2.0",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
 		"jsdom": "^26.0.0",

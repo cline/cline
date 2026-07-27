@@ -12,7 +12,7 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { Button, SessionStatus } from "@cline/ui";
+import { SessionStatus } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 
 for (const specifier of [
@@ -27,7 +27,7 @@ for (const specifier of [
 
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
-if (!Button || !SessionStatus || !Conversation || !Message || !css || !tokens) {
+if (!SessionStatus || !Conversation || !Message || !css || !tokens) {
 	process.exit(1);
 }
 `;
