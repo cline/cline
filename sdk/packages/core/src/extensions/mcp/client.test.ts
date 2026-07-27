@@ -71,11 +71,47 @@ process.stdin.on("end", () => {
 });
 `;
 
+const FRAMED_SERVER_SCRIPT = `
+let buffer = "";
+function write(payload) {
+	const body = JSON.stringify(payload);
+	process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+}
+process.stdin.on("data", (chunk) => {
+	buffer += chunk.toString("utf8");
+	while (true) {
+		const separator = buffer.indexOf("\\r\\n\\r\\n");
+		if (separator < 0) break;
+		const header = buffer.slice(0, separator);
+		const match = header.match(/Content-Length:\\s*(\\d+)/i);
+		if (!match) throw new Error("missing content length");
+		const length = Number(match[1]);
+		const start = separator + 4;
+		const end = start + length;
+		if (buffer.length < end) break;
+		const message = JSON.parse(buffer.slice(start, end));
+		buffer = buffer.slice(end);
+		if (message.method === "notifications/initialized") continue;
+		const result = message.method === "initialize"
+			? { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "framed", version: "0.0.0" } }
+			: message.method === "tools/list"
+				? { tools: [] }
+				: { content: [] };
+		write({ jsonrpc: "2.0", id: message.id, result });
+	}
+});
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
 	tempRoot = mkdtempSync(join(tmpdir(), "mcp-client-test-"));
 	writeFileSync(join(tempRoot, "fake-server.js"), FAKE_SERVER_SCRIPT, "utf8");
+	writeFileSync(
+		join(tempRoot, "framed-server.js"),
+		FRAMED_SERVER_SCRIPT,
+		"utf8",
+	);
 });
 
 afterAll(() => {
@@ -160,7 +196,7 @@ describe("mcp client request timeout", () => {
 		try {
 			await client.connect();
 			await expect(client.callTool({ name: "anything" })).rejects.toThrow(
-				/timed out for "fake-server" \(tools\/call\) after 1s.*"timeout" field \(in seconds\)/s,
+				/request to "fake-server" \(tools\/call\) timed out after 1s.*"timeout" field \(in seconds\)/s,
 			);
 		} finally {
 			await client.disconnect();
@@ -264,6 +300,28 @@ describe("mcp client request timeout", () => {
 		const startedAt = Date.now();
 		try {
 			await expect(client.connect()).rejects.toThrow(/after 2s/);
+			expect(Date.now() - startedAt).toBeLessThan(4_500);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("preserves the bounded Content-Length compatibility fallback", async () => {
+		const command =
+			process.platform === "win32" ? `"${process.execPath}"` : process.execPath;
+		const client = await createDefaultMcpServerClientFactory()({
+			name: "framed-server",
+			transport: {
+				type: "stdio",
+				command,
+				args: [join(tempRoot, "framed-server.js")],
+			},
+			timeoutSeconds: 1,
+		});
+		const startedAt = Date.now();
+		try {
+			await client.connect();
+			expect(await client.listTools()).toEqual([]);
 			expect(Date.now() - startedAt).toBeLessThan(3_500);
 		} finally {
 			await client.disconnect();

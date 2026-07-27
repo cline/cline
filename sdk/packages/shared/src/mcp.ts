@@ -40,9 +40,12 @@ export function resolveMcpTimeoutSeconds(value: unknown): number {
 export function formatMcpTimeoutErrorMessage(
 	serverName: string,
 	timeoutMs: number,
+	method?: string,
 ): string {
+	const methodText = method ? ` (${method})` : "";
+	const seconds = Math.round(timeoutMs / 100) / 10;
 	return (
-		`MCP request to "${serverName}" timed out after ${Math.round(timeoutMs / 1000)}s. ` +
+		`MCP request to "${serverName}"${methodText} timed out after ${seconds}s. ` +
 		`Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.`
 	);
 }

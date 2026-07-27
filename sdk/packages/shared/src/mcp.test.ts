@@ -64,4 +64,12 @@ describe("formatMcpTimeoutErrorMessage", () => {
 			'MCP request to "slow-server" timed out after 120s. Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.',
 		);
 	});
+
+	it("can include method context and sub-second precision", () => {
+		expect(
+			formatMcpTimeoutErrorMessage("slow-server", 1_500, "initialize"),
+		).toBe(
+			'MCP request to "slow-server" (initialize) timed out after 1.5s. Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.',
+		);
+	});
 });
