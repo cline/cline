@@ -112,6 +112,7 @@ bun add --dev tailwindcss
 ```
 
 Applications already on React 18.3 can retain that compatible version.
+TypeScript consumers should use `@types/react` 18.3 or 19.
 Tokens-only consumers do not need React or Tailwind.
 
 Commit the consuming repository's lockfile so builds continue using the same

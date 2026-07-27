@@ -10,22 +10,49 @@ import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 
 const cssExports = [
 	"@cline/ui/components/agent-chat.css",
 	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/base.css",
+	"@cline/ui/theme/index.css",
 	"@cline/ui/theme/scoped-tokens.css",
+	"@cline/ui/theme/theme.css",
 	"@cline/ui/theme/tokens.css",
 ];
+if (!Conversation || !Message) {
+	throw new Error("packed agent-chat exports are missing");
+}
+for (const specifier of cssExports) {
+	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
+		throw new Error("packed CSS export does not exist: " + specifier);
+	}
+}
+
+const packageRoot = dirname(
+	fileURLToPath(import.meta.resolve("@cline/ui/package.json")),
+);
+const manifest = JSON.parse(
+	readFileSync(resolve(packageRoot, "package.json"), "utf8"),
+);
+const typesTarget = manifest.exports?.["./components/agent-chat"]?.types;
 if (
-	!Conversation ||
-	!Message ||
-	cssExports.some((specifier) => !existsSync(fileURLToPath(import.meta.resolve(specifier))))
+	typeof typesTarget !== "string" ||
+	!existsSync(resolve(packageRoot, typesTarget))
 ) {
-	throw new Error("packed @cline/ui exports are missing");
+	throw new Error("packed agent-chat declaration target is missing");
+}
+
+const license = resolve(packageRoot, "LICENSE");
+if (
+	!existsSync(license) ||
+	!readFileSync(license, "utf8").includes("Apache License")
+) {
+	throw new Error("packed package is missing the Apache license text");
 }
 `;
 
@@ -92,11 +119,39 @@ try {
 			"--no-audit",
 			"--no-fund",
 			archive,
+			"@types/react@18.3.31",
 			"react@18.3.1",
+			"typescript@5.9.3",
 		],
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	writeFileSync(
+		join(npmConsumer, "index.ts"),
+		'import { Conversation, Message } from "@cline/ui/components/agent-chat";\nvoid Conversation;\nvoid Message;\n',
+	);
+	writeFileSync(
+		join(npmConsumer, "tsconfig.json"),
+		`${JSON.stringify(
+			{
+				compilerOptions: {
+					module: "NodeNext",
+					moduleResolution: "NodeNext",
+					noEmit: true,
+					skipLibCheck: false,
+					strict: true,
+					target: "ES2022",
+				},
+				include: ["index.ts"],
+			},
+			null,
+			2,
+		)}\n`,
+	);
+	await run(
+		["node", "node_modules/typescript/bin/tsc", "--project", "tsconfig.json"],
+		npmConsumer,
+	);
 	console.log(
 		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18`,
 	);

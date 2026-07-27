@@ -33,6 +33,7 @@
 		"components/markdown.css",
 		"dist",
 		"theme",
+		"LICENSE",
 		"ADOPTION.md",
 		"README.md"
 	],
