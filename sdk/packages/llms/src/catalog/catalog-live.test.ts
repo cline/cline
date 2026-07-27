@@ -491,6 +491,54 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
+	it("filters provider models retired upstream but not yet flagged on models.dev", () => {
+		const payload: ModelsDevPayload = {
+			baseten: {
+				id: "baseten",
+				name: "Baseten",
+				npm: "@ai-sdk/openai-compatible",
+				api: "https://inference.baseten.co/v1",
+				env: ["BASETEN_API_KEY"],
+				doc: "https://docs.baseten.co/inference/model-apis/overview",
+				models: {
+					"zai-org/GLM-5.2": {
+						name: "GLM 5.2",
+						tool_call: true,
+						family: "glm",
+					},
+					// Deprecated by Baseten on 2026-07-24 but still unflagged
+					// on models.dev; must be dropped by the blocklist.
+					"zai-org/GLM-5.1": {
+						name: "GLM 5.1",
+						tool_call: true,
+						family: "glm",
+					},
+					"zai-org/GLM-5": {
+						name: "GLM 5",
+						tool_call: true,
+						family: "glm",
+					},
+					"moonshotai/Kimi-K2.5": {
+						name: "Kimi K2.5",
+						tool_call: true,
+						family: "kimi-k2",
+					},
+					"nvidia/Nemotron-120B-A12B": {
+						name: "Nemotron Super",
+						tool_call: true,
+						family: "nemotron",
+					},
+				},
+			},
+		};
+
+		const providerModels = normalizeModelsDevProviderModels(payload);
+
+		expect(Object.keys(providerModels.baseten ?? {})).toEqual([
+			"zai-org/GLM-5.2",
+		]);
+	});
+
 	it("regenerates Codex catalog entries with input request limits", () => {
 		expect(
 			getGeneratedModelsForProvider("openai-native")["gpt-5.3-codex"]
