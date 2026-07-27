@@ -198,6 +198,112 @@ describe("SqliteStatusStore", () => {
 	it("rejects an invalid state at the schema boundary", () => {
 		expect(() => publish({ state: "exploded" as never })).toThrow();
 	});
+
+	it("orders by attention, not recency, when asked", () => {
+		publish({ subject: "a", state: "done" });
+		publish({ subject: "b", state: "blocked" });
+		publish({ subject: "c", state: "running" });
+		publish({ subject: "d", state: "failed" });
+		// `a` (done) is oldest, `d` (failed) newest. Recency would lead with d.
+		const board = store.query(
+			parseStatusQuery({ currentOnly: true, orderBy: "attention", limit: 10 }),
+		);
+		expect(board.updates.map((u) => u.state)).toEqual([
+			"blocked",
+			"failed",
+			"running",
+			"done",
+		]);
+	});
+
+	it("still leads with recency by default", () => {
+		publish({ subject: "a", state: "blocked" });
+		publish({ subject: "b", state: "done" });
+		const page = store.query(parseStatusQuery({ limit: 10 }));
+		expect(page.updates[0]?.subject).toBe("b");
+	});
+
+	it("reports history count per subject only when asked", () => {
+		publish({ subject: "x" });
+		publish({ subject: "x" });
+		publish({ subject: "x" });
+		publish({ subject: "y" });
+
+		const without = store.query(
+			parseStatusQuery({ currentOnly: true, limit: 10 }),
+		);
+		expect(without.updates.every((u) => u.historyCount === undefined)).toBe(
+			true,
+		);
+
+		const withCount = store.query(
+			parseStatusQuery({
+				currentOnly: true,
+				includeHistoryCount: true,
+				limit: 10,
+			}),
+		);
+		const x = withCount.updates.find((u) => u.subject === "x");
+		const y = withCount.updates.find((u) => u.subject === "y");
+		expect(x?.historyCount).toBe(3);
+		expect(y?.historyCount).toBe(1);
+	});
+
+	it("carries the previous state so a changelog reads as a transition", () => {
+		publish({ subject: "x", state: "queued" });
+		publish({ subject: "x", state: "running" });
+		publish({ subject: "x", state: "blocked" });
+
+		const history = store.query(parseStatusQuery({ subject: "x", limit: 10 }));
+		// Newest first: blocked <- running <- queued.
+		expect(history.updates[0]?.previousState).toBe("running");
+		expect(history.updates[1]?.previousState).toBe("queued");
+		// The first update for a subject has nothing before it.
+		expect(history.updates[2]?.previousState).toBeUndefined();
+	});
+
+	it("summarizes live rows across the whole table, not a page", () => {
+		for (let i = 0; i < 60; i += 1) {
+			publish({
+				subject: `t/${i}`,
+				state: i % 3 === 0 ? "blocked" : "running",
+				agentId: i % 2 === 0 ? "adam" : "riley",
+				agentName: i % 2 === 0 ? "Adam" : "Riley",
+			});
+		}
+		// Supersede one subject so the live count differs from the row count.
+		publish({
+			subject: "t/0",
+			state: "done",
+			agentId: "adam",
+			agentName: "Adam",
+		});
+
+		const summary = store.summary();
+		expect(summary.total).toBe(60);
+		expect(summary.byState.blocked).toBe(19);
+		expect(summary.byState.done).toBe(1);
+		expect(summary.byState.blocked + summary.byState.running + 1).toBe(60);
+
+		const adam = summary.byAgent.find((a) => a.agentId === "adam");
+		expect(adam?.agentName).toBe("Adam");
+		expect(adam?.total).toBe(30);
+		expect(summary.lastUpdatedAt).not.toBeNull();
+
+		// A single page cannot see all 60, which is exactly why the summary
+		// is computed server-side rather than counted from rows on screen.
+		const page = store.query(
+			parseStatusQuery({ currentOnly: true, limit: 10 }),
+		);
+		expect(page.updates).toHaveLength(10);
+	});
+
+	it("summarizes an empty store without throwing", () => {
+		const summary = store.summary();
+		expect(summary.total).toBe(0);
+		expect(summary.byAgent).toEqual([]);
+		expect(summary.lastUpdatedAt).toBeNull();
+	});
 });
 
 /**

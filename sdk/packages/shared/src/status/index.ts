@@ -19,6 +19,8 @@ export {
 	type StatusState,
 	StatusStateSchema,
 	StatusSubjectSchema,
+	type StatusSummary,
+	StatusSummarySchema,
 	type StatusUpdate,
 	StatusUpdateSchema,
 	shouldPushToUser,

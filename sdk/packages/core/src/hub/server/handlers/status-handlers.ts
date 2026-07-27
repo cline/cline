@@ -80,13 +80,25 @@ export async function handleStatusCommand(
 			}
 
 			case "status.board": {
+				// Attention ordering matters even though the client groups by
+				// state: with more subjects than fit on a page, recency order
+				// could leave every blocked row off page 1 and the grouping
+				// would then be quietly wrong.
 				const query = StatusQuerySchema.parse({
+					orderBy: "attention",
+					includeHistoryCount: true,
 					...payload,
 					currentOnly: true,
 				});
 				return okReply(envelope, {
 					...service.query(query),
 					ftsAvailable: service.ftsAvailable,
+				});
+			}
+
+			case "status.summary": {
+				return okReply(envelope, {
+					summary: service.summary() as unknown as Record<string, unknown>,
 				});
 			}
 

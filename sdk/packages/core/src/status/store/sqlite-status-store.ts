@@ -8,6 +8,7 @@ import {
 	type StatusPublishInput,
 	StatusPublishInputSchema,
 	type StatusState,
+	type StatusSummary,
 	type StatusUpdate,
 } from "@cline/shared";
 import {
@@ -66,7 +67,23 @@ function parseJsonStringArray(value: unknown): string[] {
 	}
 }
 
+/**
+ * Attention order: what a human needs to look at, not what moved last.
+ * Lower sorts first.
+ */
+const ATTENTION_ORDER_SQL = `CASE s.state
+	WHEN 'blocked' THEN 0
+	WHEN 'failed' THEN 1
+	WHEN 'running' THEN 2
+	WHEN 'queued' THEN 3
+	WHEN 'done' THEN 4
+	ELSE 5 END`;
+
 function rowToStatusUpdate(row: Record<string, unknown>): StatusUpdate {
+	const historyCount = asOptionalNumber(row.history_count);
+	const previousState = asOptionalString(row.previous_state) as
+		| StatusState
+		| undefined;
 	return {
 		schemaVersion: STATUS_SCHEMA_VERSION,
 		updateId: asString(row.update_id),
@@ -86,6 +103,8 @@ function rowToStatusUpdate(row: Record<string, unknown>): StatusUpdate {
 		metadata: parseJsonObject(row.metadata_json),
 		supersededAt: asOptionalString(row.superseded_at) ?? null,
 		createdAt: asString(row.created_at),
+		...(historyCount != null ? { historyCount } : {}),
+		...(previousState != null ? { previousState } : {}),
 	};
 }
 
@@ -276,9 +295,29 @@ export class SqliteStatusStore {
 			params.push(query.cursor);
 		}
 
-		const sql = `SELECT ${SELECT_COLUMNS} FROM status_updates s
+		// Attention order still tie-breaks on seq, so keyset paging by seq stays
+		// correct within a band. Paging across bands is intentionally not
+		// supported for attention order -- the board is meant to be read from
+		// the top, and the summary carries the full counts.
+		const orderSql =
+			query.orderBy === "attention"
+				? `${ATTENTION_ORDER_SQL} ASC, s.seq DESC`
+				: `s.seq ${newer ? "ASC" : "DESC"}`;
+
+		const extraColumns = [
+			query.includeHistoryCount
+				? `(SELECT COUNT(*) FROM status_updates h WHERE h.subject = s.subject) AS history_count`
+				: null,
+			`(SELECT p.state FROM status_updates p
+				WHERE p.subject = s.subject AND p.seq < s.seq
+				ORDER BY p.seq DESC LIMIT 1) AS previous_state`,
+		]
+			.filter(Boolean)
+			.join(", ");
+
+		const sql = `SELECT ${SELECT_COLUMNS}, ${extraColumns} FROM status_updates s
 			${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-			ORDER BY s.seq ${newer ? "ASC" : "DESC"}
+			ORDER BY ${orderSql}
 			LIMIT ?;`;
 
 		const rows = this.db.prepare(sql).all(...params, query.limit + 1);
@@ -290,6 +329,54 @@ export class SqliteStatusStore {
 			updates,
 			hasMore,
 			nextCursor: hasMore ? (updates.at(-1)?.seq ?? null) : null,
+		};
+	}
+
+	/**
+	 * Aggregates over live rows. Runs against the whole table rather than a
+	 * page, so "12 blocked" means twelve, not twelve on this page.
+	 */
+	summary(): StatusSummary {
+		const byState: Record<string, number> = {};
+		for (const row of this.db
+			.prepare(
+				`SELECT state, COUNT(*) AS n FROM status_updates
+				 WHERE superseded_at IS NULL GROUP BY state;`,
+			)
+			.all()) {
+			byState[asString(row.state)] = Number(row.n ?? 0);
+		}
+
+		const byAgent = this.db
+			.prepare(
+				`SELECT agent_id, agent_name,
+					COUNT(*) AS total,
+					SUM(CASE WHEN state = 'blocked' THEN 1 ELSE 0 END) AS blocked,
+					SUM(CASE WHEN state = 'running' THEN 1 ELSE 0 END) AS running
+				 FROM status_updates
+				 WHERE superseded_at IS NULL AND agent_id IS NOT NULL
+				 GROUP BY agent_id, agent_name
+				 ORDER BY blocked DESC, total DESC
+				 LIMIT 50;`,
+			)
+			.all()
+			.map((row) => ({
+				agentId: asString(row.agent_id),
+				agentName: asOptionalString(row.agent_name),
+				total: Number(row.total ?? 0),
+				blocked: Number(row.blocked ?? 0),
+				running: Number(row.running ?? 0),
+			}));
+
+		const latest = this.db
+			.prepare("SELECT MAX(created_at) AS last_at FROM status_updates;")
+			.get();
+
+		return {
+			total: Object.values(byState).reduce((sum, n) => sum + n, 0),
+			byState: byState as StatusSummary["byState"],
+			byAgent,
+			lastUpdatedAt: asOptionalString(latest?.last_at) ?? null,
 		};
 	}
 

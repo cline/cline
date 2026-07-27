@@ -258,7 +258,8 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 					} else if (
 						frame.type === "status_query" ||
 						frame.type === "status_board" ||
-						frame.type === "status_subjects"
+						frame.type === "status_subjects" ||
+						frame.type === "status_summary"
 					) {
 						await handleStatusCommand(ctx, peer, frame);
 					}

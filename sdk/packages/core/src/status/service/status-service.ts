@@ -4,6 +4,7 @@ import {
 	type StatusPrunePayload,
 	type StatusPublishInput,
 	type StatusQuery,
+	type StatusSummary,
 	type StatusUpdate,
 	shouldPushToUser,
 } from "@cline/shared";
@@ -71,9 +72,24 @@ export class StatusService {
 		return this.store.query(parseStatusQuery(query));
 	}
 
-	/** Current status of every known subject, newest first. */
+	/**
+	 * The board: current status of every subject, ordered by what needs
+	 * attention rather than by recency, with per-subject history counts.
+	 */
 	board(query: Omit<StatusQuery, "currentOnly"> = {}): StatusPage {
-		return this.store.query(parseStatusQuery({ ...query, currentOnly: true }));
+		return this.store.query(
+			parseStatusQuery({
+				orderBy: "attention",
+				includeHistoryCount: true,
+				...query,
+				currentOnly: true,
+			}),
+		);
+	}
+
+	/** Counts across every live row, independent of any page. */
+	summary(): StatusSummary {
+		return this.store.summary();
 	}
 
 	/** Full changelog for one subject, newest first. */

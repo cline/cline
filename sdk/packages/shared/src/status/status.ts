@@ -112,6 +112,17 @@ export const StatusUpdateSchema = z
 		/** Set when a newer update for the same subject arrives. Null = current. */
 		supersededAt: z.string().datetime().nullable(),
 		createdAt: z.string().datetime(),
+		/**
+		 * Total updates recorded for this subject, when the query asked for it.
+		 * Turns a lone row into "update 7 of 12 for this work".
+		 */
+		historyCount: z.number().int().positive().optional(),
+		/**
+		 * State of the immediately previous update for this subject, when known.
+		 * A changelog entry reads far better as `queued -> running` than as a
+		 * bare `running`.
+		 */
+		previousState: StatusStateSchema.optional(),
 	})
 	.strict();
 export type StatusUpdate = z.infer<typeof StatusUpdateSchema>;
@@ -145,6 +156,21 @@ export const StatusQuerySchema = z
 		/** Keyset cursor: the `seq` of the last row you already have. */
 		cursor: z.number().int().nonnegative().optional(),
 		direction: z.enum(["older", "newer"]).default("older"),
+		/**
+		 * `recency` is a pure changelog: newest first.
+		 *
+		 * `attention` puts what needs a human first — blocked, then failed, then
+		 * running, then the rest — and only orders by recency inside each band.
+		 * That is what makes the board a board rather than a second changelog:
+		 * page 1 is the work that is stuck, not the work that happened to move
+		 * most recently.
+		 */
+		orderBy: z.enum(["recency", "attention"]).default("recency"),
+		/**
+		 * Include how many total updates each subject has. One correlated count
+		 * per row, so it is opt-in rather than paid for on every changelog page.
+		 */
+		includeHistoryCount: z.boolean().default(false),
 		limit: z
 			.number()
 			.int()
@@ -165,6 +191,32 @@ export const StatusPageSchema = z
 	})
 	.strict();
 export type StatusPage = z.infer<typeof StatusPageSchema>;
+
+/**
+ * Aggregates over *live* rows only (one per subject).
+ *
+ * Computed server-side rather than counted from a page, because a page is at
+ * most `limit` rows and counting from it would silently under-report — a board
+ * that says "3 blocked" when 40 are blocked is worse than no board.
+ */
+export const StatusSummarySchema = z
+	.object({
+		total: z.number().int().nonnegative(),
+		byState: z.record(StatusStateSchema, z.number().int().nonnegative()),
+		byAgent: z.array(
+			z.object({
+				agentId: z.string(),
+				agentName: z.string().optional(),
+				total: z.number().int().nonnegative(),
+				blocked: z.number().int().nonnegative(),
+				running: z.number().int().nonnegative(),
+			}),
+		),
+		/** ISO instant of the most recent update anywhere, if any. */
+		lastUpdatedAt: z.string().datetime().nullable(),
+	})
+	.strict();
+export type StatusSummary = z.infer<typeof StatusSummarySchema>;
 
 export const StatusPrunePayloadSchema = z
 	.object({

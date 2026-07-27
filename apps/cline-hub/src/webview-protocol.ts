@@ -342,7 +342,8 @@ export type WebviewInboundMessage =
 			cursor?: number;
 			limit?: number;
 	  }
-	| { type: "status_subjects"; requestId: string; limit?: number };
+	| { type: "status_subjects"; requestId: string; limit?: number }
+	| { type: "status_summary"; requestId: string };
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
@@ -437,6 +438,11 @@ export type WebviewOutboundMessage =
 			ftsAvailable: boolean;
 	  }
 	| { type: "status_subjects_result"; requestId: string; subjects: string[] }
+	| {
+			type: "status_summary_result";
+			requestId: string;
+			summary: import("@cline/shared").StatusSummary;
+	  }
 	| {
 			/** Live append: a status landed while the view is open. */
 			type: "status_updated";

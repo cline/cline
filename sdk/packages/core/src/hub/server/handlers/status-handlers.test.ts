@@ -163,6 +163,74 @@ describe("handleStatusCommand", () => {
 		expect(updates[0]?.headline).toBe("new");
 	});
 
+	it("orders the board by attention and includes history counts", async () => {
+		// Publish so that recency order would put `done` first and `blocked`
+		// last -- the board must invert that.
+		await handleStatusCommand(
+			ctx,
+			envelope("status.publish", {
+				subject: "stuck",
+				state: "blocked",
+				headline: "waiting on creds",
+			}),
+			service,
+		);
+		for (const headline of ["one", "two"]) {
+			await handleStatusCommand(
+				ctx,
+				envelope("status.publish", {
+					subject: "finished",
+					state: "done",
+					headline,
+				}),
+				service,
+			);
+		}
+
+		const reply = await handleStatusCommand(
+			ctx,
+			envelope("status.board", {}),
+			service,
+		);
+		const updates = reply.payload?.updates as Array<{
+			subject: string;
+			historyCount?: number;
+		}>;
+
+		expect(updates[0]?.subject).toBe("stuck");
+		expect(updates.find((u) => u.subject === "finished")?.historyCount).toBe(2);
+	});
+
+	it("summarizes across every live row", async () => {
+		for (let i = 0; i < 5; i += 1) {
+			await handleStatusCommand(
+				ctx,
+				envelope("status.publish", {
+					subject: `s/${i}`,
+					state: i === 0 ? "blocked" : "running",
+					headline: "h",
+					agentId: "adam",
+					agentName: "Adam",
+				}),
+				service,
+			);
+		}
+		const reply = await handleStatusCommand(
+			ctx,
+			envelope("status.summary", {}),
+			service,
+		);
+		const summary = reply.payload?.summary as {
+			total: number;
+			byState: Record<string, number>;
+			byAgent: Array<{ agentId: string; blocked: number }>;
+		};
+		expect(summary.total).toBe(5);
+		expect(summary.byState.blocked).toBe(1);
+		expect(summary.byState.running).toBe(4);
+		expect(summary.byAgent[0]?.blocked).toBe(1);
+	});
+
 	it("returns null rather than erroring for an unknown subject", async () => {
 		const reply = await handleStatusCommand(
 			ctx,

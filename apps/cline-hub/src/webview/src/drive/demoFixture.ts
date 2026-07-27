@@ -44,7 +44,7 @@ export const DRIVE_DEMO_FIXTURE: DriveDemoFixture = {
 	nowLabel: "running router unit tests",
 	nextLabel: "explain the race, then commit",
 	narration:
-		"Found the race. Watch the stage — I will walk the pending-flag path.",
+		"Found the race. Watch the spotlight — I will walk the pending-flag path.",
 };
 
 const FIXTURE_AT = "2026-07-25T17:00:00.000Z";

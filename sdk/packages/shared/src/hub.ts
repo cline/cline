@@ -469,6 +469,7 @@ export type HubCommandName =
 	| "status.query"
 	| "status.current"
 	| "status.board"
+	| "status.summary"
 	| "status.subjects"
 	| "status.prune"
 	| "ui.notify"

@@ -22,7 +22,8 @@ export async function handleStatusCommand(
 			| "status_query"
 			| "status_board"
 			| "status_current"
-			| "status_subjects";
+			| "status_subjects"
+			| "status_summary";
 		requestId: string;
 		[key: string]: unknown;
 	},
@@ -51,6 +52,15 @@ export async function handleStatusCommand(
 				requestId,
 				text: reply.error?.message ?? "Status command failed.",
 				code: reply.error?.code,
+			});
+			return;
+		}
+
+		if (frame.type === "status_summary") {
+			ctx.send(peer, {
+				type: "status_summary_result",
+				requestId,
+				summary: reply.payload?.summary as never,
 			});
 			return;
 		}

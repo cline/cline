@@ -426,6 +426,7 @@ export class HubServerTransport implements NativeHubTransport {
 			case "status.query":
 			case "status.current":
 			case "status.board":
+			case "status.summary":
 			case "status.subjects":
 			case "status.prune":
 				return await handleStatusCommand(this.ctx, envelope);

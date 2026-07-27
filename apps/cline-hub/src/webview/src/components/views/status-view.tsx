@@ -1,13 +1,21 @@
 /**
  * Status Hub — the changelog for every agent.
  *
- * Two lenses over the same log: **Board** shows the current status of each
- * subject ("where is everything right now"), **Changelog** shows every update
- * in order ("what has happened"). Both page server-side with a keyset cursor,
- * so opening this view never pulls the whole log.
+ * Two genuinely different lenses over one log:
+ *
+ * **Board** answers "where is everything, and what needs me?" It shows one row
+ * per subject (the current status), ordered by attention (blocked, then failed,
+ * then running) rather than by recency, grouped under state headings, with
+ * whole-table counts from the server.
+ *
+ * **Changelog** answers "what happened?" It is a flat chronological feed of
+ * every update including superseded ones, showing state transitions.
+ *
+ * Both page server-side with a keyset cursor, so opening this view never pulls
+ * the whole log.
  */
 
-import type { StatusState, StatusUpdate } from "@cline/shared";
+import type { StatusState, StatusSummary, StatusUpdate } from "@cline/shared";
 import { ActivityIcon, RefreshCwIcon, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -16,117 +24,77 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { postToHost } from "../../vscode";
 import { PageEmptyState, PageFrame, PageHeader } from "./page-layout";
+import { relativeTime, STATE_STYLES, StatusRow } from "./status-row";
 
 const PAGE_LIMIT = 50;
 
-const STATE_FILTERS: readonly StatusState[] = [
-	"running",
-	"blocked",
-	"queued",
-	"done",
-	"failed",
-	"cancelled",
+/** Board section order — what needs a human first. */
+const BOARD_SECTIONS: ReadonlyArray<{ state: StatusState; blurb: string }> = [
+	{ state: "blocked", blurb: "Waiting on someone. Start here." },
+	{ state: "failed", blurb: "Stopped and will not continue on its own." },
+	{ state: "running", blurb: "In progress right now." },
+	{ state: "queued", blurb: "Accepted, not started." },
+	{ state: "done", blurb: "Finished." },
+	{ state: "cancelled", blurb: "Abandoned." },
 ];
 
-const STATE_STYLES: Record<StatusState, string> = {
-	running: "border-primary/40 text-primary",
-	blocked: "border-amber-500/50 text-amber-600 dark:text-amber-400",
-	queued: "border-border text-muted-foreground",
-	done: "border-emerald-500/50 text-emerald-600 dark:text-emerald-400",
-	failed: "border-destructive/50 text-destructive",
-	cancelled: "border-border text-muted-foreground line-through",
-};
-
-const PRIORITY_STYLES: Record<string, string> = {
-	critical: "border-destructive/60 text-destructive",
-	high: "border-amber-500/50 text-amber-600 dark:text-amber-400",
-};
+/** Tiles that lead with what is wrong. */
+const TILE_STATES: readonly StatusState[] = [
+	"blocked",
+	"failed",
+	"running",
+	"queued",
+	"done",
+];
 
 export type StatusViewMode = "board" | "changelog";
 
-function relativeTime(iso: string): string {
-	const then = new Date(iso).getTime();
-	if (Number.isNaN(then)) return "";
-	const deltaSec = Math.round((Date.now() - then) / 1000);
-	if (deltaSec < 60) return "just now";
-	if (deltaSec < 3600) return `${Math.floor(deltaSec / 60)}m ago`;
-	if (deltaSec < 86400) return `${Math.floor(deltaSec / 3600)}h ago`;
-	return `${Math.floor(deltaSec / 86400)}d ago`;
-}
-
-function StatusRow({ update }: { update: StatusUpdate }) {
-	const [expanded, setExpanded] = useState(false);
-	const who = update.agentName ?? update.agentId;
-
+function StatTile({
+	label,
+	count,
+	active,
+	onClick,
+}: {
+	label: StatusState;
+	count: number;
+	active: boolean;
+	onClick: () => void;
+}) {
 	return (
-		<li className="border-b border-border last:border-b-0">
-			<div className="flex items-start gap-3 px-4 py-3">
-				<Badge
-					className={cn(
-						"mt-0.5 shrink-0 text-[10px]",
-						STATE_STYLES[update.state],
-					)}
-					variant="outline"
-				>
-					{update.state}
-				</Badge>
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-						<span className="font-medium text-foreground">
-							{update.headline}
-						</span>
-						{PRIORITY_STYLES[update.priority] ? (
-							<Badge
-								className={cn("text-[10px]", PRIORITY_STYLES[update.priority])}
-								variant="outline"
-							>
-								{update.priority}
-							</Badge>
-						) : null}
-					</div>
-					<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-						<span className="font-mono">{update.subject}</span>
-						{who ? <span>· {who}</span> : null}
-						<span>· {relativeTime(update.createdAt)}</span>
-						{typeof update.progress === "number" ? (
-							<span>· {Math.round(update.progress * 100)}%</span>
-						) : null}
-						{update.tags.map((tag) => (
-							<Badge className="text-[10px]" key={tag} variant="outline">
-								{tag}
-							</Badge>
-						))}
-					</div>
-					{update.detail ? (
-						<>
-							<button
-								className="mt-1 text-xs text-primary hover:underline"
-								onClick={() => setExpanded((open) => !open)}
-								type="button"
-							>
-								{expanded ? "Hide detail" : "Show detail"}
-							</button>
-							{expanded ? (
-								<pre className="mt-2 whitespace-pre-wrap break-words rounded-md border bg-muted/40 p-3 font-mono text-[11px] text-muted-foreground">
-									{update.detail}
-								</pre>
-							) : null}
-						</>
-					) : null}
-				</div>
+		<button
+			className={cn(
+				"min-w-24 flex-1 rounded-lg border px-3 py-2 text-left transition-colors",
+				active ? "border-primary bg-accent" : "hover:bg-muted/50",
+				count === 0 && "opacity-50",
+			)}
+			onClick={onClick}
+			type="button"
+		>
+			<div className="text-2xl font-semibold tabular-nums text-foreground">
+				{count}
 			</div>
-		</li>
+			<div
+				className={cn(
+					"text-[11px] uppercase tracking-wide",
+					STATE_STYLES[label].split(" ").slice(1).join(" "),
+				)}
+			>
+				{label}
+			</div>
+		</button>
 	);
 }
 
 export function StatusView() {
 	const [mode, setMode] = useState<StatusViewMode>("board");
 	const [updates, setUpdates] = useState<StatusUpdate[]>([]);
+	const [summary, setSummary] = useState<StatusSummary | null>(null);
 	const [nextCursor, setNextCursor] = useState<number | null>(null);
 	const [hasMore, setHasMore] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [stateFilter, setStateFilter] = useState<StatusState[]>([]);
+	const [agentFilter, setAgentFilter] = useState<string | null>(null);
 	const [searchDraft, setSearchDraft] = useState("");
 	const [search, setSearch] = useState("");
 
@@ -152,61 +120,55 @@ export function StatusView() {
 				limit: PAGE_LIMIT,
 				...(cursor != null ? { cursor } : {}),
 				...(stateFilter.length ? { state: stateFilter } : {}),
+				...(agentFilter ? { agentId: agentFilter } : {}),
 				...(search ? { text: search } : {}),
 			});
 		},
-		[mode, stateFilter, search],
+		[mode, stateFilter, agentFilter, search],
 	);
+
+	const requestSummary = useCallback(() => {
+		postToHost({ type: "status_summary", requestId: "status-summary" });
+	}, []);
 
 	useEffect(() => {
 		request(null, true);
 	}, [request]);
 
 	useEffect(() => {
+		requestSummary();
+	}, [requestSummary]);
+
+	useEffect(() => {
 		function onMessage(event: MessageEvent) {
-			const message = event.data as
-				| {
-						type: "status_page";
-						requestId: string;
-						updates: StatusUpdate[];
-						nextCursor: number | null;
-						hasMore: boolean;
-				  }
-				| { type: "status_error"; requestId: string; text: string }
-				| { type: "status_updated"; update: StatusUpdate }
-				| { type: string };
+			const message = event.data as { type: string } & Record<string, unknown>;
 
 			if (message.type === "status_page") {
-				const page = message as Extract<
-					typeof message,
-					{ type: "status_page" }
-				>;
-				if (page.requestId !== activeRequestRef.current) return;
+				if (message.requestId !== activeRequestRef.current) return;
+				const page = message.updates as StatusUpdate[];
 				setUpdates((current) =>
-					// Cursor pages append; a fresh query replaces.
-					current.length === 0 ? page.updates : [...current, ...page.updates],
+					current.length === 0 ? page : [...current, ...page],
 				);
-				setNextCursor(page.nextCursor);
-				setHasMore(page.hasMore);
+				setNextCursor((message.nextCursor as number | null) ?? null);
+				setHasMore(message.hasMore === true);
 				setLoading(false);
 				return;
 			}
 
+			if (message.type === "status_summary_result") {
+				setSummary(message.summary as StatusSummary);
+				return;
+			}
+
 			if (message.type === "status_error") {
-				const failure = message as Extract<
-					typeof message,
-					{ type: "status_error" }
-				>;
-				if (failure.requestId !== activeRequestRef.current) return;
-				setError(failure.text);
+				if (message.requestId !== activeRequestRef.current) return;
+				setError(String(message.text));
 				setLoading(false);
 				return;
 			}
 
 			if (message.type === "status_updated") {
-				const live = (
-					message as Extract<typeof message, { type: "status_updated" }>
-				).update;
+				const live = message.update as StatusUpdate;
 				setUpdates((current) => {
 					if (current.some((u) => u.updateId === live.updateId)) return current;
 					// The board shows one row per subject, so a live update for a
@@ -217,12 +179,14 @@ export function StatusView() {
 							: current;
 					return [live, ...withoutSubject];
 				});
+				// Counts moved, so the tiles are now stale.
+				requestSummary();
 			}
 		}
 
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
-	}, [mode]);
+	}, [mode, requestSummary]);
 
 	const toggleState = useCallback((value: StatusState) => {
 		setStateFilter((current) =>
@@ -232,23 +196,35 @@ export function StatusView() {
 		);
 	}, []);
 
-	const blockedCount = useMemo(
-		() => updates.filter((u) => u.state === "blocked").length,
-		[updates],
-	);
+	/** Board groups the page under state headings; changelog stays flat. */
+	const sections = useMemo(() => {
+		if (mode !== "board") return null;
+		return BOARD_SECTIONS.map((section) => ({
+			...section,
+			rows: updates.filter((update) => update.state === section.state),
+		})).filter((section) => section.rows.length > 0);
+	}, [mode, updates]);
+
+	const refreshAll = useCallback(() => {
+		request(null, true);
+		requestSummary();
+	}, [request, requestSummary]);
+
+	const activeAgent = summary?.byAgent.find((a) => a.agentId === agentFilter);
 
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Every agent's status in one place. Agents publish as they work; the newest update per subject is the current one."
+				description={
+					mode === "board"
+						? "Where every agent is right now — one row per piece of work, most urgent first."
+						: "Everything that has happened, newest first, including superseded updates."
+				}
 				icon={ActivityIcon}
 				meta={
-					blockedCount > 0 ? (
-						<Badge
-							className="border-amber-500/50 text-amber-600 dark:text-amber-400"
-							variant="outline"
-						>
-							{blockedCount} blocked
+					summary?.lastUpdatedAt ? (
+						<Badge className="text-[10px]" variant="outline">
+							last update {relativeTime(summary.lastUpdatedAt)}
 						</Badge>
 					) : null
 				}
@@ -256,7 +232,7 @@ export function StatusView() {
 				actions={
 					<Button
 						disabled={loading}
-						onClick={() => request(null, true)}
+						onClick={refreshAll}
 						size="sm"
 						type="button"
 						variant="outline"
@@ -268,6 +244,23 @@ export function StatusView() {
 					</Button>
 				}
 			/>
+
+			{/* Counts come from the server across every live row, not from this
+			    page -- a board that says "3 blocked" when 40 are blocked is worse
+			    than no board. */}
+			{summary ? (
+				<div className="mb-4 flex flex-wrap gap-2">
+					{TILE_STATES.map((state) => (
+						<StatTile
+							active={stateFilter.includes(state)}
+							count={summary.byState[state] ?? 0}
+							key={state}
+							label={state}
+							onClick={() => toggleState(state)}
+						/>
+					))}
+				</div>
+			) : null}
 
 			<div className="mb-4 flex flex-wrap items-center gap-2">
 				<div className="flex overflow-hidden rounded-md border">
@@ -319,21 +312,59 @@ export function StatusView() {
 					) : null}
 				</form>
 
-				<div className="flex flex-wrap items-center gap-1">
-					{STATE_FILTERS.map((value) => (
-						<Button
-							className="h-7 px-2 text-xs capitalize"
-							key={value}
-							onClick={() => toggleState(value)}
-							size="sm"
-							type="button"
-							variant={stateFilter.includes(value) ? "default" : "outline"}
-						>
-							{value}
-						</Button>
-					))}
-				</div>
+				{/* Agent filter, ordered by who is most blocked. */}
+				{summary && summary.byAgent.length > 0 ? (
+					<div className="flex flex-wrap items-center gap-1">
+						{summary.byAgent.slice(0, 6).map((agent) => (
+							<Button
+								className="h-7 px-2 text-xs"
+								key={agent.agentId}
+								onClick={() =>
+									setAgentFilter((current) =>
+										current === agent.agentId ? null : agent.agentId,
+									)
+								}
+								size="sm"
+								type="button"
+								variant={agentFilter === agent.agentId ? "default" : "outline"}
+							>
+								{agent.agentName ?? agent.agentId}
+								<span className="ml-1 opacity-60">{agent.total}</span>
+								{agent.blocked > 0 ? (
+									<span className="ml-1 text-amber-600 dark:text-amber-400">
+										{agent.blocked} blocked
+									</span>
+								) : null}
+							</Button>
+						))}
+					</div>
+				) : null}
+
+				{stateFilter.length > 0 || agentFilter || search ? (
+					<Button
+						className="h-7 px-2 text-xs"
+						onClick={() => {
+							setStateFilter([]);
+							setAgentFilter(null);
+							setSearch("");
+							setSearchDraft("");
+						}}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						Reset filters
+					</Button>
+				) : null}
 			</div>
+
+			{activeAgent ? (
+				<p className="mb-3 text-xs text-muted-foreground">
+					Showing {activeAgent.agentName ?? activeAgent.agentId} —{" "}
+					{activeAgent.total} active, {activeAgent.running} running,{" "}
+					{activeAgent.blocked} blocked.
+				</p>
+			) : null}
 
 			{error ? (
 				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -341,24 +372,55 @@ export function StatusView() {
 				</div>
 			) : null}
 
-			<div className="rounded-lg border bg-card">
-				{updates.length === 0 && !loading ? (
+			{updates.length === 0 && !loading ? (
+				<div className="rounded-lg border bg-card">
 					<PageEmptyState>
 						No status updates yet. Agents publish here with the{" "}
 						<code className="font-mono text-xs">report_status</code> tool.
 					</PageEmptyState>
-				) : (
+				</div>
+			) : sections ? (
+				<div className="space-y-5">
+					{sections.map((section) => (
+						<section key={section.state}>
+							<div className="mb-2 flex items-baseline gap-2">
+								<Badge
+									className={cn("text-[10px]", STATE_STYLES[section.state])}
+									variant="outline"
+								>
+									{section.state}
+								</Badge>
+								<span className="text-sm font-medium text-foreground">
+									{summary?.byState[section.state] ?? section.rows.length}
+								</span>
+								<span className="text-xs text-muted-foreground">
+									{section.blurb}
+								</span>
+							</div>
+							<div className="rounded-lg border bg-card">
+								<ul>
+									{section.rows.map((update) => (
+										<StatusRow key={update.updateId} update={update} />
+									))}
+								</ul>
+							</div>
+						</section>
+					))}
+				</div>
+			) : (
+				<div className="rounded-lg border bg-card">
 					<ul>
 						{updates.map((update) => (
-							<StatusRow key={update.updateId} update={update} />
+							<StatusRow key={update.updateId} showTransition update={update} />
 						))}
 					</ul>
-				)}
-			</div>
+				</div>
+			)}
 
 			<div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
 				<span>
-					{updates.length} update{updates.length === 1 ? "" : "s"} shown
+					{updates.length} shown
+					{summary && mode === "board" ? ` of ${summary.total} active` : ""}
 					{hasMore ? " · more available" : ""}
 				</span>
 				{hasMore ? (
