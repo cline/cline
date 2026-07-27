@@ -165,7 +165,7 @@ recruit({
 
 | Surface | Behavior |
 |---|---|
-| Drive tab left nav | Channels + Drive calls; nested roster under live call ([DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md)) |
+| Drive tab left nav | Channels + Drive calls; nested roster under live call ([DRIVE-TAB.md](../../../design/drive-wireframes/DRIVE-TAB.md)) |
 | Roster click | Chooser: Transcript \| Profile ([DRV-PARTICIPANT-SHEET](../features/DRV-PARTICIPANT-SHEET.md), W-37) |
 | Transcript choice | Focus agent stream; address-follows-focus |
 | Profile choice | Classifier + sections; no silent broadcast |

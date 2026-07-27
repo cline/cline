@@ -9,7 +9,7 @@ The Drive effort makes several decisions that future contributors will want to r
 ## Acceptance criteria
 
 - One ADR drafted covering, at minimum: `@cline/drive` kernel placement, hub `:25463` as the single writer and only daemon, room-first domain model with Drive tab as primary UX and `joinCall` / Chat Join as façade/shortcut, events-first agent stage (bidirectional sharer pointer; WebRTC later), phased media strategy with buy-not-build SFU, no default second MCP on `:7891`.
-- Each decision names the alternatives rejected and the evidence file that grounds it (include [DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md) for UX IA).
+- Each decision names the alternatives rejected and the evidence file that grounds it (include [DRIVE-TAB.md](../../../design/drive-wireframes/DRIVE-TAB.md) for UX IA).
 - ADR status is `proposed` until the human accepts it. Plans do not block on acceptance (work proceeds, the ADR records).
 
 ## Dependencies

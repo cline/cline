@@ -7,7 +7,7 @@ Click-through surfaces for the Drive / Drivecode stack. Hub owns room state via 
 | Surface | Kind | How to open |
 |---|---|---|
 | Drive tab HTML | Throwaway prototype (locked IA) | Open [`drive-tab-discord-slack.html`](drive-tab-discord-slack.html) in a browser |
-| Overview canvas | Cursor `.canvas.tsx` + HTML twin | Open [drivecode-overview.canvas.tsx](/home/ubuntu/.cursor/projects/workspace/canvases/drivecode-overview.canvas.tsx) beside chat, or [`overview-canvas.html`](overview-canvas.html) |
+| Overview canvas | Cursor `.canvas.tsx` + HTML twin | Open `drivecode-overview.canvas.tsx` from your Cursor canvases beside chat, or [`overview-canvas.html`](overview-canvas.html) |
 | Hub Chat Drive Spotlight | Shared Spotlight from hub room | `bun -F @cline/cline-hub dev` → `http://127.0.0.1:8787` → Connect → Chat → **Join call** |
 | CLI Drive teaser | Local TUI flags | `bun run cli -i` then `Ctrl+Shift+D` / status-bar Drive control |
 
