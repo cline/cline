@@ -1,8 +1,10 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
+import { getCwd, getDesktopDir } from "@/utils/path"
 import type { Controller } from "../index"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 
@@ -20,6 +22,17 @@ import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels
  */
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
+		// Sync workflow toggles with the files on disk so the chat input's slash
+		// command menu knows about workflows without requiring the user to open
+		// the Workflows modal first (which is the only other place that refreshes
+		// them). Fire-and-forget: the state post makes the toggles reach the webview.
+		getCwd(getDesktopDir())
+			.then(async (cwd) => {
+				await refreshWorkflowToggles(controller, cwd)
+				await controller.postStateToWebview()
+			})
+			.catch((error) => Logger.warn("Failed to refresh workflow toggles on webview launch:", error))
+
 		// Post last cached models as soon as possible for immediate availability in the UI
 		const lastCachedModels = await controller.readOpenRouterModels()
 		if (lastCachedModels) {
