@@ -2,6 +2,21 @@
 
 Back to [README](README.md).
 
+## Naming
+
+| Term | Means | Not |
+|---|---|---|
+| **Drive** / **Drive mode** | The product. A call room where a human and one or more agents pair-program. This is the user-facing name — `cline-drivecode` is the repo, never the product name. | "Drivecode mode", "Drive tab mode" |
+| **drive coding** | The *practice*, the way "vibe coding" names a practice. You drive-code when you steer an agent that is doing the work in front of you, on a call, in real time — narrating, sharing, and interrupting rather than prompting and waiting. Use this in prose and docs. | "driving code", "drivecoding" |
+| **Spotlight** | The shared surface that shows whoever is currently sharing — agent work cards or a human pin. Every surface says "in the spotlight". | "Stage" (see below) |
+
+**Spotlight vs stage.** The user-facing name is **Spotlight**, because the question
+it answers is *who is in the spotlight right now*. The hub wire protocol still calls
+this `stage` (`StageState`, `call_set_stage`, `roomSnapshot.stage`). That split is
+deliberate for now: renaming the wire is a breaking change across `@cline/shared`,
+the hub handlers, and every client. Surfaces render "Spotlight"; the protocol says
+`stage`.
+
 ## The experience
 
 Drive lives as a **sidebar tab of channels and call rooms**, like Discord voice inside Slack chrome. The user opens the Drive tab, picks or joins a call room, and pair-programs with a senior engineer who is sharing work on the stage. Agents appear in the room roster. The user addresses one, many, or everyone. They can focus the room thread or a single agent's stream. The stage can show agent work or a user share.

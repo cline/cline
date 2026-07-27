@@ -61,6 +61,7 @@ export function isWebviewRoute(pathname: string): boolean {
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
 		pathname === "/sessions" ||
+		pathname === "/status" ||
 		pathname === "/models" ||
 		pathname === "/customizations" ||
 		pathname === "/rules" ||
@@ -165,6 +166,11 @@ export class WebviewAssets {
 					...NO_STORE_HEADERS,
 				},
 			});
+		}
+		if (devServerUrl) {
+			// In dev the dashboard serves the HTML but Vite owns `public/`, so a
+			// bare `/cline-logo-filled.svg` would 404 against this origin.
+			return Response.redirect(`${devServerUrl}${pathname}`, 302);
 		}
 		if (isWebviewRoute(pathname)) {
 			return this.serveIndex();

@@ -8,7 +8,7 @@ Click-through surfaces for the Drive / Drivecode stack. Hub owns room state via 
 |---|---|---|
 | Drive tab HTML | Throwaway prototype (locked IA) | Open [`drive-tab-discord-slack.html`](drive-tab-discord-slack.html) in a browser |
 | Overview canvas | Cursor `.canvas.tsx` + HTML twin | Open [drivecode-overview.canvas.tsx](/home/ubuntu/.cursor/projects/workspace/canvases/drivecode-overview.canvas.tsx) beside chat, or [`overview-canvas.html`](overview-canvas.html) |
-| Hub Chat Drive Stage | Shared Stage from hub room | `bun -F @cline/cline-hub dev` → `http://127.0.0.1:8787` → Connect → Chat → **Join call** |
+| Hub Chat Drive Spotlight | Shared Spotlight from hub room | `bun -F @cline/cline-hub dev` → `http://127.0.0.1:8787` → Connect → Chat → **Join call** |
 | CLI Drive teaser | Local TUI flags | `bun run cli -i` then `Ctrl+Shift+D` / status-bar Drive control |
 
 ## Drive Mode share screen (production Join path)
@@ -28,7 +28,8 @@ Pipeline:
 browser → dashboard :8787 → HubUIClient → ws://127.0.0.1:25463/hub
   call_join (sessionId) / call_record_work / call_set_stage / call_get_room / …
   ← room.snapshot / room.event
-Stage cards + sharer + pin come from roomSnapshot (shared screen).
+Spotlight cards + sharer + pin come from roomSnapshot (shared screen).
+The wire field is still `stage`; every surface says Spotlight.
 ```
 
 ### Fixture vs live room cards
@@ -41,15 +42,15 @@ Stage cards + sharer + pin come from roomSnapshot (shared screen).
 
 ### Live smoke (share handoff)
 
-1. **Join call** — seats You + partner; Stage opens; `call_join` passes `sessionId`.
-2. **Agent tools** — completed edit/command/test tools → `call_record_work` → Stage cards update for every participant from the room snapshot.
+1. **Join call** — seats You + partner; Spotlight opens; `call_join` passes `sessionId`.
+2. **Agent tools** — completed edit/command/test tools → `call_record_work` → Spotlight cards update for every participant from the room snapshot.
 3. **Reload / late peek** — `call_get_room` hydrates cards; dead room (`room_not_found`) clears Drive UI with “Room ended. Join again.”
-4. **You take stage** — pick **selection** / **file** / **terminal**; real pin content renders on Stage; agent deck dims.
-5. **Agent takes stage** — pin cleared via `call_set_stage` with `pin: null`; agent cards return as primary.
+4. **Spotlight me** — pick **selection** / **file** / **terminal**; real pin content renders in the Spotlight; agent deck dims.
+5. **Spotlight agent** — pin cleared via `call_set_stage` with `pin: null`; agent cards return as primary.
 
 ### Share controls
 
-- **Agent takes stage** / **You take stage** → hub `call_set_stage`. You share requires a pin kind (selection text, file path, or terminal output).
+- **Spotlight agent** / **Spotlight me** → hub `call_set_stage`. You share requires a pin kind (selection text, file path, or terminal output).
 - Leave call → `call_leave`. Rooms are in-memory only (hub restart ends the room).
 
 ## HTML Drive tab / Overview / CLI
@@ -58,4 +59,4 @@ Primary IA demo remains the HTML Drive tab prototype. Drive tab **route** in hub
 
 ## Ship stack
 
-Canonical tip tracks Drive Mode share-screen work on `cursor/drive-share-production-b019`. Prior: [#13](https://github.com/hhalperin/cline-drivecode/pull/13) room MVP, [#12](https://github.com/hhalperin/cline-drivecode/pull/12) Stage Slice A.
+Canonical tip tracks Drive Mode share-screen work on `cursor/drive-share-production-b019`. Prior: [#13](https://github.com/hhalperin/cline-drivecode/pull/13) room MVP, [#12](https://github.com/hhalperin/cline-drivecode/pull/12) Spotlight (then Stage) Slice A.

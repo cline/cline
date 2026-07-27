@@ -1,6 +1,7 @@
 /**
- * Events-first Call Stage surface for Drive Mode Chat.
+ * Events-first Spotlight surface for Drive Mode Chat — who is sharing right now.
  * Live rooms render hub roomSnapshot.stage; offline/demo may use fixtures.
+ * `stage` on the wire is the hub-side name for the same thing.
  */
 
 import type { StageCard, StagePin } from "@cline/shared";
@@ -30,17 +31,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type StageHumanPin = Pick<StagePin, "kind" | "label"> & {
+export type SpotlightHumanPin = Pick<StagePin, "kind" | "label"> & {
 	ref?: string;
 };
 
-export type StageViewProps = {
+export type SpotlightViewProps = {
 	cards: readonly StageCard[];
-	/** Always shown in the stage header (agent partner or You). */
+	/** Who holds the spotlight (agent partner or You). */
 	sharerLabel: string;
 	demo?: boolean;
-	/** Structured human share when You take stage (hub pin). */
-	humanPin?: StageHumanPin | null;
+	/** Structured human share when you take the spotlight (hub pin). */
+	humanPin?: SpotlightHumanPin | null;
 	/** When true, agent work cards are dimmed under the human pin. */
 	humanSharing?: boolean;
 	nowLabel?: string;
@@ -186,7 +187,7 @@ function StageCardView({ card }: { card: StageCard }) {
 	}
 }
 
-function HumanPinContent({ pin }: { pin: StageHumanPin }) {
+function HumanPinContent({ pin }: { pin: SpotlightHumanPin }) {
 	const body = pin.ref?.trim() || pin.label;
 	switch (pin.kind) {
 		case "selection":
@@ -245,10 +246,10 @@ function HumanPinContent({ pin }: { pin: StageHumanPin }) {
 }
 
 /**
- * Full stage column: sharer header, cards, optional now/next strip.
+ * Full spotlight column: sharer header, cards, optional now/next strip.
  * Prefer this over DriveStagePanel + DriveStageCards for live projection.
  */
-export function Stage({
+export function Spotlight({
 	cards,
 	sharerLabel,
 	demo,
@@ -259,7 +260,7 @@ export function Stage({
 	emptyHint = "Waiting for partner tool activity on this session.",
 	className,
 	children,
-}: StageViewProps) {
+}: SpotlightViewProps) {
 	const showHumanPrimary = Boolean(humanPin) && (humanSharing || Boolean(humanPin));
 	const suppressAgentCards = Boolean(humanPin) && humanSharing !== false;
 
@@ -271,7 +272,9 @@ export function Stage({
 			)}
 		>
 			<div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
-				<span className="text-emerald-600 dark:text-emerald-400">● sharing</span>
+				<span className="text-emerald-600 dark:text-emerald-400">
+					● in the spotlight
+				</span>
 				<span className="truncate font-medium text-foreground">{sharerLabel}</span>
 				{demo ? (
 					<Badge className="ml-auto shrink-0 text-[10px]" variant="outline">
@@ -296,7 +299,7 @@ export function Stage({
 						? (
 								<div className="space-y-2 opacity-40" aria-hidden>
 									<p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-										Agent deck paused while you share
+										Agent deck paused while you hold the spotlight
 									</p>
 									{cards.map((card) => (
 										<StageCardView card={card} key={card.id} />

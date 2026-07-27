@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 /**
- * Human vs agent Stage branch rules (mirrors Stage.tsx props).
+ * Human vs agent Spotlight branch rules (mirrors Spotlight.tsx props).
  */
-function stageBranch(input: {
+function spotlightBranch(input: {
 	stageSharer: "you" | "agent";
 	hubPin: { kind: string; label: string; ref?: string } | null;
 }): {
@@ -20,10 +20,10 @@ function stageBranch(input: {
 	};
 }
 
-describe("Stage human/agent branch", () => {
+describe("Spotlight human/agent branch", () => {
 	it("shows hub pin only when you share; no optimistic invent", () => {
 		expect(
-			stageBranch({
+			spotlightBranch({
 				stageSharer: "you",
 				hubPin: null,
 			}),
@@ -34,7 +34,7 @@ describe("Stage human/agent branch", () => {
 		});
 
 		expect(
-			stageBranch({
+			spotlightBranch({
 				stageSharer: "you",
 				hubPin: {
 					kind: "selection",
@@ -46,7 +46,7 @@ describe("Stage human/agent branch", () => {
 	});
 
 	it("hides pin and does not suppress cards when agent shares", () => {
-		const branch = stageBranch({
+		const branch = spotlightBranch({
 			stageSharer: "agent",
 			hubPin: { kind: "file", label: "a.ts" },
 		});

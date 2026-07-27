@@ -43,7 +43,7 @@ export function DriveHeaderControls({
 						type="button"
 						variant={drive.stageLayout ? "default" : "outline"}
 					>
-						{drive.stageLayout ? "Stage on" : "Stage off"}
+						{drive.stageLayout ? "Spotlight on" : "Spotlight off"}
 					</Button>
 				</>
 			) : null}
@@ -132,7 +132,9 @@ export function DriveCallStrip({
 			<span className="text-xs text-muted-foreground">
 				{drive.muted ? "muted" : "listening"} · {drive.subMode}
 				{drive.handRaised ? " · hand raised" : ""}
-				{drive.stageSharer === "you" ? " · you sharing" : " · agent sharing"}
+				{drive.stageSharer === "you"
+					? " · you in the spotlight"
+					: " · agent in the spotlight"}
 			</span>
 			<div className="ml-auto flex flex-wrap items-center gap-1">
 				{SUB_MODES.map((mode) => (
@@ -161,7 +163,7 @@ export function DriveCallStrip({
 							variant={drive.stageSharer === "agent" ? "default" : "ghost"}
 							className="h-7 px-2 text-xs"
 						>
-							Agent takes stage
+							Spotlight agent
 						</Button>
 						<Button
 							disabled={disabled}
@@ -171,7 +173,7 @@ export function DriveCallStrip({
 							variant={drive.stageSharer === "you" ? "default" : "ghost"}
 							className="h-7 px-2 text-xs"
 						>
-							You take stage
+							Spotlight me
 						</Button>
 						{pinPickerOpen ? (
 							<div className="flex w-full flex-wrap items-center gap-1 border-t border-amber-500/20 pt-2">

@@ -5,40 +5,59 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Cline brand palette. Values are the measured tokens from
+ * docs/design/drive-wireframes/CLINE-BRAND-TOKENS.md — keep the two in sync.
+ * Fills use --brand-purple; text on dark uses --brand-purple-text; borders on
+ * dark use --brand-purple-border.
+ */
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.18 0.008 255);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.18 0.008 255);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.974 0.003 270);
-	--muted-foreground: oklch(0.52 0.014 270);
-	--accent: oklch(0.94 0.004 270);
-	--accent-foreground: oklch(0.18 0.008 255);
-	--destructive: oklch(0.577 0.245 27.325);
-	--destructive-foreground: oklch(0.93 0 0);
-	--border: oklch(0.92 0.005 270);
-	--input: oklch(0.9 0.006 270);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.809 0.105 251.813);
-	--chart-2: oklch(0.623 0.214 259.815);
-	--chart-3: oklch(0.546 0.245 262.881);
-	--chart-4: oklch(0.488 0.243 264.376);
-	--chart-5: oklch(0.424 0.199 265.638);
-	--radius: 0.625rem;
-	--sidebar: oklch(0.977 0.004 270);
-	--sidebar-foreground: oklch(0.18 0.008 255);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.928 0.006 270);
-	--sidebar-accent-foreground: oklch(0.18 0.008 255);
-	--sidebar-border: oklch(0.92 0.005 270);
-	--sidebar-ring: oklch(0.708 0 0);
+	--brand-purple: #9f58fa;
+	--brand-purple-border: #9663f1;
+	--brand-purple-text: #b98aff;
+	--brand-black: #151516;
+	--brand-white: #f8fafb;
+	--brand-green: #2bcc28;
+	--brand-green-live: #4ade80;
+	--brand-pink: #f53969;
+	--brand-blue: #5487c8;
+}
+
+:root {
+	--background: var(--brand-white);
+	--foreground: var(--brand-black);
+	--card: #ffffff;
+	--card-foreground: var(--brand-black);
+	--popover: #ffffff;
+	--popover-foreground: var(--brand-black);
+	--primary: var(--brand-purple);
+	--primary-foreground: #ffffff;
+	--secondary: rgb(21 21 22 / 3.5%);
+	--secondary-foreground: var(--brand-black);
+	--muted: rgb(21 21 22 / 3.5%);
+	--muted-foreground: rgb(21 21 22 / 55%);
+	--accent: rgb(159 88 250 / 10%);
+	--accent-foreground: #6d2fc4;
+	--destructive: var(--brand-pink);
+	--destructive-foreground: #ffffff;
+	--border: rgb(21 21 22 / 10%);
+	--input: rgb(21 21 22 / 12%);
+	--ring: var(--brand-purple);
+	--chart-1: var(--brand-purple);
+	--chart-2: var(--brand-blue);
+	--chart-3: var(--brand-green);
+	--chart-4: var(--brand-pink);
+	--chart-5: #7c4fd0;
+	/* Cline uses a 9px corner across buttons, inputs, nav items, containers. */
+	--radius: 0.5625rem;
+	--sidebar: #ffffff;
+	--sidebar-foreground: var(--brand-black);
+	--sidebar-primary: var(--brand-purple);
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: rgb(159 88 250 / 10%);
+	--sidebar-accent-foreground: #6d2fc4;
+	--sidebar-border: rgb(21 21 22 / 8%);
+	--sidebar-ring: var(--brand-purple);
 }
 
 @theme inline {
@@ -183,49 +202,62 @@
 }
 
 ::-webkit-scrollbar-thumb {
-	background: oklch(0.82 0.006 270);
+	background: rgb(21 21 22 / 18%);
 	border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: oklch(0.72 0.01 270);
+	background: rgb(21 21 22 / 30%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+	background: rgb(255 255 255 / 14%);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+	background: rgb(255 255 255 / 24%);
 }
 
 /* Selection color */
 ::selection {
-	background: oklch(0.75 0.12 165 / 0.25);
+	background: rgb(159 88 250 / 25%);
 }
 
+/*
+ * Dark depth comes from the surface ladder (#0A0A0A → #0D0D10 → #12131A →
+ * #1B1D24) plus hairline strokes, never from shadow.
+ */
 .dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.809 0.105 251.813);
-	--chart-2: oklch(0.623 0.214 259.815);
-	--chart-3: oklch(0.546 0.245 262.881);
-	--chart-4: oklch(0.488 0.243 264.376);
-	--chart-5: oklch(0.424 0.199 265.638);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
+	--background: #0a0a0a;
+	--foreground: #ffffff;
+	--card: #0d0d10;
+	--card-foreground: #ffffff;
+	--popover: #101013;
+	--popover-foreground: #ffffff;
+	--primary: var(--brand-purple);
+	--primary-foreground: #ffffff;
+	--secondary: #12131a;
+	--secondary-foreground: #ffffff;
+	--muted: #12131a;
+	--muted-foreground: #9ca3af;
+	--accent: rgb(159 88 250 / 16%);
+	--accent-foreground: var(--brand-purple-text);
+	--destructive: var(--brand-pink);
+	--destructive-foreground: #ffffff;
+	--border: rgb(255 255 255 / 10%);
+	--input: rgb(255 255 255 / 15%);
+	--ring: var(--brand-purple-border);
+	--chart-1: var(--brand-purple-text);
+	--chart-2: var(--brand-blue);
+	--chart-3: var(--brand-green-live);
+	--chart-4: var(--brand-pink);
+	--chart-5: #7c4fd0;
+	--sidebar: #08080a;
+	--sidebar-foreground: #ffffff;
+	--sidebar-primary: var(--brand-purple);
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: rgb(159 88 250 / 16%);
+	--sidebar-accent-foreground: var(--brand-purple-text);
+	--sidebar-border: rgb(255 255 255 / 8%);
+	--sidebar-ring: var(--brand-purple-border);
 }

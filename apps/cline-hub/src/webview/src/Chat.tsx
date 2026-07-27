@@ -69,7 +69,7 @@ import {
 	DRIVE_DEMO_FIXTURE,
 	fixtureStageCards,
 } from "./drive/demoFixture";
-import { Stage } from "./drive/Stage";
+import { Spotlight } from "./drive/Spotlight";
 import { buildHumanPinDefaults } from "./drive/pinDefaults";
 import { projectStageFromMessages } from "./drive/stageReducer";
 import {
@@ -1838,15 +1838,15 @@ export default function Chat({
 				/>
 				</div>
 				{drive.active && drive.stageLayout ? (
-					<Stage
+					<Spotlight
 						cards={stageCards}
 						demo={useStageFixture}
 						emptyHint={
 							useStageFixture
 								? "Demo fixture cards."
 								: liveRoom
-									? "Waiting for partner tool activity in this Drive room. Edit / command / test tools update the shared stage."
-									: "Waiting for partner tool activity on this session. Edit / command / test tools update this stage."
+									? "Waiting for partner tool activity in this Drive room. Edit / command / test tools update the shared spotlight."
+									: "Waiting for partner tool activity on this session. Edit / command / test tools update this spotlight."
 						}
 						humanPin={drive.stageSharer === "you" ? hubPin : null}
 						humanSharing={drive.stageSharer === "you"}

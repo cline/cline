@@ -1,6 +1,6 @@
 # cline-drivemode · Plan index
 
-Drive mode for cline-drivecode. The user opens the **Drive tab**, joins a call room, and pair-programs with a senior-engineer agent that shares work on the stage. Chat Join call is a shortcut into the active room. This folder is the complete plan set. Plans only, no implementation here.
+**Drive** is the product; **drive coding** is the practice it names, the way "vibe coding" names one. The user opens the **Drive tab**, joins a call room, and pair-programs with a senior-engineer agent that holds the **Spotlight**. Chat Join call is a shortcut into the active room. This folder is the complete plan set. Plans only, no implementation here. Terminology is fixed in [00-vision.md](00-vision.md#naming).
 
 UX north star decision. [DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md) and [drive-tab-discord-slack.html](../../design/drive-wireframes/drive-tab-discord-slack.html).
 
