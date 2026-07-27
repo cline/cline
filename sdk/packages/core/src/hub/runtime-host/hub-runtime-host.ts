@@ -1,3 +1,4 @@
+import { resolveProviderRequestHeaders } from "@cline/llms";
 import type {
 	AgentEvent,
 	AgentFinishReason,
@@ -22,7 +23,6 @@ import {
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isHubToolExecutorName,
-	mergeClineClientRequestHeaders,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
@@ -132,20 +132,28 @@ function buildCommandSessionConfig(
 		...(input.config as Record<string, unknown>),
 		sessionId,
 	};
-	const headers = mergeClineClientRequestHeaders({
+	const headers = resolveProviderRequestHeaders({
 		providerId: input.config.providerId,
 		sessionId,
 		source: input.source,
 		defaultSource: SessionSource.CORE,
-		clientName: input.localRuntime?.extensionContext?.client?.name,
-		clientVersion: input.localRuntime?.extensionContext?.client?.version,
-		clientVersionHeaderFallback: input.config.headers?.["X-CLIENT-VERSION"],
-		platform: input.localRuntime?.extensionContext?.client?.platform,
-		platformVersion:
-			input.localRuntime?.extensionContext?.client?.platformVersion,
-		isMultiRoot: input.localRuntime?.extensionContext?.client?.isMultiRoot,
+		client: {
+			name: input.localRuntime?.extensionContext?.client?.name,
+			version: input.localRuntime?.extensionContext?.client?.version,
+			versionHeaderFallback: input.config.headers?.["X-CLIENT-VERSION"],
+			platform: input.localRuntime?.extensionContext?.client?.platform,
+			platformVersion:
+				input.localRuntime?.extensionContext?.client?.platformVersion,
+			isMultiRoot: input.localRuntime?.extensionContext?.client?.isMultiRoot,
+		},
 		coreVersion: corePackageVersion,
-		headers: [input.config.headers],
+		openAiCodex: {
+			accessToken: input.config.apiKey,
+			userAgentVersion: process.env.npm_package_version,
+		},
+		headers: {
+			config: input.config.headers,
+		},
 	});
 	if (headers) {
 		sessionConfig.headers = headers;
@@ -660,8 +668,12 @@ function buildManifest(
 ): SessionManifest {
 	const workspaceRoot =
 		session?.workspaceRoot?.trim() ||
-		input.config.workspaceRoot ||
-		input.config.cwd;
+		input.config.workspaceRoot?.trim() ||
+		input.config.cwd?.trim();
+	if (!workspaceRoot) {
+		throw new Error("Hub runtime did not return a resolved workspace path.");
+	}
+	const cwd = session?.cwd?.trim() || input.config.cwd?.trim() || workspaceRoot;
 	return SessionManifestSchema.parse({
 		version: 1,
 		session_id: sessionId,
@@ -672,7 +684,7 @@ function buildManifest(
 		interactive: input.interactive === true,
 		provider: input.config.providerId,
 		model: input.config.modelId,
-		cwd: session?.cwd?.trim() || input.config.cwd,
+		cwd,
 		workspace_root: workspaceRoot,
 		team_name: input.config.teamName,
 		enable_tools: input.config.enableTools,
@@ -893,6 +905,15 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.cleanupPlannedSession(plannedSessionId);
 			throw new Error("Hub runtime did not return a session id.");
 		}
+		let manifest: SessionManifest;
+		try {
+			manifest = snapshot
+				? buildManifestFromSnapshot(snapshot, input)
+				: buildManifest(sessionId, input, session);
+		} catch (error) {
+			this.cleanupPlannedSession(plannedSessionId);
+			throw error;
+		}
 		if (sessionId !== plannedSessionId) {
 			this.cleanupPlannedSession(plannedSessionId);
 			this.registerPlannedSession(
@@ -904,9 +925,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 		return {
 			sessionId,
-			manifest: snapshot
-				? buildManifestFromSnapshot(snapshot, input)
-				: buildManifest(sessionId, input, session),
+			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
@@ -1066,31 +1085,45 @@ export class HubRuntimeHost implements RuntimeHost {
 			| RestoreSessionResult["checkpoint"]
 			| undefined;
 		if (!checkpoint) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
 			throw new Error("Hub checkpoint restore returned no checkpoint");
 		}
-		return {
-			sessionId: newSessionId,
-			startResult: newSessionId
-				? {
-						sessionId: newSessionId,
-						manifest: snapshot
-							? buildManifestFromSnapshot(
-									snapshot,
-									startConfig ?? ({} as StartSessionInput),
-								)
-							: buildManifest(
-									newSessionId,
-									startConfig ?? ({} as StartSessionInput),
-									session,
-								),
-						manifestPath: "",
-						messagesPath: "",
-						result: undefined,
-					}
-				: undefined,
-			messages,
-			checkpoint,
-		};
+		try {
+			return {
+				sessionId: newSessionId,
+				startResult: newSessionId
+					? {
+							sessionId: newSessionId,
+							manifest: snapshot
+								? buildManifestFromSnapshot(
+										snapshot,
+										startConfig ?? ({} as StartSessionInput),
+									)
+								: buildManifest(
+										newSessionId,
+										startConfig ?? ({} as StartSessionInput),
+										session,
+									),
+							manifestPath: "",
+							messagesPath: "",
+							result: undefined,
+						}
+					: undefined,
+				messages,
+				checkpoint,
+			};
+		} catch (error) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
+			throw error;
+		}
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
@@ -1598,6 +1631,62 @@ export class HubRuntimeHost implements RuntimeHost {
 								typeof event.payload?.toolCallCount === "number"
 									? event.payload.toolCallCount
 									: 0,
+						},
+					},
+				});
+				return;
+			}
+			case "session.notice": {
+				const noticeType = event.payload?.noticeType;
+				const displayRole = event.payload?.displayRole;
+				const reason = event.payload?.reason;
+				const agent =
+					event.payload?.agent && typeof event.payload.agent === "object"
+						? (event.payload.agent as Record<string, unknown>)
+						: undefined;
+				const teamRole =
+					agent?.teamRole === "lead" || agent?.teamRole === "teammate"
+						? agent.teamRole
+						: undefined;
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						...(teamRole ? { teamRole } : {}),
+						...(typeof agent?.teamAgentId === "string"
+							? { teamAgentId: agent.teamAgentId }
+							: {}),
+						event: {
+							type: "notice",
+							...(typeof agent?.agentId === "string"
+								? { agentId: agent.agentId }
+								: {}),
+							...(typeof agent?.conversationId === "string"
+								? { conversationId: agent.conversationId }
+								: {}),
+							...(typeof agent?.parentAgentId === "string"
+								? { parentAgentId: agent.parentAgentId }
+								: {}),
+							noticeType:
+								noticeType === "recovery" || noticeType === "stop"
+									? noticeType
+									: "status",
+							message:
+								typeof event.payload?.message === "string"
+									? event.payload.message
+									: "",
+							...(displayRole === "system" || displayRole === "status"
+								? { displayRole }
+								: {}),
+							...(typeof reason === "string"
+								? { reason: reason as never }
+								: {}),
+							...(event.payload?.metadata &&
+							typeof event.payload.metadata === "object"
+								? {
+										metadata: event.payload.metadata as Record<string, unknown>,
+									}
+								: {}),
 						},
 					},
 				});

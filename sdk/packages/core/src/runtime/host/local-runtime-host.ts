@@ -6,6 +6,7 @@ import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
+	type BasicLogger,
 	captureSdkError,
 	createSessionId,
 	type ITelemetryService,
@@ -50,6 +51,13 @@ import {
 	sumUsageTotals,
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
+import { resolveStartSessionWorkspace } from "../../services/workspace/chat-workspace";
+import {
+	type GitWorkspaceState,
+	hasCurrentSessionGitMetadata,
+	readGitWorkspaceState,
+	withSessionGitMetadata,
+} from "../../services/workspace/workspace-manifest";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -110,6 +118,7 @@ import {
 import { loadUserFileContent } from "./local/user-files";
 import type {
 	PendingPromptsServiceApi,
+	ResolvedStartSessionInput,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -203,6 +212,7 @@ export interface LocalRuntimeHostOptions {
 	providerSettingsManager?: ProviderSettingsManager;
 	oauthTokenManager?: RuntimeOAuthTokenManager;
 	telemetry?: ITelemetryService;
+	logger?: BasicLogger;
 	/**
 	 * Default custom `fetch` implementation threaded into every
 	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
@@ -223,6 +233,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
+	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
@@ -260,6 +271,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				telemetry: options.telemetry,
 			});
 		this.defaultTelemetry = options.telemetry;
+		this.defaultLogger = options.logger;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
 
@@ -295,8 +307,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private async applyInitialOAuthCredentials(
-		input: StartSessionInput,
-	): Promise<StartSessionInput> {
+		input: ResolvedStartSessionInput,
+	): Promise<ResolvedStartSessionInput> {
 		if (input.config.apiKey?.trim()) {
 			return input;
 		}
@@ -320,11 +332,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
-		const source = input.source ?? SessionSource.CLI;
-		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput =
+		const isReadOnlyResumeStart =
+			requestedSessionId.length > 0 &&
+			(input.initialMessages?.length ?? 0) > 0 &&
+			!input.prompt?.trim();
+		const hasRequestedWorkspace = Boolean(
+			input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
+		);
+		const existingResumeManifest =
+			isReadOnlyResumeStart && !hasRequestedWorkspace
+				? await this.invokeOptionalValue<SessionManifest>(
+						"readSessionManifest",
+						sessionId,
+					)
+				: undefined;
+		const config = existingResumeManifest
+			? {
+					...input.config,
+					cwd: existingResumeManifest.cwd,
+					workspaceRoot: existingResumeManifest.workspace_root,
+				}
+			: await resolveStartSessionWorkspace(input.config);
+		return await this.startResolvedSession(
+			{ ...input, config },
+			sessionId,
+			requestedSessionId.length > 0,
+			existingResumeManifest,
+		);
+	}
+
+	private async startResolvedSession(
+		input: ResolvedStartSessionInput,
+		sessionId: string,
+		wasSessionIdRequested: boolean,
+		existingResumeManifest?: SessionManifest,
+	): Promise<StartSessionResult> {
+		const source = input.source ?? SessionSource.CLI;
+		const startedAt = nowIso();
+		const startInput: ResolvedStartSessionInput =
 			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
@@ -369,14 +416,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let resumedArtifacts: RootSessionArtifacts | undefined;
 		let resumedCompactionState: SessionCompactionState | undefined;
 		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
+			wasSessionIdRequested &&
 			initialMessages.length > 0 &&
 			!startInput.prompt?.trim();
 		if (isReadOnlyResumeStart) {
-			const existingManifest = await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				sessionId,
-			);
+			const existingManifest =
+				existingResumeManifest ??
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				));
 			if (existingManifest) {
 				manifest = existingManifest;
 				resumedArtifacts = {
@@ -432,6 +481,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
+			defaultLogger: this.defaultLogger,
 			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultFetch: this.defaultFetch,
@@ -475,6 +525,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
+		const initialSessionMetadata = withSessionGitMetadata(
+			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
+			bootstrap.gitState,
+		);
+		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build(
 			bootstrap.runtimeBuilderInput,
 		);
@@ -484,6 +539,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 			configWithProvider.teamName = runtime.teamRuntime.getTeamName();
 		}
 
+		// Auth-retry hook for every agent in the session (lead, teammates,
+		// subagents): refresh OAuth credentials and propagate the new key to
+		// all connections, then let the runtime retry the failed run. Without
+		// this, a token that expires while the lead is blocked (e.g. in
+		// team_await_runs) kills teammate runs with a raw provider 401.
+		const onAuthError = async (): Promise<boolean> => {
+			const liveSession = this.sessions.get(sessionId);
+			if (!liveSession || !isOAuthProvider(liveSession.config.providerId)) {
+				return false;
+			}
+			try {
+				await this.syncOAuthCredentials(liveSession, { forceRefresh: true });
+				return true;
+			} catch {
+				return false;
+			}
+		};
+		runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
+			onAuthError,
+		});
+
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
@@ -491,60 +567,62 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
-		const initialCompactionState =
-			compact && rawInitialCompactionState
-				? {
-						...rawInitialCompactionState,
-						conversation_id:
-							rawInitialCompactionState.conversation_id?.trim() || sessionId,
-					}
-				: undefined;
-		const prepareTurn = compact
-			? createCompactionStateAwarePrepareTurn({
-					compact,
-					getState: () => activeSessionRef?.compactionState,
-					saveState: async (state) => {
-						const activeSession = activeSessionRef;
-						if (!activeSession) return;
-						const stateForSession = {
-							...state,
-							conversation_id: activeSession.sessionId,
-						};
-						try {
-							const result = await this.persistActiveSessionCompactionState(
-								activeSession,
-								stateForSession,
-							);
-							if (!result.updated) {
-								configWithProvider.logger?.debug?.(
-									"Skipped stale session compaction state",
-									{
-										sessionId: activeSession.sessionId,
-										sourceMessageCount: stateForSession.source_message_count,
-									},
-								);
-							}
-						} catch (error) {
-							configWithProvider.logger?.error?.(
-								"Failed to persist session compaction state",
-								{ sessionId: activeSession.sessionId, error },
-							);
-							captureSdkError(configWithProvider.telemetry, {
-								component: "core",
-								operation: "session.persist_compaction_state",
-								severity: "warn",
-								handled: true,
-								error,
-								context: {
-									sessionId: activeSession.sessionId,
-									providerId: configWithProvider.providerId,
-									modelId: configWithProvider.modelId,
-								},
-							});
-						}
-					},
-				})
+		// A compaction sidecar must keep projecting into the working context even
+		// when auto-compaction is disabled (`compact` undefined): manual /compact
+		// persists a sidecar and promises the next turn will use it. The
+		// state-aware prepareTurn handles `compact: undefined` by projecting the
+		// existing state without re-compacting, and no-ops when no state exists.
+		const initialCompactionState = rawInitialCompactionState
+			? {
+					...rawInitialCompactionState,
+					conversation_id:
+						rawInitialCompactionState.conversation_id?.trim() || sessionId,
+				}
 			: undefined;
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => activeSessionRef?.compactionState,
+			saveState: async (state) => {
+				const activeSession = activeSessionRef;
+				if (!activeSession) return;
+				const stateForSession = {
+					...state,
+					conversation_id: activeSession.sessionId,
+				};
+				try {
+					const result = await this.persistActiveSessionCompactionState(
+						activeSession,
+						stateForSession,
+					);
+					if (!result.updated) {
+						configWithProvider.logger?.debug?.(
+							"Skipped stale session compaction state",
+							{
+								sessionId: activeSession.sessionId,
+								sourceMessageCount: stateForSession.source_message_count,
+							},
+						);
+					}
+				} catch (error) {
+					configWithProvider.logger?.error?.(
+						"Failed to persist session compaction state",
+						{ sessionId: activeSession.sessionId, error },
+					);
+					captureSdkError(configWithProvider.telemetry, {
+						component: "core",
+						operation: "session.persist_compaction_state",
+						severity: "warn",
+						handled: true,
+						error,
+						context: {
+							sessionId: activeSession.sessionId,
+							providerId: configWithProvider.providerId,
+							modelId: configWithProvider.modelId,
+						},
+					});
+				}
+			},
+		});
 
 		const agentConfig = {
 			sessionId,
@@ -553,6 +631,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			apiKey: providerConfig.apiKey,
 			baseUrl: providerConfig.baseUrl,
 			headers: providerConfig.headers,
+			onAuthError,
 			knownModels: providerConfig.knownModels,
 			providerConfig,
 			thinking: configWithProvider.thinking,
@@ -560,6 +639,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
 			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
+			temperature: configWithProvider.temperature,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
@@ -666,7 +746,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		emitSessionCreationTelemetry(
 			configWithProvider,
 			sessionId,
-			requestedSessionId.length > 0,
+			wasSessionIdRequested,
 			workspacePath,
 			rootAgentIdentity,
 		);
@@ -691,7 +771,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const active: ActiveSession = {
 			sessionId,
 			config: configWithProvider,
-			sessionMetadata: startInput.sessionMetadata,
+			sessionMetadata: initialSessionMetadata,
 			...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
 			source,
 			startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
@@ -737,6 +817,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			active.compactionState = undefined;
 		}
 		this.sessions.set(sessionId, active);
+		if (resumedArtifacts) {
+			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
+		}
 		this.emitStatus(sessionId, "running");
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			await this.ensureSessionPersisted(active);
@@ -1425,27 +1508,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.pendingPrompt = prompt;
 		}
 		await this.ensureSessionPersisted(session);
+		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
 
-		let result = await this.executeAgentTurn(
-			session,
-			prompt,
-			preparedInput.userImages,
-			preparedInput.userFiles,
-		);
-
-		while (shouldAutoContinueTeamRuns(session, result.finishReason)) {
-			const updates = await waitForTeamRunUpdates(session);
-			if (updates.length === 0) break;
-			const continuationPrompt = buildTeamRunContinuationPrompt(
+		try {
+			let result = await this.executeAgentTurn(
 				session,
-				updates,
+				prompt,
+				preparedInput.userImages,
+				preparedInput.userFiles,
 			);
-			result = await this.executeAgentTurn(session, continuationPrompt);
-		}
 
-		return result;
+			while (shouldAutoContinueTeamRuns(session, result.finishReason)) {
+				const updates = await waitForTeamRunUpdates(session);
+				if (updates.length === 0) break;
+				const continuationPrompt = buildTeamRunContinuationPrompt(
+					session,
+					updates,
+				);
+				result = await this.executeAgentTurn(session, continuationPrompt);
+			}
+
+			return result;
+		} finally {
+			await this.refreshActiveSessionGitMetadata(session);
+		}
 	}
 
 	private async completeInteractiveTurn(
@@ -1742,6 +1830,37 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.updateStatus(session, "running", null);
 	}
 
+	private async refreshActiveSessionGitMetadata(
+		session: ActiveSession,
+		knownState?: GitWorkspaceState,
+	): Promise<void> {
+		try {
+			const state =
+				knownState ??
+				(await readGitWorkspaceState(resolveWorkspacePath(session.config)));
+			if (!state || !session.artifacts) return;
+			if (
+				hasCurrentSessionGitMetadata(session.artifacts.manifest.metadata, state)
+			) {
+				return;
+			}
+			await this.persistSessionMetadata(session.sessionId, (current) =>
+				withSessionGitMetadata(
+					{
+						...(current ?? {}),
+						...(session.sessionMetadata ?? {}),
+					},
+					state,
+				),
+			);
+		} catch (error) {
+			session.config.logger?.debug?.("Failed to refresh session git metadata", {
+				sessionId: session.sessionId,
+				error,
+			});
+		}
+	}
+
 	private async markTurnPending(session: ActiveSession): Promise<void> {
 		if (session.status === "pending") return;
 		await this.updateStatus(session, "pending", null);
@@ -1861,6 +1980,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 
 		if (session.artifacts) {
+			await this.refreshActiveSessionGitMetadata(session);
 			try {
 				await this.updateStatus(session, input.status, input.exitCode);
 			} catch (error) {

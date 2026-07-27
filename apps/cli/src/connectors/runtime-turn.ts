@@ -169,7 +169,17 @@ export function createConnectorRuntimeTurnStream(input: {
 					return;
 				}
 				lastStatusMessage = message;
-				await input.onToolStatus?.(message);
+				try {
+					await input.onToolStatus?.(message);
+				} catch (error) {
+					input.logger.core.log("Connector tool status delivery failed", {
+						severity: "warn",
+						transport: input.transport,
+						conversationId: input.conversationId,
+						sessionId: input.sessionId,
+						error,
+					});
+				}
 			};
 
 			const stopStreaming = input.client.streamEvents(

@@ -1,3 +1,4 @@
+export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
 	ModelCollection,
 	ModelIdAliasRule,
@@ -29,6 +30,7 @@ export {
 	registerProvider,
 	resetRegistry,
 	sortModelsByReleaseDate,
+	unregisterModel,
 	unregisterProvider,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
@@ -64,8 +66,8 @@ export {
 	createHandler,
 	createHandlerAsync,
 	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
@@ -79,6 +81,7 @@ export {
 	isClinePassLimitMessage,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 	registerAsyncHandler,
 	registerHandler,
 } from "./providers";
@@ -90,4 +93,11 @@ export {
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
+export {
+	type OpenAICodexRequestHeaderContext,
+	type ProviderRequestHeaderClientContext,
+	type ProviderRequestHeaderLayers,
+	type ResolveProviderRequestHeadersInput,
+	resolveProviderRequestHeaders,
+} from "./providers/request-headers";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";

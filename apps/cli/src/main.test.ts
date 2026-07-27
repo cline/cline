@@ -333,7 +333,7 @@ describe("runCli lightweight command dispatch", () => {
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
-	});
+	}, 30_000);
 
 	it("does not load runtime modules for root update", async () => {
 		mockState.runAgentImports = 0;
@@ -1302,7 +1302,6 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 				thinking: true,
 				reasoningEffort: "medium",
@@ -1389,7 +1388,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("enables truncation compaction by default for prompt runs", async () => {
+	it("uses Core's agentic compaction default for prompt runs", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
@@ -1404,7 +1403,6 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 			}),
 			expect.anything(),

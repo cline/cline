@@ -1,3 +1,4 @@
+export { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "./providers/builtins";
 export {
 	type ApiHandler,
 	BUILT_IN_PROVIDER,

@@ -1,6 +1,7 @@
 import type { HistoryItem } from "@shared/HistoryItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
+import { isDirectory } from "@/utils/fs"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
 import { SdkTaskStartCoordinator, type SdkTaskStartCoordinatorOptions } from "./sdk-task-start-coordinator"
 
@@ -12,9 +13,14 @@ vi.mock("@/shared/services/Logger", () => ({
 	},
 }))
 
+vi.mock("@/utils/fs", () => ({
+	isDirectory: vi.fn(),
+}))
+
 describe("SdkTaskStartCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		vi.mocked(isDirectory).mockResolvedValue(false)
 	})
 
 	it("initializes a new task, emits the task message, and sends the resolved prompt", async () => {
@@ -138,6 +144,7 @@ describe("SdkTaskStartCoordinator", () => {
 	})
 
 	it("reinitializes an existing task with preserved initial messages", async () => {
+		vi.mocked(isDirectory).mockResolvedValue(true)
 		const historyItem: HistoryItem = {
 			id: "task-1",
 			task: "old task",
@@ -153,6 +160,8 @@ describe("SdkTaskStartCoordinator", () => {
 
 		expect(options.clearTask).toHaveBeenCalledOnce()
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
+		expect(isDirectory).toHaveBeenCalledWith("/task-cwd")
+		expect(options.getWorkspaceRoot).not.toHaveBeenCalled()
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/task-cwd", mode: "act" })
 		expect(options.createTempSessionHost).toHaveBeenCalledOnce()
 		expect(options.loadInitialMessages).toHaveBeenCalledWith(tempHost, "task-1")
@@ -168,6 +177,25 @@ describe("SdkTaskStartCoordinator", () => {
 		})
 		expect(state.task?.taskId).toBe("session-123")
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("falls back to the workspace root when a stored task cwd is unavailable", async () => {
+		const historyItem: HistoryItem = {
+			id: "task-1",
+			task: "old task",
+			ts: 1,
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/missing-task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ historyItem })
+
+		await coordinator.reinitExistingTaskFromId("task-1")
+
+		expect(isDirectory).toHaveBeenCalledWith("/missing-task-cwd")
+		expect(options.getWorkspaceRoot).toHaveBeenCalledOnce()
+		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "act" })
 	})
 
 	it("emits Cline auth errors when reinitialization fails due auth", async () => {

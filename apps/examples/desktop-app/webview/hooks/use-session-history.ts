@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
@@ -9,7 +10,11 @@ import type {
 	SessionHistoryStatus,
 	SessionMetadata,
 } from "@/lib/session-history";
-import { getSessionMetadataTitle } from "@/lib/session-history";
+import {
+	getSessionMetadataGitBranch,
+	getSessionMetadataTitle,
+	getSessionSource,
+} from "@/lib/session-history";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 	status: string;
@@ -18,10 +23,13 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 export interface SessionThread {
 	id: string;
 	title: string;
+	source?: string;
 	codebase: string;
+	workspacePath: string;
 	time: string;
 	provider: string;
 	model: string;
+	gitBranch?: string;
 	inputTokens?: number;
 	outputTokens?: number;
 	totalCostUsd?: number;
@@ -169,6 +177,7 @@ export function formatRelativeTime(value?: string): string {
 
 export function basenamePath(input?: string): string {
 	if (!input) return "workspace";
+	if (isChatWorkspacePath(input)) return "Chat";
 	const trimmed = input.replace(/[\\/]+$/, "");
 	if (!trimmed) return "workspace";
 	const parts = trimmed.split(/[\\/]/);
@@ -178,10 +187,10 @@ export function basenamePath(input?: string): string {
 function toTitle(session: SessionHistoryItem): string {
 	const metadataTitle = getSessionMetadataTitle(session.metadata);
 	if (metadataTitle) {
-		return metadataTitle.slice(0, 70);
+		return metadataTitle;
 	}
 	const line = normalizeTitle(session.prompt).trim().split("\n")[0]?.trim();
-	if (line) return line.slice(0, 70);
+	if (line) return line;
 	return `Session ${session.sessionId.slice(-6)}`;
 }
 
@@ -195,7 +204,7 @@ function titleFromMessages(messages: SessionMessage[]): string | null {
 				typeof message.content === "string" ? message.content : "";
 			const line = normalizeTitle(content).trim().split("\n")[0]?.trim();
 			if (line) {
-				return line.slice(0, 70);
+				return line;
 			}
 		}
 	}
@@ -224,13 +233,17 @@ function inferStatusFromMessages(
 }
 
 function toThread(session: SessionHistoryItem): SessionThread {
+	const workspacePath = (session.workspaceRoot || session.cwd).trim();
 	return {
 		id: session.sessionId,
 		title: toTitle(session),
-		codebase: basenamePath(session.workspaceRoot || session.cwd),
+		source: getSessionSource(session) || undefined,
+		codebase: basenamePath(workspacePath),
+		workspacePath,
 		time: formatRelativeTime(session.endedAt || session.startedAt),
 		provider: session.provider || "",
 		model: session.model || "",
+		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 	};
 }
@@ -324,10 +337,13 @@ function areSessionsEquivalent(
 		const b = next[i];
 		if (
 			a.sessionId !== b.sessionId ||
+			getSessionSource(a) !== getSessionSource(b) ||
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
 			a.prompt !== b.prompt ||
+			getSessionMetadataGitBranch(a.metadata) !==
+				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
 				getSessionMetadataTitle(b.metadata) ||
 			a.workspaceRoot !== b.workspaceRoot ||
@@ -354,10 +370,13 @@ function areThreadsEquivalent(
 		if (
 			a.id !== b.id ||
 			a.title !== b.title ||
+			a.source !== b.source ||
 			a.codebase !== b.codebase ||
+			a.workspacePath !== b.workspacePath ||
 			a.time !== b.time ||
 			a.provider !== b.provider ||
 			a.model !== b.model ||
+			a.gitBranch !== b.gitBranch ||
 			a.inputTokens !== b.inputTokens ||
 			a.outputTokens !== b.outputTokens ||
 			a.totalCostUsd !== b.totalCostUsd ||
@@ -1222,6 +1241,10 @@ export function useSessionHistory({
 		},
 		[refreshSessions],
 	);
+	const loadOlderSessions = useCallback(
+		() => loadMoreSessions(fetchLimitRef.current + INITIAL_HISTORY_FETCH_LIMIT),
+		[loadMoreSessions],
+	);
 
 	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
 	const sessionById = useMemo(
@@ -1233,6 +1256,7 @@ export function useSessionHistory({
 		getSessionByThreadId,
 		isLoadingHistory,
 		isLoadingMore,
+		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
 		openThread,

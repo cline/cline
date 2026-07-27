@@ -1,5 +1,41 @@
 # Cline CLI Changelog
 
+## 3.0.46
+
+- Fixed out-of-credits detection so the CLI reliably recognizes the Cline API's real `insufficient_credits` (402) error and shows the "add credits" card instead of a generic error
+
+## 3.0.45
+
+- Smaller install: the Claude Code and Codex providers are now optional and loaded on demand, cutting `npm i -g cline` from ~640MB to ~285MB (from SDK v0.0.65)
+- Kimi K3 is now available as a ClinePass model (from SDK v0.0.65)
+- Runs now retry once after refreshing expired OAuth credentials (from SDK v0.0.65)
+- Team runs: the spawn tool is no longer exposed to teammates, and errored teammate runs now report as failed instead of completed (from SDK v0.0.65)
+- Hub status output now includes version numbers
+- Updated the bundled model catalog (from SDK v0.0.65)
+
+## 3.0.44
+
+- Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models) (from SDK v0.0.64)
+- Frontmatter and configuration files that start with a UTF-8 byte order mark (e.g. saved by Windows editors) now parse correctly (from SDK v0.0.64)
+
+## 3.0.43
+
+- The CLI now automatically trusts your operating system's certificate store, so it works behind corporate proxies and TLS-inspecting firewalls without manually setting `NODE_EXTRA_CA_CERTS` (fixes "unable to get local issuer certificate" errors, including Windows intermediate CA stores)
+
+## 3.0.42
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+
+## 3.0.41
+
+- Compaction now shows progress status in the TUI
+- Model IDs are now suggested from OpenAI-compatible endpoints when configuring a provider
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Compaction no longer runs during an active turn
+- Fixed a crash when the terminal title was updated during TUI teardown
+- The API key fallback hint is now highlighted for better visibility
+- Benign git states are no longer reported as workspace initialization errors
+
 ## 3.0.40
 
 - Added a manual API key escape hatch for Cline OAuth providers, so you can enter a key by hand from settings

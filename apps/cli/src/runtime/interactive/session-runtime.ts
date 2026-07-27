@@ -641,7 +641,22 @@ export function createInteractiveSessionRuntime(input: {
 					})
 				: undefined,
 		);
-		return { forkedFromSessionId, newSessionId: activeSessionId };
+		// Report carried context from what the new session actually accepted:
+		// the host can reject the inherited state (e.g. stale anchor), and the
+		// UI must not claim a carry-over that did not happen.
+		const acceptedState = projectedMessages
+			? await readCompactionState(activeSessionId)
+			: undefined;
+		return {
+			forkedFromSessionId,
+			newSessionId: activeSessionId,
+			carriedWorkingContext: acceptedState
+				? {
+						workingContextMessages: acceptedState.messages.length,
+						canonicalMessages: messages.length,
+					}
+				: undefined,
+		};
 	};
 
 	const resumeSession = async (sessionId: string): Promise<Message[]> => {

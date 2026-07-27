@@ -34,6 +34,11 @@ export interface CompactSessionMessagesInput {
 	sessionId: string
 	/** The conversation transcript to compact (SDK message shape). */
 	messages: SdkMessage[]
+	/**
+	 * Receives the SDK's compaction status notices (started/completed/skipped
+	 * with token + message counters) so the caller can drive progress UI.
+	 */
+	emitStatusNotice?: (message: string, metadata?: Record<string, unknown>) => void
 }
 
 export interface CompactSessionMessagesResult {
@@ -54,11 +59,15 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 	}
 
 	const modelInfo: SdkModelInfo | undefined = input.config.knownModels?.[input.config.modelId]
-	const maxInputTokens =
-		input.config.compaction?.maxInputTokens ??
-		modelInfo?.maxInputTokens ??
-		modelInfo?.contextWindow ??
-		FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS
+	const compactionModelInfo: SdkModelInfo = modelInfo
+		? {
+				...modelInfo,
+				id: modelInfo.id ?? input.config.modelId,
+			}
+		: {
+				id: input.config.modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			}
 
 	const compact = createContextCompactionPrepareTurn(
 		{
@@ -98,12 +107,9 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 		model: {
 			id: input.config.modelId,
 			provider: input.config.providerId,
-			info: {
-				...(modelInfo ?? {}),
-				id: modelInfo?.id ?? input.config.modelId,
-				maxInputTokens,
-			},
+			info: compactionModelInfo,
 		},
+		emitStatusNotice: input.emitStatusNotice,
 	})
 	if (!result) {
 		return { compacted: false, messages: input.messages }

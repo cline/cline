@@ -126,7 +126,7 @@ jobs:
         needs: [detect-changes, quality-checks]
         if: needs.detect-changes.outputs.vscode == 'true'
         env:
-            VSCODE_TEST_VERSION: 1.103.0
+            VSCODE_TEST_VERSION: 1.101.0
         strategy:
             fail-fast: false
             matrix:

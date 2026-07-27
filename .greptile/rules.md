@@ -42,6 +42,8 @@ event names. It exports:
    "emits X as a normal opt-out-respecting event"). Events that intentionally bypass
    opt-out must use `captureRequired` and assert that explicitly.
 
+**All events should be named using snake_case and so should their properties**
+
 ## The Activation Funnel
 
 The canonical funnel that downstream analytics depends on:

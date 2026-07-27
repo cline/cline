@@ -10,8 +10,8 @@ export {
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
 	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
@@ -112,6 +112,7 @@ export {
 	parseUserCommandEnvelope,
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
+	stripUtf8Bom,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {
@@ -136,11 +137,6 @@ export {
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
 } from "./account";
-export {
-	hashSecret,
-	setSdkLogger,
-	sdkDebug,
-} from "./logging/early-logger";
 export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,
@@ -407,6 +403,11 @@ export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
+	hashSecret,
+	sdkDebug,
+	setSdkLogger,
+} from "./logging/early-logger";
+export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	type PreparedRemoteConfigCoreIntegration,
@@ -447,6 +448,7 @@ export type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionUsageSummary,
+	StartSessionConfig,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
@@ -460,6 +462,11 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
+export {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
@@ -577,6 +584,15 @@ export type {
 } from "./services/plugin-uninstall";
 export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
+	ensureCustomProvidersLoadedSync,
+	readModelsFileSync,
+	resolveModelsRegistryPath,
+	type StoredModelEntry,
+	type StoredProviderEntry,
+	syncStoredProviderRegistration,
+	writeModelsFileSync,
+} from "./services/providers/local-provider-registry";
+export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
@@ -642,6 +658,7 @@ export {
 	captureMentionFailed,
 	captureMentionSearchResults,
 	captureMentionUsed,
+	captureMistakeLimitReached,
 	captureModeSwitch,
 	captureProviderApiError,
 	captureProviderConfigured,
@@ -757,12 +774,14 @@ export {
 } from "./settings";
 export type {
 	ChatMessage,
+	ChatMessageImage,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
 	ChatViewState,
 } from "./types/chat-schema";
 export {
+	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
 	ChatSessionConfigSchema,
@@ -782,15 +801,21 @@ export {
 } from "./extensions/context/compaction";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
+	type ApplyPatchExecutor,
+	type ApplyPatchInput,
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
+	CommandExitError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
+	computePatchChanges,
+	createApplyPatchExecutor,
 	createBuiltinTools,
 	createDefaultExecutors,
 	createDefaultShellExecutor,
 	createDefaultTools,
 	createDefaultToolsWithPreset,
+	createEditorExecutor,
 	createShellExecutor,
 	createShellTool,
 	createToolPoliciesWithPreset,
@@ -798,11 +823,16 @@ export {
 	type DefaultToolName,
 	DefaultToolNames,
 	type DefaultToolsConfig,
+	type EditFileInput,
+	type EditorExecutor,
+	type EditorExecutorOptions,
 	getCoreAcpToolNames,
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
 	MAX_COMMAND_OUTPUT_CHARS,
+	PatchActionType,
+	type PatchFileChange,
 	resolveCoreSelectedToolIds,
 	type ShellExecutor,
 	type ShellExecutorOptions,
@@ -910,6 +940,7 @@ export type { RuntimeEnvironment } from "./types";
 export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
+	ClineCoreStartConfig,
 	CoreAgentMode,
 	CoreCheckpointConfig,
 	CoreCheckpointContext,

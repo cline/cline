@@ -3,6 +3,9 @@ import type { SessionHookEvent } from "@/lib/session-diff";
 export type ProcessContext = {
 	workspaceRoot: string;
 	cwd: string;
+	homeDir?: string;
+	platform?: string;
+	appVersion?: string;
 };
 
 export type AgentChunkEvent = {

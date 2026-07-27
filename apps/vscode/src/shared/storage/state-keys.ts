@@ -12,6 +12,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode } from "@shared/storage/types"
@@ -75,7 +76,10 @@ const GLOBAL_STATE_FIELDS = {
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
 	vscodeTerminalExecutionMode: {
-		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
+		// Default to background execution to match the CLI's behavior. Users who
+		// previously chose a mode keep their saved value (we can't distinguish an
+		// explicit choice from a coincidentally-saved old default, so we honor it).
+		default: "backgroundExec" as "vscodeTerminal" | "backgroundExec",
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
@@ -234,8 +238,17 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
 
 	// Model-specific settings
-	planModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
-	actModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
+	// The transform folds SDK provider-id spellings (e.g. `openai-compatible`)
+	// back to the legacy `ApiProvider` spelling (`openai`) when state written
+	// by older builds or other hosts is loaded from disk.
+	planModeApiProvider: {
+		default: DEFAULT_API_PROVIDER as ApiProvider,
+		transform: (v: any) => (typeof v === "string" ? toLegacyApiProvider(v) : v),
+	},
+	actModeApiProvider: {
+		default: DEFAULT_API_PROVIDER as ApiProvider,
+		transform: (v: any) => (typeof v === "string" ? toLegacyApiProvider(v) : v),
+	},
 
 	// Deprecated model settings
 	hicapModelId: { default: undefined as string | undefined },
@@ -259,7 +272,6 @@ const USER_SETTINGS_FIELDS = {
 	enableCheckpointsSetting: { default: true as boolean },
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
-	maxConsecutiveMistakes: { default: 3 as number },
 	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
@@ -269,7 +281,6 @@ const USER_SETTINGS_FIELDS = {
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
-	customPrompt: { default: undefined as "compact" | undefined },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	showFeatureTips: { default: true as boolean },

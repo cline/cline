@@ -155,7 +155,10 @@ describe("NodeHubClient", () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 
 			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			expect(client.isConnected()).toBe(false);
 			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			expect(client.getConnectionError()).toBeNull();
 			client.subscribe(() => {});
 
 			const firstSocket = MockWebSocket.instances[0];
@@ -165,8 +168,15 @@ describe("NodeHubClient", () => {
 			});
 
 			firstSocket.emit("close", { code: 1006, reason: "" });
+			expect(client.isConnected()).toBe(false);
+			expect(client.getConnectionError()).toMatchObject({
+				code: "hub_connection_closed",
+				message: "Hub connection closed (code=1006)",
+			});
 
 			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			expect(client.getConnectionError()).toBeNull();
 
 			const secondSocket = MockWebSocket.instances[1];
 			expect(secondSocket.sentFrames).toContainEqual({

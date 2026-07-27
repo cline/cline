@@ -1,9 +1,16 @@
-import { X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import {
+	APP_ICONS,
+	type AppIconId,
+	appIconAssetPath,
+	readStoredAppIcon,
+	setStoredAppIcon,
+} from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { resetOnboarding } from "@/lib/onboarding";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -11,9 +18,12 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import {
+	type HubAccent,
 	type HubTheme,
+	readStoredHubAccent,
 	readStoredHubTheme,
 	readSystemHubTheme,
+	setStoredHubAccent,
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -21,7 +31,7 @@ import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { CustomizationSectionView, RulesView } from "./extensions-view";
+import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
@@ -34,18 +44,32 @@ import { toSettingsPatch } from "./settings-patch";
 // Settings nav categories
 // -----------------------------------------------------------
 
-const navCategories = [
+export const SETTINGS_SECTIONS = [
 	"General",
-	"Providers",
-	"MCP",
-	"Marketplace",
-	"Extensions",
+	"Models",
 	"Channels",
 	"Schedules",
 	"Account",
 ] as const;
 
-export type SettingsSection = (typeof navCategories)[number];
+// Mirrors the Cline Hub dashboard's Customizations nav group.
+export const CUSTOMIZATION_SECTIONS = [
+	"Plugins",
+	"Skills",
+	"MCP",
+	"Hooks",
+	"Rules",
+	"Agents",
+	"Tools",
+] as const;
+
+export type SettingsSection =
+	| (typeof SETTINGS_SECTIONS)[number]
+	| (typeof CUSTOMIZATION_SECTIONS)[number];
+type GlobalSettingsResponse = {
+	telemetryOptOut: boolean;
+	autoUpdateEnabled: boolean;
+};
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
@@ -59,17 +83,15 @@ let providerCatalogCache: {
 // -----------------------------------------------------------
 
 export function SettingsView({
-	chrome = "full",
-	initialSection = "General",
-	onClose,
+	section,
 	onNavigateSection,
+	onOpenSession,
 }: {
-	chrome?: "full" | "content";
-	initialSection?: SettingsSection;
-	onClose: () => void;
-	onNavigateSection?: (section: SettingsSection) => void;
+	section: SettingsSection;
+	onNavigateSection: (section: SettingsSection) => void;
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
-	const [activeNav, setActiveNav] = useState<SettingsSection>(initialSection);
+	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -92,6 +114,13 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
+
+	useEffect(() => {
+		if (section !== "Models") {
+			setSelectedProviderId(null);
+			setAddingProvider(false);
+		}
+	}, [section]);
 
 	const setProvidersWithCache = useCallback(
 		(next: Provider[] | ((prev: Provider[]) => Provider[])) => {
@@ -139,7 +168,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Providers") {
+		if (activeNav !== "Models") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -288,8 +317,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		setActiveNav("Providers");
-		onNavigateSection?.("Providers");
+		onNavigateSection("Models");
 		setSelectedProviderId(id);
 	};
 
@@ -310,7 +338,7 @@ export function SettingsView({
 	}, [loadProviderModels, providers, selectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection?.("Providers");
+		onNavigateSection("Models");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -337,16 +365,9 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection?.("Providers");
+		onNavigateSection("Models");
 		setSelectedProviderId(null);
 		setAddingProvider(true);
-	};
-
-	const selectSection = (section: SettingsSection) => {
-		setActiveNav(section);
-		onNavigateSection?.(section);
-		setSelectedProviderId(null);
-		setAddingProvider(false);
 	};
 
 	const providerContent = addingProvider ? (
@@ -403,18 +424,26 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "Providers" ? (
+		activeNav === "Models" ? (
 			providerContent
+		) : activeNav === "Plugins" ? (
+			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
+		) : activeNav === "Skills" ? (
+			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
 		) : activeNav === "MCP" ? (
 			<McpServersContent />
-		) : activeNav === "Marketplace" ? (
-			<CustomizationSectionView catalogPrimitive="mcp" section="MCP" />
-		) : activeNav === "Extensions" ? (
-			<RulesView />
+		) : activeNav === "Hooks" ? (
+			<CustomizationSectionView section="Hooks" />
+		) : activeNav === "Rules" ? (
+			<CustomizationSectionView section="Rules" />
+		) : activeNav === "Agents" ? (
+			<CustomizationSectionView section="Agents" />
+		) : activeNav === "Tools" ? (
+			<CustomizationSectionView section="Tools" />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
-			<RoutineSchedulesContent />
+			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -427,70 +456,154 @@ export function SettingsView({
 			</div>
 		);
 
-	if (chrome === "content") {
-		return (
-			<div className="h-full overflow-hidden bg-background">{content}</div>
-		);
-	}
-
 	return (
-		<div className="flex h-full flex-col overflow-hidden bg-background">
-			{/* Header bar */}
-			<div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
-				<h1 className="text-lg font-semibold text-foreground">Settings</h1>
-				<Button
-					aria-label="Close settings"
-					className="justify-start"
-					onClick={onClose}
-					variant="ghost"
-				>
-					<X className="size-3" />
-				</Button>
-			</div>
-
-			{/* Body */}
-			<div className="flex flex-1 overflow-hidden">
-				{/* Settings sidebar nav */}
-				<nav className="w-56 shrink-0 border-r border-border">
-					<ScrollArea className="h-full">
-						<div className="flex flex-col gap-0.5 p-3">
-							{navCategories.map((cat) => (
-								<Button
-									className={cn(
-										"justify-start",
-										activeNav === cat
-											? "bg-accent text-accent-foreground font-medium"
-											: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-									)}
-									key={cat}
-									onClick={() => {
-										selectSection(cat);
-									}}
-									variant="ghost"
-								>
-									{cat}
-								</Button>
-							))}
-						</div>
-					</ScrollArea>
-				</nav>
-
-				{/* Content area */}
-				<div className="flex-1 overflow-hidden">{content}</div>
-			</div>
+		<div className="grid h-full grid-rows-[3rem_minmax(0,1fr)] overflow-hidden bg-background md:block">
+			<div aria-hidden="true" className="md:hidden" />
+			<div className="min-h-0 overflow-hidden md:h-full">{content}</div>
 		</div>
 	);
 }
+
+/**
+ * Swatches shown in the accent picker. The swatch color is the accent's
+ * light-mode primary (see the [data-cline-accent] blocks in globals.css);
+ * violet reads the live brand token so it always matches the default theme.
+ */
+const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
+	{ id: "violet", label: "Violet", swatch: "var(--brand-violet)" },
+	{ id: "graphite", label: "Graphite", swatch: "oklch(0.27 0.012 248)" },
+	{ id: "cyan", label: "Cyan", swatch: "oklch(0.6 0.12 222)" },
+	{ id: "pink", label: "Pink", swatch: "oklch(0.75 0.1 354)" },
+	{ id: "espresso", label: "Espresso", swatch: "oklch(0.36 0.035 35)" },
+	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
+];
 
 function GeneralSettingsContent() {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
+	const [accent, setAccent] = useState<HubAccent>(() => {
+		if (typeof window === "undefined") return "violet";
+		return readStoredHubAccent();
+	});
+	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
+		if (typeof window === "undefined") return "classic";
+		return readStoredAppIcon();
+	});
+	const [appIconError, setAppIconError] = useState<string | null>(null);
+	const appIconRequestRef = useRef(0);
+	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
+	const [telemetryLoading, setTelemetryLoading] = useState(true);
+	const [telemetrySaving, setTelemetrySaving] = useState(false);
+	const [telemetryError, setTelemetryError] = useState<string | null>(null);
+	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
+	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
+	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+
+	const loadGlobalSettings = useCallback(async () => {
+		setTelemetryLoading(true);
+		setTelemetryError(null);
+		setAutoUpdateLoading(true);
+		setAutoUpdateError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"get_global_settings",
+			);
+			setTelemetryOptOut(settings.telemetryOptOut);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setTelemetryError(message);
+			setAutoUpdateError(message);
+		} finally {
+			setTelemetryLoading(false);
+			setAutoUpdateLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		const timeoutId = window.setTimeout(() => {
+			void loadGlobalSettings();
+		}, 0);
+		return () => window.clearTimeout(timeoutId);
+	}, [loadGlobalSettings]);
+
+	const updateTelemetryOptOut = async (nextValue: boolean) => {
+		const previousValue = telemetryOptOut;
+		setTelemetryOptOut(nextValue);
+		setTelemetrySaving(true);
+		setTelemetryError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_telemetry_opt_out",
+				{ telemetry_opt_out: nextValue },
+			);
+			setTelemetryOptOut(settings.telemetryOptOut);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setTelemetryOptOut(previousValue);
+			setTelemetryError(message);
+		} finally {
+			setTelemetrySaving(false);
+		}
+	};
+
+	const updateAutoUpdateEnabled = async (nextValue: boolean) => {
+		const previousValue = autoUpdateEnabled;
+		setAutoUpdateEnabled(nextValue);
+		setAutoUpdateSaving(true);
+		setAutoUpdateError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_auto_update_enabled",
+				{ auto_update_enabled: nextValue },
+			);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setAutoUpdateEnabled(previousValue);
+			setAutoUpdateError(message);
+		} finally {
+			setAutoUpdateSaving(false);
+		}
+	};
 
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
 		setTheme(setStoredHubTheme(nextTheme));
+	};
+
+	const updateAccent = (nextAccent: HubAccent) => {
+		setAccent(setStoredHubAccent(nextAccent));
+	};
+
+	const updateAppIcon = async (nextIcon: AppIconId) => {
+		const requestId = ++appIconRequestRef.current;
+		const previousIcon = appIcon;
+		setAppIcon(nextIcon);
+		setAppIconError(null);
+		try {
+			await setStoredAppIcon(nextIcon);
+		} catch (error) {
+			// A newer selection supersedes this request; rolling back now
+			// would clobber it.
+			if (appIconRequestRef.current !== requestId) {
+				return;
+			}
+			setAppIcon(previousIcon);
+			setAppIconError(error instanceof Error ? error.message : String(error));
+			// Storage was written before the native call failed; roll it back
+			// so the persisted choice matches what the dock actually shows.
+			await setStoredAppIcon(previousIcon).catch(() => {});
+		}
+	};
+
+	// resetOnboarding dispatches ONBOARDING_RESET_EVENT, which the app shell
+	// listens for to re-enter the first-run flow immediately.
+	const replayOnboarding = () => {
+		resetOnboarding();
 	};
 
 	return (
@@ -514,6 +627,146 @@ function GeneralSettingsContent() {
 						checked={theme === "dark"}
 						onCheckedChange={updateTheme}
 					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Accent color
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Tint buttons, links, and highlights across the app.
+						</p>
+					</div>
+					<div className="flex shrink-0 items-center gap-2.5">
+						{ACCENT_OPTIONS.map((option) => (
+							<button
+								aria-label={option.label}
+								aria-pressed={accent === option.id}
+								className={cn(
+									"size-7 rounded-full border border-foreground/10 transition-transform hover:scale-110",
+									accent === option.id &&
+										"ring-2 ring-ring ring-offset-2 ring-offset-background",
+								)}
+								key={option.id}
+								onClick={() => updateAccent(option.id)}
+								style={{ backgroundColor: option.swatch }}
+								title={option.label}
+								type="button"
+							/>
+						))}
+					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							App icon
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Pick the icon Cline shows in the Dock.
+						</p>
+						{appIconError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to change app icon: {appIconError}
+							</p>
+						) : null}
+					</div>
+					<div className="flex shrink-0 items-start gap-4">
+						{APP_ICONS.map((icon) => (
+							<button
+								aria-label={icon.label}
+								aria-pressed={appIcon === icon.id}
+								className="group flex flex-col items-center gap-1.5"
+								key={icon.id}
+								onClick={() => void updateAppIcon(icon.id)}
+								type="button"
+							>
+								<img
+									alt=""
+									className={cn(
+										"size-14 rounded-2xl transition-transform group-hover:scale-105",
+										appIcon === icon.id &&
+											"ring-2 ring-ring ring-offset-2 ring-offset-background",
+									)}
+									draggable={false}
+									height={112}
+									src={appIconAssetPath(icon.id)}
+									width={112}
+								/>
+								<span
+									className={cn(
+										"text-xs",
+										appIcon === icon.id
+											? "font-medium text-foreground"
+											: "text-muted-foreground",
+									)}
+								>
+									{icon.label}
+								</span>
+							</button>
+						))}
+					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Auto update
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Automatically install Cline CLI updates on startup.
+						</p>
+						{autoUpdateError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update auto update setting: {autoUpdateError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Auto update"
+						checked={autoUpdateEnabled}
+						disabled={autoUpdateLoading || autoUpdateSaving}
+						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Telemetry
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Enable error and usage reports to help improve Cline.
+						</p>
+						{telemetryError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update telemetry setting: {telemetryError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Telemetry"
+						checked={!telemetryOptOut}
+						disabled={telemetryLoading || telemetrySaving}
+						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							New user experience
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Replay the first-run experience new users see when they open Cline
+							for the first time.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={replayOnboarding}
+						type="button"
+						variant="outline"
+					>
+						<RotateCcw className="size-3.5" />
+						Replay
+					</Button>
 				</div>
 			</section>
 		</PageFrame>

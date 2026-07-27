@@ -1,9 +1,16 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureTaskLifecycleEventInput,
 	captureAgentUnexpectedReasoningTokens,
+	captureTaskLifecycleEvent,
 	type ITelemetryService,
 	SDK_ERROR_TELEMETRY_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
 	type TelemetryProperties,
 } from "@cline/shared";
 import type {
@@ -49,6 +56,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
 		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
+		AUTH_RUN_RETRY: "user.auth_run_retry",
 		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
@@ -63,6 +71,12 @@ export const CORE_TELEMETRY_EVENTS = {
 		SKILL_USED: "task.skill_used",
 		DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		PROVIDER_API_ERROR: "task.provider_api_error",
+		MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
+		PROVIDER_REQUEST_STARTED: TASK_PROVIDER_REQUEST_STARTED_EVENT,
+		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
+		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
+		CANCELLED: TASK_CANCELLED_EVENT,
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
 		MENTION_SEARCH_RESULTS: "task.mention_search_results",
@@ -110,7 +124,9 @@ export interface RunCommandsTimeoutTelemetryProperties {
 
 export {
 	captureAgentUnexpectedReasoningTokens,
+	captureTaskLifecycleEvent,
 	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureTaskLifecycleEventInput,
 };
 
 export interface WorkspaceInitializedProperties {
@@ -234,18 +250,27 @@ export function captureAuthStarted(
 export function captureAuthSucceeded(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
+	details?: {
+		sessionId?: string;
+		sessionDurationMs?: number;
+	},
 ): void {
-	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, { provider });
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, {
+		provider,
+		...details,
+	});
 }
 
 export function captureAuthFailed(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	errorMessage?: string,
+	details?: { requestId?: string },
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_FAILED, {
 		provider,
 		errorMessage: truncateErrorMessage(errorMessage),
+		...(details?.requestId ? { request_id: details.requestId } : {}),
 	});
 }
 
@@ -253,13 +278,18 @@ export function captureAuthLoggedOut(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 	reason?: string,
-	details?: { status?: number; errorCode?: string },
+	details?: {
+		status?: number;
+		errorCode?: string;
+		sessionId?: string;
+		sessionDurationMs?: number;
+		request_id?: string;
+	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
 		provider,
 		reason,
-		status: details?.status,
-		errorCode: details?.errorCode,
+		...details,
 	});
 }
 
@@ -277,16 +307,33 @@ export function captureAuthRefreshSoftFailure(
 	details?: {
 		status?: number;
 		errorCode?: string;
+		request_id?: string;
 		errorName?: string;
 		tokenExpired?: boolean;
+		sessionId?: string;
+		sessionDurationMs?: number;
 	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
 		provider,
-		status: details?.status,
-		errorCode: details?.errorCode,
-		errorName: details?.errorName,
-		tokenExpired: details?.tokenExpired,
+		...details,
+	});
+}
+
+/**
+ * Fires when a run failed with an auth-like error, credentials were
+ * refreshed, and the run was retried once. `recovered: true` means the retry
+ * completed — a run that would previously have surfaced a raw provider 401
+ * (e.g. a teammate stranded on a spawn-time token snapshot past its TTL).
+ */
+export function captureAuthRunRetry(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: { recovered?: boolean },
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_RUN_RETRY, {
+		provider,
+		recovered: details?.recovered,
 	});
 }
 
@@ -490,6 +537,28 @@ export function captureProviderApiError(
 	});
 }
 
+/**
+ * Records when the consecutive mistake limit is reached, right before the
+ * limit decision (host prompt / auto-stop) is resolved.
+ */
+export function captureMistakeLimitReached(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		model: string;
+		provider?: string;
+		/** What kind of mistake tripped the limit. */
+		reason: string;
+		consecutiveMistakes: number;
+		maxConsecutiveMistakes: number;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MISTAKE_LIMIT_REACHED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
 export function captureRunCommandsTimeout(
 	telemetry: ITelemetryService | undefined,
 	properties: RunCommandsTimeoutTelemetryProperties,
@@ -659,7 +728,7 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * Trigger mode for a compaction attempt.
  *
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
- *   when input tokens exceed the configured threshold.
+ *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
  */
 export type TelemetryCompactionMode = "auto" | "manual";
@@ -671,6 +740,7 @@ export interface CaptureCompactionExecutedProperties {
 	messagesBefore: number;
 	messagesAfter: number;
 	messagesRemoved: number;
+	/** Full-request token estimates, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	tokensAfter: number;
 	tokensSaved: number;
@@ -710,6 +780,7 @@ export interface CaptureCompactionSkippedProperties {
 	 * be introduced without changing the schema.
 	 */
 	reason: string;
+	/** Full-request token estimate, in the same units as the trigger and limit. */
 	tokensBefore: number;
 	triggerTokens: number;
 	maxInputTokens: number;

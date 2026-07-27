@@ -7,6 +7,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { isDirectory } from "@/utils/fs"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -175,7 +176,12 @@ export class SdkTaskStartCoordinator {
 				return
 			}
 
-			const cwd = historyItem.cwdOnTaskInitialization ?? (await this.options.getWorkspaceRoot())
+			// A task's stored cwd may have been deleted/moved since the task ran
+			// (or migrated from another machine) — feeding a stale path into the
+			// session bootstrap makes workspace init fail. Fall back to the live
+			// workspace root instead.
+			const storedCwd = historyItem.cwdOnTaskInitialization
+			const cwd = storedCwd && (await isDirectory(storedCwd)) ? storedCwd : await this.options.getWorkspaceRoot()
 			const config = await this.options.sessionConfigBuilder.build({
 				cwd,
 				mode: "act",

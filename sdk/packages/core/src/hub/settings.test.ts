@@ -30,6 +30,7 @@ describe("hub settings commands", () => {
 		} as unknown as CoreSettingsService;
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
 			settingsService,
 		});
 		const events: string[] = [];
@@ -81,6 +82,7 @@ describe("hub settings commands", () => {
 		} as unknown as CoreSettingsService;
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
 			settingsService,
 		});
 
@@ -114,6 +116,7 @@ describe("hub settings commands", () => {
 		} as unknown as CoreSettingsService;
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
 			settingsService,
 		});
 

@@ -4,7 +4,7 @@ import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
+import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
@@ -32,6 +32,8 @@ vi.mock("@/utils/fs", () => ({
 const legacyStateReaderMock = vi.hoisted(() => ({
 	taskHistory: [] as HistoryItem[],
 	taskHistoryByDataDir: new Map<string | undefined, HistoryItem[]>(),
+	uiMessages: [] as unknown[],
+	uiMessagesByDataDir: new Map<string | undefined, unknown[]>(),
 	apiConversationHistory: [] as unknown[],
 	apiConversationHistoryByDataDir: new Map<string | undefined, unknown[]>(),
 }))
@@ -58,18 +60,15 @@ vi.mock("./legacy-state-reader", () => ({
 		}
 		return filteredHistory.length !== history.length
 	}),
+	readUiMessages: vi.fn(
+		(_taskId: string, dataDir?: string) =>
+			legacyStateReaderMock.uiMessagesByDataDir.get(dataDir) ?? legacyStateReaderMock.uiMessages,
+	),
 	readApiConversationHistory: vi.fn(
 		(_taskId: string, dataDir?: string) =>
 			legacyStateReaderMock.apiConversationHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.apiConversationHistory,
 	),
-}))
-
-vi.mock("./cline-session-factory", () => ({
-	buildSessionConfig: vi.fn(async ({ cwd, workspaceRoot, mode }) => ({
-		cwd,
-		workspaceRoot,
-		mode,
-	})),
+	taskDirPath: vi.fn((taskId: string, dataDir?: string) => `${dataDir ?? "default"}/tasks/${taskId}`),
 }))
 
 vi.mock("get-folder-size", () => ({
@@ -82,6 +81,8 @@ describe("SdkTaskHistory", () => {
 	beforeEach(() => {
 		legacyStateReaderMock.taskHistory = []
 		legacyStateReaderMock.taskHistoryByDataDir.clear()
+		legacyStateReaderMock.uiMessages = []
+		legacyStateReaderMock.uiMessagesByDataDir.clear()
 		legacyStateReaderMock.apiConversationHistory = []
 		legacyStateReaderMock.apiConversationHistoryByDataDir.clear()
 		vi.clearAllMocks()
@@ -393,57 +394,106 @@ describe("SdkTaskHistory", () => {
 		expect(result.some((item) => item.id === "legacy-task")).toBe(false)
 	})
 
-	it("emits telemetry when migrating a legacy task to an SDK session", async () => {
-		vi.spyOn(Date, "now").mockReturnValue(123_456)
+	it("deletes legacy task records when deleting all history", async () => {
 		legacyStateReaderMock.taskHistory = [
-			makeHistoryItem("legacy-task", {
-				task: "legacy prompt",
-				isFavorited: true,
-				tokensIn: 10,
-				tokensOut: 20,
-				totalCost: 0.03,
-				cwdOnTaskInitialization: "/legacy/repo",
-			}),
+			makeHistoryItem("legacy-task", { task: "legacy prompt" }),
+			makeHistoryItem("favorite-legacy-task", { task: "favorite legacy prompt", isFavorited: true }),
 		]
+		const { history, deleteSession } = makeHistory([makeSessionRecord("sdk-task")])
+
+		const deletedCount = await history.deleteAllTaskHistory({ preserveFavorites: true })
+
+		expect(deletedCount).toBe(2)
+		expect(deleteSession).toHaveBeenCalledWith("sdk-task")
+		expect(deleteSession).toHaveBeenCalledWith("legacy-task")
+		expect(deleteLegacyTask).toHaveBeenCalledWith("legacy-task", undefined)
+		expect(deleteLegacyTask).not.toHaveBeenCalledWith("favorite-legacy-task", undefined)
+		await expect(history.findHistoryItem("legacy-task")).resolves.toBeUndefined()
+		await expect(history.findHistoryItem("favorite-legacy-task")).resolves.toMatchObject({ id: "favorite-legacy-task" })
+	})
+
+	it("identifies legacy tasks without migrating them", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		const telemetry = makeTelemetry()
+		const { history, startSession } = makeHistory([], telemetry)
+
+		await expect(history.isLegacyTask("legacy-task")).resolves.toBe(true)
+
+		expect(startSession).not.toHaveBeenCalled()
+		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
+	})
+
+	it("reads legacy task UI messages without migrating", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		legacyStateReaderMock.uiMessages = [{ ts: 1, type: "say", say: "task", text: "legacy prompt" }]
+		const { history, startSession } = makeHistory([])
+
+		const messages = await history.getClineMessages("legacy-task")
+
+		expect(readUiMessages).toHaveBeenCalledWith("legacy-task", undefined)
+		expect(messages).toEqual(legacyStateReaderMock.uiMessages)
+		expect(startSession).not.toHaveBeenCalled()
+	})
+
+	it("adds a tool warning to legacy initial messages when resuming", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
 		legacyStateReaderMock.apiConversationHistory = [
 			{ role: "user", content: "legacy prompt" },
 			{ role: "assistant", content: "legacy answer" },
 		]
-		const telemetry = makeTelemetry()
-		const { history, startSession } = makeHistory([], telemetry)
+		const { history } = makeHistory([])
 
-		await history.getClineMessages("legacy-task")
+		const messages = await history.getLegacyResumeInitialMessages("legacy-task")
 
-		expect(startSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				config: expect.objectContaining({
-					sessionId: "legacy-task",
-					cwd: "/legacy/repo",
-				}),
-				initialMessages: expect.arrayContaining([
-					expect.objectContaining({ role: "user" }),
-					expect.objectContaining({ role: "assistant" }),
-				]),
-				sessionMetadata: expect.objectContaining({
-					migratedFromLegacyTask: true,
-					title: "legacy prompt",
-					isFavorited: true,
-				}),
-			}),
+		expect(readApiConversationHistory).toHaveBeenCalledWith("legacy-task", undefined)
+		expect(messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ role: "user", content: "legacy prompt" }),
+				expect.objectContaining({ role: "assistant", content: "legacy answer" }),
+				expect.objectContaining({ role: "user", content: expect.stringContaining("tool names may have changed") }),
+			]),
 		)
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "legacy-task",
-				outcome: "success",
-				reason: "migrated",
-				legacyApiHistoryLength: 2,
-				convertedMessageCount: 2,
-				hasFavorite: true,
-				hasCost: true,
-				hasTokenUsage: true,
-				hasCwd: true,
-			}),
-		)
+	})
+
+	it("uses pretty legacy UI messages plus resumed SDK messages when both stores exist", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		legacyStateReaderMock.uiMessages = [{ ts: 1, type: "say", say: "task", text: "old legacy UI" }]
+		legacyStateReaderMock.apiConversationHistory = [{ role: "user", content: "old legacy API" }]
+		const { history, readMessages } = makeHistory([makeSessionRecord("legacy-task", { metadata: { legacyTask: true } })])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: "raw legacy prompt with <task>tags</task>" },
+			{
+				role: "user",
+				content:
+					"Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of.",
+			},
+			{ role: "assistant", content: "new SDK answer" },
+		] as never)
+		const fallbackMessages = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of.",
+					},
+					{ type: "text", text: "new SDK history" },
+				],
+			},
+		]
+
+		const clineMessages = await history.getClineMessages("legacy-task")
+		const resumeMessages = await history.getLegacyResumeInitialMessages("legacy-task", fallbackMessages)
+
+		expect(readUiMessages).toHaveBeenCalledWith("legacy-task", undefined)
+		expect(readApiConversationHistory).not.toHaveBeenCalled()
+		expect(readMessages).toHaveBeenCalledWith("legacy-task")
+		expect(clineMessages).toEqual([
+			{ ts: 1, type: "say", say: "task", text: "old legacy UI" },
+			expect.objectContaining({ text: "new SDK answer" }),
+			expect.objectContaining({ type: "ask", ask: "completion_result" }),
+		])
+		expect(resumeMessages).toEqual(fallbackMessages)
 	})
 
 	it("emits backlog telemetry when legacy tasks are still pending migration", async () => {
@@ -485,34 +535,18 @@ describe("SdkTaskHistory", () => {
 		expect(result.map((item) => item.sessionId)).toEqual(["cline-dir-task", "extension-storage-task"])
 	})
 
-	it("migrates legacy tasks using API history from VS Code extension storage", async () => {
+	it("identifies legacy tasks from VS Code extension storage without migrating them", async () => {
 		legacyStateReaderMock.taskHistoryByDataDir.set("/legacy/globalStorage", [
 			makeHistoryItem("extension-storage-task", {
 				task: "extension storage prompt",
 				cwdOnTaskInitialization: "/legacy/repo",
 			}),
 		])
-		legacyStateReaderMock.apiConversationHistoryByDataDir.set("/legacy/globalStorage", [
-			{ role: "user", content: "extension storage prompt" },
-			{ role: "assistant", content: "extension storage answer" },
-		])
 		const { history, startSession } = makeHistory([], undefined, "/legacy/globalStorage")
 
-		await history.getClineMessages("extension-storage-task")
+		await expect(history.isLegacyTask("extension-storage-task")).resolves.toBe(true)
 
-		expect(readApiConversationHistory).toHaveBeenCalledWith("extension-storage-task", "/legacy/globalStorage")
-		expect(startSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				config: expect.objectContaining({
-					sessionId: "extension-storage-task",
-					cwd: "/legacy/repo",
-				}),
-				sessionMetadata: expect.objectContaining({
-					migratedFromLegacyTask: true,
-					title: "extension storage prompt",
-				}),
-			}),
-		)
+		expect(startSession).not.toHaveBeenCalled()
 	})
 
 	it("updates usage for an existing SDK task", async () => {
@@ -759,6 +793,10 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 		},
 	)
 	const deleteSession = vi.fn(async (sessionId: string) => {
+		const exists = currentRecords.some((record) => record.sessionId === sessionId)
+		if (!exists) {
+			throw new Error(`Session not found: ${sessionId}`)
+		}
 		currentRecords = currentRecords.filter((record) => record.sessionId !== sessionId)
 		return true
 	})
@@ -793,6 +831,7 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 		listHistory,
 		updateSession,
 		deleteSession,
+		readMessages,
 		startSession,
 	}
 }

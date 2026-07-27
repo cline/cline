@@ -109,9 +109,14 @@ export class SdkTaskControlCoordinator {
 
 			// Load messages before installing the new task proxy so any concurrent
 			// postStateToWebview() caller never sees the new id with empty messages.
+			const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
-			const cleanedMessages = messages.length > 0 ? this.appendFreshResumeMessage(messages) : []
+			const cleanedMessages = isLegacyTask
+				? this.appendLegacyTaskWarningAndResumeMessage(messages)
+				: messages.length > 0
+					? this.appendFreshResumeMessage(messages)
+					: []
 
 			const task = createTaskProxy(
 				taskId,
@@ -151,6 +156,26 @@ export class SdkTaskControlCoordinator {
 			ask: resumeAsk,
 			text: "",
 		})
+		return cleanedMessages
+	}
+
+	private appendLegacyTaskWarningAndResumeMessage(messages: ClineMessage[]): ClineMessage[] {
+		const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
+		const now = Date.now()
+		cleanedMessages.push(
+			{
+				ts: now,
+				type: "say",
+				say: "text",
+				text: "⚠️ This is a legacy task. It may not work as well because tool names may have changed.",
+			},
+			{
+				ts: now + 1,
+				type: "ask",
+				ask: "resume_task",
+				text: "",
+			},
+		)
 		return cleanedMessages
 	}
 }

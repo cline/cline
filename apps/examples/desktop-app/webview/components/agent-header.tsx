@@ -48,6 +48,7 @@ export function AgentHeader({
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
+	const [titleEditorWidth, setTitleEditorWidth] = useState<number>();
 	const additions = diff?.additions ?? 0;
 	const deletions = diff?.deletions ?? 0;
 	const hasChanges = additions + deletions > 0;
@@ -82,12 +83,13 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between px-4">
+		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:pl-12">
 			{/* Left: thread title */}
-			<div className="flex items-center gap-2">
-				<span
+			<div className="flex min-w-0 flex-1 items-center gap-2">
+				<output
+					aria-label={`Session status: ${status}`}
 					className={cn(
-						"rounded w-2 h-2 font-mono",
+						"size-2 shrink-0 rounded font-mono",
 						status === "running"
 							? "bg-green-500"
 							: status === "failed"
@@ -97,15 +99,16 @@ export function AgentHeader({
 				/>
 				{isEditingTitle ? (
 					<form
-						className="m-0"
+						className="m-0 min-w-0 max-w-full shrink-0"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void submitTitle();
 						}}
+						style={{ width: titleEditorWidth }}
 					>
 						<Input
 							autoFocus
-							className="h-7 w-64 text-sm"
+							className="h-7 w-full text-sm"
 							disabled={renamingTitle}
 							onBlur={() => {
 								void submitTitle();
@@ -124,19 +127,23 @@ export function AgentHeader({
 				) : (
 					<button
 						className={cn(
-							"text-sm font-medium text-foreground",
+							"min-w-0 truncate text-sm font-medium text-foreground",
 							canEditTitle &&
 								"rounded px-1 py-0.5 transition-colors hover:bg-accent",
 						)}
 						disabled={!canEditTitle || renamingTitle}
-						onClick={() => {
+						onClick={(event) => {
 							if (!canEditTitle || renamingTitle) {
 								return;
 							}
+							setTitleEditorWidth(
+								event.currentTarget.getBoundingClientRect().width,
+							);
 							setTitleInput(threadTitle);
 							setIsEditingTitle(true);
 						}}
 						type="button"
+						title={threadTitle}
 					>
 						{threadTitle}
 					</button>
@@ -144,7 +151,8 @@ export function AgentHeader({
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
-							className="text-muted-foreground hover:text-foreground transition-colors"
+							aria-label="Session actions"
+							className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
 							id="show-more-btn"
 							variant="ghost"
 							size="icon-sm"
@@ -167,8 +175,9 @@ export function AgentHeader({
 			</div>
 
 			{showSessionActions ? (
-				<div className="flex items-center gap-2">
+				<div className="flex shrink-0 items-center gap-2">
 					<Button
+						aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
 						className={cn(
 							"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
 							hasChanges
@@ -186,6 +195,7 @@ export function AgentHeader({
 						<span className="text-destructive">-{deletions}</span>
 					</Button>
 					<Button
+						aria-label="New session"
 						className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 						onClick={() => onNewThread?.()}
 						size="icon-sm"

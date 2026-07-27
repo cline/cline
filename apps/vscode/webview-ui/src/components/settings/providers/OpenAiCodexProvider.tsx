@@ -1,4 +1,3 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -35,7 +34,6 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 	const { config, commitSelection } = useProviderConfig(OPENAI_CODEX_PROVIDER_ID)
 	const {
 		models,
-		defaultModelId,
 		selectedModelId: legacySelectedModelId,
 		selectedModelInfo: legacySelectedModelInfo,
 		hideUsageCost,
@@ -53,13 +51,9 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 			return
 		}
 
-		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
-		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
-
 		void commitSelection(currentMode, {
 			providerId: OPENAI_CODEX_PROVIDER_ID,
 			modelId,
-			modelInfo,
 		}).catch((err) => console.error("Failed to commit OpenAI Codex model selection:", err))
 	}
 

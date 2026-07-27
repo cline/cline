@@ -100,6 +100,93 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it("delegates pathless session.create and returns the host-resolved workspace", async () => {
+		let resolvedWorkspace = "";
+		let capturedStartInput: StartSessionInput | undefined;
+		const startSession = vi.fn(
+			async (input: StartSessionInput): Promise<StartSessionResult> => {
+				capturedStartInput = input;
+				const sessionId = input.config.sessionId?.trim() || "missing-session";
+				resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
+				return {
+					sessionId,
+					manifest: {
+						version: 1,
+						session_id: sessionId,
+						source: "core",
+						pid: 1,
+						started_at: new Date(0).toISOString(),
+						status: "running",
+						interactive: true,
+						provider: "cline",
+						model: "test-model",
+						cwd: resolvedWorkspace,
+						workspace_root: resolvedWorkspace,
+						enable_tools: true,
+						enable_spawn: true,
+						enable_teams: false,
+					},
+					manifestPath: "",
+					messagesPath: "",
+					result: undefined,
+				};
+			},
+		);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi.fn().mockImplementation(async (sessionId: string) => ({
+					sessionId,
+					source: "core",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
+					cwd: resolvedWorkspace,
+					workspaceRoot: resolvedWorkspace,
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: false,
+					isSubagent: false,
+				})),
+			},
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-pathless-create",
+			command: "session.create",
+			clientId: "client-1",
+			payload: {
+				sessionConfig: {
+					sessionId: "session-boundary",
+					providerId: "cline",
+					modelId: "test-model",
+					systemPrompt: "system",
+				},
+				metadata: { source: "core", interactive: true },
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(startSession).toHaveBeenCalledTimes(1);
+		expect(capturedStartInput?.config.sessionId).toBe("session-boundary");
+		expect(capturedStartInput?.config.cwd).toBeUndefined();
+		expect(capturedStartInput?.config.workspaceRoot).toBeUndefined();
+		expect(reply.payload?.session).toMatchObject({
+			cwd: resolvedWorkspace,
+			workspaceRoot: resolvedWorkspace,
+		});
+		expect(reply.payload?.snapshot).toMatchObject({
+			workspace: {
+				cwd: resolvedWorkspace,
+				root: resolvedWorkspace,
+			},
+		});
+	});
+
 	it("denies non-interactive approval requests immediately", async () => {
 		const transport = createTransport();
 		const ctx = getContext(transport);
@@ -1507,6 +1594,48 @@ describe("HubServerTransport boundaries", () => {
 				},
 				usage,
 				aggregateUsage,
+				agent: {
+					kind: "teammate",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
+					teamAgentId: "investigator",
+					teamRole: "teammate",
+				},
+			},
+		});
+	});
+
+	it("projects notices with teammate provenance intact", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamAgentId: "investigator",
+				teamRole: "teammate",
+				event: {
+					type: "notice",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
+					noticeType: "status",
+					displayRole: "status",
+					message: "auto-compacted",
+					metadata: { kind: "auto_compaction", phase: "completed" },
+				},
+			},
+		});
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			event: "session.notice",
+			sessionId: "session-1",
+			payload: {
 				agent: {
 					kind: "teammate",
 					agentId: "agent-teammate-1",

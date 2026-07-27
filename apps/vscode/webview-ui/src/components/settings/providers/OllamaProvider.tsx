@@ -4,7 +4,6 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
-import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -36,13 +35,15 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
 	const ollamaBaseUrl = config?.baseUrl ?? apiConfiguration?.ollamaBaseUrl
+	// providers.json (config.contextWindow) is the source of truth; the legacy
+	// apiConfiguration string is a migration fallback.
+	const ollamaNumCtx = config?.contextWindow || Number.parseInt(apiConfiguration?.ollamaApiOptionsCtxNum || "", 10)
 	const ollamaModelInfo = useMemo(() => {
-		const contextWindow = Number.parseInt(apiConfiguration?.ollamaApiOptionsCtxNum || "", 10)
 		return {
 			...openAiModelInfoSafeDefaults,
-			...(Number.isFinite(contextWindow) && contextWindow > 0 ? { contextWindow } : {}),
+			...(Number.isFinite(ollamaNumCtx) && ollamaNumCtx > 0 ? { contextWindow: ollamaNumCtx } : {}),
 		}
-	}, [apiConfiguration?.ollamaApiOptionsCtxNum])
+	}, [ollamaNumCtx])
 	const ollamaModelInfoById = useMemo(
 		() => Object.fromEntries(ollamaModels.map((modelId) => [modelId, { ...ollamaModelInfo, name: modelId }])),
 		[ollamaModelInfo, ollamaModels],
@@ -137,27 +138,45 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				</p>
 			)}
 
-			<DebouncedTextField
-				initialValue={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
-				onChange={(v) => {
-					handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)
+			{/* Render only after the provider config RPC has resolved: the
+			    debounced input fires onChange for its initial value shortly
+			    after mount, so mounting before `config` loads would persist
+			    the 32768 fallback over a value saved in providers.json. */}
+			{config !== undefined && (
+				<DebouncedTextField
+					initialValue={Number.isFinite(ollamaNumCtx) && ollamaNumCtx > 0 ? String(ollamaNumCtx) : ""}
+					onChange={(v) => {
+						const contextWindow = Number.parseInt(v, 10)
+						const numCtx = Number.isFinite(contextWindow) && contextWindow > 0 ? contextWindow : undefined
+						// The debounced input also fires for its initial value and
+						// external prop syncs — only persist actual changes.
+						const currentNumCtx = Number.isFinite(ollamaNumCtx) && ollamaNumCtx > 0 ? ollamaNumCtx : undefined
+						if (numCtx === currentNumCtx) {
+							return
+						}
+						// Persist to providers.json (`contextWindow`); the store
+						// mirrors the value to the legacy state key for older
+						// readers. Zero clears the setting.
+						void write({ contextWindow: numCtx ?? 0 }).catch((error) =>
+							console.error("Failed to update Ollama context window:", error),
+						)
 
-					const contextWindow = Number.parseInt(v, 10)
-					if (selectedModel.modelId) {
-						void commitModelSelection({
-							modelId: selectedModel.modelId,
-							modelInfo: {
-								...openAiModelInfoSafeDefaults,
-								name: selectedModel.modelId,
-								...(Number.isFinite(contextWindow) && contextWindow > 0 ? { contextWindow } : {}),
-							},
-						}).catch((error) => console.error("Failed to update Ollama context window:", error))
-					}
-				}}
-				placeholder={"e.g. 32768"}
-				style={{ width: "100%" }}>
-				<span className="font-semibold">Model Context Window</span>
-			</DebouncedTextField>
+						if (selectedModel.modelId) {
+							void commitModelSelection({
+								modelId: selectedModel.modelId,
+								modelInfo: {
+									...openAiModelInfoSafeDefaults,
+									name: selectedModel.modelId,
+									...(numCtx ? { contextWindow: numCtx } : {}),
+								},
+							}).catch((error) => console.error("Failed to update Ollama context window:", error))
+						}
+					}}
+					placeholder={"Default: 32768"}
+					style={{ width: "100%" }}>
+					<span className="font-semibold">Model Context Window</span>
+				</DebouncedTextField>
+			)}
 
 			{showModelOptions && (
 				<>
@@ -179,8 +198,6 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					</p>
 				</>
 			)}
-
-			<UseCustomPromptCheckbox providerId="ollama" />
 
 			<p
 				style={{
