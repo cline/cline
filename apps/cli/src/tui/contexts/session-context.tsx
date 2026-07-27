@@ -24,6 +24,8 @@ interface SessionContextValue {
 	lastTotalTokens: number;
 	lastTotalCost: number;
 	isExitRequested: boolean;
+	isTeamActive: boolean;
+	teamRunCount: number;
 
 	appendEntry: (entry: ChatEntry) => void;
 	updateLastEntry: (updater: (prev: ChatEntry) => ChatEntry) => void;
@@ -45,6 +47,7 @@ interface SessionContextValue {
 	requestExit: () => void;
 	clearEntries: () => void;
 	replaceEntries: (entries: ChatEntry[]) => void;
+	setTeamActive: (active: boolean) => void;
 }
 
 type UsageDelta = {
@@ -126,6 +129,8 @@ export function SessionProvider(props: {
 		() => initialUsage?.totalCost ?? 0,
 	);
 	const [isExitRequested, setIsExitRequested] = useState(false);
+	const [isTeamActive, setIsTeamActive] = useState(false);
+	const [teamRunCount, setTeamRunCount] = useState(0);
 
 	const activeInlineStreamRef = useRef<InlineStream>(undefined);
 
@@ -248,6 +253,16 @@ export function SessionProvider(props: {
 		);
 	}, []);
 
+	const setTeamActive = useCallback(
+		(active: boolean) => {
+			setIsTeamActive(active);
+			if (!active) {
+				setTeamRunCount(0);
+			}
+		},
+		[],
+	);
+
 	const value: SessionContextValue = {
 		entries,
 		isRunning,
@@ -260,6 +275,8 @@ export function SessionProvider(props: {
 		lastTotalTokens,
 		lastTotalCost,
 		isExitRequested,
+		isTeamActive,
+		teamRunCount,
 		appendEntry,
 		updateLastEntry,
 		updateEntry,
@@ -279,6 +296,7 @@ export function SessionProvider(props: {
 		requestExit,
 		clearEntries,
 		replaceEntries,
+		setTeamActive,
 	};
 
 	return (

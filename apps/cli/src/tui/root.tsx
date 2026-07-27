@@ -724,6 +724,7 @@ function App(props: TuiProps) {
 		addUsageDelta: session.addUsageDelta,
 		onTurnErrorReported: props.onTurnErrorReported,
 		verbose: props.config.verbose ?? false,
+		setTeamActive: session.setTeamActive,
 	});
 
 	const promptInput = usePromptInputController({
