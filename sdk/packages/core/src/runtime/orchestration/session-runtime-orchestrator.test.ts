@@ -2042,55 +2042,24 @@ const turnStarted = (): AgentRuntimeEvent => ({
 	snapshot: makeSnapshot(),
 });
 
-function scriptedToolCall(
-	id: string,
-	name = "poll",
-	input: unknown = { command: "status" },
-) {
-	return {
-		type: "tool-call" as const,
-		toolCallId: id,
-		toolName: name,
-		input,
-	};
+interface ScriptedToolOptions {
+	iteration?: number;
+	name?: string;
+	input?: unknown;
 }
 
 function toolStarted(
 	id: string,
-	name?: string,
-	input?: unknown,
-): AgentRuntimeEvent {
+	options: ScriptedToolOptions = {},
+): Extract<AgentRuntimeEvent, { type: "tool-started" }> {
 	return {
 		type: "tool-started",
-		iteration: 1,
-		toolCall: scriptedToolCall(id, name, input),
-		snapshot: makeSnapshot(),
-	};
-}
-
-function toolFinished(
-	id: string,
-	output: unknown,
-	name?: string,
-	input?: unknown,
-): AgentRuntimeEvent {
-	const toolCall = scriptedToolCall(id, name, input);
-	return {
-		type: "tool-finished",
-		iteration: 1,
-		toolCall,
-		message: {
-			id: `message-${id}`,
-			role: "tool",
-			content: [
-				{
-					type: "tool-result",
-					toolCallId: id,
-					toolName: toolCall.toolName,
-					output,
-				},
-			],
-			createdAt: 1,
+		iteration: options.iteration ?? 1,
+		toolCall: {
+			type: "tool-call",
+			toolCallId: id,
+			toolName: options.name ?? "poll",
+			input: options.input ?? { command: "status" },
 		},
 		snapshot: makeSnapshot(),
 	};
@@ -2099,10 +2068,31 @@ function toolFinished(
 function completedTool(
 	id: string,
 	output: unknown,
-	name?: string,
-	input?: unknown,
+	options: ScriptedToolOptions = {},
 ): AgentRuntimeEvent[] {
-	return [toolStarted(id, name, input), toolFinished(id, output, name, input)];
+	const started = toolStarted(id, options);
+	return [
+		started,
+		{
+			type: "tool-finished",
+			iteration: started.iteration,
+			toolCall: started.toolCall,
+			message: {
+				id: `message-${id}`,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: id,
+						toolName: started.toolCall.toolName,
+						output,
+					},
+				],
+				createdAt: 1,
+			},
+			snapshot: makeSnapshot(),
+		},
+	];
 }
 
 function loopSession(script: {
@@ -2344,9 +2334,21 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		const { session, abortCalls } = loopSession({
 			events: [
 				turnStarted(),
-				...completedTool("same-1", "unchanged", "same", { a: 1 }),
-				...completedTool("same-2", "unchanged", "same", { a: 1 }),
-				...completedTool("same-3", "unchanged", "same", { a: 1 }),
+				...completedTool("same-1", "unchanged", {
+					iteration: 1,
+					name: "same",
+					input: { a: 1 },
+				}),
+				...completedTool("same-2", "unchanged", {
+					iteration: 2,
+					name: "same",
+					input: { a: 1 },
+				}),
+				...completedTool("same-3", "unchanged", {
+					iteration: 3,
+					name: "same",
+					input: { a: 1 },
+				}),
 			],
 		});
 
@@ -2360,51 +2362,15 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 			events: [
 				turnStarted(),
 				...["10%", "30%", "50%", "70%", "90%", "done"].flatMap(
-					(output, index) => completedTool(`progress-${index}`, output),
+					(output, index) =>
+						completedTool(`progress-${index}`, output, {
+							iteration: index + 1,
+						}),
 				),
 			],
 		});
 
 		await session.run("monitor progress");
-
-		expect(abortCalls).toHaveLength(0);
-	});
-
-	it("does not abort identical parallel calls before their progress is observed", async () => {
-		const { session, abortCalls } = loopSession({
-			events: [
-				turnStarted(),
-				...completedTool("baseline", "10%"),
-				toolStarted("parallel-1"),
-				toolStarted("parallel-2"),
-				toolStarted("parallel-3"),
-				toolFinished("parallel-1", "20%"),
-				toolFinished("parallel-2", "10%"),
-				toolFinished("parallel-3", "10%"),
-				...completedTool("next", "30%"),
-			],
-		});
-
-		await session.run("monitor parallel progress");
-
-		expect(abortCalls).toHaveLength(0);
-	});
-
-	it("preserves completed poll progress across an interleaved tool call", async () => {
-		const { session, abortCalls } = loopSession({
-			events: [
-				turnStarted(),
-				...completedTool("baseline", "10%"),
-				toolStarted("parallel-1"),
-				...completedTool("other-1", "unchanged", "other"),
-				toolFinished("parallel-1", "20%"),
-				...completedTool("parallel-2", "10%"),
-				...completedTool("poll-3", "10%"),
-				...completedTool("poll-4", "10%"),
-			],
-		});
-
-		await session.run("monitor interleaved parallel progress");
 
 		expect(abortCalls).toHaveLength(0);
 	});
@@ -2436,8 +2402,11 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 					completedTool(
 						`failed-${index}`,
 						[{ error: `attempt ${index}`, success: false }],
-						"run_commands",
-						{ commands: ["false"] },
+						{
+							iteration: index,
+							name: "run_commands",
+							input: { commands: ["false"] },
+						},
 					),
 				),
 			],

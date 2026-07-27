@@ -1103,7 +1103,6 @@ export class SessionRuntime {
 				// forceAtLimit:true and abort. Parity with pre-Step-9
 				// agent.ts L917-954.
 				this.inspectLoopForToolCall(
-					event.toolCall.toolCallId,
 					event.toolCall.toolName,
 					event.toolCall.input,
 					event.iteration,
@@ -1127,7 +1126,7 @@ export class SessionRuntime {
 					!containsFailedToolOperation(resultPart.output);
 				this.loopTracker.observeOutcome(
 					{
-						id: event.toolCall.toolCallId,
+						iteration: event.iteration,
 						name: event.toolCall.toolName,
 						input: event.toolCall.input,
 					},
@@ -1273,7 +1272,6 @@ export class SessionRuntime {
 	 *                 abort the active runtime.
 	 */
 	private inspectLoopForToolCall(
-		toolCallId: string,
 		toolName: string,
 		input: unknown,
 		iteration: number,
@@ -1282,7 +1280,7 @@ export class SessionRuntime {
 			return;
 		}
 		const verdict = this.loopTracker.inspect({
-			id: toolCallId,
+			iteration,
 			name: toolName,
 			input,
 		});

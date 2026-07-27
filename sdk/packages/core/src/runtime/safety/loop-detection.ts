@@ -6,9 +6,8 @@
  *
  * The pure helpers (`createLoopDetectionState`, `resetLoopDetectionState`,
  * `toolCallSignature`, `checkRepeatedToolCall`) are ported verbatim. The
- * `LoopDetectionTracker` owns the repeated-call state, correlates parallel
- * outcomes, and distinguishes semantic result progress from volatile output
- * before `SessionRuntime` decides whether to warn or abort.
+ * `LoopDetectionTracker` owns the repeated-call state and groups parallel calls
+ * by agent iteration before `SessionRuntime` decides whether to warn or abort.
  */
 
 import type { LoopDetectionConfig } from "@cline/shared";
@@ -104,9 +103,9 @@ export interface LoopDetectionVerdict {
 	message?: string;
 }
 
-/** Minimal call shape the tracker needs; matches `AgentToolCallPart` subset. */
+/** Minimal runtime call shape needed by the tracker. */
 export interface LoopDetectionCall {
-	id?: string;
+	iteration: number;
 	name: string;
 	input: unknown;
 }
@@ -116,145 +115,36 @@ const DEFAULT_CONFIG: LoopDetectionConfig = {
 	hardThreshold: 5,
 };
 
-// Output comparison is necessarily heuristic for arbitrary tools. Keep an
-// absolute ceiling so even unrecognized volatile changes cannot grant progress
-// forever, while allowing several normal polling windows to complete.
-const MAX_PROGRESS_WINDOWS = 4;
+// Changed output may be real progress or volatile noise. The absolute ceiling
+// keeps either case bounded without guessing the meaning of arbitrary output.
+const ABSOLUTE_LIMIT_MULTIPLIER = 4;
 
-const VOLATILE_OUTPUT_KEY =
-	/^(?:correlationid|checkedat|createdat|duration(?:ms)?|elapsed(?:ms)?|endedat|eventid|finishedat|lastseenat|polledat|requestid|spanid|startedat|time|timestamp|traceid|updatedat)$/;
-const LOG_OUTPUT_KEY = /^(?:log|logs|logtail|stderr|stdout|tail)$/;
-
-const PROGRESS_TEXT_PATTERN =
-	/\b(?:complete(?:d)?|done|failed|phase|progress|queued|running|stage|state|status|succeeded|success)\b|\b\d+(?:\.\d+)?%|\b\d+\s*\/\s*\d+\b/i;
-
-function compactOutputKey(key: string): string {
-	return key.replaceAll(/[^a-z0-9]/gi, "").toLowerCase();
-}
-
-function normalizeOutputText(value: string, logLike: boolean): string {
-	const normalized = value
-		.replaceAll(
-			/\b(?:correlation|event|request|span|trace)[-_ ]?id\s*[:=]\s*["']?[a-z0-9._:/-]+/gi,
-			"<volatile-id>",
-		)
-		.replaceAll(
-			/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
-			"<volatile-id>",
-		)
-		.replaceAll(
-			/\b(?:checked|created|elapsed|ended|finished|polled|started|time|timestamp|updated)(?:[-_ ]?at)?\s*[:=]\s*["']?(?:\d{10,13}|\d+(?:\.\d+)?(?:ms|s))/gi,
-			"<volatile-time>",
-		)
-		.replaceAll(
-			/\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b/g,
-			"<volatile-time>",
-		)
-		.replaceAll(
-			/\b(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?\b/g,
-			"<volatile-time>",
-		);
-	const lines = normalized
-		.split(/\r?\n/)
-		.map((line) => line.trim().replaceAll(/\s+/g, " "))
-		.filter(Boolean);
-
-	const uniqueLines = [...new Set(lines)];
-	if (!logLike) return uniqueLines.join("\n");
-	return (
-		uniqueLines.filter((line) => PROGRESS_TEXT_PATTERN.test(line)).join("\n") ||
-		"<log-output>"
-	);
-}
-
-function normalizeToolOutcome(value: unknown, parentKey?: string): unknown {
-	if (typeof value === "string") {
-		return normalizeOutputText(
-			value,
-			parentKey !== undefined &&
-				LOG_OUTPUT_KEY.test(compactOutputKey(parentKey)),
-		);
-	}
-	if (value == null || typeof value !== "object") return value;
-	if (Array.isArray(value)) {
-		const normalizedEntries = value.map((entry) =>
-			normalizeToolOutcome(entry, parentKey),
-		);
-		if (
-			parentKey !== undefined &&
-			LOG_OUTPUT_KEY.test(compactOutputKey(parentKey))
-		) {
-			const progressEntries = normalizedEntries
-				.map((entry) => JSON.stringify(entry) ?? "null")
-				.filter((entry) => PROGRESS_TEXT_PATTERN.test(entry));
-			return progressEntries.length === 0
-				? ["<log-output>"]
-				: [...new Set(progressEntries)].sort();
-		}
-		return normalizedEntries;
-	}
-
-	const normalized: Record<string, unknown> = {};
-	for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-		if (VOLATILE_OUTPUT_KEY.test(compactOutputKey(key))) continue;
-		normalized[key] = normalizeToolOutcome(
-			(value as Record<string, unknown>)[key],
-			key,
-		);
-	}
-	return normalized;
-}
-
-function toolOutcomeFingerprint(output: unknown): string {
-	try {
-		return JSON.stringify(normalizeToolOutcome(output)) ?? "undefined";
-	} catch {
-		return normalizeOutputText(String(output), false);
-	}
-}
-
-function sequenceKey(toolName: string, toolSignature: string): string {
+function callKey(toolName: string, toolSignature: string): string {
 	return JSON.stringify([toolName, toolSignature]);
 }
 
-interface PendingBatch {
-	key: string;
+interface ToolBatch {
 	pendingCount: number;
 	outcomes: Set<string>;
 }
 
-interface SignatureProgressState {
+interface SignatureState {
 	totalBatchCount: number;
-	latestOutcomeBatchId: number;
 	lastOutputSignature?: string;
-	progressVersion: number;
-}
-
-interface ActiveSequence {
-	key: string;
-	observedProgressVersion: number;
-	activeBatchId?: number;
+	hasProgress: boolean;
 }
 
 /**
  * Per-session repeated-tool-call detector.
  *
- * `SessionRuntime` owns the instance and installs a `beforeTool` hook
- * (see `AgentRuntimeHooks.beforeTool`) that calls `inspect()` to decide
- * whether to return `{ skip, stop, reason }`.
+ * `SessionRuntime` owns the instance and calls `inspect()` for every
+ * `tool-started` event.
  */
 export class LoopDetectionTracker {
 	private readonly config: LoopDetectionConfig;
 	private readonly state: LoopDetectionState = createLoopDetectionState();
-	private currentSequence: ActiveSequence | undefined;
-	private nextBatchId = 1;
-	private readonly pendingCalls = new Map<string, number>();
-	private anonymousPendingBatchId: number | undefined;
-	private readonly pendingBatches = new Map<number, PendingBatch>();
-	private readonly signatureProgress = new Map<
-		string,
-		SignatureProgressState
-	>();
+	private readonly pendingBatches = new Map<string, ToolBatch>();
+	private readonly signatures = new Map<string, SignatureState>();
 
 	constructor(config?: Partial<LoopDetectionConfig>) {
 		this.config = {
@@ -265,44 +155,25 @@ export class LoopDetectionTracker {
 
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		const signature = toolCallSignature(call.input);
-		const key = sequenceKey(call.name, signature);
-		const progress = this.getProgress(key);
-		let sequence = this.currentSequence;
-		if (sequence?.key !== key) {
-			sequence = {
-				key,
-				observedProgressVersion: progress.progressVersion,
-			};
-			this.currentSequence = sequence;
-		} else if (sequence.observedProgressVersion !== progress.progressVersion) {
+		const key = callKey(call.name, signature);
+		const signatureState = this.getSignature(key);
+		if (signatureState.hasProgress) {
 			resetLoopDetectionState(this.state);
-			sequence.observedProgressVersion = progress.progressVersion;
+			signatureState.hasProgress = false;
 		}
 
-		// Calls without ids cannot be correlated safely, so only identified calls
-		// join an unfinished batch from the current uninterrupted sequence.
-		let batchId = call.id === undefined ? undefined : sequence.activeBatchId;
-		let batch =
-			batchId === undefined ? undefined : this.pendingBatches.get(batchId);
+		const batchId = JSON.stringify([call.iteration, key]);
+		let batch = this.pendingBatches.get(batchId);
 		const isNewBatch = batch === undefined;
 		if (batch === undefined) {
-			batchId = this.nextBatchId++;
-			batch = { key, pendingCount: 0, outcomes: new Set() };
+			batch = { pendingCount: 0, outcomes: new Set() };
 			this.pendingBatches.set(batchId, batch);
-			sequence.activeBatchId = batchId;
-			progress.totalBatchCount++;
-		}
-		if (batchId === undefined) {
-			throw new Error("Loop detection batch was not initialized");
+			signatureState.totalBatchCount++;
 		}
 		batch.pendingCount++;
-		if (call.id !== undefined) {
-			this.pendingCalls.set(call.id, batchId);
-		} else {
-			this.anonymousPendingBatchId = batchId;
-		}
 
-		const absoluteHardLimit = this.config.hardThreshold * MAX_PROGRESS_WINDOWS;
+		const absoluteHardLimit =
+			this.config.hardThreshold * ABSOLUTE_LIMIT_MULTIPLIER;
 		if (batch.pendingCount >= absoluteHardLimit) {
 			return this.hard(
 				`Detected ${batch.pendingCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`,
@@ -318,11 +189,11 @@ export class LoopDetectionTracker {
 		);
 		if (
 			result.hardEscalation ||
-			progress.totalBatchCount >= absoluteHardLimit
+			signatureState.totalBatchCount >= absoluteHardLimit
 		) {
 			return this.hard(
-				progress.totalBatchCount >= absoluteHardLimit
-					? `Detected ${progress.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
+				signatureState.totalBatchCount >= absoluteHardLimit
+					? `Detected ${signatureState.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
 					: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
 			);
 		}
@@ -336,54 +207,38 @@ export class LoopDetectionTracker {
 	}
 
 	/**
-	 * Complete an inspected call. Parallel calls in one uninterrupted sequence
-	 * share a batch, so every outcome contributes regardless of finish order.
-	 * Completed batches are applied by start order; failed outcomes only close
-	 * their pending call.
+	 * Complete an inspected call. AgentRuntime finishes every tool in an
+	 * iteration before starting the next iteration, so iteration plus signature
+	 * is the complete parallel-batch identity.
 	 */
 	observeOutcome(
 		call: LoopDetectionCall,
 		outcome: { successful: boolean; output?: unknown },
 	): void {
-		const batchId =
-			call.id === undefined
-				? this.anonymousPendingBatchId
-				: this.pendingCalls.get(call.id);
-		if (call.id !== undefined) {
-			this.pendingCalls.delete(call.id);
-		} else {
-			this.anonymousPendingBatchId = undefined;
-		}
-		if (batchId === undefined) return;
+		const key = callKey(call.name, toolCallSignature(call.input));
+		const batchId = JSON.stringify([call.iteration, key]);
 		const batch = this.pendingBatches.get(batchId);
 		if (batch === undefined) return;
 
-		const key = sequenceKey(call.name, toolCallSignature(call.input));
-		if (batch.key === key && outcome.successful) {
-			batch.outcomes.add(toolOutcomeFingerprint(outcome.output));
+		if (outcome.successful) {
+			batch.outcomes.add(toolCallSignature(outcome.output));
 		}
 		batch.pendingCount--;
 		if (batch.pendingCount > 0) return;
 
 		this.pendingBatches.delete(batchId);
-		if (this.currentSequence?.activeBatchId === batchId) {
-			this.currentSequence.activeBatchId = undefined;
-		}
 		if (batch.outcomes.size === 0) return;
 
-		const progress = this.signatureProgress.get(batch.key);
-		if (progress === undefined || batchId <= progress.latestOutcomeBatchId) {
-			return;
-		}
+		const signatureState = this.signatures.get(key);
+		if (signatureState === undefined) return;
 		const outputSignature = JSON.stringify([...batch.outcomes].sort());
 		if (
-			progress.lastOutputSignature !== undefined &&
-			progress.lastOutputSignature !== outputSignature
+			signatureState.lastOutputSignature !== undefined &&
+			signatureState.lastOutputSignature !== outputSignature
 		) {
-			progress.progressVersion++;
+			signatureState.hasProgress = true;
 		}
-		progress.latestOutcomeBatchId = batchId;
-		progress.lastOutputSignature = outputSignature;
+		signatureState.lastOutputSignature = outputSignature;
 	}
 
 	/**
@@ -392,35 +247,25 @@ export class LoopDetectionTracker {
 	 * available to a subsequent continuation.
 	 */
 	clearPendingCalls(): void {
-		this.pendingCalls.clear();
-		this.anonymousPendingBatchId = undefined;
 		this.pendingBatches.clear();
-		if (this.currentSequence !== undefined) {
-			this.currentSequence.activeBatchId = undefined;
-		}
 	}
 
 	reset(): void {
 		resetLoopDetectionState(this.state);
-		this.currentSequence = undefined;
-		this.nextBatchId = 1;
-		this.pendingCalls.clear();
-		this.anonymousPendingBatchId = undefined;
 		this.pendingBatches.clear();
-		this.signatureProgress.clear();
+		this.signatures.clear();
 	}
 
-	private getProgress(key: string): SignatureProgressState {
-		let progress = this.signatureProgress.get(key);
-		if (progress === undefined) {
-			progress = {
+	private getSignature(key: string): SignatureState {
+		let state = this.signatures.get(key);
+		if (state === undefined) {
+			state = {
 				totalBatchCount: 0,
-				latestOutcomeBatchId: 0,
-				progressVersion: 0,
+				hasProgress: false,
 			};
-			this.signatureProgress.set(key, progress);
+			this.signatures.set(key, state);
 		}
-		return progress;
+		return state;
 	}
 
 	private hard(message: string): LoopDetectionVerdict {
