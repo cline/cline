@@ -18,12 +18,16 @@ interface UserMessageProps {
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
+	const [editedImages, setEditedImages] = useState(images ?? [])
+	const [editedFiles, setEditedFiles] = useState(files ?? [])
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>()
 	const highlightedText = useMemo(() => highlightText(text), [text])
 
 	const startEditing = () => {
 		setEditedText(text ?? "")
+		setEditedImages(images ?? [])
+		setEditedFiles(files ?? [])
 		setErrorMessage(undefined)
 		setIsEditing(true)
 	}
@@ -56,8 +60,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				EditMessageAndRegenerateRequest.create({
 					messageTs,
 					text: editedText,
-					images: images ?? [],
-					files: files ?? [],
+					images: editedImages,
+					files: editedFiles,
 					restoreWorkspace,
 				}),
 			)
@@ -120,6 +124,14 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						rows={Math.max(3, editedText.split("\n").length)}
 						value={editedText}
 					/>
+					{(editedImages.length > 0 || editedFiles.length > 0) && (
+						<Thumbnails
+							files={editedFiles}
+							images={editedImages}
+							setFiles={setEditedFiles}
+							setImages={setEditedImages}
+						/>
+					)}
 					{errorMessage && <div className="text-xs text-(--vscode-errorForeground)">{errorMessage}</div>}
 					<div className="flex items-center justify-between gap-1.5">
 						<button
