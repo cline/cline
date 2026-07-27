@@ -8,7 +8,23 @@ import type { AvailableRuntimeCommand } from "@cline/core"
  */
 const SLASH_COMMAND_TOKEN_REGEX = /(^|\s)(\/[a-zA-Z0-9_.:@-]+)(?=\s|$)/g
 
-const MARKDOWN_EXTENSION_REGEX = /\.md$/i
+/**
+ * File extensions the SDK's workflow discovery accepts (`MARKDOWN_EXTENSIONS`
+ * in @cline/core's user-instruction-config-loader). The SDK strips the
+ * extension when naming the command; the webview autocomplete and legacy
+ * toggle state keep it.
+ */
+const WORKFLOW_FILE_EXTENSION_REGEX = /\.(md|markdown|txt)$/i
+
+/**
+ * Canonical form used to compare workflow names across the places they appear:
+ * typed slash commands and toggle paths keep the file extension, while SDK
+ * command names and remote workflow names do not.
+ */
+function canonicalWorkflowName(value: string): string {
+	const stripped = value.replace(WORKFLOW_FILE_EXTENSION_REGEX, "").toLowerCase()
+	return stripped || value.toLowerCase()
+}
 
 /**
  * Find the runtime command matching a typed slash-command name.
@@ -22,7 +38,7 @@ function findRuntimeCommand(
 	commands: readonly AvailableRuntimeCommand[],
 	typedName: string,
 ): AvailableRuntimeCommand | undefined {
-	const withoutExtension = typedName.replace(MARKDOWN_EXTENSION_REGEX, "")
+	const withoutExtension = typedName.replace(WORKFLOW_FILE_EXTENSION_REGEX, "")
 	const candidates = withoutExtension && withoutExtension !== typedName ? [typedName, withoutExtension] : [typedName]
 	for (const candidate of candidates) {
 		const exact = commands.find((command) => command.name === candidate)
@@ -53,9 +69,10 @@ function findRuntimeCommand(
  * behavior and the webview menu (which only offers suggestions for the first
  * command in a message).
  *
- * @param disabledWorkflowNames lower-cased workflow names (with and without the
- *   `.md` extension) the user disabled via the Workflows toggles. Disabled
- *   workflows are left unexpanded, matching legacy semantics.
+ * @param disabledWorkflowNames canonical (extension-less, lower-cased) workflow
+ *   names the user disabled via the Workflows toggles, from
+ *   {@link buildDisabledWorkflowNames}. Disabled workflows are left unexpanded,
+ *   matching legacy semantics.
  */
 export function expandSlashCommands(
 	text: string,
@@ -72,10 +89,7 @@ export function expandSlashCommands(
 		if (!command) {
 			continue
 		}
-		if (
-			command.kind === "workflow" &&
-			(disabledWorkflowNames.has(typedName.toLowerCase()) || disabledWorkflowNames.has(command.name.toLowerCase()))
-		) {
+		if (command.kind === "workflow" && disabledWorkflowNames.has(canonicalWorkflowName(command.name))) {
 			continue
 		}
 		const start = (match.index ?? 0) + match[1].length
@@ -85,33 +99,50 @@ export function expandSlashCommands(
 	return text
 }
 
+export interface BuildDisabledWorkflowNamesOptions {
+	/** `globalWorkflowToggles` (global settings) — keyed by absolute file path. */
+	globalToggles?: Record<string, boolean>
+	/** Workspace `workflowToggles` — keyed by absolute file path. */
+	workspaceToggles?: Record<string, boolean>
+	/** `remoteWorkflowToggles` (global state) — keyed by remote workflow name. */
+	remoteToggles?: Record<string, boolean>
+	/** Names of remote workflows the organization locks on (`alwaysEnabled`). */
+	remoteAlwaysEnabledNames?: Iterable<string>
+}
+
 /**
- * Build the set of workflow names the user disabled via the Rules & Workflows
- * modal. Toggle maps are keyed by absolute file path; expansion matches by
- * command name, so index by basename both with and without the `.md` extension
- * (lower-cased). Workspace toggles override global ones for same-named files,
- * matching the legacy local-over-global precedence.
+ * Build the set of canonical workflow names the user disabled via the Workflows
+ * toggles (local, global, and enterprise/remote scopes).
+ *
+ * A name is disabled only when *no* toggle entry for it is enabled: legacy
+ * expansion only searched enabled workflows across scopes, so a disabled
+ * workspace file must not shadow a same-named enabled global one (or vice
+ * versa). Locked (`alwaysEnabled`) remote workflows always count as enabled.
  */
-export function buildDisabledWorkflowNames(
-	globalToggles: Record<string, boolean> | undefined,
-	workspaceToggles: Record<string, boolean> | undefined,
-): Set<string> {
-	const merged = new Map<string, boolean>()
-	for (const toggles of [globalToggles ?? {}, workspaceToggles ?? {}]) {
+export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOptions): Set<string> {
+	const enabledByName = new Map<string, boolean>()
+	const register = (rawName: string, enabled: boolean) => {
+		const name = canonicalWorkflowName(rawName)
+		if (!name) {
+			return
+		}
+		enabledByName.set(name, (enabledByName.get(name) ?? false) || enabled)
+	}
+
+	for (const toggles of [options.globalToggles ?? {}, options.workspaceToggles ?? {}]) {
 		for (const [filePath, enabled] of Object.entries(toggles)) {
-			const fileName = filePath.replace(/^.*[/\\]/, "").toLowerCase()
-			if (!fileName) {
-				continue
-			}
-			merged.set(fileName, enabled)
-			const withoutExtension = fileName.replace(MARKDOWN_EXTENSION_REGEX, "")
-			if (withoutExtension && withoutExtension !== fileName) {
-				merged.set(withoutExtension, enabled)
-			}
+			register(filePath.replace(/^.*[/\\]/, ""), enabled)
 		}
 	}
+	for (const [name, enabled] of Object.entries(options.remoteToggles ?? {})) {
+		register(name, enabled)
+	}
+	for (const name of options.remoteAlwaysEnabledNames ?? []) {
+		register(name, true)
+	}
+
 	const disabled = new Set<string>()
-	for (const [name, enabled] of merged) {
+	for (const [name, enabled] of enabledByName) {
 		if (!enabled) {
 			disabled.add(name)
 		}

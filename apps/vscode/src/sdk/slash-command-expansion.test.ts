@@ -22,6 +22,11 @@ describe("expandSlashCommands", () => {
 		expect(expandSlashCommands("/release.md now", commands)).toBe("Run the release workflow. now")
 	})
 
+	it("expands the other workflow file extensions the SDK discovers", () => {
+		expect(expandSlashCommands("/release.markdown", commands)).toBe("Run the release workflow.")
+		expect(expandSlashCommands("/release.txt", commands)).toBe("Run the release workflow.")
+	})
+
 	it("matches case-insensitively as a fallback, like webview validation", () => {
 		expect(expandSlashCommands("/Release.MD", commands)).toBe("Run the release workflow.")
 	})
@@ -52,7 +57,7 @@ describe("expandSlashCommands", () => {
 	})
 
 	it("skips workflows the user disabled via toggles", () => {
-		const disabled = new Set(["release", "release.md"])
+		const disabled = new Set(["release"])
 		expect(expandSlashCommands("/release", commands, disabled)).toBe("/release")
 		expect(expandSlashCommands("/release.md", commands, disabled)).toBe("/release.md")
 		// Skills are governed by frontmatter, not workflow toggles.
@@ -61,24 +66,47 @@ describe("expandSlashCommands", () => {
 })
 
 describe("buildDisabledWorkflowNames", () => {
-	it("indexes disabled workflows by basename with and without extension", () => {
-		const disabled = buildDisabledWorkflowNames({ "/home/user/Documents/Cline/Workflows/Release.md": false }, undefined)
-		expect(disabled).toEqual(new Set(["release.md", "release"]))
+	it("indexes disabled workflows by canonical (extension-less, lower-cased) name", () => {
+		const disabled = buildDisabledWorkflowNames({
+			globalToggles: {
+				"/home/user/Documents/Cline/Workflows/Release.md": false,
+				"/home/user/Documents/Cline/Workflows/notes.txt": false,
+			},
+		})
+		expect(disabled).toEqual(new Set(["release", "notes"]))
 	})
 
-	it("lets workspace toggles override global toggles for the same file name", () => {
-		const disabled = buildDisabledWorkflowNames(
-			{ "/global/dir/release.md": false },
-			{ "/repo/.clinerules/workflows/release.md": true },
-		)
-		expect(disabled.size).toBe(0)
+	it("keeps a name enabled when any scope has it enabled", () => {
+		// Legacy expansion searched enabled workflows across scopes, so a
+		// disabled workspace file must not shadow an enabled global one.
+		expect(
+			buildDisabledWorkflowNames({
+				globalToggles: { "/global/dir/release.md": true },
+				workspaceToggles: { "/repo/.clinerules/workflows/release.md": false },
+			}),
+		).toEqual(new Set())
+		expect(
+			buildDisabledWorkflowNames({
+				globalToggles: { "/global/dir/release.md": false },
+				workspaceToggles: { "/repo/.clinerules/workflows/release.md": true },
+			}),
+		).toEqual(new Set())
 	})
 
-	it("collects disabled names from both scopes", () => {
-		const disabled = buildDisabledWorkflowNames(
-			{ "/global/dir/deploy.md": false, "/global/dir/keep.md": true },
-			{ "C:\\repo\\.clinerules\\workflows\\hotfix.md": false },
-		)
-		expect(disabled).toEqual(new Set(["deploy.md", "deploy", "hotfix.md", "hotfix"]))
+	it("collects disabled names from every scope, including remote", () => {
+		const disabled = buildDisabledWorkflowNames({
+			globalToggles: { "/global/dir/deploy.md": false, "/global/dir/keep.md": true },
+			workspaceToggles: { "C:\\repo\\.clinerules\\workflows\\hotfix.md": false },
+			remoteToggles: { "org-standards": false, "org-review": true },
+		})
+		expect(disabled).toEqual(new Set(["deploy", "hotfix", "org-standards"]))
+	})
+
+	it("treats locked (alwaysEnabled) remote workflows as enabled despite stale toggles", () => {
+		const disabled = buildDisabledWorkflowNames({
+			remoteToggles: { "org-standards": false },
+			remoteAlwaysEnabledNames: ["org-standards"],
+		})
+		expect(disabled).toEqual(new Set())
 	})
 })
