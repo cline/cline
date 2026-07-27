@@ -149,6 +149,28 @@ describe("LoopDetectionTracker", () => {
 		expect(tracker.inspect(call).kind).toBe("hard");
 	});
 
+	it("keeps the absolute limit across interleaved tool signatures", () => {
+		const tracker = new LoopDetectionTracker({
+			softThreshold: 2,
+			hardThreshold: 3,
+		});
+
+		for (let index = 1; index < 12; index++) {
+			const poll = { ...call, id: `poll-${index}` };
+			expect(tracker.inspect(poll).kind).not.toBe("hard");
+			observeSuccess(tracker, poll, { status: `waiting-${index}` });
+			expect(
+				tracker.inspect({
+					id: `other-${index}`,
+					name: "other",
+					input: { step: index },
+				}).kind,
+			).toBe("ok");
+		}
+
+		expect(tracker.inspect({ ...call, id: "poll-12" }).kind).toBe("hard");
+	});
+
 	it("counts identical parallel calls as one batch and accepts every outcome", () => {
 		const tracker = new LoopDetectionTracker({
 			softThreshold: 2,
@@ -313,9 +335,40 @@ describe("LoopDetectionTracker", () => {
 		observeSuccess(tracker, resumedPoll, "20% complete");
 
 		const nextPoll = { ...call, id: "next-poll" };
-		expect(tracker.inspect(nextPoll).kind).toBe("soft");
+		expect(tracker.inspect(nextPoll).kind).toBe("ok");
 		observeSuccess(tracker, nextPoll, "30% complete");
 		expect(tracker.inspect({ ...call, id: "after-progress" }).kind).toBe("ok");
+	});
+
+	it("ignores an older batch that finishes after a newer poll outcome", () => {
+		const tracker = new LoopDetectionTracker({
+			softThreshold: 2,
+			hardThreshold: 3,
+		});
+		const baseline = { ...call, id: "baseline" };
+		const oldPoll = { ...call, id: "old-poll" };
+		const otherCall = {
+			id: "other-1",
+			name: "other",
+			input: { command: "status" },
+		};
+
+		expect(tracker.inspect(baseline).kind).toBe("ok");
+		observeSuccess(tracker, baseline, "10% complete");
+		expect(tracker.inspect(oldPoll).kind).toBe("soft");
+		expect(tracker.inspect(otherCall).kind).toBe("ok");
+		observeSuccess(tracker, otherCall, "unchanged");
+
+		const newPoll = { ...call, id: "new-poll" };
+		expect(tracker.inspect(newPoll).kind).toBe("ok");
+		observeSuccess(tracker, newPoll, "20% complete");
+		const repeatedPoll = { ...call, id: "repeated-poll" };
+		expect(tracker.inspect(repeatedPoll).kind).toBe("ok");
+		observeSuccess(tracker, repeatedPoll, "20% complete");
+
+		observeSuccess(tracker, oldPoll, "30% complete");
+
+		expect(tracker.inspect({ ...call, id: "after-stale" }).kind).toBe("soft");
 	});
 
 	it("keeps earlier identical parallel outcomes across an interleaved call", () => {

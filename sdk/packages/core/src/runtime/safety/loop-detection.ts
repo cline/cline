@@ -273,6 +273,13 @@ interface InspectedCall {
 	toolSignature: string;
 }
 
+interface SignatureProgressState {
+	totalBatchCount: number;
+	latestOutcomeBatchId: number;
+	lastOutputSignature?: string;
+	progressVersion: number;
+}
+
 /**
  * Per-session repeated-tool-call detector.
  *
@@ -288,7 +295,7 @@ export class LoopDetectionTracker {
 				generation: number;
 				toolName: string;
 				toolSignature: string;
-				totalBatchCount: number;
+				observedProgressVersion: number;
 		  }
 		| undefined;
 	private nextGeneration = 1;
@@ -296,13 +303,10 @@ export class LoopDetectionTracker {
 	private readonly pendingCalls = new Map<string, InspectedCall>();
 	private anonymousPendingCall: InspectedCall | undefined;
 	private readonly batchOutcomes = new Map<number, ToolOutcomeFingerprint[]>();
-	private readonly deferredSuccessfulOutcomes = new Map<string, string>();
-	private lastSuccessfulOutcome:
-		| {
-				generation: number;
-				outputSignature: string;
-		  }
-		| undefined;
+	private readonly signatureProgress = new Map<
+		string,
+		SignatureProgressState
+	>();
 
 	constructor(config?: Partial<LoopDetectionConfig>) {
 		this.config = {
@@ -313,6 +317,16 @@ export class LoopDetectionTracker {
 
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		const signature = toolCallSignature(call.input);
+		const progressKey = sequenceKey(call.name, signature);
+		let progress = this.signatureProgress.get(progressKey);
+		if (progress === undefined) {
+			progress = {
+				totalBatchCount: 0,
+				latestOutcomeBatchId: 0,
+				progressVersion: 0,
+			};
+			this.signatureProgress.set(progressKey, progress);
+		}
 		let sequence = this.currentSequence;
 		if (
 			sequence === undefined ||
@@ -323,22 +337,13 @@ export class LoopDetectionTracker {
 				generation: this.nextGeneration++,
 				toolName: call.name,
 				toolSignature: signature,
-				totalBatchCount: 0,
+				observedProgressVersion: progress.progressVersion,
 			};
 			this.currentSequence = sequence;
-			const deferredOutcome = this.deferredSuccessfulOutcomes.get(
-				sequenceKey(call.name, signature),
-			);
-			if (deferredOutcome !== undefined) {
-				this.lastSuccessfulOutcome = {
-					generation: sequence.generation,
-					outputSignature: deferredOutcome,
-				};
-				this.deferredSuccessfulOutcomes.delete(
-					sequenceKey(call.name, signature),
-				);
-			}
 			this.anonymousPendingCall = undefined;
+		} else if (sequence.observedProgressVersion !== progress.progressVersion) {
+			resetLoopDetectionState(this.state);
+			sequence.observedProgressVersion = progress.progressVersion;
 		}
 
 		const parallelCall =
@@ -377,7 +382,7 @@ export class LoopDetectionTracker {
 			return { kind: "ok" };
 		}
 
-		sequence.totalBatchCount++;
+		progress.totalBatchCount++;
 		const result = checkRepeatedToolCall(
 			this.state,
 			call.name,
@@ -386,7 +391,7 @@ export class LoopDetectionTracker {
 		);
 		if (
 			result.hardEscalation ||
-			sequence.totalBatchCount >= absoluteHardLimit ||
+			progress.totalBatchCount >= absoluteHardLimit ||
 			pendingBatchCallCount >= absoluteHardLimit
 		) {
 			return {
@@ -394,8 +399,8 @@ export class LoopDetectionTracker {
 				message:
 					pendingBatchCallCount >= absoluteHardLimit
 						? `Detected ${pendingBatchCallCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`
-						: sequence.totalBatchCount >= absoluteHardLimit
-							? `Detected ${sequence.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
+						: progress.totalBatchCount >= absoluteHardLimit
+							? `Detected ${progress.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
 							: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
 			};
 		}
@@ -409,10 +414,10 @@ export class LoopDetectionTracker {
 	}
 
 	/**
-	 * Complete an inspected call. Parallel calls in the same batch can span a
-	 * temporarily interleaved tool sequence, so every still-relevant outcome can
-	 * contribute progress regardless of finish order. Failed outcomes only close
-	 * their pending call and never reset loop detection.
+	 * Complete an inspected call. Parallel calls in the same generation share a
+	 * batch, so every outcome contributes regardless of finish order. Completed
+	 * batches are applied by start order; a late older batch cannot masquerade as
+	 * fresh progress. Failed outcomes only close their pending call.
 	 */
 	observeOutcome(
 		call: LoopDetectionCall,
@@ -466,31 +471,24 @@ export class LoopDetectionTracker {
 		const outputSignature = JSON.stringify(
 			[...new Set(outcomes.map((entry) => entry.signature))].sort(),
 		);
-		const isCurrentSequence =
-			this.currentSequence?.toolName === call.name &&
-			this.currentSequence.toolSignature === toolSignature;
-		if (!isCurrentSequence) {
-			this.deferredSuccessfulOutcomes.set(
-				sequenceKey(call.name, toolSignature),
-				outputSignature,
-			);
+		const progress = this.signatureProgress.get(
+			sequenceKey(call.name, toolSignature),
+		);
+		if (
+			progress === undefined ||
+			inspected.batchId <= progress.latestOutcomeBatchId
+		) {
 			return;
 		}
-		const previous = this.lastSuccessfulOutcome;
-		const currentGeneration = this.currentSequence?.generation;
 
 		if (
-			previous !== undefined &&
-			previous.generation === currentGeneration &&
-			previous.outputSignature !== outputSignature
+			progress.lastOutputSignature !== undefined &&
+			progress.lastOutputSignature !== outputSignature
 		) {
-			resetLoopDetectionState(this.state);
+			progress.progressVersion++;
 		}
-
-		this.lastSuccessfulOutcome = {
-			generation: currentGeneration ?? inspected.generation,
-			outputSignature,
-		};
+		progress.latestOutcomeBatchId = inspected.batchId;
+		progress.lastOutputSignature = outputSignature;
 	}
 
 	/**
@@ -511,7 +509,6 @@ export class LoopDetectionTracker {
 		this.pendingCalls.clear();
 		this.anonymousPendingCall = undefined;
 		this.batchOutcomes.clear();
-		this.deferredSuccessfulOutcomes.clear();
-		this.lastSuccessfulOutcome = undefined;
+		this.signatureProgress.clear();
 	}
 }

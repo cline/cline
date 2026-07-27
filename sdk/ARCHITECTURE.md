@@ -131,10 +131,10 @@ to the tool name and normalized input. Identical calls produce a recovery
 warning at the configured soft threshold and stop at the hard threshold.
 Successful result changes reset the ordinary consecutive-call count only after
 volatile timestamps, request IDs, and log-tail noise are normalized away;
-failed operations never count as progress. An absolute repeated-batch ceiling
-still bounds continually changing results, and parallel identical calls are
-correlated as one batch without discarding outcomes that finish around an
-interleaved tool call.
+failed operations never count as progress. An absolute per-signature
+repeated-batch ceiling still bounds continually changing results across
+interleaved tools, and parallel identical calls are correlated as one batch
+without discarding outcomes that finish around an interleaved tool call.
 
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
