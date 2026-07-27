@@ -129,8 +129,8 @@ export interface ITerminal {
 	}
 	/** Send text to the terminal */
 	sendText(text: string, addNewLine?: boolean): void
-	/** Show the terminal */
-	show(): void
+	/** Show the terminal (preserveFocus keeps the cursor in the active editor) */
+	show(preserveFocus?: boolean): void
 	/** Hide the terminal */
 	hide(): void
 	/** Dispose of the terminal */

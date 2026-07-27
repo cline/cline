@@ -6,7 +6,6 @@ import {
 	TerminalInfo as ITerminalInfo,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
-import { isRefactoringEnabled } from "@/shared/services/feature-flags/refactoring-flags"
 import { Logger } from "@/shared/services/Logger"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
@@ -18,16 +17,16 @@ const CWD_STATE_TIMEOUT_MS = 1000
  * Maximum time (ms) a terminal can stay busy before its flag is auto-released.
  * Prevents terminal-starvation deadlock when a terminal's completion promise
  * is never settled (e.g. user closes the terminal, task interrupted mid-write).
- * Guarded by the `terminalBusyTimeout` feature flag.
+ * The release is deferred if the terminal is still producing output ("hot")
+ * to protect long-running processes like dev servers.
  */
 const BUSY_TIMEOUT_MS = 300_000 // 5 minutes
 
 /**
  * Maximum number of tracked terminals before the least-recently-used is
- * evicted. Prevent unbounded terminal-ID accumulation when many tasks are
- * created without cleanup.
- * Guarded by the `terminalBusyTimeout` feature flag (same flag — both deal
- * with terminal lifecycle hygiene).
+ * evicted. Prevents unbounded terminal-ID accumulation when many tasks are
+ * created without cleanup.  Eviction skips terminals with active output
+ * ("hot"), protecting long-running processes.
  */
 const MAX_TERMINALS = 50
 
@@ -224,18 +223,27 @@ export class VscodeTerminalManager {
 		// Busy timeout guard: if the process never completes (e.g. terminal
 		// closed externally, task interrupted mid-execution), auto-release the
 		// busy flag after BUSY_TIMEOUT_MS so the terminal can be reused.
-		// Guarded by the `terminalBusyTimeout` feature flag.
+		// Always active (no feature flag).  Skips release when the terminal is
+		// still producing output ("hot"), which protects long-running
+		// processes like dev servers from being mistakenly freed.
 		let busyTimeout: ReturnType<typeof setTimeout> | undefined
-		if (isRefactoringEnabled("terminalBusyTimeout")) {
-			busyTimeout = setTimeout(() => {
-				if (vscodeTerminalInfo.busy) {
-					Logger.warn(
-						`[TerminalManager] Busy timeout elapsed (${BUSY_TIMEOUT_MS}ms) for terminal ${vscodeTerminalInfo.id}, auto-releasing busy flag`,
+		busyTimeout = setTimeout(() => {
+			if (vscodeTerminalInfo.busy) {
+				// Don't release if the terminal is still actively outputting —
+				// it's likely a healthy long-running process (e.g. dev server)
+				// rather than a stuck command.
+				if (this.processes.get(vscodeTerminalInfo.id)?.isHot) {
+					Logger.log(
+						`[TerminalManager] Busy timeout elapsed for terminal ${vscodeTerminalInfo.id} but process is still hot; deferring release.`,
 					)
-					vscodeTerminalInfo.busy = false
+					return
 				}
-			}, BUSY_TIMEOUT_MS)
-		}
+				Logger.warn(
+					`[TerminalManager] Busy timeout elapsed (${BUSY_TIMEOUT_MS}ms) for terminal ${vscodeTerminalInfo.id}, auto-releasing busy flag`,
+				)
+				vscodeTerminalInfo.busy = false
+			}
+		}, BUSY_TIMEOUT_MS)
 
 		process.once("completed", () => {
 			Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} completed, setting busy to false`)
@@ -338,7 +346,40 @@ export class VscodeTerminalManager {
 			return matchingTerminal as unknown as ITerminalInfo
 		}
 
-		// If no non-busy terminal in the current working dir exists and terminal reuse is enabled, try to find any non-busy terminal regardless of CWD
+		// ── Step 2: Blind-cd match ───────────────────────────────────────────
+		// Terminals where shell integration is present but lacks `cwd` info
+		// (common on Windows where PowerShell's shell integration is unreliable
+		// or slow to initialise).  Reuse these by blindly running `cd <target>`
+		// — we can't verify the CWD afterwards, but the command is harmless and
+		// the terminal would otherwise be wasted.
+		//
+		// NOT gated by terminalReuseEnabled because this is a safe, targeted
+		// reuse that always corrects the working directory.  The user-visible
+		// terminal is the same shell profile; we just need to steer it.
+		{
+			const blindCdTerminal = terminals.find((t) => {
+				if (t.busy) return false
+				if (VscodeTerminalManager.effectiveShellPath(t.shellPath) !== effectiveExpected) return false
+				const si = t.terminal.shellIntegration
+				// Only match when shellIntegration exists but .cwd is missing
+				if (!si) return false
+				const terminalCwd = si.cwd
+				return terminalCwd === undefined
+			})
+			if (blindCdTerminal) {
+				Logger.log(
+					`[TerminalManager] Blind-cd reusing terminal ${blindCdTerminal.id} (shell integration present, no CWD info)`,
+				)
+				blindCdTerminal.busy = true
+				blindCdTerminal.terminal.show(true) // preserveFocus — see P0
+				await this.runCwdChangeCommand(blindCdTerminal, cwd)
+				blindCdTerminal.busy = false
+				this.terminalIds.add(blindCdTerminal.id)
+				return blindCdTerminal as unknown as ITerminalInfo
+			}
+		}
+
+		// ── Step 3: Relaxed CWD match (gated by terminalReuseEnabled) ──────
 		if (this.terminalReuseEnabled) {
 			const availableTerminal = terminals.find(
 				(t) => !t.busy && VscodeTerminalManager.effectiveShellPath(t.shellPath) === effectiveExpected,
@@ -353,7 +394,8 @@ export class VscodeTerminalManager {
 				})
 				// Showing the reused terminal gives VS Code a chance to initialize shell integration.
 				// runCommand() below waits up to shellIntegrationTimeout for executeCommand before falling back.
-				availableTerminal.terminal.show()
+				// preserveFocus=true keeps the user's cursor in the active editor.
+				availableTerminal.terminal.show(true)
 
 				try {
 					const didCwdCommandTimeOut = await this.runCwdChangeCommand(availableTerminal, cwd)
@@ -382,16 +424,24 @@ export class VscodeTerminalManager {
 			}
 		}
 
-		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
-		if (isRefactoringEnabled("terminalBusyTimeout")) {
-			// Enforce max terminals: evict LRA (least-recently-active) terminals
-			// when pool exceeds MAX_TERMINALS. Prevents unbounded accumulation
-			// on long-running VSCode instances with many task sessions.
+		// ── LRU Eviction ────────────────────────────────────────────────────
+		// Enforce max terminals: evict LRA (least-recently-active) terminals
+		// when pool exceeds MAX_TERMINALS. Prevents unbounded accumulation
+		// on long-running VSCode instances with many task sessions.
+		// Always active (not gated by a feature flag).
+		{
 			const allTerminals = TerminalRegistry.getAllTerminals()
 			if (allTerminals.length >= MAX_TERMINALS) {
 				const sorted = [...allTerminals].sort((a, b) => a.lastActive - b.lastActive)
-				const evicted = sorted.slice(0, allTerminals.length - MAX_TERMINALS + 1)
-				for (const t of evicted) {
+				const evictCandidates = sorted.slice(0, allTerminals.length - MAX_TERMINALS + 1)
+				for (const t of evictCandidates) {
+					// Never evict a terminal that still has an active process
+					// (e.g. a dev server like `npm run dev`).  The isProcessHot
+					// check catches terminals that have emitted output recently.
+					if (this.processes.get(t.id)?.isHot) {
+						Logger.log(`[TerminalManager] Skipping eviction of hot terminal ${t.id} (still producing output)`)
+						continue
+					}
 					Logger.warn(`[TerminalManager] Evicting LRA terminal ${t.id} (max ${MAX_TERMINALS} reached)`)
 					TerminalRegistry.removeTerminal(t.id)
 					this.terminalIds.delete(t.id)

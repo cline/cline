@@ -169,7 +169,9 @@ export async function executeForeground(
 ): Promise<string> {
 	const terminalCommand = formatCommandForTerminal(command)
 	const terminalInfo = await terminalManager.getOrCreateTerminal(cwd, terminalProfileId)
-	terminalInfo.terminal.show()
+	// preserveFocus=true — show the terminal in the background without stealing
+	// the user's keyboard focus from the active text editor.
+	terminalInfo.terminal.show(true)
 
 	const process = terminalManager.runCommand(terminalInfo, terminalCommand)
 	const outputLines: string[] = []
@@ -287,9 +289,7 @@ export async function executeForeground(
 		const exitCode = completionDetails?.exitCode
 		if (exitCode !== undefined && exitCode !== null && exitCode !== 0) {
 			const result =
-				output.length > 0
-					? `[Command exited with code ${exitCode}]\n${output}`
-					: `[Command exited with code ${exitCode}]`
+				output.length > 0 ? `[Command exited with code ${exitCode}]\n${output}` : `[Command exited with code ${exitCode}]`
 			throw new CommandExitError(exitCode, result)
 		}
 		// Otherwise the command was genuinely interrupted — throw aborted.
