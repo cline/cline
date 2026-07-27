@@ -105,7 +105,14 @@ export class SdkTaskControlCoordinator {
 				}
 			}
 
-			await this.options.sessions.endActiveSession("showTaskWithId")
+			// When reopening the task that is currently active, wait for its stop to
+			// land so the persisted session status read below reflects how the last
+			// turn actually ended (completed vs cancelled) instead of a transient
+			// non-terminal status.
+			const activeSession = this.options.sessions.getActiveSession()
+			await this.options.sessions.endActiveSession("showTaskWithId", {
+				awaitStop: activeSession?.sessionId === taskId,
+			})
 
 			const currentTask = this.options.getTask()
 			if (currentTask) {
@@ -117,12 +124,13 @@ export class SdkTaskControlCoordinator {
 			// Load messages before installing the new task proxy so any concurrent
 			// postStateToWebview() caller never sees the new id with empty messages.
 			const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
+			const sessionStatus = isLegacyTask ? undefined : await this.options.taskHistory.getSessionStatus(taskId)
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 			const cleanedMessages = isLegacyTask
 				? this.appendLegacyTaskWarningAndResumeMessage(messages)
 				: messages.length > 0
-					? this.appendFreshResumeMessage(messages)
+					? this.appendFreshResumeMessage(messages, sessionStatus)
 					: []
 
 			const task = createTaskProxy(
@@ -135,7 +143,7 @@ export class SdkTaskControlCoordinator {
 			}
 			this.options.setTask(task)
 
-			// Derive the turn phase from the reopened conversation. The webview
+			// Derive the turn phase from the appended resume ask. The webview
 			// renders footer buttons from the authoritative TurnState, so without
 			// this the phase left over from the previous context (often "idle")
 			// hides the Resume button for interrupted/failed sessions.
@@ -164,11 +172,20 @@ export class SdkTaskControlCoordinator {
 		}
 	}
 
-	private appendFreshResumeMessage(messages: ClineMessage[]): ClineMessage[] {
+	private appendFreshResumeMessage(messages: ClineMessage[], sessionStatus?: string): ClineMessage[] {
+		// Prefer the persisted session status: SDK conversations do not record a
+		// completion tool call in the transcript (a completed turn and a turn
+		// interrupted mid-stream both end with plain assistant text), and history
+		// rendering appends a synthetic trailing ask:"completion_result" either
+		// way. Only the session status distinguishes "completed" from
+		// "cancelled"/"failed" — interrupted tasks must get the Resume affordance.
 		const lastRelevantMessage = [...messages]
 			.reverse()
 			.find((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
-		const resumeAsk = lastRelevantMessage?.ask === "completion_result" ? "resume_completed_task" : "resume_task"
+		const completed = sessionStatus
+			? sessionStatus === "completed"
+			: lastRelevantMessage?.ask === "completion_result"
+		const resumeAsk = completed ? "resume_completed_task" : "resume_task"
 		const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
 		cleanedMessages.push({
 			ts: Date.now(),

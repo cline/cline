@@ -81,7 +81,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.showTaskWithId("task-1")
 
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
-		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId")
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId", { awaitStop: false })
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
@@ -126,7 +126,29 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.setTurnPhase).not.toHaveBeenCalled()
 	})
 
-	it("sets the turn phase to resumable when showing an interrupted task", async () => {
+	it("appends a resume ask and sets the resumable phase when showing an interrupted (cancelled) task", async () => {
+		// History rendering appends a synthetic trailing ask:"completion_result"
+		// to every reopened conversation, so the persisted session status — not
+		// the message tail — must decide the resume affordance.
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+		]
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+			sessionStatus: "cancelled",
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(state.task?.messageStateHandler.getClineMessages().at(-1)).toEqual(
+			expect.objectContaining({ type: "ask", ask: "resume_task" }),
+		)
+		expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", expect.any(Number))
+	})
+
+	it("sets the turn phase to resumable when showing a failed task", async () => {
 		const sdkClineMessages: ClineMessage[] = [
 			{ ts: 1, type: "say", say: "task", text: "hello" },
 			{ ts: 2, type: "say", say: "text", text: "partial answer" },
@@ -134,6 +156,7 @@ describe("SdkTaskControlCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({
 			hasHistoryItem: true,
 			clineMessages: sdkClineMessages,
+			sessionStatus: "failed",
 		})
 
 		await coordinator.showTaskWithId("task-1")
@@ -146,13 +169,17 @@ describe("SdkTaskControlCoordinator", () => {
 			{ ts: 1, type: "say", say: "task", text: "hello" },
 			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
 		]
-		const { coordinator, options } = makeCoordinator({
+		const { coordinator, options, state } = makeCoordinator({
 			hasHistoryItem: true,
 			clineMessages: sdkClineMessages,
+			sessionStatus: "completed",
 		})
 
 		await coordinator.showTaskWithId("task-1")
 
+		expect(state.task?.messageStateHandler.getClineMessages().at(-1)).toEqual(
+			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
+		)
 		expect(options.setTurnPhase).toHaveBeenCalledWith("completed", expect.any(Number))
 	})
 
@@ -239,6 +266,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 		taskHistory: {
 			getClineMessages: vi.fn().mockResolvedValue(input.clineMessages ?? []),
+			getSessionStatus: vi.fn().mockResolvedValue(input.sessionStatus),
 			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
 			findHistoryItem: vi.fn(() =>
 				input.hasHistoryItem === false
@@ -300,6 +328,7 @@ interface MakeCoordinatorInput {
 	hasHistoryItem: boolean
 	clineMessages: ClineMessage[]
 	isLegacyTask: boolean
+	sessionStatus: string
 }
 
 function makeActiveSession() {
