@@ -138,7 +138,7 @@ export function DriveView({
 					))}
 					<div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
 						{blocked > 0
-							? `${blocked} ${blocked === 1 ? "agent needs" : "agents need"} you`
+							? `${blocked} blocked ${blocked === 1 ? "item needs" : "items need"} you`
 							: "Nothing is blocked"}
 						<ArrowRightIcon className="size-3.5" />
 					</div>

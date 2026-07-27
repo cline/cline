@@ -104,11 +104,19 @@ export function StatusView() {
 	 * that no longer match.
 	 */
 	const activeRequestRef = useRef<string | null>(null);
+	/**
+	 * Whether the in-flight request replaces the list or appends to it.
+	 * Inferring this from `updates.length === 0` was wrong: a live
+	 * `status_updated` landing between the clear and the response repopulated
+	 * the list, so the fresh page appended onto stale rows.
+	 */
+	const replaceOnArrivalRef = useRef(true);
 
 	const request = useCallback(
 		(cursor: number | null, replace: boolean) => {
 			const requestId = `status-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 			activeRequestRef.current = requestId;
+			replaceOnArrivalRef.current = replace;
 			setLoading(true);
 			setError(null);
 			if (replace) {
@@ -146,9 +154,8 @@ export function StatusView() {
 			if (message.type === "status_page") {
 				if (message.requestId !== activeRequestRef.current) return;
 				const page = message.updates as StatusUpdate[];
-				setUpdates((current) =>
-					current.length === 0 ? page : [...current, ...page],
-				);
+				const replace = replaceOnArrivalRef.current;
+				setUpdates((current) => (replace ? page : [...current, ...page]));
 				setNextCursor((message.nextCursor as number | null) ?? null);
 				setHasMore(message.hasMore === true);
 				setLoading(false);
@@ -169,6 +176,21 @@ export function StatusView() {
 
 			if (message.type === "status_updated") {
 				const live = message.update as StatusUpdate;
+				// A broadcast row is not necessarily part of the view being shown.
+				// Prepending it unconditionally surfaced rows that contradict the
+				// active filters until the next refresh.
+				const matchesFilters =
+					(stateFilter.length === 0 || stateFilter.includes(live.state)) &&
+					(!agentFilter || live.agentId === agentFilter) &&
+					(!search ||
+						`${live.headline} ${live.detail ?? ""}`
+							.toLowerCase()
+							.includes(search.toLowerCase()));
+				if (!matchesFilters) {
+					// Counts still moved even though the row is not shown here.
+					requestSummary();
+					return;
+				}
 				setUpdates((current) => {
 					if (current.some((u) => u.updateId === live.updateId)) return current;
 					// The board shows one row per subject, so a live update for a

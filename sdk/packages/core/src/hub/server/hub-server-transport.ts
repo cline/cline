@@ -42,8 +42,6 @@ import {
 	handleClientUpdate,
 } from "./handlers/client-handlers";
 import { handleConnectorCommand } from "./handlers/connector-handlers";
-import { handleDriveRoomCommand } from "./handlers/drive-room-handlers";
-import { handleStatusCommand } from "./handlers/status-handlers";
 import {
 	buildHubEvent,
 	type HubTransportContext,
@@ -51,6 +49,7 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import { handleDriveRoomCommand } from "./handlers/drive-room-handlers";
 import {
 	handleRunAbort,
 	handleSessionHook,
@@ -74,6 +73,10 @@ import {
 	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
+import {
+	attachStatusBroadcast,
+	handleStatusCommand,
+} from "./handlers/status-handlers";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
 import { logHubBoundaryError } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
@@ -184,6 +187,7 @@ export class HubServerTransport implements NativeHubTransport {
 		Partial<PendingPromptsRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
+	private readonly detachStatusBroadcast: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
 		this.sessionHost =
@@ -221,6 +225,9 @@ export class HubServerTransport implements NativeHubTransport {
 					onProgress,
 				),
 		};
+		// Status Hub publishes reach the wire from here rather than from the
+		// command handler, so the `report_status` tool broadcasts too.
+		this.detachStatusBroadcast = attachStatusBroadcast(this.ctx);
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
 			runtimeHandlers: options.runtimeHandlers,

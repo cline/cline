@@ -44,6 +44,32 @@ function notifyPayload(update: StatusUpdate): Record<string, unknown> {
 	};
 }
 
+/**
+ * Bridge every Status Hub publish onto the wire.
+ *
+ * Subscribing to the service rather than broadcasting from the command handler
+ * matters: agents publish through the `report_status` tool, which calls
+ * `StatusService.publish` directly and never touches `status.publish`. Handling
+ * the broadcast only in the command handler left tool publishes invisible to
+ * open views and skipped `ui.notify` entirely, so a `critical` status from an
+ * agent never reached the human.
+ *
+ * Returns an unsubscribe function.
+ */
+export function attachStatusBroadcast(
+	ctx: HubTransportContext,
+	service: StatusService = getStatusService(),
+): () => void {
+	return service.subscribe((update) => {
+		ctx.publish(
+			ctx.buildEvent("status.updated", toPayload(update), update.sessionId),
+		);
+		if (shouldPushToUser(update.priority)) {
+			ctx.publish(ctx.buildEvent("ui.notify", notifyPayload(update)));
+		}
+	});
+}
+
 export async function handleStatusCommand(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -60,14 +86,9 @@ export async function handleStatusCommand(
 					sessionId:
 						(payload.sessionId as string | undefined) ?? envelope.sessionId,
 				});
+				// Broadcast is handled by attachStatusBroadcast, which subscribes to
+				// the service so tool publishes reach the wire too.
 				const update = service.publish(input);
-
-				ctx.publish(
-					ctx.buildEvent("status.updated", toPayload(update), update.sessionId),
-				);
-				if (shouldPushToUser(update.priority)) {
-					ctx.publish(ctx.buildEvent("ui.notify", notifyPayload(update)));
-				}
 				return okReply(envelope, { update: toPayload(update) });
 			}
 

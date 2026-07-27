@@ -6,12 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { StatusService } from "../../../status";
 import { SqliteStatusStore } from "../../../status/store/sqlite-status-store";
 import type { HubTransportContext } from "./context";
-import { handleStatusCommand } from "./status-handlers";
+import { attachStatusBroadcast, handleStatusCommand } from "./status-handlers";
 
 let dir: string;
 let service: StatusService;
 let published: HubEventEnvelope[];
 let ctx: HubTransportContext;
+let detach: () => void;
 
 function envelope(
 	command: HubCommandEnvelope["command"],
@@ -40,9 +41,13 @@ beforeEach(() => {
 			sessionId,
 		}),
 	} as unknown as HubTransportContext;
+	// The hub bridges publishes onto the wire by subscribing to the service,
+	// so tool publishes broadcast too. Wire it the way the transport does.
+	detach = attachStatusBroadcast(ctx, service);
 });
 
 afterEach(() => {
+	detach?.();
 	service.close();
 	rmSync(dir, { recursive: true, force: true });
 });

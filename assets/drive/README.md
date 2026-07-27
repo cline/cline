@@ -43,6 +43,10 @@ Requires `pillow`, `numpy`, `opencv-python`.
 python assets/drive/generate-assets.py assets/drive/source.png assets/drive
 python assets/drive/generate-icon.py assets/drive/source.png \
   apps/cline-hub/src/webview/src/components/icons/drive-mark.tsx
+
+# The served copy is not generated in place -- copy it, or it goes stale silently.
+cp assets/drive/cline-drive-dark-on-transparent.svg \
+  apps/cline-hub/src/webview/public/cline-drive-logo.svg
 ```
 
 Two things the tracing does that a naive threshold-and-trace does not, both
