@@ -65,6 +65,14 @@ const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
  */
 export const OLLAMA_DEFAULT_CONTEXT_WINDOW = 32768;
 
+/**
+ * Time to wait for an Ollama response to start when no timeout is
+ * configured. Matches the pre-SDK-migration Ollama handler default, which
+ * is deliberately tighter than {@link DEFAULT_RESPONSE_START_TIMEOUT_MS}
+ * (from `./http`) used for the other providers.
+ */
+export const OLLAMA_DEFAULT_TIMEOUT_MS = 30_000;
+
 export type { BuiltinSpec, ProviderFamily } from "./builtin-types";
 
 type BuiltinSpecOverride = Pick<BuiltinSpec, "id"> &

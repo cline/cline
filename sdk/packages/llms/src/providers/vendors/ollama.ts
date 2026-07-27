@@ -57,64 +57,13 @@ export function readOllamaNumCtx(context: GatewayProviderContext): number {
 }
 
 /**
- * Time to wait for the response to start when no timeout is configured.
- * Matches the pre-SDK-migration Ollama handler default.
+ * See {@link OLLAMA_DEFAULT_TIMEOUT_MS} in `../builtins` — re-exported so
+ * existing importers keep working. The response-start timeout itself is now
+ * applied for every provider by the shared AI SDK stream path (see
+ * `withResponseStartTimeout` in `../http`); Ollama only keeps its tighter
+ * legacy default.
  */
-export const OLLAMA_DEFAULT_TIMEOUT_MS = 30_000;
-
-/**
- * Read the configured request timeout, mirroring the legacy handler's
- * `requestTimeoutMs || 30000` (zero/invalid values fall back to the default).
- */
-export function readOllamaTimeoutMs(
-	config: GatewayResolvedProviderConfig,
-): number {
-	const timeoutMs = config.timeoutMs;
-	if (
-		typeof timeoutMs === "number" &&
-		Number.isFinite(timeoutMs) &&
-		timeoutMs > 0
-	) {
-		return Math.floor(timeoutMs);
-	}
-	return OLLAMA_DEFAULT_TIMEOUT_MS;
-}
-
-/**
- * Wrap a fetch so the *response* must start within `timeoutMs`. Once headers
- * arrive the timer is cleared — streaming the body is never interrupted.
- * Mirrors the legacy handler, which raced the chat call (stream start)
- * against a timeout rather than bounding the whole generation.
- */
-export function withOllamaResponseTimeout(
-	baseFetch: typeof fetch,
-	timeoutMs: number,
-): typeof fetch {
-	return (async (input, init) => {
-		const timeoutController = new AbortController();
-		const timer = setTimeout(
-			() =>
-				timeoutController.abort(
-					new Error(
-						`Ollama request timed out after ${timeoutMs / 1000} seconds`,
-					),
-				),
-			timeoutMs,
-		);
-		// AbortSignal.any keeps upstream cancellation live for the entire
-		// request (including body streaming after the timer is cleared) and
-		// cleans up its own listeners — no manual listener management.
-		const upstreamSignal = init?.signal;
-		const signal = upstreamSignal
-			? AbortSignal.any([upstreamSignal, timeoutController.signal])
-			: timeoutController.signal;
-		try {
-			return await baseFetch(input, { ...init, signal });
-		} finally {
-			clearTimeout(timer);
-		}
-	}) as typeof fetch;
-}
+export { OLLAMA_DEFAULT_TIMEOUT_MS } from "../builtins";
 
 export async function createOllamaProviderModule(
 	config: GatewayResolvedProviderConfig,
@@ -129,10 +78,9 @@ export async function createOllamaProviderModule(
 		...(baseURL ? { baseURL } : {}),
 		...(apiKey ? { apiKey } : {}),
 		...(config.headers ? { headers: config.headers } : {}),
-		fetch: withOllamaResponseTimeout(
-			ensureFetch(config.fetch),
-			readOllamaTimeoutMs(config),
-		),
+		// The response-start timeout is already applied to `config.fetch` by
+		// the shared AI SDK stream path (with the Ollama-specific default).
+		fetch: ensureFetch(config.fetch),
 	});
 	const numCtx = readOllamaNumCtx(context);
 	return {

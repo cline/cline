@@ -1,5 +1,83 @@
 import type { GatewayProviderSettings } from "@cline/shared";
 
+/**
+ * Time to wait for a provider's response to start when the provider config
+ * does not set an explicit `timeoutMs`. Bounds only the time until response
+ * headers arrive — streaming the body is never interrupted.
+ *
+ * Without this bound, a provider that accepts the connection but never
+ * responds leaves the request (and the UI) hanging until runtime socket
+ * limits fire, which can take 15+ minutes with silent retries in between.
+ */
+export const DEFAULT_RESPONSE_START_TIMEOUT_MS = 60_000;
+
+type FetchWithOptionalPreconnect = typeof fetch & {
+	preconnect?: (...args: unknown[]) => unknown;
+};
+
+/**
+ * Read the configured request timeout, falling back to the given default
+ * when the config leaves it unset (zero/invalid values also fall back).
+ */
+export function readResponseStartTimeoutMs(
+	settings: GatewayProviderSettings,
+	defaultTimeoutMs: number = DEFAULT_RESPONSE_START_TIMEOUT_MS,
+): number {
+	const timeoutMs = settings.timeoutMs;
+	if (
+		typeof timeoutMs === "number" &&
+		Number.isFinite(timeoutMs) &&
+		timeoutMs > 0
+	) {
+		return Math.floor(timeoutMs);
+	}
+	return defaultTimeoutMs;
+}
+
+/**
+ * Wrap a fetch so the *response* must start within `timeoutMs`. Once headers
+ * arrive the timer is cleared — streaming the body is never interrupted.
+ * Mirrors the legacy Ollama handler, which raced the chat call (stream
+ * start) against a timeout rather than bounding the whole generation.
+ */
+export function withResponseStartTimeout(
+	baseFetch: typeof fetch,
+	timeoutMs: number,
+	label = "Provider",
+): typeof fetch {
+	const timedFetch = (async (input, init) => {
+		const timeoutController = new AbortController();
+		const timer = setTimeout(() => {
+			const reason = new Error(
+				`${label} request timed out after ${timeoutMs / 1000} seconds waiting for the response to start. The provider accepted the request but never responded — check that the endpoint is reachable and healthy.`,
+			);
+			// "TimeoutError" makes the AI SDK treat the abort as terminal
+			// (isAbortError) instead of wrapping it in a retryable network
+			// error, so a dead provider fails fast with this message instead
+			// of being retried silently.
+			reason.name = "TimeoutError";
+			timeoutController.abort(reason);
+		}, timeoutMs);
+		// AbortSignal.any keeps upstream cancellation live for the entire
+		// request (including body streaming after the timer is cleared) and
+		// cleans up its own listeners — no manual listener management.
+		const upstreamSignal = init?.signal;
+		const signal = upstreamSignal
+			? AbortSignal.any([upstreamSignal, timeoutController.signal])
+			: timeoutController.signal;
+		try {
+			return await baseFetch(input, { ...init, signal });
+		} finally {
+			clearTimeout(timer);
+		}
+	}) as FetchWithOptionalPreconnect;
+	const baseWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
+	if (typeof baseWithPreconnect.preconnect === "function") {
+		timedFetch.preconnect = baseWithPreconnect.preconnect.bind(baseFetch);
+	}
+	return timedFetch;
+}
+
 export function ensureFetch(fetchImpl?: typeof fetch): typeof fetch {
 	const resolved = fetchImpl ?? globalThis.fetch;
 	if (!resolved) {

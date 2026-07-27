@@ -17,7 +17,14 @@ import {
 } from "@cline/shared";
 import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
+import { OLLAMA_DEFAULT_TIMEOUT_MS } from "./builtins";
 import { extractErrorMessage } from "./format";
+import {
+	DEFAULT_RESPONSE_START_TIMEOUT_MS,
+	ensureFetch,
+	readResponseStartTimeoutMs,
+	withResponseStartTimeout,
+} from "./http";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
@@ -1163,14 +1170,31 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				current: undefined,
 			};
 			try {
+				// Every provider request must start responding within the
+				// configured timeout (or the default) — otherwise a provider
+				// that accepts the connection and never answers leaves the
+				// task hanging on "Thinking..." indefinitely. Only response
+				// start is bounded; body streaming is never interrupted.
+				const responseStartTimeoutMs = readResponseStartTimeoutMs(
+					config,
+					kind === "ollama"
+						? OLLAMA_DEFAULT_TIMEOUT_MS
+						: DEFAULT_RESPONSE_START_TIMEOUT_MS,
+				);
 				const provider = await createProviderModule(
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
+						fetch: withResponseStartTimeout(
+							ensureFetch(
+								wrapFetchForStickySession(
+									wrapFetchForProviderRequestCapture(config.fetch, request),
+									request,
+									context,
+								),
+							),
+							responseStartTimeoutMs,
+							context.provider.name ?? request.providerId,
 						),
 					},
 					context,

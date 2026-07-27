@@ -562,9 +562,11 @@ describe("createGatewayApiHandler.createMessage", () => {
 			{ method: "POST" },
 		);
 
+		// The response-start timeout wrapper attaches an abort signal, so the
+		// init object is asserted structurally rather than by identity.
 		expect(providerFetch).toHaveBeenCalledWith(
 			"https://example.openai.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2025-01-01-preview",
-			{ method: "POST" },
+			expect.objectContaining({ method: "POST" }),
 		);
 	});
 
@@ -605,7 +607,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 
 		expect(providerFetch).toHaveBeenCalledWith(
 			"https://example.openai.azure.com/openai/v1/chat/completions",
-			{ method: "POST" },
+			expect.objectContaining({ method: "POST" }),
 		);
 	});
 

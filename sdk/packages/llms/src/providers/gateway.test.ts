@@ -4087,8 +4087,9 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("does not wrap provider fetch when wire capture is disabled", async () => {
-		const customFetch = vi.fn() as unknown as typeof fetch;
+	it("delegates provider fetch without capture side effects when wire capture is disabled", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -4107,10 +4108,121 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		// The response-start timeout always wraps the configured fetch, so
+		// identity is not preserved — but the request must pass through with
+		// its body untouched (no capture or sticky-session rewriting).
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		expect(config.fetch).not.toBe(customFetch);
+		const body = JSON.stringify({ messages: [{ role: "user", content: "hi" }] });
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body,
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(init?.body).toBe(body);
+	});
+
+	it("bounds provider response start with the configured timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			const hangingFetch = ((_input, init) =>
+				new Promise((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () =>
+						reject(init.signal?.reason),
+					);
+				})) as typeof fetch;
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+			});
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{
+						providerId: "openrouter",
+						apiKey: "test-key",
+						fetch: hangingFetch,
+						timeoutMs: 5_000,
+					},
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "openrouter",
+					modelId: "anthropic/claude-test",
+					messages: baseMessages,
+				}),
+			);
+
+			const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+				fetch?: typeof fetch;
+			};
+			const pending = config.fetch?.(
+				"https://openrouter.ai/api/v1/chat/completions",
+				{ method: "POST", body: "{}" },
+			);
+			const assertion = expect(pending).rejects.toMatchObject({
+				name: "TimeoutError",
+				message: expect.stringContaining(
+					"timed out after 5 seconds waiting for the response to start",
+				),
+			});
+			await vi.advanceTimersByTimeAsync(5_001);
+			await assertion;
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("bounds provider response start with the default timeout when none is configured", async () => {
+		vi.useFakeTimers();
+		try {
+			const hangingFetch = ((_input, init) =>
+				new Promise((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () =>
+						reject(init.signal?.reason),
+					);
+				})) as typeof fetch;
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+			});
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{ providerId: "openrouter", apiKey: "test-key", fetch: hangingFetch },
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "openrouter",
+					modelId: "anthropic/claude-test",
+					messages: baseMessages,
+				}),
+			);
+
+			const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+				fetch?: typeof fetch;
+			};
+			const pending = config.fetch?.(
+				"https://openrouter.ai/api/v1/chat/completions",
+				{ method: "POST", body: "{}" },
+			);
+			const assertion = expect(pending).rejects.toMatchObject({
+				name: "TimeoutError",
+				message: expect.stringContaining(
+					"timed out after 60 seconds waiting for the response to start",
+				),
+			});
+			await vi.advanceTimersByTimeAsync(60_001);
+			await assertion;
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
@@ -4456,10 +4568,20 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		// Only the response-start timeout wraps the fetch — no sticky-session
+		// rewriting, so the JSON body must pass through without a session_id.
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).not.toHaveProperty("session_id");
 	});
 
 	it("wraps provider fetch for wire capture while delegating to the configured fetch", async () => {
