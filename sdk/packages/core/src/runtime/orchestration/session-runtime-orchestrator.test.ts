@@ -2425,7 +2425,7 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
-	it("preserves identical parallel progress across an interleaved tool call", async () => {
+	it("preserves completed poll progress across an interleaved tool call", async () => {
 		const toolCall = (id: string, name = "poll") => ({
 			type: "tool-call" as const,
 			toolCallId: id,
@@ -2469,8 +2469,8 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 				started("parallel-1"),
 				started("other-1", "other"),
 				finished("other-1", "unchanged", "other"),
-				started("parallel-2"),
 				finished("parallel-1", "20% complete"),
+				started("parallel-2"),
 				finished("parallel-2", "10% complete"),
 				started("poll-3"),
 				finished("poll-3", "10% complete"),

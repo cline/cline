@@ -262,6 +262,10 @@ function toolOutcomeFingerprint(output: unknown): ToolOutcomeFingerprint {
 	}
 }
 
+function sequenceKey(toolName: string, toolSignature: string): string {
+	return JSON.stringify([toolName, toolSignature]);
+}
+
 interface InspectedCall {
 	batchId: number;
 	generation: number;
@@ -292,6 +296,7 @@ export class LoopDetectionTracker {
 	private readonly pendingCalls = new Map<string, InspectedCall>();
 	private anonymousPendingCall: InspectedCall | undefined;
 	private readonly batchOutcomes = new Map<number, ToolOutcomeFingerprint[]>();
+	private readonly deferredSuccessfulOutcomes = new Map<string, string>();
 	private lastSuccessfulOutcome:
 		| {
 				generation: number;
@@ -323,6 +328,18 @@ export class LoopDetectionTracker {
 			};
 			this.currentSequence = sequence;
 			startedNewSequence = true;
+			const deferredOutcome = this.deferredSuccessfulOutcomes.get(
+				sequenceKey(call.name, signature),
+			);
+			if (deferredOutcome !== undefined) {
+				this.lastSuccessfulOutcome = {
+					generation: sequence.generation,
+					outputSignature: deferredOutcome,
+				};
+				this.deferredSuccessfulOutcomes.delete(
+					sequenceKey(call.name, signature),
+				);
+			}
 			this.anonymousPendingCall = undefined;
 		}
 
@@ -412,13 +429,11 @@ export class LoopDetectionTracker {
 		} else {
 			this.anonymousPendingCall = undefined;
 		}
-		const isCurrentCall =
+		const isInspectedCall =
 			inspected !== undefined &&
-			this.currentSequence?.toolName === call.name &&
-			this.currentSequence.toolSignature === toolSignature &&
 			inspected.toolName === call.name &&
 			inspected.toolSignature === toolSignature;
-		if (!isCurrentCall) {
+		if (!isInspectedCall) {
 			if (
 				inspected !== undefined &&
 				![...this.pendingCalls.values()].some(
@@ -452,6 +467,16 @@ export class LoopDetectionTracker {
 		const outputSignature = JSON.stringify(
 			[...new Set(outcomes.map((entry) => entry.signature))].sort(),
 		);
+		const isCurrentSequence =
+			this.currentSequence?.toolName === call.name &&
+			this.currentSequence.toolSignature === toolSignature;
+		if (!isCurrentSequence) {
+			this.deferredSuccessfulOutcomes.set(
+				sequenceKey(call.name, toolSignature),
+				outputSignature,
+			);
+			return;
+		}
 		const previous = this.lastSuccessfulOutcome;
 		const currentGeneration = this.currentSequence?.generation;
 
@@ -476,6 +501,7 @@ export class LoopDetectionTracker {
 		this.pendingCalls.clear();
 		this.anonymousPendingCall = undefined;
 		this.batchOutcomes.clear();
+		this.deferredSuccessfulOutcomes.clear();
 		this.lastSuccessfulOutcome = undefined;
 	}
 }

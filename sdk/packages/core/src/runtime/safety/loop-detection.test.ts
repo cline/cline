@@ -263,6 +263,32 @@ describe("LoopDetectionTracker", () => {
 		expect(tracker.inspect({ ...otherCall, id: "other-2" }).kind).toBe("soft");
 	});
 
+	it("applies a completed poll outcome after an interleaved call finishes", () => {
+		const tracker = new LoopDetectionTracker({
+			softThreshold: 2,
+			hardThreshold: 3,
+		});
+		const baseline = { ...call, id: "baseline" };
+		const firstPoll = { ...call, id: "poll-1" };
+		const otherCall = {
+			id: "other-1",
+			name: "other",
+			input: { command: "status" },
+		};
+
+		expect(tracker.inspect(baseline).kind).toBe("ok");
+		observeSuccess(tracker, baseline, "10% complete");
+		expect(tracker.inspect(firstPoll).kind).toBe("soft");
+		expect(tracker.inspect(otherCall).kind).toBe("ok");
+		observeSuccess(tracker, otherCall, "unchanged");
+		observeSuccess(tracker, firstPoll, "20% complete");
+
+		const secondPoll = { ...call, id: "poll-2" };
+		expect(tracker.inspect(secondPoll).kind).toBe("ok");
+		observeSuccess(tracker, secondPoll, "10% complete");
+		expect(tracker.inspect({ ...call, id: "poll-3" }).kind).toBe("ok");
+	});
+
 	it("keeps earlier identical parallel outcomes across an interleaved call", () => {
 		const tracker = new LoopDetectionTracker({
 			softThreshold: 2,
