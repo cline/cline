@@ -101,7 +101,7 @@ describe("shouldNormalizeClineAutoModel", () => {
 		expect(shouldNormalizeClineAutoModel(CLINE_PASS_AUTO_MODEL_ID, options)).toBe(true)
 	})
 
-	it("normalizes only the Pass virtual ID when its entitlement flag is disabled", () => {
+	it("normalizes only the Pass virtual ID when its rollout gate is disabled", () => {
 		const options = { enabled: true, isClinePassAutoModelEnabled: false }
 
 		expect(shouldNormalizeClineAutoModel(CLINE_AUTO_MODEL_ID, options)).toBe(false)
