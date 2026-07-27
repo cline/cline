@@ -5,11 +5,12 @@ import type { ComputerUserCoordinator } from "./coordinator";
 
 /**
  * Driver-facing tools for delegating GUI work to the asynchronous computer
- * user. All four return immediately; the helper's results, questions, and
- * warnings arrive later as steer messages injected into the driver's
- * conversation. The tools are separate (rather than one action union)
- * because their approval semantics differ: hosts typically auto-approve
- * status polling while gating start/interrupt.
+ * user. Start, message, and interrupt return without waiting for the helper's
+ * turn. Status can return immediately or wait for a bounded change. Results,
+ * questions, and warnings also arrive as steer messages injected into the
+ * driver's conversation. The tools are separate (rather than one action
+ * union) because their approval semantics differ: hosts typically
+ * auto-approve status checks while gating start/interrupt.
  */
 
 const StartInput = z
@@ -47,7 +48,31 @@ const InterruptInput = z
 	})
 	.strict();
 
-const StatusInput = z.object({}).strict();
+const MAX_STATUS_WAIT_SECONDS = 120;
+const StatusInput = z
+	.object({
+		since: z
+			.number()
+			.int()
+			.nonnegative()
+			.optional()
+			.describe(
+				"Revision returned by a previous status call. Returns immediately if status has changed since this revision.",
+			),
+		timeout: z
+			.number()
+			.nonnegative()
+			.max(MAX_STATUS_WAIT_SECONDS)
+			.optional()
+			.describe(
+				`Maximum seconds to wait for a change when since is current (0-${MAX_STATUS_WAIT_SECONDS}). Requires since.`,
+			),
+	})
+	.strict()
+	.refine((input) => input.timeout === undefined || input.since !== undefined, {
+		message: "timeout requires since",
+		path: ["timeout"],
+	});
 
 /** Builds the driver-facing computer-user tools bound to one coordinator. */
 export function createComputerUserDriverTools(
@@ -74,9 +99,20 @@ export function createComputerUserDriverTools(
 	const status = createTool({
 		name: "computer_user_status",
 		description:
-			"Check what the computer user is doing right now: its latest posted update (with age), current state, and any pending question. Use while waiting instead of assuming progress.",
+			"Get the computer user's current state, latest update, and revision. To wait without polling, pass the revision from a previous response as since plus a timeout in seconds. Returns immediately if the revision has already changed; otherwise waits until a change or timeout.",
 		inputSchema: zodToJsonSchema(StatusInput),
-		execute: async () => coordinator.status(),
+		timeoutMs: (MAX_STATUS_WAIT_SECONDS + 5) * 1000,
+		retryable: false,
+		execute: async (input: unknown, context) => {
+			const parsed = StatusInput.parse(input);
+			return parsed.since === undefined
+				? coordinator.status()
+				: coordinator.waitForStatus(
+						parsed.since,
+						(parsed.timeout ?? 0) * 1000,
+						context.signal,
+					);
+		},
 	});
 
 	const message = createTool({
