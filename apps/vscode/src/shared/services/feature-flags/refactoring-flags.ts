@@ -59,7 +59,13 @@ export interface RefactoringFlags {
 }
 
 const DEFAULT_REFACTORING_FLAGS: RefactoringFlags = {
-	deltaStatePush: false,
+	/**
+	 * WARNING: deltaStatePush is now the default and its dependencies
+	 * (StatePostDebouncer, postDeltaToWebview gRPC bridge, webview delta
+	 * handling) are fully wired. Set to `false` only as a temporary kill
+	 * switch if the self-healing gap-detection produces false positives.
+	 */
+	deltaStatePush: true,
 	jsonlStorage: false,
 	sseHeartbeat: false,
 	terminalBusyTimeout: false,

@@ -52,6 +52,7 @@ import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { isRefactoringEnabled } from "@/shared/services/feature-flags/refactoring-flags"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
@@ -593,7 +594,9 @@ export class Controller {
 			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
-			postDeltaToWebview: (delta) => this.postDeltaToWebview(delta),
+			postDeltaToWebview: isRefactoringEnabled("deltaStatePush")
+				? (delta: DeltaPayload) => this.postDeltaToWebview(delta)
+				: undefined,
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),

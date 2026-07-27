@@ -98,6 +98,7 @@ export class SdkSessionEventCoordinator {
 			)
 		}
 
+		let hasDeltas = false
 		if (result.messages.length > 0) {
 			this.options.messages.appendAndEmit(result.messages, event)
 
@@ -116,6 +117,7 @@ export class SdkSessionEventCoordinator {
 						message: message as unknown,
 					})
 				}
+				hasDeltas = true
 			}
 		}
 
@@ -154,17 +156,21 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
-		// `done` event carries no transcript message, yet the authoritative phase just changed to
-		// completed/awaiting_followup/error above; without posting here the webview would stay on
-		// the prior phase (footer stuck on the streaming/scroll state). The webview reducer gates
-		// turnState by seq, so an extra no-message post is safe.
-		if (
-			result.messages.length > 0 ||
+		// Post state when there are messages to ship OR when the turn ended.
+		// OPTIMIZATION: When deltas were sent for message-level updates AND this is not
+		// a terminal event (session ended, turn complete), skip the full state push.
+		// The webview already has the latest messages via delta streaming. A full state
+		// rebuild serializes the entire ExtensionState (O(task history)) and is expensive.
+		// We always post full state on terminal events to ensure phase/footer consistency
+		// and to reconcile any dropped deltas.
+		const shouldPostFullState =
 			result.sessionEnded ||
 			result.turnComplete ||
-			event.type === "pending_prompt_submitted"
-		) {
+			event.type === "pending_prompt_submitted" ||
+			event.type === "pending_prompts" ||
+			// No messages + not terminal → nothing to push
+			(result.messages.length > 0 && !hasDeltas)
+		if (shouldPostFullState) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
