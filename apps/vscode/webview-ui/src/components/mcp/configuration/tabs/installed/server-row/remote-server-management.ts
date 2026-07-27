@@ -10,26 +10,28 @@ export type RemoteMcpServerManagement = {
 }
 
 /**
- * The persistent remoteConfigured marker is the source of truth for ownership.
- * URL matching is unsafe here because projected URLs omit query parameters that
- * can distinguish tenants or routes. The server name identifies the matching
- * policy entry only after ownership has been established by the marker.
+ * A matching remote policy protects the server before settings sync writes its
+ * persistent remoteConfigured marker. The marker keeps previously managed
+ * servers protected while remote policy is loading.
  */
 export function getRemoteMcpServerManagement(
 	serverName: string,
 	projectedConfig: string,
 	remoteServers: readonly RemoteMcpServerPolicy[],
 ): RemoteMcpServerManagement {
-	try {
-		const config = JSON.parse(projectedConfig)
-		if (config.remoteConfigured !== true) {
-			return { isRemoteManagedServer: false, isAlwaysEnabled: false }
-		}
-
-		const policy = remoteServers.find((remote) => remote.name === serverName)
+	const policy = remoteServers.find((remote) => remote.name === serverName)
+	if (policy) {
 		return {
 			isRemoteManagedServer: true,
-			isAlwaysEnabled: policy?.alwaysEnabled === true,
+			isAlwaysEnabled: policy.alwaysEnabled === true,
+		}
+	}
+
+	try {
+		const config = JSON.parse(projectedConfig)
+		return {
+			isRemoteManagedServer: config.remoteConfigured === true,
+			isAlwaysEnabled: false,
 		}
 	} catch {
 		return { isRemoteManagedServer: false, isAlwaysEnabled: false }
