@@ -2403,7 +2403,14 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 				...[1, 2, 3].flatMap((index) =>
 					completedTool(
 						`failed-${index}`,
-						[{ error: `attempt ${index}`, success: false }],
+						[
+							{
+								query: "false",
+								result: "",
+								error: `attempt ${index}`,
+								success: false,
+							},
+						],
 						{
 							iteration: index,
 							name: "run_commands",
@@ -2417,6 +2424,41 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.run("repeat a failing command");
 
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("retains successful progress from mixed built-in operation results", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[25, 50, 75].flatMap((progress, index) =>
+					completedTool(
+						`mixed-${index}`,
+						[
+							{
+								query: "poll",
+								result: { progress },
+								success: true,
+							},
+							{
+								query: "optional-check",
+								result: "",
+								error: `attempt ${index + 1}`,
+								success: false,
+							},
+						],
+						{
+							iteration: index + 1,
+							name: "run_commands",
+							input: { commands: ["poll", "optional-check"] },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor a partially successful command batch");
+
+		expect(abortCalls).toHaveLength(0);
 	});
 
 	it("still aborts repeated adapter-promoted MCP failures", async () => {
@@ -2462,6 +2504,33 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		});
 
 		await session.run("monitor a successful custom tool");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("allows successful custom outputs containing success data", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[25, 50, 75].flatMap((progress, index) =>
+					completedTool(
+						`custom-status-${index}`,
+						{
+							query: "remote-job",
+							result: { progress },
+							success: false,
+						},
+						{
+							iteration: index + 1,
+							name: "custom_status",
+							input: { jobId: "job-1" },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor successful custom result data");
 
 		expect(abortCalls).toHaveLength(0);
 	});

@@ -48,6 +48,7 @@ import {
 	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
+import { DefaultToolNames } from "../../extensions/tools/constants";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
@@ -91,14 +92,34 @@ function formatToolResultError(output: unknown): string {
 	}
 }
 
-function containsFailedToolOperation(output: unknown): boolean {
+const OPERATION_RESULT_TOOL_NAMES = new Set<string>([
+	DefaultToolNames.READ_FILES,
+	DefaultToolNames.SEARCH_CODEBASE,
+	DefaultToolNames.RUN_COMMANDS,
+	DefaultToolNames.FETCH_WEB_CONTENT,
+	DefaultToolNames.APPLY_PATCH,
+	DefaultToolNames.EDITOR,
+]);
+
+function containsOnlyFailedToolOperations(
+	toolName: string,
+	output: unknown,
+): boolean {
+	if (!OPERATION_RESULT_TOOL_NAMES.has(toolName)) {
+		return false;
+	}
 	const operations = Array.isArray(output) ? output : [output];
-	return operations.some(
-		(operation) =>
-			operation !== null &&
-			typeof operation === "object" &&
-			!Array.isArray(operation) &&
-			(operation as { success?: unknown }).success === false,
+	return (
+		operations.length > 0 &&
+		operations.every(
+			(operation) =>
+				operation !== null &&
+				typeof operation === "object" &&
+				!Array.isArray(operation) &&
+				typeof (operation as { query?: unknown }).query === "string" &&
+				"result" in operation &&
+				(operation as { success?: unknown }).success === false,
+		)
 	);
 }
 
@@ -1123,7 +1144,10 @@ export class SessionRuntime {
 				const isSuccessfulOutcome =
 					!isError &&
 					resultPart?.type === "tool-result" &&
-					!containsFailedToolOperation(resultPart.output);
+					!containsOnlyFailedToolOperations(
+						event.toolCall.toolName,
+						resultPart.output,
+					);
 				this.loopTracker.observeOutcome(
 					{
 						iteration: event.iteration,
