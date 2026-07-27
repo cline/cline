@@ -95,7 +95,26 @@
  * ```
  */
 
-import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+/**
+ * IMPORTANT: undici must only ever be loaded in standalone (JetBrains/CLI)
+ * builds, and only via the lazy `require` call below--never via a top-level
+ * value import.
+ *
+ * Merely evaluating the undici module registers its Agent at the global
+ * symbols `Symbol.for("undici.globalDispatcher.1")` (and `.2`), which are
+ * shared with Node's built-in fetch. When the bundled undici version differs
+ * from the undici built into the Node runtime (e.g. VS Code's Electron),
+ * built-in fetch picks up the foreign Agent and requests can fail with
+ * errors like `UND_ERR_INVALID_ARG`, surfacing as provider
+ * "Connection error." failures. It also bypasses VS Code's proxy-aware
+ * fetch patching, breaking inference behind proxies configured via
+ * `http.proxy`. See https://github.com/cline/cline/issues/11407 and
+ * https://github.com/cline/cline/issues/12362
+ */
+function requireUndici(): typeof import("undici") {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	return require("undici")
+}
 
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
@@ -119,7 +138,9 @@ export const fetch: typeof globalThis.fetch = (() => {
 	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
 	if (process.env.IS_STANDALONE === "true") {
-		// Configure undici with ProxyAgent
+		// Configure undici with ProxyAgent. undici is loaded lazily so that
+		// the VSCode build never evaluates it (see requireUndici above).
+		const { EnvHttpProxyAgent, setGlobalDispatcher, fetch: undiciFetch } = requireUndici()
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)
 		baseFetch = undiciFetch as any as typeof globalThis.fetch

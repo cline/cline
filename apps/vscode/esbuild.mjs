@@ -68,6 +68,74 @@ const aliasResolverPlugin = {
 	},
 }
 
+/**
+ * Replaces undici's `lib/global.js` in VS Code extension builds.
+ *
+ * Merely evaluating undici's `lib/global.js` registers a bundled-undici Agent
+ * at the process-wide `Symbol.for("undici.globalDispatcher.*")` globals, which
+ * Node's built-in fetch shares. In VS Code's extension host, that makes
+ * built-in fetch drive a foreign, version-mismatched Agent, which breaks
+ * requests (e.g. `UND_ERR_INVALID_ARG`) and bypasses VS Code's proxy-aware
+ * fetch patching. Dependencies like cheerio and open-graph-scraper pull undici
+ * into the bundle unconditionally, so this shim keeps the bundled undici's
+ * dispatcher in a module-local variable instead of the shared globals.
+ *
+ * Standalone (JetBrains/CLI) builds keep the real global.js: there, net.ts
+ * intentionally installs an EnvHttpProxyAgent as the global dispatcher.
+ *
+ * See https://github.com/cline/cline/issues/11407 and
+ * https://github.com/cline/cline/issues/12362
+ *
+ * @type {import('esbuild').Plugin}
+ */
+const undiciGlobalDispatcherShimPlugin = {
+	name: "undici-global-dispatcher-shim",
+	setup(build) {
+		build.onLoad({ filter: /[\\/]undici[\\/]lib[\\/]global\.js$/ }, (args) => ({
+			contents: `'use strict'
+const { InvalidArgumentError } = require('./core/errors')
+const Agent = require('./dispatcher/agent')
+
+// Module-local dispatcher: never touch globalThis[Symbol.for('undici.globalDispatcher.*')].
+let globalDispatcher = new Agent()
+
+function setGlobalDispatcher (agent) {
+  if (!agent || typeof agent.dispatch !== 'function') {
+    throw new InvalidArgumentError('Argument agent must implement Agent')
+  }
+  globalDispatcher = agent
+}
+
+function getGlobalDispatcher () {
+  return globalDispatcher
+}
+
+// Mirrors the real global.js export (used by undici's install()).
+const installedExports = [
+  'fetch',
+  'Headers',
+  'Response',
+  'Request',
+  'FormData',
+  'WebSocket',
+  'CloseEvent',
+  'ErrorEvent',
+  'MessageEvent',
+  'EventSource'
+]
+
+module.exports = {
+  setGlobalDispatcher,
+  getGlobalDispatcher,
+  installedExports
+}
+`,
+			resolveDir: path.dirname(args.path),
+			loader: "js",
+		}))
+	},
+}
+
 const esbuildProblemMatcherPlugin = {
 	name: "esbuild-problem-matcher",
 
@@ -142,6 +210,7 @@ const baseConfig = {
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		aliasResolverPlugin,
+		...(standalone ? [] : [undiciGlobalDispatcherShimPlugin]),
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
 	],
