@@ -47,13 +47,11 @@ without turning `@cline/ui` into a second agent runtime.
 
 ## Current status
 
-`@cline/ui@0.1.0` is publicly available. The package has its own version and
-manual release workflow. The API is pre-stable, so production consumers should
-pin exact versions and review compatibility notes when updating.
-
-The scoped-token and standalone Markdown exports in this guide are part of the
-upcoming `0.2` release. Until a `next` preview is published, consume them from
-the Cline workspace.
+`@cline/ui` is configured for public npm publication with its own version and
+manual release workflow. Check availability with `npm view @cline/ui version`;
+an `E404` means the first release is still pending. The API is pre-stable, so
+production consumers should pin exact versions and review compatibility notes
+when updating.
 
 Desktop is the first production-shaped consumer of both the theme and shared
 chat primitives. Storybook is the reference catalog for isolated component
@@ -94,8 +92,8 @@ manifest and lockfile.
 
 ## Install from npm in another repository
 
-Install the latest production UI release. The `--exact` flag records the
-resolved version instead of a range:
+After the initial release is available, install the latest production UI
+release. The `--exact` flag records the resolved version instead of a range:
 
 ```bash
 bun add --exact @cline/ui
@@ -114,7 +112,6 @@ bun add --dev tailwindcss
 ```
 
 Applications already on React 18.3 can retain that compatible version.
-TypeScript consumers should use `@types/react` 18.3 or 19.
 Tokens-only consumers do not need React or Tailwind.
 
 Commit the consuming repository's lockfile so builds continue using the same
@@ -203,49 +200,27 @@ For native controls that should follow the selected theme:
 
 ## Option 4: subtree-scoped tokens
 
-Use the scoped entry when an embedded Cline surface must preserve the host
-application's existing `:root` theme:
+Use the scoped entry when an embedded Cline surface must preserve its host's
+existing `:root` theme:
 
 ```css
 @import "@cline/ui/theme/scoped-tokens.css";
 ```
 
-Wrap the embedded surface with `cline-ui-theme`. Dark values apply when `dark`
-is on the same element or an ancestor:
+Wrap the surface with `cline-ui-theme`; dark values apply when `dark` is on the
+same element or an ancestor:
 
 ```tsx
-<main className="host-dashboard">
-  <section className="cline-ui-theme">...</section>
-</main>
-
 <section className="cline-ui-theme dark">...</section>
 ```
 
-The scoped entry defines variables only. The host continues to own document
-styles, native `color-scheme`, fonts, shell layout, navigation, and routing.
-Place deliberate scoped overrides after the package import:
-
-```css
-.cline-ui-theme {
-  --primary: /* product-specific value */;
-}
-
-.cline-ui-theme.dark,
-.dark .cline-ui-theme {
-  --primary: /* dark product-specific value */;
-}
-```
-
-`tokens.css` is the canonical source for both public token contracts.
-Contributors edit it and run `bun run generate:theme`; consumers should not
-edit or copy the generated `scoped-tokens.css` file.
+The scoped entry defines variables only; the host continues to own document
+styles, fonts, shell layout, navigation, and routing.
 
 ## Add standalone Markdown styles
 
-`components/markdown.css` contains optional, framework-neutral Markdown and
-Streamdown treatment, but it intentionally reads semantic typography, radius,
-border, and muted-color variables. Import it after either token entry and keep
-rendered Markdown inside that token scope:
+Import the framework-neutral Markdown treatment after either token entry and
+keep rendered Markdown inside that token scope:
 
 ```css
 @import "@cline/ui/theme/scoped-tokens.css";
@@ -257,9 +232,6 @@ rendered Markdown inside that token scope:
   <div className="cline-markdown">...</div>
 </section>
 ```
-
-Consumers retain their own Markdown renderer, plugins, sanitization, external
-link behavior, and image policy.
 
 ## Add the agent-chat components
 
