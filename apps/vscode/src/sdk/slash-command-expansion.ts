@@ -57,9 +57,9 @@ export interface WorkflowRecordRef {
 
 export interface ExpandSlashCommandsOptions {
 	/**
-	 * Canonical (extension-less, lower-cased) workflow names the user disabled
-	 * via the Workflows toggles, from {@link buildDisabledWorkflowNames}.
-	 * Disabled workflows are left unexpanded, matching legacy semantics.
+	 * Exact command names of workflows the user disabled via the Workflows
+	 * toggles, from {@link buildDisabledWorkflowNames}. Disabled workflows are
+	 * left unexpanded, matching legacy semantics.
 	 */
 	disabledWorkflowNames?: ReadonlySet<string>
 	/**
@@ -140,7 +140,7 @@ export function expandSlashCommands(
 		if (!command) {
 			continue
 		}
-		if (command.kind === "workflow" && disabledWorkflowNames.has(canonicalWorkflowName(command.name))) {
+		if (command.kind === "workflow" && disabledWorkflowNames.has(command.name)) {
 			continue
 		}
 		const start = (match.index ?? 0) + match[1].length
@@ -164,18 +164,24 @@ export interface BuildDisabledWorkflowNamesOptions {
 }
 
 /**
- * Build the set of canonical command names whose workflows the user disabled
- * via the Workflows toggles (local, global, and enterprise/remote scopes).
+ * Build the set of exact command names whose workflows the user disabled via
+ * the Workflows toggles (local, global, and enterprise/remote scopes).
  *
- * Toggle state is matched to each discovered record by its file basename, so a
- * frontmatter `name` that differs from the filename is still governed by the
- * file's toggle. A command name shared by several records (across scopes) or
- * a basename toggled in several scopes counts as enabled when *any* of them is
- * enabled: legacy expansion only searched enabled workflows across scopes, so
- * a disabled workspace file must not shadow a same-named enabled global or
- * enterprise one (or vice versa). Files materialized from remote config are
- * governed by the name-keyed remote toggles instead, and locked
- * (`alwaysEnabled`) remote workflows always count as enabled.
+ * Each command is governed by the toggle state of its own record — the file
+ * whose body would actually expand — so a disabled workflow in one scope can
+ * neither suppress nor unlock a *different* command that happens to share a
+ * similar name in another scope. (The SDK keeps one record per command name,
+ * so per-record evaluation is per-command evaluation.)
+ *
+ * Toggle state is matched to a record by its file basename, so a frontmatter
+ * `name` that differs from the filename is still governed by the file's
+ * toggle. A basename toggled in several scopes counts as enabled when *any*
+ * scope has it enabled: those files collapse into a single record, and legacy
+ * expansion only searched enabled workflows across scopes, so a disabled
+ * workspace file must not shadow a same-named enabled global one (or vice
+ * versa). Files materialized from remote config are governed by the
+ * name-keyed remote toggles instead, and locked (`alwaysEnabled`) remote
+ * workflows always count as enabled.
  */
 export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOptions): Set<string> {
 	const enabledByBasename = new Map<string, boolean>()
@@ -193,10 +199,9 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 	)
 	const remoteAlwaysEnabled = new Set([...(options.remoteAlwaysEnabledNames ?? [])].map(remoteWorkflowNameKey))
 
-	const enabledByName = new Map<string, boolean>()
+	const disabled = new Set<string>()
 	for (const record of options.records) {
-		const name = canonicalWorkflowName(record.name)
-		if (!name) {
+		if (!record.name) {
 			continue
 		}
 		let enabled: boolean
@@ -206,13 +211,8 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 		} else {
 			enabled = enabledByBasename.get(canonicalWorkflowName(fileBasename(record.filePath))) ?? true
 		}
-		enabledByName.set(name, (enabledByName.get(name) ?? false) || enabled)
-	}
-
-	const disabled = new Set<string>()
-	for (const [name, enabled] of enabledByName) {
 		if (!enabled) {
-			disabled.add(name)
+			disabled.add(record.name)
 		}
 	}
 	return disabled

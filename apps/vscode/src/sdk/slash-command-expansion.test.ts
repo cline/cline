@@ -81,7 +81,7 @@ describe("expandSlashCommands", () => {
 })
 
 describe("buildDisabledWorkflowNames", () => {
-	it("disables records whose file toggle is off, by canonical command name", () => {
+	it("disables records whose file toggle is off, by exact command name", () => {
 		const disabled = buildDisabledWorkflowNames({
 			records: [
 				{ name: "Release", filePath: "/home/user/Documents/Cline/Workflows/Release.md" },
@@ -94,7 +94,7 @@ describe("buildDisabledWorkflowNames", () => {
 				"/home/user/Documents/Cline/Workflows/keep.md": true,
 			},
 		})
-		expect(disabled).toEqual(new Set(["release", "notes"]))
+		expect(disabled).toEqual(new Set(["Release", "notes"]))
 	})
 
 	it("matches the toggle by file basename even when frontmatter renames the command", () => {
@@ -125,16 +125,28 @@ describe("buildDisabledWorkflowNames", () => {
 		).toEqual(new Set())
 	})
 
-	it("keeps a name enabled when a disabled local record shares it with an enabled remote record", () => {
-		const disabled = buildDisabledWorkflowNames({
-			records: [
-				{ name: "release", filePath: "/repo/.clinerules/workflows/release.md" },
-				{ name: "release", filePath: "/repo/.cline/remote-config/workflows/release.md" },
-			],
-			workspaceToggles: { "/repo/.clinerules/workflows/release.md": false },
-			remoteToggles: { release: true },
-		})
-		expect(disabled).toEqual(new Set())
+	it("governs each command by its own record when similar names span scopes", () => {
+		// Distinct commands whose names only differ by case/extension must not
+		// influence each other: the disabled remote command stays disabled even
+		// though the similarly-named local one is enabled, and vice versa.
+		const records = [
+			{ name: "Release", filePath: "/repo/.clinerules/workflows/Release.md" },
+			{ name: "release", filePath: "/repo/.cline/remote-config/workflows/release.md" },
+		]
+		expect(
+			buildDisabledWorkflowNames({
+				records,
+				workspaceToggles: { "/repo/.clinerules/workflows/Release.md": true },
+				remoteToggles: { release: false },
+			}),
+		).toEqual(new Set(["release"]))
+		expect(
+			buildDisabledWorkflowNames({
+				records,
+				workspaceToggles: { "/repo/.clinerules/workflows/Release.md": false },
+				remoteAlwaysEnabledNames: ["release"],
+			}),
+		).toEqual(new Set(["Release"]))
 	})
 
 	it("treats records without any toggle entry as enabled", () => {
