@@ -4115,7 +4115,9 @@ describe("sdk-gateway", () => {
 			fetch?: typeof fetch;
 		};
 		expect(config.fetch).not.toBe(customFetch);
-		const body = JSON.stringify({ messages: [{ role: "user", content: "hi" }] });
+		const body = JSON.stringify({
+			messages: [{ role: "user", content: "hi" }],
+		});
 		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
 			method: "POST",
 			body,
