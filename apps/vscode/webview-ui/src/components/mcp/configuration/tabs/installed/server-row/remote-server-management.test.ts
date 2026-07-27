@@ -26,6 +26,18 @@ describe("getRemoteMcpServerManagement", () => {
 		).toEqual({ isRemoteManagedServer: false, isAlwaysEnabled: false })
 	})
 
+	it("protects a policy-named server before sync writes the remoteConfigured marker", () => {
+		expect(
+			getRemoteMcpServerManagement("enterprise-server", JSON.stringify({}), [
+				{
+					name: "enterprise-server",
+					url: "https://mcp.example.com/connect?tenant=acme",
+					alwaysEnabled: true,
+				},
+			]),
+		).toEqual({ isRemoteManagedServer: true, isAlwaysEnabled: true })
+	})
+
 	it("keeps a marked server protected while remote policy is loading", () => {
 		expect(getRemoteMcpServerManagement("enterprise-server", JSON.stringify({ remoteConfigured: true }), [])).toEqual({
 			isRemoteManagedServer: true,

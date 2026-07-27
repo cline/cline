@@ -1,11 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import {
 	type McpServerOAuthState,
 	McpSettingsUpdateSkippedError,
 	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistrations,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
-import { sanitizeMcpDiagnosticText } from "@cline/shared";
 
 export interface McpServerEntry {
 	name: string;
@@ -32,37 +32,17 @@ export function loadServers(): McpServerEntry[] {
 	const path = getSettingsPath();
 	if (!existsSync(path)) return [];
 	try {
-		const raw = readFileSync(path, "utf-8");
-		const parsed = JSON.parse(raw) as {
-			mcpServers?: Record<string, unknown>;
-		};
-		const servers = parsed.mcpServers ?? {};
-		return Object.entries(servers).map(([name, value]) => {
-			const entry = value as Record<string, unknown>;
-			const transport = (entry.transport ?? entry) as McpTransport;
-			const oauthState =
-				entry.oauth &&
-				typeof entry.oauth === "object" &&
-				!Array.isArray(entry.oauth)
-					? (entry.oauth as McpServerOAuthState)
-					: undefined;
-			const oauth = oauthState
-				? {
-						...oauthState,
-						...(oauthState.lastError
-							? {
-									lastError: sanitizeMcpDiagnosticText(oauthState.lastError),
-								}
-							: {}),
-					}
-				: undefined;
-			return {
-				name,
-				transport,
-				disabled: entry.disabled === true,
-				oauth,
-			};
-		});
+		// Read through @cline/core so the settings file permissions are
+		// repaired (0600 on POSIX) before the credential-bearing JSON is
+		// read; core also sanitizes stored OAuth diagnostics.
+		return resolveMcpServerRegistrations({ filePath: path }).map(
+			(registration) => ({
+				name: registration.name,
+				transport: registration.transport,
+				disabled: registration.disabled === true,
+				oauth: registration.oauth,
+			}),
+		);
 	} catch {
 		return [];
 	}
