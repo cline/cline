@@ -178,8 +178,28 @@ class StdioMcpClient implements McpServerClient {
 
 		const attempts: StdioProtocolMode[] = ["newline", "framed"];
 		let lastError: Error | undefined;
+		// An explicit timeout is the total initialize budget across both protocol
+		// encodings. Omitted timeouts preserve the legacy 1.5s budget per probe.
+		const connectDeadline =
+			this.registration.timeoutSeconds === undefined
+				? undefined
+				: Date.now() + this.connectAttemptTimeoutMs;
 
-		for (const protocolMode of attempts) {
+		for (const [attemptIndex, protocolMode] of attempts.entries()) {
+			const attemptTimeoutMs =
+				connectDeadline === undefined
+					? this.connectAttemptTimeoutMs
+					: Math.floor(
+							Math.max(0, connectDeadline - Date.now()) /
+								(attempts.length - attemptIndex),
+						);
+			if (attemptTimeoutMs <= 0) {
+				lastError = this.createTimeoutError(
+					"initialize",
+					this.connectAttemptTimeoutMs,
+				);
+				break;
+			}
 			await this.disconnect().catch(() => {});
 			this.spawnProcess(protocolMode);
 			try {
@@ -193,6 +213,8 @@ class StdioMcpClient implements McpServerClient {
 							version: "0.0.0",
 						},
 					},
+					attemptTimeoutMs,
+					undefined,
 					this.connectAttemptTimeoutMs,
 				);
 				this.notify("notifications/initialized");
@@ -388,6 +410,7 @@ class StdioMcpClient implements McpServerClient {
 		params?: Record<string, unknown>,
 		timeoutMs = this.requestTimeoutMs,
 		signal?: AbortSignal,
+		timeoutMessageMs = timeoutMs,
 	): Promise<unknown> {
 		const child = this.process;
 		if (!child?.stdin.writable) {
@@ -407,14 +430,7 @@ class StdioMcpClient implements McpServerClient {
 		const resultPromise = new Promise<unknown>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				this.takePending(id);
-				// One decimal place so sub-second probe budgets print accurately.
-				const seconds = Math.round(timeoutMs / 100) / 10;
-				reject(
-					new Error(
-						`MCP request timed out for "${this.registration.name}" (${method}) after ${seconds}s. ` +
-							`Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.`,
-					),
-				);
+				reject(this.createTimeoutError(method, timeoutMessageMs));
 			}, timeoutMs);
 			const onAbort = signal
 				? () => {
@@ -462,6 +478,15 @@ class StdioMcpClient implements McpServerClient {
 		}
 
 		return resultPromise;
+	}
+
+	private createTimeoutError(method: string, timeoutMs: number): Error {
+		// One decimal place so sub-second probe budgets print accurately.
+		const seconds = Math.round(timeoutMs / 100) / 10;
+		return new Error(
+			`MCP request timed out for "${this.registration.name}" (${method}) after ${seconds}s. ` +
+				`Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.`,
+		);
 	}
 
 	private notify(method: string, params?: Record<string, unknown>): void {

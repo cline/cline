@@ -939,7 +939,7 @@ export class McpHub {
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
 				this.serverGainedOAuthTokens(currentConnection, config)
 			) {
-				// Existing server with changed connection config (excludes Cline-specific settings),
+				// Existing server with changed connection config,
 				// or an unauthenticated server whose OAuth tokens just appeared (e.g. CLI authorized it)
 				try {
 					if (config.type === "stdio") {
@@ -1012,7 +1012,7 @@ export class McpHub {
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
 				this.serverGainedOAuthTokens(currentConnection, config)
 			) {
-				// Existing server with changed connection config (excludes Cline-specific settings),
+				// Existing server with changed connection config,
 				// or an unauthenticated server whose OAuth tokens just appeared in the settings
 				// file (e.g. the CLI or another window completed authorization for it)
 				try {
@@ -1060,14 +1060,13 @@ export class McpHub {
 
 	/**
 	 * Compares two MCP server configs to determine if a restart is required.
-	 * Excludes Cline-specific settings since they don't affect the MCP server transport connection.
+	 * Excludes Cline-specific settings that don't affect the MCP client.
 	 *
 	 * ## Cline-specific settings (don't require restart):
 	 * - `autoApprove`: tool approval list (UI setting)
-	 * - `timeout`: request timeout (read at request time, not connection time)
 	 *
-	 * ## MCP SDK connection settings (require restart):
-	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`
+	 * ## MCP client settings (require restart):
+	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`, `timeout`
 	 *
 	 * ## Adding new Cline-specific settings:
 	 * When adding a new setting that doesn't require server restart:
@@ -1086,7 +1085,6 @@ export class McpHub {
 		// serverGainedOAuthTokens in updateServerConnections.
 		const {
 			autoApprove: _oldAutoApprove,
-			timeout: _oldTimeout,
 			remoteConfigured: _oldRemoteConfigured,
 			oauth: _oldOauth,
 			metadata: _oldMetadata,
@@ -1094,7 +1092,6 @@ export class McpHub {
 		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
 		const {
 			autoApprove: _newAutoApprove,
-			timeout: _newTimeout,
 			remoteConfigured: _newRemoteConfigured,
 			oauth: _newOauth,
 			metadata: _newMetadata,
@@ -1699,14 +1696,7 @@ export class McpHub {
 				return parsed
 			})
 			const config = await this.readPostWriteMcpSettings()
-
-			// Update in-memory config to reflect the new timeout
-			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection) {
-				const currentConfig = JSON.parse(connection.server.config)
-				currentConfig.timeout = timeout
-				connection.server.config = JSON.stringify(currentConfig)
-			}
+			await this.updateServerConnectionsRPC(config.mcpServers as Record<string, McpServerConfig>)
 
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)

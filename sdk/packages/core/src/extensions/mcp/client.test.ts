@@ -224,6 +224,25 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
+	it("shares one configured initialize timeout across both protocol probes", async () => {
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({
+				timeoutSeconds: 2,
+				delayMs: 0,
+				initDelayMs: 10_000,
+			}),
+		);
+		const startedAt = Date.now();
+		try {
+			await expect(client.connect()).rejects.toThrow(/after 2s/);
+			// Two independent 2s probes would exceed this bound.
+			expect(Date.now() - startedAt).toBeLessThan(3_500);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
 	it("terminates the real child when the final initialize attempt fails", async () => {
 		const pidFile = join(tempRoot, `failed-init-${Date.now()}.pid`);
 		const factory = createDefaultMcpServerClientFactory();
