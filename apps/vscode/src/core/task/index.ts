@@ -1742,7 +1742,7 @@ export class Task {
 					text: formatResponse.noToolsUsed(this.useNativeToolCalls),
 				},
 			];
-			this.taskState.consecutiveMistakeCount++;
+			this.taskState.recordNoToolMistake();
 		}
 	}
 
@@ -2837,11 +2837,18 @@ export class Task {
 				),
 				yoloMode: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			});
+			const fromNoToolTurns =
+				this.taskState.isConsecutiveMistakeStreakFromNoTools;
+			const mistakeLimitMessage = formatResponse.mistakeLimitReached({
+				consecutiveMistakes: this.taskState.consecutiveMistakeCount,
+				fromNoToolTurns,
+			});
 			// In yolo mode, don't wait for user input - fail the task
 			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
-				const errorMessage =
-					`[YOLO MODE] Task failed: Too many consecutive mistakes (${this.taskState.consecutiveMistakeCount}). ` +
-					`The model may not be capable enough for this task. Consider using a more capable model.`;
+				const errorMessage = fromNoToolTurns
+					? `[YOLO MODE] Task failed: ${mistakeLimitMessage}`
+					: `[YOLO MODE] Task failed: Too many consecutive mistakes (${this.taskState.consecutiveMistakeCount}). ` +
+						`The model may not be capable enough for this task. Consider using a more capable model.`;
 				await this.say("error", errorMessage);
 				// End the task loop with failure
 				return true; // didEndLoop = true, signals task completion/failure
@@ -2859,7 +2866,7 @@ export class Task {
 			}
 			const { response, text, images, files } = await this.ask(
 				"mistake_limit_reached",
-				`Cline hit repeated tool call failures. Try guiding it with a new prompt.`,
+				mistakeLimitMessage,
 			);
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
@@ -3821,7 +3828,7 @@ export class Task {
 						type: "text",
 						text: formatResponse.noToolsUsed(this.useNativeToolCalls),
 					});
-					this.taskState.consecutiveMistakeCount++;
+					this.taskState.recordNoToolMistake();
 				}
 
 				// Reset auto-retry counter for each new API request
