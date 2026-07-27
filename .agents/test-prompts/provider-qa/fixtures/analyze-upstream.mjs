@@ -18,10 +18,89 @@ const raw = readFileSync(path, "utf8");
 // Native tool-call delimiters used by DeepSeek R1 style models.
 const R1_TOKEN = /tool\s*.{0,3}\s*call\s*.{0,3}\s*begin|tool\s*.{0,3}\s*sep|\u2581/;
 
+/**
+ * Responses-API streams carry tool calls as `response.output_item.added`
+ * (function_call) plus a run of `response.function_call_arguments.delta`
+ * events, so they need their own accounting: how many function_call items the
+ * provider actually opened, how many fragments each argument arrived in, and
+ * whether the reassembled string parses.
+ */
+function summarizeResponsesStream(chunk) {
+	const items = new Map();
+	let sawResponsesEvent = false;
+	let text = "";
+
+	for (const line of chunk.split("\n")) {
+		if (!line.startsWith("data: ")) continue;
+		const payload = line.slice(6).trim();
+		if (!payload || payload === "[DONE]") continue;
+		let json;
+		try {
+			json = JSON.parse(payload);
+		} catch {
+			continue;
+		}
+		const type = json.type;
+		if (typeof type !== "string" || !type.startsWith("response.")) continue;
+		sawResponsesEvent = true;
+
+		if (type === "response.output_item.added" && json.item?.type === "function_call") {
+			items.set(json.output_index, {
+				name: json.item.name,
+				callId: json.item.call_id,
+				args: json.item.arguments ?? "",
+				fragments: 0,
+			});
+		} else if (type === "response.function_call_arguments.delta") {
+			const slot = items.get(json.output_index);
+			if (slot) {
+				slot.args += json.delta ?? "";
+				slot.fragments += 1;
+			}
+		} else if (type === "response.output_item.done" && json.item?.type === "function_call") {
+			const slot = items.get(json.output_index);
+			if (slot) slot.finalArgs = json.item.arguments ?? "";
+		} else if (type === "response.output_text.delta") {
+			text += json.delta ?? "";
+		}
+	}
+
+	return sawResponsesEvent ? { items, text } : undefined;
+}
+
 const responses = raw.split(/^===== /m).filter((chunk) => chunk.trim());
 
 for (const [i, chunk] of responses.entries()) {
 	const header = chunk.split("\n", 1)[0];
+
+	const responsesSummary = summarizeResponsesStream(chunk);
+	if (responsesSummary) {
+		const { items, text } = responsesSummary;
+		console.log(`===== upstream response ${i + 1} (Responses API) =====`);
+		console.log(`  ${header}`);
+		console.log(`  function_call items:  ${items.size}`);
+		const callIds = new Set([...items.values()].map((s) => s.callId));
+		console.log(`  distinct call ids:    ${callIds.size}`);
+		for (const [index, slot] of [...items.entries()].sort((a, b) => a[0] - b[0])) {
+			console.log(`    output_index ${index}: name=${slot.name} call_id=${slot.callId}`);
+			console.log(`      argument fragments: ${slot.fragments}`);
+			console.log(`      reassembled bytes:  ${slot.args.length}`);
+			let parses = false;
+			try {
+				JSON.parse(slot.args);
+				parses = true;
+			} catch {}
+			console.log(`      parses as JSON:     ${parses}`);
+			if (slot.finalArgs !== undefined) {
+				console.log(`      matches output_item.done payload: ${slot.finalArgs === slot.args}`);
+			}
+			console.log(`      args head: ${JSON.stringify(slot.args.slice(0, 220))}`);
+		}
+		console.log(`  tool syntax leaked into text channel: ${R1_TOKEN.test(text)}`);
+		console.log(`  text length: ${text.length}`);
+		continue;
+	}
+
 	const byIndex = new Map();
 	const ids = new Set();
 	let content = "";
