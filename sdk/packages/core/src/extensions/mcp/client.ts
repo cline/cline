@@ -37,15 +37,10 @@ type JsonRpcMessage = {
 	};
 };
 
-type StdioProtocolMode = "newline" | "framed";
-
 const MCP_PROTOCOL_VERSION = "2024-11-05";
-// Probe budget per initialize attempt when no timeout is configured. Modern
-// MCP servers accept both protocol encodings and answer immediately; this
-// only bounds how long we wait for a legacy server that is silent on the
-// encoding it does not speak. A configured `timeout` raises it, which is
-// what lets slow-starting servers (e.g. uvx downloading on first run) get
-// through initialize.
+// Initialize budget when no timeout is configured. A configured `timeout`
+// raises it, which lets slow-starting servers (e.g. uvx downloading on first
+// run) get through initialize.
 const MCP_CONNECT_PROBE_TIMEOUT_MS = 1_500;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
@@ -54,56 +49,8 @@ function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-function encodeFramedMessage(message: Record<string, unknown>): Buffer {
-	const body = Buffer.from(JSON.stringify(message), "utf8");
-	const header = Buffer.from(
-		`Content-Length: ${body.byteLength}\r\n\r\n`,
-		"utf8",
-	);
-	return Buffer.concat([header, body]);
-}
-
 function encodeNewlineMessage(message: Record<string, unknown>): Buffer {
 	return Buffer.from(`${JSON.stringify(message)}\n`, "utf8");
-}
-
-class FramedMessageParser {
-	private buffer = "";
-	private readonly decoder = new StringDecoder("utf8");
-
-	push(chunk: Buffer): string[] {
-		this.buffer += this.decoder.write(chunk);
-		const messages: string[] = [];
-
-		while (true) {
-			const separatorIndex = this.buffer.indexOf("\r\n\r\n");
-			if (separatorIndex < 0) {
-				break;
-			}
-
-			const headerText = this.buffer.slice(0, separatorIndex);
-			const contentLengthMatch = headerText.match(
-				/(?:^|\r\n)Content-Length:\s*(\d+)(?:\r\n|$)/i,
-			);
-			if (!contentLengthMatch) {
-				throw new Error(
-					"Invalid MCP stdio frame: missing Content-Length header.",
-				);
-			}
-
-			const contentLength = Number.parseInt(contentLengthMatch[1], 10);
-			const bodyStart = separatorIndex + 4;
-			const bodyEnd = bodyStart + contentLength;
-			if (this.buffer.length < bodyEnd) {
-				break;
-			}
-
-			messages.push(this.buffer.slice(bodyStart, bodyEnd));
-			this.buffer = this.buffer.slice(bodyEnd);
-		}
-
-		return messages;
-	}
 }
 
 class NewlineMessageParser {
@@ -144,11 +91,9 @@ class StdioMcpClient implements McpServerClient {
 			onAbort?: () => void;
 		}
 	>();
-	private framedParser = new FramedMessageParser();
 	private newlineParser = new NewlineMessageParser();
 	private stderrBuffer = "";
 	private connected = false;
-	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
 
@@ -177,62 +122,26 @@ class StdioMcpClient implements McpServerClient {
 			);
 		}
 
-		const attempts: StdioProtocolMode[] = ["newline", "framed"];
-		let lastError: Error | undefined;
-		// An explicit timeout is the total initialize budget across both protocol
-		// encodings. Omitted timeouts preserve the legacy 1.5s budget per probe.
-		const connectDeadline = isMcpTimeoutConfigured(
-			this.registration.timeoutSeconds,
-		)
-			? Date.now() + this.connectAttemptTimeoutMs
-			: undefined;
-
-		for (const [attemptIndex, protocolMode] of attempts.entries()) {
-			const attemptTimeoutMs =
-				connectDeadline === undefined
-					? this.connectAttemptTimeoutMs
-					: Math.floor(
-							Math.max(0, connectDeadline - Date.now()) /
-								(attempts.length - attemptIndex),
-						);
-			if (attemptTimeoutMs <= 0) {
-				lastError = this.createTimeoutError(
-					"initialize",
-					this.connectAttemptTimeoutMs,
-				);
-				break;
-			}
-			await this.disconnect().catch(() => {});
-			this.spawnProcess(protocolMode);
-			try {
-				await this.request(
-					"initialize",
-					{
-						protocolVersion: MCP_PROTOCOL_VERSION,
-						capabilities: {},
-						clientInfo: {
-							name: "@cline/core",
-							version: "0.0.0",
-						},
+		this.spawnProcess();
+		try {
+			await this.request(
+				"initialize",
+				{
+					protocolVersion: MCP_PROTOCOL_VERSION,
+					capabilities: {},
+					clientInfo: {
+						name: "@cline/core",
+						version: "0.0.0",
 					},
-					attemptTimeoutMs,
-					undefined,
-					this.connectAttemptTimeoutMs,
-				);
-				this.notify("notifications/initialized");
-				this.connected = true;
-				this.protocolMode = protocolMode;
-				return;
-			} catch (error) {
-				lastError = error instanceof Error ? error : new Error(String(error));
-			}
+				},
+				this.connectAttemptTimeoutMs,
+			);
+			this.notify("notifications/initialized");
+			this.connected = true;
+		} catch (error) {
+			await this.disconnect().catch(() => {});
+			throw error;
 		}
-		await this.disconnect().catch(() => {});
-
-		throw (
-			lastError ??
-			new Error(`Failed to connect to MCP server "${this.registration.name}".`)
-		);
 	}
 
 	async disconnect(): Promise<void> {
@@ -292,7 +201,7 @@ class StdioMcpClient implements McpServerClient {
 		);
 	}
 
-	private spawnProcess(protocolMode: StdioProtocolMode): void {
+	private spawnProcess(): void {
 		const transport = this.registration.transport;
 		if (transport.type !== "stdio") {
 			throw new Error(
@@ -300,10 +209,8 @@ class StdioMcpClient implements McpServerClient {
 			);
 		}
 
-		this.framedParser = new FramedMessageParser();
 		this.newlineParser = new NewlineMessageParser();
 		this.stderrBuffer = "";
-		this.protocolMode = protocolMode;
 
 		const platformOptions =
 			process.platform === "win32"
@@ -360,10 +267,7 @@ class StdioMcpClient implements McpServerClient {
 
 	private handleStdout(chunk: Buffer): void {
 		try {
-			const messages =
-				this.protocolMode === "framed"
-					? this.framedParser.push(chunk)
-					: this.newlineParser.push(chunk);
+			const messages = this.newlineParser.push(chunk);
 
 			for (const messageText of messages) {
 				const message = JSON.parse(messageText) as JsonRpcMessage;
@@ -412,7 +316,6 @@ class StdioMcpClient implements McpServerClient {
 		params?: Record<string, unknown>,
 		timeoutMs = this.requestTimeoutMs,
 		signal?: AbortSignal,
-		timeoutMessageMs = timeoutMs,
 	): Promise<unknown> {
 		const child = this.process;
 		if (!child?.stdin.writable) {
@@ -432,7 +335,7 @@ class StdioMcpClient implements McpServerClient {
 		const resultPromise = new Promise<unknown>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				this.takePending(id);
-				reject(this.createTimeoutError(method, timeoutMessageMs));
+				reject(this.createTimeoutError(method, timeoutMs));
 			}, timeoutMs);
 			const onAbort = signal
 				? () => {
@@ -465,11 +368,7 @@ class StdioMcpClient implements McpServerClient {
 		}
 
 		try {
-			child.stdin.write(
-				this.protocolMode === "framed"
-					? encodeFramedMessage(payload)
-					: encodeNewlineMessage(payload),
-			);
+			child.stdin.write(encodeNewlineMessage(payload));
 		} catch (error) {
 			const pending = this.takePending(id);
 			if (pending) {
@@ -501,11 +400,7 @@ class StdioMcpClient implements McpServerClient {
 			method,
 			...(params ? { params } : {}),
 		};
-		child.stdin.write(
-			this.protocolMode === "framed"
-				? encodeFramedMessage(payload)
-				: encodeNewlineMessage(payload),
-		);
+		child.stdin.write(encodeNewlineMessage(payload));
 	}
 
 	private failAllPending(error: Error): void {

@@ -90,7 +90,7 @@ function makeConnection(
 
 describe("McpHub tool list change detection", () => {
 	describe("computeToolFingerprint", () => {
-		it("should return empty string when no servers are connected", () => {
+		it("should return an empty structured fingerprint when no servers are connected", () => {
 			computeToolFingerprint([]).should.equal("[]")
 		})
 

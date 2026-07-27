@@ -36,8 +36,6 @@ process.stdin.on("data", (chunk) => {
 		try {
 			msg = JSON.parse(line);
 		} catch {
-			// Tolerate the framed-mode probe attempt: its Content-Length header
-			// line is not JSON, but the embedded body line is handled next.
 			continue;
 		}
 		if (msg.id === undefined || !msg.method || msg.method.startsWith("notifications/")) continue;
@@ -254,7 +252,7 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
-	it("shares one configured initialize timeout across both protocol probes", async () => {
+	it("uses the full configured timeout for the initialize request", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		const client = await factory(
 			fakeServerRegistration({
@@ -266,7 +264,6 @@ describe("mcp client request timeout", () => {
 		const startedAt = Date.now();
 		try {
 			await expect(client.connect()).rejects.toThrow(/after 2s/);
-			// Two independent 2s probes would exceed this bound.
 			expect(Date.now() - startedAt).toBeLessThan(3_500);
 		} finally {
 			await client.disconnect();
