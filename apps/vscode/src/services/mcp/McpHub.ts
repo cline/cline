@@ -1341,6 +1341,7 @@ export class McpHub {
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
+			const diagnosticMessage = toMcpDiagnosticMessage(error)
 			Logger.error("Failed to update server disabled state:", toMcpDiagnosticText(error))
 			if (error instanceof Error) {
 				Logger.error(
@@ -1351,9 +1352,9 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server state: ${toMcpDiagnosticMessage(error)}`,
+				message: `Failed to update server state: ${diagnosticMessage}`,
 			})
-			throw error
+			throw new Error(diagnosticMessage)
 		} finally {
 			this.isConnecting = false
 		}
@@ -1715,6 +1716,7 @@ export class McpHub {
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
+			const diagnosticMessage = toMcpDiagnosticMessage(error)
 			Logger.error("Failed to update server timeout:", toMcpDiagnosticText(error))
 			if (error instanceof Error) {
 				Logger.error(
@@ -1725,9 +1727,9 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server timeout: ${toMcpDiagnosticMessage(error)}`,
+				message: `Failed to update server timeout: ${diagnosticMessage}`,
 			})
-			throw error
+			throw new Error(diagnosticMessage)
 		}
 	}
 
