@@ -12,9 +12,11 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { SessionStatus } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 
 for (const specifier of [
+	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
 	"@cline/ui/theme/scoped-tokens.css",
 ]) {
@@ -25,7 +27,9 @@ for (const specifier of [
 
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
-if (!Conversation || !Message || !css || !tokens) process.exit(1);
+if (!SessionStatus || !Conversation || !Message || !css || !tokens) {
+	process.exit(1);
+}
 `;
 
 async function run(command: string[], cwd: string): Promise<void> {

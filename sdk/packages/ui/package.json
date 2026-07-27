@@ -14,6 +14,11 @@
 	},
 	"type": "module",
 	"exports": {
+		".": {
+			"types": "./dist/components/index.d.ts",
+			"import": "./dist/components/index.js"
+		},
+		"./components.css": "./components.css",
 		"./components/agent-chat": {
 			"types": "./dist/components/agent-chat/index.d.ts",
 			"import": "./dist/components/agent-chat/index.js"
@@ -28,15 +33,20 @@
 		"./package.json": "./package.json"
 	},
 	"files": [
+		"components.css",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
 		"components/markdown.css",
+		"components/index.ts",
+		"components/session-status.css",
+		"components/session-status.tsx",
 		"dist",
 		"theme",
 		"ADOPTION.md",
 		"README.md"
 	],
 	"sideEffects": [
+		"./components.css",
 		"./components/**/*.css",
 		"./theme/*.css"
 	],
