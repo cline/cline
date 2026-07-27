@@ -18,10 +18,6 @@ const CLINE_PASS_AUTO_MODEL_INFO: ModelInfo = {
 	// The Pass balanced/heavy candidates are text-only today.
 	supportsImages: false,
 	supportsPromptCache: true,
-	inputPrice: 0,
-	outputPrice: 0,
-	cacheReadsPrice: 0,
-	cacheWritesPrice: 0,
 	description:
 		"Selects an eligible Cline Pass model at task start and keeps it sticky for the task to preserve prompt-cache reuse.",
 }
@@ -29,6 +25,14 @@ const CLINE_PASS_AUTO_MODEL_INFO: ModelInfo = {
 interface ClineAutoModelOptions {
 	enabled: boolean
 	isClinePassAutoModelEnabled: boolean
+}
+
+export function isClinePassAutoModelPickerEnabled(
+	isAutoModelPickerFeatureEnabled: boolean,
+	allowsLocalOverrides: boolean,
+	isLocalClinePassAutoModelPickerEnabled: boolean,
+): boolean {
+	return isAutoModelPickerFeatureEnabled || (allowsLocalOverrides && isLocalClinePassAutoModelPickerEnabled)
 }
 
 export function shouldNormalizeClineAutoModel(modelId: string | undefined, options: ClineAutoModelOptions): boolean {

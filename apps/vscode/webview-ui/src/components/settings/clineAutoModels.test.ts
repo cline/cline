@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
 	CLINE_AUTO_MODEL_ID,
 	CLINE_PASS_AUTO_MODEL_ID,
+	isClinePassAutoModelPickerEnabled,
 	shouldNormalizeClineAutoModel,
 	withClineAutoModels,
 } from "./clineAutoModels"
@@ -45,9 +46,10 @@ describe("withClineAutoModels", () => {
 		expect(models[CLINE_AUTO_MODEL_ID]?.supportsPromptCache).toBe(true)
 		expect(models[CLINE_PASS_AUTO_MODEL_ID]?.supportsPromptCache).toBe(true)
 		expect(models[CLINE_PASS_AUTO_MODEL_ID]?.supportsImages).toBe(false)
+		expect(models[CLINE_PASS_AUTO_MODEL_ID]?.inputPrice).toBeUndefined()
 	})
 
-	it("preserves live endpoint metadata when a gated virtual model is present", () => {
+	it("preserves live endpoint metadata, including usage prices, when gated virtual models are present", () => {
 		const models = withClineAutoModels(
 			{
 				...catalog,
@@ -56,8 +58,14 @@ describe("withClineAutoModels", () => {
 					supportsPromptCache: true,
 					contextWindow: 200_000,
 				},
+				[CLINE_PASS_AUTO_MODEL_ID]: {
+					name: "Endpoint Pass Auto",
+					supportsPromptCache: true,
+					inputPrice: 1.25,
+					outputPrice: 5,
+				},
 			},
-			{ enabled: true, isClinePassAutoModelEnabled: false },
+			{ enabled: true, isClinePassAutoModelEnabled: true },
 		)
 
 		expect(models[CLINE_AUTO_MODEL_ID]).toEqual({
@@ -65,6 +73,23 @@ describe("withClineAutoModels", () => {
 			supportsPromptCache: true,
 			contextWindow: 200_000,
 		})
+		expect(models[CLINE_PASS_AUTO_MODEL_ID]).toEqual({
+			name: "Endpoint Pass Auto",
+			supportsPromptCache: true,
+			inputPrice: 1.25,
+			outputPrice: 5,
+		})
+	})
+})
+
+describe("isClinePassAutoModelPickerEnabled", () => {
+	it("uses the auto-router rollout flag without requiring ClinePass subscription exposure", () => {
+		expect(isClinePassAutoModelPickerEnabled(true, false, false)).toBe(true)
+	})
+
+	it("retains the local-only Pass override", () => {
+		expect(isClinePassAutoModelPickerEnabled(false, true, true)).toBe(true)
+		expect(isClinePassAutoModelPickerEnabled(false, false, true)).toBe(false)
 	})
 })
 

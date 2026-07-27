@@ -13,6 +13,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderListings } from "@/hooks/useProviderListings"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { isClinePassAutoModelPickerEnabled } from "./clineAutoModels"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
@@ -98,11 +99,15 @@ const ApiOptions = ({
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const allowsLocalAutoPickerOverrides = process.env.CLINE_ENVIRONMENT === "local"
+	const isAutoModelPickerFeatureEnabled = useHasFeatureFlag(CLINE_AUTO_MODEL_PICKER_FEATURE_FLAG)
 	const isAutoModelPickerEnabled =
-		useHasFeatureFlag(CLINE_AUTO_MODEL_PICKER_FEATURE_FLAG) ||
+		isAutoModelPickerFeatureEnabled ||
 		(allowsLocalAutoPickerOverrides && process.env.CLINE_AUTO_MODEL_PICKER_ENABLED === "true")
-	const isClinePassAutoModelEnabled =
-		isClinePassEnabled || (allowsLocalAutoPickerOverrides && process.env.CLINE_PASS_AUTO_MODEL_PICKER_ENABLED === "true")
+	const isClinePassAutoModelEnabled = isClinePassAutoModelPickerEnabled(
+		isAutoModelPickerFeatureEnabled,
+		allowsLocalAutoPickerOverrides,
+		process.env.CLINE_PASS_AUTO_MODEL_PICKER_ENABLED === "true",
+	)
 
 	const selectedProviderRaw =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
