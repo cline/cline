@@ -1,0 +1,68 @@
+# Cloud coding agents append promotional badges and wrapper markers to PR bodies
+# after the agent's final turn, so the agent itself cannot remove them. This strips
+# them from the PR description on open/edit.
+#
+# Uses pull_request_target so the token has write access on PRs from forks. That
+# trigger is only unsafe when a job checks out and executes PR code — this one
+# never checks out the repository, it only calls the REST API.
+name: repo-strip-agent-badges
+on:
+    pull_request_target:
+        types: [opened, edited]
+
+concurrency:
+    group: strip-agent-badges-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    strip:
+        runs-on: ubuntu-latest
+        if: >-
+            github.event.pull_request.body != null &&
+            (contains(github.event.pull_request.body, 'cursor.com') ||
+             contains(github.event.pull_request.body, 'CURSOR_AGENT_PR_BODY'))
+        permissions:
+            pull-requests: write
+        steps:
+            - uses: actions/github-script@v7
+              with:
+                  script: |
+                      // Re-fetch instead of trusting the event payload: the body may have
+                      // been edited again between the event firing and this run (agent
+                      // harnesses edit PR bodies post-open), and updating from the stale
+                      // snapshot would clobber the newer content.
+                      const { data: pr } = await github.rest.pulls.get({
+                          ...context.repo,
+                          pull_number: context.payload.pull_request.number,
+                      })
+                      const body = pr.body || ""
+
+                      // The BEGIN/END comments wrap the agent-authored content; everything
+                      // outside them (the "Open in Web / Open in Cursor" badge block) is
+                      // appended by the harness. Keep only what's between the markers.
+                      // No markers -> no match -> body passes through unchanged.
+                      const extracted = body.replace(
+                          /^[\s\S]*?<!--\s*CURSOR_AGENT_PR_BODY_BEGIN\s*-->\r?\n?([\s\S]*?)<!--\s*CURSOR_AGENT_PR_BODY_END\s*-->[\s\S]*$/,
+                          "$1",
+                      )
+
+                      const cleaned = extracted
+                          // Fallback for marker-less bodies that still carry a badge block.
+                          // The tempered match cannot run past a </div>, so a legitimate
+                          // <div> elsewhere in the body can never be swallowed.
+                          .replace(/<div>(?:(?!<\/div>)[\s\S])*?cursor\.com(?:(?!<\/div>)[\s\S])*?<\/div>\s*/g, "")
+                          .trimEnd()
+
+                      // No change means a previous run already cleaned this body. Returning
+                      // without an update is what stops `edited` from retriggering forever.
+                      if (cleaned === body) {
+                          core.info("nothing to strip")
+                          return
+                      }
+
+                      await github.rest.pulls.update({
+                          ...context.repo,
+                          pull_number: pr.number,
+                          body: cleaned,
+                      })
+                      core.info(`stripped ${body.length - cleaned.length} chars from PR #${pr.number}`)
