@@ -149,11 +149,15 @@ async function repairPrivatePermissions(targetPath: string, mode: number): Promi
 	}
 }
 
+function isClineSettingsDirectory(directoryPath: string): boolean {
+	const explicitDataDir = process.env.CLINE_DATA_DIR?.trim()
+	const clineDir = process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
+	const dataDir = explicitDataDir || path.join(clineDir, "data")
+	return path.resolve(directoryPath) === path.resolve(dataDir, "settings")
+}
+
 export async function ensureSettingsDirectoryExists(): Promise<string> {
-	const settingsDir = path.resolve(HostProvider.get().globalStorageFsPath, "settings")
-	await fs.mkdir(settingsDir, { recursive: true, mode: 0o700 })
-	await repairPrivatePermissions(settingsDir, 0o700)
-	return settingsDir
+	return getGlobalStorageDir("settings")
 }
 
 /**
@@ -163,9 +167,9 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
  */
 export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
 	const createdPath = await fs.mkdir(settingsDirectoryPath, { recursive: true, mode: 0o700 })
-	// A configured settings path may live in a shared directory. Harden only
-	// directories this operation created; the settings file is hardened separately.
-	if (createdPath !== undefined) {
+	// A configured settings path may live in a shared directory. Existing
+	// directories are repaired only when they are Cline's own settings directory.
+	if (createdPath !== undefined || isClineSettingsDirectory(settingsDirectoryPath)) {
 		await repairPrivatePermissions(settingsDirectoryPath, 0o700)
 	}
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)

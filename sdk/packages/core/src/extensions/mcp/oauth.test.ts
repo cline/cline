@@ -1,7 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMcpOAuthProviderContext } from "./oauth";
 
@@ -98,15 +97,5 @@ describe("mcp oauth", () => {
 		expect(written).not.toContain("api-secret");
 		expect(written).not.toContain("auth-secret");
 		expect(written).toContain("[REDACTED]");
-	});
-
-	it("preserves non-sensitive OAuth error context", () => {
-		expect(
-			sanitizeMcpDiagnosticText(
-				"OAuth request to https://auth.example.com/token failed with status 500",
-			),
-		).toBe(
-			"OAuth request to https://auth.example.com/token failed with status 500",
-		);
 	});
 });

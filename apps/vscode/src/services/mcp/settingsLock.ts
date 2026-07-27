@@ -11,6 +11,7 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs"
+import os from "node:os"
 import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { Logger } from "@/shared/services/Logger"
@@ -66,11 +67,18 @@ export function isSettingsLockContentionError(error: unknown): boolean {
 	return code === "EEXIST" || code === "ENOTEMPTY"
 }
 
+function isClineSettingsDirectory(directoryPath: string): boolean {
+	const explicitDataDir = process.env.CLINE_DATA_DIR?.trim()
+	const clineDir = process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
+	const dataDir = explicitDataDir || path.join(clineDir, "data")
+	return path.resolve(directoryPath) === path.resolve(dataDir, "settings")
+}
+
 function ensurePrivateSettingsDirectory(directoryPath: string): void {
 	const createdPath = mkdirSync(directoryPath, { recursive: true, mode: 0o700 })
-	// A configured settings path may live in a shared directory. Harden only
-	// directories this operation created; the settings file is hardened separately.
-	if (createdPath !== undefined && process.platform !== "win32") {
+	// A configured settings path may live in a shared directory. Existing
+	// directories are repaired only when they are Cline's own settings directory.
+	if ((createdPath !== undefined || isClineSettingsDirectory(directoryPath)) && process.platform !== "win32") {
 		try {
 			if ((statSync(directoryPath).mode & 0o7777) !== 0o700) {
 				chmodSync(directoryPath, 0o700)

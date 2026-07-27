@@ -123,6 +123,33 @@ describe("mcp config loader", () => {
 	);
 
 	it.skipIf(process.platform === "win32")(
+		"repairs the existing Cline-owned settings directory on load",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+			tempRoots.push(tempRoot);
+			const previousDataDir = process.env.CLINE_DATA_DIR;
+			const dataDir = join(tempRoot, "cline-data");
+			const settingsDir = join(dataDir, "settings");
+			const filePath = join(settingsDir, "cline_mcp_settings.json");
+			mkdirSync(settingsDir, { recursive: true, mode: 0o755 });
+			chmodSync(settingsDir, 0o755);
+			await writeFile(filePath, JSON.stringify({ mcpServers: {} }), "utf8");
+			process.env.CLINE_DATA_DIR = dataDir;
+
+			try {
+				loadMcpSettingsFile({ filePath });
+				expect(statSync(settingsDir).mode & 0o777).toBe(0o700);
+			} finally {
+				if (previousDataDir === undefined) {
+					delete process.env.CLINE_DATA_DIR;
+				} else {
+					process.env.CLINE_DATA_DIR = previousDataDir;
+				}
+			}
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
 		"does not change metadata when settings permissions are already private",
 		async () => {
 			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));

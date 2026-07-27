@@ -11,10 +11,13 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { type BasicLogger, sanitizeMcpDiagnosticText } from "@cline/shared";
-import { resolveMcpSettingsPath } from "@cline/shared/storage";
+import {
+	resolveClineDataDir,
+	resolveMcpSettingsPath,
+} from "@cline/shared/storage";
 import { z } from "zod";
 import type {
 	McpManager,
@@ -233,14 +236,18 @@ export function resolveDefaultMcpSettingsPath(): string {
 	return resolveMcpSettingsPath();
 }
 
+function isClineSettingsDirectory(directoryPath: string): boolean {
+	return resolve(directoryPath) === resolve(resolveClineDataDir(), "settings");
+}
+
 function ensurePrivateSettingsDirectory(directoryPath: string): void {
 	const createdPath = mkdirSync(directoryPath, {
 		recursive: true,
 		mode: 0o700,
 	});
-	// A configured settings path may live in a shared directory. Harden only
-	// directories this operation created; the settings file is hardened separately.
-	if (createdPath !== undefined) {
+	// A configured settings path may live in a shared directory. Existing
+	// directories are repaired only when they are Cline's own settings directory.
+	if (createdPath !== undefined || isClineSettingsDirectory(directoryPath)) {
 		hardenExistingSettingsDirectory(directoryPath);
 	}
 }
@@ -694,6 +701,9 @@ export function loadMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): McpSettingsFile {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	if (isClineSettingsDirectory(dirname(filePath))) {
+		hardenExistingSettingsDirectory(dirname(filePath));
+	}
 	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;

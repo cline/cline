@@ -83,4 +83,28 @@ describe("updateMcpSettingsFile", () => {
 		expect((await fs.stat(tempDir)).mode & 0o777).toBe(0o755)
 		expect((await fs.stat(settingsPath)).mode & 0o777).toBe(0o600)
 	})
+
+	it.skipIf(process.platform === "win32")("repairs an existing Cline-owned settings directory", async () => {
+		const previousDataDir = process.env.CLINE_DATA_DIR
+		const dataDir = path.join(tempDir, "cline-data")
+		const ownedSettingsDir = path.join(dataDir, "settings")
+		const ownedSettingsPath = path.join(ownedSettingsDir, "cline_mcp_settings.json")
+		await fs.mkdir(ownedSettingsDir, { recursive: true, mode: 0o755 })
+		await fs.chmod(ownedSettingsDir, 0o755)
+		await fs.writeFile(ownedSettingsPath, JSON.stringify({ mcpServers: {} }, null, 2))
+		process.env.CLINE_DATA_DIR = dataDir
+
+		try {
+			await updateMcpSettingsFile(ownedSettingsPath, (settings) => {
+				settings.mcpServers = { alpha: { type: "stdio", command: "node" } }
+			})
+			expect((await fs.stat(ownedSettingsDir)).mode & 0o777).toBe(0o700)
+		} finally {
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR
+			} else {
+				process.env.CLINE_DATA_DIR = previousDataDir
+			}
+		}
+	})
 })

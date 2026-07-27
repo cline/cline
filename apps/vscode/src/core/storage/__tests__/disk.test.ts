@@ -6,7 +6,6 @@ import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/shared/services/Logger"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 // bun loads real ESM, so sinon cannot stub the `@utils/fs` namespace export
@@ -20,13 +19,7 @@ const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
 mock.module("@utils/fs", fsUtilsMock)
 mock.module("@/utils/fs", fsUtilsMock)
 
-import {
-	ensureSettingsDirectoryExists,
-	getAllHooksDirs,
-	getMcpSettingsFilePath,
-	getWorkspaceHooksDirs,
-	setRuntimeHooksDir,
-} from "../disk"
+import { getAllHooksDirs, getMcpSettingsFilePath, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
 import { StateManager } from "../StateManager"
 
 describe("disk - hooks functionality", () => {
@@ -308,16 +301,24 @@ describe("disk - atomic writes", () => {
 		}
 	})
 
-	it("creates the host settings directory with owner-only permissions", async () => {
-		const settingsDir = path.join(testGlobalStorageDir, "settings")
-		await fs.rm(settingsDir, { recursive: true, force: true })
+	it.skipIf(process.platform === "win32")("repairs the existing Cline-owned settings directory", async () => {
+		const previousDataDir = process.env.CLINE_DATA_DIR
+		const dataDir = path.join(testGlobalStorageDir, "cline-data")
+		const settingsDir = path.join(dataDir, "settings")
+		await fs.mkdir(settingsDir, { recursive: true, mode: 0o755 })
+		await fs.chmod(settingsDir, 0o755)
+		process.env.CLINE_DATA_DIR = dataDir
 
-		const created = await ensureSettingsDirectoryExists()
-
-		created.should.equal(settingsDir)
-		if (process.platform !== "win32") {
-			const directoryMode = (await fs.stat(created)).mode & 0o777
+		try {
+			await getMcpSettingsFilePath(settingsDir)
+			const directoryMode = (await fs.stat(settingsDir)).mode & 0o777
 			directoryMode.should.equal(0o700)
+		} finally {
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR
+			} else {
+				process.env.CLINE_DATA_DIR = previousDataDir
+			}
 		}
 	})
 
@@ -329,18 +330,5 @@ describe("disk - atomic writes", () => {
 		await getMcpSettingsFilePath(settingsDir)
 
 		chmod.notCalled.should.equal(true)
-	})
-
-	it.skipIf(process.platform === "win32")("warns and continues when permission repair fails", async () => {
-		const warn = sandbox.stub(Logger, "warn")
-		const permissionError = Object.assign(new Error("permission denied"), { code: "EACCES" })
-		await fs.chmod(path.join(testGlobalStorageDir, "settings"), 0o755)
-		sandbox.stub(fs, "chmod").rejects(permissionError)
-
-		const created = await ensureSettingsDirectoryExists()
-
-		created.should.equal(path.join(testGlobalStorageDir, "settings"))
-		warn.calledOnce.should.equal(true)
-		warn.firstCall.args[0].should.match(/Unable to set permissions 700.*EACCES/)
 	})
 })
