@@ -675,15 +675,17 @@ export function ChatInputBar({
 										)}
 										key={item.id}
 									>
-										{item.steer && !isEditing ? (
-											<output
-												aria-label="Steering — the running agent reads it at its next step"
-												className="mt-[9px] shrink-0 text-muted-foreground"
-												title="Steering — the running agent reads it at its next step"
-											>
-												<Loader2 className="h-3.5 w-3.5 animate-spin" />
-											</output>
-										) : null}
+										{/* Fixed gutter so a row does not shift when it starts steering. */}
+										<span className="mt-[9px] h-3.5 w-3.5 shrink-0 text-muted-foreground">
+											{item.steer && !isEditing ? (
+												<output
+													aria-label="Steering — the running agent reads it at its next step"
+													title="Steering — the running agent reads it at its next step"
+												>
+													<Loader2 className="h-3.5 w-3.5 animate-spin" />
+												</output>
+											) : null}
+										</span>
 										<div className="min-w-0 flex-1 py-1">
 											{isEditing ? (
 												<textarea
