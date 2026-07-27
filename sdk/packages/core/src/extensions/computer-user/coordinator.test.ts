@@ -1,5 +1,5 @@
 import type { AgentResult } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	ComputerUserCoordinator,
 	type ComputerUserSessionHost,
@@ -68,6 +68,10 @@ async function settle(): Promise<void> {
 }
 
 describe("ComputerUserCoordinator", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it("start returns immediately and completion notifies the driver via steer", async () => {
 		const { host, pendingSends } = makeControllableHost();
 		const { coordinator, driverMessages } = makeCoordinator(host);
@@ -110,6 +114,87 @@ describe("ComputerUserCoordinator", () => {
 		expect(status.latestNote?.ageSeconds).toBe(43);
 		expect(status.summary).toContain('"signing in" 43 seconds ago');
 		expect(status.summary).toContain("working");
+	});
+
+	it("returns immediately when status is newer than since", async () => {
+		const { host } = makeControllableHost();
+		const { coordinator } = makeCoordinator(host);
+		const initialRevision = coordinator.status().revision;
+
+		await coordinator.start("task");
+
+		await expect(
+			coordinator.waitForStatus(initialRevision, 10_000),
+		).resolves.toMatchObject({
+			revision: initialRevision + 1,
+			state: "running",
+		});
+	});
+
+	it("waits at the current revision until observable status changes", async () => {
+		const { host } = makeControllableHost();
+		const { coordinator } = makeCoordinator(host);
+		await coordinator.start("task");
+		const currentRevision = coordinator.status().revision;
+		let settled = false;
+		const waiting = coordinator
+			.waitForStatus(currentRevision, 10_000)
+			.then((status) => {
+				settled = true;
+				return status;
+			});
+
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		coordinator.onHelperNote({ kind: "progress", text: "opened settings" });
+
+		await expect(waiting).resolves.toMatchObject({
+			revision: currentRevision + 1,
+			state: "running",
+			latestNote: { text: "opened settings" },
+		});
+	});
+
+	it("returns the current snapshot when the wait times out", async () => {
+		vi.useFakeTimers();
+		const { host } = makeControllableHost();
+		const { coordinator } = makeCoordinator(host);
+		await coordinator.start("task");
+		const current = coordinator.status();
+
+		const waiting = coordinator.waitForStatus(current.revision, 5_000);
+		await vi.advanceTimersByTimeAsync(5_000);
+
+		await expect(waiting).resolves.toMatchObject({
+			revision: current.revision,
+			state: current.state,
+		});
+	});
+
+	it("rejects a future revision instead of waiting forever", async () => {
+		const { host } = makeControllableHost();
+		const { coordinator } = makeCoordinator(host);
+
+		await expect(coordinator.waitForStatus(1, 10_000)).rejects.toThrow(
+			/current revision 0/,
+		);
+	});
+
+	it("aborts a status wait and removes it from later status changes", async () => {
+		const { host } = makeControllableHost();
+		const { coordinator } = makeCoordinator(host);
+		const controller = new AbortController();
+		const waiting = coordinator.waitForStatus(
+			coordinator.status().revision,
+			10_000,
+			controller.signal,
+		);
+
+		controller.abort(new Error("driver turn stopped"));
+
+		await expect(waiting).rejects.toThrow("driver turn stopped");
+		await coordinator.start("task");
+		expect(coordinator.status().state).toBe("running");
 	});
 
 	it("message steers a running helper without starting a new run", async () => {
