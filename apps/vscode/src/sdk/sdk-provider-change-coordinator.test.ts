@@ -27,6 +27,21 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
+	it("does nothing when only the provider spelling changes", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		// Stale snapshots can hold the SDK spelling (`openai-compatible`)
+		// while new writes use the legacy spelling (`openai`); this is the
+		// same provider, not a provider switch.
+		coordinator.handleApiConfigurationChanged(
+			{ actModeApiProvider: "openai-compatible" as never },
+			{ actModeApiProvider: "openai" },
+		)
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+	})
+
 	it("does nothing without an active session", () => {
 		const { coordinator, options } = makeCoordinator()
 

@@ -2,7 +2,6 @@ import type {
 	AgentToolContext,
 	BasicLogger,
 	ClineCore,
-	HubServer,
 	ITelemetryService,
 	NodeHubClient,
 	ToolApprovalResult,
@@ -43,6 +42,7 @@ export type PromptInQueue = {
 	prompt: string;
 	steer: boolean;
 	attachmentCount?: number;
+	userImages?: string[];
 };
 
 export type LiveSession = {
@@ -57,6 +57,10 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Materialized attachment files for prompts still waiting in the queue. */
+	queuedAttachmentFiles?: Map<string, string[]>;
+	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
+	consumedAttachmentFiles?: Map<string, string[]>;
 };
 
 export type ToolApprovalRequestItem = {
@@ -107,7 +111,6 @@ export type SidecarContext = {
 	pendingQuestions: Map<string, PendingAskQuestion>;
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
-	hubServer: HubServer | null;
 	workspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

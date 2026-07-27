@@ -108,6 +108,7 @@ const NATIVE_COMMANDS = new Set([
 	"open_mcp_settings_file",
 	"get_update_status",
 	"restart_to_apply_update",
+	"set_app_icon",
 ]);
 
 class DesktopClient {

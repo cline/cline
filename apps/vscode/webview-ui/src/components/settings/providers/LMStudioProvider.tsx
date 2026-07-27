@@ -3,7 +3,6 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
-import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -193,8 +192,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				title="Not editable - the value is returned by the connected endpoint"
 				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
-
-			<UseCustomPromptCheckbox providerId="lmstudio" />
 
 			<div className="text-xs text-description">
 				LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their

@@ -86,5 +86,8 @@
         "better-sqlite3",
         "grpc-tools"
     ],
-    "packageManager": "bun@1.3.13"
+    "packageManager": "bun@1.3.13",
+    "patchedDependencies": {
+        "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch"
+    }
 }

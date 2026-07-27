@@ -772,6 +772,9 @@
     "better-sqlite3",
     "grpc-tools",
   ],
+  "patchedDependencies": {
+    "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch",
+  },
   "overrides": {
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",

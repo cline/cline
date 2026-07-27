@@ -37,7 +37,7 @@ import type { RuntimeCapabilities } from "../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
 import type {
 	LocalRuntimeStartOptions,
-	StartSessionInput,
+	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
 import { SessionSource } from "../types/common";
@@ -115,7 +115,7 @@ function hasConfigExtension(
 }
 
 function countSeededRootRuns(
-	messages: StartSessionInput["initialMessages"],
+	messages: ResolvedStartSessionInput["initialMessages"],
 ): number {
 	let count = 0;
 	for (const message of messages ?? []) {
@@ -136,7 +136,7 @@ function countSeededRootRuns(
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
-	source: StartSessionInput["source"],
+	source: ResolvedStartSessionInput["source"],
 	providerSettingsManager: ProviderSettingsManager,
 	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
 	defaultFetch?: typeof fetch,
@@ -216,7 +216,7 @@ function buildProviderConfig(
 }
 
 export interface PrepareLocalRuntimeBootstrapOptions {
-	input: StartSessionInput;
+	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
 	providerSettingsManager: ProviderSettingsManager;
@@ -244,7 +244,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 }
 
 export interface LocalRuntimeBootstrap {
-	effectiveInput: StartSessionInput;
+	effectiveInput: ResolvedStartSessionInput;
 	config: CoreSessionConfig;
 	providerConfig: ProviderConfig;
 	workspaceMetadata: string;

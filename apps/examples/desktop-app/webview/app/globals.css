@@ -74,6 +74,154 @@
 	}
 }
 
+/*
+ * Chat Markdown (components/ui/markdown.tsx). Streamdown ships its defaults
+ * as Tailwind utilities, which land in the layered @source output; these
+ * unlayered rules win the cascade without needing !important.
+ */
+
+/* Chat panes are narrow and the base text is --text-sm: tighten the rhythm
+ * between top-level blocks from Streamdown's document-scale 1rem. */
+.cline-markdown > :not(:last-child) {
+	margin-block-end: 0.75rem;
+}
+
+/* Chat-scale heading ramp (defaults go up to text-3xl, huge next to 14px body). */
+.cline-markdown :is(h1, h2, h3, h4, h5, h6) {
+	margin-block: 1.25rem 0.5rem;
+	line-height: 1.35;
+}
+
+.cline-markdown h1 {
+	font-size: 1.25rem;
+}
+
+.cline-markdown h2 {
+	font-size: 1.125rem;
+}
+
+.cline-markdown h3 {
+	font-size: 1rem;
+}
+
+.cline-markdown :is(h4, h5, h6) {
+	font-size: 0.875rem;
+}
+
+.cline-markdown hr {
+	margin-block: 1rem;
+}
+
+/* Outside markers so wrapped list lines align with their first line, not the
+ * bullet (Streamdown uses list-inside). */
+.cline-markdown :is(ul, ol) {
+	list-style-position: outside;
+	padding-inline-start: 1.375rem;
+}
+
+.cline-markdown li {
+	padding-block: 0.125rem;
+}
+
+.cline-markdown li::marker {
+	color: var(--muted-foreground);
+}
+
+.cline-markdown [data-streamdown="inline-code"] {
+	padding: 0.1em 0.35em;
+	font-size: 0.8125rem;
+}
+
+/*
+ * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
+ * holding a language header row plus an inner bordered body. Collapse it to a
+ * single quiet block: no outer chrome, no language label, and the copy button
+ * only appears while hovering the block.
+ */
+.cline-markdown [data-streamdown="code-block"] {
+	padding: 0;
+	gap: 0;
+	border: none;
+	background: transparent;
+}
+
+.cline-markdown [data-streamdown="code-block-header"] {
+	display: none;
+}
+
+.cline-markdown [data-streamdown="code-block-body"] {
+	border-radius: 0.5rem;
+	background: var(--card);
+	padding: 0.625rem 0.75rem;
+	font-size: 0.8125rem;
+	line-height: 1.6;
+}
+
+/* The body's <pre> paints the Shiki theme background, which never quite
+ * matches the app theme; let the body's --card background show instead. */
+.cline-markdown [data-streamdown="code-block-body"] pre {
+	background: transparent;
+}
+
+/* The actions overlay's -mt-10 was sized to cover the (now hidden) header
+ * row; re-anchor it over the top-right of the code body and reveal on
+ * hover/focus so it stops competing with the code. Stickiness is kept so the
+ * copy button stays reachable inside long blocks. */
+.cline-markdown [data-streamdown="code-block"]
+	> div:has(> [data-streamdown="code-block-actions"]) {
+	margin-block: 0 -2rem;
+	padding: 0.375rem 0.375rem 0 0;
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+/* While hidden the pill must not intercept clicks or text selection on the
+ * code beneath it (it ships with pointer-events-auto). Keyboard focus is
+ * unaffected by pointer-events, so tabbing still reveals it. */
+.cline-markdown [data-streamdown="code-block-actions"] {
+	pointer-events: none;
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]:hover
+	> div:has(> [data-streamdown="code-block-actions"]),
+.cline-markdown
+	[data-streamdown="code-block"]
+	> div:focus-within:has(> [data-streamdown="code-block-actions"]) {
+	opacity: 1;
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]:hover
+	[data-streamdown="code-block-actions"],
+.cline-markdown
+	[data-streamdown="code-block"]
+	> div:focus-within
+	[data-streamdown="code-block-actions"] {
+	pointer-events: auto;
+}
+
+@media (hover: none) {
+	.cline-markdown
+		[data-streamdown="code-block"]
+		> div:has(> [data-streamdown="code-block-actions"]) {
+		opacity: 1;
+	}
+
+	.cline-markdown [data-streamdown="code-block-actions"] {
+		pointer-events: auto;
+	}
+}
+
+/* Tables get the same single-box treatment as code blocks. */
+.cline-markdown [data-streamdown="table-wrapper"] {
+	padding: 0;
+	gap: 0;
+	overflow: hidden;
+	border-radius: 0.5rem;
+	background: var(--card);
+}
+
 /* Aurora background (components/ui/aurora-bg.tsx) */
 @keyframes aurora-drift {
 	0% {
@@ -213,4 +361,85 @@
 	.aurora-motion {
 		will-change: auto;
 	}
+}
+
+/*
+ * Accent palettes (Settings -> General -> Accent color). The default
+ * "violet" accent is the @cline/ui brand tokens untouched; each block below
+ * re-anchors the interactive tokens on the html[data-cline-accent] attribute
+ * set by lib/theme.ts. Values follow the brand token pattern: emphasis is a
+ * pressed/hover shade of primary, ring is a softer focus shade, and dark
+ * mode lifts lightness so the accent stays legible on dark surfaces.
+ * Tokens like --chart-1 and --sidebar-primary alias var(--primary), so they
+ * follow automatically.
+ */
+
+:root[data-cline-accent="graphite"] {
+	--primary: oklch(0.27 0.012 248);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.2 0.012 248);
+	--ring: oklch(0.55 0.012 248);
+}
+
+:root.dark[data-cline-accent="graphite"] {
+	--primary: oklch(0.92 0.006 248);
+	--primary-foreground: oklch(0.18 0.01 248);
+	--primary-emphasis: oklch(0.97 0.004 248);
+	--ring: oklch(0.7 0.008 248);
+}
+
+:root[data-cline-accent="cyan"] {
+	--primary: oklch(0.6 0.12 222);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.52 0.13 222);
+	--ring: oklch(0.66 0.1 222);
+}
+
+:root.dark[data-cline-accent="cyan"] {
+	--primary: oklch(0.7 0.12 222);
+	--primary-foreground: oklch(0.16 0.02 222);
+	--primary-emphasis: oklch(0.77 0.11 222);
+	--ring: oklch(0.7 0.1 222);
+}
+
+:root[data-cline-accent="pink"] {
+	--primary: oklch(0.75 0.1 354);
+	--primary-foreground: oklch(0.28 0.08 354);
+	--primary-emphasis: oklch(0.68 0.12 354);
+	--ring: oklch(0.79 0.08 354);
+}
+
+:root.dark[data-cline-accent="pink"] {
+	--primary: oklch(0.78 0.1 354);
+	--primary-foreground: oklch(0.25 0.07 354);
+	--primary-emphasis: oklch(0.84 0.08 354);
+	--ring: oklch(0.78 0.08 354);
+}
+
+:root[data-cline-accent="espresso"] {
+	--primary: oklch(0.36 0.035 35);
+	--primary-foreground: oklch(0.98 0.005 35);
+	--primary-emphasis: oklch(0.29 0.035 35);
+	--ring: oklch(0.55 0.03 35);
+}
+
+:root.dark[data-cline-accent="espresso"] {
+	--primary: oklch(0.72 0.045 45);
+	--primary-foreground: oklch(0.22 0.03 40);
+	--primary-emphasis: oklch(0.79 0.04 45);
+	--ring: oklch(0.72 0.04 45);
+}
+
+:root[data-cline-accent="ember"] {
+	--primary: oklch(0.6 0.19 33);
+	--primary-foreground: oklch(0.99 0 0);
+	--primary-emphasis: oklch(0.52 0.19 33);
+	--ring: oklch(0.66 0.16 33);
+}
+
+:root.dark[data-cline-accent="ember"] {
+	--primary: oklch(0.7 0.17 36);
+	--primary-foreground: oklch(0.17 0.03 33);
+	--primary-emphasis: oklch(0.77 0.15 36);
+	--ring: oklch(0.7 0.14 36);
 }
