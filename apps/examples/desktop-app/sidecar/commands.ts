@@ -27,8 +27,6 @@ import {
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
-	loginAndSaveLocalProviderOAuthCredentials,
-	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
@@ -71,6 +69,10 @@ import {
 	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
+import {
+	cancelProviderOAuthLogin,
+	runCancellableProviderOAuthLogin,
+} from "./oauth-login";
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
@@ -1112,6 +1114,7 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
+	options?: { connection?: object },
 ): Promise<unknown> {
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -1447,7 +1450,7 @@ export async function handleCommand(
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		const manager = new ProviderSettingsManager();
-		const saved = await loginAndSaveLocalProviderOAuthCredentials(
+		return await runCancellableProviderOAuthLogin(
 			manager,
 			providerId,
 			(url) => {
@@ -1459,13 +1462,14 @@ export async function handleCommand(
 					);
 				});
 			},
+			{ owner: options?.connection },
 		);
-		if (saved.provider !== providerId) {
-			markLocalProviderEnabled(manager, providerId, { tokenSource: "oauth" });
-		}
+	}
+	if (command === "cancel_provider_oauth_login") {
+		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		return {
 			provider: providerId,
-			accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "",
+			cancelled: cancelProviderOAuthLogin(providerId),
 		};
 	}
 

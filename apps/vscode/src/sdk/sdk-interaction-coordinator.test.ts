@@ -358,7 +358,7 @@ describe("SdkInteractionCoordinator", () => {
 		])
 	})
 
-	it("emits mistake_limit_reached and resolves proceed as SDK recovery guidance", async () => {
+	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
@@ -368,63 +368,35 @@ describe("SdkInteractionCoordinator", () => {
 			setTurnPhase,
 		})
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
-			details: "bad arguments",
-		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		expect(task.messageStateHandler.getClineMessages()[0]).toMatchObject({
-			type: "ask",
-			ask: "mistake_limit_reached",
-			partial: false,
-		})
-		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getClineMessages()[0].ts)
-
-		expect(coordinator.resolvePendingMistakeLimit("try smaller steps", "yesButtonClicked")).toBe(true)
-		await expect(decisionPromise).resolves.toEqual({
-			action: "continue",
-			guidance: "mistake_limit_reached: try smaller steps",
-		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
-			{ type: "ask", ask: "mistake_limit_reached" },
-			{ type: "say", say: "user_feedback", text: "try smaller steps" },
-		])
-		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
-	})
-
-	it("resolves mistake-limit no-button responses as stop decisions", async () => {
-		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
-		const setTurnPhase = vi.fn()
-		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => task }),
-			getSessionId: () => "session-123",
-			postStateToWebview: vi.fn().mockResolvedValue(undefined),
-			setTurnPhase,
-		})
-
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
-		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		expect(coordinator.resolvePendingMistakeLimit(undefined, "noButtonClicked")).toBe(true)
-
-		await expect(decisionPromise).resolves.toEqual({
+		// CLI parity: the decision resolves right away as a stop — no pending
+		// prompt that would leave the agent loop running against the provider.
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 4,
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				reason: "tool_execution_failed",
+				details: "bad arguments",
+			}),
+		).resolves.toEqual({
 			action: "stop",
-			reason: "stopped after mistake_limit_reached prompt",
+			reason: "mistake_limit_reached: tool_execution_failed: bad arguments",
 		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
-		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+			{
+				type: "say",
+				say: "error",
+				partial: false,
+			},
+		])
+		const errorText = task.messageStateHandler.getClineMessages()[0].text ?? ""
+		expect(errorText).toContain("3 errors in a row")
+		expect(errorText).toContain("tool_execution_failed: bad arguments")
+		expect(errorText).toContain("Send a message to give Cline guidance")
 	})
 
-	it("clears pending mistake-limit prompts as stop decisions", async () => {
+	it("summarizes the mistake limit without details using the iteration", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
@@ -432,18 +404,17 @@ describe("SdkInteractionCoordinator", () => {
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		})
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 4,
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				reason: "tool_execution_failed",
+			}),
+		).resolves.toEqual({
+			action: "stop",
+			reason: "mistake_limit_reached: tool_execution_failed at iteration 4",
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		coordinator.clearPending("Task cleared")
-
-		await expect(decisionPromise).resolves.toEqual({ action: "stop", reason: "Task cleared" })
-		expect(coordinator.resolvePendingMistakeLimit(undefined, "yesButtonClicked")).toBe(false)
 	})
 
 	it("clears pending tool approvals as rejected", async () => {

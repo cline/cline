@@ -238,6 +238,7 @@ export function useChatSession() {
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
+	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
@@ -268,6 +269,9 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		promptsInQueueRef.current = promptsInQueue;
+	}, [promptsInQueue]);
 
 	const setWorkspacePath = useCallback((workspacePath: string): void => {
 		workspaceSelectionRequestRef.current += 1;
@@ -815,6 +819,31 @@ export function useChatSession() {
 
 			if (payload.stream === "chat_done") {
 				clearLiveToolRefs();
+				// Prompts that the runtime consumed from the queue (for example the
+				// first prompt of a fresh session, which is queued while the
+				// interactive loop is still starting) never resolve through the
+				// send() RPC, so this stream event is the only turn-completion
+				// signal. Without it the composer stays on "Agent is working..."
+				// forever.
+				let doneReason = "";
+				try {
+					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					doneReason = parsed.reason?.trim() ?? "";
+				} catch {
+					// Missing reason still means the turn ended.
+				}
+				setStatus(
+					doneReason === "aborted"
+						? "cancelled"
+						: doneReason === "error"
+							? "failed"
+							: // Prompts still waiting in the queue mean the session is
+								// only between turns, not done: keep the composer in the
+								// busy state until the queue drains.
+								promptsInQueueRef.current.length > 0
+								? "running"
+								: "completed",
+				);
 				return;
 			}
 
