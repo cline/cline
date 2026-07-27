@@ -88,20 +88,15 @@ export function truncateCommandOutput(output: string): string {
 	return output
 }
 
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
-
-export function createShellExecutor() {
-	return async () => ""
-}
-
+// The real background shell executor (dependency-light: node:child_process +
+// @cline/shared helpers), so tests exercise the actual spawn/timeout/kill
+// semantics — in particular that run_commands timeout overrides reach the
+// executor's own kill timer. CommandExitError must be the same class the real
+// executor throws so instanceof checks in tests and production code agree.
+export {
+	CommandExitError,
+	createShellExecutor,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 // The real createShellTool, so tests exercise the actual description
 // building and shell classification (getShellKind) rather than a stub that
 // would have to duplicate those invariants.

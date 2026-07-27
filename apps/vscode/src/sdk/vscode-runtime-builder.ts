@@ -4,7 +4,7 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
-import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
+import { createVscodeRunCommandsTool, VSCODE_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
 
 interface McpToolDescriptor {
 	name: string
@@ -160,13 +160,16 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 			createVscodeRunCommandsTool({
 				cwd: options.cwd ?? process.cwd(),
 				getTerminalManager: options.getTerminalManager,
-				bashTimeoutMs: executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : undefined,
+				// Both modes need the extended budget: without it the background
+				// path falls through to the SDK's 30s default, which kills
+				// installs, builds, and test suites (ENG-2333).
+				bashTimeoutMs: VSCODE_RUN_COMMANDS_TIMEOUT_MS,
 				vscodeTerminalExecutionMode: executionMode,
 				foregroundCommands: options.foregroundCommands,
 			}),
 		)
 		Logger.log(
-			`[VscodeRuntimeTools] Added custom run_commands tool (mode=${executionMode}, timeoutMs=${executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : "default"})`,
+			`[VscodeRuntimeTools] Added custom run_commands tool (mode=${executionMode}, timeoutMs=${VSCODE_RUN_COMMANDS_TIMEOUT_MS})`,
 		)
 	}
 

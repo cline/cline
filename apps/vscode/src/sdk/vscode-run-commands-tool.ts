@@ -43,8 +43,13 @@ import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-c
 type ShellCommand = string | StructuredCommandInput
 type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 
-/** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
-export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
+/**
+ * Timeout for run_commands in both execution modes. Installs, builds, and
+ * test suites routinely run for many minutes, so the SDK's 30s default is far
+ * too aggressive for an IDE workspace. Foreground VS Code terminals also
+ * cannot be forcibly terminated; give long-running commands room to finish.
+ */
+export const VSCODE_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 
 /**
  * Cap on the "Proceed While Running" log file. A detached devserver can log
@@ -61,7 +66,7 @@ export interface VscodeRunCommandsToolOptions {
 	cwd: string
 	/** Lazy factory for the VscodeTerminalManager. Called once on first foreground use. */
 	getTerminalManager: () => VscodeTerminalManager
-	/** Timeout passed to the SDK shell tool wrapper and timeout telemetry. */
+	/** Timeout passed to the SDK shell tool wrapper, the background shell executor, and timeout telemetry. */
 	bashTimeoutMs?: number
 	/** Terminal execution mode captured when this session's tool set is built. */
 	vscodeTerminalExecutionMode?: VscodeTerminalExecutionMode
@@ -528,6 +533,11 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 					// Set SHELL env to match the shell we're spawning so child
 					// processes see the correct value instead of the inherited parent's.
 					env: { SHELL: shell },
+					// The executor kills the process tree at its own timeout,
+					// independent of the createShellTool wrapper's bashTimeoutMs.
+					// Keep the two in sync so background commands get the same
+					// budget as foreground ones instead of the SDK's 30s default.
+					timeoutMs: options.bashTimeoutMs,
 				})
 				Logger.log(`[VscodeRunCommands] Background executor using shell: ${shell}`)
 			}

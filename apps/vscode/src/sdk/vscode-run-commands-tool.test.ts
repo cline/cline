@@ -1052,3 +1052,52 @@ describe("executeForeground — Proceed While Running", () => {
 		fs.rmSync(logFilePath!, { force: true })
 	})
 })
+
+describe("createVscodeRunCommandsTool (backgroundExec)", () => {
+	const context = { agentId: "agent-1", conversationId: "conv-1", iteration: 1 }
+
+	/** Shape of the SDK shell tool's per-command results (ToolOperationResult). */
+	type RunCommandsResult = Array<{ query: string; result: string; success: boolean; error?: string }>
+
+	function createBackgroundTool(bashTimeoutMs: number) {
+		return createVscodeRunCommandsTool({
+			cwd: process.cwd(),
+			getTerminalManager: () => {
+				throw new Error("background mode must not create a terminal manager")
+			},
+			vscodeTerminalExecutionMode: "backgroundExec",
+			bashTimeoutMs,
+		})
+	}
+
+	it("runs commands through the background executor without a terminal manager", async () => {
+		const tool = createBackgroundTool(30_000)
+
+		// Structured command: spawns the executable directly, so the test does
+		// not depend on the host's shell.
+		const results = (await tool.execute(
+			{ commands: [{ command: process.execPath, args: ["-e", "console.log('bg-ok')"] }] },
+			context,
+		)) as RunCommandsResult
+
+		expect(results).toHaveLength(1)
+		expect(results[0].success).toBe(true)
+		expect(results[0].result).toContain("bg-ok")
+	})
+
+	it("plumbs bashTimeoutMs through to the background executor's kill timer (ENG-2333)", async () => {
+		// Before the fix, the background path always used the SDK executor's
+		// 30s default regardless of bashTimeoutMs, so every long command died
+		// with "Command timed out after 30000ms".
+		const tool = createBackgroundTool(200)
+
+		const results = (await tool.execute(
+			{ commands: [{ command: process.execPath, args: ["-e", "setTimeout(() => {}, 30_000)"] }] },
+			context,
+		)) as RunCommandsResult
+
+		expect(results).toHaveLength(1)
+		expect(results[0].success).toBe(false)
+		expect(results[0].error).toContain("timed out after 200ms")
+	})
+})
