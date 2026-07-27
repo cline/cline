@@ -13,7 +13,6 @@ import {
 	MoreHorizontal,
 	PencilIcon,
 	PlugIcon,
-	RadioIcon,
 	RotateCcwIcon,
 	RssIcon,
 	ServerIcon,
@@ -22,7 +21,7 @@ import {
 	UserCircleIcon,
 	WrenchIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import {
 	lazy,
 	Suspense,
@@ -61,6 +60,7 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
+import { DriveMarkIcon } from "./components/icons/drive-mark";
 import { DriveView } from "./components/views/drive-view";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
@@ -393,12 +393,14 @@ function Shell({
 		icon: typeof HomeIcon;
 	}>;
 	const driveNavItems = [
-		{ view: "drive", label: "Drive", icon: RadioIcon },
+		{ view: "drive", label: "Drive", icon: DriveMarkIcon },
 		{ view: "status", label: "Status Hub", icon: ActivityIcon },
 	] satisfies Array<{
 		view: Extract<View, "drive" | "status">;
 		label: string;
-		icon: typeof HomeIcon;
+		// Wider than the lucide icons elsewhere: the Drive mark is a plain
+		// function component, and renderNavButton only needs `className`.
+		icon: ComponentType<{ className?: string }>;
 	}>;
 	const customizationNavItems = [
 		{ view: "plugins", label: "Plugins", icon: PlugIcon },
@@ -455,7 +457,7 @@ function Shell({
 					<img
 						alt=""
 						className="size-6 shrink-0 dark:invert"
-						src="/cline-drive-logo.svg"
+						src="/cline-logo-filled.svg"
 					/>
 					<span className="truncate">Cline</span>
 				</button>

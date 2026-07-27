@@ -13,13 +13,13 @@ import {
 	ArrowRightIcon,
 	MonitorPlayIcon,
 	PhoneIcon,
-	RadioIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { postToHost } from "../../vscode";
+import { DriveMarkIcon } from "../icons/drive-mark";
 import { PageFrame, PageHeader } from "./page-layout";
 
 const SNAPSHOT_STATES: readonly StatusState[] = [
@@ -100,7 +100,7 @@ export function DriveView({
 		<PageFrame>
 			<PageHeader
 				description="Drive coding: you stay on a call with an agent while it works, watch what it is doing, and steer. Everything this fork adds to Cline lives here."
-				icon={RadioIcon}
+				icon={DriveMarkIcon}
 				title="Drive"
 				actions={
 					<Button onClick={onOpenCall} size="sm" type="button">
