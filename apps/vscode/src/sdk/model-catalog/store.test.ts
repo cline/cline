@@ -924,6 +924,67 @@ describe("createProviderConfigStore", () => {
 		])
 	})
 
+	it("does not emit fields for an empty patch", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("lmstudio")
+		const listener = vi.fn()
+
+		store.subscribe(listener)
+		const config = store.write(providerId, {})
+
+		expect(config).toEqual(store.read(providerId))
+		expect(listener).not.toHaveBeenCalled()
+		expect(mocks.getSaveProviderSettingsMock()).not.toHaveBeenCalled()
+	})
+
+	it("does not emit fields when a debounced settings write leaves the effective config unchanged", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ lmstudio: { provider: "lmstudio", baseUrl: "http://localhost:1234" } })
+		mocks.setApiConfiguration({ lmStudioBaseUrl: "http://localhost:1234" })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("lmstudio")
+		const listener = vi.fn()
+
+		store.subscribe(listener)
+		const config = store.write(providerId, { baseUrl: "http://localhost:1234" })
+
+		expect(config.baseUrl).toBe("http://localhost:1234")
+		expect(listener).not.toHaveBeenCalled()
+	})
+
+	it("still emits fields for reasoning writes outside the effective config shape", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+		const listener = vi.fn()
+
+		store.subscribe(listener)
+		const config = store.write(providerId, { reasoning: { enabled: true, effort: "high" } })
+
+		expect(mocks.getSavedProviderSettings("openrouter")).toMatchObject({
+			provider: "openrouter",
+			reasoning: { enabled: true, effort: "high" },
+		})
+		expect(listener).toHaveBeenCalledOnce()
+		expect(listener).toHaveBeenCalledWith({ kind: "fields", providerId, config })
+	})
+
+	it("does not emit fields when a reasoning write leaves persisted settings unchanged", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			openrouter: { provider: "openrouter", reasoning: { enabled: true, effort: "high", budgetTokens: 4096 } },
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+		const listener = vi.fn()
+
+		store.subscribe(listener)
+		store.write(providerId, { reasoning: { enabled: true, effort: "high", budgetTokens: 4096 } })
+
+		expect(listener).not.toHaveBeenCalled()
+	})
+
 	it("write emits fields, commitSelection emits selection, and write never emits selection", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
