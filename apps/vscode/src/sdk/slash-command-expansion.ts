@@ -243,7 +243,10 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 		}
 		let enabled: boolean
 		if (REMOTE_CONFIG_PATH_REGEX.test(record.filePath)) {
-			const remoteKey = remoteWorkflowNameKey(record.name)
+			// Key off the materialized file basename — the materializer derives it
+			// from the remote config name, so it stays correct even when the file's
+			// frontmatter aliases the command name to something else.
+			const remoteKey = remoteWorkflowNameKey(fileBasename(record.filePath))
 			enabled = remoteAlwaysEnabled.has(remoteKey) || remoteToggles.get(remoteKey) !== false
 		} else {
 			enabled = enabledByBasename.get(canonicalWorkflowName(fileBasename(record.filePath))) ?? true

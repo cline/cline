@@ -169,6 +169,14 @@ describe("buildDisabledWorkflowNames", () => {
 		expect(disabled).toEqual(new Set(["org-standards"]))
 	})
 
+	it("keys remote toggles off the materialized filename even when frontmatter aliases the command", () => {
+		const disabled = buildDisabledWorkflowNames({
+			records: [{ name: "friendly-alias", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" }],
+			remoteToggles: { "Org Standards": false },
+		})
+		expect(disabled).toEqual(new Set(["friendly-alias"]))
+	})
+
 	it("matches remote toggles whose config names get sanitized during materialization", () => {
 		// "Org Standards" materializes as org-standards.md, and the record is
 		// named after the sanitized basename.
