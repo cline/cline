@@ -251,7 +251,7 @@ describe("models-dev-catalog", () => {
 		expect(result.cline?.["cline-free/kat-coder-pro"]).toMatchObject({
 			id: "cline-free/kat-coder-pro",
 			name: "KAT Coder Pro (free)",
-			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 		expect(models["cline-free/kat-coder-pro"]).not.toBe(
 			result.cline?.["cline-free/kat-coder-pro"],
@@ -351,7 +351,7 @@ describe("models-dev-catalog", () => {
 					id: "cline-free/k2-think",
 					name: "K2 Think (free)",
 					contextWindow: 1_000_000,
-					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				}),
 			},
 		});

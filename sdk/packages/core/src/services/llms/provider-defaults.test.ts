@@ -259,7 +259,7 @@ describe("resolveProviderConfig", () => {
 				contextWindow: 300_000,
 				maxInputTokens: 250_000,
 				maxTokens: 64_000,
-				pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0.2 },
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			},
 		);
 	});
