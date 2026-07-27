@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatCliErrorMessage,
+	getCliClineFreeModelLimitMessage,
 	getCliClinePassLimitMessage,
 	getCliNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
+	isClineFreeModelLimitErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
@@ -66,5 +68,22 @@ describe("cline-pass-errors", () => {
 			"Switch to Cline usage-based billing",
 		);
 		expect(formatCliErrorMessage(new Error(raw))).toContain("--provider cline");
+	});
+
+	it("recognizes and formats daily free model limits without usage-billing guidance", () => {
+		const raw =
+			"Error: Error 429: Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m";
+
+		expect(isClineFreeModelLimitErrorMessage(raw)).toBe(true);
+		expect(isClineFreeModelLimitErrorMessage(new Error(raw))).toBe(true);
+		expect(formatCliErrorMessage(new Error(raw))).toBe(
+			getCliClineFreeModelLimitMessage(raw),
+		);
+		expect(formatCliErrorMessage(new Error(raw))).toContain(
+			"select another model",
+		);
+		expect(formatCliErrorMessage(new Error(raw))).not.toContain(
+			"usage-based billing",
+		);
 	});
 });

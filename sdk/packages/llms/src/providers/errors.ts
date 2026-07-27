@@ -10,6 +10,7 @@ export const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_RESPONSE_MESSAGE =
 const CLINE_PASS_LIMIT_PREFIX = "you have reached your";
 const CLINE_PASS_LIMIT_MARKER = "clinepass limit";
 const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
+const CLINE_FREE_MODEL_LIMIT_MARKER = "free limit reached on model";
 
 function findClinePassLimitMessageBounds(
 	text: string,
@@ -78,6 +79,16 @@ export class ClinePassLimitError extends Error {
 	}
 }
 
+export class ClineFreeModelLimitError extends Error {
+	public readonly providerId?: string;
+
+	constructor(message: string, providerId?: string) {
+		super(message);
+		this.name = "ClineFreeModelLimitError";
+		this.providerId = providerId;
+	}
+}
+
 export function isClineNotSubscribedError(
 	error: unknown,
 ): error is ClineNotSubscribedError {
@@ -94,6 +105,12 @@ export function isClinePassLimitError(
 	error: unknown,
 ): error is ClinePassLimitError {
 	return error instanceof ClinePassLimitError;
+}
+
+export function isClineFreeModelLimitError(
+	error: unknown,
+): error is ClineFreeModelLimitError {
+	return error instanceof ClineFreeModelLimitError;
 }
 
 export function isClineNotSubscribedMessage(text: string): boolean {
@@ -119,4 +136,8 @@ export function isClinePassLimitMessage(text: string): boolean {
 export function extractClinePassLimitMessage(text: string): string | undefined {
 	const bounds = findClinePassLimitMessageBounds(text);
 	return bounds ? text.slice(bounds.start, bounds.end) : undefined;
+}
+
+export function isClineFreeModelLimitMessage(text: string): boolean {
+	return text.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_MARKER);
 }

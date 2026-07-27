@@ -60,6 +60,7 @@ export type {
 export {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
@@ -73,6 +74,8 @@ export {
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
 	isBuiltInProviderId,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,

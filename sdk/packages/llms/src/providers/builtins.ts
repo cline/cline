@@ -25,10 +25,12 @@ import type {
 } from "../catalog/types";
 import type { BuiltinSpec } from "./builtin-types";
 import {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
 	extractClinePassLimitMessage,
+	isClineFreeModelLimitMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
@@ -576,6 +578,10 @@ async function handleClineResponseError(
 
 	if (isClineOrgIndividualInferenceSubscriptionMessage(body)) {
 		throw new ClineOrgIndividualInferenceSubscriptionError(providerId);
+	}
+
+	if (isClineFreeModelLimitMessage(body)) {
+		throw new ClineFreeModelLimitError(body, providerId);
 	}
 
 	const clinePassLimitMessage = extractClinePassLimitMessage(body);

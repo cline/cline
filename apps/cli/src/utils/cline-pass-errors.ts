@@ -2,6 +2,8 @@ import {
 	type ClineSubscriptionPlan,
 	extractClinePassLimitMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
@@ -37,6 +39,15 @@ export function getCliClinePassLimitMessage(message: string): string {
 		"Headless CLI: rerun with --provider cline.",
 	];
 	return lines.filter((line) => line.trim().length > 0).join("\n");
+}
+
+export function getCliClineFreeModelLimitMessage(message: string): string {
+	return [
+		"Daily free model limit reached",
+		message.trim(),
+		"Wait for the limit to reset, select another model, or select the paid version of this model and retry.",
+		"Interactive CLI: open the model selector with /model.",
+	].join("\n");
 }
 
 export function getIndividualPlanFeatures(
@@ -114,6 +125,19 @@ export function isClinePassLimitErrorMessage(error: unknown): boolean {
 	return typeof error === "string" && isClinePassLimitMessage(error);
 }
 
+export function isClineFreeModelLimitErrorMessage(error: unknown): boolean {
+	if (isClineFreeModelLimitError(error)) {
+		return true;
+	}
+	if (error instanceof Error) {
+		return (
+			error.name === "ClineFreeModelLimitError" ||
+			isClineFreeModelLimitMessage(error.message)
+		);
+	}
+	return typeof error === "string" && isClineFreeModelLimitMessage(error);
+}
+
 export function formatCliErrorMessage(error: unknown): string {
 	if (isClinePassSubscriptionError(error)) {
 		return getCliNotSubscribedMessage();
@@ -123,6 +147,11 @@ export function formatCliErrorMessage(error: unknown): string {
 	}
 	if (isClinePassLimitErrorMessage(error)) {
 		return getCliClinePassLimitMessage(
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+	if (isClineFreeModelLimitErrorMessage(error)) {
+		return getCliClineFreeModelLimitMessage(
 			error instanceof Error ? error.message : String(error),
 		);
 	}

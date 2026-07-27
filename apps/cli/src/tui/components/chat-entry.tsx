@@ -8,6 +8,7 @@ import {
 	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
+	isClineFreeModelLimitErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
@@ -504,6 +505,33 @@ function ClinePassLimitErrorView(props: {
 	);
 }
 
+function ClineFreeModelLimitErrorView(props: {
+	message: string;
+	defaultFg?: string;
+}) {
+	return (
+		<box flexDirection="row">
+			<text fg={palette.act} content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={palette.act}
+				paddingX={1}
+			>
+				<text fg="red">Daily free model limit reached</text>
+				<text fg={props.defaultFg} selectable content={props.message} />
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="Wait for the limit to reset, select another model, or select the paid version of this model and retry."
+				/>
+				<text fg="gray">Open the model selector with /model.</text>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
@@ -625,6 +653,14 @@ export function ChatEntryView(props: {
 						message={entry.text}
 						defaultFg={defaultFg}
 						terminalTheme={terminalTheme}
+					/>
+				);
+			}
+			if (isClineFreeModelLimitErrorMessage(entry.text)) {
+				return (
+					<ClineFreeModelLimitErrorView
+						message={entry.text}
+						defaultFg={defaultFg}
 					/>
 				);
 			}
