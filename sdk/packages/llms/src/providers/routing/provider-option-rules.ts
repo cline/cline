@@ -1,4 +1,8 @@
-import { getModelReasoningControls, isClineProvider } from "@cline/shared";
+import {
+	getModelReasoningControls,
+	isClineProvider,
+	normalizeReasoningEffort,
+} from "@cline/shared";
 import {
 	isDeepSeekFamily,
 	isGlmModel,
@@ -15,10 +19,7 @@ import {
 	buildNativeGlmThinkingProviderOptionsPatch,
 	buildRoutedGlmReasoningProviderOptionsPatch,
 } from "./glm-thinking";
-import {
-	buildMiniMaxGatewayReasoningProviderOptionsPatch,
-	buildMiniMaxThinkingProviderOptionsPatch,
-} from "./minimax-thinking";
+import { buildMiniMaxThinkingProviderOptionsPatch } from "./minimax-thinking";
 import type {
 	MatchedProviderOptionRule,
 	ProviderOptionBuildInput,
@@ -116,6 +117,17 @@ function buildReasoningPatchForProvider(
 	if (!reasoning) {
 		return undefined;
 	}
+	return buildProviderAndAliasPatch({
+		providerId: input.request.providerId,
+		providerOptionsKey: input.providerOptionsKey,
+		bucketOptions: { reasoning },
+	});
+}
+
+function buildProviderReasoningPatch(
+	input: ProviderOptionBuildInput,
+	reasoning: Record<string, unknown>,
+): ProviderOptionsPatch {
 	return buildProviderAndAliasPatch({
 		providerId: input.request.providerId,
 		providerOptionsKey: input.providerOptionsKey,
@@ -302,19 +314,125 @@ const clineMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
 	build: () => undefined,
 };
 
-const vercelMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
-	id: "provider.vercel-ai-gateway.minimax-m3.gateway-reasoning",
+const vercelReasoningRule: ProviderOptionRule = {
+	id: "provider.vercel-ai-gateway.reasoning",
 	phase: "provider-reasoning",
 	description:
-		"Vercel-routed MiniMax M3 uses the gateway reasoning include/exclude shape.",
-	applies: (input) =>
-		input.request.providerId === "vercel-ai-gateway" && isMiniMaxM3(input),
+		"Vercel maps advertised toggle and budget controls to its gateway reasoning shape.",
+	applies: (input) => {
+		if (input.request.providerId !== "vercel-ai-gateway") {
+			return false;
+		}
+		const controls = getModelReasoningControls(
+			input.context.model.reasoningOptions,
+		);
+		return (
+			(controls?.toggle === true &&
+				typeof input.request.reasoning?.enabled === "boolean") ||
+			(controls?.budget !== undefined &&
+				typeof input.request.reasoning?.budgetTokens === "number") ||
+			isMiniMaxM3(input)
+		);
+	},
 	suppresses: { genericThinking: true, genericEffort: true },
+	build: (input) => {
+		const reasoning = input.request.reasoning;
+		if (!reasoning) {
+			return undefined;
+		}
+		const gatewayReasoning =
+			typeof reasoning.budgetTokens === "number"
+				? { max_tokens: reasoning.budgetTokens }
+				: reasoning.enabled === false
+					? { exclude: true }
+					: reasoning.enabled === true
+						? { enabled: true }
+						: undefined;
+		return gatewayReasoning
+			? buildProviderReasoningPatch(input, gatewayReasoning)
+			: undefined;
+	},
+};
+
+const directMoonshotReasoningRule: ProviderOptionRule = {
+	id: "provider.moonshot.toggle",
+	phase: "provider-reasoning",
+	description:
+		"Direct Moonshot maps advertised toggle controls to thinking.type.",
+	applies: (input) =>
+		input.request.providerId === "moonshot" &&
+		getModelReasoningControls(input.context.model.reasoningOptions)?.toggle ===
+			true &&
+		typeof input.request.reasoning?.enabled === "boolean",
+	suppresses: { genericThinking: true },
 	build: (input) =>
-		buildMiniMaxGatewayReasoningProviderOptionsPatch(
-			input.request,
-			input.providerOptionsKey,
-		),
+		buildThinkingPatch({
+			providerId: input.request.providerId,
+			providerOptionsKey: input.providerOptionsKey,
+			thinkingType: input.request.reasoning?.enabled ? "enabled" : "disabled",
+		}),
+};
+
+const fireworksReasoningRule: ProviderOptionRule = {
+	id: "provider.fireworks.reasoning-effort",
+	phase: "provider-reasoning",
+	description:
+		"Fireworks uses reasoning_effort for effort/toggle and thinking for token budgets.",
+	applies: (input) =>
+		input.request.providerId === "fireworks" &&
+		getModelReasoningControls(input.context.model.reasoningOptions) !==
+			undefined &&
+		input.request.reasoning !== undefined,
+	suppresses: { genericThinking: true, genericEffort: true },
+	build: (input) => {
+		const reasoning = input.request.reasoning;
+		const controls = getModelReasoningControls(
+			input.context.model.reasoningOptions,
+		);
+		const bucketOptions =
+			typeof reasoning?.budgetTokens === "number"
+				? {
+						thinking: {
+							type: "enabled",
+							budget_tokens: reasoning.budgetTokens,
+						},
+					}
+				: reasoning?.enabled === false
+					? { reasoningEffort: "none" }
+					: reasoning?.effort
+						? { reasoningEffort: reasoning.effort }
+						: reasoning?.enabled === true && controls?.efforts.length
+							? {
+									reasoningEffort: normalizeReasoningEffort(
+										"medium",
+										controls.efforts,
+									),
+								}
+							: undefined;
+		return bucketOptions === undefined
+			? undefined
+			: buildProviderAndAliasPatch({
+					providerId: input.request.providerId,
+					providerOptionsKey: input.providerOptionsKey,
+					bucketOptions,
+				});
+	},
+};
+
+const togetherReasoningToggleRule: ProviderOptionRule = {
+	id: "provider.together.toggle",
+	phase: "provider-reasoning",
+	description: "Together maps advertised toggle controls to reasoning.enabled.",
+	applies: (input) =>
+		input.request.providerId === "together" &&
+		getModelReasoningControls(input.context.model.reasoningOptions)?.toggle ===
+			true &&
+		typeof input.request.reasoning?.enabled === "boolean",
+	suppresses: { genericThinking: true },
+	build: (input) =>
+		buildProviderReasoningPatch(input, {
+			enabled: input.request.reasoning?.enabled,
+		}),
 };
 
 const geminiThinkingRule: ProviderOptionRule = {
@@ -501,7 +619,9 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,
 	clineMiniMaxM3GatewayReasoningRule,
-	vercelMiniMaxM3GatewayReasoningRule,
+	vercelReasoningRule,
+	directMoonshotReasoningRule,
+	fireworksReasoningRule,
 	geminiThinkingRule,
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
@@ -511,6 +631,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	nativeZaiGlmThinkingRule,
 	miniMaxThinkingRule,
 	routedGlmReasoningRule,
+	togetherReasoningToggleRule,
 ];
 
 export function matchProviderOptionRules(

@@ -6,6 +6,7 @@ import {
 	normalizeReasoningEffort,
 	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
+import { providerReasoningRouteMatches } from "../model-facts";
 
 function clampBudget(
 	budgetTokens: number,
@@ -82,9 +83,11 @@ export function normalizeReasoningRequest(
 	const effort = reasoning.effort
 		? normalizeReasoningEffort(reasoning.effort, controls.efforts)
 		: undefined;
-	const isAnthropicBudget =
-		context.provider.metadata?.routing?.reasoning?.format ===
-		"anthropic-thinking";
+	const isAnthropicBudget = providerReasoningRouteMatches(
+		"anthropic-thinking",
+		request,
+		context,
+	);
 	const outputCap = request.maxTokens ?? context.model.maxOutputTokens;
 	const maximumBudget = Math.min(
 		controls.budget?.max ?? Number.MAX_SAFE_INTEGER,

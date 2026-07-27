@@ -334,6 +334,12 @@ export function resolveAnthropicReasoningRequestPolicy(
 		if (!controls.effort && !controls.budget && !controls.toggle) {
 			return { kind: "none" };
 		}
+		if (
+			typeof request.reasoning?.budgetTokens === "number" &&
+			controls.budget
+		) {
+			return { kind: "anthropic-manual" };
+		}
 		return controls.effort
 			? { kind: "anthropic-adaptive" }
 			: controls.budget || controls.toggle

@@ -31,9 +31,7 @@ export function buildOpenAINativeProviderOptions(
 	}
 
 	const reasoningEffort =
-		request.reasoning?.enabled === false
-			? undefined
-			: request.reasoning?.effort;
+		request.reasoning?.enabled === false ? "none" : request.reasoning?.effort;
 	return {
 		truncation: "auto",
 		...(reasoningEffort ? { reasoningEffort } : {}),
@@ -53,30 +51,14 @@ function buildCompatibleThinkingOptions(options: {
 		return {};
 	}
 
-	const family = resolveModelFamily(context);
 	const anthropicPolicy = resolveAnthropicReasoningRequestPolicy(
 		request,
 		context,
 	);
 	const hasAnthropicReasoningRoute =
 		resolveReasoningRoute(request, context) !== undefined;
-	const hasPromptCacheRoute = shouldApplyPromptCache(request, context);
-	const isAnthropicCompatible = isAnthropicCompatibleModel({
-		modelId: request.modelId,
-		family,
-	});
-	const isQwen = isQwenModel({
-		modelId: request.modelId,
-		family,
-	});
 	if (
-		!hasAnthropicReasoningRoute &&
-		(hasPromptCacheRoute || isQwen || isAnthropicCompatible)
-	) {
-		return {};
-	}
-	if (
-		hasAnthropicReasoningRoute &&
+		!hasAnthropicReasoningRoute ||
 		anthropicPolicy.kind !== "anthropic-adaptive"
 	) {
 		return {};
@@ -94,17 +76,20 @@ function buildCompatibleEffortOptions(options: {
 		typeof resolveAnthropicReasoningRequestPolicy
 	>["kind"];
 }): Record<string, unknown> {
+	const controls = getModelReasoningControls(options.reasoningOptions);
 	const rawEffort =
-		options.reasoning?.effort ??
-		(options.reasoning?.enabled === true &&
-		!options.usesAnthropicReasoningRoute &&
-		getModelReasoningControls(options.reasoningOptions)?.supportsDefault
-			? "default"
-			: undefined);
+		options.reasoning?.enabled === false &&
+		controls?.effort?.values.includes("none")
+			? "none"
+			: (options.reasoning?.effort ??
+				(options.reasoning?.enabled === true &&
+				!options.usesAnthropicReasoningRoute &&
+				controls?.supportsDefault
+					? "default"
+					: undefined));
 	if (
 		options.suppressions.genericEffort ||
 		!rawEffort ||
-		options.reasoning?.enabled === false ||
 		options.suppressEffortOptions
 	) {
 		return {};
@@ -116,11 +101,7 @@ function buildCompatibleEffortOptions(options: {
 		return {};
 	}
 	return {
-		effort: rawEffort,
 		reasoningEffort: rawEffort,
-		...(options.usesAnthropicReasoningRoute
-			? {}
-			: { reasoningSummary: "auto" }),
 	};
 }
 

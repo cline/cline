@@ -227,9 +227,7 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		);
 
 		const expected = {
-			effort: "high",
 			reasoningEffort: "high",
-			reasoningSummary: "auto",
 		};
 		expect(result["vercel-ai-gateway"]).toEqual(
 			expect.objectContaining({
@@ -246,6 +244,8 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.openaiCompatible).toEqual(
 			expect.objectContaining({ strictJsonSchema: false }),
 		);
+		expect(result["vercel-ai-gateway"]).not.toHaveProperty("effort");
+		expect(result["vercel-ai-gateway"]).not.toHaveProperty("reasoningSummary");
 	});
 
 	it("disables strict JSON schema for the OpenAI adapter bucket", () => {
@@ -364,6 +364,28 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 				{
 					bucket: "anthropic",
 					has: { thinking: ADAPTIVE_THINKING, effort: "xhigh" },
+				},
+			],
+		},
+		{
+			name: "Sonnet 4.6 explicit budget selects manual thinking despite adaptive effort support",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				reasoning: { enabled: true, budgetTokens: 4096 },
+			},
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: [
+					...effortOptions(["low", "medium", "high", "max"]),
+					...budgetOptions(1024, 64_000),
+				],
+			},
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: { type: "enabled", budgetTokens: 4096 } },
+					lacks: ["effort"],
 				},
 			],
 		},
@@ -615,7 +637,8 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "groq",
-					has: { effort: "default", reasoningEffort: "default" },
+					has: { reasoningEffort: "default" },
+					lacks: ["effort", "reasoningSummary"],
 				},
 			],
 		},
@@ -1500,7 +1523,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "vercel MiniMax M3 sibling id -> no MiniMax M3 gateway exception",
+			name: "vercel MiniMax M3 sibling without advertised controls -> no reasoning control",
 			request: {
 				providerId: "vercel-ai-gateway",
 				modelId: "minimax/minimax-m3-pro",
@@ -1513,8 +1536,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "vercel-ai-gateway",
-					has: { thinking: { type: "adaptive" } },
-					lacks: ["reasoning"],
+					lacks: ["thinking", "reasoning"],
 				},
 			],
 		},
@@ -1615,7 +1637,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "direct MiniMax M2.5 reasoning enabled -> existing generic adaptive thinking",
+			name: "direct MiniMax M2.5 without an advertised control -> no generic thinking",
 			request: {
 				providerId: "minimax",
 				modelId: "MiniMax-M2.5",
@@ -1629,13 +1651,11 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "minimax",
-					has: { thinking: { type: "adaptive" } },
-					lacks: ["reasoning"],
+					lacks: ["thinking", "reasoning"],
 				},
 				{
 					bucket: "openaiCompatible",
-					has: { thinking: { type: "adaptive" } },
-					lacks: ["reasoning"],
+					lacks: ["thinking", "reasoning"],
 				},
 			],
 		},
@@ -1805,6 +1825,180 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 	]);
 });
 
+describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
+	runCases([
+		{
+			name: "direct Moonshot toggle on -> thinking.type=enabled",
+			request: {
+				providerId: "moonshot",
+				modelId: "kimi-k3",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "kimi-k3",
+				reasoningOptions: [
+					{ type: "toggle" },
+					...effortOptions(["low", "medium", "high", "max"]),
+				],
+			},
+			expect: [
+				{
+					bucket: "moonshot",
+					has: { thinking: { type: "enabled" } },
+					lacks: ["effort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "enabled" } },
+				},
+			],
+		},
+		{
+			name: "direct Moonshot toggle off -> thinking.type=disabled",
+			request: {
+				providerId: "moonshot",
+				modelId: "kimi-k3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "kimi-k3",
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "moonshot",
+					has: { thinking: { type: "disabled" } },
+				},
+			],
+		},
+		{
+			name: "Fireworks effort -> only reasoning_effort",
+			request: {
+				providerId: "fireworks",
+				modelId: "accounts/fireworks/models/gpt-oss",
+				reasoning: { effort: "max" },
+			},
+			context: {
+				reasoningOptions: effortOptions(["low", "medium", "high", "max"]),
+			},
+			expect: [
+				{
+					bucket: "fireworks",
+					has: { reasoningEffort: "max" },
+					lacks: ["thinking", "effort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "Fireworks toggle off -> reasoning effort none",
+			request: {
+				providerId: "fireworks",
+				modelId: "accounts/fireworks/models/kimi-k3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "fireworks",
+					has: { reasoningEffort: "none" },
+					lacks: ["thinking", "effort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "Fireworks toggle on -> nearest advertised default effort",
+			request: {
+				providerId: "fireworks",
+				modelId: "accounts/fireworks/models/kimi-k3",
+				reasoning: { enabled: true },
+			},
+			context: {
+				reasoningOptions: [
+					{ type: "toggle" },
+					...effortOptions(["low", "medium", "high", "max"]),
+				],
+			},
+			expect: [
+				{
+					bucket: "fireworks",
+					has: { reasoningEffort: "medium" },
+					lacks: ["thinking", "effort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "Fireworks token budget -> enabled thinking budget",
+			request: {
+				providerId: "fireworks",
+				modelId: "accounts/fireworks/models/kimi-k3",
+				reasoning: { budgetTokens: 4096 },
+			},
+			context: {
+				reasoningOptions: budgetOptions(128, 32_768),
+			},
+			expect: [
+				{
+					bucket: "fireworks",
+					has: {
+						thinking: { type: "enabled", budget_tokens: 4096 },
+					},
+					lacks: ["reasoningEffort", "effort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "Together toggle off -> reasoning.enabled=false",
+			request: {
+				providerId: "together",
+				modelId: "zai-org/glm-5.2",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "glm",
+				reasoningOptions: [
+					{ type: "toggle" },
+					...effortOptions(["low", "medium", "high", "max"]),
+				],
+			},
+			expect: [
+				{
+					bucket: "together",
+					has: { reasoning: { enabled: false } },
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "Vercel budget control -> reasoning.max_tokens without adaptive thinking",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "google/gemini-2.5-pro",
+				maxTokens: 64,
+				reasoning: { budgetTokens: 128 },
+			},
+			context: {
+				family: "gemini-pro",
+				reasoningOptions: budgetOptions(128, 32_768),
+				maxOutputTokens: 64,
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { max_tokens: 128 } },
+					lacks: ["thinking", "reasoningEffort"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { max_tokens: 128 } },
+					lacks: ["thinking", "reasoningEffort"],
+				},
+			],
+		},
+	]);
+});
+
 describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 	it.each([
 		"openai",
@@ -1848,6 +2042,35 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result).not.toHaveProperty("openai-native");
 	});
 
+	it("maps an advertised native OpenAI off control to reasoning effort none", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "openai-native",
+				modelId: "gpt-5.6",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "openai-native",
+				modelId: "gpt-5.6",
+				reasoningOptions: effortOptions([
+					"none",
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			}),
+		);
+
+		expect(result.openai).toEqual(
+			expect.objectContaining({
+				reasoningEffort: "none",
+				truncation: "auto",
+			}),
+		);
+	});
+
 	it("emits the openai-codex `openai` bucket alongside provider-id and alias buckets", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
@@ -1875,9 +2098,9 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			expect.objectContaining({
 				store: false,
 				reasoningEffort: "high",
-				reasoningSummary: "auto",
 			}),
 		);
+		expect(result["openai-codex"]).not.toHaveProperty("reasoningSummary");
 		expect(result["openai-codex"]).not.toHaveProperty("truncation");
 		expect(result.openaiCodex).toEqual(
 			expect.objectContaining({ store: false }),

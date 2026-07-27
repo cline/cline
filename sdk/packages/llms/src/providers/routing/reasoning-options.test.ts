@@ -8,6 +8,7 @@ import { normalizeReasoningRequest } from "./reasoning-options";
 
 function makeRequest(
 	reasoning: GatewayStreamRequest["reasoning"],
+	overrides: Partial<GatewayStreamRequest> = {},
 ): GatewayStreamRequest {
 	return {
 		providerId: "test",
@@ -15,21 +16,28 @@ function makeRequest(
 		messages: [],
 		maxTokens: 10_000,
 		reasoning,
+		...overrides,
 	};
 }
 
 function makeContext(
 	reasoningOptions: readonly ModelReasoningOption[] | undefined,
+	options?: {
+		modelId?: string;
+		metadata?: GatewayProviderContext["provider"]["metadata"];
+	},
 ): GatewayProviderContext {
+	const modelId = options?.modelId ?? "test-model";
 	return {
 		provider: {
 			id: "test",
 			name: "Test",
-			defaultModelId: "test-model",
+			defaultModelId: modelId,
 			models: [],
+			metadata: options?.metadata,
 		},
 		model: {
-			id: "test-model",
+			id: modelId,
 			name: "Test model",
 			providerId: "test",
 			maxOutputTokens: 10_000,
@@ -87,6 +95,43 @@ describe("normalizeReasoningRequest", () => {
 			normalizeReasoningRequest(makeRequest({ budgetTokens: 128 }), context)
 				.reasoning,
 		).toEqual({ enabled: true, budgetTokens: 512 });
+	});
+
+	it("reserves output headroom only when the model matches an Anthropic reasoning route", () => {
+		const metadata: GatewayProviderContext["provider"]["metadata"] = {
+			routing: {
+				reasoning: {
+					format: "anthropic-thinking",
+					routes: [{ matcher: "anthropic-compatible" }],
+				},
+			},
+		};
+		const options: ModelReasoningOption[] = [
+			{ type: "budget_tokens", min: 128, max: 32_768 },
+		];
+
+		expect(
+			normalizeReasoningRequest(
+				makeRequest(
+					{ budgetTokens: 128 },
+					{ modelId: "gemini-2.5-pro", maxTokens: 64 },
+				),
+				makeContext(options, { modelId: "gemini-2.5-pro", metadata }),
+			).reasoning,
+		).toEqual({ enabled: true, budgetTokens: 128 });
+
+		expect(
+			normalizeReasoningRequest(
+				makeRequest(
+					{ budgetTokens: 4096 },
+					{ modelId: "claude-sonnet-4-5", maxTokens: 2048 },
+				),
+				makeContext(options, {
+					modelId: "claude-sonnet-4-5",
+					metadata,
+				}),
+			).reasoning,
+		).toEqual({ enabled: true, budgetTokens: 2047 });
 	});
 
 	it("does not invent an off control when models.dev does not advertise one", () => {

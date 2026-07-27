@@ -2445,7 +2445,6 @@ describe("sdk-gateway", () => {
 					"openai-codex": expect.objectContaining({
 						store: false,
 						reasoningEffort: "high",
-						reasoningSummary: "auto",
 					}),
 					openaiCodex: expect.objectContaining({
 						store: false,
@@ -2463,6 +2462,9 @@ describe("sdk-gateway", () => {
 		expect(call?.providerOptions?.openai).not.toHaveProperty("truncation");
 		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
 			"truncation",
+		);
+		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
+			"reasoningSummary",
 		);
 		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
 	});
@@ -3415,7 +3417,7 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("passes reasoning summary through for non-anthropic openai-compatible reasoning models", async () => {
+	it("passes only canonical effort options for non-anthropic openai-compatible reasoning models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -3456,7 +3458,6 @@ describe("sdk-gateway", () => {
 				providerOptions: expect.objectContaining({
 					openaiCompatible: expect.objectContaining({
 						reasoningEffort: "high",
-						reasoningSummary: "auto",
 					}),
 					cline: expect.objectContaining({
 						reasoning: expect.objectContaining({
@@ -3464,11 +3465,19 @@ describe("sdk-gateway", () => {
 							effort: "high",
 						}),
 						reasoningEffort: "high",
-						reasoningSummary: "auto",
 					}),
 				}),
 			}),
 		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					providerOptions?: Record<string, Record<string, unknown>>;
+			  }
+			| undefined;
+		expect(call?.providerOptions?.openaiCompatible).not.toHaveProperty(
+			"reasoningSummary",
+		);
+		expect(call?.providerOptions?.cline).not.toHaveProperty("reasoningSummary");
 	});
 
 	it("passes native Z.AI thinking enabled and disabled provider options for GLM", async () => {
