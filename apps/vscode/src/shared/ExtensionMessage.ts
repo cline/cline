@@ -84,7 +84,7 @@ export interface ExtensionState {
 	platform: Platform
 	environment?: Environment
 	shouldShowAnnouncement: boolean
-	taskHistory: HistoryItem[]
+	taskHistory?: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
@@ -138,6 +138,13 @@ export interface ExtensionState {
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
+	/**
+	 * True when clineMessages has been truncated for performance.
+	 * The full message set can be loaded on-demand via loadHistoryBatch.
+	 */
+	messageTruncated?: boolean
+	/** Total number of messages for this task (for scrollbar sizing when truncated). */
+	totalMessageCount?: number
 }
 
 /**

@@ -35,7 +35,6 @@ export async function getStateToPostToWebview(controller: {
 	const onboardingModels = getClineOnboardingModels()
 	const apiConfiguration = stateManager.getApiConfiguration()
 	const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
-	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
 	const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
 	const browserSettings = stateManager.getGlobalSettingsKey("browserSettings")
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
@@ -79,16 +78,21 @@ export async function getStateToPostToWebview(controller: {
 	const localAgentsRulesToggles = stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
 	const workflowToggles = stateManager.getWorkspaceStateKey("workflowToggles")
 
+	// taskHistory is now loaded on-demand; only fetch the single matching item here.
+	const rawTaskHistory = stateManager.getGlobalStateKey("taskHistory") || []
 	const currentTaskItem = controller.task?.taskId
-		? (taskHistory || []).find((item: any) => item.id === controller.task?.taskId)
+		? rawTaskHistory.find((item: any) => item.id === controller.task?.taskId)
 		: undefined
-	const clineMessages = [...(controller.task?.messageStateHandler?.getClineMessages?.() || [])]
-	const checkpointRestoreInput = controller.checkpointRestoreInput
 
-	const processedTaskHistory = (taskHistory || [])
-		.filter((item: any) => item.ts && item.task)
-		.sort((a: any, b: any) => b.ts - a.ts)
-		.slice(0, 100)
+	// Get all messages, then truncate for webview performance.
+	// Only the last N messages are sent; the rest can be loaded on-demand.
+	const allMessages = [...(controller.task?.messageStateHandler?.getClineMessages?.() || [])]
+	const MESSAGE_TRUNCATION_LIMIT = 50
+	const isTruncated = allMessages.length > MESSAGE_TRUNCATION_LIMIT
+	const totalMessageCount = allMessages.length
+	const clineMessages = isTruncated ? allMessages.slice(-MESSAGE_TRUNCATION_LIMIT) : allMessages
+
+	const checkpointRestoreInput = controller.checkpointRestoreInput
 
 	const latestAnnouncementId = getLatestAnnouncementId()
 	const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
@@ -153,7 +157,6 @@ export async function getStateToPostToWebview(controller: {
 		mcpResponsesCollapsed,
 		maxConsecutiveMistakes,
 		customPrompt,
-		taskHistory: processedTaskHistory,
 		shouldShowAnnouncement,
 		favoritedModelIds,
 		backgroundCommandRunning: controller.backgroundCommandRunning ?? false,
@@ -182,5 +185,7 @@ export async function getStateToPostToWebview(controller: {
 		banners,
 		welcomeBanners,
 		openAiCodexIsAuthenticated,
+		messageTruncated: isTruncated || undefined,
+		totalMessageCount: isTruncated ? totalMessageCount : undefined,
 	} as ExtensionState
 }
