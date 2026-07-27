@@ -48,6 +48,7 @@ export {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,

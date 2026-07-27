@@ -50,6 +50,9 @@ describe("cline-pass-errors", () => {
 			),
 		).toBe(true);
 		expect(formatCliErrorMessage(new Error(raw))).toBe(formatted);
+		expect(formatCliErrorMessage(new Error(raw))).not.toContain(
+			"deepseek-v4-flash",
+		);
 	});
 
 	it("recognizes and formats ClinePass period limit errors with usage-billing guidance", () => {
@@ -78,6 +81,10 @@ describe("cline-pass-errors", () => {
 		expect(isClineFreeModelLimitErrorMessage(new Error(raw))).toBe(true);
 		expect(formatCliErrorMessage(new Error(raw))).toBe(
 			getCliClineFreeModelLimitMessage(raw),
+		);
+		expect(formatCliErrorMessage(new Error(raw))).not.toContain("Error 429");
+		expect(formatCliErrorMessage(new Error(raw))).toContain(
+			"Try again in 23h 59m",
 		);
 		expect(formatCliErrorMessage(new Error(raw))).toContain(
 			"select another model",

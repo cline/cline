@@ -1,4 +1,7 @@
-import type { ClineSubscriptionPlan } from "@cline/core";
+import {
+	type ClineSubscriptionPlan,
+	extractClineFreeModelLimitResetTime,
+} from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -482,14 +485,6 @@ function ClinePassLimitErrorView(props: {
 					content="Switch to Cline usage-based billing and retry with the Cline provider."
 				/>
 				<box flexDirection="row">
-					<text fg="gray">Interactive CLI: </text>
-					<text
-						fg={props.defaultFg}
-						selectable
-						content="type /model, press tab to change provider, choose Cline, then retry."
-					/>
-				</box>
-				<box flexDirection="row">
 					<text fg="gray">Headless CLI: </text>
 					<text fg={props.defaultFg} selectable content="rerun with " />
 					<code
@@ -509,6 +504,8 @@ function ClineFreeModelLimitErrorView(props: {
 	message: string;
 	defaultFg?: string;
 }) {
+	const resetTime = extractClineFreeModelLimitResetTime(props.message);
+
 	return (
 		<box flexDirection="row">
 			<text fg={palette.act} content="* " />
@@ -520,11 +517,19 @@ function ClineFreeModelLimitErrorView(props: {
 				paddingX={1}
 			>
 				<text fg="red">Daily free model limit reached</text>
-				<text fg={props.defaultFg} selectable content={props.message} />
 				<text
 					fg={props.defaultFg}
 					selectable
-					content="Wait for the limit to reset, select another model, or select the paid version of this model and retry."
+					content="You've reached today's free usage limit for this model."
+				/>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content={
+						resetTime
+							? `Try again in ${resetTime} or select another model.`
+							: "Try again later or select another model."
+					}
 				/>
 				<text fg="gray">Open the model selector with /model.</text>
 			</box>
@@ -659,8 +664,8 @@ export function ChatEntryView(props: {
 			if (isClineFreeModelLimitErrorMessage(entry.text)) {
 				return (
 					<ClineFreeModelLimitErrorView
-						message={entry.text}
 						defaultFg={defaultFg}
+						message={entry.text}
 					/>
 				);
 			}

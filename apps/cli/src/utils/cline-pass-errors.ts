@@ -1,5 +1,6 @@
 import {
 	type ClineSubscriptionPlan,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineFreeModelLimitError,
@@ -42,11 +43,14 @@ export function getCliClinePassLimitMessage(message: string): string {
 }
 
 export function getCliClineFreeModelLimitMessage(message: string): string {
+	const resetTime = extractClineFreeModelLimitResetTime(message);
 	return [
 		"Daily free model limit reached",
-		message.trim(),
-		"Wait for the limit to reset, select another model, or select the paid version of this model and retry.",
-		"Interactive CLI: open the model selector with /model.",
+		"You've reached today's free usage limit for this model.",
+		resetTime
+			? `Try again in ${resetTime} or select another model.`
+			: "Try again later or select another model.",
+		"Open the model selector with /model.",
 	].join("\n");
 }
 

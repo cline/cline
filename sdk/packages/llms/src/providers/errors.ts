@@ -11,6 +11,7 @@ const CLINE_PASS_LIMIT_PREFIX = "you have reached your";
 const CLINE_PASS_LIMIT_MARKER = "clinepass limit";
 const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
 const CLINE_FREE_MODEL_LIMIT_MARKER = "free limit reached on model";
+const CLINE_FREE_MODEL_LIMIT_RETRY_MARKER = "try again in ";
 
 function findClinePassLimitMessageBounds(
 	text: string,
@@ -140,4 +141,19 @@ export function extractClinePassLimitMessage(text: string): string | undefined {
 
 export function isClineFreeModelLimitMessage(text: string): boolean {
 	return text.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_MARKER);
+}
+
+export function extractClineFreeModelLimitResetTime(
+	text: string,
+): string | undefined {
+	const message = text.toLowerCase();
+	const resetStart = message.indexOf(CLINE_FREE_MODEL_LIMIT_RETRY_MARKER);
+	if (resetStart === -1) {
+		return undefined;
+	}
+
+	const resetTime = message
+		.slice(resetStart + CLINE_FREE_MODEL_LIMIT_RETRY_MARKER.length)
+		.trim();
+	return resetTime || undefined;
 }

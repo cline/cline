@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isClinePassLimitMessage } from "../index.browser";
 import {
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	isClineFreeModelLimitMessage,
 } from "./errors";
@@ -56,15 +57,15 @@ describe("Cline free model limit messages", () => {
 		"Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m";
 
 	it("detects the message in an HTTP error", () => {
-		expect(isClineFreeModelLimitMessage(`Error: Error 429: ${message}`)).toBe(
-			true,
-		);
+		const error = `Error: Error 429: ${message}`;
+		expect(isClineFreeModelLimitMessage(error)).toBe(true);
+		expect(extractClineFreeModelLimitResetTime(error)).toBe("23h 59m");
 	});
 
 	it("detects the message in a JSON response body", () => {
-		expect(
-			isClineFreeModelLimitMessage(JSON.stringify({ error: { message } })),
-		).toBe(true);
+		const body = JSON.stringify({ error: { message } });
+		expect(isClineFreeModelLimitMessage(body)).toBe(true);
+		expect(extractClineFreeModelLimitResetTime(body)).toBe("23h 59m");
 	});
 
 	it("does not match unrelated daily limits", () => {

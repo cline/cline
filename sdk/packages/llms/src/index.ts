@@ -66,6 +66,7 @@ export {
 	ClinePassLimitError,
 	createHandler,
 	createHandlerAsync,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,

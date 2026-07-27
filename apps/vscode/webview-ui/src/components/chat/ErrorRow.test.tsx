@@ -322,9 +322,10 @@ describe("ErrorRow", () => {
 			render(<ErrorRow apiRequestFailedMessage={limitMessage} errorType="error" message={mockMessage} />)
 
 			expect(screen.getByTestId("cline-free-model-limit-error")).toBeInTheDocument()
-			expect(screen.getByText(limitMessage)).toBeInTheDocument()
-			expect(screen.getByText(/select another model/i)).toBeInTheDocument()
-			expect(screen.getByText(/paid version of this model/i)).toBeInTheDocument()
+			expect(screen.getByText(/You've reached today's free usage limit for this model/)).toBeInTheDocument()
+			expect(screen.getByText(/Try again in 23h 59m/)).toBeInTheDocument()
+			expect(screen.queryByText(limitMessage)).not.toBeInTheDocument()
+			expect(screen.queryByText(/deepseek-v4-flash/i)).not.toBeInTheDocument()
 			expect(screen.queryByText(/Switch to Usage-Based billing/i)).not.toBeInTheDocument()
 		})
 
