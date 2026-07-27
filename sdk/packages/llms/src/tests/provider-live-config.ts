@@ -180,10 +180,12 @@ export function toLiveProviderConfig(settingsInput: unknown): ProviderConfig {
 		}
 		if (typeof reasoning.effort === "string" && reasoning.effort !== "none") {
 			config.reasoningEffort = reasoning.effort as
+				| "minimal"
 				| "low"
 				| "medium"
 				| "high"
-				| "xhigh";
+				| "xhigh"
+				| "max";
 		}
 		if (typeof reasoning.budgetTokens === "number") {
 			config.thinkingBudgetTokens = reasoning.budgetTokens;

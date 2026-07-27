@@ -2,6 +2,7 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { getModelReasoningControls } from "@cline/shared";
 import {
 	isAnthropicCompatibleModel,
 	isQwenModel,
@@ -25,7 +26,18 @@ export function buildOpenAINativeProviderOptions(
 	const isNativeOpenAIClient = ["openai-native", "openai"].includes(
 		request.providerId,
 	);
-	return isNativeOpenAIClient ? { truncation: "auto" } : {};
+	if (!isNativeOpenAIClient) {
+		return {};
+	}
+
+	const reasoningEffort =
+		request.reasoning?.enabled === false
+			? undefined
+			: request.reasoning?.effort;
+	return {
+		truncation: "auto",
+		...(reasoningEffort ? { reasoningEffort } : {}),
+	};
 }
 
 function buildCompatibleThinkingOptions(options: {
@@ -74,6 +86,7 @@ function buildCompatibleThinkingOptions(options: {
 
 function buildCompatibleEffortOptions(options: {
 	reasoning: GatewayStreamRequest["reasoning"];
+	reasoningOptions?: GatewayProviderContext["model"]["reasoningOptions"];
 	usesAnthropicReasoningRoute: boolean;
 	suppressEffortOptions: boolean;
 	suppressions: ProviderOptionSuppression;
@@ -81,10 +94,16 @@ function buildCompatibleEffortOptions(options: {
 		typeof resolveAnthropicReasoningRequestPolicy
 	>["kind"];
 }): Record<string, unknown> {
-	const effort = options.reasoning?.effort;
+	const rawEffort =
+		options.reasoning?.effort ??
+		(options.reasoning?.enabled === true &&
+		!options.usesAnthropicReasoningRoute &&
+		getModelReasoningControls(options.reasoningOptions)?.supportsDefault
+			? "default"
+			: undefined);
 	if (
 		options.suppressions.genericEffort ||
-		!effort ||
+		!rawEffort ||
 		options.reasoning?.enabled === false ||
 		options.suppressEffortOptions
 	) {
@@ -97,8 +116,8 @@ function buildCompatibleEffortOptions(options: {
 		return {};
 	}
 	return {
-		effort,
-		reasoningEffort: effort,
+		effort: rawEffort,
+		reasoningEffort: rawEffort,
 		...(options.usesAnthropicReasoningRoute
 			? {}
 			: { reasoningSummary: "auto" }),
@@ -128,8 +147,11 @@ export function buildCompatibleProviderOptions(options: {
 		modelId: request.modelId,
 		family,
 	});
+	const hasAdvertisedReasoningControls =
+		context.model.reasoningOptions !== undefined;
 	const suppressCompatibleReasoningOptions =
 		!usesAnthropicReasoningRoute &&
+		!hasAdvertisedReasoningControls &&
 		(hasPromptCacheRoute || isQwen || isAnthropicCompatible);
 	const reasoning = buildAnthropicCompatibleReasoningOptions(request, context);
 	const promptCache = hasPromptCacheRoute ? createEphemeralCacheControl() : {};
@@ -139,6 +161,7 @@ export function buildCompatibleProviderOptions(options: {
 		...buildCompatibleThinkingOptions({ request, context, suppressions }),
 		...buildCompatibleEffortOptions({
 			reasoning: request.reasoning,
+			reasoningOptions: context.model.reasoningOptions,
 			usesAnthropicReasoningRoute,
 			suppressEffortOptions: suppressCompatibleReasoningOptions,
 			suppressions,

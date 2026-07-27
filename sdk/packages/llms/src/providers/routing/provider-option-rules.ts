@@ -1,16 +1,13 @@
-import { isClineProvider } from "@cline/shared";
+import { getModelReasoningControls, isClineProvider } from "@cline/shared";
 import {
 	isDeepSeekFamily,
-	isGemini3Model,
-	isGeminiFlashModel,
-	isGeminiProModel,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMiniMaxM3Model,
 	isMoonshotKimiModelIdFallback,
 	modelReasoningDefaultsOn,
 	providerReasoningRouteMatches,
-	supportsGeminiThinking,
+	resolveGeminiThinkingMode,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
@@ -126,12 +123,6 @@ function buildReasoningPatchForProvider(
 	});
 }
 
-const GEMINI_25_THINKING_BUDGET_BY_EFFORT = {
-	low: 1_024,
-	medium: 8_192,
-	high: 24_576,
-} as const;
-
 function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 	| {
 			thinkingLevel?: "minimal" | "low" | "medium" | "high";
@@ -144,10 +135,18 @@ function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 		return undefined;
 	}
 
-	if (isGemini3Model(input)) {
+	const thinkingMode = resolveGeminiThinkingMode(input);
+
+	if (thinkingMode === "level") {
 		if (reasoning.enabled === false) {
+			const lowestEffort =
+				getModelReasoningControls(input.context.model.reasoningOptions)
+					?.efforts[0] ?? "low";
 			return {
-				thinkingLevel: isGeminiFlashModel(input) ? "minimal" : "low",
+				thinkingLevel:
+					lowestEffort === "xhigh" || lowestEffort === "max"
+						? "high"
+						: lowestEffort,
 				includeThoughts: false,
 			};
 		}
@@ -155,33 +154,28 @@ function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 			return undefined;
 		}
 		return {
-			thinkingLevel: reasoning.effort,
+			thinkingLevel:
+				reasoning.effort === "xhigh" || reasoning.effort === "max"
+					? "high"
+					: reasoning.effort,
 			includeThoughts: true,
 		};
 	}
 
-	if (reasoning.enabled === false) {
+	if (thinkingMode === "budget" && reasoning.enabled === false) {
 		return {
-			thinkingBudget: isGeminiProModel(input) ? 128 : 0,
+			thinkingBudget: 0,
 			includeThoughts: false,
 		};
 	}
 
-	if (typeof reasoning.budgetTokens === "number") {
+	if (thinkingMode === "budget" && typeof reasoning.budgetTokens === "number") {
 		return {
 			thinkingBudget: reasoning.budgetTokens,
 			includeThoughts: true,
 		};
 	}
-
-	if (!reasoning.effort) {
-		return undefined;
-	}
-
-	return {
-		thinkingBudget: GEMINI_25_THINKING_BUDGET_BY_EFFORT[reasoning.effort],
-		includeThoughts: true,
-	};
+	return undefined;
 }
 
 const directAnthropicProviderRule: ProviderOptionRule = {
@@ -226,8 +220,18 @@ const openAiCodexRule: ProviderOptionRule = {
 	applies: (input) => input.request.providerId === "openai-codex",
 	suppresses: { genericFanout: true },
 	build: (input) => {
+		const normalizedEffort =
+			input.request.reasoning?.enabled === false
+				? undefined
+				: input.request.reasoning?.effort;
 		const codexOptions = {
 			...input.compatibleOptions,
+			...(normalizedEffort
+				? {
+						effort: normalizedEffort,
+						reasoningEffort: normalizedEffort,
+					}
+				: {}),
 			instructions: input.request.systemPrompt,
 			store: false,
 			strictJsonSchema: false,
@@ -322,7 +326,7 @@ const geminiThinkingRule: ProviderOptionRule = {
 		(input.request.providerId === "google" ||
 			input.request.providerId === "gemini" ||
 			input.request.providerId === "vertex") &&
-		supportsGeminiThinking(input) &&
+		resolveGeminiThinkingMode(input) !== undefined &&
 		(!!input.request.reasoning?.effort ||
 			typeof input.request.reasoning?.budgetTokens === "number" ||
 			input.request.reasoning?.enabled === false),

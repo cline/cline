@@ -103,6 +103,7 @@ function toGatewayModelDefinition(
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
 		capabilities: toGatewayCapabilities(model.capabilities),
+		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			family: model.family,
 			pricing: model.pricing,
@@ -431,14 +432,7 @@ function buildGatewayRequest(
 			config.thinkingBudgetTokens !== undefined
 				? {
 						enabled: config.thinking,
-						effort:
-							config.reasoningEffort === "xhigh"
-								? "high"
-								: config.reasoningEffort === "low" ||
-										config.reasoningEffort === "medium" ||
-										config.reasoningEffort === "high"
-									? config.reasoningEffort
-									: undefined,
+						effort: config.reasoningEffort,
 						budgetTokens: config.thinkingBudgetTokens,
 					}
 				: undefined,

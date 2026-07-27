@@ -207,6 +207,20 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
+export {
+	getModelReasoningControls,
+	type ModelReasoningControls,
+	type ModelReasoningEffortValue,
+	ModelReasoningEffortValueSchema,
+	type ModelReasoningOption,
+	ModelReasoningOptionSchema,
+	normalizeReasoningEffort,
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "./llms/reasoning-options";
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,

@@ -4,6 +4,7 @@ import type {
 	GatewayReasoningFormat,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { getModelReasoningControls } from "@cline/shared";
 
 export function resolveModelFamily(
 	context: GatewayProviderContext,
@@ -120,42 +121,30 @@ export function isQwenModel(options: {
 	return isQwenLineageValue(options.modelId);
 }
 
-export function isGemini3Model(input: {
+export function resolveGeminiThinkingMode(input: {
 	request: Pick<GatewayStreamRequest, "modelId">;
 	context: GatewayProviderContext;
-}): boolean {
-	return /(^|[/\s])gemini-3([.-]|$)/.test(geminiModelDescriptor(input));
-}
-
-export function isGeminiProModel(input: {
-	request: Pick<GatewayStreamRequest, "modelId">;
-	context: GatewayProviderContext;
-}): boolean {
-	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(geminiModelDescriptor(input));
-}
-
-export function isGeminiFlashModel(input: {
-	request: Pick<GatewayStreamRequest, "modelId">;
-	context: GatewayProviderContext;
-}): boolean {
-	const descriptor = geminiModelDescriptor(input);
-	return (
-		/(^|[/\s])gemini-(?:\d(?:\.\d)?-)?flash(?:-lite|-image)?([-\s]|$)/.test(
-			descriptor,
-		) || descriptor.includes("gemini-flash")
+}): "level" | "budget" | undefined {
+	const controls = getModelReasoningControls(
+		input.context.model.reasoningOptions,
 	);
-}
+	if (controls) {
+		return controls.effort
+			? "level"
+			: controls.budget || controls.toggle
+				? "budget"
+				: undefined;
+	}
 
-export function supportsGeminiThinking(input: {
-	request: Pick<GatewayStreamRequest, "modelId">;
-	context: GatewayProviderContext;
-}): boolean {
+	// Legacy/offline catalogs do not yet carry reasoning_options. Keep their
+	// wire choice in one fallback boundary; live models use metadata above.
 	const descriptor = geminiModelDescriptor(input);
-	return (
-		isGemini3Model(input) ||
-		/(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
-		descriptor.includes("gemini-flash-latest")
-	);
+	return /(^|[/\s])gemini-3([.-]|$)/.test(descriptor)
+		? "level"
+		: /(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
+				descriptor.includes("gemini-flash-latest")
+			? "budget"
+			: undefined;
 }
 
 function modelFamilyMatches(

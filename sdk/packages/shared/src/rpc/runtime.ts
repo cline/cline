@@ -1,5 +1,6 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
+import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
@@ -292,7 +293,7 @@ export interface SaveProviderSettingsActionRequest {
 	// Reasoning/thinking configuration
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "none" | "low" | "medium" | "high" | "xhigh";
+		effort?: ReasoningLevel;
 		budgetTokens?: number;
 	};
 	// AWS/Bedrock configuration

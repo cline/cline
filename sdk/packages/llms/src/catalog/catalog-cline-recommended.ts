@@ -14,7 +14,12 @@ export interface ClineRecommendedModelsPayload {
 
 type ModelCapabilities = Pick<
 	ModelInfo,
-	"contextWindow" | "maxInputTokens" | "maxTokens" | "capabilities" | "pricing"
+	| "contextWindow"
+	| "maxInputTokens"
+	| "maxTokens"
+	| "capabilities"
+	| "reasoningOptions"
+	| "pricing"
 >;
 
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
