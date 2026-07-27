@@ -208,13 +208,8 @@ export {
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
 export {
-	getModelReasoningControls,
-	type ModelReasoningControls,
-	type ModelReasoningEffortValue,
-	ModelReasoningEffortValueSchema,
 	type ModelReasoningOption,
 	ModelReasoningOptionSchema,
-	normalizeReasoningEffort,
 	REASONING_LEVELS,
 	type ReasoningEffort,
 	ReasoningEffortSchema,

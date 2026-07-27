@@ -1,12 +1,14 @@
 import {
 	type GatewayProviderContext,
 	type GatewayStreamRequest,
-	getModelReasoningControls,
 	type ModelReasoningOption,
-	normalizeReasoningEffort,
 	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
 import { providerReasoningRouteMatches } from "../model-facts";
+import {
+	getModelReasoningControls,
+	normalizeReasoningEffort,
+} from "../reasoning-controls";
 
 function clampBudget(
 	budgetTokens: number,

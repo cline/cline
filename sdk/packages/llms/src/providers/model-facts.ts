@@ -4,7 +4,7 @@ import type {
 	GatewayReasoningFormat,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { getModelReasoningControls } from "@cline/shared";
+import { getModelReasoningControls } from "./reasoning-controls";
 
 export function resolveModelFamily(
 	context: GatewayProviderContext,

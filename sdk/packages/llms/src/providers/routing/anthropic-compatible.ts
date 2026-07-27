@@ -5,7 +5,6 @@ import {
 	type GatewayProviderManifest,
 	type GatewayProviderMetadata,
 	type GatewayStreamRequest,
-	getModelReasoningControls,
 	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
 import {
@@ -14,6 +13,7 @@ import {
 	modelRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
+import { getModelReasoningControls } from "../reasoning-controls";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;

@@ -1,8 +1,4 @@
-import {
-	getModelReasoningControls,
-	isClineProvider,
-	normalizeReasoningEffort,
-} from "@cline/shared";
+import { isClineProvider } from "@cline/shared";
 import {
 	isDeepSeekFamily,
 	isGlmModel,
@@ -13,6 +9,10 @@ import {
 	providerReasoningRouteMatches,
 	resolveGeminiThinkingMode,
 } from "../model-facts";
+import {
+	getModelReasoningControls,
+	normalizeReasoningEffort,
+} from "../reasoning-controls";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {

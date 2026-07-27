@@ -2,12 +2,12 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { getModelReasoningControls } from "@cline/shared";
 import {
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	resolveModelFamily,
 } from "../model-facts";
+import { getModelReasoningControls } from "../reasoning-controls";
 import {
 	buildAnthropicCompatibleReasoningOptions,
 	resolveAnthropicReasoningRequestPolicy,
