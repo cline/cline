@@ -75,7 +75,7 @@ describe("commit-message-generator", () => {
 				"+++ b/.env",
 				"@@ -1 +1 @@",
 				"-AWS_ACCESS_KEY_ID=old",
-				"+AWS_ACCESS_KEY_ID=AKIA1234567890ABCDEF",
+				"+AWS_ACCESS_KEY_ID=AKIATESTTESTTESTTEST",
 			].join("\n")
 
 			const result = buildCommitMessageInput({
@@ -88,7 +88,7 @@ describe("commit-message-generator", () => {
 			result.should.containEql("feature/recovery")
 			result.should.containEql("src/app.ts")
 			result.should.not.containEql(".env")
-			result.should.not.containEql("AKIA1234567890ABCDEF")
+			result.should.not.containEql("AKIATESTTESTTESTTEST")
 			;(result.length <= 2_060).should.be.true()
 		})
 	})

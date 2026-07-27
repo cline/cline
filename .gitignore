@@ -54,6 +54,7 @@ test-results
 
 # Smoke test results (generated)
 evals/smoke-tests/results/
+.phase13/
 
 .tui-test
 secrets.json

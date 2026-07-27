@@ -1,6 +1,26 @@
 /**
  * Simple Logger utility for the extension's backend code.
  */
+const REDACTED = "[REDACTED]"
+const AWS_ACCESS_KEY = /\b(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16}\b/g
+const BEARER_TOKEN = /\b(?:bearer|token)\s+[a-z0-9._~+/=-]{12,}\b/gi
+const WINDOWS_PATH = /(?:^|[\s"'(])([a-zA-Z]:[\\/](?:[^ \r\n"'<>|*?]+[\\/]?)+)/g
+const UNIX_WORKSPACE_PATH = /(?:^|[\s"'(])(\/(?:Users|home|workspace|workspaces|private)\/[^\s"'<>]+)/g
+
+export function sanitizeLogMessage(message: string): string {
+	return message
+		.replace(AWS_ACCESS_KEY, REDACTED)
+		.replace(BEARER_TOKEN, REDACTED)
+		.replace(/([?&](?:token|signature|credential|key|secret)=)[^&\s]+/gi, `$1${REDACTED}`)
+		.replace(
+			/(\b(?:prompt|response|selectedText|terminalContents|toolResult|parameters|command|output)\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,]+)/gi,
+			`$1${REDACTED}`,
+		)
+		.replace(/(initTask called:)\s*.*$/i, `$1 ${REDACTED}`)
+		.replace(WINDOWS_PATH, (match, path: string) => match.replace(path, REDACTED))
+		.replace(UNIX_WORKSPACE_PATH, (match, path: string) => match.replace(path, REDACTED))
+}
+
 export class Logger {
 	private static isVerbose = process.env.IS_DEV === "true"
 
@@ -50,11 +70,14 @@ export class Logger {
 
 	static #output(level: string, message: string, error: Error | undefined, args: any[]) {
 		try {
-			let fullMessage = message
+			let fullMessage = sanitizeLogMessage(message)
 			if (Logger.isVerbose && args.length > 0) {
-				fullMessage += ` ${args.map((arg) => JSON.stringify(arg)).join(" ")}`
+				// Never serialize arbitrary objects into logs. They routinely carry
+				// prompts, tool parameters/results, request bodies, credentials, and
+				// workspace paths. Preserve only the argument count for debugging.
+				fullMessage += ` [${args.length} redacted argument${args.length === 1 ? "" : "s"}]`
 			}
-			const errorSuffix = error?.message ? ` ${error.message}` : ""
+			const errorSuffix = error?.name ? ` ${error.name}` : ""
 			const ts = new Date().toISOString()
 			Logger.output(`${ts} ${level} ${fullMessage}${errorSuffix}`.trimEnd())
 		} catch {

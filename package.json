@@ -23,6 +23,8 @@
         "biome": "bunx --bun @biomejs/biome",
         "format": "bun biome format sdk/ apps/vscode/",
         "lint": "bun biome lint sdk/ apps/vscode/",
+        "security:sbom": "bun security/generate-sbom.mjs",
+        "security:secrets": "bun security/check-secrets.mjs",
         "fix": "bun biome check --write --unsafe --diagnostic-level=error sdk/ apps/vscode/",
         "check": "bun biome check --diagnostic-level=error sdk/ apps/vscode/ && bun run build:sdk && bun --cwd apps/vscode check-types",
         "version": "bun run types && bun sdk/scripts/version.ts"

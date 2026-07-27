@@ -95,7 +95,7 @@ function createAttemptCompletionTool(options: { cwd?: string } = {}): AgentTool 
 
 			// Execute the command and include its output in the result
 			const cwd = options.cwd || process.cwd()
-			Logger.log(`[attempt_completion] Executing command: ${command} (cwd: ${cwd})`)
+			Logger.log("[attempt_completion] Executing an approved completion command")
 
 			try {
 				const shellExecutor = getCompletionCommandExecutor()

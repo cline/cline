@@ -26,13 +26,6 @@ export {
 	McpSettingsUpdateSkippedError,
 } from "./config-loader";
 export { InMemoryMcpManager } from "./manager";
-export type {
-	AuthorizeMcpServerOAuthOptions,
-	AuthorizeMcpServerOAuthResult,
-	CreateMcpOAuthProviderContextOptions,
-	McpOAuthProviderContext,
-} from "./oauth";
-export { authorizeMcpServerOAuth } from "./oauth";
 export type { PluginMcpServerResolution } from "./plugin-server-registration";
 export {
 	normalizePluginMcpServerRegistration,

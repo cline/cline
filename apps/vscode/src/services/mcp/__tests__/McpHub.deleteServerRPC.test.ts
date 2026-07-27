@@ -100,8 +100,6 @@ describe("McpHub.deleteServerRPC", () => {
 		hub = Object.create(McpHub.prototype) as McpHub
 		;(hub as any).getSettingsDirectoryPath = async () => tempDir
 		;(hub as any).connections = [makeConnection("alpha"), makeConnection("beta")]
-		// clearOAuthForConnection touches the OAuth manager; stub it out.
-		sandbox.stub(hub as any, "clearOAuthForConnection").resolves()
 		// updateServerConnectionsRPC normally opens real transports; reproduce only
 		// the relevant behavior: drop connections no longer present in the new set.
 		sandbox.stub(hub as any, "updateServerConnectionsRPC").callsFake((...args: unknown[]) => {

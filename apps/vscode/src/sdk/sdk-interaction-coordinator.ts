@@ -202,7 +202,7 @@ export class SdkInteractionCoordinator {
 		const resolve = this.pendingAskResolve
 		this.pendingAskResolve = undefined
 		const responseText = prompt ?? ""
-		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
+		Logger.log("[SdkController] Resolving pending ask_question")
 
 		if (responseText) {
 			const userMessage: BedrockCoderMessage = {

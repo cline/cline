@@ -19,7 +19,7 @@ describe("LocalDiagnosticLogger", () => {
 			name: "bedrock-request",
 			category: "bedrock",
 			details: {
-				accessKeyId: "AKIA1234567890ABCDEF",
+				accessKeyId: "AKIATESTTESTTESTTEST",
 				authorization: "Bearer extremely-secret-value",
 				prompt: "known prompt text",
 				sourceContent: "known file contents",
@@ -28,7 +28,7 @@ describe("LocalDiagnosticLogger", () => {
 		})
 		await logger.flush()
 		const redacted = await readFile(logger.currentPath, "utf8")
-		expect(redacted).not.toContain("AKIA1234567890ABCDEF")
+		expect(redacted).not.toContain("AKIATESTTESTTESTTEST")
 		expect(redacted).not.toContain("extremely-secret-value")
 		expect(redacted).not.toContain("known prompt text")
 		expect(redacted).not.toContain("known file contents")
@@ -45,7 +45,7 @@ describe("LocalDiagnosticLogger", () => {
 		await logger.flush()
 
 		const combined = `${await readFile(logger.previousPath, "utf8")}${await readFile(logger.currentPath, "utf8")}`
-		expect(combined).not.toContain("AKIA1234567890ABCDEF")
+		expect(combined).not.toContain("AKIATESTTESTTESTTEST")
 		expect(combined).not.toContain("extremely-secret-value")
 		expect(combined).not.toContain("known prompt text")
 		expect(combined).not.toContain("known file contents")

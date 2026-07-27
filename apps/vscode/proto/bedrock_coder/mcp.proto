@@ -11,11 +11,9 @@ option java_package = "com.fffalexgo.bedrock_coder.proto";
 service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
-  rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
   rpc restartMcpServer(StringRequest) returns (McpServers);
   rpc deleteMcpServer(StringRequest) returns (McpServers);
   rpc openMcpSettings(EmptyRequest) returns (Empty);
-  rpc authenticateMcpServer(StringRequest) returns (Empty);
   rpc getLatestMcpServers(Empty) returns (McpServers);
 
   // Subscribe to MCP server updates
@@ -32,13 +30,6 @@ message UpdateMcpTimeoutRequest {
   Metadata metadata = 1;
   string server_name = 2;
   int32 timeout = 3;
-}
-
-message AddRemoteMcpServerRequest {
-  Metadata metadata = 1;
-  string server_name = 2;
-  string server_url = 3;
-  optional string transport_type = 4;
 }
 
 message McpTool {

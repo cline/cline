@@ -24,10 +24,6 @@ vi.mock("@shared/proto-conversions/mcp/mcp-server-conversion", () => ({
 	convertProtoMcpServersToMcpServers: () => [],
 }))
 
-vi.mock("./tabs/add-server/AddRemoteServerForm", () => ({
-	default: () => <div>Add Remote Server Form</div>,
-}))
-
 vi.mock("./tabs/installed/ConfigureServersView", () => ({
 	default: () => <div>Configure Servers View</div>,
 }))
@@ -39,21 +35,13 @@ describe("McpConfigurationView", () => {
 		mocks.getLatestMcpServers.mockClear()
 	})
 
-	it("renders configured and remote server entry points", async () => {
+	it("renders local MCP configuration with the corporate-safe boundary", async () => {
 		render(<McpConfigurationView onDone={vi.fn()} />)
 
-		expect(screen.getByRole("button", { name: "Remote Servers" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
 		expect(screen.getByText("Configure Servers View")).toBeInTheDocument()
+		expect(screen.getByText(/only explicitly configured local stdio MCP servers/i)).toBeInTheDocument()
+		expect(screen.queryByText(/Add Remote Server/i)).not.toBeInTheDocument()
 
 		await waitFor(() => expect(mocks.getLatestMcpServers).toHaveBeenCalledTimes(1))
-	})
-
-	it("keeps user-configured remote servers available", () => {
-		render(<McpConfigurationView initialTab="addRemote" onDone={vi.fn()} />)
-
-		expect(screen.getByRole("button", { name: "Remote Servers" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
-		expect(screen.getByText("Add Remote Server Form")).toBeInTheDocument()
 	})
 })

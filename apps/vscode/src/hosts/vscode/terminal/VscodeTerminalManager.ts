@@ -206,7 +206,7 @@ export class VscodeTerminalManager {
 		// Cast to VSCode-specific TerminalInfo for internal use
 		// Using unknown as intermediate cast due to structural differences between ITerminal and vscode.Terminal
 		const vscodeTerminalInfo = terminalInfo as unknown as TerminalInfo
-		Logger.log(`[TerminalManager] Running command on terminal ${vscodeTerminalInfo.id}: "${command}"`)
+		Logger.log(`[TerminalManager] Running approved command on terminal ${vscodeTerminalInfo.id}`)
 		Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} busy state before: ${vscodeTerminalInfo.busy}`)
 
 		try {
@@ -316,7 +316,7 @@ export class VscodeTerminalManager {
 		const effectiveExpected = VscodeTerminalManager.effectiveShellPath(expectedShellPath)
 
 		// Find available terminal from our pool first (created for this task)
-		Logger.log(`[TerminalManager] Looking for terminal in cwd: ${cwd}`)
+		Logger.log("[TerminalManager] Looking for terminal in the active workspace")
 		Logger.log(`[TerminalManager] Available terminals: ${terminals.length}`)
 
 		const matchingTerminal = terminals.find((t) => {
@@ -334,7 +334,7 @@ export class VscodeTerminalManager {
 				return false
 			}
 			const matches = arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
-			Logger.log(`[TerminalManager] Terminal ${t.id} cwd: ${terminalCwd.fsPath}, matches: ${matches}`)
+			Logger.log(`[TerminalManager] Terminal ${t.id} workspace match: ${matches}`)
 			return matches
 		})
 		if (matchingTerminal) {

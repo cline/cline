@@ -139,9 +139,24 @@ export {
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
 export {
-	type AuthorizeMcpServerOAuthOptions,
-	type AuthorizeMcpServerOAuthResult,
-	authorizeMcpServerOAuth,
+	assertEgressDataClassAllowed,
+	buildPublicSearchUrl,
+	CorporateEgressPolicyError,
+	corporateResearchRequest,
+	EGRESS_DATA_CLASSES,
+	EGRESS_SINKS,
+	isPublicNetworkAddress,
+	sanitizePublicSearchQuery,
+	validatePublicResearchUrl,
+	type CorporateResearchRequestOptions,
+	type CorporateResearchResponse,
+	type EgressAuditEvent,
+	type EgressDataClass,
+	type EgressSink,
+	type ResearchDnsAddress,
+	type ResearchHttpMethod,
+} from "./security/corporate-egress-policy";
+export {
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
 	type CreateMcpToolsOptions,

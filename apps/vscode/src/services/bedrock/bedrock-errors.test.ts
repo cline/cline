@@ -4,17 +4,17 @@ import { mapBedrockDoctorError, redactBedrockDiagnostics } from "./bedrock-error
 describe("Bedrock diagnostic redaction", () => {
 	it("redacts credentials, security headers, identity ARNs, and signed query values", () => {
 		const redacted = redactBedrockDiagnostics({
-			aws_access_key_id: "AKIAABCDEFGHIJKLMNOP",
+			aws_access_key_id: "AKIATESTTESTTESTTEST",
 			aws_secret_access_key: "very-secret",
 			aws_session_token: "temporary-session",
-			Authorization: "AWS4-HMAC-SHA256 Credential=AKIAABCDEFGHIJKLMNOP/scope",
+			Authorization: "AWS4-HMAC-SHA256 Credential=AKIATESTTESTTESTTEST/scope",
 			"x-amz-security-token": "header-session",
 			identity: "arn:aws:sts::123456789012:assumed-role/Admin/alice",
 			endpoint: "https://example.test/?X-Amz-Signature=abcdef&token=sensitive&customSecret=hidden",
 		})
 
 		for (const secret of [
-			"AKIAABCDEFGHIJKLMNOP",
+			"AKIATESTTESTTESTTEST",
 			"very-secret",
 			"temporary-session",
 			"header-session",
@@ -28,7 +28,7 @@ describe("Bedrock diagnostic redaction", () => {
 	})
 
 	it("preserves structured AWS diagnostics without echoing credential-bearing details", () => {
-		const error = Object.assign(new Error("AccessDenied for AKIAABCDEFGHIJKLMNOP"), {
+		const error = Object.assign(new Error("AccessDenied for AKIATESTTESTTESTTEST"), {
 			name: "AccessDeniedException",
 			$metadata: { httpStatusCode: 403, requestId: "request-123" },
 		})

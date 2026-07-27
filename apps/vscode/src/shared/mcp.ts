@@ -139,4 +139,4 @@ export type McpToolCallResponse = {
 	isError?: boolean
 }
 
-export type McpViewTab = "addRemote" | "configure"
+export type McpViewTab = "configure"

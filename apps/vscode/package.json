@@ -97,12 +97,6 @@
 				"when": "bedrockCoder.isDevMode"
 			},
 			{
-				"command": "bedrockCoder.dev.expireMcpOAuthTokens",
-				"title": "Expire MCP OAuth Tokens (for testing)",
-				"category": "Bedrock Coder",
-				"when": "bedrockCoder.isDevMode"
-			},
-			{
 				"command": "bedrockCoder.addToChat",
 				"title": "Add to Bedrock Coder",
 				"category": "Bedrock Coder"
@@ -250,6 +244,21 @@
 					"minimum": 1,
 					"maximum": 8,
 					"description": "Maximum number of local teammate runs that may execute concurrently. Additional runs remain visible in the queue."
+				},
+				"bedrockCoder.corporateAllowTerminal": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable terminal tools in corporate-safe mode. Every command still requires explicit approval; commands may access the network, so absolute no-egress deployments must also enforce operating-system or proxy restrictions."
+				},
+				"bedrockCoder.corporateAllowExternalNavigation": {
+					"type": "boolean",
+					"default": false,
+					"description": "Allow explicit user-initiated links to open in the system browser. Disabled by default because the browser may carry corporate cookies, profile state, extensions, and referrer data."
+				},
+				"bedrockCoder.corporateAllowExecutableExtensions": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable local executable hooks/plugins. Disabled by default because extension-host code cannot guarantee that a child process or plugin is network-isolated; use only with organization-approved code and an externally enforced no-network sandbox."
 				}
 			}
 		}
@@ -261,8 +270,10 @@
 		"watch": "bun run --parallel watch:esbuild watch:tsc",
 		"watch:esbuild": "bun esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "bun run check:identity && bun run check-types && bun run build:webview && bun run lint && bun esbuild.mjs --production",
+		"package": "bun run check:identity && bun run check:egress && bun run check-types && bun run build:webview && bun run lint && bun esbuild.mjs --production",
 		"check:identity": "bun scripts/check-identity.mjs",
+		"check:egress": "bun scripts/check-egress-registry.mjs",
+		"check:secrets": "bun ../../security/check-secrets.mjs",
 		"protos": "node scripts/build-proto.mjs",
 		"postprotos": "biome format --config-path ./biome.jsonc src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
 		"clean:build": "rimraf dist webview-ui/build src/generated out/",
@@ -292,7 +303,6 @@
 		"test:bun": "bun scripts/run-bun-tests.ts",
 		"test:bun:unit": "bun scripts/run-bun-unit-tests.ts",
 		"test:coverage": "bun run compile-tests && vscode-test --coverage",
-		"dev:mcp-oauth-test-server": "bun src/dev/mcp-oauth-test-server/server.ts",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e:build": "vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix",
 		"test:e2e": "playwright install && bun run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
@@ -379,13 +389,10 @@
 		"jschardet": "^3.1.4",
 		"json5": "^2.2.3",
 		"nanoid": "^5.1.6",
-		"open": "^10.1.2",
-		"open-graph-scraper": "^6.9.0",
 		"p-wait-for": "^5.0.2",
 		"picomatch": "^4.0.3",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
-		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"simple-git": "3.36.0",
 		"strip-ansi": "^7.1.2",

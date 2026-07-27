@@ -196,25 +196,13 @@ const ServerRow = ({
 			{server.error ? (
 				<div className="text-sm bg-text-block-background rounded-b-sm">
 					<div className="text-failed-icon mb-2 px-2.5 break-words">{server.error}</div>
-					{server.oauthRequired && server.oauthAuthStatus === "unauthenticated" ? (
-						<Button
-							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
-							onClick={(e) => {
-								e.stopPropagation()
-								McpServiceClient.authenticateMcpServer(StringRequest.create({ value: server.name }))
-							}}
-							variant="default">
-							Authenticate
-						</Button>
-					) : (
-						<Button
-							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
-							disabled={server.status === "connecting"}
-							onClick={handleRestart}
-							variant="secondary">
-							{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
-						</Button>
-					)}
+					<Button
+						className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
+						disabled={server.status === "connecting"}
+						onClick={handleRestart}
+						variant="secondary">
+						{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
+					</Button>
 
 					<Button
 						className="m-2.5 mt-0 max-w-[calc(100%-20px)]"

@@ -13,124 +13,23 @@
  * fields containing special characters.
  */
 
-import { HostProvider } from "@hosts/host-provider"
-import { ShowMessageType } from "@shared/proto/host/window"
-import * as cp from "child_process"
-import * as os from "os"
-import * as util from "util"
 import { Logger } from "@/shared/services/Logger"
-import { openExternal, writeTextToClipboard } from "@/utils/env"
+import { openExternal } from "@/utils/env"
 
 /**
- * Opens a URL using platform-specific commands to bypass VS Code's URI handling issues.
+ * Opens a URL only through the policy-enforcing host bridge.
  *
- * IMPORTANT: This function intentionally avoids using VS Code's built-in URI handling
- * (vscode.Uri.parse() and vscode.env.openExternal()) due to known encoding issues with URLs
- * that contain special characters in query parameters. See:
- * https://github.com/microsoft/vscode/issues/85930
- *
- * The specific issues with VS Code's URI handling include:
- * 1. Double-encoding of certain characters (e.g., # becomes %23 then %2523)
- * 2. Inconsistent handling where some characters are encoded and others are decoded
- * 3. Issues with parameters in the query string being incorrectly processed
- *
- * Instead, this function:
- * - Uses direct OS commands to open the browser with the URL
- * - Preserves the exact encoding of the URL as provided
- * - Provides multiple fallback approaches if the primary method fails
+ * Historical shell-command and clipboard fallbacks were removed: they bypassed
+ * the corporate navigation setting and could disclose prefilled issue content.
  *
  * @param url The URL to open
  * @returns A promise that resolves when an attempt to open the URL has completed
  */
 export async function openUrlInBrowser(url: string): Promise<void> {
-	// For debugging
-	Logger.log(`Opening URL: ${url}`)
-
-	// Always copy to clipboard as a fallback
 	try {
-		await writeTextToClipboard(url)
-		Logger.log("URL copied to clipboard as backup")
+		await openExternal(url)
 	} catch (error) {
-		Logger.error(`Failed to copy URL to clipboard: ${error}`)
-	}
-
-	// Try to open the URL using platform-specific commands
-	try {
-		const platform = os.platform()
-		Logger.log(`Detected platform: ${platform}`)
-
-		// Use promisify for better async error handling
-		const execPromise = util.promisify(cp.exec)
-
-		// Use platform-specific commands
-		if (platform === "win32") {
-			// Windows - try multiple approaches
-			try {
-				await execPromise(`start "" "${url}"`)
-				Logger.log("Opened URL with Windows 'start' command")
-				return
-			} catch (winError) {
-				Logger.error(`Error with Windows 'start' command: ${winError}`)
-
-				try {
-					await execPromise(`powershell.exe -Command "Start-Process '${url}'"`)
-					Logger.log("Opened URL with PowerShell command")
-					return
-				} catch (psError) {
-					Logger.error(`Error with PowerShell command: ${psError}`)
-					// Fall through to the fallbacks
-				}
-			}
-		} else if (platform === "darwin") {
-			// macOS
-			await execPromise(`open "${url}"`)
-			Logger.log("Opened URL with macOS 'open' command")
-			return
-		} else {
-			// Linux and others - try multiple commands
-			const linuxCommands = ["xdg-open", "gnome-open", "kde-open", "wslview"]
-
-			for (const cmd of linuxCommands) {
-				try {
-					await execPromise(`${cmd} "${url}"`)
-					Logger.log(`Opened URL with '${cmd}' command`)
-					return
-				} catch (cmdError) {
-					Logger.error(`Error with '${cmd}' command: ${cmdError}`)
-					// Try next command
-				}
-			}
-		}
-
-		// If we got here, none of the OS commands worked
-		throw new Error("All OS commands failed")
-	} catch (error) {
-		Logger.error(`OS commands failed: ${error}`)
-
-		// First fallback: Try openExternal utility
-		// Note: This will likely have encoding issues per https://github.com/microsoft/vscode/issues/85930
-		// but we include it as a fallback in case OS commands completely fail
-		try {
-			await openExternal(url)
-			Logger.log("Opened URL with openExternal utility (note: URL encoding may be affected)")
-			return
-		} catch (openExternalError) {
-			Logger.error(`Error with openExternal utility: ${openExternalError}`)
-
-			// Last fallback: Show a message with instructions
-			HostProvider.window
-				.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message: "Couldn't open the URL automatically. It has been copied to your clipboard.",
-					options: {
-						items: ["Copy URL Again"],
-					},
-				})
-				.then((response) => {
-					if (response.selectedOption === "Copy URL Again") {
-						writeTextToClipboard(url)
-					}
-				})
-		}
+		Logger.warn("External URL navigation was blocked or failed", error)
+		throw error
 	}
 }

@@ -20,7 +20,7 @@ export async function fetchOpenGraphData(_controller: Controller, request: Strin
 		// Convert domain model to proto model
 		return convertDomainOpenGraphDataToProto(ogData)
 	} catch (error) {
-		Logger.error(`Error fetching Open Graph data: ${request.value}`, error)
+		Logger.error("Error preparing local-only link preview metadata", error)
 		// Return empty OpenGraphData object
 		return OpenGraphData.create({})
 	}

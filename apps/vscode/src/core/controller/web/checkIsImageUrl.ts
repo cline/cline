@@ -21,7 +21,7 @@ export async function checkIsImageUrl(_: Controller, request: StringRequest): Pr
 			url,
 		})
 	} catch (error) {
-		Logger.error(`Error checking if URL is an image: ${request.value}`, error)
+		Logger.error("Error checking local-only URL extension", error)
 		return IsImageUrl.create({
 			isImage: false,
 			url: request.value || "",

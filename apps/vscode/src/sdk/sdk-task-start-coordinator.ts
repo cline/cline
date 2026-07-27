@@ -61,14 +61,14 @@ export class SdkTaskStartCoordinator {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
-		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
+		Logger.log("[SdkController] initTask called")
 		let taskSessionId: string | undefined
 		try {
 			await this.options.clearTask()
 
 			const cwd = await this.options.getWorkspaceRoot()
 			const mode = this.getCurrentMode()
-			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
+			Logger.log(`[SdkController] Building session config: mode=${mode}`)
 			const config = await this.options.sessionConfigBuilder.build({
 				prompt,
 				images,

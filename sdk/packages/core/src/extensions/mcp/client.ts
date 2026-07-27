@@ -1,13 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
-import {
-	createMcpOAuthProviderContext,
-	createMcpSdkTransport,
-	type McpOAuthProviderContext,
-} from "./oauth";
 import type {
 	McpServerClient,
 	McpServerClientFactory,
@@ -40,9 +33,6 @@ type StdioProtocolMode = "newline" | "framed";
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const MCP_REQUEST_TIMEOUT_MS = 5_000;
 const MCP_CONNECT_TIMEOUT_MS = 1_500;
-const DEFAULT_HTTP_MCP_REDIRECT_URL =
-	"http://127.0.0.1:1456/mcp/oauth/callback";
-
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
@@ -440,140 +430,35 @@ export interface DefaultMcpServerClientFactoryOptions {
 	fetch?: FetchLike;
 }
 
-class SdkUrlMcpClient implements McpServerClient {
-	private client?: Client;
-	private authContext?: McpOAuthProviderContext;
+class CorporateBlockedRemoteMcpClient implements McpServerClient {
+	constructor(private readonly registration: McpServerRegistration) {}
 
-	constructor(
-		private readonly registration: McpServerRegistration,
-		private readonly options: DefaultMcpServerClientFactoryOptions,
-	) {}
+	private blocked(): never {
+		throw new Error(
+			`Remote MCP server "${this.registration.name}" is disabled by the corporate egress policy. Only explicitly trusted local stdio MCP servers are supported.`,
+		);
+	}
 
 	async connect(): Promise<void> {
-		if (this.client) {
-			return;
-		}
-		if (this.registration.transport.type === "stdio") {
-			throw new Error(
-				`Unsupported MCP transport for "${this.registration.name}": ${this.registration.transport.type}`,
-			);
-		}
-
-		const authContext = createMcpOAuthProviderContext({
-			settingsPath: this.options.settingsPath,
-			serverName: this.registration.name,
-			redirectUrl:
-				this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
-		});
-		this.authContext = authContext;
-		try {
-			const client = new Client({
-				name: this.options.clientName?.trim() || "@bedrock-coder/core",
-				version: this.options.clientVersion?.trim() || "0.0.0",
-			});
-			const transport = createMcpSdkTransport({
-				registration: this.registration,
-				oauthProvider: authContext.provider,
-				fetch: this.options.fetch,
-			});
-			await client.connect(transport);
-			await authContext.clearError();
-			this.client = client;
-		} catch (error) {
-			const message =
-				error instanceof UnauthorizedError
-					? this.formatUnauthorizedMessage(
-							authContext.getLastAuthorizationUrl(),
-						)
-					: toErrorMessage(error);
-			await authContext.markError(message);
-			throw new Error(message);
-		}
+		this.blocked();
 	}
 
-	async disconnect(): Promise<void> {
-		const activeClient = this.client;
-		this.client = undefined;
-		await activeClient?.close();
-	}
+	async disconnect(): Promise<void> {}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
-		const client = await this.ensureConnectedClient();
-		try {
-			const result = await client.listTools();
-			return result.tools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				inputSchema:
-					tool.inputSchema &&
-					typeof tool.inputSchema === "object" &&
-					!Array.isArray(tool.inputSchema)
-						? tool.inputSchema
-						: {},
-			}));
-		} catch (error) {
-			return await this.handleOperationError(error);
-		}
+		return this.blocked();
 	}
 
-	async callTool(request: {
-		name: string;
-		arguments?: Record<string, unknown>;
-	}): Promise<McpToolCallResult> {
-		const client = await this.ensureConnectedClient();
-		try {
-			return await client.callTool({
-				name: request.name,
-				arguments: request.arguments ?? {},
-			});
-		} catch (error) {
-			return await this.handleOperationError(error);
-		}
-	}
-
-	private async ensureConnectedClient(): Promise<Client> {
-		if (!this.client) {
-			await this.connect();
-		}
-		if (!this.client) {
-			throw new Error(
-				`MCP server "${this.registration.name}" is not connected.`,
-			);
-		}
-		return this.client;
-	}
-
-	private formatUnauthorizedMessage(authUrl: string | undefined): string {
-		const base = `MCP server "${this.registration.name}" requires OAuth authorization.`;
-		if (!authUrl) {
-			return `${base} Run authorizeMcpServerOAuth for this server.`;
-		}
-		return `${base} Run authorizeMcpServerOAuth for this server and complete this URL: ${authUrl}`;
-	}
-
-	private async handleOperationError(error: unknown): Promise<never> {
-		const authContext =
-			this.authContext ??
-			createMcpOAuthProviderContext({
-				settingsPath: this.options.settingsPath,
-				serverName: this.registration.name,
-				redirectUrl:
-					this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
-			});
-		const message =
-			error instanceof UnauthorizedError
-				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
-				: toErrorMessage(error);
-		await authContext.markError(message);
-		throw new Error(message);
+	async callTool(): Promise<McpToolCallResult> {
+		return this.blocked();
 	}
 }
 
 export function createDefaultMcpServerClientFactory(
-	options: DefaultMcpServerClientFactoryOptions = {},
+	_options: DefaultMcpServerClientFactoryOptions = {},
 ): McpServerClientFactory {
 	return (registration) =>
 		registration.transport.type === "stdio"
 			? new StdioMcpClient(registration)
-			: new SdkUrlMcpClient(registration, options);
+			: new CorporateBlockedRemoteMcpClient(registration);
 }

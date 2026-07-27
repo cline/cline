@@ -134,6 +134,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const isMultiRoot = await resolveIsMultiRootWorkspace()
 	const configuredTeamConcurrency = vscode.workspace.getConfiguration("bedrockCoder").get<number>("maxConcurrentTeamRuns", 2)
 	const maxConcurrentTeamRuns = Math.max(1, Math.min(8, Math.floor(configuredTeamConcurrency)))
+	const executableExtensionsEnabled = vscode.workspace
+		.getConfiguration("bedrockCoder")
+		.get<boolean>("corporateAllowExecutableExtensions", false)
+	if (!executableExtensionsEnabled) {
+		Logger.log("[SessionFactory] Executable hooks/plugins are disabled by the corporate-safe default")
+	}
 
 	return {
 		providerId: "bedrock",
@@ -171,7 +177,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			},
 			logger: sdkLogger,
 		},
-		hooks: buildAgentHooks(stateManager),
+		hooks: executableExtensionsEnabled ? buildAgentHooks(stateManager) : undefined,
 	}
 }
 

@@ -39,7 +39,7 @@ import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview 
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
 import { LocalDiagnosticLogger } from "./services/diagnostics/local-diagnostic-logger"
-import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
+import { SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 
@@ -182,7 +182,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
 		const uriPath = getUriPath(url)
-		const isTaskUri = uriPath === TASK_URI_PATH || uriPath === LG_TASK_URI_PATH
+		const isTaskUri = uriPath === TASK_URI_PATH
 
 		if (isTaskUri) {
 			await openBedrockCoderSidebarForTaskUri()
@@ -197,7 +197,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 
 		if (!success) {
-			Logger.warn("Extension URI handler: Failed to process URI:", uri.toString())
+			Logger.warn(`Extension URI handler: Failed to process URI path: ${uriPath ?? "invalid"}`)
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))

@@ -28,6 +28,7 @@ import {
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { BedrockCoderCheckpointRestore } from "@shared/WebviewMessage"
+import * as vscode from "vscode"
 import { sendTeamBoardUpdate } from "@/core/controller/team/subscribeToTeamBoard"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
@@ -274,6 +275,21 @@ export class Controller {
 				void this.diffEdits.discardPreview(toolCallId)
 			},
 		})
+		const terminalEnabled = vscode.workspace.getConfiguration("bedrockCoder").get<boolean>("corporateAllowTerminal", false)
+		const getTerminalManager = terminalEnabled
+			? () => {
+					if (!this._terminalManager) {
+						this._terminalManager = new VscodeTerminalManager()
+						this.applyTerminalSettings(this._terminalManager)
+						Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
+					}
+					return this._terminalManager
+				}
+			: undefined
+		if (!terminalEnabled) {
+			Logger.log("[SdkController] Terminal tools are disabled by the corporate-safe default")
+		}
+
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
 			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
@@ -290,21 +306,7 @@ export class Controller {
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			foregroundCommands: this.foregroundCommands,
-			getTerminalManager: () => {
-				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
-				// (vscode-session-host.ts, sdk-terminal-execution-mode-coordinator.ts):
-				// this factory itself is only invoked when a caller has already
-				// resolved to "vscodeTerminal" mode on a real VS Code host, but
-				// VscodeTerminalManager's constructor still assumes
-				// vscode.window.onDidStartTerminalShellExecution exists, which the
-				// standalone (JetBrains/CLI) stub does not provide.
-				if (!this._terminalManager) {
-					this._terminalManager = new VscodeTerminalManager()
-					this.applyTerminalSettings(this._terminalManager)
-					Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
-				}
-				return this._terminalManager
-			},
+			getTerminalManager,
 			// this.mode is assigned later in this constructor; the closure only
 			// runs at send time, long after construction completes.
 			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),

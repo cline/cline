@@ -2,7 +2,7 @@ import type { CoreSessionConfig } from "@bedrock-coder/core"
 import { type AgentTool, createTool } from "@bedrock-coder/shared"
 import type { StateManager } from "@/core/storage/StateManager"
 import { buildSessionConfig, type SessionConfigInput } from "./bedrock-coder-session-factory"
-import { buildAgentHooks, type HookMessageEmitter } from "./hooks-adapter"
+import type { HookMessageEmitter } from "./hooks-adapter"
 
 export interface SdkSessionConfigBuilderOptions {
 	stateManager: StateManager
@@ -21,7 +21,7 @@ export class SdkSessionConfigBuilder {
 			config.onConsecutiveMistakeLimitReached = this.options.onConsecutiveMistakeLimitReached
 		}
 
-		const baseHooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage)
+		const baseHooks = config.hooks ?? {}
 		config.hooks = {
 			...baseHooks,
 			beforeModel: async (ctx) => {

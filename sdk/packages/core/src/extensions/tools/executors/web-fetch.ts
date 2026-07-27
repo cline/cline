@@ -6,6 +6,10 @@
 
 import type { AgentToolContext } from "@bedrock-coder/shared";
 import type { WebFetchExecutor } from "../types";
+import {
+	corporateResearchRequest,
+	type CorporateResearchRequestOptions,
+} from "../../../security/corporate-egress-policy";
 
 /**
  * Options for the web fetch executor
@@ -24,19 +28,17 @@ export interface WebFetchExecutorOptions {
 	maxResponseBytes?: number;
 
 	/**
-	 * User agent string
-	 * @default "Mozilla/5.0 (compatible; AgentBot/1.0)"
+	 * @deprecated Corporate research always uses a fixed generic user agent.
 	 */
 	userAgent?: string;
 
 	/**
-	 * Additional headers
+	 * @deprecated Corporate research does not permit caller-provided headers.
 	 */
 	headers?: Record<string, string>;
 
 	/**
-	 * Whether to follow redirects
-	 * @default true
+	 * @deprecated Redirects are always handled manually and revalidated.
 	 */
 	followRedirects?: boolean;
 
@@ -45,6 +47,11 @@ export interface WebFetchExecutorOptions {
 	 * @default 5
 	 */
 	maxRedirects?: number;
+
+	/** Test/host injection points for the central corporate egress guard. */
+	fetch?: CorporateResearchRequestOptions["fetch"];
+	resolveDns?: CorporateResearchRequestOptions["resolveDns"];
+	audit?: CorporateResearchRequestOptions["audit"];
 }
 
 /**
@@ -100,108 +107,37 @@ export function createWebFetchExecutor(
 ): WebFetchExecutor {
 	const {
 		timeoutMs = 30000,
-		maxResponseBytes = 5_000_000,
-		userAgent = "Mozilla/5.0 (compatible; AgentBot/1.0)",
+		maxResponseBytes = 2_000_000,
 		headers = {},
-		followRedirects = true,
-		// maxRedirects is available in options but native fetch handles it automatically
+		maxRedirects = 3,
+		fetch,
+		resolveDns,
+		audit,
 	} = options;
+	if (Object.keys(headers).length > 0) {
+		throw new Error(
+			"Corporate research does not permit caller-provided request headers.",
+		);
+	}
 
 	return async (
 		url: string,
 		prompt: string,
 		context: AgentToolContext,
 	): Promise<string> => {
-		// Validate URL
-		let parsedUrl: URL;
 		try {
-			parsedUrl = new URL(url);
-		} catch {
-			throw new Error(`Invalid URL: ${url}`);
-		}
-
-		// Only allow http and https
-		if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-			throw new Error(
-				`Invalid protocol: ${parsedUrl.protocol}. Only http and https are supported.`,
-			);
-		}
-
-		// Create abort controller for timeout
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), timeoutMs);
-		let contextAbortHandler: (() => void) | undefined;
-
-		// Combine with context abort signal
-		if (context.signal) {
-			contextAbortHandler = () => controller.abort();
-			context.signal.addEventListener("abort", contextAbortHandler);
-		}
-
-		try {
-			const response = await fetch(url, {
+			const response = await corporateResearchRequest(url, {
 				method: "GET",
-				headers: {
-					"User-Agent": userAgent,
-					Accept:
-						"text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
-					"Accept-Language": "en-US,en;q=0.9",
-					...headers,
-				},
-				redirect: followRedirects ? "follow" : "manual",
-				signal: controller.signal,
+				timeoutMs,
+				maxResponseBytes,
+				maxRedirects,
+				signal: context.signal,
+				fetch,
+				resolveDns,
+				audit,
 			});
-
-			clearTimeout(timeout);
-
-			// Check for redirect limit (if we're checking manually)
-			if (!followRedirects && response.status >= 300 && response.status < 400) {
-				const location = response.headers.get("location");
-				return `Redirect to: ${location}`;
-			}
-
-			// Check response status
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
-
-			// Get content type
 			const contentType = response.headers.get("content-type") || "";
-
-			// Read response body with size limit
-			const reader = response.body?.getReader();
-			if (!reader) {
-				throw new Error("Failed to read response body");
-			}
-
-			const chunks: Uint8Array[] = [];
-			let totalSize = 0;
-
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				totalSize += value.length;
-				if (totalSize > maxResponseBytes) {
-					reader.cancel();
-					throw new Error(
-						`Response too large: exceeded ${maxResponseBytes} bytes`,
-					);
-				}
-
-				chunks.push(value);
-			}
-
-			// Combine chunks
-			const buffer = new Uint8Array(totalSize);
-			let offset = 0;
-			for (const chunk of chunks) {
-				buffer.set(chunk, offset);
-				offset += chunk.length;
-			}
-
-			// Decode as text
-			const text = new TextDecoder("utf-8").decode(buffer);
+			const text = new TextDecoder("utf-8").decode(response.body);
 
 			// Process content based on type
 			let content: string;
@@ -223,9 +159,9 @@ export function createWebFetchExecutor(
 
 			// Format output with metadata
 			const outputLines = [
-				`URL: ${url}`,
+				`URL: ${response.url}`,
 				`Content-Type: ${contentType}`,
-				`Size: ${totalSize} bytes`,
+				`Size: ${response.body.byteLength} bytes`,
 				``,
 				`--- Content ---`,
 				content.slice(0, 50000), // Limit content size for output
@@ -241,19 +177,9 @@ export function createWebFetchExecutor(
 
 			return outputLines.join("\n");
 		} catch (error) {
-			clearTimeout(timeout);
-
-			if (error instanceof Error) {
-				if (error.name === "AbortError") {
-					throw new Error(`Request timed out after ${timeoutMs}ms`);
-				}
-				throw error;
-			}
-			throw new Error(`Fetch failed: ${String(error)}`);
-		} finally {
-			if (context.signal && contextAbortHandler) {
-				context.signal.removeEventListener("abort", contextAbortHandler);
-			}
+			throw error instanceof Error
+				? error
+				: new Error(`Research fetch failed: ${String(error)}`);
 		}
 	};
 }
