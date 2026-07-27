@@ -19,7 +19,7 @@ const CLINE_PASS_AUTO_MODEL_INFO: ModelInfo = {
 	supportsImages: false,
 	supportsPromptCache: true,
 	description:
-		"Selects an eligible Cline Pass model at task start and keeps it sticky for the task to preserve prompt-cache reuse.",
+		"Selects a Pass-curated usage model at task start and keeps it sticky for the task to preserve prompt-cache reuse.",
 }
 
 interface ClineAutoModelOptions {
