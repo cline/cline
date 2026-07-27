@@ -36,6 +36,13 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 ])
 
 const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPresentationOverride> = {
+	"atomic-chat": {
+		allowsCustomIds: true,
+		baseUrlField: {
+			label: "Use custom base URL",
+			placeholder: "Default: http://127.0.0.1:1337/v1",
+		},
+	},
 	baseten: {
 		signupUrl: "https://app.baseten.co/settings/api_keys",
 	},
@@ -148,6 +155,7 @@ export function getGenericProviderSettings(
 }
 
 const FALLBACK_GENERIC_PROVIDER_NAMES = {
+	"atomic-chat": "Atomic Chat",
 	deepseek: "DeepSeek",
 	doubao: "Doubao",
 	gemini: "Gemini",

@@ -5,6 +5,7 @@ import {
 	getGenericProviderSettings,
 	hasCustomProviderSettings,
 	isGenericProviderListing,
+	isKnownGenericProvider,
 } from "./providerSettingsRegistry"
 
 function listing(overrides: Partial<ProviderListing>): ProviderListing {
@@ -39,6 +40,27 @@ describe("providerSettingsRegistry", () => {
 			providerName: "Google Gemini",
 			signupUrl: "https://aistudio.google.com/apikey",
 		})
+	})
+
+	it("uses generic catalog-backed settings for Atomic Chat", () => {
+		const settings = {
+			allowsCustomIds: true,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: http://127.0.0.1:1337/v1",
+			},
+			providerId: "atomic-chat",
+			providerName: "Atomic Chat",
+		}
+
+		expect(isKnownGenericProvider("atomic-chat")).toBe(true)
+		expect(
+			getGenericProviderSettings(
+				"atomic-chat",
+				listing({ id: "atomic-chat", name: "Atomic Chat", allowsCustomModelIds: true }),
+			),
+		).toEqual(settings)
+		expect(getFallbackGenericProviderSettings("atomic-chat")).toEqual(settings)
 	})
 
 	it("keeps provider-specific UIs as explicit custom overrides", () => {
