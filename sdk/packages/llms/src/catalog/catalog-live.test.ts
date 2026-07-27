@@ -245,7 +245,8 @@ describe("models-dev-catalog", () => {
 			name: "KAT Coder Pro",
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
-			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
+			// free models are billed at $0 regardless of catalog pricing
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 		expect(result.cline?.["cline-free/kat-coder-pro"]).toMatchObject({
 			id: "cline-free/kat-coder-pro",
