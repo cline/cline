@@ -13,6 +13,7 @@ import {
 } from "node:fs"
 import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
+import { sanitizeMcpDiagnosticText } from "@cline/shared"
 import { resolveClineDataDir } from "@cline/shared/storage"
 import { Logger } from "@/shared/services/Logger"
 
@@ -231,7 +232,29 @@ function readSettingsObject(settingsPath: string): Record<string, unknown> {
 	if (!settings.mcpServers || typeof settings.mcpServers !== "object" || Array.isArray(settings.mcpServers)) {
 		settings.mcpServers = {}
 	}
+	scrubPersistedOAuthDiagnostics(settings.mcpServers as Record<string, unknown>)
 	return settings
+}
+
+/**
+ * Redact persisted OAuth diagnostic text before a locked read-modify-write
+ * runs, so any settings update rewrites previously stored secret-bearing
+ * `oauth.lastError` values instead of round-tripping them back to disk.
+ */
+function scrubPersistedOAuthDiagnostics(servers: Record<string, unknown>): void {
+	for (const server of Object.values(servers)) {
+		if (!server || typeof server !== "object" || Array.isArray(server)) {
+			continue
+		}
+		const oauth = (server as Record<string, unknown>).oauth
+		if (!oauth || typeof oauth !== "object" || Array.isArray(oauth)) {
+			continue
+		}
+		const lastError = (oauth as Record<string, unknown>).lastError
+		if (typeof lastError === "string") {
+			;(oauth as Record<string, unknown>).lastError = sanitizeMcpDiagnosticText(lastError)
+		}
+	}
 }
 
 function runPureSettingsMutator<T>(settings: Record<string, unknown>, mutator: McpSettingsMutator<T>): T {

@@ -10,7 +10,6 @@ import {
 	listPluginTools,
 	type RuleConfig,
 	resolveDefaultMcpSettingsPath,
-	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
 	type SkillConfig,
 	type WorkflowConfig,
@@ -20,6 +19,7 @@ import { Command } from "commander";
 import { getToolCatalog } from "../runtime/tools";
 import { loadInteractiveConfigData } from "../tui/interactive-config";
 import type { CliOutputMode } from "../utils/types";
+import { loadServerRegistrations } from "../wizards/mcp/settings";
 
 type ConfigIo = {
 	writeln: (text?: string) => void;
@@ -334,7 +334,7 @@ async function runMcpConfigCommand(
 	}
 
 	try {
-		const servers = resolveMcpServerRegistrations({ filePath: settingsPath })
+		const servers = loadServerRegistrations(settingsPath)
 			.map((registration) => ({
 				name: registration.name,
 				transportType: registration.transport.type,

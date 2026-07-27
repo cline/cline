@@ -394,6 +394,37 @@ Find installable skills.`,
 		).toBe(true);
 	});
 
+	it("lists MCP servers from extension-tolerated settings that fail SDK validation", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		await writeFile(
+			settingsPath,
+			`${JSON.stringify(
+				{
+					mcpServers: {
+						legacy: {
+							transport: { type: "stdio", command: "node" },
+							metadata: "accepted by the extension",
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+
+		expect(
+			data.mcp.some((item) => item.name === "legacy" && item.kind === "mcp"),
+		).toBe(true);
+	});
+
 	it("does not load plugin MCP rows directly from plugin diagnostics", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);

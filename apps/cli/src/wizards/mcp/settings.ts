@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import {
 	type McpServerOAuthState,
+	type McpServerRegistration,
 	McpSettingsUpdateSkippedError,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
@@ -29,14 +30,23 @@ export function getSettingsPath(): string {
 	return resolveDefaultMcpSettingsPath();
 }
 
-function loadServersWithoutSchemaValidation(path: string): McpServerEntry[] {
+function loadRegistrationsWithoutSchemaValidation(
+	path: string,
+): McpServerRegistration[] {
 	const raw = readFileSync(path, "utf-8");
 	const parsed = JSON.parse(raw) as {
 		mcpServers?: Record<string, unknown>;
 	};
 	return Object.entries(parsed.mcpServers ?? {}).map(([name, value]) => {
 		const entry = value as Record<string, unknown>;
-		const transport = (entry.transport ?? entry) as McpTransport;
+		const transport = (entry.transport ??
+			entry) as McpServerRegistration["transport"];
+		const metadata =
+			entry.metadata &&
+			typeof entry.metadata === "object" &&
+			!Array.isArray(entry.metadata)
+				? (entry.metadata as Record<string, unknown>)
+				: undefined;
 		const oauthState =
 			entry.oauth &&
 			typeof entry.oauth === "object" &&
@@ -60,33 +70,42 @@ function loadServersWithoutSchemaValidation(path: string): McpServerEntry[] {
 			name,
 			transport,
 			disabled: entry.disabled === true,
+			metadata,
 			oauth,
 		};
 	});
 }
 
-export function loadServers(): McpServerEntry[] {
-	const path = getSettingsPath();
+/**
+ * Load MCP server registrations with the same tolerance the wizard uses, so
+ * every CLI surface (wizard, `cline config mcp`, interactive config) accepts
+ * the same on-disk settings file.
+ */
+export function loadServerRegistrations(
+	path: string = getSettingsPath(),
+): McpServerRegistration[] {
 	if (!existsSync(path)) return [];
 	try {
-		return resolveMcpServerRegistrations({ filePath: path }).map(
-			(registration) => ({
-				name: registration.name,
-				transport: registration.transport,
-				disabled: registration.disabled === true,
-				oauth: registration.oauth,
-			}),
-		);
+		return resolveMcpServerRegistrations({ filePath: path });
 	} catch {
 		try {
 			// The extension historically accepts a few looser legacy shapes than
 			// the SDK schema. Core has already attempted permission repair before
 			// validation, so preserve the CLI's previous tolerant read behavior.
-			return loadServersWithoutSchemaValidation(path);
+			return loadRegistrationsWithoutSchemaValidation(path);
 		} catch {
 			return [];
 		}
 	}
+}
+
+export function loadServers(): McpServerEntry[] {
+	return loadServerRegistrations().map((registration) => ({
+		name: registration.name,
+		transport: registration.transport,
+		disabled: registration.disabled === true,
+		oauth: registration.oauth,
+	}));
 }
 
 function getOwnServerRecord(

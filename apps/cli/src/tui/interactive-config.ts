@@ -20,7 +20,6 @@ import {
 	readGlobalSettings,
 	resolveAgentConfigSearchPaths,
 	resolveDefaultMcpSettingsPath,
-	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
 	resolvePluginSkillDirectoriesFromPaths,
 	type SkillConfig,
@@ -29,6 +28,7 @@ import {
 } from "@cline/core";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { getToolCatalog } from "../runtime/tools";
+import { loadServerRegistrations } from "../wizards/mcp/settings";
 import {
 	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
@@ -460,9 +460,7 @@ export async function loadInteractiveConfigData(input: {
 	const mcpSettingsPath = resolveDefaultMcpSettingsPath();
 	if (hasMcpSettingsFile({ filePath: mcpSettingsPath })) {
 		try {
-			for (const registration of resolveMcpServerRegistrations({
-				filePath: mcpSettingsPath,
-			})) {
+			for (const registration of loadServerRegistrations(mcpSettingsPath)) {
 				const pluginName =
 					registration.metadata?.source === "plugin" &&
 					typeof registration.metadata.pluginName === "string"

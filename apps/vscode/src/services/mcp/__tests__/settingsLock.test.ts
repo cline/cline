@@ -49,6 +49,33 @@ describe("updateMcpSettingsFile", () => {
 		await expect(update).resolves.toBe("updated")
 	})
 
+	it("redacts persisted oauth diagnostics on unrelated locked updates", async () => {
+		await fs.writeFile(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						linear: {
+							transport: { type: "streamableHttp", url: "https://mcp.linear.app/mcp" },
+							oauth: { lastError: "access_token=legacy-secret" },
+						},
+					},
+				},
+				null,
+				2,
+			),
+		)
+
+		await updateMcpSettingsFile(settingsPath, (settings) => {
+			const servers = settings.mcpServers as Record<string, Record<string, unknown>>
+			servers.linear.disabled = true
+		})
+
+		const written = JSON.parse(await fs.readFile(settingsPath, "utf-8"))
+		expect(written.mcpServers.linear.disabled).toBe(true)
+		expect(written.mcpServers.linear.oauth.lastError).toBe("access_token=[REDACTED]")
+	})
+
 	it("creates a missing settings file inside the lock", async () => {
 		const missingPath = path.join(tempDir, "fresh", "cline_mcp_settings.json")
 		const previousUmask = process.platform === "win32" ? undefined : process.umask(0o777)

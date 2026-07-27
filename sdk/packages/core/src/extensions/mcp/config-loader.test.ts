@@ -498,6 +498,45 @@ describe("mcp config loader", () => {
 		expect(enabled.mcpServers?.docs?.disabled).toBeUndefined();
 	});
 
+	it("redacts persisted oauth diagnostics on unrelated locked updates", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						linear: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.linear.app/mcp",
+							},
+							oauth: {
+								lastError: "access_token=legacy-secret",
+							},
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		setMcpServerDisabled({ filePath, name: "linear", disabled: true });
+
+		const written = JSON.parse(await readFile(filePath, "utf8")) as {
+			mcpServers: {
+				linear: { disabled?: boolean; oauth?: { lastError?: string } };
+			};
+		};
+		expect(written.mcpServers.linear.disabled).toBe(true);
+		expect(written.mcpServers.linear.oauth?.lastError).toBe(
+			"access_token=[REDACTED]",
+		);
+	});
+
 	it("loads and updates sdk-managed oauth state in server entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
