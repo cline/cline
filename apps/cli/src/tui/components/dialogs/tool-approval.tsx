@@ -4,6 +4,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import type React from "react";
 import { palette } from "../../palette";
 import {
+	buildReadFilesKeys,
 	parseApplyPatchInput,
 	parseEditorInput,
 	parseReadFilesInput,
@@ -22,13 +23,14 @@ export function formatApprovalParams(
 		case "read_files": {
 			const info = parseReadFilesInput(rawInput);
 			if (!info?.files.length) break;
+			const keys = buildReadFilesKeys(info.files);
 			return info.files.map((f, i) => {
 				const range =
 					f.startLine != null
 						? ` lines ${f.startLine}-${f.endLine ?? "end"}`
 						: "";
 				return (
-					<text key={f.path} fg="gray" selectable>
+					<text key={keys[i]} fg="gray" selectable>
 						{"  "}
 						{shortenPath(f.path, 60)}
 						{range && <span fg="gray">{range}</span>}

@@ -13,7 +13,7 @@ import {
 	Undo2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Select,
 	SelectContent,
@@ -36,7 +36,11 @@ import {
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { SearchableSelect } from "./searchable-select";
-import { WorkspaceSelector } from "./workspace-selector";
+import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
+
+// Memoized: the workspace/branch selector fans out into popovers and lists
+// that should not re-render for every keystroke in the composer textarea.
+const WorkspaceSelector = memo(WorkspaceSelectorImpl);
 
 type ActiveMention = {
 	start: number;
@@ -186,6 +190,16 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	return { slashIndex, query };
 }
 
+/**
+ * Externally injected composer text (quick actions, queue undo, resets).
+ * The live keystroke state stays local to ChatInputBar so typing never
+ * re-renders the whole page tree; bump `version` to push a new value in.
+ */
+export type PromptDraft = {
+	version: number;
+	value: string;
+};
+
 type ChatInputBarProps = {
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
@@ -195,7 +209,7 @@ type ChatInputBarProps = {
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	gitBranch: string;
-	promptInput: string;
+	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
@@ -205,7 +219,7 @@ type ChatInputBarProps = {
 	) => void;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
-	onSend: () => void;
+	onSend: (prompt: string) => void;
 	onAbort: () => void;
 	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
@@ -233,7 +247,7 @@ export function ChatInputBar({
 	thinking,
 	reasoningEffort,
 	gitBranch,
-	promptInput,
+	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
@@ -259,6 +273,24 @@ export function ChatInputBar({
 		switchWorkspace: onSwitchWorkspace,
 		pickWorkspaceDirectory: onPickWorkspaceDirectory,
 	} = useWorkspace();
+	// Keystrokes only update this local state; the parent page tree is not
+	// re-rendered per keypress. External writers push text in via promptDraft.
+	const [promptInput, setPromptInputState] = useState(promptDraft.value);
+	const appliedDraftVersionRef = useRef(promptDraft.version);
+	const setPromptInput = useCallback(
+		(value: string) => {
+			setPromptInputState(value);
+			onPromptInputChange(value);
+		},
+		[onPromptInputChange],
+	);
+	useEffect(() => {
+		if (appliedDraftVersionRef.current === promptDraft.version) {
+			return;
+		}
+		appliedDraftVersionRef.current = promptDraft.version;
+		setPromptInput(promptDraft.value);
+	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
 	const canAbort = status === "running" || status === "stopping";
@@ -290,14 +322,29 @@ export function ChatInputBar({
 		[model, provider],
 	);
 	const canSend = hasDraft;
+	const handleSend = useCallback(() => {
+		const prompt = promptInput.trim();
+		setPromptInput("");
+		onSend(prompt);
+	}, [onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
-	const [mentionOpen, setMentionOpen] = useState(false);
-	const [activeMention, setActiveMention] = useState<ActiveMention | null>(
+	// Mention/slash detection is derived synchronously from the input +
+	// cursor. Deriving (rather than syncing through effects) keeps a keystroke
+	// at a single render commit; only an explicit Escape dismissal is state.
+	const activeMention = useMemo(
+		() => getActiveMention(promptInput, cursorIndex),
+		[promptInput, cursorIndex],
+	);
+	const [dismissedMentionKey, setDismissedMentionKey] = useState<string | null>(
 		null,
 	);
+	const mentionKey = activeMention
+		? `${activeMention.start}:${activeMention.query}`
+		: null;
+	const mentionOpen = mentionKey !== null && dismissedMentionKey !== mentionKey;
 	const [mentionFiles, setMentionFiles] = useState<string[]>([]);
 	const [mentionLoading, setMentionLoading] = useState(false);
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
@@ -305,8 +352,17 @@ export function ChatInputBar({
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
 
 	// ---- Slash command state ----
-	const [slashOpen, setSlashOpen] = useState(false);
-	const [activeSlash, setActiveSlash] = useState<ActiveSlash | null>(null);
+	const activeSlash = useMemo(
+		() => getActiveSlash(promptInput, cursorIndex),
+		[promptInput, cursorIndex],
+	);
+	const [dismissedSlashKey, setDismissedSlashKey] = useState<string | null>(
+		null,
+	);
+	const slashKey = activeSlash
+		? `${activeSlash.slashIndex}:${activeSlash.query}`
+		: null;
+	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
 		BUILTIN_SLASH_COMMANDS,
 	);
@@ -441,12 +497,6 @@ export function ChatInputBar({
 	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
 
 	useEffect(() => {
-		const nextMention = getActiveMention(promptInput, cursorIndex);
-		setActiveMention(nextMention);
-		setMentionOpen(nextMention !== null);
-	}, [promptInput, cursorIndex]);
-
-	useEffect(() => {
 		if (!mentionOpen || !activeMention) {
 			setMentionFiles([]);
 			setMentionLoading(false);
@@ -516,8 +566,9 @@ export function ChatInputBar({
 			const nextValue =
 				`${promptInput.slice(0, activeMention.start)}@${filePath} ` +
 				promptInput.slice(activeMention.end);
-			onPromptInputChange(nextValue);
-			setMentionOpen(false);
+			// The menu closes on its own: the inserted trailing space ends the
+			// active mention, so the derived `mentionOpen` turns false.
+			setPromptInput(nextValue);
 			const nextCursor = activeMention.start + filePath.length + 2;
 			requestAnimationFrame(() => {
 				const input = promptInputRef.current;
@@ -529,17 +580,10 @@ export function ChatInputBar({
 				setCursorIndex(nextCursor);
 			});
 		},
-		[activeMention, onPromptInputChange, promptInput],
+		[activeMention, promptInput, setPromptInput],
 	);
 
 	// ---- Slash command effects ----
-
-	// Detect slash mode from current input + cursor position.
-	useEffect(() => {
-		const nextSlash = getActiveSlash(promptInput, cursorIndex);
-		setActiveSlash(nextSlash);
-		setSlashOpen(nextSlash !== null);
-	}, [promptInput, cursorIndex]);
 
 	// Reset selection index when slash menu opens/closes.
 	useEffect(() => {
@@ -612,8 +656,8 @@ export function ChatInputBar({
 		(commandName: string) => {
 			if (!activeSlash) return;
 			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
-			onPromptInputChange(nextValue);
-			setSlashOpen(false);
+			// Closes via derivation: the trailing space ends the slash command.
+			setPromptInput(nextValue);
 			const nextCursor = activeSlash.slashIndex + commandName.length + 2;
 			requestAnimationFrame(() => {
 				const input = promptInputRef.current;
@@ -623,7 +667,7 @@ export function ChatInputBar({
 				setCursorIndex(nextCursor);
 			});
 		},
-		[activeSlash, onPromptInputChange, promptInput],
+		[activeSlash, promptInput, setPromptInput],
 	);
 
 	return (
@@ -890,7 +934,7 @@ export function ChatInputBar({
 							aria-haspopup="listbox"
 							className="max-h-60 min-h-5 flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none"
 							onChange={(e) => {
-								onPromptInputChange(e.target.value);
+								setPromptInput(e.target.value);
 								setCursorIndex(
 									e.target.selectionStart ?? e.target.value.length,
 								);
@@ -932,7 +976,7 @@ export function ChatInputBar({
 								}
 								if (slashOpen && e.key === "Escape") {
 									e.preventDefault();
-									setSlashOpen(false);
+									setDismissedSlashKey(slashKey);
 									return;
 								}
 								if (mentionOpen && mentionFiles.length > 0) {
@@ -959,13 +1003,13 @@ export function ChatInputBar({
 								}
 								if (mentionOpen && e.key === "Escape") {
 									e.preventDefault();
-									setMentionOpen(false);
+									setDismissedMentionKey(mentionKey);
 									return;
 								}
 								if (e.key === "Enter" && !e.shiftKey) {
 									e.preventDefault();
 									if (canSend) {
-										onSend();
+										handleSend();
 									}
 								}
 							}}
@@ -1157,7 +1201,7 @@ export function ChatInputBar({
 										: "rounded-full bg-foreground text-background hover:bg-foreground/80",
 								)}
 								disabled={!canSend}
-								onClick={onSend}
+								onClick={handleSend}
 								type="button"
 							>
 								<ArrowUp className="h-4 w-4" />
@@ -1170,7 +1214,9 @@ export function ChatInputBar({
 	);
 }
 
-function ModelSelector({
+// Memoized: the selectors load/hold the full provider-model catalog, so they
+// should not re-render for every keystroke in the composer textarea.
+const ModelSelector = memo(function ModelSelector({
 	provider,
 	model,
 	isBusy,
@@ -1449,7 +1495,7 @@ function ModelSelector({
 			/>
 		</div>
 	);
-}
+});
 
 function StatusItem({
 	icon: Icon,
