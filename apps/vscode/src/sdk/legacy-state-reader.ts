@@ -1,8 +1,9 @@
 // Replaces classic src/core/storage/disk.ts reads (see origin/main)
 //
-// Reads on-disk state written in the pre-SDK storage format from the Cline
-// data directory, so the SDK adapter can surface tasks and settings created
-// before the SDK migration.
+// Reads (and, for legacy task maintenance, writes) on-disk state in the
+// pre-SDK storage format from the Cline data directory, so the SDK adapter can
+// surface tasks and settings created before the SDK migration and keep legacy
+// task artifacts in sync when those tasks are resumed on the SDK build.
 //
 // All reads are non-throwing — missing or corrupt files return defaults.
 
@@ -201,8 +202,56 @@ const REMOVED_LEGACY_SAY_TYPES = new Set(["error_retry", "api_req_retried"])
  * Returns an empty array if the file is missing or corrupt.
  */
 export function readUiMessages(taskId: string, dataDir?: string): ClineMessage[] {
-	const messages = readJsonFile<ClineMessage[]>(uiMessagesPath(taskId, dataDir), [])
+	const messages = readRawUiMessages(taskId, dataDir)
 	return messages.filter((message) => !REMOVED_LEGACY_SAY_TYPES.has((message as { say?: string }).say ?? ""))
+}
+
+/**
+ * Read the UI messages for a specific task exactly as stored on disk, without
+ * dropping legacy-only say types. Used by the legacy write-back path, which
+ * must preserve the untouched legacy prefix byte-for-byte.
+ */
+export function readRawUiMessages(taskId: string, dataDir?: string): ClineMessage[] {
+	return readJsonFile<ClineMessage[]>(uiMessagesPath(taskId, dataDir), [])
+}
+
+/**
+ * Overwrite a legacy task's conversation artifacts (api_conversation_history.json
+ * and ui_messages.json). Used by the legacy write-back path so work added to a
+ * resumed legacy task on the SDK build survives a rollback to the legacy build.
+ * Throws on IO failure so callers can surface the error.
+ */
+export function writeLegacyTaskConversation(
+	taskId: string,
+	files: { apiConversationHistory: unknown[]; uiMessages: unknown[] },
+	dataDir?: string,
+): void {
+	fs.mkdirSync(taskDirPath(taskId, dataDir), { recursive: true })
+	fs.writeFileSync(apiConversationHistoryPath(taskId, dataDir), JSON.stringify(files.apiConversationHistory), "utf-8")
+	fs.writeFileSync(uiMessagesPath(taskId, dataDir), JSON.stringify(files.uiMessages), "utf-8")
+}
+
+/**
+ * Merge updated fields into an existing legacy taskHistory.json entry so the
+ * legacy build's history list reflects work done on the SDK build (recency,
+ * token counts, cost). Returns false when the task has no legacy entry.
+ */
+export function updateLegacyTaskHistoryItem(update: Partial<HistoryItem> & { id: string }, dataDir?: string): boolean {
+	const historyPath = taskHistoryPath(dataDir)
+	const history = readTaskHistory(dataDir)
+	const index = history.findIndex((item) => item.id === update.id)
+	if (index === -1) {
+		return false
+	}
+	history[index] = { ...history[index], ...update }
+	try {
+		fs.mkdirSync(path.dirname(historyPath), { recursive: true })
+		fs.writeFileSync(historyPath, JSON.stringify(history, null, 2), "utf-8")
+		return true
+	} catch (error) {
+		Logger.warn(`[LegacyStateReader] Failed to update legacy task history item ${update.id}:`, error)
+		return false
+	}
 }
 
 /**

@@ -654,6 +654,17 @@ export class Controller {
 	}
 
 	private handleSessionBecameIdle(): void {
+		// Keep the legacy on-disk artifacts of a resumed legacy task in sync
+		// with the turns added this session, so a rollback to the legacy
+		// extension does not lose them (ENG-2338). Fire-and-forget: a failed
+		// sync must never block idle handling.
+		const idleTaskId = this.task?.taskId ?? this.sessions.getActiveSession()?.sessionId
+		if (idleTaskId) {
+			this.taskHistory.writeBackLegacyTask(idleTaskId).catch((error) => {
+				Logger.warn(`[SdkController] Legacy task write-back failed for ${idleTaskId}:`, error)
+			})
+		}
+
 		if (this.mode?.hasPendingModeChange()) {
 			// The mode rebuild reads the latest provider and tool configuration, so
 			// it supersedes any passive rebuild that was queued for the old mode.

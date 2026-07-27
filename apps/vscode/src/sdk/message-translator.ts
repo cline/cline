@@ -1911,6 +1911,33 @@ function finalizePersistedToolUse(
 }
 
 /**
+ * Strip runtime-generated prompt scaffolding (mode notices, attachment
+ * markers) from persisted user messages so display surfaces show what the
+ * user actually typed rather than the model-bound prompt.
+ */
+export function sanitizeSdkUserMessagesForDisplay<T extends SdkMessage>(messages: T[]): T[] {
+	return messages.map((message) => {
+		if (message.role !== "user") {
+			return message
+		}
+		if (typeof message.content === "string") {
+			return { ...message, content: formatDisplayUserInput(message.content) }
+		}
+		if (Array.isArray(message.content)) {
+			return {
+				...message,
+				content: message.content.map((block) =>
+					block.type === "text" && typeof block.text === "string"
+						? { ...block, text: formatDisplayUserInput(block.text) }
+						: block,
+				),
+			}
+		}
+		return message
+	})
+}
+
+/**
  * Convert SDK-persisted LLM messages back into the ClineMessage format used by
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.

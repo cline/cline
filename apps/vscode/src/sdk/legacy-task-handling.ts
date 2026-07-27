@@ -66,6 +66,15 @@ function messageContainsLegacyResumeWarning(message: unknown): boolean {
 	return false
 }
 
+/**
+ * Index of the legacy-resume warning message that separates the converted
+ * legacy conversation prefix from the turns added on the SDK build.
+ * Returns -1 when the conversation was never resumed from a legacy task.
+ */
+export function findLegacyResumeWarningIndex(messages: readonly unknown[]): number {
+	return messages.findIndex(messageContainsLegacyResumeWarning)
+}
+
 export function appendLegacyResumeWarning<T extends { role: string; content: unknown }>(messages: T[]): T[] {
 	if (messages.some(messageContainsLegacyResumeWarning)) {
 		return messages

@@ -4,7 +4,14 @@ import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
+import {
+	deleteLegacyTask,
+	readApiConversationHistory,
+	readTaskHistory,
+	readUiMessages,
+	updateLegacyTaskHistoryItem,
+} from "./legacy-state-reader"
+import { writeBackResumedLegacyTask } from "./legacy-task-writeback"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
@@ -69,6 +76,11 @@ vi.mock("./legacy-state-reader", () => ({
 			legacyStateReaderMock.apiConversationHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.apiConversationHistory,
 	),
 	taskDirPath: vi.fn((taskId: string, dataDir?: string) => `${dataDir ?? "default"}/tasks/${taskId}`),
+	updateLegacyTaskHistoryItem: vi.fn(() => true),
+}))
+
+vi.mock("./legacy-task-writeback", () => ({
+	writeBackResumedLegacyTask: vi.fn(() => ({ status: "written", apiSuffixCount: 2, uiSuffixCount: 2 })),
 }))
 
 vi.mock("get-folder-size", () => ({
@@ -721,6 +733,77 @@ describe("SdkTaskHistory", () => {
 		const record = result.find((r) => r.sessionId === "task-1")
 		expect(record?.prompt).toBe("original")
 		expect(record?.updatedAt).toBe("2026-01-01T00:00:00.000Z")
+	})
+
+	it("writes SDK-session turns back to the legacy artifacts of a resumed legacy task", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(987_654)
+		legacyStateReaderMock.taskHistoryByDataDir.set("/legacy/globalStorage", [
+			makeHistoryItem("legacy-task", { task: "legacy prompt" }),
+		])
+		const { history, readMessages } = makeHistory(
+			[
+				makeSessionRecord("legacy-task", {
+					metadata: { legacyTask: true, tokensIn: 11, tokensOut: 22, totalCost: 0.05 },
+				}),
+			],
+			undefined,
+			"/legacy/globalStorage",
+		)
+		const sdkMessages = [
+			{ role: "user", content: "legacy prompt" },
+			{ role: "assistant", content: "new SDK answer" },
+		]
+		readMessages.mockResolvedValueOnce(sdkMessages as never)
+
+		await history.writeBackLegacyTask("legacy-task")
+
+		expect(writeBackResumedLegacyTask).toHaveBeenCalledWith({
+			taskId: "legacy-task",
+			dataDir: "/legacy/globalStorage",
+			sdkMessages,
+		})
+		expect(updateLegacyTaskHistoryItem).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "legacy-task",
+				ts: 987_654,
+				tokensIn: 11,
+				tokensOut: 22,
+				totalCost: 0.05,
+			}),
+			"/legacy/globalStorage",
+		)
+	})
+
+	it("skips write-back for tasks without a legacy entry", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("sdk-task")])
+
+		await history.writeBackLegacyTask("sdk-task")
+
+		expect(readMessages).not.toHaveBeenCalled()
+		expect(writeBackResumedLegacyTask).not.toHaveBeenCalled()
+		expect(updateLegacyTaskHistoryItem).not.toHaveBeenCalled()
+	})
+
+	it("skips write-back for legacy tasks never resumed on the SDK build", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		const { history, readMessages } = makeHistory([])
+
+		await history.writeBackLegacyTask("legacy-task")
+
+		expect(readMessages).not.toHaveBeenCalled()
+		expect(writeBackResumedLegacyTask).not.toHaveBeenCalled()
+	})
+
+	it("does not update the legacy history entry when the write-back was skipped", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		const { history, readMessages } = makeHistory([makeSessionRecord("legacy-task", { metadata: { legacyTask: true } })])
+		readMessages.mockResolvedValueOnce([{ role: "user", content: "legacy prompt" }] as never)
+		vi.mocked(writeBackResumedLegacyTask).mockReturnValueOnce({ status: "skipped", reason: "no_resume_boundary" })
+
+		await history.writeBackLegacyTask("legacy-task")
+
+		expect(writeBackResumedLegacyTask).toHaveBeenCalled()
+		expect(updateLegacyTaskHistoryItem).not.toHaveBeenCalled()
 	})
 })
 

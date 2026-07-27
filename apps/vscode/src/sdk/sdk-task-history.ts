@@ -8,14 +8,22 @@ import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages, taskDirPath } from "./legacy-state-reader"
+import {
+	deleteLegacyTask,
+	readApiConversationHistory,
+	readTaskHistory,
+	readUiMessages,
+	taskDirPath,
+	updateLegacyTaskHistoryItem,
+} from "./legacy-state-reader"
 import {
 	appendLegacyResumeWarning,
 	legacyApiHistoryToSdkMessages,
 	mergeLegacyUiMessagesWithResumedSdkMessages,
 } from "./legacy-task-handling"
+import { writeBackResumedLegacyTask } from "./legacy-task-writeback"
 import type { MessageIdMinter } from "./message-id-minter"
-import { sdkMessagesToClineMessages } from "./message-translator"
+import { sanitizeSdkUserMessagesForDisplay, sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -129,28 +137,6 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 	}
 }
 
-function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkMessage[] {
-	return messages.map((message) => {
-		if (message.role !== "user") {
-			return message
-		}
-		if (typeof message.content === "string") {
-			return { ...message, content: formatDisplayUserInput(message.content) }
-		}
-		if (Array.isArray(message.content)) {
-			return {
-				...message,
-				content: message.content.map((block) =>
-					block.type === "text" && typeof block.text === "string"
-						? { ...block, text: formatDisplayUserInput(block.text) }
-						: block,
-				),
-			}
-		}
-		return message
-	})
-}
-
 export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): HistoryItem {
 	const metadata = item.metadata
 	return {
@@ -184,6 +170,7 @@ export class SdkTaskHistory {
 	private disposed = false
 	private readonly cachedHistoryHostIdleMs = 30_000
 	private readonly metadataHistoryCacheTtlMs = 10_000
+	private readonly pendingLegacyWritebacks = new Map<string, Promise<void>>()
 
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
 
@@ -469,6 +456,75 @@ export class SdkTaskHistory {
 	getLegacyTaskDirPath(taskId: string): string | undefined {
 		const legacyTask = this.findLegacyTask(taskId)
 		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
+	}
+
+	/**
+	 * Sync a resumed legacy task's legacy on-disk artifacts with the turns
+	 * added on the SDK build, so rolling back to the legacy extension does not
+	 * silently lose that work (ENG-2338). No-op for non-legacy tasks and for
+	 * legacy tasks that were never resumed on this build.
+	 *
+	 * Calls for the same task are serialized so an idle-triggered write-back
+	 * can never interleave with a previous one still in flight.
+	 */
+	async writeBackLegacyTask(taskId: string): Promise<void> {
+		const previous = this.pendingLegacyWritebacks.get(taskId) ?? Promise.resolve()
+		const next = previous
+			.catch(() => undefined)
+			.then(() => this.performLegacyTaskWriteback(taskId))
+			.finally(() => {
+				if (this.pendingLegacyWritebacks.get(taskId) === next) {
+					this.pendingLegacyWritebacks.delete(taskId)
+				}
+			})
+		this.pendingLegacyWritebacks.set(taskId, next)
+		return next
+	}
+
+	private async performLegacyTaskWriteback(taskId: string): Promise<void> {
+		const legacyTask = this.findLegacyTask(taskId)
+		if (!legacyTask) {
+			return
+		}
+		const sdkRecord = await this.getSdkRecord(taskId)
+		if (!sdkRecord) {
+			// The legacy task was never resumed on the SDK build, so there is
+			// nothing to sync (and no SDK message log to read).
+			return
+		}
+
+		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
+		const outcome = writeBackResumedLegacyTask({
+			taskId,
+			dataDir: legacyTask.dataDir,
+			sdkMessages,
+		})
+		if (outcome.status !== "written") {
+			if (outcome.reason === "diverged_legacy_files") {
+				Logger.warn(`[SdkTaskHistory] Skipped legacy write-back for diverged task: ${taskId}`)
+			}
+			return
+		}
+
+		// Reflect the SDK-side totals (which started from the legacy item's
+		// values at resume) and recency in the legacy history list, so the task
+		// sorts and reports correctly after a rollback.
+		const sdkHistoryItem = sessionHistoryRecordToHistoryItem(sdkRecord)
+		updateLegacyTaskHistoryItem(
+			{
+				id: taskId,
+				ts: Date.now(),
+				tokensIn: sdkHistoryItem.tokensIn,
+				tokensOut: sdkHistoryItem.tokensOut,
+				cacheReads: sdkHistoryItem.cacheReads,
+				cacheWrites: sdkHistoryItem.cacheWrites,
+				totalCost: sdkHistoryItem.totalCost,
+			},
+			legacyTask.dataDir,
+		)
+		Logger.log(
+			`[SdkTaskHistory] Wrote back ${outcome.apiSuffixCount} api / ${outcome.uiSuffixCount} ui messages to legacy task: ${taskId}`,
+		)
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
