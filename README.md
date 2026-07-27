@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/drivecode/logo-dark.png">
+    <img src="docs/assets/drivecode/logo-light.png" width="96" alt="Cline Drive">
+  </picture>
+</p>
+
 <h1 align="center">Drive</h1>
 
 <p align="center">

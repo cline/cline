@@ -70,6 +70,7 @@ const PUBLIC_BROWSER_PATHS = new Set([
 	"/icon.ico",
 	"/32x32.png",
 	"/cline-logo-filled.svg",
+	"/cline-drive-logo.svg",
 	"/favicon.svg",
 ]);
 

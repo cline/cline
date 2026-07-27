@@ -455,7 +455,7 @@ function Shell({
 					<img
 						alt=""
 						className="size-6 shrink-0 dark:invert"
-						src="/cline-logo-filled.svg"
+						src="/cline-drive-logo.svg"
 					/>
 					<span className="truncate">Cline</span>
 				</button>
