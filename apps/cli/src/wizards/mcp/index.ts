@@ -230,13 +230,16 @@ async function collectUrlTransport(
 }
 
 async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
+	// Load before prompting: a settings load error must surface through the
+	// wizard's error handling instead of throwing inside the prompt's
+	// validate callback, which clack invokes from a keypress handler.
+	const existing = loadServers();
 	const name = await p.text({
 		message: "Server name",
 		placeholder: "my-mcp-server",
 		initialValue: defaults?.name,
 		validate: (v) => {
 			if (!v?.trim()) return "Name is required";
-			const existing = loadServers();
 			if (existing.some((s) => s.name === v.trim())) {
 				return "A server with this name already exists";
 			}

@@ -144,6 +144,31 @@ describe("MCP wizard settings", () => {
 		},
 	);
 
+	it("surfaces invalid settings as an error instead of an empty list", async () => {
+		const settingsPath = await useTempSettingsPath();
+		await writeFile(
+			settingsPath,
+			`${JSON.stringify(
+				{
+					mcpServers: {
+						valid: { transport: { type: "stdio", command: "node" } },
+						invalid: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.linear.app/mcp",
+							},
+							oauth: { redirectUrl: "not-a-url" },
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+
+		expect(() => loadServers()).toThrow(/Invalid MCP settings/);
+	});
+
 	it("does not create an empty server when clearing OAuth for a missing name", async () => {
 		const settingsPath = await useTempSettingsPath();
 		await writeFile(

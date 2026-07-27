@@ -31,18 +31,14 @@ export function getSettingsPath(): string {
 export function loadServers(): McpServerEntry[] {
 	const path = getSettingsPath();
 	if (!existsSync(path)) return [];
-	try {
-		return resolveMcpServerRegistrations({ filePath: path }).map(
-			(registration) => ({
-				name: registration.name,
-				transport: registration.transport,
-				disabled: registration.disabled === true,
-				oauth: registration.oauth,
-			}),
-		);
-	} catch {
-		return [];
-	}
+	return resolveMcpServerRegistrations({ filePath: path }).map(
+		(registration) => ({
+			name: registration.name,
+			transport: registration.transport,
+			disabled: registration.disabled === true,
+			oauth: registration.oauth,
+		}),
+	);
 }
 
 function getOwnServerRecord(
