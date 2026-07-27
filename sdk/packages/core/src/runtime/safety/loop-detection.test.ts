@@ -80,6 +80,20 @@ describe("LoopDetectionTracker", () => {
 		expect(inspect(tracker, 12)).toBe("hard");
 	});
 
+	it.each([
+		["percentages", (step: number) => `${step}%`],
+		["numeric progress fields", (step: number) => ({ progress: step / 100 })],
+		["ratios", (step: number) => `${step}/100`],
+	] as const)("allows explicit %s beyond the fallback limit", (_name, output) => {
+		const tracker = createTracker();
+
+		for (let iteration = 1; iteration <= 15; iteration++) {
+			expect(
+				completeBatch(tracker, iteration, [output(iteration)])[0],
+			).not.toBe("hard");
+		}
+	});
+
 	it("keeps the absolute limit across interleaved signatures", () => {
 		const tracker = createTracker();
 

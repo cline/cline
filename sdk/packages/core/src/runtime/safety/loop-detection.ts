@@ -123,14 +123,41 @@ function callKey(toolName: string, toolSignature: string): string {
 	return JSON.stringify([toolName, toolSignature]);
 }
 
+function progressStep(signature: string): number | undefined {
+	const percent = signature.match(/\b(\d+(?:\.\d+)?)\s*%/);
+	if (percent) {
+		const value = Number(percent[1]);
+		return value <= 100 ? Math.floor(value) : undefined;
+	}
+
+	const named = signature.match(
+		/"(?:progress|percent|percentage|percentComplete)"\s*:\s*(\d+(?:\.\d+)?)/i,
+	);
+	if (named) {
+		const value = Number(named[1]);
+		const percentage = value <= 1 ? value * 100 : value;
+		return percentage <= 100 ? Math.floor(percentage) : undefined;
+	}
+
+	const ratio = signature.match(/\b(\d+)\s*\/\s*(\d+)\b/);
+	if (!ratio) return undefined;
+	const current = Number(ratio[1]);
+	const total = Number(ratio[2]);
+	return total > 0 && current <= total
+		? Math.floor((current / total) * 100)
+		: undefined;
+}
+
 interface ToolBatch {
 	pendingCount: number;
 	outcomes: Set<string>;
+	highestProgressStep?: number;
 }
 
 interface SignatureState {
 	totalBatchCount: number;
 	lastOutputSignature?: string;
+	highestProgressStep?: number;
 	hasProgress: boolean;
 }
 
@@ -221,7 +248,16 @@ export class LoopDetectionTracker {
 		if (batch === undefined) return;
 
 		if (outcome.successful) {
-			batch.outcomes.add(toolCallSignature(outcome.output));
+			const outputSignature = toolCallSignature(outcome.output);
+			batch.outcomes.add(outputSignature);
+			const step = progressStep(outputSignature);
+			if (
+				step !== undefined &&
+				(batch.highestProgressStep === undefined ||
+					step > batch.highestProgressStep)
+			) {
+				batch.highestProgressStep = step;
+			}
 		}
 		batch.pendingCount--;
 		if (batch.pendingCount > 0) return;
@@ -237,6 +273,14 @@ export class LoopDetectionTracker {
 			signatureState.lastOutputSignature !== outputSignature
 		) {
 			signatureState.hasProgress = true;
+		}
+		if (
+			batch.highestProgressStep !== undefined &&
+			(signatureState.highestProgressStep === undefined ||
+				batch.highestProgressStep > signatureState.highestProgressStep)
+		) {
+			signatureState.highestProgressStep = batch.highestProgressStep;
+			signatureState.totalBatchCount = 0;
 		}
 		signatureState.lastOutputSignature = outputSignature;
 	}
