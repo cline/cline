@@ -8,7 +8,11 @@ import {
 	cleanupActiveRuntime,
 	isAbortInProgress,
 } from "./runtime/active-runtime";
+import { configureCliHubCompatibility } from "./utils/hub-compatibility";
 import { writeErr } from "./utils/output";
+
+// Configure hub compatibility before any SDK hub discovery or daemon startup.
+configureCliHubCompatibility();
 
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.
