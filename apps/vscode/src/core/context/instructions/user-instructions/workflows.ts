@@ -11,6 +11,9 @@ import { Controller } from "@/core/controller"
  * - a toggle the user flips mid-scan must win over the stale snapshot value;
  * - an entry added mid-scan (e.g. a workflow file created via the modal) must
  *   be kept even though the older scan didn't see the file;
+ * - an entry removed from state mid-scan (e.g. the workflow was deleted via
+ *   the modal, which deletes the file and its entry) must stay removed even
+ *   though the older scan still saw the file;
  * - entries that existed before the scan but whose files the scan no longer
  *   found are pruned (the file was deleted).
  */
@@ -19,9 +22,17 @@ function mergeToggleStateAfterScan(
 	preScan: ClineRulesToggles,
 	current: ClineRulesToggles,
 ): ClineRulesToggles {
-	const merged: ClineRulesToggles = { ...scanned }
+	const merged: ClineRulesToggles = {}
+	for (const [key, value] of Object.entries(scanned)) {
+		if (key in current) {
+			merged[key] = current[key]
+		} else if (!(key in preScan)) {
+			merged[key] = value
+		}
+		// else: the entry was removed from state while the scan ran — keep it removed.
+	}
 	for (const [key, value] of Object.entries(current)) {
-		if (key in merged || !(key in preScan)) {
+		if (!(key in scanned) && !(key in preScan)) {
 			merged[key] = value
 		}
 	}

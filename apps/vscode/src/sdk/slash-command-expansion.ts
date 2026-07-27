@@ -226,9 +226,14 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 			enabledByBasename.set(key, (enabledByBasename.get(key) ?? false) || enabled)
 		}
 	}
-	const remoteToggles = new Map(
-		Object.entries(options.remoteToggles ?? {}).map(([name, enabled]) => [remoteWorkflowNameKey(name), enabled]),
-	)
+	// Distinct config names can sanitize to the same materialized name (case,
+	// punctuation, or the 80-char cap); merge collisions as enabled-if-any-
+	// enabled rather than letting the last entry win arbitrarily.
+	const remoteToggles = new Map<string, boolean>()
+	for (const [name, enabled] of Object.entries(options.remoteToggles ?? {})) {
+		const key = remoteWorkflowNameKey(name)
+		remoteToggles.set(key, (remoteToggles.get(key) ?? false) || enabled)
+	}
 	const remoteAlwaysEnabled = new Set([...(options.remoteAlwaysEnabledNames ?? [])].map(remoteWorkflowNameKey))
 
 	const disabled = new Set<string>()

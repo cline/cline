@@ -179,6 +179,23 @@ describe("buildDisabledWorkflowNames", () => {
 		expect(disabled).toEqual(new Set(["org-standards"]))
 	})
 
+	it("merges colliding sanitized remote names as enabled-if-any-enabled", () => {
+		// "Org Standards" and "org standards" both sanitize to org-standards.
+		const records = [{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" }]
+		expect(
+			buildDisabledWorkflowNames({
+				records,
+				remoteToggles: { "Org Standards": false, "org standards": true },
+			}),
+		).toEqual(new Set())
+		expect(
+			buildDisabledWorkflowNames({
+				records,
+				remoteToggles: { "Org Standards": false, "org standards": false },
+			}),
+		).toEqual(new Set(["org-standards"]))
+	})
+
 	it("matches remote toggles for names longer than the materializer's 80-char cap", () => {
 		const longConfigName = "a".repeat(100)
 		const materializedName = "a".repeat(80)
