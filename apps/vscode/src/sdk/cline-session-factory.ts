@@ -17,10 +17,11 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import type { ModelInfo as SdkModelInfo } from "@cline/llms"
+import type { ModelInfo as SdkModelInfo, ProviderApiLine } from "@cline/llms"
 import {
 	getGeneratedModelsForProvider,
 	getModelsForProvider,
+	isProviderApiLine,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
@@ -649,6 +650,41 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 	return undefined
 }
 
+/**
+ * Resolve the regional API line ("china" | "international") for providers with
+ * regional endpoints (Qwen, Moonshot, Z AI, MiniMax). Legacy StateManager
+ * fields win (mirroring resolveBaseUrl), with providers.json `apiLine` as the
+ * SDK-store fallback. The SDK gateway maps the line to the provider's regional
+ * base URL when no explicit base URL is configured.
+ */
+export function resolveApiLine(providerId: string, config: ApiConfiguration): ProviderApiLine | undefined {
+	const apiLineMap: Record<string, keyof ApiConfiguration> = {
+		qwen: "qwenApiLine",
+		moonshot: "moonshotApiLine",
+		zai: "zaiApiLine",
+		minimax: "minimaxApiLine",
+	}
+
+	const field = apiLineMap[providerId]
+	if (field) {
+		const fromState = config[field]
+		if (isProviderApiLine(fromState)) {
+			return fromState
+		}
+	}
+
+	try {
+		const settingsApiLine = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))?.apiLine
+		if (isProviderApiLine(settingsApiLine)) {
+			return settingsApiLine
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} API line from providers.json`)
+	}
+
+	return undefined
+}
+
 // ---------------------------------------------------------------------------
 // Session config builder
 // ---------------------------------------------------------------------------
@@ -677,6 +713,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	let apiLine: ProviderApiLine | undefined
 	let apiConfig: ApiConfiguration | undefined
 	// Cloud-provider structured options. The core runtime reads these from
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
@@ -706,6 +743,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
+
+			// Resolve the regional API line (Qwen/Moonshot/Z AI/MiniMax). The
+			// SDK gateway routes to the line's regional endpoint when no
+			// explicit base URL is set.
+			apiLine = resolveApiLine(providerId, apiConfig)
 
 			// Resolve Bedrock region + AWS authentication options from the legacy
 			// ApiConfiguration (StateManager is the VSCode source of truth, not
@@ -754,6 +796,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				modelId = lastUsed.model
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
+				apiLine = isProviderApiLine(lastUsed.apiLine) ? lastUsed.apiLine : undefined
 				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
 			}
 		} catch (error) {
@@ -875,6 +918,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(apiLine !== undefined ? { apiLine } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		fetch,
 	}

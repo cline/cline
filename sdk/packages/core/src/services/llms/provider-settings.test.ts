@@ -36,4 +36,46 @@ describe("provider settings", () => {
 			}),
 		);
 	});
+
+	it("resolves the regional endpoint from apiLine when no base URL is set", () => {
+		expect(
+			toProviderConfig({ provider: "zai", apiLine: "china" }),
+		).toMatchObject({
+			apiLine: "china",
+			baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+		});
+
+		expect(
+			toProviderConfig({ provider: "moonshot", apiLine: "china" }),
+		).toMatchObject({
+			baseUrl: "https://api.moonshot.cn/v1",
+		});
+
+		expect(
+			toProviderConfig({ provider: "qwen", apiLine: "international" }),
+		).toMatchObject({
+			baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		});
+	});
+
+	it("lets an explicit base URL win over apiLine", () => {
+		expect(
+			toProviderConfig({
+				provider: "zai",
+				apiLine: "china",
+				baseUrl: "https://proxy.example.com/v4",
+			}),
+		).toMatchObject({
+			baseUrl: "https://proxy.example.com/v4",
+		});
+	});
+
+	it("keeps the provider default base URL when no apiLine is set", () => {
+		expect(toProviderConfig({ provider: "zai" })).toMatchObject({
+			baseUrl: "https://api.z.ai/api/paas/v4",
+		});
+		expect(toProviderConfig({ provider: "moonshot" })).toMatchObject({
+			baseUrl: "https://api.moonshot.ai/v1",
+		});
+	});
 });

@@ -222,8 +222,11 @@ export function toProviderConfig(
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
 	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
+	// Precedence: explicit base URL > regional API line endpoint (e.g.
+	// Qwen/Moonshot/Z.AI "china" vs "international") > provider default.
 	const resolvedBaseUrl =
 		settings.baseUrl ??
+		Llms.resolveProviderApiLineBaseUrl(normalizedProviderId, settings.apiLine) ??
 		(normalizedProviderId === "oca"
 			? settings.oca?.mode === "internal"
 				? DEFAULT_INTERNAL_OCA_BASE_URL

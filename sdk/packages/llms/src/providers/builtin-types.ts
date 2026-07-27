@@ -25,6 +25,8 @@ export type ProviderFamily =
 	| "ollama"
 	| "sap-ai-core";
 
+export type ProviderApiLine = "china" | "international";
+
 export interface BuiltinSpec {
 	id: string;
 	name: string;
@@ -42,6 +44,13 @@ export interface BuiltinSpec {
 	modelsSourceUrl?: string;
 	docsUrl?: string;
 	defaults?: GatewayProviderSettings;
+	/**
+	 * Regional endpoint routing facts: base URL per API line. Used when the
+	 * caller selects an `apiLine` without an explicit base URL. The line that
+	 * matches `defaults.baseUrl` is included so the mapping is exhaustive and
+	 * self-documenting.
+	 */
+	apiLineBaseUrls?: Readonly<Partial<Record<ProviderApiLine, string>>>;
 	configFields?: readonly ProviderConfigField[];
 	metadata?: GatewayProviderMetadata;
 }

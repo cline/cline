@@ -422,6 +422,64 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("forwards the regional API line from legacy state so the gateway can route to the regional endpoint", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("zai")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai",
+			apiLine: "china",
+		})
+		// No explicit base URL: the SDK gateway resolves the China endpoint
+		// (open.bigmodel.cn) from apiLine; a pre-filled base URL would win
+		// over that resolution.
+		expect(config.baseUrl).toBeUndefined()
+	})
+
+	it("falls back to the providers.json apiLine when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "moonshot") {
+				return undefined
+			}
+			return {
+				provider: "moonshot",
+				apiKey: "moonshot-key",
+				apiLine: "china",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "moonshot",
+			actModeApiModelId: "kimi-k3",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "moonshot",
+			apiLine: "china",
+		})
+	})
+
+	it("omits apiLine for unrecognized values", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen",
+			actModeApiModelId: "qwen-plus-latest",
+			qwenApiKey: "qwen-key",
+			qwenApiLine: "mars",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).not.toHaveProperty("apiLine")
+	})
+
 	it("exposes knownModels at the top level so manual compaction can budget against the model catalog", async () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
