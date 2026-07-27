@@ -78,6 +78,50 @@ describe("computer-user driver tools", () => {
 		expect(output.summary).toContain("logging in");
 	});
 
+	it("status advertises its revision cursor and bounded wait", () => {
+		const { byName } = makeHarness();
+		const statusTool = byName.get("computer_user_status");
+
+		expect(statusTool?.inputSchema).toMatchObject({
+			type: "object",
+			properties: {
+				since: { type: "integer", minimum: 0 },
+				timeout: { type: "number", minimum: 0, maximum: 120 },
+			},
+			additionalProperties: false,
+		});
+		expect(statusTool?.timeoutMs).toBe(125_000);
+		expect(statusTool?.retryable).toBe(false);
+	});
+
+	it("status waits from a returned revision until the coordinator changes", async () => {
+		const { byName, coordinator } = makeHarness();
+		await byName.get("computer_user_start")?.execute({ task: "task" }, ctx);
+		const statusTool = byName.get("computer_user_status");
+		const initial = (await statusTool?.execute({}, ctx)) as {
+			revision: number;
+		};
+		const waiting = statusTool?.execute(
+			{ since: initial.revision, timeout: 10 },
+			ctx,
+		) as Promise<{ revision: number; latestNote?: { text: string } }>;
+
+		coordinator.onHelperNote({ kind: "progress", text: "found the dialog" });
+
+		await expect(waiting).resolves.toMatchObject({
+			revision: initial.revision + 1,
+			latestNote: { text: "found the dialog" },
+		});
+	});
+
+	it("status rejects timeout without since", async () => {
+		const { byName } = makeHarness();
+
+		await expect(
+			byName.get("computer_user_status")?.execute({ timeout: 1 }, ctx),
+		).rejects.toThrow("timeout requires since");
+	});
+
 	it("message reports steer vs new_turn delivery honestly", async () => {
 		const { byName, pendingSends } = makeHarness();
 		await byName.get("computer_user_start")?.execute({ task: "task" }, ctx);
