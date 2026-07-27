@@ -54,6 +54,7 @@ export interface ArtifactEventCorrelation {
 export type ArtifactEventType =
 	| "session.started"
 	| "session.ended"
+	| "session.status_changed"
 	| "transcript.message_committed"
 	| "helper.note"
 	| "helper.question"
