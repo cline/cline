@@ -59,6 +59,7 @@ if (
 	throw new Error("theme entry point must compose tokens, theme, and base CSS");
 }
 for (const subpath of [
+	"./components.css",
 	"./components/markdown.css",
 	"./theme/index.css",
 	"./theme/scoped-tokens.css",
