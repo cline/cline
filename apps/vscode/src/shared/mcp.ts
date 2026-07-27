@@ -10,6 +10,7 @@ export {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	MAX_MCP_TIMEOUT_SECONDS,
 	MIN_MCP_TIMEOUT_SECONDS,
+	resolveMcpTimeoutSeconds,
 } from "@cline/shared"
 
 export type McpServer = {

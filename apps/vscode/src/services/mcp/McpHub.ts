@@ -43,7 +43,7 @@ import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
-import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { McpSettingsSchema, McpTimeoutSecondsSchema, ServerConfigSchema } from "./schemas"
 import { updateMcpSettingsFile } from "./settingsLock"
 import { augmentMcpTimeoutError, resolveMcpServerTimeoutMs } from "./timeout"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
@@ -638,7 +638,8 @@ export class McpHub {
 
 			// Connect - wrap in try-catch to detect OAuth requirement
 			try {
-				await client.connect(transport)
+				const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+				await client.connect(transport, { timeout })
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
@@ -664,8 +665,10 @@ export class McpHub {
 					await this.notifyWebviewOfServerChanges()
 					return // Don't throw, just mark as needs auth
 				}
-				// Re-throw other errors
-				throw error
+				await client.close().catch(() => {})
+				// Re-throw other errors with the same actionable timeout detail as
+				// post-initialize requests.
+				throw augmentMcpTimeoutError(error, name, resolveMcpServerTimeoutMs(connection.server.config))
 			}
 
 			connection.server.status = "connected"
@@ -792,7 +795,11 @@ export class McpHub {
 
 			return tools
 		} catch (error) {
-			Logger.error(`Failed to fetch tools for ${serverName}:`, error)
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			const effectiveError = connection
+				? augmentMcpTimeoutError(error, serverName, resolveMcpServerTimeoutMs(connection.server.config))
+				: error
+			Logger.error(`Failed to fetch tools for ${serverName}:`, effectiveError)
 			return []
 		}
 	}
@@ -1351,18 +1358,21 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled`)
 		}
 
-		return await connection.client.request(
-			{
-				method: "resources/read",
-				params: {
-					uri,
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+		try {
+			return await connection.client.request(
+				{
+					method: "resources/read",
+					params: {
+						uri,
+					},
 				},
-			},
-			ReadResourceResultSchema,
-			{
-				timeout: resolveMcpServerTimeoutMs(connection.server.config),
-			},
-		)
+				ReadResourceResultSchema,
+				{ timeout },
+			)
+		} catch (error) {
+			throw augmentMcpTimeoutError(error, serverName, timeout)
+		}
 	}
 
 	async getPrompt(
@@ -1381,19 +1391,22 @@ export class McpHub {
 			throw new Error(`No client available for server: ${serverName}`)
 		}
 
-		const response = await connection.client.request(
-			{
-				method: "prompts/get",
-				params: {
-					name: promptName,
-					arguments: promptArguments,
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+		const response = await connection.client
+			.request(
+				{
+					method: "prompts/get",
+					params: {
+						name: promptName,
+						arguments: promptArguments,
+					},
 				},
-			},
-			GetPromptResultSchema,
-			{
-				timeout: resolveMcpServerTimeoutMs(connection.server.config),
-			},
-		)
+				GetPromptResultSchema,
+				{ timeout },
+			)
+			.catch((error) => {
+				throw augmentMcpTimeoutError(error, serverName, timeout)
+			})
 
 		return {
 			description: response.description,
@@ -1661,13 +1674,11 @@ export class McpHub {
 	public async updateServerTimeoutRPC(serverName: string, timeout: number): Promise<McpServer[]> {
 		try {
 			// Validate timeout against schema
-			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
+			const setConfigResult = McpTimeoutSecondsSchema.safeParse(timeout)
 			if (!setConfigResult.success) {
-				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
-			}
-			if (timeout > MAX_MCP_TIMEOUT_SECONDS) {
 				throw new Error(
-					`Invalid timeout value: ${timeout}. The "timeout" field is in seconds; the maximum is ${MAX_MCP_TIMEOUT_SECONDS}.`,
+					`Invalid timeout value: ${timeout}. The "timeout" field must be a finite number from ` +
+						`${MIN_MCP_TIMEOUT_SECONDS} to ${MAX_MCP_TIMEOUT_SECONDS} seconds.`,
 				)
 			}
 

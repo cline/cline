@@ -13,7 +13,7 @@ import {
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { BasicLogger } from "@cline/shared";
-import { clampMcpTimeoutSeconds } from "@cline/shared";
+import { resolveMcpTimeoutSeconds } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import type {
@@ -26,15 +26,14 @@ import type {
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
 
-// The `timeout` field is in seconds (see @cline/shared). Any finite number is
-// accepted here and clamped to [MIN, MAX] at resolution time, so a
-// milliseconds/seconds mix-up cannot become hours and a bad value cannot
-// reject the whole settings file.
-const timeoutFieldSchema = z.number().finite().optional();
-
-function toTimeoutSeconds(timeout: number | undefined): number | undefined {
-	return timeout === undefined ? undefined : clampMcpTimeoutSeconds(timeout);
-}
+// Preserve omission for the fast stdio initialize probe. Every present value
+// uses the shared resolver, so malformed input falls back and finite numbers
+// clamp without rejecting otherwise valid servers in the settings file.
+const timeoutFieldSchema = z.preprocess(
+	(value) =>
+		value === undefined ? undefined : resolveMcpTimeoutSeconds(value),
+	z.number().optional(),
+);
 const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
@@ -84,7 +83,7 @@ const nestedRegistrationBodySchema = z
 	.transform((value) => ({
 		transport: value.transport,
 		disabled: value.disabled,
-		timeoutSeconds: toTimeoutSeconds(value.timeout),
+		timeoutSeconds: value.timeout,
 		metadata: value.metadata,
 		oauth: value.oauth,
 	}));
@@ -141,7 +140,7 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 			env: value.env,
 		},
 		disabled: value.disabled,
-		timeoutSeconds: toTimeoutSeconds(value.timeout),
+		timeoutSeconds: value.timeout,
 		metadata: value.metadata,
 		oauth: value.oauth,
 	}));
@@ -174,7 +173,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 					headers: value.headers,
 				},
 				disabled: value.disabled,
-				timeoutSeconds: toTimeoutSeconds(value.timeout),
+				timeoutSeconds: value.timeout,
 				metadata: value.metadata,
 				oauth: value.oauth,
 			};
@@ -186,7 +185,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 				headers: value.headers,
 			},
 			disabled: value.disabled,
-			timeoutSeconds: toTimeoutSeconds(value.timeout),
+			timeoutSeconds: value.timeout,
 			metadata: value.metadata,
 			oauth: value.oauth,
 		};

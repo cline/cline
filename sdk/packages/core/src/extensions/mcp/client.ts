@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { resolveMcpTimeoutSeconds } from "@cline/shared";
+import type { AgentToolContext } from "@cline/shared";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -9,6 +9,7 @@ import {
 	createMcpSdkTransport,
 	type McpOAuthProviderContext,
 } from "./oauth";
+import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
 	McpServerClient,
 	McpServerClientFactory,
@@ -139,6 +140,8 @@ class StdioMcpClient implements McpServerClient {
 			resolve: (value: unknown) => void;
 			reject: (error: Error) => void;
 			timeout: ReturnType<typeof setTimeout>;
+			signal?: AbortSignal;
+			onAbort?: () => void;
 		}
 	>();
 	private framedParser = new FramedMessageParser();
@@ -151,8 +154,9 @@ class StdioMcpClient implements McpServerClient {
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
-		this.requestTimeoutMs =
-			resolveMcpTimeoutSeconds(registration.timeoutSeconds) * 1000;
+		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
+			registration.timeoutSeconds,
+		);
 		// Keep the fast probe default unless the user opted into patience:
 		// an unconfigured server must not stall startup longer than it did
 		// before per-server timeouts existed.
@@ -199,6 +203,7 @@ class StdioMcpClient implements McpServerClient {
 				lastError = error instanceof Error ? error : new Error(String(error));
 			}
 		}
+		await this.disconnect().catch(() => {});
 
 		throw (
 			lastError ??
@@ -250,11 +255,17 @@ class StdioMcpClient implements McpServerClient {
 	async callTool(request: {
 		name: string;
 		arguments?: Record<string, unknown>;
+		context?: AgentToolContext;
 	}): Promise<McpToolCallResult> {
-		return this.request("tools/call", {
-			name: request.name,
-			arguments: request.arguments ?? {},
-		});
+		return this.request(
+			"tools/call",
+			{
+				name: request.name,
+				arguments: request.arguments ?? {},
+			},
+			undefined,
+			request.context?.signal,
+		);
 	}
 
 	private spawnProcess(protocolMode: StdioProtocolMode): void {
@@ -335,12 +346,10 @@ class StdioMcpClient implements McpServerClient {
 				if (typeof message.id !== "number") {
 					continue;
 				}
-				const pending = this.pending.get(message.id);
+				const pending = this.takePending(message.id);
 				if (!pending) {
 					continue;
 				}
-				this.pending.delete(message.id);
-				clearTimeout(pending.timeout);
 				if (message.error) {
 					const errorMessage =
 						message.error.message ||
@@ -378,6 +387,7 @@ class StdioMcpClient implements McpServerClient {
 		method: string,
 		params?: Record<string, unknown>,
 		timeoutMs = this.requestTimeoutMs,
+		signal?: AbortSignal,
 	): Promise<unknown> {
 		const child = this.process;
 		if (!child?.stdin.writable) {
@@ -396,7 +406,7 @@ class StdioMcpClient implements McpServerClient {
 
 		const resultPromise = new Promise<unknown>((resolve, reject) => {
 			const timeout = setTimeout(() => {
-				this.pending.delete(id);
+				this.takePending(id);
 				// One decimal place so sub-second probe budgets print accurately.
 				const seconds = Math.round(timeoutMs / 100) / 10;
 				reject(
@@ -406,8 +416,35 @@ class StdioMcpClient implements McpServerClient {
 					),
 				);
 			}, timeoutMs);
-			this.pending.set(id, { resolve, reject, timeout });
+			const onAbort = signal
+				? () => {
+						const pending = this.takePending(id);
+						if (!pending) {
+							return;
+						}
+						const error =
+							signal.reason instanceof Error
+								? signal.reason
+								: Object.assign(
+										new Error(
+											`MCP request aborted for "${this.registration.name}" (${method}).`,
+										),
+										{ name: "AbortError" },
+									);
+						pending.reject(error);
+					}
+				: undefined;
+			this.pending.set(id, { resolve, reject, timeout, signal, onAbort });
+			if (signal && onAbort) {
+				signal.addEventListener("abort", onAbort, { once: true });
+				if (signal.aborted) {
+					onAbort();
+				}
+			}
 		});
+		if (!this.pending.has(id)) {
+			return resultPromise;
+		}
 
 		try {
 			child.stdin.write(
@@ -416,12 +453,12 @@ class StdioMcpClient implements McpServerClient {
 					: encodeNewlineMessage(payload),
 			);
 		} catch (error) {
-			const pending = this.pending.get(id);
+			const pending = this.takePending(id);
 			if (pending) {
-				clearTimeout(pending.timeout);
-				this.pending.delete(id);
+				pending.reject(
+					error instanceof Error ? error : new Error(String(error)),
+				);
 			}
-			throw error;
 		}
 
 		return resultPromise;
@@ -445,11 +482,34 @@ class StdioMcpClient implements McpServerClient {
 	}
 
 	private failAllPending(error: Error): void {
-		for (const [id, pending] of this.pending) {
-			clearTimeout(pending.timeout);
-			this.pending.delete(id);
+		for (const id of [...this.pending.keys()]) {
+			const pending = this.takePending(id);
+			if (!pending) {
+				continue;
+			}
 			pending.reject(error);
 		}
+	}
+
+	private takePending(id: number):
+		| {
+				resolve: (value: unknown) => void;
+				reject: (error: Error) => void;
+				timeout: ReturnType<typeof setTimeout>;
+				signal?: AbortSignal;
+				onAbort?: () => void;
+		  }
+		| undefined {
+		const pending = this.pending.get(id);
+		if (!pending) {
+			return undefined;
+		}
+		this.pending.delete(id);
+		clearTimeout(pending.timeout);
+		if (pending.signal && pending.onAbort) {
+			pending.signal.removeEventListener("abort", pending.onAbort);
+		}
+		return pending;
 	}
 }
 
@@ -469,8 +529,9 @@ class SdkUrlMcpClient implements McpServerClient {
 		private readonly registration: McpServerRegistration,
 		private readonly options: DefaultMcpServerClientFactoryOptions,
 	) {
-		this.requestTimeoutMs =
-			resolveMcpTimeoutSeconds(registration.timeoutSeconds) * 1000;
+		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
+			registration.timeoutSeconds,
+		);
 	}
 
 	async connect(): Promise<void> {
@@ -490,8 +551,9 @@ class SdkUrlMcpClient implements McpServerClient {
 				this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
 		});
 		this.authContext = authContext;
+		let client: Client | undefined;
 		try {
-			const client = new Client({
+			client = new Client({
 				name: this.options.clientName?.trim() || "@cline/core",
 				version: this.options.clientVersion?.trim() || "0.0.0",
 			});
@@ -504,12 +566,18 @@ class SdkUrlMcpClient implements McpServerClient {
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
+			await client?.close().catch(() => {});
+			const effectiveError = augmentMcpTimeoutError(
+				error,
+				this.registration.name,
+				this.requestTimeoutMs,
+			);
 			const message =
 				error instanceof UnauthorizedError
 					? this.formatUnauthorizedMessage(
 							authContext.getLastAuthorizationUrl(),
 						)
-					: toErrorMessage(error);
+					: toErrorMessage(effectiveError);
 			await authContext.markError(message);
 			throw new Error(message);
 		}
@@ -545,6 +613,7 @@ class SdkUrlMcpClient implements McpServerClient {
 	async callTool(request: {
 		name: string;
 		arguments?: Record<string, unknown>;
+		context?: AgentToolContext;
 	}): Promise<McpToolCallResult> {
 		const client = await this.ensureConnectedClient();
 		try {
@@ -554,7 +623,10 @@ class SdkUrlMcpClient implements McpServerClient {
 					arguments: request.arguments ?? {},
 				},
 				undefined,
-				{ timeout: this.requestTimeoutMs },
+				{
+					timeout: this.requestTimeoutMs,
+					signal: request.context?.signal,
+				},
 			);
 		} catch (error) {
 			return await this.handleOperationError(error);
@@ -590,10 +662,15 @@ class SdkUrlMcpClient implements McpServerClient {
 				redirectUrl:
 					this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
 			});
+		const effectiveError = augmentMcpTimeoutError(
+			error,
+			this.registration.name,
+			this.requestTimeoutMs,
+		);
 		const message =
 			error instanceof UnauthorizedError
 				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
-				: toErrorMessage(error);
+				: toErrorMessage(effectiveError);
 		await authContext.markError(message);
 		throw new Error(message);
 	}

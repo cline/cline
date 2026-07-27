@@ -102,4 +102,28 @@ describe("InMemoryMcpManager", () => {
 			}),
 		).rejects.toThrow(/disabled/i);
 	});
+
+	it("retains and disconnects a client whose initialization fails", async () => {
+		const connectError = new Error("initialize failed");
+		const client = createClient({
+			connect: vi.fn(async () => {
+				throw connectError;
+			}),
+		});
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () => client,
+		});
+		await manager.registerServer({
+			name: "slow-start",
+			transport: { type: "stdio", command: "node" },
+		});
+
+		await expect(manager.connectServer("slow-start")).rejects.toBe(
+			connectError,
+		);
+		expect(client.disconnect).toHaveBeenCalledTimes(1);
+
+		await manager.dispose();
+		expect(client.disconnect).toHaveBeenCalledTimes(2);
+	});
 });

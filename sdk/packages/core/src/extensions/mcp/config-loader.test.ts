@@ -159,6 +159,34 @@ describe("mcp config loader", () => {
 		expect(byName.get("tooSmall")?.timeoutSeconds).toBe(1);
 	});
 
+	it("defaults malformed timeout values without rejecting valid sibling servers", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					malformed: {
+						transport: { type: "stdio", command: "node" },
+						timeout: "120",
+					},
+					valid: {
+						command: "node",
+						timeout: null,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		expect(registrations).toHaveLength(2);
+		expect(
+			registrations.map((registration) => registration.timeoutSeconds),
+		).toEqual([60, 60]);
+	});
+
 	it("registers loaded servers with an mcp manager", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);

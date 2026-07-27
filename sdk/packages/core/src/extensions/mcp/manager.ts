@@ -195,15 +195,18 @@ export class InMemoryMcpManager implements McpManager {
 		}
 		state.status = "connecting";
 		state.updatedAt = nowMs();
+		let client = state.client;
 		try {
-			const client =
-				state.client ?? (await this.clientFactory(state.registration));
-			await client.connect();
+			client ??= await this.clientFactory(state.registration);
+			// Ownership transfers before connect: a failed initialize must still
+			// be reachable for cleanup, retry, and manager disposal.
 			state.client = client;
+			await client.connect();
 			state.status = "connected";
 			state.lastError = undefined;
 			state.updatedAt = nowMs();
 		} catch (error) {
+			await client?.disconnect().catch(() => {});
 			state.status = "disconnected";
 			state.lastError = error instanceof Error ? error.message : String(error);
 			state.updatedAt = nowMs();

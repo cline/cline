@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -13,7 +19,11 @@ import type { McpServerRegistration } from "./types";
  */
 
 const FAKE_SERVER_SCRIPT = `
+if (process.env.FAKE_MCP_PID_FILE) {
+	require("node:fs").writeFileSync(process.env.FAKE_MCP_PID_FILE, String(process.pid));
+}
 let buffer = "";
+const responseTimers = new Set();
 process.stdin.on("data", (chunk) => {
 	buffer += chunk.toString("utf8");
 	let idx;
@@ -35,7 +45,8 @@ process.stdin.on("data", (chunk) => {
 				? (process.env.FAKE_MCP_INIT_DELAY_MS ?? "0")
 				: (process.env.FAKE_MCP_DELAY_MS ?? "0"),
 		);
-		setTimeout(() => {
+		const responseTimer = setTimeout(() => {
+			responseTimers.delete(responseTimer);
 			let result;
 			if (msg.method === "initialize") {
 				result = {
@@ -52,9 +63,13 @@ process.stdin.on("data", (chunk) => {
 			}
 			process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
 		}, delay);
+		responseTimers.add(responseTimer);
 	}
 });
-process.stdin.on("end", () => process.exit(0));
+process.stdin.on("end", () => {
+	for (const responseTimer of responseTimers) clearTimeout(responseTimer);
+	process.exit(0);
+});
 `;
 
 let tempRoot: string;
@@ -72,6 +87,7 @@ function fakeServerRegistration(options: {
 	timeoutSeconds?: number;
 	delayMs: number;
 	initDelayMs?: number;
+	pidFile?: string;
 }): McpServerRegistration {
 	return {
 		name: "fake-server",
@@ -89,12 +105,37 @@ function fakeServerRegistration(options: {
 				...(options.initDelayMs === undefined
 					? {}
 					: { FAKE_MCP_INIT_DELAY_MS: String(options.initDelayMs) }),
+				...(options.pidFile === undefined
+					? {}
+					: { FAKE_MCP_PID_FILE: options.pidFile }),
 			},
 		},
 		...(options.timeoutSeconds === undefined
 			? {}
 			: { timeoutSeconds: options.timeoutSeconds }),
 	};
+}
+
+async function waitFor(
+	predicate: () => boolean,
+	timeoutMs = 5_000,
+): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (!predicate()) {
+		if (Date.now() >= deadline) {
+			throw new Error("Timed out waiting for condition");
+		}
+		await new Promise((resolve) => setTimeout(resolve, 25));
+	}
+}
+
+function isProcessRunning(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code !== "ESRCH";
+	}
 }
 
 describe("mcp client request timeout", () => {
@@ -178,6 +219,47 @@ describe("mcp client request timeout", () => {
 				/timed out.*"timeout" field \(in seconds\)/s,
 			);
 			expect(Date.now() - startedAt).toBeLessThan(8_000);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("terminates the real child when the final initialize attempt fails", async () => {
+		const pidFile = join(tempRoot, `failed-init-${Date.now()}.pid`);
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({
+				timeoutSeconds: 1,
+				delayMs: 0,
+				initDelayMs: 10_000,
+				pidFile,
+			}),
+		);
+
+		await expect(client.connect()).rejects.toThrow(/timed out/);
+		await waitFor(() => existsSync(pidFile));
+		const pid = Number(readFileSync(pidFile, "utf8"));
+		await waitFor(() => !isProcessRunning(pid));
+	}, 30_000);
+
+	it("aborts a long stdio tool call without waiting for its timeout", async () => {
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({ timeoutSeconds: 30, delayMs: 10_000 }),
+		);
+		const controller = new AbortController();
+		try {
+			await client.connect();
+			const call = client.callTool({
+				name: "anything",
+				context: {
+					agentId: "test-agent",
+					iteration: 1,
+					signal: controller.signal,
+				},
+			});
+			controller.abort();
+			await expect(call).rejects.toMatchObject({ name: "AbortError" });
 		} finally {
 			await client.disconnect();
 		}
