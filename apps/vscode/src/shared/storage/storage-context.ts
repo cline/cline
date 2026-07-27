@@ -1,8 +1,8 @@
 import fsSync from "node:fs"
-import os from "node:os"
 import path from "node:path"
 import { ClineFileStorage } from "./ClineFileStorage"
 import { ClineMemento } from "./ClineStorage"
+import { resolveClineDataDir } from "./data-dir"
 
 /**
  * The storage backend context object used by StateManager and other components.
@@ -45,6 +45,12 @@ export interface StorageContextOptions {
 	clineDir?: string
 
 	/**
+	 * Override the Cline data directory outright. Defaults to CLINE_DATA_DIR env
+	 * var, else `<clineDir>/data`.
+	 */
+	dataDir?: string
+
+	/**
 	 * The workspace/project directory path. Used to compute a hash-based
 	 * workspace storage subdirectory. Defaults to process.cwd().
 	 */
@@ -60,8 +66,6 @@ export interface StorageContextOptions {
 	 */
 	workspaceStorageDir?: string
 }
-
-const SETTINGS_SUBFOLDER = "data"
 
 /**
  * Create a short deterministic hash of a string for use in directory names.
@@ -92,8 +96,10 @@ function hashString(str: string): string {
  * @returns A StorageContext ready for use by StateManager
  */
 export function createStorageContext(opts: StorageContextOptions = {}): StorageContext {
-	const clineDir = opts.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	const dataDir = path.join(clineDir, SETTINGS_SUBFOLDER)
+	// Resolved through the shared resolver so globalState.json/secrets.json
+	// always land beside settings/providers.json, whichever env var points the
+	// data directory somewhere other than ~/.cline/data.
+	const dataDir = resolveClineDataDir({ dataDir: opts.dataDir, clineDir: opts.clineDir })
 
 	// Resolve workspace storage directory
 	let workspaceDir: string

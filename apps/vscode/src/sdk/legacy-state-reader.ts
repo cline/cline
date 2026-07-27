@@ -7,12 +7,12 @@
 // All reads are non-throwing — missing or corrupt files return defaults.
 
 import fs from "node:fs"
-import os from "node:os"
 import path from "node:path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
+import { resolveClineDataDir } from "@shared/storage/data-dir"
 import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
 
 // ---------------------------------------------------------------------------
@@ -21,13 +21,15 @@ import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
 
 /**
  * Resolve the Cline data directory.
- * Priority: CLINE_DATA_DIR env > CLINE_DIR env + "/data" > ~/.cline/data
+ * Priority: explicit override > CLINE_DATA_DIR env > CLINE_DIR env + "/data" > ~/.cline/data
+ *
+ * Delegates to the shared resolver that `createStorageContext` also uses, so
+ * the SDK stores (`settings/providers.json`) and the extension's own stores
+ * (`globalState.json`, `secrets.json`) can never resolve to different
+ * directories.
  */
 export function resolveDataDir(override?: string): string {
-	if (override) return override
-	if (process.env.CLINE_DATA_DIR) return process.env.CLINE_DATA_DIR
-	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	return path.join(clineDir, "data")
+	return resolveClineDataDir({ dataDir: override })
 }
 
 /** Path to globalState.json */
