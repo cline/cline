@@ -675,11 +675,14 @@ export function ChatInputBar({
 										)}
 										key={item.id}
 									>
-										{/* Fixed gutter so a row does not shift when it starts steering. */}
-										<span className="mt-[9px] h-3.5 w-3.5 shrink-0 text-muted-foreground">
+										{/* Fixed gutter, sized to the first text line, so a row does
+										    not shift when it starts steering and the spinner centers
+										    on the text. */}
+										<span className="mt-1 flex h-4 w-3.5 shrink-0 items-center justify-center text-muted-foreground">
 											{item.steer && !isEditing ? (
 												<output
 													aria-label="Steering — the running agent reads it at its next step"
+													className="flex"
 													title="Steering — the running agent reads it at its next step"
 												>
 													<Loader2 className="h-3.5 w-3.5 animate-spin" />
