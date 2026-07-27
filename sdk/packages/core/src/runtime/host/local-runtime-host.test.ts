@@ -1180,6 +1180,71 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("readLiveSessionMessages serves in-memory messages for resident sessions before persistence", async () => {
+		const sessionId = "sess-live-messages";
+		const manifest = createManifest(sessionId);
+		// The in-flight conversation exists only on the agent; nothing has been
+		// flushed to the messages file yet (mid-turn, or an aborted turn).
+		const liveMessages: MessageWithMetadata[] = [
+			{ role: "user" as const, content: "list the files in this folder" },
+			{ role: "assistant" as const, content: "I will list them now." },
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: join(isolatedHomeDir, "never-written.json"),
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: undefined,
+				teamRestoredFromPersistence: false,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue(liveMessages),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		// The live read sees the conversation; the persisted read still lags.
+		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
+			liveMessages,
+		);
+		await expect(manager.readSessionMessages(sessionId)).resolves.toEqual([]);
+	});
+
 	it("reads manifest-only session records and messages", async () => {
 		const sessionId = "manifest-only-session";
 		const messagesPath = join(isolatedHomeDir, "messages.json");

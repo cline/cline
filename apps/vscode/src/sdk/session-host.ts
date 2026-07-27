@@ -34,6 +34,12 @@ export interface SdkSessionHost {
 	listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]>
 	delete(sessionId: string): Promise<boolean>
 	readMessages(sessionId: string): Promise<SdkInitialMessages>
+	/**
+	 * Like readMessages, but prefers the live in-memory conversation when the
+	 * session is still resident, so an in-flight (or just-aborted) turn is not
+	 * lost to the persisted transcript lagging behind.
+	 */
+	readLiveMessages?(sessionId: string): Promise<SdkInitialMessages>
 	updateSessionCompactionState?(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }>
 	restore(input: RestoreInput): Promise<RestoreResult>
 	update(
