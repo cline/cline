@@ -157,6 +157,78 @@ export function applyMessage(state: ReplicaState, incoming: ClineMessage): Repli
  * newer epoch adopts it wholesale; otherwise it only advances the replica's turnState if its
  * seq is higher. This is what stops a late/stale snapshot from reverting "streaming" -> "idle".
  */
+/**
+ * Prepend a batch of older messages to the transcript (scroll-up pagination).
+ *
+ * Called when the webview receives a LoadHistoryBatchResponse with messages
+ * chronologically older than the oldest currently visible one. Messages are
+ * placed at the front of the array in chronological order.
+ */
+export function applyBatchPrepend(
+	state: ReplicaState,
+	incomingMessages: ClineMessage[],
+	newEpoch?: number,
+	newTotalCount?: number,
+): ReplicaState {
+	if (incomingMessages.length === 0) {
+		return state
+	}
+
+	// Freshness gate: only apply messages from not-older epoch
+	const batchEpoch = newEpoch ?? state.epoch
+	if (batchEpoch < state.epoch) {
+		return state
+	}
+
+	const messages = [...state.messages]
+	const seqByTs = new Map(state.seqByTs)
+
+	// Track the oldest ts before prepend for ordering
+	const oldestTs = messages.length > 0 ? messages[0].ts : Infinity
+
+	// Filter incoming to only ts not already seen (at equal-or-newer seq)
+	const newMessages: ClineMessage[] = []
+	for (const msg of incomingMessages) {
+		const existingSeq = seqByTs.get(msg.ts)
+		const incomingSeq = seqOf(msg)
+		if (existingSeq !== undefined && incomingSeq < existingSeq) {
+			continue // We already have a newer copy
+		}
+		seqByTs.set(msg.ts, incomingSeq)
+		newMessages.push(msg)
+	}
+
+	if (newMessages.length === 0) {
+		return state
+	}
+
+	// Separate into "before oldest" and "after oldest" to maintain order
+	const beforeOldest: ClineMessage[] = []
+	const afterOldest: ClineMessage[] = []
+	for (const msg of newMessages) {
+		if (msg.ts < oldestTs) {
+			beforeOldest.push(msg)
+		} else {
+			afterOldest.push(msg)
+		}
+	}
+
+	// Sort each group chronologically
+	beforeOldest.sort((a, b) => a.ts - b.ts)
+	afterOldest.sort((a, b) => a.ts - b.ts)
+
+	// Prepend beforeOldest, then existing messages, then afterOldest (shouldn't happen but be safe)
+	const merged = [...beforeOldest, ...messages, ...afterOldest]
+	const epoch = batchEpoch > state.epoch ? batchEpoch : state.epoch
+
+	return {
+		...state,
+		messages: merged,
+		epoch,
+		seqByTs,
+	}
+}
+
 export function applyStateSnapshot(
 	state: ReplicaState,
 	snapshotMessages: ClineMessage[],

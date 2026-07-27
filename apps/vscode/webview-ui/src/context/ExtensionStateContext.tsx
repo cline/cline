@@ -6,6 +6,7 @@ import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo, ProviderModelsResponse } from "@shared/proto/cline/models"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
+import { LoadHistoryBatchRequest } from "@shared/proto/cline/task"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
@@ -23,10 +24,17 @@ import type { McpServer, McpViewTab } from "../../../src/shared/mcp"
 import {
 	createReplicaState,
 	type ReplicaState,
+	applyBatchPrepend as reducerApplyBatchPrepend,
 	applyMessage as reducerApplyMessage,
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
-import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import {
+	McpServiceClient,
+	ModelsServiceClient,
+	StateServiceClient,
+	TaskServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 
 export type ProviderId = string
 
@@ -137,6 +145,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
+
+	// Scroll-up pagination: load older messages when scrolling up in a truncated conversation.
+	loadHistoryBatch: (taskId: string, beforeTs: number) => Promise<void>
+	// Whether there are more older messages available for scroll-up pagination.
+	hasMoreMessages: boolean
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -269,7 +282,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		version: "",
 		clineMessages: [],
 		queuedPrompts: [],
-		taskHistory: [],
+		taskHistory: undefined,
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
@@ -317,6 +330,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		showFeatureTips: true,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
+		messageTruncated: undefined,
+		totalMessageCount: undefined,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -847,6 +862,10 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Clean up subscriptions when component unmounts
 		return () => {
+			// Reset the delta version counter so re-mount starts fresh; otherwise
+			// a stale high-water mark from a previous lifecycle would trigger a
+			// spurious gap detection on the very first delta after reconnection.
+			lastStateVersionRef.current = 0
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
@@ -981,6 +1000,56 @@ export const ExtensionStateContextProvider: React.FC<{
 		state?.apiConfiguration?.liteLlmApiKey,
 		refreshLiteLlmModels,
 	])
+
+	const [hasMoreMessages, setHasMoreMessages] = useState(true)
+
+	/**
+	 * Load a batch of older messages when scrolling up past the truncation window.
+	 * Calls the backend's loadHistoryBatch RPC and prepends the batch to the
+	 * message replica via reducerApplyBatchPrepend.
+	 */
+	const loadHistoryBatch = useCallback(
+		async (taskId: string, beforeTs: number) => {
+			if (!taskId || taskId === "") {
+				console.warn("[loadHistoryBatch] No taskId provided, skipping")
+				return
+			}
+			try {
+				const response = await TaskServiceClient.loadHistoryBatch(
+					LoadHistoryBatchRequest.create({
+						taskId,
+						beforeTs,
+						limit: 50,
+					}),
+				)
+				if (!response.messages || response.messages.length === 0) {
+					// No more messages available
+					setHasMoreMessages(false)
+					return
+				}
+
+				// Convert protobuf messages to ClineMessage[]
+				const incoming = response.messages.map(convertProtoToClineMessage).filter(Boolean) as ClineMessage[]
+
+				// Apply batch prepend to the replica
+				replicaRef.current = reducerApplyBatchPrepend(replicaRef.current, incoming, undefined, response.totalCount)
+
+				// Update state with the merged messages
+				setState((prevState) => ({
+					...prevState,
+					clineMessages: replicaRef.current.messages,
+				}))
+
+				// Update hasMore flag from response
+				if (response.hasMore !== undefined) {
+					setHasMoreMessages(response.hasMore)
+				}
+			} catch (error) {
+				console.error("[loadHistoryBatch] Error loading history batch:", error)
+			}
+		},
+		[], // stable — no external deps; uses refs internally
+	)
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -1122,6 +1191,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,
+		hasMoreMessages,
+		loadHistoryBatch,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

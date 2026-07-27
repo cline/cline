@@ -553,6 +553,17 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
 }
 
 /**
+ * Module-level cache for `groupLowStakesTools`. Since `useIncrementalMessages`
+ * memoizes the `groupedMessages` reference (same fingerprint → same reference),
+ * we can safely return the cached result when the input reference hasn't changed.
+ * This avoids O(N) re-computation on every render during streaming.
+ */
+let _groupLowStakesToolsCache: {
+	input: (ClineMessage | ClineMessage[])[]
+	output: (ClineMessage | ClineMessage[])[]
+} | null = null
+
+/**
  * Group consecutive low-stakes tools (and their reasoning) into arrays.
  * Also filters out checkpoints that follow low-stakes tool groups.
  * Absorbs api_req_started messages that are followed only by low-stakes tools.
@@ -560,6 +571,10 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
  * Should be called after groupMessages.
  */
 export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessage[])[]): (ClineMessage | ClineMessage[])[] {
+	// Fast path: same reference → cached result is still valid
+	if (_groupLowStakesToolsCache !== null && _groupLowStakesToolsCache.input === groupedMessages) {
+		return _groupLowStakesToolsCache.output
+	}
 	const result: (ClineMessage | ClineMessage[])[] = []
 	let toolGroup: ClineMessage[] = []
 	let pendingReasoning: ClineMessage[] = []
@@ -678,6 +693,9 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	if (pendingTools.length > 0) {
 		result.push(...pendingTools)
 	}
+
+	// Update cache
+	_groupLowStakesToolsCache = { input: groupedMessages, output: result }
 
 	return result
 }
