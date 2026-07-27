@@ -11,9 +11,9 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs"
-import os from "node:os"
 import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
+import { resolveClineDataDir } from "@cline/shared/storage"
 import { Logger } from "@/shared/services/Logger"
 
 const SETTINGS_LOCK_STALE_MS = 10_000
@@ -68,10 +68,7 @@ export function isSettingsLockContentionError(error: unknown): boolean {
 }
 
 function isClineSettingsDirectory(directoryPath: string): boolean {
-	const explicitDataDir = process.env.CLINE_DATA_DIR?.trim()
-	const clineDir = process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
-	const dataDir = explicitDataDir || path.join(clineDir, "data")
-	return path.resolve(directoryPath) === path.resolve(dataDir, "settings")
+	return path.resolve(directoryPath) === path.resolve(resolveClineDataDir(), "settings")
 }
 
 function ensurePrivateSettingsDirectory(directoryPath: string): void {

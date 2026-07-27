@@ -1347,7 +1347,7 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
+				message: `Failed to update server state: ${sanitizeMcpDiagnosticText(error instanceof Error ? error.message : String(error))}`,
 			})
 			throw error
 		} finally {
@@ -1721,7 +1721,7 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
+				message: `Failed to update server timeout: ${sanitizeMcpDiagnosticText(error instanceof Error ? error.message : String(error))}`,
 			})
 			throw error
 		}
