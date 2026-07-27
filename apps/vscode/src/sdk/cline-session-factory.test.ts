@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
 	return {
 		getDistinctId: vi.fn(() => "test-distinct-id"),
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
+		setLastUsedProvider: vi.fn(),
 		providerSettingsManager,
 		stateManager: {
 			getApiConfiguration: vi.fn(() => ({
@@ -64,6 +65,7 @@ vi.mock("@/services/logging/distinctId", () => ({
 
 vi.mock("./provider-migration", () => ({
 	getProviderSettingsManager: mocks.getProviderSettingsManager,
+	setLastUsedProvider: mocks.setLastUsedProvider,
 }))
 
 vi.mock("@shared/services/Logger", () => ({
@@ -315,6 +317,26 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("cline")
 		expect(config.apiKey).toBe("workos:test-access-token")
+	})
+
+	it("records the StateManager-resolved provider as last used", async () => {
+		// StateManager decides which provider the session runs on; recording it
+		// keeps providers.json's lastUsedProvider from going stale (ENG-2332).
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("anthropic")
+		expect(mocks.setLastUsedProvider).toHaveBeenCalledWith("anthropic")
+	})
+
+	it("does not record a last-used provider when none is configured", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		// The session defaults to the Cline provider, but that default must not
+		// overwrite lastUsedProvider — the user never chose it.
+		expect(config.providerId).toBe("cline")
+		expect(mocks.setLastUsedProvider).not.toHaveBeenCalled()
 	})
 
 	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {

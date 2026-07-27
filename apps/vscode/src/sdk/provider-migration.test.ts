@@ -12,7 +12,7 @@ import path from "node:path"
 // Each test gets a fresh tempDir, so the per-dataDir manager cache and the
 // stub's per-dataDir store are naturally isolated between tests.
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { getProviderSettingsManager, migrateProviders } from "./provider-migration"
+import { getProviderSettingsManager, migrateProviders, setLastUsedProvider } from "./provider-migration"
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -119,5 +119,48 @@ describe("getProviderSettingsManager", () => {
 		const first = getProviderSettingsManager(tempDir)
 		const second = getProviderSettingsManager(tempDir)
 		expect(second).toBe(first)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// setLastUsedProvider
+// ---------------------------------------------------------------------------
+
+describe("setLastUsedProvider", () => {
+	it("records the provider as lastUsedProvider", () => {
+		const manager = getProviderSettingsManager(tempDir)
+		manager.saveProviderSettings({ provider: "anthropic", apiKey: "key-a" })
+		manager.saveProviderSettings({ provider: "openrouter", apiKey: "key-b" })
+		expect(manager.read().lastUsedProvider).toBe("openrouter")
+
+		setLastUsedProvider("anthropic", tempDir)
+
+		expect(manager.read().lastUsedProvider).toBe("anthropic")
+	})
+
+	it("preserves existing provider entries", () => {
+		const manager = getProviderSettingsManager(tempDir)
+		manager.saveProviderSettings({ provider: "openrouter", apiKey: "key-b" })
+
+		setLastUsedProvider("anthropic", tempDir)
+
+		expect(manager.getProviderSettings("openrouter")).toBeDefined()
+	})
+
+	it("translates the extension's legacy provider spelling to the SDK id", () => {
+		// The extension stores OpenAI Compatible under `openai`; the SDK store
+		// and the CLI use `openai-compatible`.
+		setLastUsedProvider("openai", tempDir)
+
+		expect(getProviderSettingsManager(tempDir).read().lastUsedProvider).toBe("openai-compatible")
+	})
+
+	it("ignores empty provider ids", () => {
+		const manager = getProviderSettingsManager(tempDir)
+		manager.saveProviderSettings({ provider: "anthropic", apiKey: "key-a" })
+
+		setLastUsedProvider("   ", tempDir)
+
+		expect(manager.read().lastUsedProvider).toBe("anthropic")
 	})
 })

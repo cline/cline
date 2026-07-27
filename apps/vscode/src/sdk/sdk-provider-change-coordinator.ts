@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Logger } from "@/shared/services/Logger"
+import { setLastUsedProvider } from "./provider-migration"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -47,6 +48,13 @@ export class SdkProviderChangeCoordinator {
 
 		if (previousProvider === nextProvider) {
 			return
+		}
+
+		if (nextProvider) {
+			// Mirror the switch into providers.json. StateManager decides which
+			// provider requests actually use, so a stale lastUsedProvider there
+			// makes the two provider stores disagree about the active provider.
+			setLastUsedProvider(nextProvider)
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()

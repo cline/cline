@@ -10,6 +10,11 @@ vi.mock("@/shared/services/Logger", () => ({
 	},
 }))
 
+const setLastUsedProvider = vi.hoisted(() => vi.fn())
+vi.mock("./provider-migration", () => ({
+	setLastUsedProvider,
+}))
+
 describe("SdkProviderChangeCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -25,6 +30,7 @@ describe("SdkProviderChangeCoordinator", () => {
 		)
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(setLastUsedProvider).not.toHaveBeenCalled()
 	})
 
 	it("does nothing when only the provider spelling changes", () => {
@@ -40,14 +46,36 @@ describe("SdkProviderChangeCoordinator", () => {
 		)
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(setLastUsedProvider).not.toHaveBeenCalled()
 	})
 
-	it("does nothing without an active session", () => {
+	it("records the new provider as last used without an active session", () => {
 		const { coordinator, options } = makeCoordinator()
 
 		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(setLastUsedProvider).toHaveBeenCalledWith("deepseek")
+	})
+
+	it("records the new provider as last used for the active mode", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator } = makeCoordinator({ activeSession, mode: "plan" })
+
+		coordinator.handleApiConfigurationChanged(
+			{ planModeApiProvider: "anthropic", actModeApiProvider: "deepseek" },
+			{ planModeApiProvider: "openrouter", actModeApiProvider: "deepseek" },
+		)
+
+		expect(setLastUsedProvider).toHaveBeenCalledWith("openrouter")
+	})
+
+	it("does not record a last-used provider when the provider is cleared", () => {
+		const { coordinator } = makeCoordinator()
+
+		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, {})
+
+		expect(setLastUsedProvider).not.toHaveBeenCalled()
 	})
 
 	it("restarts immediately when the active provider changes while idle", async () => {

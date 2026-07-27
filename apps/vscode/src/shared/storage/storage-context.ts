@@ -40,7 +40,9 @@ export interface StorageContext {
 
 export interface StorageContextOptions {
 	/**
-	 * Override the Cline home directory. Defaults to CLINE_DIR env var or ~/.cline.
+	 * Override the Cline home directory. When set, the data directory is always
+	 * `<clineDir>/data`. Defaults to env-based resolution: CLINE_DATA_DIR, then
+	 * CLINE_DIR + "/data", then ~/.cline/data.
 	 */
 	clineDir?: string
 
@@ -83,17 +85,25 @@ function hashString(str: string): string {
  * All path computation is contained here — callers should not
  * construct paths to these storage files themselves.
  *
- * File layout:
- *   ~/.cline/data/globalState.json    — global state
- *   ~/.cline/data/secrets.json        — secrets (mode 0o600)
- *   ~/.cline/data/workspaces/<hash>/workspaceState.json — per-workspace state
+ * File layout (under the resolved data directory, ~/.cline/data by default):
+ *   <dataDir>/globalState.json    — global state
+ *   <dataDir>/secrets.json        — secrets (mode 0o600)
+ *   <dataDir>/workspaces/<hash>/workspaceState.json — per-workspace state
  *
  * @param opts Configuration options for path resolution
  * @returns A StorageContext ready for use by StateManager
  */
 export function createStorageContext(opts: StorageContextOptions = {}): StorageContext {
-	const clineDir = opts.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	const dataDir = path.join(clineDir, SETTINGS_SUBFOLDER)
+	const clineDir = opts.clineDir || process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
+	// Data dir resolution must stay aligned with the SDK (resolveClineDataDir)
+	// and the legacy reader (legacy-state-reader's resolveDataDir): an explicit
+	// CLINE_DATA_DIR wins over CLINE_DIR-derived paths. Diverging here splits
+	// provider state across two stores — globalState.json/secrets.json in one
+	// directory and providers.json/task state in another — so requests can run
+	// on a provider the visible settings never configured.
+	const dataDir = opts.clineDir
+		? path.join(opts.clineDir, SETTINGS_SUBFOLDER)
+		: process.env.CLINE_DATA_DIR?.trim() || path.join(clineDir, SETTINGS_SUBFOLDER)
 
 	// Resolve workspace storage directory
 	let workspaceDir: string
