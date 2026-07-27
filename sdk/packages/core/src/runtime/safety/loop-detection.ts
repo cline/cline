@@ -130,6 +130,9 @@ const DEFAULT_CONFIG: LoopDetectionConfig = {
 // Changed output may be real progress or volatile noise. The absolute ceiling
 // keeps either case bounded without guessing the meaning of arbitrary output.
 const ABSOLUTE_LIMIT_MULTIPLIER = 4;
+// Progress is normalized to the integer range 0..100. Permit the same bounded
+// number of renewals even when a multi-phase operation restarts at zero.
+const MAX_PROGRESS_CHANGES = 101;
 
 function callKey(toolName: string, toolSignature: string): string {
 	return JSON.stringify([toolName, toolSignature]);
@@ -210,7 +213,8 @@ interface ToolBatch {
 interface SignatureState {
 	totalBatchCount: number;
 	lastOutputSignature?: string;
-	highestProgressStep?: number;
+	lastProgressStep?: number;
+	progressChangeCount: number;
 	hasProgress: boolean;
 }
 
@@ -343,6 +347,7 @@ export class LoopDetectionTracker {
 		if (state === undefined) {
 			state = {
 				totalBatchCount: 0,
+				progressChangeCount: 0,
 				hasProgress: false,
 			};
 			this.signatures.set(key, state);
@@ -373,10 +378,11 @@ export class LoopDetectionTracker {
 		}
 		if (
 			batch.highestProgressStep !== undefined &&
-			(signatureState.highestProgressStep === undefined ||
-				batch.highestProgressStep > signatureState.highestProgressStep)
+			batch.highestProgressStep !== signatureState.lastProgressStep &&
+			signatureState.progressChangeCount < MAX_PROGRESS_CHANGES
 		) {
-			signatureState.highestProgressStep = batch.highestProgressStep;
+			signatureState.lastProgressStep = batch.highestProgressStep;
+			signatureState.progressChangeCount++;
 			signatureState.totalBatchCount = 0;
 		}
 		signatureState.lastOutputSignature = outputSignature;

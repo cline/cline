@@ -107,6 +107,30 @@ describe("LoopDetectionTracker", () => {
 		}
 	});
 
+	it("allows bounded explicit progress restarts", () => {
+		const tracker = createTracker();
+		const steps = [0, 25, 50, 75, 100];
+
+		for (let iteration = 1; iteration <= 20; iteration++) {
+			expect(
+				completeBatch(tracker, iteration, [
+					{ progress: steps[(iteration - 1) % steps.length] },
+				])[0],
+			).not.toBe("hard");
+		}
+	});
+
+	it("bounds oscillating explicit progress", () => {
+		const tracker = createTracker();
+
+		for (let iteration = 1; iteration < 113; iteration++) {
+			expect(
+				completeBatch(tracker, iteration, [{ progress: iteration % 2 }])[0],
+			).not.toBe("hard");
+		}
+		expect(inspect(tracker, 113)).toBe("hard");
+	});
+
 	it("keeps the absolute limit across interleaved signatures", () => {
 		const tracker = createTracker();
 
