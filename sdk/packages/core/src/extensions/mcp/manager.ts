@@ -1,3 +1,4 @@
+import { resolveMcpTimeoutSeconds } from "@cline/shared";
 import type {
 	McpConnectionStatus,
 	McpManager,
@@ -63,10 +64,18 @@ export class InMemoryMcpManager implements McpManager {
 			const didTransportChange =
 				JSON.stringify(existing.registration.transport) !==
 				JSON.stringify(registration.transport);
+			// A client snapshots the timeout at construction. Preserve omission as
+			// distinct from an explicit default because stdio initialize uses the
+			// fast compatibility probe only when timeoutSeconds is undefined.
+			const didTimeoutChange =
+				(existing.registration.timeoutSeconds === undefined) !==
+					(registration.timeoutSeconds === undefined) ||
+				resolveMcpTimeoutSeconds(existing.registration.timeoutSeconds) !==
+					resolveMcpTimeoutSeconds(registration.timeoutSeconds);
 			existing.registration = { ...registration };
 			existing.updatedAt = nowMs();
 
-			if (didTransportChange) {
+			if (didTransportChange || didTimeoutChange) {
 				await this.disconnectState(existing);
 				existing.client = undefined;
 				existing.toolCache = undefined;

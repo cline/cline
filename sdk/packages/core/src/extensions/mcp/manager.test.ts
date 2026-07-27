@@ -126,4 +126,52 @@ describe("InMemoryMcpManager", () => {
 		await manager.dispose();
 		expect(client.disconnect).toHaveBeenCalledTimes(2);
 	});
+
+	it("replaces the client when its timeout snapshot changes", async () => {
+		const firstClient = createClient();
+		const secondClient = createClient();
+		const clientFactory = vi
+			.fn()
+			.mockResolvedValueOnce(firstClient)
+			.mockResolvedValueOnce(secondClient);
+		const manager = new InMemoryMcpManager({ clientFactory });
+		const registration = {
+			name: "timeout-change",
+			transport: {
+				type: "stdio" as const,
+				command: "node",
+			},
+		};
+
+		await manager.registerServer(registration);
+		await manager.connectServer(registration.name);
+		await manager.registerServer({ ...registration, timeoutSeconds: 60 });
+
+		expect(firstClient.disconnect).toHaveBeenCalledTimes(1);
+		await manager.connectServer(registration.name);
+		expect(clientFactory).toHaveBeenCalledTimes(2);
+		expect(secondClient.connect).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves the client when re-registration keeps the same timeout snapshot", async () => {
+		const client = createClient();
+		const clientFactory = vi.fn(async () => client);
+		const manager = new InMemoryMcpManager({ clientFactory });
+		const registration = {
+			name: "same-timeout",
+			transport: {
+				type: "stdio" as const,
+				command: "node",
+			},
+			timeoutSeconds: 60_000,
+		};
+
+		await manager.registerServer(registration);
+		await manager.connectServer(registration.name);
+		await manager.registerServer({ ...registration, timeoutSeconds: 3_600 });
+
+		expect(client.disconnect).not.toHaveBeenCalled();
+		await manager.connectServer(registration.name);
+		expect(clientFactory).toHaveBeenCalledTimes(1);
+	});
 });

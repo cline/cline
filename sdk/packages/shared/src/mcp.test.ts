@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	clampMcpTimeoutSeconds,
 	DEFAULT_MCP_TIMEOUT_SECONDS,
+	formatMcpTimeoutErrorMessage,
 	MAX_MCP_TIMEOUT_SECONDS,
 	MIN_MCP_TIMEOUT_SECONDS,
 	resolveMcpTimeoutSeconds,
@@ -42,5 +43,13 @@ describe("clampMcpTimeoutSeconds", () => {
 		expect(clampMcpTimeoutSeconds(0)).toBe(MIN_MCP_TIMEOUT_SECONDS);
 		expect(clampMcpTimeoutSeconds(120)).toBe(120);
 		expect(clampMcpTimeoutSeconds(999999)).toBe(MAX_MCP_TIMEOUT_SECONDS);
+	});
+});
+
+describe("formatMcpTimeoutErrorMessage", () => {
+	it("names the server, effective bound, and setting to change", () => {
+		expect(formatMcpTimeoutErrorMessage("slow-server", 120_000)).toBe(
+			'MCP request to "slow-server" timed out after 120s. Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.',
+		);
 	});
 });

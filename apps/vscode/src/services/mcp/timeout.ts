@@ -1,5 +1,6 @@
+export { augmentMcpTimeoutError } from "@cline/core"
+
 import { resolveMcpTimeoutSeconds } from "@cline/shared"
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import { secondsToMs } from "@utils/time"
 
 /**
@@ -18,21 +19,4 @@ export function resolveMcpServerTimeoutMs(configJson: string): number {
 	} catch {
 		return secondsToMs(resolveMcpTimeoutSeconds(undefined))
 	}
-}
-
-/**
- * If `error` is an MCP request timeout, return an equivalent McpError whose
- * message names the bound and how to raise it; otherwise return the error
- * unchanged.
- */
-export function augmentMcpTimeoutError(error: unknown, serverName: string, timeoutMs: number): unknown {
-	if (!(error instanceof McpError) || error.code !== ErrorCode.RequestTimeout) {
-		return error
-	}
-	return new McpError(
-		error.code,
-		`MCP request to "${serverName}" timed out after ${Math.round(timeoutMs / 1000)}s. ` +
-			`Increase the "timeout" field (in seconds) for this server in cline_mcp_settings.json.`,
-		error.data,
-	)
 }

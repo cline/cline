@@ -175,10 +175,15 @@ function getMcpAuthLabel(registration: McpServerRegistration): string {
 	return "no auth";
 }
 
-function getMcpDescription(registration: McpServerRegistration): string {
+export function getMcpDescription(registration: McpServerRegistration): string {
 	const timeoutSeconds =
 		registration.timeoutSeconds ?? DEFAULT_MCP_TIMEOUT_SECONDS;
-	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}, timeout ${timeoutSeconds}s`;
+	const timeoutDescription =
+		registration.transport.type === "stdio" &&
+		registration.timeoutSeconds === undefined
+			? `request timeout ${timeoutSeconds}s, initialize probe 1.5s`
+			: `timeout ${timeoutSeconds}s`;
+	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}, ${timeoutDescription}`;
 }
 
 function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
