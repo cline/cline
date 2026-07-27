@@ -170,8 +170,8 @@ observatory lives in `src/extensions/computer-observability/`.
 
 - No auth/handshake — this assumes the backend is a locally-spawned trusted
   process on loopback. Do not bind the backend to a non-loopback address.
-  (The observatory's WebSocket side currently binds externally; the artifact
-  ingress must not copy that.)
+  (The observatory's WebSocket side binds externally by design; it is
+  read-only over the journal, but still unauthenticated.)
 - No reconnect/backoff policy in the client; a dropped connection fails all
   in-flight requests and reconnects lazily on the next call.
 - No persisted setting/UI toggle; env-var opt-in only, matching this being a
@@ -181,10 +181,35 @@ observatory lives in `src/extensions/computer-observability/`.
   `sdk/packages/llms/src/providers/routing/anthropic-compatible.ts`) rather
   than gated on whether the `computer` tool is actually part of the current
   request. Fine for this proof of concept; revisit before shipping.
-- The artifact event stream has no Rust ingress yet; `ArtifactEventSink`
-  implementations and the `artifact_event`/`artifact_ack` wire protocol land
-  with the qwanban side.
 - Display dimensions are a construction-time snapshot; a resize after
   startup leaves the tool description stale. Fixing this properly means the
   backend reporting dimensions with each screenshot and the tool description
   no longer embedding a fixed size.
+
+## Observability
+
+The backend keeps an in-memory journal of everything observable on its host:
+it records every computer action (with a full-screen PNG for screen-capturing
+actions) as it executes it, and the agent host publishes its own events —
+transcripts, coordinator status changes — over the same socket with the
+`publish_event` action. The qwanban observatory subscribes to that journal
+over the backend's WebSocket port and renders the combined timeline.
+
+On the Cline side (`src/extensions/computer-observability/`):
+
+- `ComputerTaskArtifactRecorder` assigns one total order across sources and
+  fans events into an `ArtifactEventSink`.
+- `createJournalEventSink` is the sink that publishes each event to the
+  backend via `publish_event`, in emission order, without ever blocking the
+  action path.
+- `createTranscriptRecordingHooks` is an `AgentHooks` layer that records
+  every committed message (`message-added` is the canonical commit point,
+  covering user, assistant, and tool messages) as
+  `transcript.message_committed`, and run start/end as
+  `session.status_changed`. Tool outputs are reduced to name/ok — the
+  backend already journals every screenshot once, in execution order.
+
+The CLI wires all of this up in
+`apps/cli/src/runtime/interactive/computer-user.ts`, sharing one
+`ComputerUseClient` between the `computer` tool and the publisher because
+the backend serves a single agent connection at a time (most recent wins).

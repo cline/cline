@@ -97,6 +97,29 @@ describe("ComputerUserCoordinator", () => {
 		expect(driverMessages[0]?.prompt).toContain("0/3 healthy instances");
 	});
 
+	it("a status wait unblocking on completion carries the final report", async () => {
+		const { host, pendingSends } = makeControllableHost();
+		const { coordinator } = makeCoordinator(host);
+		await coordinator.start("check the dashboard");
+		// The helper's finish tool bumps the revision before the run settles;
+		// a driver polling at that point sees "running" and waits again. That
+		// second wait must unblock on the idle transition WITH the outcome.
+		coordinator.onHelperFinish({
+			result: "Dashboard is green",
+			observations: [],
+		});
+		const stillRunning = coordinator.status();
+		expect(stillRunning.state).toBe("running");
+
+		const wait = coordinator.waitForStatus(stillRunning.revision, 5_000);
+		pendingSends[0]?.resolve(makeResult());
+		const unblocked = await wait;
+
+		expect(unblocked.state).toBe("idle");
+		expect(unblocked.lastReport?.result).toBe("Dashboard is green");
+		expect(unblocked.summary).toContain("Dashboard is green");
+	});
+
 	it("status reports the latest note with a poll-time age", async () => {
 		let clock = 1_000_000;
 		const { host } = makeControllableHost();
