@@ -339,6 +339,10 @@ export async function runInteractive(
 		resolveMistakeLimitDecision,
 		switchToActModeTool,
 		persistentExtraTools,
+		// Record the driver's transcript to the computer-use backend's
+		// journal so the observatory can show it beside the computer user's
+		// transcript and screenshots.
+		extraAgentHooks: computerUser?.driverRecordingHooks,
 		onAgentEvent: (event) => {
 			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
 		},
