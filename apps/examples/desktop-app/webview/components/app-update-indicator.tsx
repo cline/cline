@@ -55,7 +55,11 @@ export function AppUpdateIndicator({ className }: { className?: string }) {
 					disabled={restarting}
 					onClick={() => {
 						setRestarting(true);
-						restartToApplyUpdate();
+						void restartToApplyUpdate().then((ok) => {
+							if (!ok) {
+								setRestarting(false);
+							}
+						});
 					}}
 					size="sm"
 					type="button"

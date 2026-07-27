@@ -66,9 +66,23 @@ export function useAppUpdateStatus(): AppUpdateStatus {
 	);
 }
 
-/** Restart the app so the staged update takes effect. */
-export function restartToApplyUpdate() {
-	void desktopClient.invoke("restart_to_apply_update");
+/**
+ * Restart the app so the staged update takes effect. Resolves false (after
+ * surfacing a toast) if the restart command fails, so callers can reset
+ * pending UI.
+ */
+export async function restartToApplyUpdate(): Promise<boolean> {
+	try {
+		await desktopClient.invoke("restart_to_apply_update");
+		return true;
+	} catch (error) {
+		toast({
+			variant: "destructive",
+			title: "Restart failed",
+			description: error instanceof Error ? error.message : String(error),
+		});
+		return false;
+	}
 }
 
 // Module-scoped so a page remount does not re-toast an update the user
@@ -121,7 +135,7 @@ export function useAppUpdate() {
 					<ToastAction
 						altText="Restart now"
 						onClick={() => {
-							restartToApplyUpdate();
+							void restartToApplyUpdate();
 						}}
 					>
 						Restart now
