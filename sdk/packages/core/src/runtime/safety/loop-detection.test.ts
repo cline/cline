@@ -136,16 +136,17 @@ describe("LoopDetectionTracker", () => {
 		expect(tracker.inspect(call).kind).toBe("hard");
 	});
 
-	it("allows long-running calls that report explicit semantic progress", () => {
+	it("bounds long-running calls even when progress-classified values change", () => {
 		const tracker = new LoopDetectionTracker({
 			softThreshold: 2,
 			hardThreshold: 3,
 		});
 
-		for (let index = 1; index <= 20; index++) {
+		for (let index = 1; index < 12; index++) {
 			expect(tracker.inspect(call).kind).not.toBe("hard");
-			observeSuccess(tracker, call, `${index}/20 complete`);
+			observeSuccess(tracker, call, { status: `waiting-${index}` });
 		}
+		expect(tracker.inspect(call).kind).toBe("hard");
 	});
 
 	it("counts identical parallel calls as one batch and accepts every outcome", () => {
@@ -224,6 +225,20 @@ describe("LoopDetectionTracker", () => {
 		expect(inspectBatch("c")[0]).toBe("hard");
 	});
 
+	it("bounds an identical parallel batch when earlier calls never finish", () => {
+		const tracker = new LoopDetectionTracker({
+			softThreshold: 2,
+			hardThreshold: 3,
+		});
+
+		for (let index = 1; index < 12; index++) {
+			expect(
+				tracker.inspect({ ...call, id: `pending-${index}` }).kind,
+			).not.toBe("hard");
+		}
+		expect(tracker.inspect({ ...call, id: "pending-12" }).kind).toBe("hard");
+	});
+
 	it("does not let a late parallel outcome reset another call's counter", () => {
 		const tracker = new LoopDetectionTracker({
 			softThreshold: 2,
@@ -246,5 +261,34 @@ describe("LoopDetectionTracker", () => {
 		observeSuccess(tracker, secondPoll, "20% complete");
 
 		expect(tracker.inspect({ ...otherCall, id: "other-2" }).kind).toBe("soft");
+	});
+
+	it("keeps earlier identical parallel outcomes across an interleaved call", () => {
+		const tracker = new LoopDetectionTracker({
+			softThreshold: 2,
+			hardThreshold: 3,
+		});
+		const baseline = { ...call, id: "baseline" };
+		const firstPoll = { ...call, id: "poll-1" };
+		const secondPoll = { ...call, id: "poll-2" };
+		const otherCall = {
+			id: "other-1",
+			name: "other",
+			input: { command: "status" },
+		};
+
+		expect(tracker.inspect(baseline).kind).toBe("ok");
+		observeSuccess(tracker, baseline, "10% complete");
+		expect(tracker.inspect(firstPoll).kind).toBe("soft");
+		expect(tracker.inspect(otherCall).kind).toBe("ok");
+		expect(tracker.inspect(secondPoll).kind).toBe("ok");
+
+		observeSuccess(tracker, firstPoll, "20% complete");
+		observeSuccess(tracker, secondPoll, "10% complete");
+
+		const thirdPoll = { ...call, id: "poll-3" };
+		expect(tracker.inspect(thirdPoll).kind).toBe("soft");
+		observeSuccess(tracker, thirdPoll, "10% complete");
+		expect(tracker.inspect({ ...call, id: "poll-4" }).kind).toBe("ok");
 	});
 });

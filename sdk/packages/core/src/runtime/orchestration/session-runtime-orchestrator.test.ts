@@ -2425,6 +2425,74 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("preserves identical parallel progress across an interleaved tool call", async () => {
+		const toolCall = (id: string, name = "poll") => ({
+			type: "tool-call" as const,
+			toolCallId: id,
+			toolName: name,
+			input: { command: "status" },
+		});
+		const started = (id: string, name?: string): AgentRuntimeEvent => ({
+			type: "tool-started",
+			iteration: 1,
+			toolCall: toolCall(id, name),
+			snapshot: makeSnapshot(),
+		});
+		const finished = (
+			id: string,
+			output: string,
+			name?: string,
+		): AgentRuntimeEvent => ({
+			type: "tool-finished",
+			iteration: 1,
+			toolCall: toolCall(id, name),
+			message: {
+				id: `message-${id}`,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: id,
+						toolName: name ?? "poll",
+						output,
+					},
+				],
+				createdAt: 1,
+			},
+			snapshot: makeSnapshot(),
+		});
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: [
+				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+				started("baseline"),
+				finished("baseline", "10% complete"),
+				started("parallel-1"),
+				started("other-1", "other"),
+				finished("other-1", "unchanged", "other"),
+				started("parallel-2"),
+				finished("parallel-1", "20% complete"),
+				finished("parallel-2", "10% complete"),
+				started("poll-3"),
+				finished("poll-3", "10% complete"),
+				started("poll-4"),
+				finished("poll-4", "10% complete"),
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: {
+					maxConsecutiveMistakes: 6,
+					loopDetection: { softThreshold: 2, hardThreshold: 3 },
+				},
+			}),
+			deps,
+		);
+
+		await session.run("monitor interleaved parallel progress");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
 	it("still aborts repeated built-in failures whose error output changes", async () => {
 		const failedCall = (i: number): AgentRuntimeEvent[] => {
 			const toolCall = {

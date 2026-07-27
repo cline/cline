@@ -152,27 +152,8 @@ const LOG_OUTPUT_KEYS = new Set([
 	"tail",
 ]);
 
-const PROGRESS_OUTPUT_KEYS = new Set([
-	"complete",
-	"completed",
-	"current",
-	"done",
-	"percent",
-	"percentage",
-	"phase",
-	"progress",
-	"stage",
-	"state",
-	"status",
-	"success",
-	"succeeded",
-	"total",
-]);
-
 const PROGRESS_TEXT_PATTERN =
 	/\b(?:complete(?:d)?|done|failed|phase|progress|queued|running|stage|state|status|succeeded|success)\b|\b\d+(?:\.\d+)?%|\b\d+\s*\/\s*\d+\b/i;
-const PROGRESS_TEXT_TOKEN_PATTERN =
-	/\b(?:complete(?:d)?|done|failed|phase|progress|queued|running|stage|state|status|succeeded|success)\b|\b\d+(?:\.\d+)?%|\b\d+\s*\/\s*\d+\b/gi;
 
 function compactOutputKey(key: string): string {
 	return key.replaceAll(/[^a-z0-9]/gi, "").toLowerCase();
@@ -263,65 +244,20 @@ function normalizeToolOutcome(value: unknown, parentKey?: string): unknown {
 	return normalized;
 }
 
-function explicitProgressValue(value: unknown, parentKey?: string): unknown {
-	if (typeof value === "string") {
-		const normalized = normalizeOutputText(value, false);
-		const tokens = [...normalized.matchAll(PROGRESS_TEXT_TOKEN_PATTERN)].map(
-			(match) => match[0].toLowerCase().replaceAll(/\s+/g, ""),
-		);
-		return tokens.length > 0 ? [...new Set(tokens)] : undefined;
-	}
-	if (value == null || typeof value !== "object") {
-		return parentKey !== undefined &&
-			PROGRESS_OUTPUT_KEYS.has(compactOutputKey(parentKey))
-			? value
-			: undefined;
-	}
-	if (Array.isArray(value)) {
-		const entries = value
-			.map((entry) => explicitProgressValue(entry, parentKey))
-			.filter((entry) => entry !== undefined);
-		if (entries.length === 0) {
-			return undefined;
-		}
-		return [
-			...new Set(entries.map((entry) => JSON.stringify(entry) ?? "null")),
-		].sort();
-	}
-
-	const progress: Record<string, unknown> = {};
-	for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-		const progressValue = PROGRESS_OUTPUT_KEYS.has(compactOutputKey(key))
-			? entry
-			: explicitProgressValue(entry, key);
-		if (progressValue !== undefined) {
-			progress[key] = progressValue;
-		}
-	}
-	return Object.keys(progress).length > 0 ? progress : undefined;
-}
-
 interface ToolOutcomeFingerprint {
 	signature: string;
-	progressSignature?: string;
 }
 
 function toolOutcomeFingerprint(output: unknown): ToolOutcomeFingerprint {
 	try {
 		const normalized = normalizeToolOutcome(output);
-		const progress = explicitProgressValue(normalized);
 		return {
 			signature: JSON.stringify(normalized) ?? "undefined",
-			progressSignature:
-				progress === undefined ? undefined : JSON.stringify(progress),
 		};
 	} catch {
 		const normalized = normalizeOutputText(String(output), false);
-		const progress = explicitProgressValue(normalized);
 		return {
 			signature: normalized,
-			progressSignature:
-				progress === undefined ? undefined : JSON.stringify(progress),
 		};
 	}
 }
@@ -348,11 +284,11 @@ export class LoopDetectionTracker {
 				generation: number;
 				toolName: string;
 				toolSignature: string;
-				nextBatchId: number;
 				totalBatchCount: number;
 		  }
 		| undefined;
 	private nextGeneration = 1;
+	private nextBatchId = 1;
 	private readonly pendingCalls = new Map<string, InspectedCall>();
 	private anonymousPendingCall: InspectedCall | undefined;
 	private readonly batchOutcomes = new Map<number, ToolOutcomeFingerprint[]>();
@@ -360,7 +296,6 @@ export class LoopDetectionTracker {
 		| {
 				generation: number;
 				outputSignature: string;
-				progressSignature?: string;
 		  }
 		| undefined;
 
@@ -374,6 +309,7 @@ export class LoopDetectionTracker {
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		const signature = toolCallSignature(call.input);
 		let sequence = this.currentSequence;
+		let startedNewSequence = false;
 		if (
 			sequence === undefined ||
 			sequence.toolName !== call.name ||
@@ -383,23 +319,23 @@ export class LoopDetectionTracker {
 				generation: this.nextGeneration++,
 				toolName: call.name,
 				toolSignature: signature,
-				nextBatchId: 1,
 				totalBatchCount: 0,
 			};
 			this.currentSequence = sequence;
-			this.pendingCalls.clear();
+			startedNewSequence = true;
 			this.anonymousPendingCall = undefined;
-			this.batchOutcomes.clear();
 		}
 
 		const parallelCall =
 			call.id === undefined
 				? undefined
 				: [...this.pendingCalls.values()].find(
-						(pending) => pending.generation === sequence.generation,
+						(pending) =>
+							pending.toolName === call.name &&
+							pending.toolSignature === signature,
 					);
 		const inspected: InspectedCall = {
-			batchId: parallelCall?.batchId ?? sequence.nextBatchId++,
+			batchId: parallelCall?.batchId ?? this.nextBatchId++,
 			generation: sequence.generation,
 			toolName: call.name,
 			toolSignature: signature,
@@ -409,7 +345,19 @@ export class LoopDetectionTracker {
 		} else {
 			this.anonymousPendingCall = inspected;
 		}
-		if (parallelCall !== undefined) {
+		const absoluteHardLimit = this.config.hardThreshold * MAX_PROGRESS_WINDOWS;
+		const pendingBatchCallCount =
+			[...this.pendingCalls.values()].filter(
+				(pending) => pending.batchId === inspected.batchId,
+			).length +
+			(this.anonymousPendingCall?.batchId === inspected.batchId ? 1 : 0);
+		if (parallelCall !== undefined && !startedNewSequence) {
+			if (pendingBatchCallCount >= absoluteHardLimit) {
+				return {
+					kind: "hard",
+					message: `Detected ${pendingBatchCallCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`,
+				};
+			}
 			return { kind: "ok" };
 		}
 
@@ -420,17 +368,19 @@ export class LoopDetectionTracker {
 			signature,
 			this.config,
 		);
-		const absoluteHardLimit = this.config.hardThreshold * MAX_PROGRESS_WINDOWS;
 		if (
 			result.hardEscalation ||
-			sequence.totalBatchCount >= absoluteHardLimit
+			sequence.totalBatchCount >= absoluteHardLimit ||
+			pendingBatchCallCount >= absoluteHardLimit
 		) {
 			return {
 				kind: "hard",
 				message:
-					sequence.totalBatchCount >= absoluteHardLimit
-						? `Detected ${sequence.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
-						: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
+					pendingBatchCallCount >= absoluteHardLimit
+						? `Detected ${pendingBatchCallCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`
+						: sequence.totalBatchCount >= absoluteHardLimit
+							? `Detected ${sequence.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
+							: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
 			};
 		}
 		if (result.softWarning) {
@@ -443,10 +393,10 @@ export class LoopDetectionTracker {
 	}
 
 	/**
-	 * Complete an inspected call. Parallel calls in the same batch share a
-	 * generation, so every outcome can contribute progress regardless of finish
-	 * order. Failed outcomes only close their pending call and never reset loop
-	 * detection.
+	 * Complete an inspected call. Parallel calls in the same batch can span a
+	 * temporarily interleaved tool sequence, so every still-relevant outcome can
+	 * contribute progress regardless of finish order. Failed outcomes only close
+	 * their pending call and never reset loop detection.
 	 */
 	observeOutcome(
 		call: LoopDetectionCall,
@@ -464,10 +414,20 @@ export class LoopDetectionTracker {
 		}
 		const isCurrentCall =
 			inspected !== undefined &&
-			inspected.generation === this.currentSequence?.generation &&
+			this.currentSequence?.toolName === call.name &&
+			this.currentSequence.toolSignature === toolSignature &&
 			inspected.toolName === call.name &&
 			inspected.toolSignature === toolSignature;
 		if (!isCurrentCall) {
+			if (
+				inspected !== undefined &&
+				![...this.pendingCalls.values()].some(
+					(pending) => pending.batchId === inspected.batchId,
+				) &&
+				this.anonymousPendingCall?.batchId !== inspected.batchId
+			) {
+				this.batchOutcomes.delete(inspected.batchId);
+			}
 			return;
 		}
 
@@ -478,12 +438,8 @@ export class LoopDetectionTracker {
 		}
 		const hasPendingBatchCall =
 			[...this.pendingCalls.values()].some(
-				(pending) =>
-					pending.generation === inspected.generation &&
-					pending.batchId === inspected.batchId,
-			) ||
-			(this.anonymousPendingCall?.generation === inspected.generation &&
-				this.anonymousPendingCall.batchId === inspected.batchId);
+				(pending) => pending.batchId === inspected.batchId,
+			) || this.anonymousPendingCall?.batchId === inspected.batchId;
 		if (hasPendingBatchCall) {
 			return;
 		}
@@ -496,43 +452,27 @@ export class LoopDetectionTracker {
 		const outputSignature = JSON.stringify(
 			[...new Set(outcomes.map((entry) => entry.signature))].sort(),
 		);
-		const progressSignatures = [
-			...new Set(
-				outcomes
-					.map((entry) => entry.progressSignature)
-					.filter((entry): entry is string => entry !== undefined),
-			),
-		].sort();
-		const progressSignature =
-			progressSignatures.length === 0
-				? undefined
-				: JSON.stringify(progressSignatures);
 		const previous = this.lastSuccessfulOutcome;
+		const currentGeneration = this.currentSequence?.generation;
 
 		if (
-			previous?.generation === inspected.generation &&
+			previous !== undefined &&
+			previous.generation === currentGeneration &&
 			previous.outputSignature !== outputSignature
 		) {
 			resetLoopDetectionState(this.state);
-			if (
-				progressSignature !== undefined &&
-				progressSignature !== previous.progressSignature &&
-				this.currentSequence
-			) {
-				this.currentSequence.totalBatchCount = 0;
-			}
 		}
 
 		this.lastSuccessfulOutcome = {
-			generation: inspected.generation,
+			generation: currentGeneration ?? inspected.generation,
 			outputSignature,
-			progressSignature,
 		};
 	}
 
 	reset(): void {
 		resetLoopDetectionState(this.state);
 		this.currentSequence = undefined;
+		this.nextBatchId = 1;
 		this.pendingCalls.clear();
 		this.anonymousPendingCall = undefined;
 		this.batchOutcomes.clear();
