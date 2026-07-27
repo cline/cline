@@ -54,6 +54,10 @@ function toMcpDiagnosticText(error: unknown): string {
 	return sanitizeMcpDiagnosticText(error instanceof Error ? (error.stack ?? error.message) : String(error))
 }
 
+function toMcpDiagnosticMessage(error: unknown): string {
+	return sanitizeMcpDiagnosticText(error instanceof Error ? error.message : String(error))
+}
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -1347,7 +1351,7 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
+				message: `Failed to update server state: ${toMcpDiagnosticMessage(error)}`,
 			})
 			throw error
 		} finally {
@@ -1721,7 +1725,7 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
+				message: `Failed to update server timeout: ${toMcpDiagnosticMessage(error)}`,
 			})
 			throw error
 		}
